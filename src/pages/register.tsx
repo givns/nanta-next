@@ -1,7 +1,9 @@
+// Adding a comment to trigger redeployment
 import React, { useEffect, useState } from 'react';
 import liff from '@line/liff';
 
 const RegisterPage: React.FC = () => {
+  // ... (rest of the code remains the same)
   const [userId, setUserId] = useState<string>('');
   const [name, setName] = useState<string>('');
   const [nickname, setNickname] = useState<string>('');
