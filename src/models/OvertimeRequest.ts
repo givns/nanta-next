@@ -1,21 +1,19 @@
-import mongoose, { Document, Model, Schema } from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IOvertimeRequest extends Document {
-  userId: string;
+  userId: mongoose.Schema.Types.ObjectId;
   date: Date;
   hours: number;
   reason: string;
-  status: 'pending' | 'approved' | 'denied';
+  status: string;
 }
 
 const OvertimeRequestSchema: Schema = new Schema({
-  userId: { type: String, required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   date: { type: Date, required: true },
   hours: { type: Number, required: true },
   reason: { type: String, required: true },
-  status: { type: String, enum: ['pending', 'approved', 'denied'], default: 'pending' },
+  status: { type: String, required: true, default: 'pending' },
 });
 
-const OvertimeRequest: Model<IOvertimeRequest> = mongoose.models.OvertimeRequest || mongoose.model<IOvertimeRequest>('OvertimeRequest', OvertimeRequestSchema);
-
-export default OvertimeRequest;
+export default mongoose.models.OvertimeRequest || mongoose.model<IOvertimeRequest>('OvertimeRequest', OvertimeRequestSchema);

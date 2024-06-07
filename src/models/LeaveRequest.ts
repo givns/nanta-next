@@ -1,21 +1,19 @@
-import mongoose, { Document, Model, Schema } from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ILeaveRequest extends Document {
-  userId: string;
+  userId: mongoose.Schema.Types.ObjectId;
   startDate: Date;
   endDate: Date;
   reason: string;
-  status: 'pending' | 'approved' | 'denied';
+  status: string;
 }
 
 const LeaveRequestSchema: Schema = new Schema({
-  userId: { type: String, required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   reason: { type: String, required: true },
   status: { type: String, enum: ['pending', 'approved', 'denied'], default: 'pending' },
 });
 
-const LeaveRequest: Model<ILeaveRequest> = mongoose.models.LeaveRequest || mongoose.model<ILeaveRequest>('LeaveRequest', LeaveRequestSchema);
-
-export default LeaveRequest;
+export default mongoose.models.LeaveRequest || mongoose.model<ILeaveRequest>('LeaveRequest', LeaveRequestSchema);
