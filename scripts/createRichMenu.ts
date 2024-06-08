@@ -30,7 +30,7 @@ const createRichMenu = async () => {
     areas: [
       {
         bounds: { x: 0, y: 0, width: 2500, height: 843 },
-        action: { type: "uri", uri: `line://app/${LIFF_ID}/register` }
+        action: { type: "uri", uri: `line://app/${LIFF_ID}?path=/register` }
       }
     ]
   };
