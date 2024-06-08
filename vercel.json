@@ -1,19 +1,22 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "next.config.js",
-        "use": "@vercel/next"
-      },
-      {
-        "src": "src/pages/api/**/*.ts",
-        "use": "@vercel/node"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/api/(.*)",
-        "dest": "/api/$1"
-      }
-    ]
-  }
+  "version": 2,
+  "builds": [
+    {
+      "src": "src/pages/**/*",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "CHANNEL_ACCESS_TOKEN": "@channel_access_token",
+    "CHANNEL_SECRET": "@channel_secret",
+    "MONGO_URI": "@mongo_uri",
+    "LIFF_ID": "@liff_id",
+    "DATABASE_URL": "@database_url"
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/src/pages/$1"
+    }
+  ]
+}
