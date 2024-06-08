@@ -2,10 +2,11 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { middleware, MiddlewareConfig, WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
-import prisma from '@/utils/db';
-import { linkRichMenuToUser, createAndAssignRichMenu } from '@/utils/richMenus';
+import { PrismaClient } from '@prisma/client';
 
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: './.env.local' });
+
+const prisma = new PrismaClient();
 
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
@@ -33,28 +34,28 @@ export const config = {
 };
 
 const handler = async (event: WebhookEvent) => {
+  console.log('Event received:', event);
+
   if (event.type === 'follow') {
     const userId = event.source.userId;
-    if (userId) {
-      let user = await prisma.user.findUnique({ where: { lineUserId: userId } });
+    console.log('Follow event for user ID:', userId);
 
-      if (!user) {
-        try {
-          // Link pre-created register rich menu to the new user
-          const registerRichMenuId = 'richmenu-da3a7a2e778ce5348b047f57b4d11fb8';
-          await linkRichMenuToUser(registerRichMenuId, userId);
+    if (userId) {
+      try {
+        let user = await prisma.user.findUnique({ where: { lineUserId: userId } });
+        console.log('User lookup result:', user);
+
+        if (!user) {
+          const registerRichMenuId = 'richmenu-c951b204c418e310c197980352bb36d0';
+          await client.linkRichMenuToUser(userId, registerRichMenuId);
           console.log('Register Rich menu linked to user:', userId);
-        } catch (error: any) {
-          console.error('Error displaying register rich menu:', error.message, error.stack);
-        }
-      } else {
-        try {
-          // Check user's department and create & assign the appropriate rich menu
+        } else {
           const department = user.department;
-          await createAndAssignRichMenu(department, userId);
-        } catch (error: any) {
-          console.error('Error linking rich menu based on department:', error.message, error.stack);
+          const richMenuId = await createAndAssignRichMenu(department, userId);
+          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
         }
+      } catch (error: any) {
+        console.error('Error processing follow event:', error.message, error.stack);
       }
     } else {
       console.error('User ID not found in event:', event);
@@ -64,24 +65,45 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
+const createAndAssignRichMenu = async (department: string, userId: string) => {
+  let richMenuId;
+  if (department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ') {
+    richMenuId = 'richmenu-special-id';
+  } else {
+    richMenuId = 'richmenu-general-id';
+  }
+  await client.linkRichMenuToUser(userId, richMenuId);
+  return richMenuId;
+};
+
 const lineMiddleware = middleware(middlewareConfig);
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
-  try {
-    const rawBodyBuffer = await getRawBody(req, {
-      length: req.headers['content-length'],
-      limit: '1mb',
-    });
-
-    const rawBody = rawBodyBuffer.toString('utf-8');
-    console.log('Raw body:', rawBody);
-
-    req.body = JSON.parse(rawBody);
-
-    lineMiddleware(req, res, () => handler(req.body.events[0]));
-    res.status(200).send('OK');
-  } catch (err) {
-    console.error('Error in middleware:', err);
-    res.status(500).send('Internal Server Error');
+  if (req.method === 'GET') {
+    // Handle the GET request from the LINE Developer Console for webhook verification
+    return res.status(200).send('Webhook is set up and running!');
   }
+
+  if (req.method === 'POST') {
+    try {
+      const rawBodyBuffer = await getRawBody(req, {
+        length: req.headers['content-length'],
+        limit: '1mb',
+      });
+
+      const rawBody = rawBodyBuffer.toString('utf-8');
+      console.log('Raw body:', rawBody);
+
+      req.body = JSON.parse(rawBody);
+
+      lineMiddleware(req, res, () => handler(req.body.events[0]));
+      return res.status(200).send('OK');
+    } catch (err) {
+      console.error('Error in middleware:', err);
+      return res.status(500).send('Internal Server Error');
+    }
+  }
+
+  // Return a 405 status for any method other than GET or POST
+  return res.status(405).send('Method Not Allowed');
 };
