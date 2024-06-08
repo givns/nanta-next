@@ -5,30 +5,33 @@ const prisma = new PrismaClient();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
-    // Handle GET request - fetch all check-ins
+    // Handle GET request - fetch all leave requests
     try {
-      const checkIns = await prisma.checkIn.findMany();
-      res.status(200).json(checkIns);
+      const leaveRequests = await prisma.leaveRequest.findMany();
+      res.status(200).json(leaveRequests);
     } catch (error) {
-      console.error('Error fetching check-ins:', error);
+      console.error('Error fetching leave requests:', error);
       res.status(500).send('Internal Server Error');
     } finally {
       await prisma.$disconnect();
     }
   } else if (req.method === 'POST') {
-    // Handle POST request - create a new check-in
-    const { userId, date, status } = req.body;
+    // Handle POST request - create a new leave request
+    const { userId, leaveType, reason, startDate, endDate, status } = req.body;
     try {
-      const newCheckIn = await prisma.checkIn.create({
+      const newLeaveRequest = await prisma.leaveRequest.create({
         data: {
           userId,
-          date: new Date(date),
+          leaveType,
+          reason,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
           status,
         },
       });
-      res.status(201).json(newCheckIn);
+      res.status(201).json(newLeaveRequest);
     } catch (error) {
-      console.error('Error creating check-in:', error);
+      console.error('Error creating leave request:', error);
       res.status(500).send('Internal Server Error');
     } finally {
       await prisma.$disconnect();

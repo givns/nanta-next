@@ -1,8 +1,13 @@
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 dotenv.config();
 
-const nextConfig = {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+export default {
   reactStrictMode: true,
   swcMinify: true,
   env: {
@@ -10,25 +15,11 @@ const nextConfig = {
     CHANNEL_SECRET: process.env.CHANNEL_SECRET,
     MONGO_URI: process.env.MONGO_URI,
     LIFF_ID: process.env.LIFF_ID,
-
+    DATABASE_URL: process.env.DATABASE_URL,
   },
-  headers: async () => [
-    {
-      source: '/api/:path*',
-      headers: [
-        { key: 'Content-Type', value: 'application/json' },
-      ],
-    },
-  ],
-  rewrites: async () => [
-    {
-      source: '/api/:path*',
-      destination: '/api/:path*',
-    },
-  ],
   webpack: (config, { isServer }) => {
+    // Important for handling absolute imports with src/ directory
+    config.resolve.modules.push(__dirname + '/src');
     return config;
-  },
+  }
 };
-
-export default nextConfig;

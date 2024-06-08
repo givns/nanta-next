@@ -1,0 +1,64 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  lineUserId     String   @unique
+  name           String
+  nickname       String
+  department     String
+  employeeNumber String
+  role           String
+  createdAt      DateTime @default(now())
+  leaveRequests  LeaveRequest[]
+  overtimeRequests OvertimeRequest[]
+  checkIns       CheckIn[]
+}
+
+model LeaveRequest {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  leaveType String
+  reason    String
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  status    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model OvertimeRequest {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  date      DateTime @db.Date
+  hours     Int
+  reason    String
+  status    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model CheckIn {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  date      DateTime
+  status    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Holiday {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  date        DateTime
+  description String
+  createdAt   DateTime @default(now())
+}

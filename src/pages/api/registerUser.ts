@@ -1,37 +1,35 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import connectDB from '@/utils/db';
-import User from '@/models/User';
+import prisma from '../../utils/db';
 
-const registerUser = async (req: NextApiRequest, res: NextApiResponse) => {
-  await connectDB();
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === 'POST') {
+    const { lineUserId, name, nickname, department, employeeNumber } = req.body;
 
-  const { userId, name, nickname, department, employeeNumber } = req.body;
+    try {
+      // Check if the user already exists
+      let user = await prisma.user.findUnique({
+        where: { lineUserId }
+      });
 
-  if (!userId || !name || !nickname || !department || !employeeNumber) {
-    return res.status(400).json({ message: 'All fields are required' });
-  }
+      // If user does not exist, create a new one
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            lineUserId,
+            name,
+            nickname,
+            department,
+            employeeNumber,
+            role: 'general',
+          },
+        });
+      }
 
-  try {
-    let user = await User.findOne({ lineUserId: userId });
-
-    if (user) {
-      return res.status(400).json({ message: 'User already registered' });
+      res.status(201).json({ success: true, data: user });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
     }
-
-    user = new User({
-      lineUserId: userId,
-      name,
-      nickname,
-      department,
-      employeeNumber,
-      role: 'general',
-    });
-
-    await user.save();
-    res.status(200).json({ message: 'User registered successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Internal server error', error });
+  } else {
+    res.status(405).json({ success: false, message: 'Method not allowed' });
   }
-};
-
-export default registerUser;
+}

@@ -1,127 +1,105 @@
-import React, { useEffect, useState } from 'react';
+import { Formik, Field, Form, ErrorMessage } from 'formik';
+import * as Yup from 'yup';
+import axios from 'axios';
+import { useEffect, useState } from 'react';
 import liff from '@line/liff';
 
-const RegisterForm: React.FC = () => {
-  const [userId, setUserId] = useState<string>('');
-  const [name, setName] = useState<string>('');
-  const [nickname, setNickname] = useState<string>('');
-  const [department, setDepartment] = useState<string>('');
-  const [employeeNumber, setEmployeeNumber] = useState<string>('');
-  const [message, setMessage] = useState<string>('');
-  const [pictureUrl, setPictureUrl] = useState<string>('');
+const RegistrationSchema = Yup.object().shape({
+  name: Yup.string().required('Required'),
+  nickname: Yup.string().required('Required'),
+  department: Yup.string().required('Required'),
+  employeeNumber: Yup.string().required('Required'),
+});
+
+const RegisterForm = () => {
+  const [lineUserId, setLineUserId] = useState('');
 
   useEffect(() => {
-    const fetchLiffId = async () => {
-      try {
-        const response = await fetch('/api/liff-id');
-        const data = await response.json();
-        const liffId = data.liffId;
-
-        await liff.init({ liffId });
-        if (!liff.isLoggedIn()) {
-          liff.login();
+    // Initialize LIFF
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (liffId) {
+      liff.init({ liffId }).then(() => {
+        if (liff.isLoggedIn()) {
+          liff.getProfile().then(profile => {
+            setLineUserId(profile.userId);
+          });
         } else {
-          const profile = await liff.getProfile();
-          setUserId(profile.userId);
-          setPictureUrl(profile.pictureUrl || '');
+          liff.login();
         }
-      } catch (error) {
-        console.error('LIFF initialization failed', error);
-      }
-    };
-
-    fetchLiffId();
+      });
+    } else {
+      console.error('LIFF ID is not defined');
+    }
   }, []);
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleSubmit = async (values: any) => {
     try {
-      const response = await fetch('/api/registerUser', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId, name, nickname, department, employeeNumber }),
-      });
-
-      if (response.ok) {
-        setMessage('Registration successful!');
-        liff.closeWindow();
+      const response = await axios.post('/api/registerUser', { ...values, lineUserId });
+      if (response.data.success) {
+        alert('Registration successful');
       } else {
-        setMessage('Registration failed.');
+        alert('Error: ' + response.data.error);
       }
-    } catch (error) {
-      console.error('Error during registration:', error);
-      setMessage('Error occurred during registration.');
+    } catch (error: any) {
+      alert('Error: ' + error.message);
     }
   };
 
   return (
-    <div className="container bg-white p-6 rounded-lg shadow-lg w-full max-w-md text-center">
-      <div className="flex justify-center mb-4">
-        {pictureUrl ? (
-          <img
-            src={pictureUrl}
-            alt="Line Profile"
-            className="w-20 h-20 rounded-full object-cover"
-          />
-        ) : (
-          <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center">
-            <span className="text-gray-600">Line Picture Profile</span>
+    <div className="container mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Register</h1>
+      <Formik
+        initialValues={{
+          name: '',
+          nickname: '',
+          department: '',
+          employeeNumber: '',
+        }}
+        validationSchema={RegistrationSchema}
+        onSubmit={handleSubmit}
+      >
+        <Form className="space-y-4">
+          <div>
+            <Field
+              type="text"
+              name="name"
+              placeholder="Name"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage name="name" component="div" className="text-red-600" />
           </div>
-        )}
-      </div>
-      <h1 className="text-2xl font-bold mb-4">ลงทะเบียนพนักงาน</h1>
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label htmlFor="name" className="block text-gray-700 font-bold mb-2">Name</label>
-          <input
-            type="text"
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="nickname" className="block text-gray-700 font-bold mb-2">Nickname</label>
-          <input
-            type="text"
-            id="nickname"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="department" className="block text-gray-700 font-bold mb-2">Department</label>
-          <input
-            type="text"
-            id="department"
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="employeeNumber" className="block text-gray-700 font-bold mb-2">Employee Number</label>
-          <input
-            type="text"
-            id="employeeNumber"
-            value={employeeNumber}
-            onChange={(e) => setEmployeeNumber(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            required
-          />
-        </div>
-        <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
-          Register
-        </button>
-        {message && <p className="mt-4 text-red-500">{message}</p>}
-      </form>
+          <div>
+            <Field
+              type="text"
+              name="nickname"
+              placeholder="Nickname"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage name="nickname" component="div" className="text-red-600" />
+          </div>
+          <div>
+            <Field
+              type="text"
+              name="department"
+              placeholder="Department"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage name="department" component="div" className="text-red-600" />
+          </div>
+          <div>
+            <Field
+              type="text"
+              name="employeeNumber"
+              placeholder="Employee Number"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage name="employeeNumber" component="div" className="text-red-600" />
+          </div>
+          <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">
+            Register
+          </button>
+        </Form>
+      </Formik>
     </div>
   );
 };

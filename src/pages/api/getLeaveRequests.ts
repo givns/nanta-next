@@ -1,15 +1,17 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import connectDB from '@/utils/db';
-import LeaveRequest from '@/models/LeaveRequest';
+import { PrismaClient } from '@prisma/client';
 
-export default async (req: NextApiRequest, res: NextApiResponse) => {
-  await connectDB();
+const prisma = new PrismaClient();
 
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const leaveRequests = await LeaveRequest.find({});
+    // Fetch all leave requests from the database
+    const leaveRequests = await prisma.leaveRequest.findMany();
     res.status(200).json(leaveRequests);
   } catch (error) {
     console.error('Error fetching leave requests:', error);
     res.status(500).send('Internal Server Error');
+  } finally {
+    await prisma.$disconnect();
   }
-};
+}

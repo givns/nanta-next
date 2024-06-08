@@ -1,80 +1,79 @@
-import React, { useState } from 'react';
+import { Formik, Field, Form, ErrorMessage } from 'formik';
+import * as Yup from 'yup';
+import axios from 'axios';
+import { useEffect, useState } from 'react';
 import liff from '@line/liff';
 
-const OvertimeRequestForm: React.FC = () => {
-  const [date, setDate] = useState<string>('');
-  const [hours, setHours] = useState<string>('');
-  const [reason, setReason] = useState<string>('');
-  const [message, setMessage] = useState<string>('');
+const OvertimeRequestSchema = Yup.object().shape({
+  date: Yup.date().required('Required'),
+  hours: Yup.number().required('Required').positive('Must be positive').integer('Must be an integer'),
+  reason: Yup.string().required('Required'),
+});
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    try {
-      const profile = await liff.getProfile();
-      const userId = profile.userId;
+const OvertimeRequestForm = () => {
+  const [lineUserId, setLineUserId] = useState('');
 
-      const response = await fetch('/api/overtimeRequest', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId, date, hours, reason }),
+  useEffect(() => {
+    // Initialize LIFF
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (liffId) {
+      liff.init({ liffId }).then(() => {
+        if (liff.isLoggedIn()) {
+          liff.getProfile().then(profile => {
+            setLineUserId(profile.userId);
+          });
+        } else {
+          liff.login();
+        }
       });
+    } else {
+      console.error('LIFF ID is not defined');
+    }
+  }, []);
 
-      if (response.ok) {
-        setMessage('Overtime request submitted successfully!');
+  const handleSubmit = async (values: any) => {
+    try {
+      const response = await axios.post('/api/overtimeRequest', { ...values, userId: lineUserId });
+      if (response.data.success) {
+        alert('Overtime request submitted successfully');
       } else {
-        setMessage('Failed to submit overtime request.');
+        alert('Error: ' + response.data.error);
       }
-    } catch (error) {
-      console.error('Error during overtime request submission:', error);
-      setMessage('Error occurred during overtime request submission.');
+    } catch (error: any) {
+      alert('Error: ' + error.message);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="container bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-4">Overtime Request</h1>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label htmlFor="date" className="block text-gray-700 font-bold mb-2">Date</label>
-            <input
-              type="date"
-              id="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-              required
-            />
+    <div className="container mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Overtime Request</h1>
+      <Formik
+        initialValues={{
+          date: '',
+          hours: 0,
+          reason: '',
+        }}
+        validationSchema={OvertimeRequestSchema}
+        onSubmit={handleSubmit}
+      >
+        <Form className="space-y-4">
+          <div>
+            <Field type="date" name="date" className="w-full p-2 border rounded" />
+            <ErrorMessage name="date" component="div" className="text-red-600" />
           </div>
-          <div className="mb-4">
-            <label htmlFor="hours" className="block text-gray-700 font-bold mb-2">Hours</label>
-            <input
-              type="number"
-              id="hours"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-              required
-            />
+          <div>
+            <Field type="number" name="hours" placeholder="Hours" className="w-full p-2 border rounded" />
+            <ErrorMessage name="hours" component="div" className="text-red-600" />
           </div>
-          <div className="mb-4">
-            <label htmlFor="reason" className="block text-gray-700 font-bold mb-2">Reason</label>
-            <textarea
-              id="reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-              required
-            ></textarea>
+          <div>
+            <Field type="text" name="reason" placeholder="Reason" className="w-full p-2 border rounded" />
+            <ErrorMessage name="reason" component="div" className="text-red-600" />
           </div>
-          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
-            Submit
+          <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">
+            Submit Overtime Request
           </button>
-          {message && <p className="mt-4 text-red-500">{message}</p>}
-        </form>
-      </div>
+        </Form>
+      </Formik>
     </div>
   );
 };

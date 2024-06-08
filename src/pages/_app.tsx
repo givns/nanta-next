@@ -1,30 +1,14 @@
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
+import '../styles/globals.css';
 import { AppProps } from 'next/app';
-import liff from '@line/liff';
-import '../styles/globals.css'; // Adjust the path if needed
+import { Provider } from 'react-redux';
+import store from '../store';
 
 function MyApp({ Component, pageProps }: AppProps) {
-  const router = useRouter();
-
-  useEffect(() => {
-    const initLiff = async () => {
-      try {
-        await liff.init({ liffId: process.env.LIFF_ID as string });
-        if (!liff.isLoggedIn()) {
-          liff.login();
-        }
-      } catch (error) {
-        console.error('LIFF initialization failed', error);
-      }
-    };
-
-    if (router.pathname === '/register') {
-      initLiff();
-    }
-  }, [router.pathname]);
-
-  return <Component {...pageProps} />;
+  return (
+    <Provider store={store}>
+      <Component {...pageProps} />
+    </Provider>
+  );
 }
 
 export default MyApp;

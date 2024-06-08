@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import liff from '@line/liff';
 
 const Balance: React.FC = () => {
   const [leaveBalance, setLeaveBalance] = useState<number>(0);

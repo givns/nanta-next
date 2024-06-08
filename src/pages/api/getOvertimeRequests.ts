@@ -1,16 +1,17 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import connectDB from '@/utils/db';
-import OvertimeRequest from '@/models/OvertimeRequest';
+import { PrismaClient } from '@prisma/client';
 
-const getOvertimeRequests = async (req: NextApiRequest, res: NextApiResponse) => {
-  await connectDB();
+const prisma = new PrismaClient();
 
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const requests = await OvertimeRequest.find({ status: 'pending' });
-    res.status(200).json({ requests });
+    // Fetch all overtime requests from the database
+    const overtimeRequests = await prisma.overtimeRequest.findMany();
+    res.status(200).json(overtimeRequests);
   } catch (error) {
-    res.status(500).json({ message: 'Internal server error', error });
+    console.error('Error fetching overtime requests:', error);
+    res.status(500).send('Internal Server Error');
+  } finally {
+    await prisma.$disconnect();
   }
-};
-
-export default getOvertimeRequests;
+}

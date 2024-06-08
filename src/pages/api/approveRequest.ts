@@ -1,37 +1,42 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import connectDB from '@/utils/db';
-import LeaveRequest from '@/models/LeaveRequest';
-import OvertimeRequest from '@/models/OvertimeRequest';
-import User from '@/models/User';
+import prisma from '@/utils/db';
 
-const approveRequest = async (req: NextApiRequest, res: NextApiResponse) => {
-  await connectDB();
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
+    return;
+  }
 
-  const { requestId, type, action } = req.body;
+  const { requestId, requestType } = req.body;
 
-  if (!requestId || !type || !action) {
-    return res.status(400).json({ message: 'All fields are required' });
+  if (!requestId || !requestType) {
+    res.status(400).json({ error: 'Invalid requestId or requestType' });
+    return;
   }
 
   try {
-    let request;
-    if (type === 'leave') {
-      request = await LeaveRequest.findById(requestId);
-    } else if (type === 'overtime') {
-      request = await OvertimeRequest.findById(requestId);
+    let updatedRequest;
+    if (requestType === 'leave') {
+      updatedRequest = await prisma.leaveRequest.update({
+        where: { id: requestId },
+        data: { status: 'approved' },
+      });
+    } else if (requestType === 'overtime') {
+      updatedRequest = await prisma.overtimeRequest.update({
+        where: { id: requestId },
+        data: { status: 'approved' },
+      });
+    } else {
+      res.status(400).json({ error: 'Invalid requestType' });
+      return;
     }
 
-    if (!request) {
-      return res.status(400).json({ message: 'Request not found' });
-    }
-
-    request.status = action === 'approve' ? 'approved' : 'denied';
-    await request.save();
-
-    res.status(200).json({ message: `Request ${action}d successfully` });
+    res.status(200).json(updatedRequest);
   } catch (error) {
-    res.status(500).json({ message: 'Internal server error', error });
+    console.error('Error approving request:', error);
+    res.status(500).send('Internal Server Error');
+  } finally {
+    await prisma.$disconnect();
   }
-};
-
-export default approveRequest;
+}

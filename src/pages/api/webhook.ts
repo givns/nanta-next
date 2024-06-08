@@ -2,8 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { middleware, MiddlewareConfig, WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
-import connectDB from '@/utils/db';
-import User from '@/models/User';
+import prisma from '@/utils/db';
 import { linkRichMenuToUser, createAndAssignRichMenu } from '@/utils/richMenus';
 
 dotenv.config({ path: '.env.local' });
@@ -34,12 +33,10 @@ export const config = {
 };
 
 const handler = async (event: WebhookEvent) => {
-  await connectDB();
-
   if (event.type === 'follow') {
     const userId = event.source.userId;
     if (userId) {
-      let user = await User.findOne({ lineUserId: userId });
+      let user = await prisma.user.findUnique({ where: { lineUserId: userId } });
 
       if (!user) {
         try {
@@ -47,7 +44,7 @@ const handler = async (event: WebhookEvent) => {
           const registerRichMenuId = 'richmenu-c951b204c418e310c197980352bb36d0';
           await linkRichMenuToUser(registerRichMenuId, userId);
           console.log('Register Rich menu linked to user:', userId);
-        } catch (error: any) { // Explicitly typing error as any
+        } catch (error: any) {
           console.error('Error displaying register rich menu:', error.message, error.stack);
         }
       } else {
@@ -55,7 +52,7 @@ const handler = async (event: WebhookEvent) => {
           // Check user's department and create & assign the appropriate rich menu
           const department = user.department;
           await createAndAssignRichMenu(department, userId);
-        } catch (error: any) { // Explicitly typing error as any
+        } catch (error: any) {
           console.error('Error linking rich menu based on department:', error.message, error.stack);
         }
       }

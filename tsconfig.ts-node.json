@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+      "module": "commonjs",
+      "target": "ES2020",
+      "lib": ["esnext"],
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "strict": true,
+      "resolveJsonModule": true,
+      "outDir": "dist"
+    },
+    "include": ["scripts/**/*.ts"]
+  }
