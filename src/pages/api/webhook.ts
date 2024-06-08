@@ -41,7 +41,7 @@ const handler = async (event: WebhookEvent) => {
       if (!user) {
         try {
           // Link pre-created register rich menu to the new user
-          const registerRichMenuId = 'richmenu-c951b204c418e310c197980352bb36d0';
+          const registerRichMenuId = 'richmenu-47657ac4c47849b6969fd32cf6b19479';
           await linkRichMenuToUser(registerRichMenuId, userId);
           console.log('Register Rich menu linked to user:', userId);
         } catch (error: any) {

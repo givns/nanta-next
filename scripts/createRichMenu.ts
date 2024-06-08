@@ -1,15 +1,11 @@
-import { Client } from '@line/bot-sdk';
+import { Client, RichMenu } from '@line/bot-sdk';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const dotenv = await import('dotenv');
-dotenv.config({ path: path.resolve(__dirname, '.env.local') });
+// Load environment variables
+dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const LIFF_ID = process.env.LIFF_ID;
@@ -23,7 +19,7 @@ const client = new Client({
 });
 
 const createRichMenu = async () => {
-  const richMenu = {
+  const richMenu: RichMenu = {
     size: {
       width: 2500,
       height: 843
@@ -34,7 +30,7 @@ const createRichMenu = async () => {
     areas: [
       {
         bounds: { x: 0, y: 0, width: 2500, height: 843 },
-        action: { type: "uri", uri: `line://app/${LIFF_ID}/register` } // Update this URI to match your new LIFF link
+        action: { type: "uri", uri: `line://app/${LIFF_ID}/register` }
       }
     ]
   };
@@ -44,10 +40,10 @@ const createRichMenu = async () => {
     console.log(`Rich menu created with ID: ${richMenuId}`);
 
     // Upload the image for the rich menu
-    const imagePath = path.resolve(__dirname, 'public/images/richmenus/Register.jpeg');
+    const imagePath = path.resolve(__dirname, '../public/images/richmenus/Register.jpeg');
     const imageBuffer = fs.readFileSync(imagePath);
 
-    const response = await axios.post(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, imageBuffer, {
+    await axios.post(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, imageBuffer, {
       headers: {
         'Content-Type': 'image/jpeg',
         'Authorization': `Bearer ${channelAccessToken}`,
@@ -55,9 +51,9 @@ const createRichMenu = async () => {
       }
     });
 
-    console.log('Rich menu image uploaded successfully', response.data);
+    console.log('Rich menu image uploaded successfully');
     return richMenuId;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating rich menu:', error.response ? error.response.data : error.message);
     throw error;
   }
@@ -67,7 +63,7 @@ const main = async () => {
   try {
     const richMenuId = await createRichMenu();
     console.log(`Rich menu successfully created and image uploaded with ID: ${richMenuId}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in main function:', error.message);
   }
 };
