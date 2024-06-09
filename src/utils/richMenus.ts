@@ -53,11 +53,11 @@ const specialUserRichMenu: RichMenu = {
   },
   selected: true,
   name: "Special User Menu",
-  chatBarText: "Special Menu",
+  chatBarText: "Menu",
   areas: [
     {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/check-in` } as URIAction // Slot A (Check-in)
+      action: { type: "uri", uri: `line://app/${LIFF_ID}/Check-in` } as URIAction // Slot A
     },
     {
       bounds: { x: 1250, y: 0, width: 1250, height: 843 },

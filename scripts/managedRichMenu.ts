@@ -22,13 +22,13 @@ async function listRichMenus() {
     const richMenus = response.data.richmenus;
     console.log('Existing rich menus:', richMenus);
     return richMenus;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error listing rich menus:', error.response?.data || error.message);
     throw error;
   }
 }
 
-async function deleteRichMenu(richMenuId) {
+async function deleteRichMenu(richMenuId: string) {
   try {
     await axios.delete(`https://api.line.me/v2/bot/richmenu/${richMenuId}`, {
       headers: {
@@ -36,7 +36,7 @@ async function deleteRichMenu(richMenuId) {
       },
     });
     console.log(`Rich menu with ID ${richMenuId} deleted successfully.`);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error deleting rich menu with ID ${richMenuId}:`, error.response?.data || error.message);
     throw error;
   }

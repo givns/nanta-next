@@ -46,7 +46,7 @@ const handler = async (event: WebhookEvent) => {
         console.log('User lookup result:', user);
 
         if (!user) {
-          const registerRichMenuId = 'richmenu-c951b204c418e310c197980352bb36d0';
+          const registerRichMenuId = 'richmenu-d6ca6a874bd5fe42e4466c74d2619fbf';
           await client.linkRichMenuToUser(userId, registerRichMenuId);
           console.log('Register Rich menu linked to user:', userId);
         } else {
@@ -68,9 +68,9 @@ const handler = async (event: WebhookEvent) => {
 const createAndAssignRichMenu = async (department: string, userId: string) => {
   let richMenuId;
   if (department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ') {
-    richMenuId = 'richmenu-special-id';
+    richMenuId = 'richmenu-18b0ff03d3017f3e8eb17e9e76250270';
   } else {
-    richMenuId = 'richmenu-general-id';
+    richMenuId = 'richmenu-84e16b31518d9ac283dddf396210c2fa';
   }
   await client.linkRichMenuToUser(userId, richMenuId);
   return richMenuId;

@@ -5,13 +5,17 @@
     "CHANNEL_SECRET": "216d496abe4faa027bd362de93ce7e5a",
     "MONGO_URI": "mongodb+srv://parunpatp:6RHIingg9kvWoP05@cluster0.hogpd3l.mongodb.net/myDatabase?retryWrites=true&w=majority",
     "LIFF_ID": "2005335337-8DwLbNrP",
+    "NEXT_PUBLIC_LIFF_ID": "2005335337-8DwLbNrP",
     "DATABASE_URL": "mongodb+srv://parunpatp:6RHIingg9kvWoP05@cluster0.hogpd3l.mongodb.net/myDatabase?retryWrites=true&w=majority"
   },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
+"builds": [
+  {
+    "src": "package.json",
+    "use": "@vercel/next",
+    "config": {
+      "buildCommand": "npm run build && npm run prisma:generate"
     }
-  ]
+  }
+]
 }
 

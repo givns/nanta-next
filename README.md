@@ -13,24 +13,18 @@ pnpm dev
 # or
 bun dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+Rich menu created with ID: richmenu-d6ca6a874bd5fe42e4466c74d2619fbf
+Rich menu image uploaded successfully {}
+Register rich menu successfully created and image uploaded with ID: richmenu-d6ca6a874bd5fe42e4466c74d2619fbf
+Rich menu created with ID: richmenu-84e16b31518d9ac283dddf396210c2fa
+Rich menu image uploaded successfully {}
+General user rich menu successfully created and image uploaded with ID: richmenu-84e16b31518d9ac283dddf396210c2fa
+Rich menu created with ID: richmenu-18b0ff03d3017f3e8eb17e9e76250270
+Rich menu image uploaded successfully {}
+General user rich menu successfully created and image uploaded with ID: richmenu-18b0ff03d3017f3e8eb17e9e76250270
+Rich menu created with ID: richmenu-73d52507974da16c10c469d82069c4ec
+Rich menu image uploaded successfully {}
+General user rich menu successfully created and image uploaded with ID: richmenu-73d52507974da16c10c469d82069c4ec
+Rich menu created with ID: richmenu-7444a7de5b89de4ce524047290c1572f
+Rich menu image uploaded successfully {}
+General user rich menu successfully created and image uploaded with ID: richmenu-7444a7de5b89de4ce524047290c1572f
