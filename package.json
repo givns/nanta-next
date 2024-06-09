@@ -12,7 +12,8 @@
     "load-env": "ts-node --project tsconfig.ts-node.json scripts/load-env.ts",
     "validate-prisma-client": "ts-node --project tsconfig.ts-node.json scripts/validatePrismaClient.ts",
     "create-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/createRichMenu.ts",
-    "managed-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/managedRichMenu.ts"
+    "managed-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/managedRichMenu.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.2.2",
