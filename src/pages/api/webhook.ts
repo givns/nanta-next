@@ -9,7 +9,6 @@ import {
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
-import axios from 'axios';
 
 dotenv.config({ path: './.env.local' });
 
@@ -24,14 +23,12 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
-// LINE bot client configuration
 const clientConfig: ClientConfig = {
   channelAccessToken,
 };
 
 const client = new Client(clientConfig);
 
-// Middleware configuration
 const middlewareConfig: MiddlewareConfig = {
   channelSecret,
 };
@@ -48,7 +45,7 @@ const handler = async (event: WebhookEvent) => {
     return;
   }
 
-  console.log('Event received:', event);
+  console.log('Event received:', JSON.stringify(event, null, 2));
 
   if (event.type === 'follow') {
     const userId = event.source.userId;
@@ -64,82 +61,75 @@ const handler = async (event: WebhookEvent) => {
         if (!user) {
           const registerRichMenuId =
             'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
-          await client.linkRichMenuToUser(userId, registerRichMenuId);
-          console.log('Register Rich menu linked to user:', userId);
-        } else {
-          const department = user.department;
-          const richMenuId = await createAndAssignRichMenu(department, userId);
-          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
-        }
-      } catch (error: any) {
-        if (axios.isAxiosError(error) && error.response) {
-          console.error('Error response from Axios:', error.response.data);
-          console.error('Response status:', error.response.status);
-          console.error('Response headers:', error.response.headers);
-        } else {
+            await client.linkRichMenuToUser(userId, registerRichMenuId);
+            console.log('Register Rich menu linked to user:', userId);
+          } else {
+            const department = user.department;
+            const richMenuId = await createAndAssignRichMenu(department, userId);
+            console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+          }
+        } catch (error: any) {
           console.error(
             'Error processing follow event:',
             error.message,
             error.stack,
           );
         }
+      } else {
+        console.error('User ID not found in event:', event);
       }
+    } else if (event.type === 'unfollow') {
+      console.log('Unfollow event for user ID:', event.source.userId);
     } else {
-      console.error('User ID not found in event:', event);
+      console.error('Unhandled event type:', event.type);
     }
-  } else if (event.type === 'unfollow') {
-    // Do nothing for unfollow events
-    console.log('Unfollow event for user ID:', event.source.userId);
-  } else {
-    console.error('Unhandled event type:', event.type);
-  }
-};
-
-const createAndAssignRichMenu = async (department: string, userId: string) => {
-  const richMenuId =
-    department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
+  };
+  
+  const createAndAssignRichMenu = async (department: string, userId: string) => {
+    const richMenuId =
+      department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
       ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
       : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
-  await client.linkRichMenuToUser(userId, richMenuId);
-  return richMenuId;
-};
-
-const lineMiddleware = middleware(middlewareConfig);
-
-export default async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method === 'GET') {
-    // Handle the GET request from the LINE Developer Console
-    return res.status(200).send('Webhook is set up and running!');
-  }
-
-  if (req.method === 'POST') {
-    try {
-      const rawBodyBuffer = await getRawBody(req, {
-        length: req.headers['content-length'],
-        limit: '1mb',
-      });
-
-      const rawBody = rawBodyBuffer.toString('utf-8');
-      console.log('Raw body:', rawBody);
-
-      req.body = JSON.parse(rawBody);
-
-      if (!req.body.events || !Array.isArray(req.body.events)) {
-        console.error('No events found in request body:', req.body);
-        return res.status(400).send('No events found');
+      await client.linkRichMenuToUser(userId, richMenuId);
+      return richMenuId;
+    };
+    
+    const lineMiddleware = middleware(middlewareConfig);
+    
+    export default async (req: NextApiRequest, res: NextApiResponse) => {
+      if (req.method === 'GET') {
+        return res.status(200).send('Webhook is set up and running!');
       }
-
-      await lineMiddleware(req, res, async () => {
-        const event = req.body.events[0];
-        await handler(event);
-      });
-      return res.status(200).send('OK');
-    } catch (err) {
-      console.error('Error in middleware:', err);
-      return res.status(500).send('Internal Server Error');
-    }
-  }
-
-  // Return a 405 status for any method other than GET or POST
-  return res.status(405).send('Method Not Allowed');
-};
+    
+      if (req.method === 'POST') {
+        try {
+          const rawBodyBuffer = await getRawBody(req, {
+            length: req.headers['content-length'],
+            limit: '1mb',
+          });
+    
+          const rawBody = rawBodyBuffer.toString('utf-8');
+          console.log('Raw body:', rawBody);
+    
+          const parsedBody = JSON.parse(rawBody);
+    
+          if (!parsedBody.events || !Array.isArray(parsedBody.events)) {
+            console.error('No events found in request body:', parsedBody);
+            return res.status(400).send('No events found');
+          }
+    
+          await lineMiddleware(req, res, async () => {
+            for (const event of parsedBody.events) {
+              await handler(event);
+            }
+          });
+          return res.status(200).send('OK');
+        } catch (err) {
+          console.error('Error in middleware:', err);
+          return res.status(500).send('Internal Server Error');
+        }
+      }
+    
+      return res.status(405).send('Method Not Allowed');
+    };
+    
