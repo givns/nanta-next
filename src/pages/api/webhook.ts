@@ -1,5 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { middleware, MiddlewareConfig, WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
+import {
+  middleware,
+  MiddlewareConfig,
+  WebhookEvent,
+  Client,
+  ClientConfig,
+} from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
@@ -13,7 +19,9 @@ const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
 if (!channelSecret || !channelAccessToken) {
-  throw new Error('LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN must be defined in .env.local');
+  throw new Error(
+    'LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN must be defined in .env.local',
+  );
 }
 
 // LINE bot client configuration
@@ -54,7 +62,8 @@ const handler = async (event: WebhookEvent) => {
         console.log('User lookup result:', user);
 
         if (!user) {
-          const registerRichMenuId = 'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
+          const registerRichMenuId =
+            'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
           await client.linkRichMenuToUser(userId, registerRichMenuId);
           console.log('Register Rich menu linked to user:', userId);
         } else {
@@ -68,7 +77,11 @@ const handler = async (event: WebhookEvent) => {
           console.error('Response status:', error.response.status);
           console.error('Response headers:', error.response.headers);
         } else {
-          console.error('Error processing follow event:', error.message, error.stack);
+          console.error(
+            'Error processing follow event:',
+            error.message,
+            error.stack,
+          );
         }
       }
     } else {
