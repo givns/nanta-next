@@ -25,7 +25,7 @@ async function listRichMenus() {
     const richMenus = response.data.richmenus;
     console.log('Existing rich menus:', richMenus);
     return richMenus;
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       'Error listing rich menus:',
       error.response?.data || error.message,

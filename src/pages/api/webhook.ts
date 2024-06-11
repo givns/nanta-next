@@ -1,14 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import {
-  middleware,
-  MiddlewareConfig,
-  WebhookEvent,
-  Client,
-  ClientConfig,
-} from '@line/bot-sdk';
+import { middleware, MiddlewareConfig, WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
+import axios from 'axios';
 
 dotenv.config({ path: './.env.local' });
 
@@ -18,9 +13,7 @@ const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
 if (!channelSecret || !channelAccessToken) {
-  throw new Error(
-    'LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN must be defined in .env.local',
-  );
+  throw new Error('LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN must be defined in .env.local');
 }
 
 // LINE bot client configuration
@@ -61,8 +54,7 @@ const handler = async (event: WebhookEvent) => {
         console.log('User lookup result:', user);
 
         if (!user) {
-          const registerRichMenuId =
-            'richmenu-d6ca6a874bd5fe42e4466c74d2619fbf';
+          const registerRichMenuId = 'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
           await client.linkRichMenuToUser(userId, registerRichMenuId);
           console.log('Register Rich menu linked to user:', userId);
         } else {
@@ -71,11 +63,13 @@ const handler = async (event: WebhookEvent) => {
           console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
         }
       } catch (error: any) {
-        console.error(
-          'Error processing follow event:',
-          error.message,
-          error.stack,
-        );
+        if (axios.isAxiosError(error) && error.response) {
+          console.error('Error response from Axios:', error.response.data);
+          console.error('Response status:', error.response.status);
+          console.error('Response headers:', error.response.headers);
+        } else {
+          console.error('Error processing follow event:', error.message, error.stack);
+        }
       }
     } else {
       console.error('User ID not found in event:', event);
@@ -91,8 +85,8 @@ const handler = async (event: WebhookEvent) => {
 const createAndAssignRichMenu = async (department: string, userId: string) => {
   const richMenuId =
     department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
-      ? 'richmenu-18b0ff03d3017f3e8eb17e9e76250270'
-      : 'richmenu-84e16b31518d9ac283dddf396210c2fa';
+      ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
+      : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
   await client.linkRichMenuToUser(userId, richMenuId);
   return richMenuId;
 };
@@ -101,7 +95,7 @@ const lineMiddleware = middleware(middlewareConfig);
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
-    // Handle the GET request from the LINE Developer Console for
+    // Handle the GET request from the LINE Developer Console
     return res.status(200).send('Webhook is set up and running!');
   }
 
