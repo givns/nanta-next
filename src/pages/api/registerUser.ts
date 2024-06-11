@@ -1,14 +1,17 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../utils/db';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method === 'POST') {
     const { lineUserId, name, nickname, department, employeeNumber } = req.body;
 
     try {
       // Check if the user already exists
       let user = await prisma.user.findUnique({
-        where: { lineUserId }
+        where: { lineUserId },
       });
 
       // If user does not exist, create a new one

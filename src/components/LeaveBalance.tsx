@@ -8,7 +8,9 @@ const LeaveBalance = ({ userId }: { userId: string }) => {
   useEffect(() => {
     const fetchLeaveBalance = async () => {
       try {
-        const response = await axios.get(`/api/checkLeaveBalance?userId=${userId}`);
+        const response = await axios.get(
+          `/api/checkLeaveBalance?userId=${userId}`,
+        );
         setLeaveBalance(response.data.totalLeaveDays);
       } catch (error) {
         setError('Error fetching leave balance');
@@ -26,7 +28,11 @@ const LeaveBalance = ({ userId }: { userId: string }) => {
   return (
     <div>
       <h2>Leave Balance</h2>
-      {leaveBalance !== null ? <p>Total Leave Days: {leaveBalance}</p> : <p>Loading...</p>}
+      {leaveBalance !== null ? (
+        <p>Total Leave Days: {leaveBalance}</p>
+      ) : (
+        <p>Loading...</p>
+      )}
     </div>
   );
 };

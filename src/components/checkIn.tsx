@@ -59,7 +59,12 @@ const Checkin: React.FC = () => {
       <div className="container bg-white p-6 rounded-lg shadow-lg w-full max-w-md text-center">
         <h1 className="text-2xl font-bold mb-4">Check In</h1>
         <div className="mb-4">
-          <label htmlFor="location" className="block text-gray-700 font-bold mb-2">Location</label>
+          <label
+            htmlFor="location"
+            className="block text-gray-700 font-bold mb-2"
+          >
+            Location
+          </label>
           <input
             type="text"
             id="location"
@@ -69,7 +74,10 @@ const Checkin: React.FC = () => {
             required
           />
         </div>
-        <button onClick={handleCheckin} className="bg-blue-500 text-white px-4 py-2 rounded">
+        <button
+          onClick={handleCheckin}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
           Check In
         </button>
         {message && <p className="mt-4 text-red-500">{message}</p>}

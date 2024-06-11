@@ -19,14 +19,25 @@ const overtimeSlice = createSlice({
   name: 'overtime',
   initialState,
   reducers: {
-    setOvertimeRequests: (state, action: PayloadAction<OvertimeState['overtimeRequests']>) => {
+    setOvertimeRequests: (
+      state,
+      action: PayloadAction<OvertimeState['overtimeRequests']>,
+    ) => {
       state.overtimeRequests = action.payload;
     },
-    addOvertimeRequest: (state, action: PayloadAction<OvertimeState['overtimeRequests'][0]>) => {
+    addOvertimeRequest: (
+      state,
+      action: PayloadAction<OvertimeState['overtimeRequests'][0]>,
+    ) => {
       state.overtimeRequests.push(action.payload);
     },
-    updateOvertimeRequest: (state, action: PayloadAction<OvertimeState['overtimeRequests'][0]>) => {
-      const index = state.overtimeRequests.findIndex(request => request.id === action.payload.id);
+    updateOvertimeRequest: (
+      state,
+      action: PayloadAction<OvertimeState['overtimeRequests'][0]>,
+    ) => {
+      const index = state.overtimeRequests.findIndex(
+        (request) => request.id === action.payload.id,
+      );
       if (index !== -1) {
         state.overtimeRequests[index] = action.payload;
       }
@@ -34,5 +45,9 @@ const overtimeSlice = createSlice({
   },
 });
 
-export const { setOvertimeRequests, addOvertimeRequest, updateOvertimeRequest } = overtimeSlice.actions;
+export const {
+  setOvertimeRequests,
+  addOvertimeRequest,
+  updateOvertimeRequest,
+} = overtimeSlice.actions;
 export default overtimeSlice.reducer;

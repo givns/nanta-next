@@ -21,5 +21,5 @@ export default {
     // Important for handling absolute imports with src/ directory
     config.resolve.modules.push(__dirname + '/src');
     return config;
-  }
+  },
 };

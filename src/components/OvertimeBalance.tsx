@@ -8,7 +8,9 @@ const OvertimeBalance = ({ userId }: { userId: string }) => {
   useEffect(() => {
     const fetchOvertimeBalance = async () => {
       try {
-        const response = await axios.get(`/api/checkOvertimeBalance?userId=${userId}`);
+        const response = await axios.get(
+          `/api/checkOvertimeBalance?userId=${userId}`,
+        );
         setOvertimeBalance(response.data.totalOvertimeHours);
       } catch (error) {
         setError('Error fetching overtime balance');
@@ -26,7 +28,11 @@ const OvertimeBalance = ({ userId }: { userId: string }) => {
   return (
     <div>
       <h2>Overtime Balance</h2>
-      {overtimeBalance !== null ? <p>Total Overtime Hours: {overtimeBalance}</p> : <p>Loading...</p>}
+      {overtimeBalance !== null ? (
+        <p>Total Overtime Hours: {overtimeBalance}</p>
+      ) : (
+        <p>Loading...</p>
+      )}
     </div>
   );
 };

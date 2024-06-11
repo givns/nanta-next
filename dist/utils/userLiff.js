@@ -1,14 +1,13 @@
 import { getProfile } from '../services/liff';
 // Function to get user details from LIFF
 export const getUserDetails = async () => {
-    const profile = await getProfile();
-    if (profile) {
-        return {
-            userId: profile.userId,
-            pictureUrl: profile.pictureUrl || '',
-        };
-    }
-    else {
-        throw new Error('Failed to get user profile');
-    }
+  const profile = await getProfile();
+  if (profile) {
+    return {
+      userId: profile.userId,
+      pictureUrl: profile.pictureUrl || '',
+    };
+  } else {
+    throw new Error('Failed to get user profile');
+  }
 };

@@ -1,5 +1,5 @@
 import { Client, RichMenu, URIAction } from '@line/bot-sdk';
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import fs from 'fs';
 import path from 'path';
 import util from 'util';
@@ -21,121 +21,175 @@ const LIFF_ID = process.env.LIFF_ID || '';
 const generalUserRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 1686
+    height: 1686,
   },
   selected: true,
-  name: "General User Menu",
-  chatBarText: "Menu",
+  name: 'General User Menu',
+  chatBarText: 'Menu',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/holiday-calendar` } as URIAction // Slot A
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/holiday-calendar`,
+      } as URIAction, // Slot A
     },
     {
       bounds: { x: 1250, y: 0, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/overtime-request` } as URIAction // Slot B
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/overtime-request`,
+      } as URIAction, // Slot B
     },
     {
       bounds: { x: 0, y: 843, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/leave-balance` } as URIAction // Slot C
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/leave-balance`,
+      } as URIAction, // Slot C
     },
     {
       bounds: { x: 1250, y: 843, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/leave-request` } as URIAction // Slot D
-    }
-  ]
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/leave-request`,
+      } as URIAction, // Slot D
+    },
+  ],
 };
 
 const specialUserRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 1686
+    height: 1686,
   },
   selected: true,
-  name: "Special User Menu",
-  chatBarText: "Menu",
+  name: 'Special User Menu',
+  chatBarText: 'Menu',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/Check-in` } as URIAction // Slot A
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/Check-in`,
+      } as URIAction, // Slot A
     },
     {
       bounds: { x: 1250, y: 0, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/overtime-request` } as URIAction // Slot B
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/overtime-request`,
+      } as URIAction, // Slot B
     },
     {
       bounds: { x: 0, y: 843, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/leave-balance` } as URIAction // Slot C
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/leave-balance`,
+      } as URIAction, // Slot C
     },
     {
       bounds: { x: 1250, y: 843, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/leave-request` } as URIAction // Slot D
-    }
-  ]
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/leave-request`,
+      } as URIAction, // Slot D
+    },
+  ],
 };
 
 const adminRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 1686
+    height: 1686,
   },
   selected: true,
-  name: "Admin Menu",
-  chatBarText: "Admin Menu",
+  name: 'Admin Menu',
+  chatBarText: 'Admin Menu',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/approval-dashboard` } as URIAction // Slot A
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/approval-dashboard`,
+      } as URIAction, // Slot A
     },
     {
       bounds: { x: 833, y: 0, width: 834, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/holiday-calendar` } as URIAction // Slot B
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/holiday-calendar`,
+      } as URIAction, // Slot B
     },
     {
       bounds: { x: 1667, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/leave-balance` } as URIAction // Slot C
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/leave-balance`,
+      } as URIAction, // Slot C
     },
     {
       bounds: { x: 0, y: 843, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/leave-request` } as URIAction // Slot D
-    }
-  ]
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/leave-request`,
+      } as URIAction, // Slot D
+    },
+  ],
 };
 
 const superAdminRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 1686
+    height: 1686,
   },
   selected: true,
-  name: "Super Admin Menu",
-  chatBarText: "Super Admin",
+  name: 'Super Admin Menu',
+  chatBarText: 'Super Admin',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/approval-dashboard` } as URIAction // Slot A
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/approval-dashboard`,
+      } as URIAction, // Slot A
     },
     {
       bounds: { x: 833, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/approval-dashboard` } as URIAction // Slot B
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/approval-dashboard`,
+      } as URIAction, // Slot B
     },
     {
       bounds: { x: 1666, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/admin-dashboard` } as URIAction // Slot C
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/admin-dashboard`,
+      } as URIAction, // Slot C
     },
     {
       bounds: { x: 0, y: 843, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/holiday-calendar` } as URIAction // Slot D
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/holiday-calendar`,
+      } as URIAction, // Slot D
     },
     {
       bounds: { x: 833, y: 843, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/leave-balance` } as URIAction // Slot E
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/leave-balance`,
+      } as URIAction, // Slot E
     },
     {
       bounds: { x: 1666, y: 843, width: 834, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_ID}/leave-request` } as URIAction // Slot F
-    }
-  ]
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_ID}/leave-request`,
+      } as URIAction, // Slot F
+    },
+  ],
 };
 
 /**
@@ -143,18 +197,30 @@ const superAdminRichMenu: RichMenu = {
  * @param richMenuId - The ID of the rich menu to link
  * @param userId - The ID of the user to link the rich menu to
  */
-const linkRichMenuToUser = async (richMenuId: string, userId: string): Promise<void> => {
+const linkRichMenuToUser = async (
+  richMenuId: string,
+  userId: string,
+): Promise<void> => {
   try {
     console.log(`Linking rich menu ${richMenuId} to user ${userId}`);
     await client.linkRichMenuToUser(userId, richMenuId);
-    console.log(`Successfully linked rich menu ${richMenuId} to user ${userId}`);
+    console.log(
+      `Successfully linked rich menu ${richMenuId} to user ${userId}`,
+    );
   } catch (error: any) {
-    if (axios.isAxiosError(error) && error.response) {
-      console.error(`Error linking rich menu ${richMenuId} to user ${userId}:`, error.response.data);
+    if (isAxiosError(error) && error.response) {
+      // Using isAxiosError directly
+      console.error(
+        `Error linking rich menu ${richMenuId} to user ${userId}:`,
+        error.response.data,
+      );
       console.error('Response status:', error.response.status);
       console.error('Response headers:', error.response.headers);
     } else {
-      console.error(`Error linking rich menu ${richMenuId} to user ${userId}:`, error.message);
+      console.error(
+        `Error linking rich menu ${richMenuId} to user ${userId}:`,
+        error.message,
+      );
     }
     throw error;
   }
@@ -165,7 +231,10 @@ const linkRichMenuToUser = async (richMenuId: string, userId: string): Promise<v
  * @param department - The department of the user
  * @param userId - The ID of the user
  */
-const createAndAssignRichMenu = async (department: string, userId: string): Promise<void> => {
+const createAndAssignRichMenu = async (
+  department: string,
+  userId: string,
+): Promise<void> => {
   let richMenu: RichMenu;
   let imagePath: string;
 
@@ -204,7 +273,10 @@ const createAndAssignRichMenu = async (department: string, userId: string): Prom
  * @param richMenuId - The ID of the rich menu
  * @param imagePath - The path to the image file
  */
-const uploadRichMenuImage = async (richMenuId: string, imagePath: string): Promise<void> => {
+const uploadRichMenuImage = async (
+  richMenuId: string,
+  imagePath: string,
+): Promise<void> => {
   const absolutePath = path.resolve(imagePath);
   console.log('Absolute path of image:', absolutePath);
 
@@ -220,22 +292,25 @@ const uploadRichMenuImage = async (richMenuId: string, imagePath: string): Promi
   console.log('Read image buffer:', imageBuffer.length, 'bytes');
 
   try {
-    const response = await axios.post(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, imageBuffer, {
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
-        'Content-Length': imageBuffer.length,
+    const response = await axios.post(
+      `https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`,
+      imageBuffer,
+      {
+        headers: {
+          'Content-Type': 'image/jpeg',
+          Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
+          'Content-Length': imageBuffer.length,
+        },
       },
-    });
+    );
     console.log('Rich menu image upload response:', response.data);
   } catch (error: any) {
-    console.error('Error uploading rich menu image:', error.response ? error.response.data : error.message);
+    console.error(
+      'Error uploading rich menu image:',
+      error.response ? error.response.data : error.message,
+    );
     throw error;
   }
 };
 
-export { 
-  linkRichMenuToUser,
-  createAndAssignRichMenu,
-  uploadRichMenuImage
-};
+export { linkRichMenuToUser, createAndAssignRichMenu, uploadRichMenuImage };

@@ -6,7 +6,10 @@ import liff from '@line/liff';
 
 const OvertimeRequestSchema = Yup.object().shape({
   date: Yup.date().required('Required'),
-  hours: Yup.number().required('Required').positive('Must be positive').integer('Must be an integer'),
+  hours: Yup.number()
+    .required('Required')
+    .positive('Must be positive')
+    .integer('Must be an integer'),
   reason: Yup.string().required('Required'),
 });
 
@@ -19,7 +22,7 @@ const OvertimeRequestForm = () => {
     if (liffId) {
       liff.init({ liffId }).then(() => {
         if (liff.isLoggedIn()) {
-          liff.getProfile().then(profile => {
+          liff.getProfile().then((profile) => {
             setLineUserId(profile.userId);
           });
         } else {
@@ -33,7 +36,10 @@ const OvertimeRequestForm = () => {
 
   const handleSubmit = async (values: any) => {
     try {
-      const response = await axios.post('/api/overtimeRequest', { ...values, userId: lineUserId });
+      const response = await axios.post('/api/overtimeRequest', {
+        ...values,
+        userId: lineUserId,
+      });
       if (response.data.success) {
         alert('Overtime request submitted successfully');
       } else {
@@ -58,18 +64,47 @@ const OvertimeRequestForm = () => {
       >
         <Form className="space-y-4">
           <div>
-            <Field type="date" name="date" className="w-full p-2 border rounded" />
-            <ErrorMessage name="date" component="div" className="text-red-600" />
+            <Field
+              type="date"
+              name="date"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage
+              name="date"
+              component="div"
+              className="text-red-600"
+            />
           </div>
           <div>
-            <Field type="number" name="hours" placeholder="Hours" className="w-full p-2 border rounded" />
-            <ErrorMessage name="hours" component="div" className="text-red-600" />
+            <Field
+              type="number"
+              name="hours"
+              placeholder="Hours"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage
+              name="hours"
+              component="div"
+              className="text-red-600"
+            />
           </div>
           <div>
-            <Field type="text" name="reason" placeholder="Reason" className="w-full p-2 border rounded" />
-            <ErrorMessage name="reason" component="div" className="text-red-600" />
+            <Field
+              type="text"
+              name="reason"
+              placeholder="Reason"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage
+              name="reason"
+              component="div"
+              className="text-red-600"
+            />
           </div>
-          <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">
+          <button
+            type="submit"
+            className="w-full p-2 bg-blue-500 text-white rounded"
+          >
             Submit Overtime Request
           </button>
         </Form>

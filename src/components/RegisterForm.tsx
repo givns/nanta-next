@@ -20,7 +20,7 @@ const RegisterForm = () => {
     if (liffId) {
       liff.init({ liffId }).then(() => {
         if (liff.isLoggedIn()) {
-          liff.getProfile().then(profile => {
+          liff.getProfile().then((profile) => {
             setLineUserId(profile.userId);
           });
         } else {
@@ -34,7 +34,10 @@ const RegisterForm = () => {
 
   const handleSubmit = async (values: any) => {
     try {
-      const response = await axios.post('/api/registerUser', { ...values, lineUserId });
+      const response = await axios.post('/api/registerUser', {
+        ...values,
+        lineUserId,
+      });
       if (response.data.success) {
         alert('Registration successful');
       } else {
@@ -66,7 +69,11 @@ const RegisterForm = () => {
               placeholder="Name"
               className="w-full p-2 border rounded"
             />
-            <ErrorMessage name="name" component="div" className="text-red-600" />
+            <ErrorMessage
+              name="name"
+              component="div"
+              className="text-red-600"
+            />
           </div>
           <div>
             <Field
@@ -75,7 +82,11 @@ const RegisterForm = () => {
               placeholder="Nickname"
               className="w-full p-2 border rounded"
             />
-            <ErrorMessage name="nickname" component="div" className="text-red-600" />
+            <ErrorMessage
+              name="nickname"
+              component="div"
+              className="text-red-600"
+            />
           </div>
           <div>
             <Field
@@ -84,7 +95,11 @@ const RegisterForm = () => {
               placeholder="Department"
               className="w-full p-2 border rounded"
             />
-            <ErrorMessage name="department" component="div" className="text-red-600" />
+            <ErrorMessage
+              name="department"
+              component="div"
+              className="text-red-600"
+            />
           </div>
           <div>
             <Field
@@ -93,9 +108,16 @@ const RegisterForm = () => {
               placeholder="Employee Number"
               className="w-full p-2 border rounded"
             />
-            <ErrorMessage name="employeeNumber" component="div" className="text-red-600" />
+            <ErrorMessage
+              name="employeeNumber"
+              component="div"
+              className="text-red-600"
+            />
           </div>
-          <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">
+          <button
+            type="submit"
+            className="w-full p-2 bg-blue-500 text-white rounded"
+          >
             Register
           </button>
         </Form>

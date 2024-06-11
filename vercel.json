@@ -1,10 +1,23 @@
 {
   "version": 2,
+  "builds": [
+    {
+      "src": "next.config.mjs",
+      "use": "@vercel/next"
+    },
+    {
+      "src": "prisma/schema.prisma",
+      "use": "@vercel/static-build",
+      "config": {
+        "buildCommand": "npx prisma generate"
+      }
+    }
+  ],
   "env": {
     "CHANNEL_ACCESS_TOKEN": "UEMFkVfYo2aw/cc9tDu5Z8XnIyhhqnbUuvycxjnqkDZr5KNjAc26ImBbOvTYYKum/4WcyNIjWoqZN9Feui1Ae8Oc8RgeUI0JX8Qdt87iiCUBMS2zH5a+SEztRNOfQqTIhJ85otkgGqtIvfWIP/y5/AdB04t89/1O/w1cDnyilFU=",
     "CHANNEL_SECRET": "216d496abe4faa027bd362de93ce7e5a",
     "MONGO_URI": "mongodb+srv://parunpatp:6RHIingg9kvWoP05@cluster0.hogpd3l.mongodb.net/myDatabase?retryWrites=true&w=majority",
-    "LIFF_ID": "2005335337-8DwLbNrP",
+    "LIFF_URL": "2005335337-8DwLbNrP",
     "NEXT_PUBLIC_LIFF_ID": "2005335337-8DwLbNrP",
     "DATABASE_URL": "mongodb+srv://parunpatp:6RHIingg9kvWoP05@cluster0.hogpd3l.mongodb.net/myDatabase?retryWrites=true&w=majority"
   },
@@ -15,4 +28,3 @@
     }
   ]
 }
-

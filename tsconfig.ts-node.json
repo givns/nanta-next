@@ -1,13 +1,13 @@
 {
-    "compilerOptions": {
-      "module": "commonjs",
-      "target": "es2020",
-      "lib": ["esnext"],
-      "esModuleInterop": true,
-      "skipLibCheck": true,
-      "strict": true,
-      "resolveJsonModule": true,
-      "outDir": "dist"
-    },
-    "include": ["scripts/**/*.ts"]
-  }
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2020",
+    "lib": ["esnext"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "outDir": "dist"
+  },
+  "include": ["scripts/**/*.ts"]
+}

@@ -37,15 +37,15 @@ form {
   flex-direction: column;
 }
 
-input[type="text"],
-input[type="date"] {
+input[type='text'],
+input[type='date'] {
   padding: 10px;
   margin-bottom: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
 }
 
-button[type="submit"],
+button[type='submit'],
 .btn-leave-type,
 .btn-leave-format {
   padding: 10px;
@@ -57,13 +57,13 @@ button[type="submit"],
   cursor: pointer;
 }
 
-button[type="submit"]:hover,
+button[type='submit']:hover,
 .btn-leave-type:hover,
 .btn-leave-format:hover {
   background-color: #8e2f2d;
 }
 
-button[type="submit"] {
+button[type='submit'] {
   width: 100%;
 }
 

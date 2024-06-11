@@ -23,7 +23,11 @@ const ApprovalDashboard: React.FC = () => {
     fetchRequests();
   }, []);
 
-  const handleAction = async (requestId: string, type: string, action: string) => {
+  const handleAction = async (
+    requestId: string,
+    type: string,
+    action: string,
+  ) => {
     try {
       const response = await fetch('/api/approveRequest', {
         method: 'POST',
@@ -36,9 +40,13 @@ const ApprovalDashboard: React.FC = () => {
       if (response.ok) {
         setMessage(`Request ${action}d successfully`);
         // Refresh the request lists
-        const updatedLeaveRequests = leaveRequests.filter(request => request._id !== requestId);
+        const updatedLeaveRequests = leaveRequests.filter(
+          (request) => request._id !== requestId,
+        );
         setLeaveRequests(updatedLeaveRequests);
-        const updatedOvertimeRequests = overtimeRequests.filter(request => request._id !== requestId);
+        const updatedOvertimeRequests = overtimeRequests.filter(
+          (request) => request._id !== requestId,
+        );
         setOvertimeRequests(updatedOvertimeRequests);
       } else {
         setMessage('Failed to process the request');
@@ -57,11 +65,17 @@ const ApprovalDashboard: React.FC = () => {
       {leaveRequests.length === 0 ? (
         <p>No leave requests</p>
       ) : (
-        leaveRequests.map(request => (
+        leaveRequests.map((request) => (
           <div key={request._id}>
             <p>{request.reason}</p>
-            <button onClick={() => handleAction(request._id, 'leave', 'approve')}>Approve</button>
-            <button onClick={() => handleAction(request._id, 'leave', 'deny')}>Deny</button>
+            <button
+              onClick={() => handleAction(request._id, 'leave', 'approve')}
+            >
+              Approve
+            </button>
+            <button onClick={() => handleAction(request._id, 'leave', 'deny')}>
+              Deny
+            </button>
           </div>
         ))
       )}
@@ -69,11 +83,19 @@ const ApprovalDashboard: React.FC = () => {
       {overtimeRequests.length === 0 ? (
         <p>No overtime requests</p>
       ) : (
-        overtimeRequests.map(request => (
+        overtimeRequests.map((request) => (
           <div key={request._id}>
             <p>{request.reason}</p>
-            <button onClick={() => handleAction(request._id, 'overtime', 'approve')}>Approve</button>
-            <button onClick={() => handleAction(request._id, 'overtime', 'deny')}>Deny</button>
+            <button
+              onClick={() => handleAction(request._id, 'overtime', 'approve')}
+            >
+              Approve
+            </button>
+            <button
+              onClick={() => handleAction(request._id, 'overtime', 'deny')}
+            >
+              Deny
+            </button>
           </div>
         ))
       )}

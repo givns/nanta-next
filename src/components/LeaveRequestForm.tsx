@@ -19,7 +19,7 @@ const LeaveRequestForm = () => {
     if (liffId) {
       liff.init({ liffId }).then(() => {
         if (liff.isLoggedIn()) {
-          liff.getProfile().then(profile => {
+          liff.getProfile().then((profile) => {
             setLineUserId(profile.userId);
           });
         } else {
@@ -33,7 +33,10 @@ const LeaveRequestForm = () => {
 
   const handleSubmit = async (values: any) => {
     try {
-      const response = await axios.post('/api/leaveRequest', { ...values, userId: lineUserId });
+      const response = await axios.post('/api/leaveRequest', {
+        ...values,
+        userId: lineUserId,
+      });
       if (response.data.success) {
         alert('Leave request submitted successfully');
       } else {
@@ -58,23 +61,50 @@ const LeaveRequestForm = () => {
       >
         <Form className="space-y-4">
           <div>
-            <Field as="select" name="leaveType" className="w-full p-2 border rounded">
+            <Field
+              as="select"
+              name="leaveType"
+              className="w-full p-2 border rounded"
+            >
               <option value="">Select Leave Type</option>
               <option value="sick">Sick</option>
               <option value="vacation">Vacation</option>
               <option value="personal">Personal</option>
             </Field>
-            <ErrorMessage name="leaveType" component="div" className="text-red-600" />
+            <ErrorMessage
+              name="leaveType"
+              component="div"
+              className="text-red-600"
+            />
           </div>
           <div>
-            <Field type="date" name="startDate" className="w-full p-2 border rounded" />
-            <ErrorMessage name="startDate" component="div" className="text-red-600" />
+            <Field
+              type="date"
+              name="startDate"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage
+              name="startDate"
+              component="div"
+              className="text-red-600"
+            />
           </div>
           <div>
-            <Field type="date" name="endDate" className="w-full p-2 border rounded" />
-            <ErrorMessage name="endDate" component="div" className="text-red-600" />
+            <Field
+              type="date"
+              name="endDate"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage
+              name="endDate"
+              component="div"
+              className="text-red-600"
+            />
           </div>
-          <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">
+          <button
+            type="submit"
+            className="w-full p-2 bg-blue-500 text-white rounded"
+          >
             Submit Leave Request
           </button>
         </Form>

@@ -14,31 +14,37 @@ const AssignRoleForm = () => {
   const handleRoleAssignment = () => {
     if (position.toLowerCase() === 'ceo') {
       setRole('super-admin');
-    } else if (department.toLowerCase() === 'ฝ่ายขนส่ง' || department.toLowerCase() === 'transport department' || department.toLowerCase() === 'ฝ่ายปฏิบัติการ' || department.toLowerCase() === 'operation') {
+    } else if (
+      department.toLowerCase() === 'ฝ่ายขนส่ง' ||
+      department.toLowerCase() === 'transport department' ||
+      department.toLowerCase() === 'ฝ่ายปฏิบัติการ' ||
+      department.toLowerCase() === 'operation'
+    ) {
       setRole('special');
     } else {
       setRole('general');
     }
   };
 
- const handleSubmit = async (event: React.FormEvent) => {
-   event.preventDefault();
-   handleRoleAssignment();
- 
-   try {
-     const response = await axios.post('/api/assignRole', { userId, role });
-     dispatch(setUser(response.data.data));
-     setMessage(`Role assigned successfully: ${response.data.data.role}`);
-   } catch (error: any) {
-     setMessage(`Error: ${error.response?.data?.error || error.message}`);
-   }
- };
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    handleRoleAssignment();
+
+    try {
+      const response = await axios.post('/api/assignRole', { userId, role });
+      dispatch(setUser(response.data.data));
+      setMessage(`Role assigned successfully: ${response.data.data.role}`);
+    } catch (error: any) {
+      setMessage(`Error: ${error.response?.data?.error || error.message}`);
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit}>
       <div>
-        <label>User ID</label>
+        <label htmlFor="userId">User ID</label>
         <input
+          id="userId"
           type="text"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
@@ -46,8 +52,9 @@ const AssignRoleForm = () => {
         />
       </div>
       <div>
-        <label>Department</label>
+        <label htmlFor="department">Department</label>
         <input
+          id="department"
           type="text"
           value={department}
           onChange={(e) => setDepartment(e.target.value)}
@@ -55,8 +62,9 @@ const AssignRoleForm = () => {
         />
       </div>
       <div>
-        <label>Position</label>
+        <label htmlFor="position">Position</label>
         <input
+          id="position"
           type="text"
           value={position}
           onChange={(e) => setPosition(e.target.value)}

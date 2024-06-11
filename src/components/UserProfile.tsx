@@ -8,15 +8,17 @@ const UserProfile = () => {
   const dispatch = useDispatch();
 
   const handleUpdateUser = () => {
-    dispatch(setUser({
-      id: '123',
-      lineUserId: 'line-id-123',
-      name: 'John Doe',
-      nickname: 'Johnny',
-      department: 'IT',
-      employeeNumber: 'EMP123',
-      role: 'admin',
-    }));
+    dispatch(
+      setUser({
+        id: '123',
+        lineUserId: 'line-id-123',
+        name: 'John Doe',
+        nickname: 'Johnny',
+        department: 'IT',
+        employeeNumber: 'EMP123',
+        role: 'admin',
+      }),
+    );
   };
 
   const handleClearUser = () => {

@@ -10,7 +10,9 @@ interface OvertimeRequest {
 }
 
 const OvertimeRequestList = () => {
-  const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>([]);
+  const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>(
+    [],
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

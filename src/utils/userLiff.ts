@@ -1,7 +1,10 @@
 import { getProfile } from '../services/liff';
 
 // Function to get user details from LIFF
-export const getUserDetails = async (): Promise<{ userId: string; pictureUrl: string }> => {
+export const getUserDetails = async (): Promise<{
+  userId: string;
+  pictureUrl: string;
+}> => {
   const profile = await getProfile();
   if (profile) {
     return {

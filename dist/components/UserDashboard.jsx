@@ -1,7 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 const SuperAdminUserMenu = () => {
-    return (<nav>
+  return (
+    <nav>
       <ul className="space-y-4">
         <li>
           <Link href="/leave-request">
@@ -34,6 +35,7 @@ const SuperAdminUserMenu = () => {
           </Link>
         </li>
       </ul>
-    </nav>);
+    </nav>
+  );
 };
 export default SuperAdminUserMenu;

@@ -6,14 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "prisma:generate": "prisma generate",
     "prisma:pull": "prisma db pull",
     "load-env": "ts-node --project tsconfig.ts-node.json scripts/load-env.ts",
     "validate-prisma-client": "ts-node --project tsconfig.ts-node.json scripts/validatePrismaClient.ts",
     "create-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/createRichMenu.ts",
     "managed-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/managedRichMenu.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "prettier": "prettier --write ."
   },
   "dependencies": {
     "@line/bot-sdk": "^9.2.2",
@@ -41,6 +42,7 @@
     "yup": "^1.4.0"
   },
   "devDependencies": {
+    "@next/eslint-plugin-next": "^14.2.3",
     "@types/node": "^20.14.2",
     "@types/postcss-import": "^14.0.3",
     "@types/react": "latest",
@@ -50,6 +52,7 @@
     "autoprefixer": "^10.4.19",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.3",
+    "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-jsx-a11y": "^6.8.0",
     "eslint-plugin-prettier": "^5.1.3",

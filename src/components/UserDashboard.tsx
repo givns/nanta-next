@@ -1,39 +1,62 @@
 import React from 'react';
-import Link from 'next/link';
 
 const SuperAdminUserMenu: React.FC = () => {
+  const LIFF_URL = `https://liff.line.me/${process.env.LIFF_URL}`;
+
+  const handleClick = (url: string) => {
+    window.location.href = url;
+  };
+
   return (
     <nav>
       <ul className="space-y-4">
         <li>
-          <Link href="/leave-request">
-            <a className="text-blue-500">Send Leave Request</a>
-          </Link>
+          <button
+            onClick={() => handleClick(`${LIFF_URL}/leave-request`)}
+            style={{ all: 'unset', cursor: 'pointer' }}
+          >
+            Send Leave Request
+          </button>
         </li>
         <li>
-          <Link href="/overtime-request">
-            <a className="text-blue-500">Send Overtime Request</a>
-          </Link>
+          <button
+            onClick={() => handleClick(`${LIFF_URL}/overtime-request`)}
+            style={{ all: 'unset', cursor: 'pointer' }}
+          >
+            Send Overtime Request
+          </button>
         </li>
         <li>
-          <Link href="/leave-balance">
-            <a className="text-blue-500">Check Leave Balance</a>
-          </Link>
+          <button
+            onClick={() => handleClick(`${LIFF_URL}/leave-balance`)}
+            style={{ all: 'unset', cursor: 'pointer' }}
+          >
+            Check Leave Balance
+          </button>
         </li>
         <li>
-          <Link href="/holiday-calendar">
-            <a className="text-blue-500">Check Holiday Calendar</a>
-          </Link>
+          <button
+            onClick={() => handleClick(`${LIFF_URL}/holiday-calendar`)}
+            style={{ all: 'unset', cursor: 'pointer' }}
+          >
+            Check Holiday Calendar
+          </button>
         </li>
         <li>
-          <Link href="/approval-dashboard">
-            <a className="text-blue-500">Approval Dashboard</a>
-          </Link>
+          <button
+            onClick={() => handleClick(`${LIFF_URL}/approval-dashboard`)}
+            style={{ all: 'unset', cursor: 'pointer' }}
+          >
+            Approval Dashboard
+          </button>
         </li>
         <li>
-          <Link href="/admin-dashboard">
-            <a className="text-blue-500">Admin Dashboard</a>
-          </Link>
+          <button
+            onClick={() => handleClick(`${LIFF_URL}/admin-dashboard`)}
+            style={{ all: 'unset', cursor: 'pointer' }}
+          >
+            Admin Dashboard
+          </button>
         </li>
       </ul>
     </nav>

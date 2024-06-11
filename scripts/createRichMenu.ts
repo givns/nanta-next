@@ -10,11 +10,13 @@ const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const LIFF_URL = `https://liff.line.me/${process.env.LIFF_URL}`;
 
 if (!channelAccessToken || !LIFF_URL) {
-  throw new Error('LINE_CHANNEL_ACCESS_TOKEN and LIFF_URL must be defined in .env.local');
+  throw new Error(
+    'LINE_CHANNEL_ACCESS_TOKEN and LIFF_URL must be defined in .env.local',
+  );
 }
 
 const client = new Client({
-  channelAccessToken
+  channelAccessToken,
 });
 
 const createRichMenu = async (richMenu: RichMenu, imagePath: string) => {
@@ -25,18 +27,25 @@ const createRichMenu = async (richMenu: RichMenu, imagePath: string) => {
     // Upload the image for the rich menu
     const imageBuffer = fs.readFileSync(imagePath);
 
-    const response = await axios.post(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, imageBuffer, {
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Authorization': `Bearer ${channelAccessToken}`,
-        'Content-Length': imageBuffer.length
-      }
-    });
+    const response = await axios.post(
+      `https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`,
+      imageBuffer,
+      {
+        headers: {
+          'Content-Type': 'image/jpeg',
+          Authorization: `Bearer ${channelAccessToken}`,
+          'Content-Length': imageBuffer.length,
+        },
+      },
+    );
 
     console.log('Rich menu image uploaded successfully', response.data);
     return richMenuId;
   } catch (error: any) {
-    console.error('Error creating rich menu:', error.response ? error.response.data : error.message);
+    console.error(
+      'Error creating rich menu:',
+      error.response ? error.response.data : error.message,
+    );
     throw error;
   }
 };
@@ -44,153 +53,220 @@ const createRichMenu = async (richMenu: RichMenu, imagePath: string) => {
 const registerRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 843
+    height: 843,
   },
   selected: true,
-  name: "Register Menu",
-  chatBarText: "Register",
+  name: 'Register Menu',
+  chatBarText: 'Register',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 2500, height: 843 },
-      action: { type: "uri", uri: `${LIFF_URL}/register` } as URIAction // Slot A
-    }
-  ]
+      action: { type: 'uri', uri: `${LIFF_URL}/register` } as URIAction, // Slot A
+    },
+  ],
 };
 
 const generalUserRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 1686
+    height: 1686,
   },
   selected: true,
-  name: "General User Menu",
-  chatBarText: "Menu",
+  name: 'General User Menu',
+  chatBarText: 'Menu',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
-      action: { type: "uri", uri: `${LIFF_URL}/holiday-calendar` } as URIAction // Slot A
+      action: { type: 'uri', uri: `${LIFF_URL}/holiday-calendar` } as URIAction, // Slot A
     },
     {
       bounds: { x: 1250, y: 0, width: 1250, height: 843 },
-      action: { type: "uri", uri: `${LIFF_URL}/overtime-request` } as URIAction // Slot B
+      action: { type: 'uri', uri: `${LIFF_URL}/overtime-request` } as URIAction, // Slot B
     },
     {
       bounds: { x: 0, y: 843, width: 1250, height: 843 },
-      action: { type: "uri", uri: `${LIFF_URL}/leave-balance` } as URIAction // Slot C
+      action: { type: 'uri', uri: `${LIFF_URL}/leave-balance` } as URIAction, // Slot C
     },
     {
       bounds: { x: 1250, y: 843, width: 1250, height: 843 },
-      action: { type: "uri", uri: `${LIFF_URL}/leave-request` } as URIAction // Slot D
-    }
-  ]
+      action: { type: 'uri', uri: `${LIFF_URL}/leave-request` } as URIAction, // Slot D
+    },
+  ],
 };
 const specialUserRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 1686
+    height: 1686,
   },
   selected: true,
-  name: "Special User Menu",
-  chatBarText: "Menu",
+  name: 'Special User Menu',
+  chatBarText: 'Menu',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/Check-in` } as URIAction // Slot A
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/Check-in`,
+      } as URIAction, // Slot A
     },
     {
       bounds: { x: 1250, y: 0, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/overtime-request` } as URIAction // Slot B
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/overtime-request`,
+      } as URIAction, // Slot B
     },
     {
       bounds: { x: 0, y: 843, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/leave-balance` } as URIAction // Slot C
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/leave-balance`,
+      } as URIAction, // Slot C
     },
     {
       bounds: { x: 1250, y: 843, width: 1250, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/leave-request` } as URIAction // Slot D
-    }
-  ]
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/leave-request`,
+      } as URIAction, // Slot D
+    },
+  ],
 };
 
 const adminRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 1686
+    height: 1686,
   },
   selected: true,
-  name: "Admin Menu",
-  chatBarText: "Admin Menu",
+  name: 'Admin Menu',
+  chatBarText: 'Admin Menu',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/approval-dashboard` } as URIAction // Slot A
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/approval-dashboard`,
+      } as URIAction, // Slot A
     },
     {
       bounds: { x: 833, y: 0, width: 834, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/holiday-calendar` } as URIAction // Slot B
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/holiday-calendar`,
+      } as URIAction, // Slot B
     },
     {
       bounds: { x: 1667, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/leave-balance` } as URIAction // Slot C
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/leave-balance`,
+      } as URIAction, // Slot C
     },
     {
       bounds: { x: 0, y: 843, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/leave-request` } as URIAction // Slot D
-    }
-  ]
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/leave-request`,
+      } as URIAction, // Slot D
+    },
+  ],
 };
 
 const superAdminRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 1686
+    height: 1686,
   },
   selected: true,
-  name: "Super Admin Menu",
-  chatBarText: "Super Admin",
+  name: 'Super Admin Menu',
+  chatBarText: 'Super Admin',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/approval-dashboard` } as URIAction // Slot A
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/approval-dashboard`,
+      } as URIAction, // Slot A
     },
     {
       bounds: { x: 833, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/approval-dashboard` } as URIAction // Slot B
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/approval-dashboard`,
+      } as URIAction, // Slot B
     },
     {
       bounds: { x: 1666, y: 0, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/admin-dashboard` } as URIAction // Slot C
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/admin-dashboard`,
+      } as URIAction, // Slot C
     },
     {
       bounds: { x: 0, y: 843, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/holiday-calendar` } as URIAction // Slot D
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/holiday-calendar`,
+      } as URIAction, // Slot D
     },
     {
       bounds: { x: 833, y: 843, width: 833, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/leave-balance` } as URIAction // Slot E
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/leave-balance`,
+      } as URIAction, // Slot E
     },
     {
       bounds: { x: 1666, y: 843, width: 834, height: 843 },
-      action: { type: "uri", uri: `line://app/${LIFF_URL}/leave-request` } as URIAction // Slot F
-    }
-  ]
+      action: {
+        type: 'uri',
+        uri: `line://app/${LIFF_URL}/leave-request`,
+      } as URIAction, // Slot F
+    },
+  ],
 };
 const main = async () => {
   try {
-    const registerRichMenuId = await createRichMenu(registerRichMenu, path.resolve(__dirname, '../public/images/richmenus/Register.jpeg'));
-    console.log(`Register rich menu successfully created and image uploaded with ID: ${registerRichMenuId}`);
+    const registerRichMenuId = await createRichMenu(
+      registerRichMenu,
+      path.resolve(__dirname, '../public/images/richmenus/Register.jpeg'),
+    );
+    console.log(
+      `Register rich menu successfully created and image uploaded with ID: ${registerRichMenuId}`,
+    );
 
-    const generalUserRichMenuId = await createRichMenu(generalUserRichMenu, path.resolve(__dirname, '../public/images/richmenus/General.jpeg'));
-    console.log(`General user rich menu successfully created and image uploaded with ID: ${generalUserRichMenuId}`);
+    const generalUserRichMenuId = await createRichMenu(
+      generalUserRichMenu,
+      path.resolve(__dirname, '../public/images/richmenus/General.jpeg'),
+    );
+    console.log(
+      `General user rich menu successfully created and image uploaded with ID: ${generalUserRichMenuId}`,
+    );
 
-    const SpecialUserRichMenuId = await createRichMenu(specialUserRichMenu, path.resolve(__dirname, '../public/images/richmenus/Special.jpeg'));
-    console.log(`General user rich menu successfully created and image uploaded with ID: ${SpecialUserRichMenuId}`);
+    const specialUserRichMenuId = await createRichMenu(
+      specialUserRichMenu,
+      path.resolve(__dirname, '../public/images/richmenus/Special.jpeg'),
+    );
+    console.log(
+      `Special user rich menu successfully created and image uploaded with ID: ${specialUserRichMenuId}`,
+    );
 
-    const adminRichMenuId = await createRichMenu(adminRichMenu, path.resolve(__dirname, '../public/images/richmenus/Admin.jpeg'));
-    console.log(`General user rich menu successfully created and image uploaded with ID: ${adminRichMenuId}`);
+    const adminRichMenuId = await createRichMenu(
+      adminRichMenu,
+      path.resolve(__dirname, '../public/images/richmenus/Admin.jpeg'),
+    );
+    console.log(
+      `Admin rich menu successfully created and image uploaded with ID: ${adminRichMenuId}`,
+    );
 
-    const superAdminRichMenuId = await createRichMenu(superAdminRichMenu, path.resolve(__dirname, '../public/images/richmenus/SuperAdmin.jpeg'));
-    console.log(`General user rich menu successfully created and image uploaded with ID: ${superAdminRichMenuId}`);
+    const superAdminRichMenuId = await createRichMenu(
+      superAdminRichMenu,
+      path.resolve(__dirname, '../public/images/richmenus/SuperAdmin.jpeg'),
+    );
+    console.log(
+      `Super Admin rich menu successfully created and image uploaded with ID: ${superAdminRichMenuId}`,
+    );
   } catch (error: any) {
     console.error('Error in main function:', error.message);
   }
