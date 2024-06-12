@@ -61,75 +61,74 @@ const handler = async (event: WebhookEvent) => {
         if (!user) {
           const registerRichMenuId =
             'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
-            await client.linkRichMenuToUser(userId, registerRichMenuId);
-            console.log('Register Rich menu linked to user:', userId);
-          } else {
-            const department = user.department;
-            const richMenuId = await createAndAssignRichMenu(department, userId);
-            console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
-          }
-        } catch (error: any) {
-          console.error(
-            'Error processing follow event:',
-            error.message,
-            error.stack,
-          );
+          await client.linkRichMenuToUser(userId, registerRichMenuId);
+          console.log('Register Rich menu linked to user:', userId);
+        } else {
+          const department = user.department;
+          const richMenuId = await createAndAssignRichMenu(department, userId);
+          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
         }
-      } else {
-        console.error('User ID not found in event:', event);
+      } catch (error: any) {
+        console.error(
+          'Error processing follow event:',
+          error.message,
+          error.stack,
+        );
       }
-    } else if (event.type === 'unfollow') {
-      console.log('Unfollow event for user ID:', event.source.userId);
     } else {
-      console.error('Unhandled event type:', event.type);
+      console.error('User ID not found in event:', event);
     }
-  };
-  
-  const createAndAssignRichMenu = async (department: string, userId: string) => {
-    const richMenuId =
-      department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
+  } else if (event.type === 'unfollow') {
+    console.log('Unfollow event for user ID:', event.source.userId);
+  } else {
+    console.error('Unhandled event type:', event.type);
+  }
+};
+
+const createAndAssignRichMenu = async (department: string, userId: string) => {
+  const richMenuId =
+    department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
       ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
       : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
-      await client.linkRichMenuToUser(userId, richMenuId);
-      return richMenuId;
-    };
-    
-    const lineMiddleware = middleware(middlewareConfig);
-    
-    export default async (req: NextApiRequest, res: NextApiResponse) => {
-      if (req.method === 'GET') {
-        return res.status(200).send('Webhook is set up and running!');
+  await client.linkRichMenuToUser(userId, richMenuId);
+  return richMenuId;
+};
+
+const lineMiddleware = middleware(middlewareConfig);
+
+export default async (req: NextApiRequest, res: NextApiResponse) => {
+  if (req.method === 'GET') {
+    return res.status(200).send('Webhook is set up and running!');
+  }
+
+  if (req.method === 'POST') {
+    try {
+      const rawBodyBuffer = await getRawBody(req, {
+        length: req.headers['content-length'],
+        limit: '1mb',
+      });
+
+      const rawBody = rawBodyBuffer.toString('utf-8');
+      console.log('Raw body:', rawBody);
+
+      const parsedBody = JSON.parse(rawBody);
+
+      if (!parsedBody.events || !Array.isArray(parsedBody.events)) {
+        console.error('No events found in request body:', parsedBody);
+        return res.status(400).send('No events found');
       }
-    
-      if (req.method === 'POST') {
-        try {
-          const rawBodyBuffer = await getRawBody(req, {
-            length: req.headers['content-length'],
-            limit: '1mb',
-          });
-    
-          const rawBody = rawBodyBuffer.toString('utf-8');
-          console.log('Raw body:', rawBody);
-    
-          const parsedBody = JSON.parse(rawBody);
-    
-          if (!parsedBody.events || !Array.isArray(parsedBody.events)) {
-            console.error('No events found in request body:', parsedBody);
-            return res.status(400).send('No events found');
-          }
-    
-          await lineMiddleware(req, res, async () => {
-            for (const event of parsedBody.events) {
-              await handler(event);
-            }
-          });
-          return res.status(200).send('OK');
-        } catch (err) {
-          console.error('Error in middleware:', err);
-          return res.status(500).send('Internal Server Error');
+
+      await lineMiddleware(req, res, async () => {
+        for (const event of parsedBody.events) {
+          await handler(event);
         }
-      }
-    
-      return res.status(405).send('Method Not Allowed');
-    };
-    
+      });
+      return res.status(200).send('OK');
+    } catch (err) {
+      console.error('Error in middleware:', err);
+      return res.status(500).send('Internal Server Error');
+    }
+  }
+
+  return res.status(405).send('Method Not Allowed');
+};
