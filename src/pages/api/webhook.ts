@@ -23,20 +23,13 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
-const clientConfig: ClientConfig = {
-  channelAccessToken,
-};
-
+const clientConfig: ClientConfig = { channelAccessToken };
 const client = new Client(clientConfig);
 
-const middlewareConfig: MiddlewareConfig = {
-  channelSecret,
-};
+const middlewareConfig: MiddlewareConfig = { channelSecret };
 
 export const config = {
-  api: {
-    bodyParser: false, // Disallow body parsing to handle raw body manually
-  },
+  api: { bodyParser: false }, // Disallow body parsing to handle raw body manually
 };
 
 const handler = async (event: WebhookEvent) => {
@@ -45,7 +38,7 @@ const handler = async (event: WebhookEvent) => {
     return;
   }
 
-  console.log('Event received:', JSON.stringify(event, null, 2));
+  console.log('Event received:', event);
 
   if (event.type === 'follow') {
     const userId = event.source.userId;
@@ -66,7 +59,7 @@ const handler = async (event: WebhookEvent) => {
         } else {
           const department = user.department;
           const richMenuId = await createAndAssignRichMenu(department, userId);
-          console.log(`Rich menu ${richMenuId} linked to user ${userId}`);
+          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
         }
       } catch (error: any) {
         console.error(
@@ -87,12 +80,9 @@ const handler = async (event: WebhookEvent) => {
 
 const createAndAssignRichMenu = async (department: string, userId: string) => {
   const richMenuId =
-    department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
+    department === 'Transport' || department === 'Management'
       ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
       : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
-  console.log(
-    `Linking rich menu ${richMenuId} to user ${userId} for department ${department}`,
-  );
   await client.linkRichMenuToUser(userId, richMenuId);
   return richMenuId;
 };
@@ -114,17 +104,16 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
       const rawBody = rawBodyBuffer.toString('utf-8');
       console.log('Raw body:', rawBody);
 
-      const parsedBody = JSON.parse(rawBody);
+      req.body = JSON.parse(rawBody);
 
-      if (!parsedBody.events || !Array.isArray(parsedBody.events)) {
-        console.error('No events found in request body:', parsedBody);
+      if (!req.body.events || !Array.isArray(req.body.events)) {
+        console.error('No events found in request body:', req.body);
         return res.status(400).send('No events found');
       }
 
       await lineMiddleware(req, res, async () => {
-        for (const event of parsedBody.events) {
-          await handler(event);
-        }
+        const event = req.body.events[0];
+        await handler(event);
       });
       return res.status(200).send('OK');
     } catch (err) {
