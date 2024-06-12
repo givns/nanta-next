@@ -23,13 +23,22 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
-const clientConfig: ClientConfig = { channelAccessToken };
+// LINE bot client configuration
+const clientConfig: ClientConfig = {
+  channelAccessToken,
+};
+
 const client = new Client(clientConfig);
 
-const middlewareConfig: MiddlewareConfig = { channelSecret };
+// Middleware configuration
+const middlewareConfig: MiddlewareConfig = {
+  channelSecret,
+};
 
 export const config = {
-  api: { bodyParser: false }, // Disallow body parsing to handle raw body manually
+  api: {
+    bodyParser: false, // Disallow body parsing to handle raw body manually
+  },
 };
 
 const handler = async (event: WebhookEvent) => {
@@ -38,7 +47,7 @@ const handler = async (event: WebhookEvent) => {
     return;
   }
 
-  console.log('Event received:', event);
+  console.log('Event received:', JSON.stringify(event, null, 2));
 
   if (event.type === 'follow') {
     const userId = event.source.userId;
@@ -54,8 +63,8 @@ const handler = async (event: WebhookEvent) => {
         if (!user) {
           const registerRichMenuId =
             'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
-          await client.linkRichMenuToUser(userId, registerRichMenuId);
-          console.log('Register Rich menu linked to user:', userId);
+          const response = await client.linkRichMenuToUser(userId, registerRichMenuId);
+          console.log('Register Rich menu linked to user:', userId, response);
         } else {
           const department = user.department;
           const richMenuId = await createAndAssignRichMenu(department, userId);
@@ -72,6 +81,7 @@ const handler = async (event: WebhookEvent) => {
       console.error('User ID not found in event:', event);
     }
   } else if (event.type === 'unfollow') {
+    // Do nothing for unfollow events
     console.log('Unfollow event for user ID:', event.source.userId);
   } else {
     console.error('Unhandled event type:', event.type);
@@ -83,7 +93,8 @@ const createAndAssignRichMenu = async (department: string, userId: string) => {
     department === 'Transport' || department === 'Management'
       ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
       : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
-  await client.linkRichMenuToUser(userId, richMenuId);
+  const response = await client.linkRichMenuToUser(userId, richMenuId);
+  console.log(`Rich menu linked to user ${userId}: ${richMenuId}, response: ${response}`);
   return richMenuId;
 };
 
@@ -91,6 +102,7 @@ const lineMiddleware = middleware(middlewareConfig);
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
+    // Handle the GET request from the LINE Developer Console for
     return res.status(200).send('Webhook is set up and running!');
   }
 
@@ -122,5 +134,6 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
+  // Return a 405 status for any method other than GET or POST
   return res.status(405).send('Method Not Allowed');
 };
