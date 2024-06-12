@@ -66,7 +66,7 @@ const handler = async (event: WebhookEvent) => {
         } else {
           const department = user.department;
           const richMenuId = await createAndAssignRichMenu(department, userId);
-          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+          console.log(`Rich menu ${richMenuId} linked to user ${userId}`);
         }
       } catch (error: any) {
         console.error(
@@ -90,6 +90,9 @@ const createAndAssignRichMenu = async (department: string, userId: string) => {
     department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
       ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
       : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
+  console.log(
+    `Linking rich menu ${richMenuId} to user ${userId} for department ${department}`,
+  );
   await client.linkRichMenuToUser(userId, richMenuId);
   return richMenuId;
 };

@@ -15,6 +15,7 @@
     "create-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/createRichMenu.ts",
     "managed-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/managedRichMenu.ts",
     "list-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/listRichMenu.ts",
+    "generate-signature": "ts-node --project tsconfig.ts-node.json scripts/generateSignature.ts",
     "postinstall": "prisma generate",
     "prettier": "prettier --write ."
   },
