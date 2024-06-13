@@ -94,8 +94,6 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
-const lineMiddleware = middleware(middlewareConfig);
-
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
     // Handle the GET request from the LINE Developer Console for
