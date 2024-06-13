@@ -39,7 +39,7 @@ const RegisterForm = () => {
         lineUserId,
       });
       if (response.data.success) {
-        alert('Registration successful');
+        liff.closeWindow();
       } else {
         alert('Error: ' + response.data.error);
       }
