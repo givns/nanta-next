@@ -56,3 +56,8 @@ Existing rich menus: [
   }
 ]
 ```
+
+            'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
+
+      ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
+      : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';

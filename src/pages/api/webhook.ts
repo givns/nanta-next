@@ -63,12 +63,28 @@ const handler = async (event: WebhookEvent) => {
         if (!user) {
           const registerRichMenuId =
             'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
-          const response = await client.linkRichMenuToUser(userId, registerRichMenuId);
-          console.log('Register Rich menu linked to user:', userId, response);
+          try {
+            console.log(`Linking register rich menu to user ${userId}`);
+            const response = await client.linkRichMenuToUser(
+              userId,
+              registerRichMenuId,
+            );
+            console.log('Register Rich menu linked to user:', userId, response);
+          } catch (error) {
+            console.error('Error linking register rich menu:', error);
+          }
         } else {
           const department = user.department;
-          const richMenuId = await createAndAssignRichMenu(department, userId);
-          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+          try {
+            console.log(`Linking department rich menu to user ${userId}`);
+            const richMenuId = await createAndAssignRichMenu(
+              department,
+              userId,
+            );
+            console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+          } catch (error) {
+            console.error('Error linking department rich menu:', error);
+          }
         }
       } catch (error: any) {
         console.error(
@@ -93,16 +109,28 @@ const createAndAssignRichMenu = async (department: string, userId: string) => {
     department === 'Transport' || department === 'Management'
       ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
       : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
-  const response = await client.linkRichMenuToUser(userId, richMenuId);
-  console.log(`Rich menu linked to user ${userId}: ${richMenuId}, response: ${response}`);
-  return richMenuId;
+
+  try {
+    console.log(`Linking rich menu ${richMenuId} to user ${userId}`);
+    const response = await client.linkRichMenuToUser(userId, richMenuId);
+    console.log(
+      `Rich menu linked to user ${userId}: ${richMenuId}, response: ${response}`,
+    );
+    return richMenuId;
+  } catch (error: any) {
+    console.error(
+      `Error linking rich menu to user ${userId}:`,
+      error.message,
+      error.stack,
+    );
+    throw error;
+  }
 };
 
 const lineMiddleware = middleware(middlewareConfig);
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
-    // Handle the GET request from the LINE Developer Console for
     return res.status(200).send('Webhook is set up and running!');
   }
 
@@ -134,6 +162,5 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
-  // Return a 405 status for any method other than GET or POST
   return res.status(405).send('Method Not Allowed');
 };
