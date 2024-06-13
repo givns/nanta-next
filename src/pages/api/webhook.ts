@@ -1,11 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import {
-  middleware,
-  MiddlewareConfig,
-  WebhookEvent,
-  Client,
-  ClientConfig,
-} from '@line/bot-sdk';
+import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
@@ -23,22 +17,17 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
-const clientConfig: ClientConfig = { channelAccessToken };
+// LINE bot client configuration
+const clientConfig: ClientConfig = {
+  channelAccessToken,
+};
+
 const client = new Client(clientConfig);
 
 export const config = {
   api: {
     bodyParser: false, // Disallow body parsing to handle raw body manually
   },
-};
-
-const createAndAssignRichMenu = async (department: string, userId: string) => {
-  const richMenuId =
-    department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
-      ? 'richmenu-3670f2aed131fea8ca22d349188f12ee' // Special user rich menu
-      : 'richmenu-0ba7f3459e24877a48eeae1fc946f38b'; // General user rich menu
-  await client.linkRichMenuToUser(userId, richMenuId);
-  return richMenuId;
 };
 
 const handler = async (event: WebhookEvent) => {
@@ -81,14 +70,25 @@ const handler = async (event: WebhookEvent) => {
       console.error('User ID not found in event:', event);
     }
   } else if (event.type === 'unfollow') {
+    // Do nothing for unfollow events
     console.log('Unfollow event for user ID:', event.source.userId);
   } else {
     console.error('Unhandled event type:', event.type);
   }
 };
 
+const createAndAssignRichMenu = async (department: string, userId: string) => {
+  const richMenuId =
+    department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
+      ? 'richmenu-3670f2aed131fea8ca22d349188f12ee'
+      : 'richmenu-0ba7f3459e24877a48eeae1fc946f38b';
+  await client.linkRichMenuToUser(userId, richMenuId);
+  return richMenuId;
+};
+
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
+    // Handle the GET request from the LINE Developer Console
     return res.status(200).send('Webhook is set up and running!');
   }
 
@@ -118,5 +118,6 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
+  // Return a 405 status for any method other than GET or POST
   return res.status(405).send('Method Not Allowed');
 };
