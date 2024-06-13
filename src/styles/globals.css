@@ -45,57 +45,25 @@ select {
   border: 1px solid #ccc;
   border-radius: 4px;
   width: 100%;
+  box-sizing: border-box; /* Ensure padding and border are included in the element's width and height */
 }
 
 button[type='submit'] {
   padding: 10px;
   margin-bottom: 10px;
-  background-color: #007bff;
+  background-color: #a33e35; /* Updated to match the red color */
   color: #ffffff;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   width: 100%;
+  box-sizing: border-box; /* Ensure padding and border are included in the element's width and height */
 }
 
 button[type='submit']:hover {
-  background-color: #0056b3;
+  background-color: #8e2f2d;
 }
 
 .text-red-600 {
   color: #ff0000;
-}
-
-/* Styles for Leave Request Page */
-.btn-leave-type,
-.btn-leave-format {
-  padding: 10px;
-  margin-bottom: 10px;
-  background-color: #a33e35;
-  color: #ffffff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  flex: 1;
-  margin: 0 5px;
-}
-
-.btn-leave-type:hover,
-.btn-leave-format:hover {
-  background-color: #8e2f2d;
-}
-
-.btn-leave-type.selected,
-.btn-leave-format.selected {
-  background-color: #0056b3;
-  color: #ffffff;
-}
-
-.input-date,
-.input-reason {
-  width: calc(50% - 5px);
-}
-
-.input-date.mt-2 {
-  margin-top: 10px;
 }
