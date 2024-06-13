@@ -1,0 +1,62 @@
+//// ------------------------------------------------------
+//// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+//// ------------------------------------------------------
+
+Table User {
+  id String [pk]
+  lineUserId String [unique, not null]
+  name String [not null]
+  nickname String [not null]
+  department String [not null]
+  employeeNumber String
+  role String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  leaveRequests LeaveRequest [not null]
+  overtimeRequests OvertimeRequest [not null]
+  checkIns CheckIn [not null]
+}
+
+Table LeaveRequest {
+  id String [pk]
+  userId String [not null]
+  leaveType String [not null]
+  reason String [not null]
+  startDate DateTime [not null]
+  endDate DateTime [not null]
+  status String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  user User [not null]
+}
+
+Table OvertimeRequest {
+  id String [pk]
+  userId String [not null]
+  date DateTime [not null]
+  hours Int [not null]
+  reason String [not null]
+  status String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  user User [not null]
+}
+
+Table CheckIn {
+  id String [pk]
+  userId String [not null]
+  date DateTime [not null]
+  status String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  user User [not null]
+}
+
+Table Holiday {
+  id String [pk]
+  date DateTime [not null]
+  description String [not null]
+  createdAt DateTime [default: `now()`, not null]
+}
+
+Ref: LeaveRequest.userId > User.id
+
+Ref: OvertimeRequest.userId > User.id
+
+Ref: CheckIn.userId > User.id

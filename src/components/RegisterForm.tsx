@@ -61,7 +61,7 @@ const RegisterForm = () => {
 
   return (
     <div className="container mx-auto flex flex-col items-center justify-center h-screen">
-      <h1 className="text-2xl font-bold mb-4">Register</h1>
+      <h1 className="text-2xl font-bold mb-4">ลงทะเบียน</h1>
       <Formik
         initialValues={{
           name: '',
@@ -76,7 +76,7 @@ const RegisterForm = () => {
             <Field
               type="text"
               name="name"
-              placeholder="Name"
+              placeholder="ชื่อ - นามสกุล"
               className="w-full p-2 border rounded"
             />
             <ErrorMessage
@@ -89,7 +89,7 @@ const RegisterForm = () => {
             <Field
               type="text"
               name="nickname"
-              placeholder="Nickname"
+              placeholder="ชื่อเล่น"
               className="w-full p-2 border rounded"
             />
             <ErrorMessage
@@ -104,7 +104,7 @@ const RegisterForm = () => {
               name="department"
               className="w-full p-2 border rounded"
             >
-              <option value="">Select Department</option>
+              <option value="">เลือกแผนก</option>
               {departments.map((dept) => (
                 <option key={dept} value={dept}>
                   {dept}
