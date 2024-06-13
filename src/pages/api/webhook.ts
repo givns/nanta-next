@@ -51,7 +51,7 @@ const handler = async (event: WebhookEvent) => {
     return;
   }
 
-  console.log('Event received:', event);
+  console.log('Event received:', JSON.stringify(event, null, 2));
 
   if (event.type === 'follow') {
     const userId = event.source.userId;
