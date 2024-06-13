@@ -1,5 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../utils/db';
+import { Client } from '@line/bot-sdk';
+
+const client = new Client({
+  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+});
 
 export default async function handler(
   req: NextApiRequest,
@@ -25,7 +30,26 @@ export default async function handler(
             role: 'general',
           },
         });
+      } else {
+        // Update the existing user
+        user = await prisma.user.update({
+          where: { lineUserId },
+          data: {
+            name,
+            nickname,
+            department,
+          },
+        });
       }
+
+      // Determine the appropriate rich menu based on department
+      let richMenuId = 'richmenu-0ba7f3459e24877a48eeae1fc946f38b'; // Default to General User Rich Menu
+      if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
+        richMenuId = 'richmenu-3670f2aed131fea8ca22d349188f12ee'; // Special User Rich Menu
+      }
+
+      // Link the rich menu to the user
+      await client.linkRichMenuToUser(lineUserId, richMenuId);
 
       res.status(201).json({ success: true, data: user });
     } catch (error: any) {
