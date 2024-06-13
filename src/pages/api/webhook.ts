@@ -41,9 +41,9 @@ export const config = {
   },
 };
 
-const registerRichMenuId = 'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
-const specialRichMenuId = 'richmenu-b2a7e671cb2bf3d694191434a3566202';
-const generalRichMenuId = 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
+const registerRichMenuId = 'richmenu-6cd71bd9b07545009f7b56d105e0f5a2';
+const specialRichMenuId = 'richmenu-3670f2aed131fea8ca22d349188f12ee';
+const generalRichMenuId = 'richmenu-0ba7f3459e24877a48eeae1fc946f38b';
 
 const handler = async (event: WebhookEvent) => {
   if (!event) {

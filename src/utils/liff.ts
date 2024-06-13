@@ -1,17 +1,18 @@
+// utils/liff.ts
 import liff from '@line/liff';
 
+let liffInitialized = false;
+
 export const initializeLiff = async () => {
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-
-  if (!liffId) {
-    throw new Error('NEXT_PUBLIC_LIFF_ID is not defined');
-  }
-
-  try {
-    await liff.init({ liffId });
-    console.log('LIFF initialized');
-  } catch (error) {
-    console.error('LIFF initialization failed', error);
+  if (!liffInitialized) {
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (liffId) {
+      await liff.init({ liffId });
+      liffInitialized = true;
+      console.log('LIFF initialized');
+    } else {
+      console.error('LIFF ID is not defined');
+    }
   }
 };
 

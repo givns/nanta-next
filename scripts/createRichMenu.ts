@@ -61,7 +61,7 @@ const registerRichMenu: RichMenu = {
   areas: [
     {
       bounds: { x: 0, y: 0, width: 2500, height: 843 },
-      action: { type: 'uri', uri: `${LIFF_URL}/register` } as URIAction, // Slot A
+      action: { type: 'uri', uri: `${LIFF_URL}?path=/register` } as URIAction, // Slot A
     },
   ],
 };
@@ -77,19 +77,31 @@ const generalUserRichMenu: RichMenu = {
   areas: [
     {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
-      action: { type: 'uri', uri: `${LIFF_URL}/holiday-calendar` } as URIAction, // Slot A
+      action: {
+        type: 'uri',
+        uri: `${LIFF_URL}?path=/holiday-calendar`,
+      } as URIAction, // Slot A
     },
     {
       bounds: { x: 1250, y: 0, width: 1250, height: 843 },
-      action: { type: 'uri', uri: `${LIFF_URL}/overtime-request` } as URIAction, // Slot B
+      action: {
+        type: 'uri',
+        uri: `${LIFF_URL}?path=/overtime-request`,
+      } as URIAction, // Slot B
     },
     {
       bounds: { x: 0, y: 843, width: 1250, height: 843 },
-      action: { type: 'uri', uri: `${LIFF_URL}/leave-balance` } as URIAction, // Slot C
+      action: {
+        type: 'uri',
+        uri: `${LIFF_URL}?path=/leave-balance`,
+      } as URIAction, // Slot C
     },
     {
       bounds: { x: 1250, y: 843, width: 1250, height: 843 },
-      action: { type: 'uri', uri: `${LIFF_URL}/leave-request` } as URIAction, // Slot D
+      action: {
+        type: 'uri',
+        uri: `${LIFF_URL}?path=/leave-request`,
+      } as URIAction, // Slot D
     },
   ],
 };
@@ -106,28 +118,28 @@ const specialUserRichMenu: RichMenu = {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/Check-in`,
+        uri: `line://app/${LIFF_URL}?path=/Check-in`,
       } as URIAction, // Slot A
     },
     {
       bounds: { x: 1250, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/overtime-request`,
+        uri: `line://app/${LIFF_URL}?path=/overtime-request`,
       } as URIAction, // Slot B
     },
     {
       bounds: { x: 0, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/leave-balance`,
+        uri: `line://app/${LIFF_URL}?path=/leave-balance`,
       } as URIAction, // Slot C
     },
     {
       bounds: { x: 1250, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/leave-request`,
+        uri: `line://app/${LIFF_URL}?path=/leave-request`,
       } as URIAction, // Slot D
     },
   ],
@@ -146,28 +158,28 @@ const adminRichMenu: RichMenu = {
       bounds: { x: 0, y: 0, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/approval-dashboard`,
+        uri: `line://app/${LIFF_URL}?path=/approval-dashboard`,
       } as URIAction, // Slot A
     },
     {
       bounds: { x: 833, y: 0, width: 834, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/holiday-calendar`,
+        uri: `line://app/${LIFF_URL}?path=/holiday-calendar`,
       } as URIAction, // Slot B
     },
     {
       bounds: { x: 1667, y: 0, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/leave-balance`,
+        uri: `line://app/${LIFF_URL}?path=/leave-balance`,
       } as URIAction, // Slot C
     },
     {
       bounds: { x: 0, y: 843, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/leave-request`,
+        uri: `line://app/${LIFF_URL}?path=/leave-request`,
       } as URIAction, // Slot D
     },
   ],
@@ -186,42 +198,42 @@ const superAdminRichMenu: RichMenu = {
       bounds: { x: 0, y: 0, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/approval-dashboard`,
+        uri: `line://app/${LIFF_URL}?path=/approval-dashboard`,
       } as URIAction, // Slot A
     },
     {
       bounds: { x: 833, y: 0, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/approval-dashboard`,
+        uri: `line://app/${LIFF_URL}?path=/approval-dashboard`,
       } as URIAction, // Slot B
     },
     {
       bounds: { x: 1666, y: 0, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/admin-dashboard`,
+        uri: `line://app/${LIFF_URL}?path=/admin-dashboard`,
       } as URIAction, // Slot C
     },
     {
       bounds: { x: 0, y: 843, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/holiday-calendar`,
+        uri: `line://app/${LIFF_URL}?path=/holiday-calendar`,
       } as URIAction, // Slot D
     },
     {
       bounds: { x: 833, y: 843, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/leave-balance`,
+        uri: `line://app/${LIFF_URL}?path=/leave-balance`,
       } as URIAction, // Slot E
     },
     {
       bounds: { x: 1666, y: 843, width: 834, height: 843 },
       action: {
         type: 'uri',
-        uri: `line://app/${LIFF_URL}/leave-request`,
+        uri: `line://app/${LIFF_URL}?path=/leave-request`,
       } as URIAction, // Slot F
     },
   ],

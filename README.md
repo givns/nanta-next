@@ -13,51 +13,23 @@ pnpm dev
 # or
 bun dev
 
-Existing rich menus: [
-  {
-    richMenuId: 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7',
-    name: 'General User Menu',
-    size: { width: 2500, height: 1686 },
-    chatBarText: 'Menu',
-    selected: true,
-    areas: [ [Object], [Object], [Object], [Object] ]
-  },
-  {
-    richMenuId: 'richmenu-555d607c639948c4c206e8d7a6727be1',
-    name: 'Super Admin Menu',
-    size: { width: 2500, height: 1686 },
-    chatBarText: 'Super Admin',
-    selected: true,
-    areas: [ [Object], [Object], [Object], [Object], [Object], [Object] ]
-  },
-  {
-    richMenuId: 'richmenu-41ad3831bf0babb85105b33fec0a6b8a',
-    name: 'Register Menu',
-    size: { width: 2500, height: 843 },
-    chatBarText: 'Register',
-    selected: true,
-    areas: [ [Object] ]
-  },
-  {
-    richMenuId: 'richmenu-b2a7e671cb2bf3d694191434a3566202',
-    name: 'Special User Menu',
-    size: { width: 2500, height: 1686 },
-    chatBarText: 'Menu',
-    selected: true,
-    areas: [ [Object], [Object], [Object], [Object] ]
-  },
-  {
-    richMenuId: 'richmenu-d3968733f6f57407f38f5952295217fc',
-    name: 'Admin Menu',
-    size: { width: 2500, height: 1686 },
-    chatBarText: 'Admin Menu',
-    selected: true,
-    areas: [ [Object], [Object], [Object], [Object] ]
-  }
-]
+Rich menu created with ID: richmenu-6cd71bd9b07545009f7b56d105e0f5a2
+Rich menu image uploaded successfully {}
+Register rich menu successfully created and image uploaded with ID: richmenu-6cd71bd9b07545009f7b56d105e0f5a2
+
+Rich menu created with ID: richmenu-0ba7f3459e24877a48eeae1fc946f38b
+Rich menu image uploaded successfully {}
+General user rich menu successfully created and image uploaded with ID: richmenu-0ba7f3459e24877a48eeae1fc946f38b
+
+Rich menu created with ID: richmenu-3670f2aed131fea8ca22d349188f12ee
+Rich menu image uploaded successfully {}
+Special user rich menu successfully created and image uploaded with ID: richmenu-3670f2aed131fea8ca22d349188f12ee
+
+Rich menu created with ID: richmenu-8da5f496f63cf0043ac867e7b08ece7a
+Rich menu image uploaded successfully {}
+Admin rich menu successfully created and image uploaded with ID: richmenu-8da5f496f63cf0043ac867e7b08ece7a
+
+Rich menu created with ID: richmenu-aa17766abb97f3e2ba5088be6cc69f43
+Rich menu image uploaded successfully {}
+Super Admin rich menu successfully created and image uploaded with ID: richmenu-aa17766abb97f3e2ba5088be6cc69f43
 ```
-
-            'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
-
-      ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
-      : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
