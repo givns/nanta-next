@@ -119,10 +119,10 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
         return res.status(400).send('No events found');
       }
 
-      await lineMiddleware(req, res, async () => {
-        const event = req.body.events[0];
+      for (const event of req.body.events) {
         await handler(event);
-      });
+      }
+
       return res.status(200).send('OK');
     } catch (err) {
       console.error('Error in middleware:', err);
