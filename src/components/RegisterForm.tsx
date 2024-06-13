@@ -8,7 +8,6 @@ const RegistrationSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
   nickname: Yup.string().required('Required'),
   department: Yup.string().required('Required'),
-  employeeNumber: Yup.string().required('Required'),
 });
 
 const departments = [
@@ -61,19 +60,18 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="container mx-auto">
+    <div className="container mx-auto flex flex-col items-center justify-center h-screen">
       <h1 className="text-2xl font-bold mb-4">Register</h1>
       <Formik
         initialValues={{
           name: '',
           nickname: '',
           department: '',
-          employeeNumber: '',
         }}
         validationSchema={RegistrationSchema}
         onSubmit={handleSubmit}
       >
-        <Form className="space-y-4">
+        <Form className="space-y-4 w-full max-w-xs">
           <div>
             <Field
               type="text"
@@ -115,19 +113,6 @@ const RegisterForm = () => {
             </Field>
             <ErrorMessage
               name="department"
-              component="div"
-              className="text-red-600"
-            />
-          </div>
-          <div>
-            <Field
-              type="text"
-              name="employeeNumber"
-              placeholder="Employee Number"
-              className="w-full p-2 border rounded"
-            />
-            <ErrorMessage
-              name="employeeNumber"
               component="div"
               className="text-red-600"
             />
