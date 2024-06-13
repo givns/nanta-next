@@ -11,6 +11,18 @@ const RegistrationSchema = Yup.object().shape({
   employeeNumber: Yup.string().required('Required'),
 });
 
+const departments = [
+  'ฝ่ายผลิต',
+  'ฝ่ายปฎิบัติการ',
+  'ฝ่ายคัดคุณภาพและบรรจุ',
+  'ฝ่ายขนส่ง',
+  'ฝ่ายคลังสินค้าและแพ็คกิ้ง',
+  'ฝ่ายสำนักงาน',
+  'ฝ่ายประกันคุณภาพ',
+  'ฝ่ายรักษาความสะอาด',
+  'ฝ่ายรักษาความปลอดภัย',
+];
+
 const RegisterForm = () => {
   const [lineUserId, setLineUserId] = useState('');
 
@@ -90,11 +102,17 @@ const RegisterForm = () => {
           </div>
           <div>
             <Field
-              type="text"
+              as="select"
               name="department"
-              placeholder="Department"
               className="w-full p-2 border rounded"
-            />
+            >
+              <option value="">Select Department</option>
+              {departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </Field>
             <ErrorMessage
               name="department"
               component="div"
