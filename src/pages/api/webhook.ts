@@ -23,23 +23,12 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
-// LINE bot client configuration
-const clientConfig: ClientConfig = {
-  channelAccessToken,
-};
-
+const clientConfig: ClientConfig = { channelAccessToken };
 const client = new Client(clientConfig);
 
-// Middleware configuration
-const middlewareConfig: MiddlewareConfig = {
-  channelSecret,
-};
+const middlewareConfig: MiddlewareConfig = { channelSecret };
 
-export const config = {
-  api: {
-    bodyParser: false, // Disallow body parsing to handle raw body manually
-  },
-};
+export const config = { api: { bodyParser: false } };
 
 const handler = async (event: WebhookEvent) => {
   if (!event) {
@@ -47,7 +36,7 @@ const handler = async (event: WebhookEvent) => {
     return;
   }
 
-  console.log('Event received:', JSON.stringify(event, null, 2));
+  console.log('Event received:', event);
 
   if (event.type === 'follow') {
     const userId = event.source.userId;
@@ -63,28 +52,12 @@ const handler = async (event: WebhookEvent) => {
         if (!user) {
           const registerRichMenuId =
             'richmenu-41ad3831bf0babb85105b33fec0a6b8a';
-          try {
-            console.log(`Linking register rich menu to user ${userId}`);
-            const response = await client.linkRichMenuToUser(
-              userId,
-              registerRichMenuId,
-            );
-            console.log('Register Rich menu linked to user:', userId, response);
-          } catch (error) {
-            console.error('Error linking register rich menu:', error);
-          }
+          await client.linkRichMenuToUser(userId, registerRichMenuId);
+          console.log('Register Rich menu linked to user:', userId);
         } else {
           const department = user.department;
-          try {
-            console.log(`Linking department rich menu to user ${userId}`);
-            const richMenuId = await createAndAssignRichMenu(
-              department,
-              userId,
-            );
-            console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
-          } catch (error) {
-            console.error('Error linking department rich menu:', error);
-          }
+          const richMenuId = await createAndAssignRichMenu(department, userId);
+          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
         }
       } catch (error: any) {
         console.error(
@@ -97,7 +70,6 @@ const handler = async (event: WebhookEvent) => {
       console.error('User ID not found in event:', event);
     }
   } else if (event.type === 'unfollow') {
-    // Do nothing for unfollow events
     console.log('Unfollow event for user ID:', event.source.userId);
   } else {
     console.error('Unhandled event type:', event.type);
@@ -106,25 +78,11 @@ const handler = async (event: WebhookEvent) => {
 
 const createAndAssignRichMenu = async (department: string, userId: string) => {
   const richMenuId =
-    department === 'Transport' || department === 'Management'
+    department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
       ? 'richmenu-b2a7e671cb2bf3d694191434a3566202'
       : 'richmenu-f0f99f1aeb0e7f30aca722816c7e09e7';
-
-  try {
-    console.log(`Linking rich menu ${richMenuId} to user ${userId}`);
-    const response = await client.linkRichMenuToUser(userId, richMenuId);
-    console.log(
-      `Rich menu linked to user ${userId}: ${richMenuId}, response: ${response}`,
-    );
-    return richMenuId;
-  } catch (error: any) {
-    console.error(
-      `Error linking rich menu to user ${userId}:`,
-      error.message,
-      error.stack,
-    );
-    throw error;
-  }
+  await client.linkRichMenuToUser(userId, richMenuId);
+  return richMenuId;
 };
 
 const lineMiddleware = middleware(middlewareConfig);
