@@ -1,44 +1,46 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
-import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    const { userId, leaveType, leaveFormat, startDate, endDate, reason } =
-      req.body;
+    const {
+      userId,
+      leaveType,
+      reason,
+      startDate,
+      endDate,
+      status,
+      leaveFormat,
+    } = req.body;
 
     try {
-      // Create a new leave request
-      const leaveRequest = await prisma.leaveRequest.create({
+      const newLeaveRequest = await prisma.leaveRequest.create({
         data: {
           userId,
           leaveType,
           leaveFormat,
+          reason,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          reason,
-          status: 'Pending',
+          status,
         },
       });
-
-      // Fetch the user details
-      const user = await prisma.user.findUnique({
-        where: { lineUserId: userId },
-      });
-
-      if (user) {
-        // Send a notification to the admin for approval
-        await sendLeaveRequestNotification(user, leaveRequest);
-      }
-
-      res.status(201).json({ success: true, data: leaveRequest });
+      res.status(201).json(newLeaveRequest);
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      res.status(500).json({ success: false, error: error.message });
+    }
+  } else if (req.method === 'GET') {
+    try {
+      const leaveRequests = await prisma.leaveRequest.findMany();
+      res.status(200).json(leaveRequests);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
     }
   } else {
-    res.status(405).json({ success: false, message: 'Method not allowed' });
+    res.setHeader('Allow', ['GET', 'POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }

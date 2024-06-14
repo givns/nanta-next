@@ -13,23 +13,19 @@ pnpm dev
 # or
 bun dev
 
-Rich menu created with ID: richmenu-6cd71bd9b07545009f7b56d105e0f5a2
+Rich menu created with ID: richmenu-1d20c92a5e0ca5c5c12cc4cb6fda1caa
 Rich menu image uploaded successfully {}
-Register rich menu successfully created and image uploaded with ID: richmenu-6cd71bd9b07545009f7b56d105e0f5a2
-
-Rich menu created with ID: richmenu-0ba7f3459e24877a48eeae1fc946f38b
+Register rich menu successfully created and image uploaded with ID: richmenu-1d20c92a5e0ca5c5c12cc4cb6fda1caa
+Rich menu created with ID: richmenu-581e59c118fd514a45fc01d6f301138e
 Rich menu image uploaded successfully {}
-General user rich menu successfully created and image uploaded with ID: richmenu-0ba7f3459e24877a48eeae1fc946f38b
-
-Rich menu created with ID: richmenu-3670f2aed131fea8ca22d349188f12ee
+General user rich menu successfully created and image uploaded with ID: richmenu-581e59c118fd514a45fc01d6f301138e
+Rich menu created with ID: richmenu-d07da0e5fa90760bc50f7b2deec89ca2
 Rich menu image uploaded successfully {}
-Special user rich menu successfully created and image uploaded with ID: richmenu-3670f2aed131fea8ca22d349188f12ee
-
-Rich menu created with ID: richmenu-8da5f496f63cf0043ac867e7b08ece7a
+Special user rich menu successfully created and image uploaded with ID: richmenu-d07da0e5fa90760bc50f7b2deec89ca2
+Rich menu created with ID: richmenu-2e10f099c17149de5386d2cf6f936051
 Rich menu image uploaded successfully {}
-Admin rich menu successfully created and image uploaded with ID: richmenu-8da5f496f63cf0043ac867e7b08ece7a
-
-Rich menu created with ID: richmenu-aa17766abb97f3e2ba5088be6cc69f43
+Admin rich menu successfully created and image uploaded with ID: richmenu-2e10f099c17149de5386d2cf6f936051
+Rich menu created with ID: richmenu-5610259c0139fc6a9d6475b628986fcf
 Rich menu image uploaded successfully {}
-Super Admin rich menu successfully created and image uploaded with ID: richmenu-aa17766abb97f3e2ba5088be6cc69f43
+Super Admin rich menu successfully created and image uploaded with ID: richmenu-5610259c0139fc6a9d6475b628986fcf
 ```

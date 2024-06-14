@@ -44,18 +44,24 @@ const handler = async (event: WebhookEvent) => {
 
     if (userId) {
       try {
-        let user = await prisma.user.findUnique({
+        const user = await prisma.user.findUnique({
           where: { lineUserId: userId },
         });
         console.log('User lookup result:', user);
 
         if (!user) {
           const registerRichMenuId =
-            'richmenu-6cd71bd9b07545009f7b56d105e0f5a2';
+            'richmenu-1d20c92a5e0ca5c5c12cc4cb6fda1caa';
           await client.linkRichMenuToUser(userId, registerRichMenuId);
           console.log('Register Rich menu linked to user:', userId);
         } else {
-          await assignRichMenu(user);
+          const role = user.role;
+          const richMenuId = await createAndAssignRichMenu(
+            role,
+            user.department,
+            userId,
+          );
+          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
         }
       } catch (error: any) {
         console.error(
@@ -75,22 +81,25 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
-const assignRichMenu = async (user: any) => {
-  const { lineUserId, department, role } = user;
+const createAndAssignRichMenu = async (
+  role: string,
+  department: string,
+  userId: string,
+) => {
   let richMenuId;
 
   if (role === 'superadmin') {
-    richMenuId = 'richmenu-aa17766abb97f3e2ba5088be6cc69f43'; // Super Admin Rich Menu
+    richMenuId = 'richmenu-5610259c0139fc6a9d6475b628986fcf';
   } else if (role === 'admin') {
-    richMenuId = 'richmenu-8da5f496f63cf0043ac867e7b08ece7a'; // Admin Rich Menu
+    richMenuId = 'richmenu-2e10f099c17149de5386d2cf6f936051';
   } else if (department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ') {
-    richMenuId = 'richmenu-3670f2aed131fea8ca22d349188f12ee'; // Special User Rich Menu
+    richMenuId = 'richmenu-d07da0e5fa90760bc50f7b2deec89ca2';
   } else {
-    richMenuId = 'richmenu-0ba7f3459e24877a48eeae1fc946f38b'; // General User Rich Menu
+    richMenuId = 'richmenu-581e59c118fd514a45fc01d6f301138e';
   }
 
-  await client.linkRichMenuToUser(lineUserId, richMenuId);
-  console.log(`Rich menu linked to user ${lineUserId}: ${richMenuId}`);
+  await client.linkRichMenuToUser(userId, richMenuId);
+  return richMenuId;
 };
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
