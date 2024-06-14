@@ -24,6 +24,7 @@ const departments = [
 
 const RegisterForm = () => {
   const [lineUserId, setLineUserId] = useState('');
+  const [profilePictureUrl, setProfilePictureUrl] = useState('');
 
   useEffect(() => {
     // Initialize LIFF
@@ -33,6 +34,7 @@ const RegisterForm = () => {
         if (liff.isLoggedIn()) {
           liff.getProfile().then((profile) => {
             setLineUserId(profile.userId);
+            setProfilePictureUrl(profile.pictureUrl); // Capture the profile picture URL
           });
         } else {
           liff.login();
@@ -48,6 +50,7 @@ const RegisterForm = () => {
       const response = await axios.post('/api/registerUser', {
         ...values,
         lineUserId,
+        profilePictureUrl, // Include the profile picture URL
       });
       if (response.data.success) {
         liff.closeWindow();
@@ -121,7 +124,7 @@ const RegisterForm = () => {
             type="submit"
             className="w-full p-2 bg-blue-500 text-white rounded"
           >
-            ลงทะเบียน
+            Register
           </button>
         </Form>
       </Formik>

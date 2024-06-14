@@ -20,6 +20,7 @@ model User {
   department     String
   employeeNumber String?
   role           String
+  profilePictureUrl String? 
   createdAt      DateTime @default(now())
   leaveRequests  LeaveRequest[]
   overtimeRequests OvertimeRequest[]

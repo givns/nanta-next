@@ -11,7 +11,8 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    const { lineUserId, name, nickname, department } = req.body;
+    const { lineUserId, name, nickname, department, profilePictureUrl } =
+      req.body;
 
     try {
       // Check if the user already exists
@@ -36,6 +37,7 @@ export default async function handler(
             name,
             nickname,
             department,
+            profilePictureUrl, // Save the profile picture URL
             role,
           },
         });
@@ -47,6 +49,7 @@ export default async function handler(
             name,
             nickname,
             department,
+            profilePictureUrl, // Ensure the profile picture URL is updated
             role, // Ensure the role is updated if department changes
           },
         });

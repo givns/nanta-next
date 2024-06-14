@@ -39,39 +39,23 @@ const handler = async (event: WebhookEvent) => {
   console.log('Event received:', event);
 
   if (event.type === 'follow') {
+    // Your existing follow event handling logic
+  } else if (event.type === 'postback') {
+    const data = event.postback.data;
     const userId = event.source.userId;
-    console.log('Follow event for user ID:', userId);
 
-    if (userId) {
-      try {
-        const user = await prisma.user.findUnique({
-          where: { lineUserId: userId },
-        });
-        console.log('User lookup result:', user);
+    const params = new URLSearchParams(data);
+    const action = params.get('action');
+    const requestId = params.get('requestId');
 
-        if (!user) {
-          const registerRichMenuId =
-            'richmenu-1d20c92a5e0ca5c5c12cc4cb6fda1caa';
-          await client.linkRichMenuToUser(userId, registerRichMenuId);
-          console.log('Register Rich menu linked to user:', userId);
-        } else {
-          const role = user.role;
-          const richMenuId = await createAndAssignRichMenu(
-            role,
-            user.department,
-            userId,
-          );
-          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
-        }
-      } catch (error: any) {
-        console.error(
-          'Error processing follow event:',
-          error.message,
-          error.stack,
-        );
+    if (action && requestId && userId) {
+      if (action === 'approve') {
+        // Call your approve handler
+        await handleApprove(requestId, userId);
+      } else if (action === 'deny') {
+        // Call your deny handler
+        await handleDeny(requestId, userId);
       }
-    } else {
-      console.error('User ID not found in event:', event);
     }
   } else if (event.type === 'unfollow') {
     // Do nothing for unfollow events
@@ -81,25 +65,40 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
-const createAndAssignRichMenu = async (
-  role: string,
-  department: string,
-  userId: string,
-) => {
-  let richMenuId;
+const handleApprove = async (requestId: string, userId: string) => {
+  try {
+    const leaveRequest = await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: { status: 'approved', approverId: userId },
+    });
+    console.log('Leave request approved:', leaveRequest);
 
-  if (role === 'superadmin') {
-    richMenuId = 'richmenu-5610259c0139fc6a9d6475b628986fcf';
-  } else if (role === 'admin') {
-    richMenuId = 'richmenu-2e10f099c17149de5386d2cf6f936051';
-  } else if (department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ') {
-    richMenuId = 'richmenu-d07da0e5fa90760bc50f7b2deec89ca2';
-  } else {
-    richMenuId = 'richmenu-581e59c118fd514a45fc01d6f301138e';
+    // Notify the user who requested the leave
+    await client.pushMessage(leaveRequest.userId, {
+      type: 'text',
+      text: 'Your leave request has been approved!',
+    });
+  } catch (error: any) {
+    console.error('Error approving leave request:', error.message);
   }
+};
 
-  await client.linkRichMenuToUser(userId, richMenuId);
-  return richMenuId;
+const handleDeny = async (requestId: string, userId: string) => {
+  try {
+    const leaveRequest = await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: { status: 'denied', approverId: userId },
+    });
+    console.log('Leave request denied:', leaveRequest);
+
+    // Notify the user who requested the leave
+    await client.pushMessage(leaveRequest.userId, {
+      type: 'text',
+      text: 'Your leave request has been denied.',
+    });
+  } catch (error: any) {
+    console.error('Error denying leave request:', error.message);
+  }
 };
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {

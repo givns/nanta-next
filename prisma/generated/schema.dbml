@@ -10,6 +10,7 @@ Table User {
   department String [not null]
   employeeNumber String
   role String [not null]
+  profilePictureUrl String
   createdAt DateTime [default: `now()`, not null]
   leaveRequests LeaveRequest [not null]
   overtimeRequests OvertimeRequest [not null]
