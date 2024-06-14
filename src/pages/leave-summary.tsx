@@ -1,21 +1,39 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
+import axios from 'axios';
+import dayjs from 'dayjs';
 
 const LeaveSummaryPage = () => {
   const router = useRouter();
   const [summaryData, setSummaryData] = useState<any>(null);
 
   useEffect(() => {
-    // Retrieve the data from the query parameters
-    if (router.query.data) {
-      const parsedData = JSON.parse(router.query.data as string);
-      setSummaryData(parsedData);
+    // Retrieve the data from session storage
+    const data = sessionStorage.getItem('leaveSummary');
+    if (data) {
+      setSummaryData(JSON.parse(data));
+    } else {
+      router.push('/leave-request');
     }
-  }, [router.query.data]);
+  }, [router]);
 
   if (!summaryData) {
     return <div>Loading...</div>;
   }
+
+  const handleSubmit = async () => {
+    try {
+      const response = await axios.post('/api/leaveRequest', summaryData);
+      if (response.data.success) {
+        // Redirect to leave confirmation page
+        router.push('/leave-confirmation');
+      } else {
+        alert('Error: ' + response.data.error);
+      }
+    } catch (error: any) {
+      alert('Error: ' + error.message);
+    }
+  };
 
   return (
     <div className="container mx-auto">
@@ -26,13 +44,18 @@ const LeaveSummaryPage = () => {
           <strong>ประเภทการลา:</strong> {summaryData.leaveType}
         </p>
         <p>
-          <strong>รูปแบบวันลา:</strong> {summaryData.leaveForm}
+          <strong>รูปแบบวันลา:</strong> {summaryData.leaveFormat}
         </p>
         <p>
           <strong>วันที่ลา:</strong> {summaryData.startDate}
         </p>
         <p>
-          <strong>จำนวนวัน:</strong> {summaryData.days} วัน
+          <strong>จำนวนวัน:</strong>{' '}
+          {dayjs(summaryData.endDate).diff(
+            dayjs(summaryData.startDate),
+            'day',
+          ) + 1}{' '}
+          วัน
         </p>
         <p>
           <strong>หมายเหตุ:</strong> {summaryData.reason}
@@ -40,10 +63,7 @@ const LeaveSummaryPage = () => {
       </div>
       <button
         className="w-full p-2 bg-blue-500 text-white rounded mt-4"
-        onClick={() => {
-          // Handle the submission of the leave request here
-          alert('การส่งคำขอลาเสร็จสมบูรณ์');
-        }}
+        onClick={handleSubmit}
       >
         ยืนยัน & ส่งคำขอ
       </button>

@@ -1,19 +1,20 @@
 import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import axios from 'axios';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import liff from '@line/liff';
 
 const LeaveRequestSchema = Yup.object().shape({
   leaveType: Yup.string().required('Required'),
-  leaveFormat: Yup.string().required('Required'),
   startDate: Yup.date().required('Required'),
   endDate: Yup.date().required('Required'),
+  leaveFormat: Yup.string().required('Required'),
   reason: Yup.string().required('Required'),
 });
 
 const LeaveRequestForm = () => {
   const [lineUserId, setLineUserId] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
     // Initialize LIFF
@@ -33,20 +34,16 @@ const LeaveRequestForm = () => {
     }
   }, []);
 
-  const handleSubmit = async (values: any) => {
-    try {
-      const response = await axios.post('/api/leaveRequest', {
-        ...values,
-        userId: lineUserId,
-      });
-      if (response.data.success) {
-        alert('Leave request submitted successfully');
-      } else {
-        alert('Error: ' + response.data.error);
-      }
-    } catch (error: any) {
-      alert('Error: ' + error.message);
-    }
+  const handleSubmit = (values: any) => {
+    // Include lineUserId in the submission data
+    const submissionData = {
+      ...values,
+      userId: lineUserId,
+    };
+    // Store leave request data in session storage
+    sessionStorage.setItem('leaveSummary', JSON.stringify(submissionData));
+    // Redirect to leave summary page
+    router.push('/leave-summary');
   };
 
   return (
