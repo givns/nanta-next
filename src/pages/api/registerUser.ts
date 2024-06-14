@@ -19,6 +19,7 @@ export default async function handler(
         where: { lineUserId },
       });
 
+      // Determine the role based on department
       let role = 'general';
       if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
         role = 'special';
