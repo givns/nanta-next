@@ -26,26 +26,21 @@ const RegisterForm = () => {
   const [lineUserId, setLineUserId] = useState('');
 
   useEffect(() => {
-    const initializeLiff = async () => {
-      try {
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-        if (liffId) {
-          await liff.init({ liffId });
-          if (liff.isLoggedIn()) {
-            const profile = await liff.getProfile();
+    // Initialize LIFF
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (liffId) {
+      liff.init({ liffId }).then(() => {
+        if (liff.isLoggedIn()) {
+          liff.getProfile().then((profile) => {
             setLineUserId(profile.userId);
-          } else {
-            liff.login();
-          }
+          });
         } else {
-          console.error('LIFF ID is not defined');
+          liff.login();
         }
-      } catch (error) {
-        console.error('Error initializing LIFF:', error);
-      }
-    };
-
-    initializeLiff();
+      });
+    } else {
+      console.error('LIFF ID is not defined');
+    }
   }, []);
 
   const handleSubmit = async (values: any) => {
@@ -57,10 +52,10 @@ const RegisterForm = () => {
       if (response.data.success) {
         liff.closeWindow();
       } else {
-        console.error('Error: ' + response.data.error);
+        alert('Error: ' + response.data.error);
       }
     } catch (error: any) {
-      console.error('Error: ' + error.message);
+      alert('Error: ' + error.message);
     }
   };
 
