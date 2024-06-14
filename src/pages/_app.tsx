@@ -4,28 +4,35 @@ import { useRouter } from 'next/router';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
-import { initializeLiff } from '@/utils/liff';
+import liff from '@line/liff';
 
 function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
 
   useEffect(() => {
-    const initialize = async () => {
+    const initializeLiff = async () => {
       try {
-        await initializeLiff();
-        const urlParams = new URLSearchParams(window.location.search);
-        const path = urlParams.get('path');
-
-        // Only redirect if the current path is not the desired path
-        if (path && router.pathname !== path) {
-          router.push(path);
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+        if (liffId) {
+          await liff.init({ liffId });
+          if (liff.isLoggedIn()) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const path = urlParams.get('path');
+            if (path) {
+              router.push(path);
+            }
+          } else {
+            liff.login();
+          }
+        } else {
+          console.error('LIFF ID is not defined');
         }
       } catch (error) {
         console.error('Error initializing LIFF:', error);
       }
     };
 
-    initialize();
+    initializeLiff();
   }, [router]);
 
   return (

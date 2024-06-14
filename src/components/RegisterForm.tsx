@@ -26,20 +26,26 @@ const RegisterForm = () => {
   const [lineUserId, setLineUserId] = useState('');
 
   useEffect(() => {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (liffId) {
-      liff.init({ liffId }).then(() => {
-        if (liff.isLoggedIn()) {
-          liff.getProfile().then((profile) => {
+    const initializeLiff = async () => {
+      try {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+        if (liffId) {
+          await liff.init({ liffId });
+          if (liff.isLoggedIn()) {
+            const profile = await liff.getProfile();
             setLineUserId(profile.userId);
-          });
+          } else {
+            liff.login();
+          }
         } else {
-          liff.login();
+          console.error('LIFF ID is not defined');
         }
-      });
-    } else {
-      console.error('LIFF ID is not defined');
-    }
+      } catch (error) {
+        console.error('Error initializing LIFF:', error);
+      }
+    };
+
+    initializeLiff();
   }, []);
 
   const handleSubmit = async (values: any) => {
