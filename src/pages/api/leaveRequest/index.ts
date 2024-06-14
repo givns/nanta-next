@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
+import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
 
 export default async function handler(
   req: NextApiRequest,
@@ -28,6 +29,27 @@ export default async function handler(
           status,
         },
       });
+
+      // Find super admins and admins
+      const superAdmins = await prisma.user.findMany({
+        where: {
+          role: 'superadmin',
+        },
+      });
+
+      const admins = await prisma.user.findMany({
+        where: {
+          role: 'admin',
+        },
+      });
+
+      const recipients = [...superAdmins, ...admins];
+
+      // Send notifications to super admins and admins
+      for (const recipient of recipients) {
+        await sendLeaveRequestNotification(recipient, newLeaveRequest);
+      }
+
       res.status(201).json(newLeaveRequest);
     } catch (error: any) {
       console.error('Error creating leave request:', error);
