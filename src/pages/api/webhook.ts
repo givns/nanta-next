@@ -44,7 +44,7 @@ const handler = async (event: WebhookEvent) => {
 
     if (userId) {
       try {
-        const user = await prisma.user.findUnique({
+        let user = await prisma.user.findUnique({
           where: { lineUserId: userId },
         });
         console.log('User lookup result:', user);
@@ -55,9 +55,7 @@ const handler = async (event: WebhookEvent) => {
           await client.linkRichMenuToUser(userId, registerRichMenuId);
           console.log('Register Rich menu linked to user:', userId);
         } else {
-          const department = user.department;
-          const richMenuId = await createAndAssignRichMenu(department, userId);
-          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+          await assignRichMenu(user);
         }
       } catch (error: any) {
         console.error(
@@ -77,15 +75,22 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
-const createAndAssignRichMenu = async (department: string, userId: string) => {
+const assignRichMenu = async (user: any) => {
+  const { lineUserId, department, role } = user;
   let richMenuId;
-  if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
-    richMenuId = 'richmenu-3670f2aed131fea8ca22d349188f12ee';
+
+  if (role === 'superadmin') {
+    richMenuId = 'richmenu-aa17766abb97f3e2ba5088be6cc69f43'; // Super Admin Rich Menu
+  } else if (role === 'admin') {
+    richMenuId = 'richmenu-8da5f496f63cf0043ac867e7b08ece7a'; // Admin Rich Menu
+  } else if (department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ') {
+    richMenuId = 'richmenu-3670f2aed131fea8ca22d349188f12ee'; // Special User Rich Menu
   } else {
-    richMenuId = 'richmenu-0ba7f3459e24877a48eeae1fc946f38b';
+    richMenuId = 'richmenu-0ba7f3459e24877a48eeae1fc946f38b'; // General User Rich Menu
   }
-  await client.linkRichMenuToUser(userId, richMenuId);
-  return richMenuId;
+
+  await client.linkRichMenuToUser(lineUserId, richMenuId);
+  console.log(`Rich menu linked to user ${lineUserId}: ${richMenuId}`);
 };
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {

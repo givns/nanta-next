@@ -19,10 +19,13 @@ export default async function handler(
         where: { lineUserId },
       });
 
-      // Determine the role based on department
-      let role = 'general';
-      if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
-        role = 'special';
+      // Determine the role and rich menu ID
+      let role = 'general'; // Default role
+
+      // Check if this is the first user and assign super admin role
+      const userCount = await prisma.user.count();
+      if (userCount === 0) {
+        role = 'superadmin';
       }
 
       // If user does not exist, create a new one
@@ -44,15 +47,21 @@ export default async function handler(
             name,
             nickname,
             department,
-            role,
+            role, // Ensure the role is updated if department changes
           },
         });
       }
 
       // Determine the appropriate rich menu based on role
-      let richMenuId = 'richmenu-0ba7f3459e24877a48eeae1fc946f38b'; // Default to General User Rich Menu
-      if (role === 'special') {
+      let richMenuId;
+      if (role === 'superadmin') {
+        richMenuId = 'richmenu-aa17766abb97f3e2ba5088be6cc69f43'; // Super Admin Rich Menu
+      } else if (role === 'admin') {
+        richMenuId = 'richmenu-8da5f496f63cf0043ac867e7b08ece7a'; // Admin Rich Menu
+      } else if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
         richMenuId = 'richmenu-3670f2aed131fea8ca22d349188f12ee'; // Special User Rich Menu
+      } else {
+        richMenuId = 'richmenu-0ba7f3459e24877a48eeae1fc946f38b'; // General User Rich Menu
       }
 
       // Link the rich menu to the user
