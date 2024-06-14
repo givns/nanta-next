@@ -19,6 +19,11 @@ export default async function handler(
         where: { lineUserId },
       });
 
+      let role = 'general';
+      if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
+        role = 'special';
+      }
+
       // If user does not exist, create a new one
       if (!user) {
         user = await prisma.user.create({
@@ -27,7 +32,7 @@ export default async function handler(
             name,
             nickname,
             department,
-            role: 'general',
+            role,
           },
         });
       } else {
@@ -38,13 +43,14 @@ export default async function handler(
             name,
             nickname,
             department,
+            role,
           },
         });
       }
 
-      // Determine the appropriate rich menu based on department
+      // Determine the appropriate rich menu based on role
       let richMenuId = 'richmenu-0ba7f3459e24877a48eeae1fc946f38b'; // Default to General User Rich Menu
-      if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
+      if (role === 'special') {
         richMenuId = 'richmenu-3670f2aed131fea8ca22d349188f12ee'; // Special User Rich Menu
       }
 

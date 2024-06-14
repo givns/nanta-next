@@ -78,10 +78,12 @@ const handler = async (event: WebhookEvent) => {
 };
 
 const createAndAssignRichMenu = async (department: string, userId: string) => {
-  const richMenuId =
-    department === 'ฝ่ายขนส่ง' || department === 'ฝ่ายปฏิบัติการ'
-      ? 'richmenu-3670f2aed131fea8ca22d349188f12ee'
-      : 'richmenu-0ba7f3459e24877a48eeae1fc946f38b';
+  let richMenuId;
+  if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
+    richMenuId = 'richmenu-3670f2aed131fea8ca22d349188f12ee';
+  } else {
+    richMenuId = 'richmenu-0ba7f3459e24877a48eeae1fc946f38b';
+  }
   await client.linkRichMenuToUser(userId, richMenuId);
   return richMenuId;
 };
