@@ -26,7 +26,7 @@ export const sendLeaveRequestNotification = async (
             color: '#ffffff',
           },
         ],
-        backgroundColor: '#1DB446',
+        backgroundColor: '#FF0000',
       },
       body: {
         type: 'box',
@@ -62,7 +62,7 @@ export const sendLeaveRequestNotification = async (
               },
               {
                 type: 'text',
-                text: `${leaveRequest.startDate.toISOString().split('T')[0]} - ${leaveRequest.endDate.toISOString().split('T')[0]}`,
+                text: `${new Date(leaveRequest.startDate).toISOString().split('T')[0]} - ${new Date(leaveRequest.endDate).toISOString().split('T')[0]}`,
                 wrap: true,
                 flex: 1,
               },
