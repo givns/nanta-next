@@ -6,15 +6,10 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    const {
-      userId,
-      leaveType,
-      reason,
-      startDate,
-      endDate,
-      status,
-      leaveFormat,
-    } = req.body;
+    const { userId, leaveType, reason, startDate, endDate, leaveFormat } =
+      req.body;
+
+    console.log('Request Body:', req.body);
 
     try {
       const newLeaveRequest = await prisma.leaveRequest.create({
@@ -25,11 +20,13 @@ export default async function handler(
           reason,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          status,
+          status: 'pending',
         },
       });
+      console.log('New Leave Request:', newLeaveRequest);
       res.status(201).json(newLeaveRequest);
     } catch (error: any) {
+      console.error('Error creating leave request:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   } else if (req.method === 'GET') {
