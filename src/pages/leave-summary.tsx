@@ -2,6 +2,7 @@ import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import liff from '@line/liff';
 
 const LeaveSummaryPage = () => {
   const router = useRouter();
@@ -24,14 +25,16 @@ const LeaveSummaryPage = () => {
   const handleSubmit = async () => {
     try {
       const response = await axios.post('/api/leaveRequest', summaryData);
-      if (response.data.success) {
+      if (response.status === 201) {
         // Redirect to leave confirmation page
         router.push('/leave-confirmation');
       } else {
+        console.error('Error response:', response.data);
         alert('Error: ' + response.data.error);
       }
     } catch (error: any) {
-      alert('Error: ' + error.message);
+      console.error('Submission error:', error);
+      alert('Error: ' + (error.response?.data?.error || error.message));
     }
   };
 
@@ -47,7 +50,9 @@ const LeaveSummaryPage = () => {
           <strong>รูปแบบวันลา:</strong> {summaryData.leaveFormat}
         </p>
         <p>
-          <strong>วันที่ลา:</strong> {summaryData.startDate}
+          <strong>วันที่ลา:</strong>{' '}
+          {dayjs(summaryData.startDate).format('YYYY-MM-DD')} -{' '}
+          {dayjs(summaryData.endDate).format('YYYY-MM-DD')}
         </p>
         <p>
           <strong>จำนวนวัน:</strong>{' '}
