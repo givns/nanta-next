@@ -26,7 +26,6 @@ const RegisterForm = () => {
   const [lineUserId, setLineUserId] = useState('');
 
   useEffect(() => {
-    // Initialize LIFF
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
     if (liffId) {
       liff.init({ liffId }).then(() => {
@@ -52,10 +51,10 @@ const RegisterForm = () => {
       if (response.data.success) {
         liff.closeWindow();
       } else {
-        alert('Error: ' + response.data.error);
+        console.error('Error: ' + response.data.error);
       }
     } catch (error: any) {
-      alert('Error: ' + error.message);
+      console.error('Error: ' + error.message);
     }
   };
 
@@ -121,7 +120,7 @@ const RegisterForm = () => {
             type="submit"
             className="w-full p-2 bg-blue-500 text-white rounded"
           >
-            Register
+            ลงทะเบียน
           </button>
         </Form>
       </Formik>
