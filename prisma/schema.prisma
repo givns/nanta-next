@@ -27,16 +27,19 @@ model User {
 }
 
 model LeaveRequest {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
-  leaveType String
-  reason    String
-  startDate DateTime @db.Date
-  endDate   DateTime @db.Date
-  status    String
-  createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id])
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String
+  user          User       @relation(fields: [userId], references: [id])
+  leaveType     String
+  leaveFormat   String
+  startDate     DateTime
+  endDate       DateTime
+  reason        String
+  status        String
+  approverId    String?
+  denialReason  String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 }
 
 model OvertimeRequest {

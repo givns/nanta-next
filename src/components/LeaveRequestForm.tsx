@@ -6,8 +6,10 @@ import liff from '@line/liff';
 
 const LeaveRequestSchema = Yup.object().shape({
   leaveType: Yup.string().required('Required'),
+  leaveFormat: Yup.string().required('Required'),
   startDate: Yup.date().required('Required'),
   endDate: Yup.date().required('Required'),
+  reason: Yup.string().required('Required'),
 });
 
 const LeaveRequestForm = () => {
@@ -53,8 +55,10 @@ const LeaveRequestForm = () => {
       <Formik
         initialValues={{
           leaveType: '',
+          leaveFormat: '',
           startDate: '',
           endDate: '',
+          reason: '',
         }}
         validationSchema={LeaveRequestSchema}
         onSubmit={handleSubmit}
@@ -67,9 +71,9 @@ const LeaveRequestForm = () => {
               className="w-full p-2 border rounded"
             >
               <option value="">Select Leave Type</option>
-              <option value="sick">Sick</option>
-              <option value="vacation">Vacation</option>
-              <option value="personal">Personal</option>
+              <option value="ลาพักร้อน">ลาพักร้อน 🌴</option>
+              <option value="ลาป่วย">ลาป่วย 🤒</option>
+              <option value="ลากิจ">ลากิจ 👜</option>
             </Field>
             <ErrorMessage
               name="leaveType"
@@ -79,6 +83,24 @@ const LeaveRequestForm = () => {
           </div>
           <div>
             <Field
+              as="select"
+              name="leaveFormat"
+              className="w-full p-2 border rounded"
+            >
+              <option value="">รูปแบบการลา</option>
+              <option value="ลาครึ่งวัน">ลาครึ่งวัน</option>
+              <option value="ลาครึ่งวันช่วงเช้า">ลาครึ่งวันช่วงเช้า</option>
+              <option value="ลาครึ่งวันช่วงบ่าย">ลาครึ่งวันช่วงบ่าย</option>
+              <option value="ลาเต็มวัน">ลาเต็มวัน</option>
+            </Field>
+            <ErrorMessage
+              name="leaveFormat"
+              component="div"
+              className="text-red-600"
+            />
+          </div>
+          <div>
+            <Field
               type="date"
               name="startDate"
               className="w-full p-2 border rounded"
@@ -97,6 +119,19 @@ const LeaveRequestForm = () => {
             />
             <ErrorMessage
               name="endDate"
+              component="div"
+              className="text-red-600"
+            />
+          </div>
+          <div>
+            <Field
+              type="text"
+              name="reason"
+              placeholder="ระบุสาเหตุการลา"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage
+              name="reason"
               component="div"
               className="text-red-600"
             />

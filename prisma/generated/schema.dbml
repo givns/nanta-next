@@ -19,13 +19,17 @@ Table User {
 Table LeaveRequest {
   id String [pk]
   userId String [not null]
+  user User [not null]
   leaveType String [not null]
-  reason String [not null]
+  leaveFormat String [not null]
   startDate DateTime [not null]
   endDate DateTime [not null]
+  reason String [not null]
   status String [not null]
+  approverId String
+  denialReason String
   createdAt DateTime [default: `now()`, not null]
-  user User [not null]
+  updatedAt DateTime [not null]
 }
 
 Table OvertimeRequest {

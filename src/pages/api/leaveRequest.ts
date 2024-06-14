@@ -20,16 +20,28 @@ export default async function handler(
     }
   } else if (req.method === 'POST') {
     // Handle POST request - create a new leave request
-    const { userId, leaveType, reason, startDate, endDate, status } = req.body;
+    const {
+      userId,
+      leaveType,
+      leaveFormat,
+      reason,
+      startDate,
+      endDate,
+      status,
+    } = req.body;
     try {
       const newLeaveRequest = await prisma.leaveRequest.create({
         data: {
           userId,
           leaveType,
+          leaveFormat,
           reason,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
           status,
+          user: {
+            connect: { id: userId },
+          },
         },
       });
       res.status(201).json(newLeaveRequest);
