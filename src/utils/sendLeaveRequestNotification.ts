@@ -20,13 +20,13 @@ export const sendLeaveRequestNotification = async (
         contents: [
           {
             type: 'text',
-            text: 'คำขอการลาของคุณ',
+            text: `${user.name} ขออนุญาตลางาน คุณอนุมัติหรือไม่?`,
             weight: 'bold',
             size: 'xl',
-            color: '#ffffff',
+            color: '#FFFFFF',
           },
         ],
-        backgroundColor: '#FF0000',
+        backgroundColor: '#1DB446', // green header background
       },
       body: {
         type: 'box',
@@ -34,57 +34,127 @@ export const sendLeaveRequestNotification = async (
         contents: [
           {
             type: 'box',
-            layout: 'baseline',
+            layout: 'horizontal',
             contents: [
               {
-                type: 'text',
-                text: 'ประเภทการลา',
-                weight: 'bold',
-                flex: 0,
+                type: 'image',
+                url: 'https://via.placeholder.com/150',
+                size: 'sm',
+                aspectMode: 'cover',
+                aspectRatio: '1:1',
+                margin: 'md',
               },
               {
-                type: 'text',
-                text: leaveRequest.leaveType,
-                wrap: true,
-                flex: 1,
+                type: 'box',
+                layout: 'vertical',
+                contents: [
+                  {
+                    type: 'text',
+                    text: user.name,
+                    weight: 'bold',
+                    size: 'md',
+                    margin: 'md',
+                  },
+                  {
+                    type: 'box',
+                    layout: 'vertical',
+                    margin: 'md',
+                    spacing: 'xs',
+                    contents: [
+                      {
+                        type: 'box',
+                        layout: 'baseline',
+                        contents: [
+                          {
+                            type: 'text',
+                            text: 'ประเภทการลา',
+                            weight: 'bold',
+                            size: 'sm',
+                            color: '#AAAAAA', // matching text color
+                            flex: 0,
+                          },
+                          {
+                            type: 'text',
+                            text: leaveRequest.leaveType,
+                            wrap: true,
+                            size: 'sm',
+                            color: '#666666', // matching text color
+                            flex: 1,
+                          },
+                        ],
+                      },
+                      {
+                        type: 'box',
+                        layout: 'baseline',
+                        contents: [
+                          {
+                            type: 'text',
+                            text: 'รูปแบบวันลา',
+                            weight: 'bold',
+                            size: 'sm',
+                            color: '#AAAAAA', // matching text color
+                            flex: 0,
+                          },
+                          {
+                            type: 'text',
+                            text: leaveRequest.leaveFormat,
+                            wrap: true,
+                            size: 'sm',
+                            color: '#666666', // matching text color
+                            flex: 1,
+                          },
+                        ],
+                      },
+                      {
+                        type: 'box',
+                        layout: 'baseline',
+                        contents: [
+                          {
+                            type: 'text',
+                            text: 'วันที่',
+                            weight: 'bold',
+                            size: 'sm',
+                            color: '#AAAAAA', // matching text color
+                            flex: 0,
+                          },
+                          {
+                            type: 'text',
+                            text: `${new Date(leaveRequest.startDate).toLocaleDateString()} - ${new Date(leaveRequest.endDate).toLocaleDateString()}`,
+                            wrap: true,
+                            size: 'sm',
+                            color: '#666666', // matching text color
+                            flex: 1,
+                          },
+                        ],
+                      },
+                      {
+                        type: 'box',
+                        layout: 'baseline',
+                        contents: [
+                          {
+                            type: 'text',
+                            text: 'สาเหตุ',
+                            weight: 'bold',
+                            size: 'sm',
+                            color: '#AAAAAA', // matching text color
+                            flex: 0,
+                          },
+                          {
+                            type: 'text',
+                            text: leaveRequest.reason,
+                            wrap: true,
+                            size: 'sm',
+                            color: '#666666', // matching text color
+                            flex: 1,
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
               },
             ],
-          },
-          {
-            type: 'box',
-            layout: 'baseline',
-            contents: [
-              {
-                type: 'text',
-                text: 'วันที่',
-                weight: 'bold',
-                flex: 0,
-              },
-              {
-                type: 'text',
-                text: `${new Date(leaveRequest.startDate).toISOString().split('T')[0]} - ${new Date(leaveRequest.endDate).toISOString().split('T')[0]}`,
-                wrap: true,
-                flex: 1,
-              },
-            ],
-          },
-          {
-            type: 'box',
-            layout: 'baseline',
-            contents: [
-              {
-                type: 'text',
-                text: 'สาเหตุ',
-                weight: 'bold',
-                flex: 0,
-              },
-              {
-                type: 'text',
-                text: leaveRequest.reason,
-                wrap: true,
-                flex: 1,
-              },
-            ],
+            spacing: 'sm',
           },
         ],
       },
@@ -94,8 +164,8 @@ export const sendLeaveRequestNotification = async (
         contents: [
           {
             type: 'button',
-            style: 'primary',
-            color: '#FF0000',
+            style: 'secondary',
+            color: '#AAAAFF', // matching button color for denial
             action: {
               type: 'postback',
               label: 'ไม่อนุมัติ',
@@ -104,8 +174,8 @@ export const sendLeaveRequestNotification = async (
           },
           {
             type: 'button',
-            style: 'primary',
-            color: '#00FF00',
+            style: 'secondary',
+            color: '#AAAAFF', // matching button color for approval
             action: {
               type: 'postback',
               label: 'อนุมัติ',
@@ -113,6 +183,7 @@ export const sendLeaveRequestNotification = async (
             },
           },
         ],
+        spacing: 'md',
       },
     },
   };
