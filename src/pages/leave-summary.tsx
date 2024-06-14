@@ -24,7 +24,10 @@ const LeaveSummaryPage = () => {
 
   const handleSubmit = async () => {
     try {
-      const response = await axios.post('/api/leaveRequest', summaryData);
+      const response = await axios.post('/api/leaveRequest', {
+        ...summaryData,
+        status: 'pending', // Ensure status is included
+      });
       if (response.status === 201) {
         // Redirect to leave confirmation page
         router.push('/leave-confirmation');
