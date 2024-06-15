@@ -10,14 +10,12 @@ const sendDenyNotification = async (
   user: any,
   leaveRequest: any,
   denialReason: string,
-  approver: any,
 ) => {
   const message: FlexMessage = {
     type: 'flex',
     altText: 'Leave Request Denied',
     contents: {
       type: 'bubble',
-      size: 'giga',
       header: {
         type: 'box',
         layout: 'vertical',
@@ -42,7 +40,7 @@ const sendDenyNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'ประเภทการลา:',
+                text: 'ประเภทการลา',
                 weight: 'bold',
                 flex: 0,
               },
@@ -60,27 +58,13 @@ const sendDenyNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'วันที่:',
+                text: 'วันที่',
                 weight: 'bold',
                 flex: 0,
               },
               {
                 type: 'text',
-                text: `${new Date(leaveRequest.startDate).toLocaleDateString(
-                  'th-TH',
-                  {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  },
-                )} - ${new Date(leaveRequest.endDate).toLocaleDateString(
-                  'th-TH',
-                  {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  },
-                )}`,
+                text: `${leaveRequest.startDate.toISOString().split('T')[0]} - ${leaveRequest.endDate.toISOString().split('T')[0]}`,
                 wrap: true,
                 flex: 1,
               },
@@ -92,7 +76,7 @@ const sendDenyNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'สาเหตุ:',
+                text: 'สาเหตุ',
                 weight: 'bold',
                 flex: 0,
               },
@@ -110,7 +94,7 @@ const sendDenyNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'เหตุผลที่ถูกปฏิเสธ:',
+                text: 'เหตุผลที่ถูกปฏิเสธ',
                 weight: 'bold',
                 flex: 0,
               },
@@ -119,18 +103,6 @@ const sendDenyNotification = async (
                 text: denialReason,
                 wrap: true,
                 flex: 1,
-              },
-            ],
-          },
-          {
-            type: 'box',
-            layout: 'baseline',
-            contents: [
-              {
-                type: 'text',
-                text: `ผู้ไม่อนุมัติ: ${approver.name}`,
-                weight: 'bold',
-                flex: 0,
               },
             ],
           },
@@ -149,26 +121,29 @@ export default async function handler(
   if (req.method === 'POST') {
     const { requestId, approverId, denialReason } = req.body;
 
+    console.log('Request payload:', req.body);
+
     try {
       const leaveRequest = await prisma.leaveRequest.update({
         where: { id: requestId },
         data: { status: 'denied', approverId, denialReason },
       });
 
+      console.log('Leave request updated:', leaveRequest);
+
       const user = await prisma.user.findUnique({
         where: { id: leaveRequest.userId },
       });
 
-      const approver = await prisma.user.findUnique({
-        where: { lineUserId: approverId },
-      });
+      console.log('User found:', user);
 
-      if (user && approver) {
-        await sendDenyNotification(user, leaveRequest, denialReason, approver);
+      if (user) {
+        await sendDenyNotification(user, leaveRequest, denialReason);
       }
 
       res.status(200).json(leaveRequest);
     } catch (error: any) {
+      console.error('Error processing leave request denial:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   } else {
