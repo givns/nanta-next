@@ -155,6 +155,6 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
-  // Return a 405 status for any method other than GET or POST
+  // Return a 405 status for any method other than GET or POST or push
   return res.status(405).send('Method Not Allowed');
 };
