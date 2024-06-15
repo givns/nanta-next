@@ -34,10 +34,11 @@ select {
   width: 100%;
 }
 
-button[type='submit'] {
+button[type='submit'],
+button {
   padding: 10px;
   margin-bottom: 10px;
-  background-color: #a33e35;
+  background-color: #01af70;
   color: #ffffff;
   border: none;
   border-radius: 4px;
@@ -46,6 +47,16 @@ button[type='submit'] {
   text-align: center;
 }
 
-button[type='submit']:hover {
-  background-color: #f62925;
+button[type='submit']:hover,
+button:hover {
+  background-color: #028f56;
+}
+
+button[type='button'].secondary {
+  background-color: #deedff;
+  color: #4c72f1;
+}
+
+button[type='button'].secondary:hover {
+  background-color: #c0e0f7;
 }
