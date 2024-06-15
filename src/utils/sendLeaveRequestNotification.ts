@@ -142,7 +142,7 @@ export const sendLeaveRequestNotification = async (
                       day: 'numeric',
                     })}`,
                     size: 'sm',
-                    color: '#bcbcbc',
+                    color: '#4682B4',
                   },
                 ],
               },

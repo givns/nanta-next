@@ -1,17 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/router';
 import liff from '@line/liff';
 
-const DenyReason = ({
-  requestId,
-  approverId,
-}: {
-  requestId: string;
-  approverId: string;
-}) => {
+const DenyReason = () => {
   const [denialReason, setDenialReason] = useState('');
+  const [requestId, setRequestId] = useState('');
+  const [approverId, setApproverId] = useState('');
   const router = useRouter();
+
+  useEffect(() => {
+    // Get requestId and approverId from query parameters
+    const { requestId, approverId } = router.query;
+    if (requestId) setRequestId(requestId as string);
+    if (approverId) setApproverId(approverId as string);
+  }, [router.query]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
