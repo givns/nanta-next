@@ -23,24 +23,23 @@ export const sendLeaveRequestNotification = async (
           {
             type: 'image',
             url: profilePictureUrl,
-            size: 'md',
+            size: 'sm',
             aspectMode: 'cover',
-            aspectRatio: '1:1',
           },
           {
             type: 'text',
             text: `${user.name} ขออนุญาตลางาน คุณอนุมัติหรือไม่?`,
             weight: 'bold',
-            size: 'xl',
+            size: 'md',
             color: '#ffffff',
             wrap: true,
           },
         ],
-        backgroundColor: '#62ad73', // Adobe RGB R98 G173 B115
+        backgroundColor: '#01AF70',
       },
       body: {
         type: 'box',
-        layout: 'vertical',
+        layout: 'horizontal',
         contents: [
           {
             type: 'box',
@@ -73,6 +72,7 @@ export const sendLeaveRequestNotification = async (
               {
                 type: 'text',
                 text: leaveRequest.leaveFormat,
+                align: 'end',
                 wrap: true,
                 flex: 1,
               },
@@ -133,7 +133,7 @@ export const sendLeaveRequestNotification = async (
           {
             type: 'button',
             style: 'primary',
-            color: '#e2ecfe',
+            color: '#4C72F1',
             action: {
               type: 'postback',
               label: 'อนุมัติ',
