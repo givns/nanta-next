@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
 import { Client, FlexMessage } from '@line/bot-sdk';
-import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -11,12 +10,14 @@ const sendDenyNotification = async (
   user: any,
   leaveRequest: any,
   denialReason: string,
+  approver: any,
 ) => {
   const message: FlexMessage = {
     type: 'flex',
     altText: 'Leave Request Denied',
     contents: {
       type: 'bubble',
+      size: 'giga',
       header: {
         type: 'box',
         layout: 'vertical',
@@ -41,7 +42,7 @@ const sendDenyNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'ประเภทการลา',
+                text: 'ประเภทการลา:',
                 weight: 'bold',
                 flex: 0,
               },
@@ -59,13 +60,27 @@ const sendDenyNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'วันที่',
+                text: 'วันที่:',
                 weight: 'bold',
                 flex: 0,
               },
               {
                 type: 'text',
-                text: `${leaveRequest.startDate.toISOString().split('T')[0]} - ${leaveRequest.endDate.toISOString().split('T')[0]}`,
+                text: `${new Date(leaveRequest.startDate).toLocaleDateString(
+                  'th-TH',
+                  {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  },
+                )} - ${new Date(leaveRequest.endDate).toLocaleDateString(
+                  'th-TH',
+                  {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  },
+                )}`,
                 wrap: true,
                 flex: 1,
               },
@@ -77,7 +92,7 @@ const sendDenyNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'สาเหตุ',
+                text: 'สาเหตุ:',
                 weight: 'bold',
                 flex: 0,
               },
@@ -95,7 +110,7 @@ const sendDenyNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'เหตุผลที่ถูกปฏิเสธ',
+                text: 'เหตุผลที่ถูกปฏิเสธ:',
                 weight: 'bold',
                 flex: 0,
               },
@@ -104,6 +119,18 @@ const sendDenyNotification = async (
                 text: denialReason,
                 wrap: true,
                 flex: 1,
+              },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'baseline',
+            contents: [
+              {
+                type: 'text',
+                text: `ผู้ไม่อนุมัติ: ${approver.name}`,
+                weight: 'bold',
+                flex: 0,
               },
             ],
           },
@@ -132,8 +159,12 @@ export default async function handler(
         where: { id: leaveRequest.userId },
       });
 
-      if (user) {
-        await sendDenyNotification(user, leaveRequest, denialReason);
+      const approver = await prisma.user.findUnique({
+        where: { lineUserId: approverId },
+      });
+
+      if (user && approver) {
+        await sendDenyNotification(user, leaveRequest, denialReason, approver);
       }
 
       res.status(200).json(leaveRequest);

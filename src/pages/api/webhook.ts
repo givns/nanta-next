@@ -86,8 +86,13 @@ const handler = async (event: WebhookEvent) => {
         // Call your approve handler
         await handleApprove(requestId, userId);
       } else if (action === 'deny') {
-        // Call your deny handler
-        await handleDeny(requestId, userId);
+        // Redirect to a page to input denial reason
+        // Pass requestId and userId as query parameters
+        const redirectUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&approverId=${userId}`;
+        await client.pushMessage(userId, {
+          type: 'text',
+          text: `Please provide a reason for denial: ${redirectUrl}`,
+        });
       }
     }
   } else if (event.type === 'unfollow') {
