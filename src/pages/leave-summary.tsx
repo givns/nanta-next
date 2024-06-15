@@ -41,39 +41,47 @@ const LeaveSummaryPage = () => {
   };
 
   return (
-    <div className="container mx-auto">
-      <h1 className="text-2xl font-bold mb-4">ตรวจสอบข้อมูล</h1>
-      <h2 className="text-xl mb-4">สรุปการขอวันลา</h2>
-      <div className="bg-white p-4 rounded shadow">
-        <p>
-          <strong>ประเภทการลา:</strong> {summaryData.leaveType}
-        </p>
-        <p>
-          <strong>รูปแบบวันลา:</strong> {summaryData.leaveFormat}
-        </p>
-        <p>
-          <strong>วันที่ลา:</strong>{' '}
-          {dayjs(summaryData.startDate).format('YYYY-MM-DD')} -{' '}
-          {dayjs(summaryData.endDate).format('YYYY-MM-DD')}
-        </p>
-        <p>
-          <strong>จำนวนวัน:</strong>{' '}
-          {dayjs(summaryData.endDate).diff(
-            dayjs(summaryData.startDate),
-            'day',
-          ) + 1}{' '}
-          วัน
-        </p>
-        <p>
-          <strong>หมายเหตุ:</strong> {summaryData.reason}
-        </p>
+    <div className="container mx-auto p-4 bg-white rounded shadow-lg max-w-md">
+      <div className="flex flex-col">
+        <div className="header bg-[#F0F0F0] p-4 rounded-t">
+          <h1 className="text-2xl font-bold">ตรวจสอบข้อมูล</h1>
+        </div>
+        <div className="body p-4">
+          <h2 className="text-xl mb-4">สรุปการขอวันลา</h2>
+          <div className="bg-white p-4 rounded shadow">
+            <p className="mb-2">
+              <strong>ประเภทการลา:</strong> {summaryData.leaveType}
+            </p>
+            <p className="mb-2">
+              <strong>รูปแบบวันลา:</strong> {summaryData.leaveFormat}
+            </p>
+            <p className="mb-2">
+              <strong>วันที่ลา:</strong>{' '}
+              {dayjs(summaryData.startDate).format('YYYY-MM-DD')} -{' '}
+              {dayjs(summaryData.endDate).format('YYYY-MM-DD')}
+            </p>
+            <p className="mb-2">
+              <strong>จำนวนวัน:</strong>{' '}
+              {dayjs(summaryData.endDate).diff(
+                dayjs(summaryData.startDate),
+                'day',
+              ) + 1}{' '}
+              วัน
+            </p>
+            <p className="mb-2">
+              <strong>หมายเหตุ:</strong> {summaryData.reason}
+            </p>
+          </div>
+        </div>
+        <div className="footer p-4 bg-[#F0F0F0] rounded-b">
+          <button
+            className="w-full p-2 bg-[#00FF7F] text-white rounded"
+            onClick={handleSubmit}
+          >
+            ยืนยัน & ส่งคำขอ
+          </button>
+        </div>
       </div>
-      <button
-        className="w-full p-2 bg-blue-500 text-white rounded mt-4"
-        onClick={handleSubmit}
-      >
-        ยืนยัน & ส่งคำขอ
-      </button>
     </div>
   );
 };
