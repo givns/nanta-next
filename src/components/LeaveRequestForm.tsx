@@ -1,102 +1,124 @@
-import { Formik, Field, Form, ErrorMessage } from 'formik';
+import { useState } from 'react';
+import { useRouter } from 'next/router';
+import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import axios from 'axios';
-import { useEffect, useState } from 'react';
-import liff from '@line/liff';
-
-const LeaveRequestSchema = Yup.object().shape({
-  leaveType: Yup.string().required('Required'),
-  leaveFormat: Yup.string().required('Required'),
-  startDate: Yup.date().required('Required'),
-  endDate: Yup.date().required('Required'),
-  reason: Yup.string().required('Required'),
-});
 
 const LeaveRequestForm = () => {
-  const [lineUserId, setLineUserId] = useState('');
+  const router = useRouter();
   const [step, setStep] = useState(1);
-  const [selectedLeaveFormat, setSelectedLeaveFormat] = useState('');
 
-  useEffect(() => {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (liffId) {
-      liff.init({ liffId }).then(() => {
-        if (liff.isLoggedIn()) {
-          liff.getProfile().then((profile) => {
-            setLineUserId(profile.userId);
-          });
-        } else {
-          liff.login();
-        }
-      });
-    } else {
-      console.error('LIFF ID is not defined');
-    }
-  }, []);
+  const handleNextStep = () => setStep(step + 1);
+  const handlePreviousStep = () => setStep(step - 1);
 
-  const nextStep = () => setStep((prevStep) => prevStep + 1);
-  const prevStep = () => setStep((prevStep) => prevStep - 1);
+  const initialValues = {
+    leaveType: '',
+    leaveFormat: '',
+    halfDay: '',
+    startDate: '',
+    endDate: '',
+    reason: '',
+  };
+
+  const validationSchema = [
+    Yup.object({
+      leaveType: Yup.string().required('Required'),
+    }),
+    Yup.object({
+      leaveFormat: Yup.string().required('Required'),
+      halfDay: Yup.string().when('leaveFormat', {
+        is: 'ครึ่งวัน',
+        then: (schema) => schema.required('Required'),
+        otherwise: (schema) => schema.notRequired(),
+      }),
+    }),
+    Yup.object({
+      startDate: Yup.date().required('Required'),
+      endDate: Yup.date()
+        .required('Required')
+        .min(Yup.ref('startDate'), 'End date must be later than start date'),
+    }),
+    Yup.object({
+      reason: Yup.string().required('Required'),
+    }),
+  ];
 
   const handleSubmit = async (values: any) => {
-    try {
-      const response = await axios.post('/api/leaveRequest', {
-        ...values,
-        userId: lineUserId,
-        status: 'pending',
-      });
-      if (response.status === 201) {
-        liff.closeWindow();
-      } else {
-        alert('Error: ' + response.data.error);
-      }
-    } catch (error: any) {
-      alert('Error: ' + error.message);
-    }
+    sessionStorage.setItem('leaveSummary', JSON.stringify(values));
+    router.push('/leave-summary');
   };
 
   return (
-    <div className="container mx-auto p-4 bg-white shadow rounded">
-      <div className="bg-[#F0F0F0] p-4 rounded mb-4">
-        <h1 className="text-xl font-bold">ขอวันลา</h1>
+    <div className="container mx-auto bg-white p-4 rounded shadow">
+      <div
+        className="flex items-center mb-4"
+        style={{
+          backgroundColor: '#F0F0F0',
+          padding: '10px',
+          borderRadius: '8px',
+        }}
+      >
+        <h1 className="text-2xl font-bold mb-0">ขอวันลา</h1>
       </div>
       <Formik
-        initialValues={{
-          leaveType: '',
-          leaveFormat: '',
-          startDate: '',
-          endDate: '',
-          reason: '',
-        }}
-        validationSchema={LeaveRequestSchema}
+        initialValues={initialValues}
+        validationSchema={validationSchema[step - 1]}
         onSubmit={handleSubmit}
       >
-        {({ isValid, setFieldValue, values }) => (
+        {({ values, setFieldValue, isValid }) => (
           <Form>
-            {step === 1 && (
-              <>
-                <div className="mb-4">
-                  <label className="block text-gray-700">ประเภทการลา</label>
-                  <div className="flex flex-col space-y-2">
+            <div className="mb-4">
+              <div className="flex space-x-4 mb-4">
+                <div
+                  className={`flex-1 p-2 text-center ${step >= 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                >
+                  ประเภทการลา
+                </div>
+                <div
+                  className={`flex-1 p-2 text-center ${step >= 2 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                >
+                  รูปแบบวันลา
+                </div>
+                <div
+                  className={`flex-1 p-2 text-center ${step >= 3 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                >
+                  ช่วงเวลาลา
+                </div>
+                <div
+                  className={`flex-1 p-2 text-center ${step >= 4 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                >
+                  เหตุผลการลา
+                </div>
+              </div>
+
+              {step === 1 && (
+                <div>
+                  <label
+                    htmlFor="leaveType"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    ประเภทการลา
+                  </label>
+                  <div id="leaveType" className="flex space-x-4">
                     <button
                       type="button"
-                      className={`p-2 rounded ${values.leaveType === 'sick' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                      onClick={() => setFieldValue('leaveType', 'sick')}
+                      className={`flex-1 p-2 rounded ${values.leaveType === 'ลาป่วย' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                      onClick={() => setFieldValue('leaveType', 'ลาป่วย')}
                     >
-                      ลาป่วย
+                      ลาป่วย 😷
                     </button>
                     <button
                       type="button"
-                      className={`p-2 rounded ${values.leaveType === 'vacation' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                      onClick={() => setFieldValue('leaveType', 'vacation')}
+                      className={`flex-1 p-2 rounded ${values.leaveType === 'ลากิจ' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                      onClick={() => setFieldValue('leaveType', 'ลากิจ')}
                     >
-                      ลาพักร้อน
+                      ลากิจ 💼
                     </button>
                     <button
                       type="button"
-                      className={`p-2 rounded ${values.leaveType === 'personal' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                      onClick={() => setFieldValue('leaveType', 'personal')}
+                      className={`flex-1 p-2 rounded ${values.leaveType === 'ลาพักร้อน' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                      onClick={() => setFieldValue('leaveType', 'ลาพักร้อน')}
                     >
-                      ลากิจ
+                      ลาพักร้อน 🏖️
                     </button>
                   </div>
                   <ErrorMessage
@@ -105,119 +127,93 @@ const LeaveRequestForm = () => {
                     className="text-red-600"
                   />
                 </div>
-                <div className="flex justify-between">
-                  <button
-                    type="button"
-                    className="p-2 bg-gray-200 text-gray-700 rounded"
-                    onClick={prevStep}
+              )}
+
+              {step === 2 && (
+                <div>
+                  <label
+                    htmlFor="leaveFormat"
+                    className="block text-sm font-medium text-gray-700"
                   >
-                    ย้อนกลับ
-                  </button>
-                  <button
-                    type="button"
-                    className="p-2 bg-green-500 text-white rounded"
-                    onClick={nextStep}
-                    disabled={!isValid}
-                  >
-                    ถัดไป
-                  </button>
-                </div>
-              </>
-            )}
-            {step === 2 && (
-              <>
-                <div className="mb-4">
-                  <label className="block text-gray-700">รูปแบบการลา</label>
-                  <div className="flex flex-col space-y-2">
+                    รูปแบบวันลา
+                  </label>
+                  <div id="leaveFormat" className="flex space-x-4">
                     <button
                       type="button"
-                      className={`p-2 rounded ${selectedLeaveFormat === 'full-day' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                      onClick={() => {
-                        setFieldValue('leaveFormat', 'full-day');
-                        setSelectedLeaveFormat('full-day');
-                      }}
+                      className={`flex-1 p-2 rounded ${values.leaveFormat === 'เต็มวัน' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                      onClick={() => setFieldValue('leaveFormat', 'เต็มวัน')}
                     >
                       ลาเต็มวัน
                     </button>
                     <button
                       type="button"
-                      className={`p-2 rounded ${selectedLeaveFormat === 'half-day' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                      onClick={() => {
-                        setFieldValue('leaveFormat', 'half-day');
-                        setSelectedLeaveFormat('half-day');
-                      }}
+                      className={`flex-1 p-2 rounded ${values.leaveFormat === 'ครึ่งวัน' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                      onClick={() => setFieldValue('leaveFormat', 'ครึ่งวัน')}
                     >
                       ลาครึ่งวัน
                     </button>
                   </div>
-                  {selectedLeaveFormat === 'half-day' && (
-                    <div className="flex flex-col space-y-2 mt-4">
+                  <ErrorMessage
+                    name="leaveFormat"
+                    component="div"
+                    className="text-red-600"
+                  />
+                  {values.leaveFormat === 'ครึ่งวัน' && (
+                    <div className="mt-4 flex space-x-4">
                       <button
                         type="button"
-                        className={`p-2 rounded ${values.leaveFormat === 'half-day-morning' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                        onClick={() =>
-                          setFieldValue('leaveFormat', 'half-day-morning')
-                        }
+                        className={`flex-1 p-2 rounded ${values.halfDay === 'เช้า' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                        onClick={() => setFieldValue('halfDay', 'เช้า')}
                       >
                         ครึ่งวันเช้า
                       </button>
                       <button
                         type="button"
-                        className={`p-2 rounded ${values.leaveFormat === 'half-day-afternoon' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                        onClick={() =>
-                          setFieldValue('leaveFormat', 'half-day-afternoon')
-                        }
+                        className={`flex-1 p-2 rounded ${values.halfDay === 'บ่าย' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}
+                        onClick={() => setFieldValue('halfDay', 'บ่าย')}
                       >
                         ครึ่งวันบ่าย
                       </button>
                     </div>
                   )}
                   <ErrorMessage
-                    name="leaveFormat"
+                    name="halfDay"
                     component="div"
                     className="text-red-600"
                   />
                 </div>
-                <div className="flex justify-between">
-                  <button
-                    type="button"
-                    className="p-2 bg-gray-200 text-gray-700 rounded"
-                    onClick={prevStep}
+              )}
+
+              {step === 3 && (
+                <div>
+                  <label
+                    htmlFor="startDate"
+                    className="block text-sm font-medium text-gray-700"
                   >
-                    ย้อนกลับ
-                  </button>
-                  <button
-                    type="button"
-                    className="p-2 bg-green-500 text-white rounded"
-                    onClick={nextStep}
-                    disabled={!isValid}
-                  >
-                    ถัดไป
-                  </button>
-                </div>
-              </>
-            )}
-            {step === 3 && (
-              <>
-                <div className="mb-4">
-                  <label className="block text-gray-700">วันที่เริ่มต้น</label>
+                    วันที่เริ่มลา
+                  </label>
                   <Field
-                    type="date"
+                    id="startDate"
                     name="startDate"
-                    className="p-2 border rounded w-full"
+                    type="date"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
                   />
                   <ErrorMessage
                     name="startDate"
                     component="div"
                     className="text-red-600"
                   />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-gray-700">วันที่สิ้นสุด</label>
+                  <label
+                    htmlFor="endDate"
+                    className="block text-sm font-medium text-gray-700 mt-4"
+                  >
+                    วันที่สิ้นสุดการลา
+                  </label>
                   <Field
-                    type="date"
+                    id="endDate"
                     name="endDate"
-                    className="p-2 border rounded w-full"
+                    type="date"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
                   />
                   <ErrorMessage
                     name="endDate"
@@ -225,34 +221,22 @@ const LeaveRequestForm = () => {
                     className="text-red-600"
                   />
                 </div>
-                <div className="flex justify-between">
-                  <button
-                    type="button"
-                    className="p-2 bg-gray-200 text-gray-700 rounded"
-                    onClick={prevStep}
+              )}
+
+              {step === 4 && (
+                <div>
+                  <label
+                    htmlFor="reason"
+                    className="block text-sm font-medium text-gray-700"
                   >
-                    ย้อนกลับ
-                  </button>
-                  <button
-                    type="button"
-                    className="p-2 bg-green-500 text-white rounded"
-                    onClick={nextStep}
-                    disabled={!isValid}
-                  >
-                    ถัดไป
-                  </button>
-                </div>
-              </>
-            )}
-            {step === 4 && (
-              <>
-                <div className="mb-4">
-                  <label className="block text-gray-700">หมายเหตุ</label>
+                    เหตุผลในการลา
+                  </label>
                   <Field
                     as="textarea"
+                    id="reason"
                     name="reason"
                     rows={4}
-                    className="p-2 border rounded w-full"
+                    className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
                   />
                   <ErrorMessage
                     name="reason"
@@ -260,23 +244,39 @@ const LeaveRequestForm = () => {
                     className="text-red-600"
                   />
                 </div>
-                <div className="flex justify-between">
-                  <button
-                    type="button"
-                    className="p-2 bg-gray-200 text-gray-700 rounded"
-                    onClick={prevStep}
-                  >
-                    ย้อนกลับ
-                  </button>
-                  <button
-                    type="submit"
-                    className="p-2 bg-green-500 text-white rounded"
-                  >
-                    ส่งคำขอ
-                  </button>
-                </div>
-              </>
-            )}
+              )}
+            </div>
+
+            <div className="flex space-x-4 mt-4">
+              {step > 1 && (
+                <button
+                  type="button"
+                  className="flex-1 p-2 bg-gray-500 text-white rounded"
+                  onClick={handlePreviousStep}
+                >
+                  ย้อนกลับ
+                </button>
+              )}
+              {step < 4 && (
+                <button
+                  type="button"
+                  className="flex-1 p-2 bg-blue-500 text-white rounded"
+                  onClick={handleNextStep}
+                  disabled={!isValid}
+                >
+                  ถัดไป
+                </button>
+              )}
+              {step === 4 && (
+                <button
+                  type="submit"
+                  className="flex-1 p-2 bg-green-500 text-white rounded"
+                  disabled={!isValid}
+                >
+                  ยืนยัน & ส่งคำขอ
+                </button>
+              )}
+            </div>
           </Form>
         )}
       </Formik>
