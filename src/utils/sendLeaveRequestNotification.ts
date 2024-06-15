@@ -22,8 +22,16 @@ export const sendLeaveRequestNotification = async (
           {
             type: 'box',
             layout: 'vertical',
-            contents: [],
-            backgroundColor: '#01AF70',
+            contents: [
+              {
+                type: 'text',
+                text: 'Leave Request',
+                color: '#FFFFFF',
+                align: 'start',
+                size: 'xl',
+                weight: 'bold',
+              },
+            ],
           },
           {
             type: 'box',
