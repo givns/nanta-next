@@ -9,112 +9,128 @@ export const sendLeaveRequestNotification = async (
   user: User,
   leaveRequest: LeaveRequest,
 ) => {
-  const profilePictureUrl =
-    user.profilePictureUrl || 'https://example.com/default-profile-picture.png'; // Default image URL
   const message: FlexMessage = {
     type: 'flex',
     altText: 'Leave Request Notification',
     contents: {
       type: 'bubble',
+      size: 'giga',
       header: {
         type: 'box',
-        layout: 'horizontal',
+        layout: 'vertical',
         contents: [
           {
-            type: 'image',
-            url: profilePictureUrl,
-            size: 'sm',
-            aspectMode: 'cover',
+            type: 'box',
+            layout: 'vertical',
+            contents: [],
+            backgroundColor: '#01AF70',
           },
           {
-            type: 'text',
-            text: `${user.name} ขออนุญาตลางาน คุณอนุมัติหรือไม่?`,
-            weight: 'bold',
-            size: 'md',
-            color: '#ffffff',
-            wrap: true,
+            type: 'box',
+            layout: 'vertical',
+            contents: [],
+            backgroundColor: '#01AF70',
           },
         ],
         backgroundColor: '#01AF70',
       },
+      hero: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [],
+        margin: 'none',
+        spacing: 'none',
+        cornerRadius: 'none',
+        justifyContent: 'space-around',
+        offsetTop: 'none',
+        offsetBottom: 'none',
+        alignItems: 'center',
+        backgroundColor: '#01AF70',
+      },
       body: {
         type: 'box',
-        layout: 'horizontal',
+        layout: 'vertical',
         contents: [
           {
             type: 'box',
-            layout: 'baseline',
+            layout: 'horizontal',
             contents: [
               {
-                type: 'text',
-                text: 'ประเภทการลา',
-                weight: 'bold',
-                flex: 0,
-              },
-              {
-                type: 'text',
-                text: leaveRequest.leaveType,
-                wrap: true,
+                type: 'box',
+                layout: 'vertical',
+                contents: [],
                 flex: 1,
               },
             ],
           },
           {
             type: 'box',
-            layout: 'baseline',
+            layout: 'horizontal',
             contents: [
               {
-                type: 'text',
-                text: 'รูปแบบวันลา',
-                weight: 'bold',
-                flex: 0,
+                type: 'box',
+                layout: 'vertical',
+                contents: [
+                  {
+                    type: 'image',
+                    url: user.profilePictureUrl || '',
+                    aspectMode: 'cover',
+                    size: 'full',
+                  },
+                ],
+                cornerRadius: '100px',
+                width: '72px',
+                height: '72px',
               },
               {
-                type: 'text',
-                text: leaveRequest.leaveFormat,
-                align: 'end',
-                wrap: true,
-                flex: 1,
+                type: 'box',
+                layout: 'vertical',
+                contents: [
+                  {
+                    type: 'text',
+                    text: `${user.name} (${user.nickname})`,
+                    weight: 'bold',
+                    size: 'sm',
+                    wrap: true,
+                  },
+                  {
+                    type: 'text',
+                    text: `ประเภทการลา: ${leaveRequest.leaveType}`,
+                    size: 'sm',
+                    wrap: true,
+                  },
+                  {
+                    type: 'text',
+                    text: `วันที่: ${new Date(leaveRequest.startDate).toLocaleDateString()} - ${new Date(leaveRequest.endDate).toLocaleDateString()}`,
+                    size: 'sm',
+                    wrap: true,
+                  },
+                  {
+                    type: 'text',
+                    text: `สาเหตุ: ${leaveRequest.reason}`,
+                    size: 'sm',
+                    wrap: true,
+                  },
+                  {
+                    type: 'text',
+                    text: `วันที่ยื่น: ${new Date(
+                      leaveRequest.createdAt,
+                    ).toLocaleDateString('th-TH', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}`,
+                    size: 'sm',
+                    color: '#bcbcbc',
+                  },
+                ],
               },
             ],
-          },
-          {
-            type: 'box',
-            layout: 'baseline',
-            contents: [
-              {
-                type: 'text',
-                text: 'วันที่',
-                weight: 'bold',
-                flex: 0,
-              },
-              {
-                type: 'text',
-                text: `${new Date(leaveRequest.startDate).toLocaleDateString()} - ${new Date(leaveRequest.endDate).toLocaleDateString()}`,
-                wrap: true,
-                flex: 1,
-              },
-            ],
-          },
-          {
-            type: 'box',
-            layout: 'baseline',
-            contents: [
-              {
-                type: 'text',
-                text: 'สาเหตุ',
-                weight: 'bold',
-                flex: 0,
-              },
-              {
-                type: 'text',
-                text: leaveRequest.reason,
-                wrap: true,
-                flex: 1,
-              },
-            ],
+            spacing: 'xl',
+            paddingAll: '20px',
           },
         ],
+        paddingAll: '0px',
       },
       footer: {
         type: 'box',
@@ -122,25 +138,33 @@ export const sendLeaveRequestNotification = async (
         contents: [
           {
             type: 'button',
-            style: 'primary',
-            color: '#596fdd',
-            action: {
-              type: 'postback',
-              label: 'ไม่อนุมัติ',
-              data: `action=deny&requestId=${leaveRequest.id}`,
-            },
-          },
-          {
-            type: 'button',
-            style: 'primary',
-            color: '#4C72F1',
             action: {
               type: 'postback',
               label: 'อนุมัติ',
               data: `action=approve&requestId=${leaveRequest.id}`,
             },
+            color: '#4C72F1',
+            style: 'primary',
+            adjustMode: 'shrink-to-fit',
+          },
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: 'ไม่อนุมัติ',
+              data: `action=deny&requestId=${leaveRequest.id}`,
+            },
+            color: '#DEEDFF',
+            style: 'secondary',
+            adjustMode: 'shrink-to-fit',
+            margin: 'lg',
           },
         ],
+      },
+      styles: {
+        hero: {
+          backgroundColor: '#FFFFFF',
+        },
       },
     },
   };
