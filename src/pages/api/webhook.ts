@@ -39,7 +39,40 @@ const handler = async (event: WebhookEvent) => {
   console.log('Event received:', event);
 
   if (event.type === 'follow') {
-    // Your existing follow event handling logic
+    const userId = event.source.userId;
+    console.log('Follow event for user ID:', userId);
+
+    if (userId) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { lineUserId: userId },
+        });
+        console.log('User lookup result:', user);
+
+        if (!user) {
+          const registerRichMenuId =
+            'richmenu-1d20c92a5e0ca5c5c12cc4cb6fda1caa';
+          await client.linkRichMenuToUser(userId, registerRichMenuId);
+          console.log('Register Rich menu linked to user:', userId);
+        } else {
+          const department = user.department;
+          const richMenuId = await createAndAssignRichMenu(
+            department,
+            userId,
+            user.role,
+          );
+          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+        }
+      } catch (error: any) {
+        console.error(
+          'Error processing follow event:',
+          error.message,
+          error.stack,
+        );
+      }
+    } else {
+      console.error('User ID not found in event:', event);
+    }
   } else if (event.type === 'postback') {
     const data = event.postback.data;
     const userId = event.source.userId;
@@ -99,6 +132,26 @@ const handleDeny = async (requestId: string, userId: string) => {
   } catch (error: any) {
     console.error('Error denying leave request:', error.message);
   }
+};
+
+const createAndAssignRichMenu = async (
+  department: string,
+  userId: string,
+  role: string,
+) => {
+  let richMenuId;
+  if (role === 'superadmin') {
+    richMenuId = 'richmenu-5610259c0139fc6a9d6475b628986fcf'; // Super Admin Rich Menu
+  } else if (role === 'admin') {
+    richMenuId = 'richmenu-2e10f099c17149de5386d2cf6f936051'; // Admin Rich Menu
+  } else if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
+    richMenuId = 'richmenu-d07da0e5fa90760bc50f7b2deec89ca2'; // Special User Rich Menu
+  } else {
+    richMenuId = 'richmenu-581e59c118fd514a45fc01d6f301138e'; // General User Rich Menu
+  }
+
+  await client.linkRichMenuToUser(userId, richMenuId);
+  return richMenuId;
 };
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
