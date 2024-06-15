@@ -3,11 +3,7 @@ import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
-import {
-  sendApproveNotification,
-  sendDenyNotification,
-} from '../../utils/sendNotifications';
-import { sendLeaveRequestNotification } from '../../utils/sendLeaveRequestNotification';
+import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
 
 dotenv.config({ path: './.env.local' });
 
@@ -88,59 +84,22 @@ const handler = async (event: WebhookEvent) => {
 
     if (action && requestId && userId) {
       if (action === 'approve') {
+        // Call your approve handler
         await handleApprove(requestId, userId);
       } else if (action === 'deny') {
-        await handleDeny(requestId, userId);
+        // Redirect to LIFF page to collect denial reason
+        const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}?path=/deny-reason&requestId=${requestId}&approverId=${userId}`;
+        await client.pushMessage(userId, {
+          type: 'text',
+          text: `Please provide a reason for denial: ${liffUrl}`,
+        });
       }
     }
   } else if (event.type === 'unfollow') {
+    // Do nothing for unfollow events
     console.log('Unfollow event for user ID:', event.source.userId);
   } else {
     console.error('Unhandled event type:', event.type);
-  }
-};
-
-const handleApprove = async (requestId: string, userId: string) => {
-  try {
-    const leaveRequest = await prisma.leaveRequest.update({
-      where: { id: requestId },
-      data: { status: 'approved', approverId: userId },
-    });
-    console.log('Leave request approved:', leaveRequest);
-
-    const user = await prisma.user.findUnique({
-      where: { id: leaveRequest.userId },
-    });
-
-    const approver = await prisma.user.findUnique({
-      where: { lineUserId: userId },
-    });
-
-    if (user && approver) {
-      await sendApproveNotification(user, leaveRequest, approver);
-    }
-  } catch (error: any) {
-    console.error('Error approving leave request:', error.message);
-  }
-};
-
-const handleDeny = async (requestId: string, userId: string) => {
-  try {
-    const leaveRequest = await prisma.leaveRequest.update({
-      where: { id: requestId },
-      data: { status: 'denied', approverId: userId },
-    });
-    console.log('Leave request denied:', leaveRequest);
-
-    const user = await prisma.user.findUnique({
-      where: { id: leaveRequest.userId },
-    });
-
-    if (user) {
-      await sendDenyNotification(user, leaveRequest, 'Reason for denial');
-    }
-  } catch (error: any) {
-    console.error('Error denying leave request:', error.message);
   }
 };
 
@@ -166,6 +125,7 @@ const createAndAssignRichMenu = async (
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
+    // Handle the GET request from the LINE Developer Console
     return res.status(200).send('Webhook is set up and running!');
   }
 
@@ -195,5 +155,6 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
+  // Return a 405 status for any method other than GET or POST
   return res.status(405).send('Method Not Allowed');
 };
