@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
 import { Client, FlexMessage } from '@line/bot-sdk';
+import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -64,7 +65,21 @@ const sendDenyNotification = async (
               },
               {
                 type: 'text',
-                text: `${new Date(leaveRequest.startDate).toLocaleDateString('th-TH')} - ${new Date(leaveRequest.endDate).toLocaleDateString('th-TH')}`,
+                text: `${new Date(leaveRequest.startDate).toLocaleDateString(
+                  'th-TH',
+                  {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  },
+                )} - ${new Date(leaveRequest.endDate).toLocaleDateString(
+                  'th-TH',
+                  {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  },
+                )}`,
                 wrap: true,
                 flex: 1,
               },
@@ -121,13 +136,17 @@ export default async function handler(
   if (req.method === 'POST') {
     const { requestId, approverId, denialReason } = req.body;
 
-    try {
-      if (!requestId || !approverId || !denialReason) {
-        throw new Error(
-          'Missing required fields: requestId, approverId, or denialReason',
-        );
-      }
+    if (!requestId || !approverId || !denialReason) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error:
+            'Missing required fields: requestId, approverId, or denialReason',
+        });
+    }
 
+    try {
       const leaveRequest = await prisma.leaveRequest.update({
         where: { id: requestId },
         data: { status: 'denied', approverId, denialReason },
@@ -141,9 +160,8 @@ export default async function handler(
         await sendDenyNotification(user, leaveRequest, denialReason);
       }
 
-      res.status(200).json({ success: true, data: leaveRequest });
+      res.status(200).json(leaveRequest);
     } catch (error: any) {
-      console.error('Error processing leave request denial:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   } else {
