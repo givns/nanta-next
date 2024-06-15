@@ -165,7 +165,7 @@ export const sendLeaveRequestNotification = async (
               data: `action=approve&requestId=${leaveRequest.id}`,
             },
             color: '#00FF7F',
-            style: 'primary',
+            style: 'secondary',
             adjustMode: 'shrink-to-fit',
           },
           {

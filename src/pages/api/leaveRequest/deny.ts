@@ -64,7 +64,7 @@ const sendDenyNotification = async (
               },
               {
                 type: 'text',
-                text: `${leaveRequest.startDate.toISOString().split('T')[0]} - ${leaveRequest.endDate.toISOString().split('T')[0]}`,
+                text: `${new Date(leaveRequest.startDate).toLocaleDateString('th-TH')} - ${new Date(leaveRequest.endDate).toLocaleDateString('th-TH')}`,
                 wrap: true,
                 flex: 1,
               },
@@ -122,6 +122,12 @@ export default async function handler(
     const { requestId, approverId, denialReason } = req.body;
 
     try {
+      if (!requestId || !approverId || !denialReason) {
+        throw new Error(
+          'Missing required fields: requestId, approverId, or denialReason',
+        );
+      }
+
       const leaveRequest = await prisma.leaveRequest.update({
         where: { id: requestId },
         data: { status: 'denied', approverId, denialReason },
@@ -135,8 +141,9 @@ export default async function handler(
         await sendDenyNotification(user, leaveRequest, denialReason);
       }
 
-      res.status(200).json(leaveRequest);
+      res.status(200).json({ success: true, data: leaveRequest });
     } catch (error: any) {
+      console.error('Error processing leave request denial:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   } else {
