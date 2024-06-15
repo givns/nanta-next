@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
 import { Client, FlexMessage } from '@line/bot-sdk';
-import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
