@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
 import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
-import { sendDenyNotification } from '../../utils/sendNotifications';
 
 dotenv.config({ path: './.env.local' });
 
@@ -19,6 +18,7 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
+// LINE bot client configuration
 const clientConfig: ClientConfig = {
   channelAccessToken,
 };
