@@ -137,13 +137,11 @@ export default async function handler(
     const { requestId, approverId, denialReason } = req.body;
 
     if (!requestId || !approverId || !denialReason) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error:
-            'Missing required fields: requestId, approverId, or denialReason',
-        });
+      return res.status(400).json({
+        success: false,
+        error:
+          'Missing required fields: requestId, approverId, or denialReason',
+      });
     }
 
     try {

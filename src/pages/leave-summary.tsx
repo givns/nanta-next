@@ -2,7 +2,6 @@ import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import liff from '@line/liff';
 
 const LeaveSummaryPage = () => {
   const router = useRouter();
