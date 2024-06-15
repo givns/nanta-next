@@ -3,7 +3,7 @@ import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
-import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
+import { handleApprove } from '../../utils/leaveRequestHandlers';
 
 dotenv.config({ path: './.env.local' });
 
