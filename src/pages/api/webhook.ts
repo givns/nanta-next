@@ -3,7 +3,11 @@ import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
-import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
+import {
+  sendApproveNotification,
+  sendDenyNotification,
+} from '../../utils/sendNotifications';
+import { sendLeaveRequestNotification } from '../../utils/sendLeaveRequestNotification';
 
 dotenv.config({ path: './.env.local' });
 
@@ -81,19 +85,62 @@ const handler = async (event: WebhookEvent) => {
     const params = new URLSearchParams(data);
     const action = params.get('action');
     const requestId = params.get('requestId');
-    const denialReason = params.get('denialReason');
 
     if (action && requestId && userId) {
       if (action === 'approve') {
         await handleApprove(requestId, userId);
       } else if (action === 'deny') {
-        await handleDeny(requestId, userId, denialReason);
+        await handleDeny(requestId, userId);
       }
     }
   } else if (event.type === 'unfollow') {
     console.log('Unfollow event for user ID:', event.source.userId);
   } else {
     console.error('Unhandled event type:', event.type);
+  }
+};
+
+const handleApprove = async (requestId: string, userId: string) => {
+  try {
+    const leaveRequest = await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: { status: 'approved', approverId: userId },
+    });
+    console.log('Leave request approved:', leaveRequest);
+
+    const user = await prisma.user.findUnique({
+      where: { id: leaveRequest.userId },
+    });
+
+    const approver = await prisma.user.findUnique({
+      where: { lineUserId: userId },
+    });
+
+    if (user && approver) {
+      await sendApproveNotification(user, leaveRequest, approver);
+    }
+  } catch (error: any) {
+    console.error('Error approving leave request:', error.message);
+  }
+};
+
+const handleDeny = async (requestId: string, userId: string) => {
+  try {
+    const leaveRequest = await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: { status: 'denied', approverId: userId },
+    });
+    console.log('Leave request denied:', leaveRequest);
+
+    const user = await prisma.user.findUnique({
+      where: { id: leaveRequest.userId },
+    });
+
+    if (user) {
+      await sendDenyNotification(user, leaveRequest, 'Reason for denial');
+    }
+  } catch (error: any) {
+    console.error('Error denying leave request:', error.message);
   }
 };
 
@@ -104,13 +151,13 @@ const createAndAssignRichMenu = async (
 ) => {
   let richMenuId;
   if (role === 'superadmin') {
-    richMenuId = 'richmenu-5610259c0139fc6a9d6475b628986fcf';
+    richMenuId = 'richmenu-5610259c0139fc6a9d6475b628986fcf'; // Super Admin Rich Menu
   } else if (role === 'admin') {
-    richMenuId = 'richmenu-2e10f099c17149de5386d2cf6f936051';
+    richMenuId = 'richmenu-2e10f099c17149de5386d2cf6f936051'; // Admin Rich Menu
   } else if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
-    richMenuId = 'richmenu-d07da0e5fa90760bc50f7b2deec89ca2';
+    richMenuId = 'richmenu-d07da0e5fa90760bc50f7b2deec89ca2'; // Special User Rich Menu
   } else {
-    richMenuId = 'richmenu-581e59c118fd514a45fc01d6f301138e';
+    richMenuId = 'richmenu-581e59c118fd514a45fc01d6f301138e'; // General User Rich Menu
   }
 
   await client.linkRichMenuToUser(userId, richMenuId);

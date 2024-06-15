@@ -1,11 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import { Client } from '@line/bot-sdk';
-import { sendDenyNotification } from './sendNotifications';
+import {
+  sendApproveNotification,
+  sendDenyNotification,
+} from './sendNotifications';
 
 const prisma = new PrismaClient();
-const client = new Client({
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-});
 
 export const handleApprove = async (requestId: string, userId: string) => {
   try {
@@ -15,10 +14,17 @@ export const handleApprove = async (requestId: string, userId: string) => {
     });
     console.log('Leave request approved:', leaveRequest);
 
-    await client.pushMessage(leaveRequest.userId, {
-      type: 'text',
-      text: 'Your leave request has been approved!',
+    const user = await prisma.user.findUnique({
+      where: { id: leaveRequest.userId },
     });
+
+    const approver = await prisma.user.findUnique({
+      where: { lineUserId: userId },
+    });
+
+    if (user && approver) {
+      await sendApproveNotification(user, leaveRequest, approver);
+    }
   } catch (error: any) {
     console.error('Error approving leave request:', error.message);
   }
@@ -27,23 +33,14 @@ export const handleApprove = async (requestId: string, userId: string) => {
 export const handleDeny = async (
   requestId: string,
   userId: string,
-  denialReason: string | null,
+  denialReason: string,
 ) => {
   try {
-    if (!denialReason) {
-      throw new Error('Denial reason is required');
-    }
-
     const leaveRequest = await prisma.leaveRequest.update({
       where: { id: requestId },
       data: { status: 'denied', approverId: userId, denialReason },
     });
     console.log('Leave request denied:', leaveRequest);
-
-    await client.pushMessage(leaveRequest.userId, {
-      type: 'text',
-      text: 'Your leave request has been denied.',
-    });
 
     const user = await prisma.user.findUnique({
       where: { id: leaveRequest.userId },
