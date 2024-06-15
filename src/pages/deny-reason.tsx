@@ -1,19 +1,25 @@
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import liff from '@line/liff';
 
 const DenyReasonPage = () => {
   const router = useRouter();
-  const { requestId, approverId } = router.query;
-  const [reason, setReason] = useState('');
+  const { requestId } = router.query;
+
+  const [denialReason, setDenialReason] = useState<string>('');
+  const [approverId, setApproverId] = useState<string>('');
 
   useEffect(() => {
-    // Initialize LIFF and get the user's profile
+    // Initialize LIFF and get the approver's userId
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
     if (liffId) {
       liff.init({ liffId }).then(() => {
-        if (!liff.isLoggedIn()) {
+        if (liff.isLoggedIn()) {
+          liff.getProfile().then((profile) => {
+            setApproverId(profile.userId);
+          });
+        } else {
           liff.login();
         }
       });
@@ -22,36 +28,49 @@ const DenyReasonPage = () => {
     }
   }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!denialReason) {
+      alert('Please provide a denial reason.');
+      return;
+    }
+
     try {
-      await axios.post('/api/leaveRequest/deny', {
+      const response = await axios.post('/api/leaveRequest/deny', {
         requestId,
-        denialReason: reason,
-        approverId, // Send the approverId along with the denial reason
+        approverId,
+        denialReason,
       });
-      router.push('/leave-confirmation');
-    } catch (error) {
-      console.error('Error submitting denial reason:', error);
-      alert('Error submitting denial reason');
+
+      if (response.data.success) {
+        alert('Denial reason submitted successfully.');
+        liff.closeWindow();
+      } else {
+        alert(`Error: ${response.data.error}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
     }
   };
 
   return (
     <div className="container mx-auto flex flex-col items-center justify-center h-screen">
-      <h1 className="text-2xl font-bold mb-4">ระบุเหตุผลในการไม่อนุมัติ</h1>
-      <textarea
-        className="w-full p-2 border rounded"
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        rows={5}
-        placeholder="กรุณาระบุเหตุผล"
-      ></textarea>
-      <button
-        className="w-full p-2 bg-blue-500 text-white rounded mt-4"
-        onClick={handleSubmit}
-      >
-        ยืนยัน
-      </button>
+      <h1 className="text-2xl font-bold mb-4">กรอกเหตุผลการปฏิเสธ</h1>
+      <form onSubmit={handleSubmit} className="space-y-4 w-full max-w-xs">
+        <textarea
+          value={denialReason}
+          onChange={(e) => setDenialReason(e.target.value)}
+          placeholder="กรอกเหตุผลที่นี่..."
+          className="w-full p-2 border rounded"
+          required
+        />
+        <button
+          type="submit"
+          className="w-full p-2 bg-red-500 text-white rounded mt-4"
+        >
+          ส่งเหตุผล
+        </button>
+      </form>
     </div>
   );
 };

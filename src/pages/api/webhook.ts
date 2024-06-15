@@ -86,13 +86,8 @@ const handler = async (event: WebhookEvent) => {
         // Call your approve handler
         await handleApprove(requestId, userId);
       } else if (action === 'deny') {
-        // Redirect to a page to input denial reason
-        // Pass requestId and userId as query parameters
-        const redirectUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&approverId=${userId}`;
-        await client.pushMessage(userId, {
-          type: 'text',
-          text: `Please provide a reason for denial: ${redirectUrl}`,
-        });
+        // Call your deny handler
+        await handleDeny(requestId, userId);
       }
     }
   } else if (event.type === 'unfollow') {
@@ -123,16 +118,23 @@ const handleApprove = async (requestId: string, userId: string) => {
 
 const handleDeny = async (requestId: string, userId: string) => {
   try {
+    const denialReason = await prisma.leaveRequest.findUnique({
+      where: { id: requestId },
+      select: { denialReason: true },
+    });
+
+    const reason = denialReason?.denialReason || 'No reason provided';
+
     const leaveRequest = await prisma.leaveRequest.update({
       where: { id: requestId },
-      data: { status: 'denied', approverId: userId },
+      data: { status: 'denied', approverId: userId, denialReason: reason },
     });
     console.log('Leave request denied:', leaveRequest);
 
     // Notify the user who requested the leave
     await client.pushMessage(leaveRequest.userId, {
       type: 'text',
-      text: 'Your leave request has been denied.',
+      text: `Your leave request has been denied. Reason: ${reason}`,
     });
   } catch (error: any) {
     console.error('Error denying leave request:', error.message);

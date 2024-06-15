@@ -121,21 +121,15 @@ export default async function handler(
   if (req.method === 'POST') {
     const { requestId, approverId, denialReason } = req.body;
 
-    console.log('Request payload:', req.body);
-
     try {
       const leaveRequest = await prisma.leaveRequest.update({
         where: { id: requestId },
         data: { status: 'denied', approverId, denialReason },
       });
 
-      console.log('Leave request updated:', leaveRequest);
-
       const user = await prisma.user.findUnique({
         where: { id: leaveRequest.userId },
       });
-
-      console.log('User found:', user);
 
       if (user) {
         await sendDenyNotification(user, leaveRequest, denialReason);
@@ -143,7 +137,6 @@ export default async function handler(
 
       res.status(200).json(leaveRequest);
     } catch (error: any) {
-      console.error('Error processing leave request denial:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   } else {
