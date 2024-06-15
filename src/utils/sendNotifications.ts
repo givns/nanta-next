@@ -1,12 +1,10 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../utils/db';
 import { Client, FlexMessage } from '@line/bot-sdk';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
-const sendDenyNotification = async (
+export const sendDenyNotification = async (
   user: any,
   leaveRequest: any,
   denialReason: string,
@@ -113,47 +111,3 @@ const sendDenyNotification = async (
 
   await client.pushMessage(user.lineUserId, message);
 };
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  if (req.method === 'POST') {
-    const { requestId, approverId, denialReason } = req.body;
-
-    if (!requestId || !approverId || !denialReason) {
-      console.error('Missing required fields:', {
-        requestId,
-        approverId,
-        denialReason,
-      });
-      return res.status(400).json({
-        success: false,
-        error:
-          'Missing required fields: requestId, approverId, or denialReason',
-      });
-    }
-
-    try {
-      const leaveRequest = await prisma.leaveRequest.update({
-        where: { id: requestId },
-        data: { status: 'denied', approverId, denialReason },
-      });
-
-      const user = await prisma.user.findUnique({
-        where: { id: leaveRequest.userId },
-      });
-
-      if (user) {
-        await sendDenyNotification(user, leaveRequest, denialReason);
-      }
-
-      res.status(200).json(leaveRequest);
-    } catch (error: any) {
-      console.error('Error processing leave request denial:', error.message);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  } else {
-    res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
-}
