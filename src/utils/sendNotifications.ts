@@ -1,12 +1,13 @@
 import { Client, FlexMessage } from '@line/bot-sdk';
+import { LeaveRequest, User } from '@prisma/client';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
 export const sendDenyNotification = async (
-  user: any,
-  leaveRequest: any,
+  user: User,
+  leaveRequest: LeaveRequest,
   denialReason: string,
 ) => {
   const message: FlexMessage = {
@@ -62,7 +63,26 @@ export const sendDenyNotification = async (
               },
               {
                 type: 'text',
-                text: `${leaveRequest.startDate.toISOString().split('T')[0]} - ${leaveRequest.endDate.toISOString().split('T')[0]}`,
+                text: `${new Date(leaveRequest.startDate).toLocaleDateString(
+                  'th-TH',
+                  {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  },
+                )} - ${new Date(leaveRequest.endDate).toLocaleDateString(
+                  'th-TH',
+                  {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  },
+                )} (${Math.ceil(
+                  (new Date(leaveRequest.endDate).getTime() -
+                    new Date(leaveRequest.startDate).getTime()) /
+                    (1000 * 3600 * 24) +
+                    1,
+                )} วัน)`,
                 wrap: true,
                 flex: 1,
               },
@@ -104,7 +124,51 @@ export const sendDenyNotification = async (
               },
             ],
           },
+          {
+            type: 'text',
+            text: `วันที่ยื่น: ${new Date(
+              leaveRequest.createdAt,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}`,
+            size: 'sm',
+            color: '#bcbcbc',
+          },
         ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'horizontal',
+        contents: [
+          {
+            type: 'button',
+            action: {
+              type: 'uri',
+              label: 'อนุมัติ',
+              uri: 'http://linecorp.com/',
+            },
+            color: '#4C72F1',
+            style: 'primary',
+          },
+          {
+            type: 'button',
+            action: {
+              type: 'uri',
+              label: 'ไม่อนุมัติ',
+              uri: 'http://linecorp.com/',
+            },
+            color: '#DEEDFF',
+            style: 'secondary',
+            margin: 'lg',
+          },
+        ],
+      },
+      styles: {
+        hero: {
+          backgroundColor: '#FFFFFF',
+        },
       },
     },
   };
