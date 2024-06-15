@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { Client, FlexMessage } from '@line/bot-sdk';
+import { Client } from '@line/bot-sdk';
 import { sendDenyNotification } from './sendNotifications';
 
 const prisma = new PrismaClient();
