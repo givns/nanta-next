@@ -64,21 +64,7 @@ const sendDenyNotification = async (
               },
               {
                 type: 'text',
-                text: `${new Date(leaveRequest.startDate).toLocaleDateString(
-                  'th-TH',
-                  {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  },
-                )} - ${new Date(leaveRequest.endDate).toLocaleDateString(
-                  'th-TH',
-                  {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  },
-                )}`,
+                text: `${leaveRequest.startDate.toISOString().split('T')[0]} - ${leaveRequest.endDate.toISOString().split('T')[0]}`,
                 wrap: true,
                 flex: 1,
               },
@@ -136,11 +122,18 @@ export default async function handler(
     const { requestId, approverId, denialReason } = req.body;
 
     if (!requestId || !approverId || !denialReason) {
-      return res.status(400).json({
-        success: false,
-        error:
-          'Missing required fields: requestId, approverId, or denialReason',
+      console.error('Missing required fields:', {
+        requestId,
+        approverId,
+        denialReason,
       });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error:
+            'Missing required fields: requestId, approverId, or denialReason',
+        });
     }
 
     try {
@@ -159,6 +152,7 @@ export default async function handler(
 
       res.status(200).json(leaveRequest);
     } catch (error: any) {
+      console.error('Error processing leave request denial:', error.message);
       res.status(500).json({ success: false, error: error.message });
     }
   } else {

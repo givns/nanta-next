@@ -1,63 +1,50 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState } from 'react';
 import { useRouter } from 'next/router';
-import liff from '@line/liff';
+import axios from 'axios';
 
-const DenyReason = () => {
-  const [denialReason, setDenialReason] = useState('');
-  const [requestId, setRequestId] = useState('');
-  const [approverId, setApproverId] = useState('');
+const DenyReasonPage = () => {
   const router = useRouter();
+  const { requestId } = router.query;
+  const [denialReason, setDenialReason] = useState('');
 
-  useEffect(() => {
-    // Get requestId and approverId from query parameters
-    const { requestId, approverId } = router.query;
-    if (requestId) setRequestId(requestId as string);
-    if (approverId) setApproverId(approverId as string);
-  }, [router.query]);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    try {
-      const response = await axios.post('/api/leaveRequest/deny', {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const approverId = 'LINE_USER_ID'; // Replace this with actual approver ID logic
+    if (!requestId || !denialReason || !approverId) {
+      console.error('Missing required fields:', {
         requestId,
         approverId,
         denialReason,
       });
-      if (response.data.success) {
-        liff.closeWindow();
-      } else {
-        alert('Error: ' + response.data.error);
-      }
-    } catch (error: any) {
-      console.error('Error submitting denial reason:', error);
-      alert('Error: ' + error.message);
+      return;
+    }
+    try {
+      await axios.post('/api/leaveRequest/deny', {
+        requestId,
+        approverId,
+        denialReason,
+      });
+      alert('Request denied successfully.');
+      router.push('/confirmation'); // Redirect to confirmation page
+    } catch (error) {
+      console.error('Error denying request:', error);
+      alert('Failed to deny request.');
     }
   };
 
   return (
-    <div className="container mx-auto flex flex-col items-center justify-center h-screen">
-      <h1 className="text-2xl font-bold mb-4">เหตุผลการปฏิเสธ</h1>
-      <form onSubmit={handleSubmit} className="w-full max-w-sm">
-        <div className="mb-4">
-          <textarea
-            value={denialReason}
-            onChange={(e) => setDenialReason(e.target.value)}
-            placeholder="โปรดระบุเหตุผล"
-            className="w-full p-2 border rounded"
-            rows={4}
-            required
-          />
-        </div>
-        <button
-          type="submit"
-          className="w-full p-2 bg-red-500 text-white rounded"
-        >
-          ส่งเหตุผลการปฏิเสธ
-        </button>
-      </form>
-    </div>
+    <form onSubmit={handleSubmit}>
+      <label>
+        Reason for Denial:
+        <input
+          type="text"
+          value={denialReason}
+          onChange={(e) => setDenialReason(e.target.value)}
+        />
+      </label>
+      <button type="submit">Submit</button>
+    </form>
   );
 };
 
-export default DenyReason;
+export default DenyReasonPage;

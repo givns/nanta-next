@@ -80,18 +80,15 @@ const handler = async (event: WebhookEvent) => {
     const params = new URLSearchParams(data);
     const action = params.get('action');
     const requestId = params.get('requestId');
+    const denialReason = params.get('denialReason'); // Ensure this is included in the postback
 
     if (action && requestId && userId) {
       if (action === 'approve') {
         // Call your approve handler
         await handleApprove(requestId, userId);
       } else if (action === 'deny') {
-        // Redirect to deny-reason page for inputting denial reason
-        const url = `${process.env.BASE_URL}/deny-reason?requestId=${requestId}&approverId=${userId}`;
-        await client.replyMessage(event.replyToken, {
-          type: 'text',
-          text: `กรุณาระบุเหตุผลในการปฏิเสธ: ${url}`,
-        });
+        // Call your deny handler
+        await handleDeny(requestId, userId, denialReason);
       }
     }
   } else if (event.type === 'unfollow') {
@@ -117,6 +114,41 @@ const handleApprove = async (requestId: string, userId: string) => {
     });
   } catch (error: any) {
     console.error('Error approving leave request:', error.message);
+  }
+};
+
+const handleDeny = async (
+  requestId: string,
+  userId: string,
+  denialReason: string | null,
+) => {
+  try {
+    if (!denialReason) {
+      throw new Error('Denial reason is required');
+    }
+
+    const leaveRequest = await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: { status: 'denied', approverId: userId, denialReason },
+    });
+    console.log('Leave request denied:', leaveRequest);
+
+    // Notify the user who requested the leave
+    await client.pushMessage(leaveRequest.userId, {
+      type: 'text',
+      text: 'Your leave request has been denied.',
+    });
+
+    // Send detailed denial notification
+    const user = await prisma.user.findUnique({
+      where: { id: leaveRequest.userId },
+    });
+
+    if (user) {
+      await sendDenyNotification(user, leaveRequest, denialReason);
+    }
+  } catch (error: any) {
+    console.error('Error denying leave request:', error.message);
   }
 };
 
