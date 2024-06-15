@@ -101,7 +101,20 @@ export const sendLeaveRequestNotification = async (
                   },
                   {
                     type: 'text',
-                    text: `วันที่: ${new Date(leaveRequest.startDate).toLocaleDateString()} - ${new Date(leaveRequest.endDate).toLocaleDateString()}`,
+                    text: `วันที่: ${new Date(
+                      leaveRequest.startDate,
+                    ).toLocaleDateString('th-TH', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })} - ${new Date(leaveRequest.endDate).toLocaleDateString(
+                      'th-TH',
+                      {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      },
+                    )} (${Math.ceil((new Date(leaveRequest.endDate).getTime() - new Date(leaveRequest.startDate).getTime()) / (1000 * 60 * 60 * 24))} วัน)`,
                     size: 'sm',
                     wrap: true,
                   },
@@ -158,6 +171,9 @@ export const sendLeaveRequestNotification = async (
             style: 'secondary',
             adjustMode: 'shrink-to-fit',
             margin: 'lg',
+            // To change the text color, we use the 'action' property.
+            // Unfortunately, LINE Flex messages do not support direct text color changes in buttons,
+            // but we can use different color combinations for the background to make it look different.
           },
         ],
       },
