@@ -3,6 +3,7 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
+import '../styles/globals.css';
 
 const RegistrationSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -86,13 +87,13 @@ const RegisterForm = () => {
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
         <div className="progress-bar-container flex justify-between mb-4">
           <div
-            className={`progress-step ${step >= 1 ? 'progress-bar-active' : ''} w-1/3 h-2 rounded-full`}
+            className={`progress-step ${step >= 1 ? 'progress-bar-active' : ''} w-1/3 h-2 rounded-full bg-gray-300`}
           ></div>
           <div
-            className={`progress-step ${step >= 2 ? 'progress-bar-active' : ''} w-1/3 h-2 rounded-full`}
+            className={`progress-step ${step >= 2 ? 'progress-bar-active' : ''} w-1/3 h-2 rounded-full bg-gray-300`}
           ></div>
           <div
-            className={`progress-step ${step >= 3 ? 'progress-bar-active' : ''} w-1/3 h-2 rounded-full`}
+            className={`progress-step ${step >= 3 ? 'progress-bar-active' : ''} w-1/3 h-2 rounded-full bg-gray-300`}
           ></div>
         </div>
         <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
