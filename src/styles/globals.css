@@ -1,8 +1,8 @@
 body {
-  background-color: #000000; /* Black background color for the entire page */
+  background-color: #ffffff; /* Simplified */
   margin: 0;
   font-family: Arial, sans-serif;
-  color: #ffffff; /* White text color */
+  color: #fff;
 }
 
 .main-container {
@@ -10,22 +10,23 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  padding: 20px; /* Added padding for smaller screens */
 }
 
 .mobile-area {
-  background-color: #f0f0f0; /* Light grey background color for the container */
+  background-color: #f0f0f0;
   width: 100%;
   max-width: 600px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
   box-sizing: border-box;
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px; /* Unified padding */
 }
 
 .header {
-  background-color: #f0f0f0; /* Light grey background color for the header */
+  background-color: #f0f0f0;
   padding: 20px;
   border-radius: 10px 10px 0 0;
   text-align: center;
@@ -33,44 +34,48 @@ body {
 
 .header-text {
   margin: 0;
-  color: #000000; /* Black text color for the header */
+  color: #000;
 }
 
 .form-container {
-  background-color: #ffffff; /* White background color for the form container */
+  background-color: #fff;
   width: 100%;
   border-radius: 0 0 10px 10px;
   padding: 20px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.input-box {
+.input-box,
+.select-box {
   width: 100%;
-  height: 40px; /* Adjusted height for better usability */
+  height: 40px;
   border-radius: 10px;
   margin-top: 10px;
   padding: 10px;
   box-sizing: border-box;
+  border: 1px solid #ced4da;
 }
 
-.btn-primary {
-  background-color: #ff1900; /* Red for the Next and Submit buttons */
-  border: none;
-  color: black;
+.btn-primary,
+.btn-secondary {
   padding: 10px 20px;
   margin: 10px 0;
   border-radius: 5px;
   cursor: pointer;
+  transition: opacity 0.3s; /* Smooth transition */
+}
+
+.btn-primary {
+  background-color: #ff1900;
+  border: none;
+  color: black;
 }
 
 .btn-secondary {
-  background-color: #ffede9; /* Light coral for the Back button */
+  background-color: #ffede9;
   border: none;
   color: black;
-  padding: 10px 20px;
-  margin: 10px 10px 10px 0;
-  border-radius: 5px;
-  cursor: pointer;
+  margin-right: 10px;
 }
 
 .btn-primary:hover,
@@ -80,6 +85,7 @@ body {
 
 .text-danger {
   color: #ff1900;
+  margin-top: 5px; /* Spacing for error messages */
 }
 
 .button-container {
@@ -90,28 +96,19 @@ body {
 .progress-bar-container {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 10px; /* Reduced margin for better spacing */
-  padding: 0 20px; /* Add some padding for better spacing */
+  margin-bottom: 10px;
+  padding: 0 20px;
 }
 
 .progress-step {
-  width: 30%;
+  flex: 1; /* Allow steps to flexibly resize */
   height: 10px;
   background-color: #f0f0f0;
   border-radius: 5px;
+  margin: 0 5px; /* Space between steps */
   transition: background-color 0.3s;
 }
 
 .progress-step.active {
-  background-color: #ff1900;
-}
-
-.select-box {
-  background-color: #ffffff; /* White background for dropdown */
-  color: #000000; /* Black text for dropdown */
-  border: 1px solid #ced4da;
-  border-radius: 10px;
-  padding: 10px;
-  box-sizing: border-box;
-  margin-top: 10px;
+  background-color: #00ff7f;
 }

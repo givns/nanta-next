@@ -3,6 +3,7 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
+import '../styles/globals.css';
 
 const RegistrationSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -21,6 +22,12 @@ const departments = [
   'ฝ่ายรักษาความสะอาด',
   'ฝ่ายรักษาความปลอดภัย',
 ];
+
+interface FormValues {
+  name: string;
+  nickname: string;
+  department: string;
+}
 
 const RegisterForm = () => {
   const [lineUserId, setLineUserId] = useState('');
@@ -53,11 +60,10 @@ const RegisterForm = () => {
     setStep(step - 1);
   };
 
-  const handleSubmit = async (values: {
-    name: string;
-    nickname: string;
-    department: string;
-  }) => {
+  const handleSubmit = async (
+    values: FormValues,
+    { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
+  ) => {
     try {
       const response = await axios.post('/api/registerUser', {
         ...values,
@@ -71,6 +77,8 @@ const RegisterForm = () => {
       }
     } catch (error: any) {
       alert('Error: ' + error.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -151,7 +159,6 @@ const RegisterForm = () => {
                         type="button"
                         className="btn btn-secondary"
                         onClick={handlePreviousStep}
-                        style={{ backgroundColor: '#ffede9', color: '#000' }}
                       >
                         Back
                       </button>
@@ -159,7 +166,6 @@ const RegisterForm = () => {
                         type="button"
                         className="btn btn-primary"
                         onClick={handleNextStep}
-                        style={{ backgroundColor: '#ff1900', color: '#000' }}
                       >
                         Next
                       </button>
@@ -176,8 +182,7 @@ const RegisterForm = () => {
                         as="select"
                         name="department"
                         id="department"
-                        className="form-control input-box"
-                        style={{ backgroundColor: '#fff', color: '#000' }}
+                        className="form-control input-box select-box"
                       >
                         <option value="">เลือกแผนก</option>
                         {departments.map((dept) => (
@@ -197,7 +202,6 @@ const RegisterForm = () => {
                         type="button"
                         className="btn btn-secondary"
                         onClick={handlePreviousStep}
-                        style={{ backgroundColor: '#ffede9', color: '#000' }}
                       >
                         Back
                       </button>
@@ -205,7 +209,6 @@ const RegisterForm = () => {
                         type="submit"
                         className="btn btn-primary"
                         disabled={isSubmitting}
-                        style={{ backgroundColor: '#ff1900', color: '#000' }}
                       >
                         Submit
                       </button>
