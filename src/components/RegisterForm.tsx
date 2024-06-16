@@ -155,14 +155,7 @@ const RegisterForm = () => {
                       className="text-danger"
                     />
                   </div>
-                  <div className="button-container flex justify-between">
-                    <button
-                      type="button"
-                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
-                      onClick={() => setStep(step - 1)}
-                    >
-                      ย้อนกลับ
-                    </button>
+                  <div className="button-container flex justify-end">
                     <button
                       type="button"
                       className="text-white bg-[#FF1900] hover:bg-[#FF1900] focus:outline-none focus:ring-4 focus:ring-[#FF1900] font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2"
@@ -201,14 +194,7 @@ const RegisterForm = () => {
                       className="text-danger"
                     />
                   </div>
-                  <div className="button-container flex justify-between">
-                    <button
-                      type="button"
-                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
-                      onClick={() => setStep(step - 1)}
-                    >
-                      ย้อนกลับ
-                    </button>
+                  <div className="button-container flex justify-end">
                     <button
                       type="submit"
                       className="text-white bg-[#FF1900] hover:bg-[#FF1900] focus:outline-none focus:ring-4 focus:ring-[#FF1900] font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2"
