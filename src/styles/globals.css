@@ -19,7 +19,6 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  padding: 20px;
   box-sizing: border-box;
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -55,7 +54,7 @@ body {
 }
 
 .btn-primary {
-  background-color: #004dff;
+  background-color: #00ff7f;
   border: none;
   color: white;
   padding: 10px 20px;
@@ -65,7 +64,7 @@ body {
 }
 
 .btn-secondary {
-  background-color: #00ff7f;
+  background-color: #c0ffcf;
   border: none;
   color: black;
   padding: 10px 20px;
@@ -104,5 +103,5 @@ body {
 }
 
 .progress-step.active {
-  background-color: #004dff;
+  background-color: #00ff7f;
 }
