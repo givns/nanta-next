@@ -1,38 +1,41 @@
+import React, { useState, useEffect } from 'react';
 import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
-import { useEffect, useState } from 'react';
 import liff from '@line/liff';
+import 'flowbite/dist/flowbite.css';
 
-const LeaveRequestSchema = Yup.object().shape({
-  leaveType: Yup.string().required('Required'),
-  halfDay: Yup.string(),
-  fullDayCount: Yup.number(),
-  startDate: Yup.string(),
-  endDate: Yup.string(),
-  reason: Yup.string().required('Required'),
-  duration: Yup.string().required('Required'), // Ensure duration is required
-});
-
-interface FormValues {
-  leaveType: string;
-  halfDay?: string;
-  fullDayCount?: number;
-  startDate?: string;
-  endDate?: string;
-  reason: string;
-  duration?: string; // Add duration property
-}
-
-interface LeaveLimits {
-  [key: string]: number;
-}
-
-const leaveLimits: LeaveLimits = {
+const leaveLimits: { [key: string]: number } = {
   ลาพักร้อน: 6,
   ลากิจ: 3,
   ลาป่วย: 30,
 };
+
+const leaveRequestSchema = Yup.object().shape({
+  leaveType: Yup.string()
+    .required('Required')
+    .test('leaveType', 'Limit exceeded', function (value) {
+      if (value && leaveLimits[value] !== undefined) {
+        return leaveLimits[value] > 0;
+      }
+      return true;
+    }),
+  duration: Yup.string().required('Required'),
+  halfDay: Yup.string().when('duration', {
+    is: 'halfDay',
+    then: (schema) => schema.required('Required'),
+  }),
+  fullDayCount: Yup.number().when('duration', {
+    is: 'fullDay',
+    then: (schema) => schema.required('Required').min(1),
+  }),
+  startDate: Yup.string().required('Required'),
+  endDate: Yup.string().when('fullDayCount', {
+    is: (val: number) => val > 1,
+    then: (schema) => schema.required('Required'),
+  }),
+  reason: Yup.string().required('Required'),
+});
 
 const LeaveRequestForm = () => {
   const [lineUserId, setLineUserId] = useState('');
@@ -61,12 +64,16 @@ const LeaveRequestForm = () => {
     setStep(step + 1);
   };
 
-  const handlePreviousStep = () => {
-    setStep(step - 1);
-  };
-
   const handleSubmit = async (
-    values: FormValues,
+    values: {
+      leaveType: string;
+      duration: string;
+      halfDay: string;
+      fullDayCount: number;
+      startDate: string;
+      endDate: string;
+      reason: string;
+    },
     { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
   ) => {
     try {
@@ -87,178 +94,152 @@ const LeaveRequestForm = () => {
     }
   };
 
-  const availableLeaveTypes = Object.keys(leaveLimits).filter(
-    (type) => leaveLimits[type] > 0,
-  );
-
   return (
-    <div className="main-container flex justify-center items-center h-screen">
-      <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mb-4">
-          <div
-            className="bg-blue-600 h-2.5 rounded-full"
-            style={{ width: `${(step / 4) * 100}%` }}
-          ></div>
-        </div>
-        <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
-          คำขอลา
-        </h5>
-        <Formik
-          initialValues={{
-            leaveType: '',
-            halfDay: '',
-            fullDayCount: 1,
-            startDate: '',
-            endDate: '',
-            reason: '',
-            duration: '', // Initialize duration
-          }}
-          validationSchema={LeaveRequestSchema}
-          onSubmit={handleSubmit}
-        >
-          {({ values, isSubmitting, setFieldValue }) => (
-            <Form id="leaveRequestForm" className="space-y-6">
-              {step === 1 && (
-                <div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="leaveType"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      ประเภทการลา
-                    </label>
+    <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
+      <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mb-4">
+        <div
+          className="bg-blue-600 h-2.5 rounded-full dark:bg-blue-500"
+          style={{ width: `${(step / 3) * 100}%` }}
+        ></div>
+      </div>
+      <h5 className="text-xl font-medium text-gray-900 dark:text-white">
+        ลงทะเบียนพนักงาน
+      </h5>
+      <Formik
+        initialValues={{
+          leaveType: '',
+          duration: '',
+          halfDay: '',
+          fullDayCount: 1,
+          startDate: '',
+          endDate: '',
+          reason: '',
+        }}
+        validationSchema={leaveRequestSchema}
+        onSubmit={handleSubmit}
+      >
+        {({ values, isSubmitting }) => (
+          <Form className="space-y-6">
+            {step === 1 && (
+              <div>
+                <label
+                  htmlFor="leaveType"
+                  className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                >
+                  ประเภทการลา
+                </label>
+                <Field
+                  as="select"
+                  name="leaveType"
+                  id="leaveType"
+                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                >
+                  <option value="">เลือกประเภทการลา</option>
+                  {leaveLimits['ลาพักร้อน'] > 0 && (
+                    <option value="ลาพักร้อน">ลาพักร้อน</option>
+                  )}
+                  {leaveLimits['ลากิจ'] > 0 && (
+                    <option value="ลากิจ">ลากิจ</option>
+                  )}
+                  {leaveLimits['ลาป่วย'] > 0 && (
+                    <option value="ลาป่วย">ลาป่วย</option>
+                  )}
+                  <option value="ลาโดยไม่รับค่าจ้าง">ลาโดยไม่รับค่าจ้าง</option>
+                </Field>
+                <ErrorMessage
+                  name="leaveType"
+                  component="div"
+                  className="text-danger"
+                />
+                <div className="button-container flex justify-end">
+                  <button
+                    type="button"
+                    className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    onClick={handleNextStep}
+                  >
+                    ถัดไป
+                  </button>
+                </div>
+              </div>
+            )}
+            {step === 2 && (
+              <div>
+                <label
+                  htmlFor="duration"
+                  className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                >
+                  ระยะเวลา
+                </label>
+                <Field
+                  as="select"
+                  name="duration"
+                  id="duration"
+                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                >
+                  <option value="">เลือกระยะเวลา</option>
+                  <option value="halfDay">ลาครึ่งวัน</option>
+                  <option value="fullDay">ลาเต็มวัน</option>
+                </Field>
+                <ErrorMessage
+                  name="duration"
+                  component="div"
+                  className="text-danger"
+                />
+                {values.duration === 'halfDay' && (
+                  <div>
                     <Field
                       as="select"
-                      name="leaveType"
-                      id="leaveType"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                      name="halfDay"
+                      id="halfDay"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
                     >
-                      <option value="">เลือกประเภทการลา</option>
-                      {availableLeaveTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
+                      <option value="">เลือกครึ่งวัน</option>
+                      <option value="morning">ครึ่งวันเช้า</option>
+                      <option value="afternoon">ครึ่งวันบ่าย</option>
                     </Field>
                     <ErrorMessage
-                      name="leaveType"
+                      name="halfDay"
                       component="div"
                       className="text-danger"
                     />
                   </div>
-                  <div className="button-container flex justify-end">
-                    <button
-                      type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={handleNextStep}
+                )}
+                {values.duration === 'fullDay' && (
+                  <div>
+                    <label
+                      htmlFor="fullDayCount"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                     >
-                      ถัดไป
-                    </button>
-                  </div>
-                </div>
-              )}
-              {step === 2 && (
-                <div>
-                  <div className="mb-3">
-                    <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                      ระยะเวลา
+                      จำนวนวันที่ต้องการลา
                     </label>
-                    <div className="flex flex-col space-y-2">
-                      <label className="inline-flex items-center">
-                        <Field
-                          type="radio"
-                          name="duration"
-                          value="halfDay"
-                          className="form-radio text-blue-600"
-                          onClick={() => setFieldValue('fullDayCount', 0.5)}
-                        />
-                        <span className="ml-2">ลาครึ่งวัน</span>
-                      </label>
-                      <label className="inline-flex items-center">
-                        <Field
-                          type="radio"
-                          name="duration"
-                          value="fullDay"
-                          className="form-radio text-blue-600"
-                          onClick={() => setFieldValue('fullDayCount', 1)}
-                        />
-                        <span className="ml-2">ลาเต็มวัน</span>
-                      </label>
-                    </div>
+                    <Field
+                      type="number"
+                      name="fullDayCount"
+                      id="fullDayCount"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                    />
                     <ErrorMessage
-                      name="duration"
+                      name="fullDayCount"
                       component="div"
                       className="text-danger"
                     />
                   </div>
-                  {values.duration === 'halfDay' && (
-                    <div className="mb-3">
-                      <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                        ครึ่งวัน
-                      </label>
-                      <div className="flex flex-col space-y-2">
-                        <label className="inline-flex items-center">
-                          <Field
-                            type="radio"
-                            name="halfDay"
-                            value="morning"
-                            className="form-radio text-blue-600"
-                          />
-                          <span className="ml-2">ครึ่งวันเช้า</span>
-                        </label>
-                        <label className="inline-flex items-center">
-                          <Field
-                            type="radio"
-                            name="halfDay"
-                            value="afternoon"
-                            className="form-radio text-blue-600"
-                          />
-                          <span className="ml-2">ครึ่งวันบ่าย</span>
-                        </label>
-                      </div>
-                      <ErrorMessage
-                        name="halfDay"
-                        component="div"
-                        className="text-danger"
-                      />
-                    </div>
-                  )}
-                  {values.duration === 'fullDay' && (
-                    <div className="mb-3">
-                      <label
-                        htmlFor="fullDayCount"
-                        className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >
-                        จำนวนวันที่ต้องการลา
-                      </label>
-                      <Field
-                        type="number"
-                        name="fullDayCount"
-                        id="fullDayCount"
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                        min="1"
-                      />
-                      <ErrorMessage
-                        name="fullDayCount"
-                        component="div"
-                        className="text-danger"
-                      />
-                    </div>
-                  )}
-                  <div className="button-container flex justify-end">
-                    <button
-                      type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={handleNextStep}
-                    >
-                      ถัดไป
-                    </button>
-                  </div>
+                )}
+                <div className="button-container flex justify-end">
+                  <button
+                    type="button"
+                    className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    onClick={handleNextStep}
+                  >
+                    ถัดไป
+                  </button>
                 </div>
-              )}
-              {step === 3 && values.duration === 'halfDay' && (
-                <div>
-                  <div className="mb-3">
+              </div>
+            )}
+            {step === 3 && (
+              <div>
+                {values.fullDayCount === 1 ? (
+                  <div>
                     <label
                       htmlFor="startDate"
                       className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
@@ -269,7 +250,7 @@ const LeaveRequestForm = () => {
                       type="date"
                       name="startDate"
                       id="startDate"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg                     focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
                     />
                     <ErrorMessage
                       name="startDate"
@@ -277,56 +258,15 @@ const LeaveRequestForm = () => {
                       className="text-danger"
                     />
                   </div>
-                  <div className="button-container flex justify-end">
-                    <button
-                      type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={handleNextStep}
+                ) : (
+                  <div>
+                    <label
+                      htmlFor="dateRange"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                     >
-                      ถัดไป
-                    </button>
-                  </div>
-                </div>
-              )}
-              {step === 3 &&
-                values.duration === 'fullDay' &&
-                values.fullDayCount === 1 && (
-                  <div>
-                    <div className="mb-3">
-                      <label
-                        htmlFor="startDate"
-                        className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >
-                        วันที่ต้องการลา
-                      </label>
-                      <Field
-                        type="date"
-                        name="startDate"
-                        id="startDate"
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                      />
-                      <ErrorMessage
-                        name="startDate"
-                        component="div"
-                        className="text-danger"
-                      />
-                    </div>
-                    <div className="button-container flex justify-end">
-                      <button
-                        type="button"
-                        className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                        onClick={handleNextStep}
-                      >
-                        ถัดไป
-                      </button>
-                    </div>
-                  </div>
-                )}
-              {step === 3 &&
-                values.duration === 'fullDay' &&
-                values.fullDayCount > 1 && (
-                  <div>
-                    <div date-rangepicker className="flex items-center mb-3">
+                      ช่วงวันที่ต้องการลา
+                    </label>
+                    <div date-rangepicker className="flex items-center">
                       <div className="relative">
                         <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
                           <svg
@@ -377,53 +317,39 @@ const LeaveRequestForm = () => {
                       component="div"
                       className="text-danger"
                     />
-                    <div className="button-container flex justify-end">
-                      <button
-                        type="button"
-                        className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                        onClick={handleNextStep}
-                      >
-                        ถัดไป
-                      </button>
-                    </div>
                   </div>
                 )}
-              {step === 4 && (
-                <div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="reason"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      สาเหตุ
-                    </label>
-                    <Field
-                      as="textarea"
-                      name="reason"
-                      id="reason"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                    />
-                    <ErrorMessage
-                      name="reason"
-                      component="div"
-                      className="text-danger"
-                    />
-                  </div>
-                  <div className="button-container flex justify-end">
-                    <button
-                      type="submit"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      disabled={isSubmitting}
-                    >
-                      Submit
-                    </button>
-                  </div>
+                <label
+                  htmlFor="reason"
+                  className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                >
+                  สาเหตุการลา
+                </label>
+                <Field
+                  type="text"
+                  name="reason"
+                  id="reason"
+                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                />
+                <ErrorMessage
+                  name="reason"
+                  component="div"
+                  className="text-danger"
+                />
+                <div className="button-container flex justify-end">
+                  <button
+                    type="submit"
+                    className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                    disabled={isSubmitting}
+                  >
+                    ส่งคำขอ
+                  </button>
                 </div>
-              )}
-            </Form>
-          )}
-        </Formik>
-      </div>
+              </div>
+            )}
+          </Form>
+        )}
+      </Formik>
     </div>
   );
 };
