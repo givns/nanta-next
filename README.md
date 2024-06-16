@@ -259,3 +259,7 @@ flex message for leave request JSON
 }
 }
 }
+
+#004dff Magic ink
+#ff1900 Carolina reaper
+#00ff7f Spring green
