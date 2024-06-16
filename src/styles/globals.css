@@ -3,6 +3,13 @@
 @import 'tailwindcss/utilities';
 @import 'flowbite';
 
+.progress-step {
+  width: 33%;
+  height: 4px;
+  background-color: #e5e7eb; /* Tailwind gray-300 */
+  margin-right: 4px;
+}
+
 .progress-step.active {
   background-color: #ff1900;
 }

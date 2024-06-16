@@ -22,12 +22,6 @@ const departments = [
   'ฝ่ายรักษาความปลอดภัย',
 ];
 
-interface FormValues {
-  name: string;
-  nickname: string;
-  department: string;
-}
-
 const RegisterForm = () => {
   const [lineUserId, setLineUserId] = useState('');
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
@@ -60,7 +54,7 @@ const RegisterForm = () => {
   };
 
   const handleSubmit = async (
-    values: FormValues,
+    values: { name: string; nickname: string; department: string },
     { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
   ) => {
     try {
@@ -82,158 +76,146 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gray-100">
-      <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <div className="mb-4">
-          <div className="flex justify-between mb-2">
-            <div
-              className={`progress-step ${step >= 1 ? 'bg-[#FF1900]' : 'bg-gray-300'} w-2/6 h-1 rounded-full`}
-            ></div>
-            <div
-              className={`progress-step ${step >= 2 ? 'bg-[#FF1900]' : 'bg-gray-300'} w-2/6 h-1 rounded-full`}
-            ></div>
-            <div
-              className={`progress-step ${step >= 3 ? 'bg-[#FF1900]' : 'bg-gray-300'} w-2/6 h-1 rounded-full`}
-            ></div>
-          </div>
-          <h5 className="text-xl font-medium text-gray-900 dark:text-white">
-            ลงทะเบียนพนักงาน
-          </h5>
-        </div>
-        <Formik
-          initialValues={{
-            name: '',
-            nickname: '',
-            department: '',
-          }}
-          validationSchema={RegistrationSchema}
-          onSubmit={handleSubmit}
-        >
-          {({ isSubmitting }) => (
-            <Form className="space-y-6">
-              {step === 1 && (
-                <div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="name"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      ชื่อ - นามสกุล
-                    </label>
-                    <Field
-                      type="text"
-                      name="name"
-                      id="name"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                      placeholder="ชื่อ-นามสกุล"
-                    />
-                    <ErrorMessage
-                      name="name"
-                      component="div"
-                      className="text-danger mt-2 text-sm text-red-600"
-                    />
-                  </div>
-                  <div className="flex justify-end mt-4">
-                    <button
-                      type="button"
-                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
-                      onClick={handleNextStep}
-                    >
-                      Next
-                    </button>
-                  </div>
+    <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
+      <Formik
+        initialValues={{
+          name: '',
+          nickname: '',
+          department: '',
+        }}
+        validationSchema={RegistrationSchema}
+        onSubmit={handleSubmit}
+      >
+        {({ isSubmitting }) => (
+          <Form className="space-y-6">
+            <div className="flex justify-between mb-4">
+              <div
+                className={`progress-step ${step >= 1 ? 'active' : ''}`}
+              ></div>
+              <div
+                className={`progress-step ${step >= 2 ? 'active' : ''}`}
+              ></div>
+              <div
+                className={`progress-step ${step >= 3 ? 'active' : ''}`}
+              ></div>
+            </div>
+            <h5 className="text-xl font-medium text-gray-900 dark:text-white">
+              ลงทะเบียนพนักงาน
+            </h5>
+            {step === 1 && (
+              <div>
+                <label
+                  htmlFor="name"
+                  className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                >
+                  ชื่อ - นามสกุล
+                </label>
+                <Field
+                  type="text"
+                  name="name"
+                  id="name"
+                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                />
+                <ErrorMessage
+                  name="name"
+                  component="div"
+                  className="text-danger"
+                />
+                <div className="flex justify-end mt-4">
+                  <button
+                    type="button"
+                    className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                    onClick={handleNextStep}
+                  >
+                    Next
+                  </button>
                 </div>
-              )}
-              {step === 2 && (
-                <div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="nickname"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      ชื่อเล่น
-                    </label>
-                    <Field
-                      type="text"
-                      name="nickname"
-                      id="nickname"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                      placeholder="ชื่อเล่น"
-                    />
-                    <ErrorMessage
-                      name="nickname"
-                      component="div"
-                      className="text-danger mt-2 text-sm text-red-600"
-                    />
-                  </div>
-                  <div className="flex justify-between mt-4">
-                    <button
-                      type="button"
-                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
-                      onClick={handlePreviousStep}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
-                      onClick={handleNextStep}
-                    >
-                      Next
-                    </button>
-                  </div>
+              </div>
+            )}
+            {step === 2 && (
+              <div>
+                <label
+                  htmlFor="nickname"
+                  className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                >
+                  ชื่อเล่น
+                </label>
+                <Field
+                  type="text"
+                  name="nickname"
+                  id="nickname"
+                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                />
+                <ErrorMessage
+                  name="nickname"
+                  component="div"
+                  className="text-danger"
+                />
+                <div className="flex justify-between mt-4">
+                  <button
+                    type="button"
+                    className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
+                    onClick={handlePreviousStep}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                    onClick={handleNextStep}
+                  >
+                    Next
+                  </button>
                 </div>
-              )}
-              {step === 3 && (
-                <div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="department"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      แผนก
-                    </label>
-                    <Field
-                      as="select"
-                      name="department"
-                      id="department"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white select-box"
-                    >
-                      <option value="">เลือกแผนก</option>
-                      {departments.map((dept) => (
-                        <option key={dept} value={dept}>
-                          {dept}
-                        </option>
-                      ))}
-                    </Field>
-                    <ErrorMessage
-                      name="department"
-                      component="div"
-                      className="text-danger mt-2 text-sm text-red-600"
-                    />
-                  </div>
-                  <div className="flex justify-between mt-4">
-                    <button
-                      type="button"
-                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
-                      onClick={handlePreviousStep}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
-                      disabled={isSubmitting}
-                    >
-                      Submit
-                    </button>
-                  </div>
+              </div>
+            )}
+            {step === 3 && (
+              <div>
+                <label
+                  htmlFor="department"
+                  className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                >
+                  แผนก
+                </label>
+                <Field
+                  as="select"
+                  name="department"
+                  id="department"
+                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                >
+                  <option value="">เลือกแผนก</option>
+                  {departments.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </Field>
+                <ErrorMessage
+                  name="department"
+                  component="div"
+                  className="text-danger"
+                />
+                <div className="flex justify-between mt-4">
+                  <button
+                    type="button"
+                    className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
+                    onClick={handlePreviousStep}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                    disabled={isSubmitting}
+                  >
+                    Submit
+                  </button>
                 </div>
-              )}
-            </Form>
-          )}
-        </Formik>
-      </div>
+              </div>
+            )}
+          </Form>
+        )}
+      </Formik>
     </div>
   );
 };
