@@ -3,7 +3,7 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
-import './global.css';
+import '../styles/globals.css';
 
 const RegistrationSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
