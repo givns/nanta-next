@@ -4,12 +4,6 @@ import axios from 'axios';
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
 
-interface FormValues {
-  name: string;
-  nickname: string;
-  department: string;
-}
-
 const RegistrationSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
   nickname: Yup.string().required('Required'),
@@ -28,10 +22,16 @@ const departments = [
   'ฝ่ายรักษาความปลอดภัย',
 ];
 
+interface FormValues {
+  name: string;
+  nickname: string;
+  department: string;
+}
+
 const RegisterForm = () => {
-  const [lineUserId, setLineUserId] = useState<string>('');
-  const [profilePictureUrl, setProfilePictureUrl] = useState<string>('');
-  const [step, setStep] = useState<number>(1);
+  const [lineUserId, setLineUserId] = useState('');
+  const [profilePictureUrl, setProfilePictureUrl] = useState('');
+  const [step, setStep] = useState(1);
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -82,20 +82,14 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="container mx-auto flex flex-col items-center justify-center h-screen">
+    <div className="main-container">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <div className="progress-bar-container flex justify-between mb-4">
-          <div
-            className={`progress-step ${step >= 1 ? 'bg-[#FF1900]' : 'bg-gray-300'} w-full h-2 mr-1`}
-          ></div>
-          <div
-            className={`progress-step ${step >= 2 ? 'bg-[#FF1900]' : 'bg-gray-300'} w-full h-2 mr-1`}
-          ></div>
-          <div
-            className={`progress-step ${step >= 3 ? 'bg-[#FF1900]' : 'bg-gray-300'} w-full h-2`}
-          ></div>
+        <div className="progress-bar-container">
+          <div className={`progress-step ${step >= 1 ? 'active' : ''}`}></div>
+          <div className={`progress-step ${step >= 2 ? 'active' : ''}`}></div>
+          <div className={`progress-step ${step >= 3 ? 'active' : ''}`}></div>
         </div>
-        <h5 className="text-xl font-medium text-gray-900 dark:text-white mb-4">
+        <h5 className="text-xl font-medium text-gray-900 dark:text-white">
           ลงทะเบียนพนักงาน
         </h5>
         <Formik
@@ -110,12 +104,9 @@ const RegisterForm = () => {
           {({ isSubmitting }) => (
             <Form className="space-y-6">
               {step === 1 && (
-                <>
-                  <div>
-                    <label
-                      htmlFor="name"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
+                <div>
+                  <div className="mb-3">
+                    <label htmlFor="name" className="form-label">
                       ชื่อ - นามสกุล
                     </label>
                     <Field
@@ -128,27 +119,24 @@ const RegisterForm = () => {
                     <ErrorMessage
                       name="name"
                       component="div"
-                      className="text-red-600"
+                      className="text-danger"
                     />
                   </div>
-                  <div className="flex justify-end">
+                  <div className="flex justify-end mt-4">
                     <button
                       type="button"
-                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
                       onClick={handleNextStep}
                     >
                       Next
                     </button>
                   </div>
-                </>
+                </div>
               )}
               {step === 2 && (
-                <>
-                  <div>
-                    <label
-                      htmlFor="nickname"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
+                <div>
+                  <div className="mb-3">
+                    <label htmlFor="nickname" className="form-label">
                       ชื่อเล่น
                     </label>
                     <Field
@@ -161,41 +149,38 @@ const RegisterForm = () => {
                     <ErrorMessage
                       name="nickname"
                       component="div"
-                      className="text-red-600"
+                      className="text-danger"
                     />
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between mt-4">
                     <button
                       type="button"
-                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
+                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
                       onClick={handlePreviousStep}
                     >
                       Back
                     </button>
                     <button
                       type="button"
-                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
                       onClick={handleNextStep}
                     >
                       Next
                     </button>
                   </div>
-                </>
+                </div>
               )}
               {step === 3 && (
-                <>
-                  <div>
-                    <label
-                      htmlFor="department"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
+                <div>
+                  <div className="mb-3">
+                    <label htmlFor="department" className="form-label">
                       แผนก
                     </label>
                     <Field
                       as="select"
                       name="department"
                       id="department"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white select-box"
                     >
                       <option value="">เลือกแผนก</option>
                       {departments.map((dept) => (
@@ -207,26 +192,26 @@ const RegisterForm = () => {
                     <ErrorMessage
                       name="department"
                       component="div"
-                      className="text-red-600"
+                      className="text-danger"
                     />
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between mt-4">
                     <button
                       type="button"
-                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
+                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
                       onClick={handlePreviousStep}
                     >
                       Back
                     </button>
                     <button
                       type="submit"
-                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
                       disabled={isSubmitting}
                     >
                       Submit
                     </button>
                   </div>
-                </>
+                </div>
               )}
             </Form>
           )}
