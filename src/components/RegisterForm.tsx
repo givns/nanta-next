@@ -3,6 +3,7 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
+import './styles.css';
 
 const RegistrationSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -27,14 +28,13 @@ const RegisterForm = () => {
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
 
   useEffect(() => {
-    // Initialize LIFF
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
     if (liffId) {
       liff.init({ liffId }).then(() => {
         if (liff.isLoggedIn()) {
           liff.getProfile().then((profile) => {
             setLineUserId(profile.userId);
-            setProfilePictureUrl(profile.pictureUrl); // Capture the profile picture URL
+            setProfilePictureUrl(profile.pictureUrl);
           });
         } else {
           liff.login();
@@ -45,12 +45,16 @@ const RegisterForm = () => {
     }
   }, []);
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: {
+    name: string;
+    nickname: string;
+    department: string;
+  }) => {
     try {
       const response = await axios.post('/api/registerUser', {
         ...values,
         lineUserId,
-        profilePictureUrl, // Include the profile picture URL
+        profilePictureUrl,
       });
       if (response.data.success) {
         liff.closeWindow();
@@ -63,9 +67,9 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="container-fluid vh-100 d-flex flex-column justify-content-between">
-      <div className="container my-auto p-4 shadow rounded bg-white">
-        <h3 className="mb-4 text-center">ลงทะเบียนพนักงาน</h3>
+    <div className="container-fluid vh-100 d-flex flex-column justify-content-center align-items-center bg-image">
+      <h3 className="mb-4 text-center">ลงทะเบียนพนักงาน</h3>
+      <div className="container p-4 shadow rounded bg-white form-container">
         <Formik
           initialValues={{
             name: '',
@@ -75,7 +79,7 @@ const RegisterForm = () => {
           validationSchema={RegistrationSchema}
           onSubmit={handleSubmit}
         >
-          <Form>
+          <Form id="registrationForm">
             <div className="mb-3">
               <label htmlFor="name" className="form-label">
                 ชื่อ - นามสกุล
@@ -84,7 +88,7 @@ const RegisterForm = () => {
                 type="text"
                 name="name"
                 id="name"
-                className="form-control"
+                className="form-control input-box"
                 placeholder="ชื่อ-นามสกุล"
               />
               <ErrorMessage
@@ -101,7 +105,7 @@ const RegisterForm = () => {
                 type="text"
                 name="nickname"
                 id="nickname"
-                className="form-control"
+                className="form-control input-box"
                 placeholder="ชื่อเล่น"
               />
               <ErrorMessage
@@ -118,7 +122,7 @@ const RegisterForm = () => {
                 as="select"
                 name="department"
                 id="department"
-                className="form-control"
+                className="form-control input-box"
               >
                 <option value="">เลือกแผนก</option>
                 {departments.map((dept) => (
@@ -139,7 +143,7 @@ const RegisterForm = () => {
       <button
         type="submit"
         form="registrationForm"
-        className="btn btn-danger btn-lg w-100 fixed-bottom"
+        className="btn btn-dark btn-lg w-100 fixed-bottom rounded-0 custom-button"
       >
         ลงทะเบียน
       </button>
