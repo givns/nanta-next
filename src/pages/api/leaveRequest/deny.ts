@@ -2,20 +2,12 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
 import { sendDenyNotification } from '../../../utils/sendNotifications';
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'POST') {
     const { requestId, approverId, denialReason } = req.body;
 
     if (!requestId || !approverId || !denialReason) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Missing required fields: requestId, approverId, or denialReason',
-        });
+      return res.status(400).json({ error: 'Missing required fields: requestId, approverId, or denialReason' });
     }
 
     try {
