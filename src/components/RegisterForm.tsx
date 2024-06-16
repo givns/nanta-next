@@ -3,7 +3,6 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
-import '../styles/globals.css';
 
 interface FormValues {
   name: string;
