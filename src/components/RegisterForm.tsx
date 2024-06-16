@@ -3,6 +3,13 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
+import '../styles/globals.css';
+
+interface FormValues {
+  name: string;
+  nickname: string;
+  department: string;
+}
 
 const RegistrationSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -22,16 +29,10 @@ const departments = [
   'ฝ่ายรักษาความปลอดภัย',
 ];
 
-interface FormValues {
-  name: string;
-  nickname: string;
-  department: string;
-}
-
 const RegisterForm = () => {
-  const [lineUserId, setLineUserId] = useState('');
-  const [profilePictureUrl, setProfilePictureUrl] = useState('');
-  const [step, setStep] = useState(1);
+  const [lineUserId, setLineUserId] = useState<string>('');
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string>('');
+  const [step, setStep] = useState<number>(1);
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -105,11 +106,9 @@ const RegisterForm = () => {
             {({ isSubmitting }) => (
               <Form id="registrationForm">
                 {step === 1 && (
-                  <div>
-                    <div className="mb-3">
-                      <label htmlFor="name" className="form-label">
-                        ชื่อ - นามสกุล
-                      </label>
+                  <div className="card">
+                    <div className="card-header">ชื่อ - นามสกุล</div>
+                    <div className="card-body">
                       <Field
                         type="text"
                         name="name"
@@ -123,7 +122,7 @@ const RegisterForm = () => {
                         className="text-danger"
                       />
                     </div>
-                    <div className="button-container">
+                    <div className="card-footer">
                       <button
                         type="button"
                         className="btn btn-primary"
@@ -135,11 +134,9 @@ const RegisterForm = () => {
                   </div>
                 )}
                 {step === 2 && (
-                  <div>
-                    <div className="mb-3">
-                      <label htmlFor="nickname" className="form-label">
-                        ชื่อเล่น
-                      </label>
+                  <div className="card">
+                    <div className="card-header">ชื่อเล่น</div>
+                    <div className="card-body">
                       <Field
                         type="text"
                         name="nickname"
@@ -153,7 +150,7 @@ const RegisterForm = () => {
                         className="text-danger"
                       />
                     </div>
-                    <div className="button-container">
+                    <div className="card-footer">
                       <button
                         type="button"
                         className="btn btn-secondary"
@@ -172,11 +169,9 @@ const RegisterForm = () => {
                   </div>
                 )}
                 {step === 3 && (
-                  <div>
-                    <div className="mb-3">
-                      <label htmlFor="department" className="form-label">
-                        แผนก
-                      </label>
+                  <div className="card">
+                    <div className="card-header">แผนก</div>
+                    <div className="card-body">
                       <Field
                         as="select"
                         name="department"
@@ -196,7 +191,7 @@ const RegisterForm = () => {
                         className="text-danger"
                       />
                     </div>
-                    <div className="button-container">
+                    <div className="card-footer">
                       <button
                         type="button"
                         className="btn btn-secondary"
