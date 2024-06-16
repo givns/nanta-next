@@ -80,9 +80,6 @@ const RegisterForm = () => {
   return (
     <div className="main-container flex justify-center items-center h-screen">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <div className="mb-1 text-base font-medium dark:text-white">
-          Progress
-        </div>
         <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4 dark:bg-gray-700">
           <div
             className="bg-[#FF1900] h-2.5 rounded-full"
@@ -128,7 +125,7 @@ const RegisterForm = () => {
                   <div className="button-container flex justify-end">
                     <button
                       type="button"
-                      className="text-white bg-[#FF1900] hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                      className="text-white bg-[#FF1900] hover:bg-[#FF1900] focus:outline-none focus:ring-4 focus:ring-[#FF1900] font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2"
                       onClick={handleNextStep}
                     >
                       ถัดไป
@@ -158,10 +155,17 @@ const RegisterForm = () => {
                       className="text-danger"
                     />
                   </div>
-                  <div className="button-container flex justify-end">
+                  <div className="button-container flex justify-between">
                     <button
                       type="button"
-                      className="text-white bg-[#FF1900] hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
+                      onClick={() => setStep(step - 1)}
+                    >
+                      ย้อนกลับ
+                    </button>
+                    <button
+                      type="button"
+                      className="text-white bg-[#FF1900] hover:bg-[#FF1900] focus:outline-none focus:ring-4 focus:ring-[#FF1900] font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2"
                       onClick={handleNextStep}
                     >
                       ถัดไป
@@ -197,13 +201,20 @@ const RegisterForm = () => {
                       className="text-danger"
                     />
                   </div>
-                  <div className="button-container flex justify-end">
+                  <div className="button-container flex justify-between">
+                    <button
+                      type="button"
+                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
+                      onClick={() => setStep(step - 1)}
+                    >
+                      ย้อนกลับ
+                    </button>
                     <button
                       type="submit"
-                      className="text-white bg-[#FF1900] hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                      className="text-white bg-[#FF1900] hover:bg-[#FF1900] focus:outline-none focus:ring-4 focus:ring-[#FF1900] font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2"
                       disabled={isSubmitting}
                     >
-                      Submit
+                      ยืนยัน
                     </button>
                   </div>
                 </div>
