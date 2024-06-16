@@ -55,10 +55,6 @@ const RegisterForm = () => {
     setStep(step + 1);
   };
 
-  const handlePreviousStep = () => {
-    setStep(step - 1);
-  };
-
   const handleSubmit = async (
     values: FormValues,
     { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
@@ -84,15 +80,13 @@ const RegisterForm = () => {
   return (
     <div className="main-container flex justify-center items-center h-screen">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <div className="progress-bar-container flex justify-between mb-4">
+        <div className="mb-1 text-base font-medium dark:text-white">
+          Progress
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4 dark:bg-gray-700">
           <div
-            className={`progress-step ${step >= 1 ? 'progress-bar-active' : ''} w-1/3 h-2 rounded-full bg-gray-300`}
-          ></div>
-          <div
-            className={`progress-step ${step >= 2 ? 'progress-bar-active' : ''} w-1/3 h-2 rounded-full bg-gray-300`}
-          ></div>
-          <div
-            className={`progress-step ${step >= 3 ? 'progress-bar-active' : ''} w-1/3 h-2 rounded-full bg-gray-300`}
+            className="bg-[#FF1900] h-2.5 rounded-full"
+            style={{ width: `${(step / 3) * 100}%` }}
           ></div>
         </div>
         <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
@@ -134,10 +128,10 @@ const RegisterForm = () => {
                   <div className="button-container flex justify-end">
                     <button
                       type="button"
-                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                      className="text-white bg-[#FF1900] hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
                       onClick={handleNextStep}
                     >
-                      Next
+                      ถัดไป
                     </button>
                   </div>
                 </div>
@@ -164,20 +158,13 @@ const RegisterForm = () => {
                       className="text-danger"
                     />
                   </div>
-                  <div className="button-container flex justify-between">
+                  <div className="button-container flex justify-end">
                     <button
                       type="button"
-                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
-                      onClick={handlePreviousStep}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                      className="text-white bg-[#FF1900] hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
                       onClick={handleNextStep}
                     >
-                      Next
+                      ถัดไป
                     </button>
                   </div>
                 </div>
@@ -210,17 +197,10 @@ const RegisterForm = () => {
                       className="text-danger"
                     />
                   </div>
-                  <div className="button-container flex justify-between">
-                    <button
-                      type="button"
-                      className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
-                      onClick={handlePreviousStep}
-                    >
-                      Back
-                    </button>
+                  <div className="button-container flex justify-end">
                     <button
                       type="submit"
-                      className="text-white bg-scarlet-700 hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
+                      className="text-white bg-[#FF1900] hover:bg-scarlet-800 focus:outline-none focus:ring-4 focus:ring-scarlet-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-scarlet-600 dark:hover:bg-scarlet-700 dark:focus:ring-scarlet-900"
                       disabled={isSubmitting}
                     >
                       Submit
