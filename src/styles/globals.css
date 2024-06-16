@@ -1,8 +1,8 @@
 body {
-  background-color: #aa1100; /* Red background color */
+  background-color: #f0f0f0; /* Light grey background color for the entire page */
   margin: 0;
   font-family: Arial, sans-serif;
-  color: #ffffff; /* White text color */
+  color: #000000; /* Black text color */
 }
 
 .main-container {
@@ -13,10 +13,10 @@ body {
 }
 
 .mobile-area {
-  background-color: #f0f0f0;
+  background-color: #aa1100; /* Red background color */
   width: 100%;
   max-width: 600px;
-  min-height: 100vh;
+  min-height: auto; /* Remove min-height to allow content to define height */
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -30,7 +30,7 @@ body {
   text-align: center;
   margin-top: 20px;
   margin-bottom: 20px;
-  color: #000000; /* Black text color for header */
+  color: #ffffff; /* White text color for header */
 }
 
 .form-container {
@@ -96,7 +96,6 @@ body {
   width: 30%;
   height: 10px;
   background-color: #f0f0f0;
-  border-radius: 5px;
   border-radius: 5px;
   transition: background-color 0.3s;
 }
