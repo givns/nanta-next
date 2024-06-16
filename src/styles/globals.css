@@ -1,6 +1,7 @@
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
+@import 'flowbite';
 
 .progress-step.active {
   background-color: #ff1900;
