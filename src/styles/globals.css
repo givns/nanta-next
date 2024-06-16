@@ -19,7 +19,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start; /* Align to the top */
   padding: 20px;
   box-sizing: border-box;
 }
@@ -33,7 +33,7 @@ body {
 .form-container {
   background-color: white;
   width: 90%;
-  margin: 0 auto;
+  margin: 0 auto 20px auto; /* Ensure spacing at the bottom */
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   padding: 20px;
@@ -52,22 +52,21 @@ body {
 }
 
 .custom-button {
-  width: 262px;
-  height: 75px;
+  width: 80%;
+  max-width: 262px;
+  height: 50px; /* Adjust the button height */
   border-radius: 30px;
-  margin: 0 auto;
 }
 
 .button-container {
   background-color: white;
   width: 100%;
   max-width: 718px;
-  height: calc(75px + 40px); /* Height to accommodate button height + padding */
+  height: calc(50px + 40px); /* Adjust height for the button and padding */
   display: flex;
   justify-content: center;
   align-items: center;
-  position: fixed;
-  bottom: 0;
   padding: 20px 0;
-  box-sizing: border-box;
+  position: relative; /* Changed to relative */
+  margin-top: 20px; /* Added margin to move up the button */
 }
