@@ -77,12 +77,14 @@ const RegisterForm = () => {
   return (
     <div className="main-container">
       <div className="mobile-area">
-        <div className="progress-bar-container">
-          <div className={`progress-step ${step >= 1 ? 'active' : ''}`}></div>
-          <div className={`progress-step ${step >= 2 ? 'active' : ''}`}></div>
-          <div className={`progress-step ${step >= 3 ? 'active' : ''}`}></div>
+        <div className="header">
+          <div className="progress-bar-container">
+            <div className={`progress-step ${step >= 1 ? 'active' : ''}`}></div>
+            <div className={`progress-step ${step >= 2 ? 'active' : ''}`}></div>
+            <div className={`progress-step ${step >= 3 ? 'active' : ''}`}></div>
+          </div>
+          <h3 className="header-text">ลงทะเบียนพนักงาน</h3>
         </div>
-        <h3 className="header">ลงทะเบียนพนักงาน</h3>
         <div className="form-container">
           <Formik
             initialValues={{
