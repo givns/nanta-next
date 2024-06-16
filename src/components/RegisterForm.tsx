@@ -66,86 +66,90 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="container-fluid vh-100 d-flex flex-column justify-content-center align-items-center bg-image">
-      <h3 className="mb-4 text-center">ลงทะเบียนพนักงาน</h3>
-      <div className="container p-4 shadow rounded bg-white form-container">
-        <Formik
-          initialValues={{
-            name: '',
-            nickname: '',
-            department: '',
-          }}
-          validationSchema={RegistrationSchema}
-          onSubmit={handleSubmit}
-        >
-          <Form id="registrationForm">
-            <div className="mb-3">
-              <label htmlFor="name" className="form-label">
-                ชื่อ - นามสกุล
-              </label>
-              <Field
-                type="text"
-                name="name"
-                id="name"
-                className="form-control input-box"
-                placeholder="ชื่อ-นามสกุล"
-              />
-              <ErrorMessage
-                name="name"
-                component="div"
-                className="text-danger"
-              />
-            </div>
-            <div className="mb-3">
-              <label htmlFor="nickname" className="form-label">
-                ชื่อเล่น
-              </label>
-              <Field
-                type="text"
-                name="nickname"
-                id="nickname"
-                className="form-control input-box"
-                placeholder="ชื่อเล่น"
-              />
-              <ErrorMessage
-                name="nickname"
-                component="div"
-                className="text-danger"
-              />
-            </div>
-            <div className="mb-3">
-              <label htmlFor="department" className="form-label">
-                แผนก
-              </label>
-              <Field
-                as="select"
-                name="department"
-                id="department"
-                className="form-control input-box"
-              >
-                <option value="">เลือกแผนก</option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </Field>
-              <ErrorMessage
-                name="department"
-                component="div"
-                className="text-danger"
-              />
-            </div>
-          </Form>
-        </Formik>
+    <div className="main-container d-flex flex-column align-items-center">
+      <div className="mobile-area d-flex flex-column justify-content-between align-items-center">
+        <h3 className="mb-4 text-center">ลงทะเบียนพนักงาน</h3>
+        <div className="form-container p-4 shadow rounded bg-white">
+          <Formik
+            initialValues={{
+              name: '',
+              nickname: '',
+              department: '',
+            }}
+            validationSchema={RegistrationSchema}
+            onSubmit={handleSubmit}
+          >
+            <Form id="registrationForm">
+              <div className="mb-3">
+                <label htmlFor="name" className="form-label">
+                  ชื่อ - นามสกุล
+                </label>
+                <Field
+                  type="text"
+                  name="name"
+                  id="name"
+                  className="form-control input-box"
+                  placeholder="ชื่อ-นามสกุล"
+                />
+                <ErrorMessage
+                  name="name"
+                  component="div"
+                  className="text-danger"
+                />
+              </div>
+              <div className="mb-3">
+                <label htmlFor="nickname" className="form-label">
+                  ชื่อเล่น
+                </label>
+                <Field
+                  type="text"
+                  name="nickname"
+                  id="nickname"
+                  className="form-control input-box"
+                  placeholder="ชื่อเล่น"
+                />
+                <ErrorMessage
+                  name="nickname"
+                  component="div"
+                  className="text-danger"
+                />
+              </div>
+              <div className="mb-3">
+                <label htmlFor="department" className="form-label">
+                  แผนก
+                </label>
+                <Field
+                  as="select"
+                  name="department"
+                  id="department"
+                  className="form-control input-box"
+                >
+                  <option value="">เลือกแผนก</option>
+                  {departments.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </Field>
+                <ErrorMessage
+                  name="department"
+                  component="div"
+                  className="text-danger"
+                />
+              </div>
+            </Form>
+          </Formik>
+        </div>
+        <div className="button-container d-flex justify-content-center align-items-center">
+          <button
+            type="submit"
+            form="registrationForm"
+            className="btn btn-dark custom-button"
+          >
+            ลงทะเบียน
+          </button>
+        </div>
       </div>
-      <button
-        type="submit"
-        form="registrationForm"
-        className="btn btn-dark btn-lg w-100 fixed-bottom rounded-0 custom-button"
-      >
-        ลงทะเบียน
-      </button>
     </div>
   );
 };

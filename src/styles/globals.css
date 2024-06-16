@@ -1,42 +1,61 @@
 body {
-  background-color: black;
+  background-color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
 }
 
-.bg-image {
-  background-color: #f8f9fa;
-  background-size: 718px 1288px;
-  background-repeat: no-repeat;
-  background-position: center;
+.main-container {
+  background-color: white;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mobile-area {
+  background-color: #f0f0f0;
+  width: 718px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .form-container {
-  width: 562px;
+  width: calc(718px * 0.8);
   max-width: 100%;
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  padding: 20px;
+  margin: 20px;
 }
 
 .input-box {
-  width: 472px;
+  width: 100%;
   height: 78px;
-  max-width: 100%;
   border-radius: 10px;
-  margin-top: 10px; /* Adds space between label and input */
+  margin-top: 10px;
 }
 
 .btn-dark {
   background-color: #000;
   border: none;
+}
+
+.custom-button {
   width: 262px;
   height: 75px;
   border-radius: 30px;
-  margin: auto;
 }
 
-.fixed-bottom {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+.button-container {
+  background-color: white;
+  width: 718px;
+  height: calc(75px * 0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
 }
