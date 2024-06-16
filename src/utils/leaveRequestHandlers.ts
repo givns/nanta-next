@@ -18,12 +18,8 @@ export const handleApprove = async (requestId: string, userId: string) => {
       where: { id: leaveRequest.userId },
     });
 
-    const approver = await prisma.user.findUnique({
-      where: { lineUserId: userId },
-    });
-
-    if (user && approver) {
-      await sendApproveNotification(user, leaveRequest, approver);
+    if (user) {
+      await sendApproveNotification(user, leaveRequest);
     }
   } catch (error: any) {
     console.error('Error approving leave request:', error.message);

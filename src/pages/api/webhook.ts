@@ -3,12 +3,11 @@ import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
-import { handleApprove } from '../../utils/leaveRequestHandlers';
+import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
 
 dotenv.config({ path: './.env.local' });
 
 const prisma = new PrismaClient();
-
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
@@ -84,19 +83,15 @@ const handler = async (event: WebhookEvent) => {
 
     if (action && requestId && userId) {
       if (action === 'approve') {
-        // Call your approve handler
         await handleApprove(requestId, userId);
       } else if (action === 'deny') {
-        // Redirect to LIFF page to collect denial reason
-        const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}?path=/deny-reason&requestId=${requestId}&approverId=${userId}`;
-        await client.pushMessage(userId, {
-          type: 'text',
-          text: `Please provide a reason for denial: ${liffUrl}`,
-        });
+        const denialReason = params.get('denialReason');
+        if (denialReason) {
+          await handleDeny(requestId, userId, denialReason);
+        }
       }
     }
   } else if (event.type === 'unfollow') {
-    // Do nothing for unfollow events
     console.log('Unfollow event for user ID:', event.source.userId);
   } else {
     console.error('Unhandled event type:', event.type);
@@ -125,7 +120,6 @@ const createAndAssignRichMenu = async (
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
-    // Handle the GET request from the LINE Developer Console
     return res.status(200).send('Webhook is set up and running!');
   }
 
@@ -155,6 +149,5 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
-  // Return a 405 status for any method other than GET or POST or push
   return res.status(405).send('Method Not Allowed');
 };
