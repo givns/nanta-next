@@ -151,6 +151,7 @@ const RegisterForm = () => {
                         type="button"
                         className="btn btn-secondary"
                         onClick={handlePreviousStep}
+                        style={{ backgroundColor: '#ffede9', color: '#000' }}
                       >
                         Back
                       </button>
@@ -158,6 +159,7 @@ const RegisterForm = () => {
                         type="button"
                         className="btn btn-primary"
                         onClick={handleNextStep}
+                        style={{ backgroundColor: '#ff1900', color: '#000' }}
                       >
                         Next
                       </button>
@@ -175,6 +177,7 @@ const RegisterForm = () => {
                         name="department"
                         id="department"
                         className="form-control input-box"
+                        style={{ backgroundColor: '#fff', color: '#000' }}
                       >
                         <option value="">เลือกแผนก</option>
                         {departments.map((dept) => (
@@ -194,6 +197,7 @@ const RegisterForm = () => {
                         type="button"
                         className="btn btn-secondary"
                         onClick={handlePreviousStep}
+                        style={{ backgroundColor: '#ffede9', color: '#000' }}
                       >
                         Back
                       </button>
@@ -201,6 +205,7 @@ const RegisterForm = () => {
                         type="submit"
                         className="btn btn-primary"
                         disabled={isSubmitting}
+                        style={{ backgroundColor: '#ff1900', color: '#000' }}
                       >
                         Submit
                       </button>
