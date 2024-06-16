@@ -32,11 +32,11 @@ export default async function handler(
         await sendDenyNotification(user, leaveRequest, denialReason);
       }
 
-      res.status(200).json(leaveRequest);
+      return res.status(200).json(leaveRequest);
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+      return res.status(500).json({ success: false, error: error.message });
     }
   } else {
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
