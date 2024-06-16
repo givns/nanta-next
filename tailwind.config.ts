@@ -3,6 +3,7 @@ module.exports = {
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx}',
     './src/components/**/*.{js,ts,jsx,tsx}',
+    './node_modules/flowbite/**/*.js',
   ],
   theme: {
     colors: {
@@ -30,6 +31,6 @@ module.exports = {
         700: '#0662ff',
       },
     },
-    plugins: [],
+    plugins: [require('flowbite/plugin')],
   },
 };

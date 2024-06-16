@@ -82,16 +82,24 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="main-container">
+    <div className="flex justify-center items-center h-screen bg-gray-100">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <div className="progress-bar-container">
-          <div className={`progress-step ${step >= 1 ? 'active' : ''}`}></div>
-          <div className={`progress-step ${step >= 2 ? 'active' : ''}`}></div>
-          <div className={`progress-step ${step >= 3 ? 'active' : ''}`}></div>
+        <div className="mb-4">
+          <div className="flex justify-between mb-2">
+            <div
+              className={`progress-step ${step >= 1 ? 'bg-[#FF1900]' : 'bg-gray-300'} w-2/6 h-1 rounded-full`}
+            ></div>
+            <div
+              className={`progress-step ${step >= 2 ? 'bg-[#FF1900]' : 'bg-gray-300'} w-2/6 h-1 rounded-full`}
+            ></div>
+            <div
+              className={`progress-step ${step >= 3 ? 'bg-[#FF1900]' : 'bg-gray-300'} w-2/6 h-1 rounded-full`}
+            ></div>
+          </div>
+          <h5 className="text-xl font-medium text-gray-900 dark:text-white">
+            ลงทะเบียนพนักงาน
+          </h5>
         </div>
-        <h5 className="text-xl font-medium text-gray-900 dark:text-white">
-          ลงทะเบียนพนักงาน
-        </h5>
         <Formik
           initialValues={{
             name: '',
@@ -106,7 +114,10 @@ const RegisterForm = () => {
               {step === 1 && (
                 <div>
                   <div className="mb-3">
-                    <label htmlFor="name" className="form-label">
+                    <label
+                      htmlFor="name"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    >
                       ชื่อ - นามสกุล
                     </label>
                     <Field
@@ -119,7 +130,7 @@ const RegisterForm = () => {
                     <ErrorMessage
                       name="name"
                       component="div"
-                      className="text-danger"
+                      className="text-danger mt-2 text-sm text-red-600"
                     />
                   </div>
                   <div className="flex justify-end mt-4">
@@ -136,7 +147,10 @@ const RegisterForm = () => {
               {step === 2 && (
                 <div>
                   <div className="mb-3">
-                    <label htmlFor="nickname" className="form-label">
+                    <label
+                      htmlFor="nickname"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    >
                       ชื่อเล่น
                     </label>
                     <Field
@@ -149,7 +163,7 @@ const RegisterForm = () => {
                     <ErrorMessage
                       name="nickname"
                       component="div"
-                      className="text-danger"
+                      className="text-danger mt-2 text-sm text-red-600"
                     />
                   </div>
                   <div className="flex justify-between mt-4">
@@ -173,7 +187,10 @@ const RegisterForm = () => {
               {step === 3 && (
                 <div>
                   <div className="mb-3">
-                    <label htmlFor="department" className="form-label">
+                    <label
+                      htmlFor="department"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    >
                       แผนก
                     </label>
                     <Field
@@ -192,7 +209,7 @@ const RegisterForm = () => {
                     <ErrorMessage
                       name="department"
                       component="div"
-                      className="text-danger"
+                      className="text-danger mt-2 text-sm text-red-600"
                     />
                   </div>
                   <div className="flex justify-between mt-4">
