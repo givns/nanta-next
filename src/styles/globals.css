@@ -1,35 +1,39 @@
 body {
   background-color: white;
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+.main-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  margin: 0;
-}
-
-.main-container {
   background-color: white;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 .mobile-area {
   background-color: #f0f0f0;
-  width: 90%;
+  width: 100%;
   max-width: 718px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding-bottom: 80px; /* Ensure space for button container */
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.header {
+  text-align: center;
+  margin-top: 20px;
+  margin-bottom: 20px;
 }
 
 .form-container {
-  width: 80%;
-  max-width: calc(718px * 0.8);
+  background-color: white;
+  width: 90%;
+  margin: 0 auto;
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   padding: 20px;
@@ -48,21 +52,22 @@ body {
 }
 
 .custom-button {
-  width: 80%;
-  max-width: 262px;
+  width: 262px;
   height: 75px;
   border-radius: 30px;
+  margin: 0 auto;
 }
 
 .button-container {
   background-color: white;
   width: 100%;
   max-width: 718px;
-  height: 22.5px; /* 30% of button height */
+  height: calc(75px + 40px); /* Height to accommodate button height + padding */
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px 0;
   position: fixed;
   bottom: 0;
+  padding: 20px 0;
+  box-sizing: border-box;
 }

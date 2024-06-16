@@ -66,10 +66,10 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="main-container d-flex flex-column align-items-center">
-      <div className="mobile-area d-flex flex-column justify-content-between align-items-center">
-        <h3 className="mb-4 text-center">ลงทะเบียนพนักงาน</h3>
-        <div className="form-container p-4 shadow rounded bg-white">
+    <div className="main-container">
+      <div className="mobile-area">
+        <h3 className="header">ลงทะเบียนพนักงาน</h3>
+        <div className="form-container">
           <Formik
             initialValues={{
               name: '',
@@ -140,7 +140,7 @@ const RegisterForm = () => {
             </Form>
           </Formik>
         </div>
-        <div className="button-container d-flex justify-content-center align-items-center">
+        <div className="button-container">
           <button
             type="submit"
             form="registrationForm"
