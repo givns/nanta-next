@@ -3,7 +3,6 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
-import '../styles/globals.css';
 
 const RegistrationSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -26,6 +25,7 @@ const departments = [
 const RegisterForm = () => {
   const [lineUserId, setLineUserId] = useState('');
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
+  const [step, setStep] = useState(1);
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -44,6 +44,14 @@ const RegisterForm = () => {
       console.error('LIFF ID is not defined');
     }
   }, []);
+
+  const handleNextStep = () => {
+    setStep(step + 1);
+  };
+
+  const handlePreviousStep = () => {
+    setStep(step - 1);
+  };
 
   const handleSubmit = async (values: {
     name: string;
@@ -69,6 +77,11 @@ const RegisterForm = () => {
   return (
     <div className="main-container">
       <div className="mobile-area">
+        <div className="progress-bar-container">
+          <div className={`progress-step ${step >= 1 ? 'active' : ''}`}></div>
+          <div className={`progress-step ${step >= 2 ? 'active' : ''}`}></div>
+          <div className={`progress-step ${step >= 3 ? 'active' : ''}`}></div>
+        </div>
         <h3 className="header">ลงทะเบียนพนักงาน</h3>
         <div className="form-container">
           <Formik
@@ -80,75 +93,121 @@ const RegisterForm = () => {
             validationSchema={RegistrationSchema}
             onSubmit={handleSubmit}
           >
-            <Form id="registrationForm">
-              <div className="mb-3">
-                <label htmlFor="name" className="form-label">
-                  ชื่อ - นามสกุล
-                </label>
-                <Field
-                  type="text"
-                  name="name"
-                  id="name"
-                  className="form-control input-box"
-                  placeholder="ชื่อ-นามสกุล"
-                />
-                <ErrorMessage
-                  name="name"
-                  component="div"
-                  className="text-danger"
-                />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="nickname" className="form-label">
-                  ชื่อเล่น
-                </label>
-                <Field
-                  type="text"
-                  name="nickname"
-                  id="nickname"
-                  className="form-control input-box"
-                  placeholder="ชื่อเล่น"
-                />
-                <ErrorMessage
-                  name="nickname"
-                  component="div"
-                  className="text-danger"
-                />
-              </div>
-              <div className="mb-3">
-                <label htmlFor="department" className="form-label">
-                  แผนก
-                </label>
-                <Field
-                  as="select"
-                  name="department"
-                  id="department"
-                  className="form-control input-box"
-                >
-                  <option value="">เลือกแผนก</option>
-                  {departments.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </Field>
-                <ErrorMessage
-                  name="department"
-                  component="div"
-                  className="text-danger"
-                />
-              </div>
-            </Form>
+            {({ isSubmitting }) => (
+              <Form id="registrationForm">
+                {step === 1 && (
+                  <div>
+                    <div className="mb-3">
+                      <label htmlFor="name" className="form-label">
+                        ชื่อ - นามสกุล
+                      </label>
+                      <Field
+                        type="text"
+                        name="name"
+                        id="name"
+                        className="form-control input-box"
+                        placeholder="ชื่อ-นามสกุล"
+                      />
+                      <ErrorMessage
+                        name="name"
+                        component="div"
+                        className="text-danger"
+                      />
+                    </div>
+                    <div className="button-container">
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={handleNextStep}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {step === 2 && (
+                  <div>
+                    <div className="mb-3">
+                      <label htmlFor="nickname" className="form-label">
+                        ชื่อเล่น
+                      </label>
+                      <Field
+                        type="text"
+                        name="nickname"
+                        id="nickname"
+                        className="form-control input-box"
+                        placeholder="ชื่อเล่น"
+                      />
+                      <ErrorMessage
+                        name="nickname"
+                        component="div"
+                        className="text-danger"
+                      />
+                    </div>
+                    <div className="button-container">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handlePreviousStep}
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={handleNextStep}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {step === 3 && (
+                  <div>
+                    <div className="mb-3">
+                      <label htmlFor="department" className="form-label">
+                        แผนก
+                      </label>
+                      <Field
+                        as="select"
+                        name="department"
+                        id="department"
+                        className="form-control input-box"
+                      >
+                        <option value="">เลือกแผนก</option>
+                        {departments.map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </Field>
+                      <ErrorMessage
+                        name="department"
+                        component="div"
+                        className="text-danger"
+                      />
+                    </div>
+                    <div className="button-container">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handlePreviousStep}
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={isSubmitting}
+                      >
+                        Submit
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </Form>
+            )}
           </Formik>
-        </div>
-        <div className="button-container">
-          <button
-            type="submit"
-            form="registrationForm"
-            className="btn btn-dark custom-button"
-          >
-            ลงทะเบียน
-          </button>
         </div>
       </div>
     </div>
