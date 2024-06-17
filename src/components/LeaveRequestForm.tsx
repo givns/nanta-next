@@ -132,6 +132,7 @@ const LeaveRequestForm = () => {
               <div className="space-y-4">
                 <button
                   type="button"
+                  className={`block w-full p-2.5 text-center border rounded-lg ${leaveType === 'ลากิจ' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
                   onClick={() => {
                     setLeaveType('ลากิจ');
                     setFieldValue('leaveType', 'ลากิจ');
@@ -141,6 +142,7 @@ const LeaveRequestForm = () => {
                 </button>
                 <button
                   type="button"
+                  className={`block w-full p-2.5 text-center border rounded-lg ${leaveType === 'ลาป่วย' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
                   onClick={() => {
                     setLeaveType('ลาป่วย');
                     setFieldValue('leaveType', 'ลาป่วย');
@@ -150,6 +152,7 @@ const LeaveRequestForm = () => {
                 </button>
                 <button
                   type="button"
+                  className={`block w-full p-2.5 text-center border rounded-lg ${leaveType === 'ลาพักร้อน' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
                   onClick={() => {
                     setLeaveType('ลาพักร้อน');
                     setFieldValue('leaveType', 'ลาพักร้อน');
@@ -159,6 +162,7 @@ const LeaveRequestForm = () => {
                 </button>
                 <button
                   type="button"
+                  className={`block w-full p-2.5 text-center border rounded-lg ${leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
                   onClick={() => {
                     setLeaveType('ลาโดยไม่ได้รับค่าจ้าง');
                     setFieldValue('leaveType', 'ลาโดยไม่ได้รับค่าจ้าง');
@@ -187,6 +191,7 @@ const LeaveRequestForm = () => {
               <div className="space-y-4">
                 <button
                   type="button"
+                  className={`block w-full p-2.5 text-center border rounded-lg ${halfDayType === '' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
                   onClick={() => {
                     setHalfDayType('');
                     setFieldValue('halfDay', '');
@@ -198,6 +203,7 @@ const LeaveRequestForm = () => {
                 </button>
                 <button
                   type="button"
+                  className={`block w-full p-2.5 text-center border rounded-lg ${halfDayType === 'ลาครึ่งวัน' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
                   onClick={() => {
                     setHalfDayType('ลาครึ่งวัน');
                     setFieldValue('halfDay', 'ลาครึ่งวัน');
@@ -208,15 +214,17 @@ const LeaveRequestForm = () => {
                   ลาครึ่งวัน
                 </button>
                 {halfDayType === 'ลาครึ่งวัน' && (
-                  <div className="space-y-4">
+                  <div className="                  space-y-4">
                     <button
                       type="button"
+                      className={`block w-full p-2.5 text-center border rounded-lg ${values.halfDay === 'ลาครึ่งวันเช้า' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
                       onClick={() => setFieldValue('halfDay', 'ลาครึ่งวันเช้า')}
                     >
                       ลาครึ่งวันเช้า
                     </button>
                     <button
                       type="button"
+                      className={`block w-full p-2.5 text-center border rounded-lg ${values.halfDay === 'ลาครึ่งวันบ่าย' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
                       onClick={() => setFieldValue('halfDay', 'ลาครึ่งวันบ่าย')}
                     >
                       ลาครึ่งวันบ่าย
