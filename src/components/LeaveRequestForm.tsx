@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import 'flowbite';
 
+// Leave limits configuration
 const leaveLimits: { [key: string]: number } = {
   ลาพักร้อน: 6,
   ลากิจ: 3,
@@ -44,6 +45,27 @@ const leaveRequestSchema = Yup.object().shape({
 });
 
 const LeaveRequestForm = () => {
+  const startDateRef = useRef<HTMLInputElement>(null);
+  const endDateRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (startDateRef.current && endDateRef.current) {
+      startDateRef.current.addEventListener('change', (event) => {
+        const startDate = (event.target as HTMLInputElement).value;
+        if (endDateRef.current) {
+          endDateRef.current.min = startDate;
+        }
+      });
+
+      endDateRef.current.addEventListener('change', (event) => {
+        const endDate = (event.target as HTMLInputElement).value;
+        if (startDateRef.current) {
+          startDateRef.current.max = endDate;
+        }
+      });
+    }
+  }, []);
+
   const handleSubmit = async (
     values: any,
     { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
@@ -184,6 +206,7 @@ const LeaveRequestForm = () => {
                 type="date"
                 name="startDate"
                 className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                innerRef={startDateRef}
               />
               <ErrorMessage
                 name="startDate"
@@ -204,6 +227,7 @@ const LeaveRequestForm = () => {
                   type="date"
                   name="endDate"
                   className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                  innerRef={endDateRef}
                 />
                 <ErrorMessage
                   name="endDate"
@@ -236,8 +260,9 @@ const LeaveRequestForm = () => {
               <button
                 type="submit"
                 className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                disabled={isSubmitting}
               >
-                ถัดไป
+                ยืนยัน
               </button>
             </div>
           </div>
