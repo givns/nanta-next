@@ -2,7 +2,6 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 @import 'flowbite';
-@import 'flowbite/dist/datepicker.css';
 
 /* Custom Styles */
 .text-danger {
