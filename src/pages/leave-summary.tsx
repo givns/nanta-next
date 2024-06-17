@@ -41,54 +41,48 @@ const LeaveSummaryPage = () => {
   };
 
   return (
-    <div className="container mx-auto bg-white p-4 rounded shadow">
-      <div
-        className="flex items-center mb-4"
-        style={{
-          backgroundColor: '#F0F0F0',
-          padding: '10px',
-          borderRadius: '8px',
-        }}
-      >
-        <h1 className="text-2xl font-bold mb-0">ขอวันลา</h1>
-      </div>
-      <div className="mb-4">
-        <p className="mb-2">
-          <strong>ประเภทการลา:</strong> {summaryData.leaveType} 🌴
-        </p>
-        <p className="mb-2">
-          <strong>รูปแบบวันลา:</strong> {summaryData.leaveFormat}
-        </p>
-        <p className="mb-2">
-          <strong>วันที่ลา:</strong>{' '}
-          {dayjs(summaryData.startDate).format('YYYY-MM-DD')} -{' '}
-          {dayjs(summaryData.endDate).format('YYYY-MM-DD')}
-        </p>
-        <p className="mb-2">
-          <strong>จำนวนวัน:</strong>{' '}
-          {dayjs(summaryData.endDate).diff(
-            dayjs(summaryData.startDate),
-            'day',
-          ) + 1}{' '}
-          วัน
-        </p>
-        <p className="mb-2">
-          <strong>หมายเหตุ:</strong> {summaryData.reason}
-        </p>
-      </div>
-      <div className="flex space-x-4">
-        <button
-          className="flex-1 p-2 bg-green-500 text-white rounded"
-          onClick={handleSubmit}
-        >
-          ยืนยัน & ส่งคำขอ
-        </button>
-        <button
-          className="flex-1 p-2 bg-gray-500 text-white rounded"
-          onClick={() => router.push('/leave-request')}
-        >
-          ย้อนกลับ
-        </button>
+    <div className="main-container flex justify-center items-center h-screen">
+      <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
+        <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
+          สรุปการขอวันลา
+        </h5>
+        <div className="mb-4">
+          <p className="mb-2">
+            <strong>ประเภทการลา:</strong> {summaryData.leaveType}
+          </p>
+          <p className="mb-2">
+            <strong>รูปแบบวันลา:</strong>{' '}
+            {summaryData.halfDay
+              ? `ลาครึ่งวัน (${summaryData.halfDay})`
+              : 'ลาเต็มวัน'}
+          </p>
+          <p className="mb-2">
+            <strong>วันที่ลา:</strong>{' '}
+            {summaryData.startDate && !summaryData.endDate
+              ? dayjs(summaryData.startDate).format('YYYY-MM-DD')
+              : `${dayjs(summaryData.startDate).format('YYYY-MM-DD')} - ${dayjs(summaryData.endDate).format('YYYY-MM-DD')}`}
+          </p>
+          <p className="mb-2">
+            <strong>จำนวนวัน:</strong> {summaryData.fullDayCount} วัน
+          </p>
+          <p className="mb-2">
+            <strong>หมายเหตุ:</strong> {summaryData.reason}
+          </p>
+        </div>
+        <div className="flex space-x-4">
+          <button
+            className="flex-1 p-2 bg-green-500 text-white rounded hover:bg-green-600"
+            onClick={handleSubmit}
+          >
+            ยืนยัน & ส่งคำขอ
+          </button>
+          <button
+            className="flex-1 p-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            onClick={() => router.push('/leave-request')}
+          >
+            ย้อนกลับ
+          </button>
+        </div>
       </div>
     </div>
   );
