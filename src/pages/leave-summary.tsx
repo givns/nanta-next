@@ -1,6 +1,8 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import dayjs from 'dayjs';
+import 'dayjs/locale/th';
 
 const LeaveSummaryPage = () => {
   const router = useRouter();
@@ -21,9 +23,9 @@ const LeaveSummaryPage = () => {
 
   const handleSubmit = async () => {
     try {
-      const response = await axios.post('/api/leave-request', {
+      const response = await axios.post('/api/leaveRequest/create', {
         ...summaryData,
-        status: 'pending',
+        status: 'Pending',
       });
       if (response.status === 201) {
         router.push('/leave-confirmation');
@@ -52,17 +54,19 @@ const LeaveSummaryPage = () => {
             <strong>ประเภทการลา:</strong> {summaryData.leaveType}
           </p>
           <p className="mb-2">
-            <strong>รูปแบบการลา:</strong> {summaryData.halfDay || 'ลาเต็มวัน'}
+            <strong>รูปแบบการลา:</strong> {summaryData.leaveFormat}
           </p>
           <p className="mb-2">
             <strong>จำนวนวันลา:</strong> {summaryData.fullDayCount}
           </p>
           <p className="mb-2">
-            <strong>วันที่เริ่มต้น:</strong> {summaryData.startDate}
+            <strong>วันที่เริ่มต้น:</strong>{' '}
+            {dayjs(summaryData.startDate).locale('th').format('D MMM YYYY')}
           </p>
           {summaryData.fullDayCount > 1 && (
             <p className="mb-2">
-              <strong>วันที่สิ้นสุด:</strong> {summaryData.endDate}
+              <strong>วันที่สิ้นสุด:</strong>{' '}
+              {dayjs(summaryData.endDate).locale('th').format('D MMM YYYY')}
             </p>
           )}
           <p className="mb-2">
