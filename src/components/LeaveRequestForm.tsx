@@ -3,7 +3,6 @@ import { Formik, Field, Form, ErrorMessage, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/router';
 import 'flowbite';
-import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
 

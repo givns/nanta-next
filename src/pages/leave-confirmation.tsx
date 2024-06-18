@@ -6,6 +6,7 @@ const LeaveConfirmationPage = () => {
     const timer = setTimeout(() => {
       liff.closeWindow();
     }, 3000);
+
     return () => clearTimeout(timer);
   }, []);
 
