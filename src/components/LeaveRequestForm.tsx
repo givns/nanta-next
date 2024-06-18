@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Formik, Field, Form, ErrorMessage } from 'formik';
+import { Formik, Field, Form, ErrorMessage, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/router';
 import 'flowbite';
-import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
 
@@ -119,15 +118,8 @@ const LeaveRequestForm = () => {
   };
 
   const handleSubmit = async (
-    values: {
-      leaveType: any;
-      halfDay: any;
-      reason: any;
-      startDate: string | number | Date;
-      fullDayCount: number;
-      endDate: string | number | Date;
-    },
-    { setSubmitting }: any,
+    values: FormValues,
+    { setSubmitting }: FormikHelpers<FormValues>,
   ) => {
     try {
       const leaveData = {
@@ -144,10 +136,21 @@ const LeaveRequestForm = () => {
         fullDayCount: values.halfDay ? 0.5 : values.fullDayCount,
       };
 
-      // Save form data to session storage
-      sessionStorage.setItem('leaveSummary', JSON.stringify(leaveData));
-      // Navigate to the leave-summary page
-      router.push('/leave-summary');
+      const response = await fetch('/api/leaveRequest/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(leaveData),
+      });
+
+      if (response.ok) {
+        sessionStorage.setItem('leaveSummary', JSON.stringify(leaveData));
+        router.push('/leave-summary');
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error}`);
+      }
     } catch (error) {
       console.error('Error submitting leave request:', error);
       alert('Error submitting leave request');
@@ -190,28 +193,44 @@ const LeaveRequestForm = () => {
                   <div className="space-y-4">
                     <button
                       type="button"
-                      className={`block w-full p-2.5 text-center border rounded-lg ${values.leaveType === 'ลากิจ' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
+                      className={`block w-full p-2.5 text-center border rounded-lg ${
+                        values.leaveType === 'ลากิจ'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-50 text-gray-900'
+                      }`}
                       onClick={() => setFieldValue('leaveType', 'ลากิจ')}
                     >
                       ลากิจ 📅
                     </button>
                     <button
                       type="button"
-                      className={`block w-full p-2.5 text-center border rounded-lg ${values.leaveType === 'ลาป่วย' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
+                      className={`block w-full p-2.5 text-center border rounded-lg ${
+                        values.leaveType === 'ลาป่วย'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-50 text-gray-900'
+                      }`}
                       onClick={() => setFieldValue('leaveType', 'ลาป่วย')}
                     >
                       ลาป่วย 😷
                     </button>
                     <button
                       type="button"
-                      className={`block w-full p-2.5 text-center border rounded-lg ${values.leaveType === 'ลาพักร้อน' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
+                      className={`block w-full p-2.5 text-center border rounded-lg ${
+                        values.leaveType === 'ลาพักร้อน'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-50 text-gray-900'
+                      }`}
                       onClick={() => setFieldValue('leaveType', 'ลาพักร้อน')}
                     >
                       ลาพักร้อน 🏖️
                     </button>
                     <button
                       type="button"
-                      className={`block w-full p-2.5 text-center border rounded-lg ${values.leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
+                      className={`block w-full p-2.5 text-center border rounded-lg ${
+                        values.leaveType === 'ลาโดยไม่ได้รับค่าจ้าง'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-50 text-gray-900'
+                      }`}
                       onClick={() =>
                         setFieldValue('leaveType', 'ลาโดยไม่ได้รับค่าจ้าง')
                       }
@@ -240,7 +259,11 @@ const LeaveRequestForm = () => {
                   <div className="space-y-4">
                     <button
                       type="button"
-                      className={`block w-full p-2.5 text-center border rounded-lg ${values.leaveType === 'ลาเต็มวัน' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
+                      className={`block w-full p-2.5 text-center border rounded-lg ${
+                        values.leaveType === 'ลาเต็มวัน'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-50 text-gray-900'
+                      }`}
                       onClick={() => {
                         setFieldValue('leaveType', 'ลาเต็มวัน');
                         setFieldValue('halfDay', '');
@@ -251,7 +274,11 @@ const LeaveRequestForm = () => {
                     </button>
                     <button
                       type="button"
-                      className={`block w-full p-2.5 text-center border rounded-lg ${values.leaveType === 'ลาครึ่งวัน' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
+                      className={`block w-full p-2.5 text-center border rounded-lg ${
+                        values.leaveType === 'ลาครึ่งวัน'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-50 text-gray-900'
+                      }`}
                       onClick={() => {
                         setFieldValue('leaveType', 'ลาครึ่งวัน');
                         setFieldValue('fullDayCount', 0.5);
@@ -269,7 +296,11 @@ const LeaveRequestForm = () => {
                         </label>
                         <button
                           type="button"
-                          className={`block w-full p-2.5 text-center border rounded-lg ${values.halfDay === 'ลาครึ่งวันเช้า' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
+                          className={`block w-full p-2.5 text-center border rounded-lg ${
+                            values.halfDay === 'ลาครึ่งวันเช้า'
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-50 text-gray-900'
+                          }`}
                           onClick={() =>
                             setFieldValue('halfDay', 'ลาครึ่งวันเช้า')
                           }
@@ -278,7 +309,11 @@ const LeaveRequestForm = () => {
                         </button>
                         <button
                           type="button"
-                          className={`block w-full p-2.5 text-center border rounded-lg ${values.halfDay === 'ลาครึ่งวันบ่าย' ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-900'}`}
+                          className={`block w-full p-2.5 text-center border rounded-lg ${
+                            values.halfDay === 'ลาครึ่งวันบ่าย'
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-50 text-gray-900'
+                          }`}
                           onClick={() =>
                             setFieldValue('halfDay', 'ลาครึ่งวันบ่าย')
                           }
@@ -438,5 +473,4 @@ const LeaveRequestForm = () => {
     </div>
   );
 };
-
 export default LeaveRequestForm;
