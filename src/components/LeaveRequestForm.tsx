@@ -3,6 +3,7 @@ import { Formik, Field, Form, ErrorMessage, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/router';
 import 'flowbite';
+import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
 
@@ -121,6 +122,7 @@ const LeaveRequestForm = () => {
     values: FormValues,
     { setSubmitting }: FormikHelpers<FormValues>,
   ) => {
+    console.log('Form is submitting with values:', values);
     try {
       const leaveData = {
         userId: lineUserId,
@@ -135,6 +137,8 @@ const LeaveRequestForm = () => {
         status: 'Pending',
         fullDayCount: values.halfDay ? 0.5 : values.fullDayCount,
       };
+
+      console.log('Submitting leaveData:', leaveData);
 
       const response = await fetch('/api/leaveRequest/create', {
         method: 'POST',
@@ -159,6 +163,10 @@ const LeaveRequestForm = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const formatThaiDate = (date: string) => {
+    return dayjs(date).locale('th').format('D MMM YYYY');
   };
 
   return (
@@ -243,7 +251,7 @@ const LeaveRequestForm = () => {
                   <div className="button-container flex justify-end mt-4">
                     <button
                       type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
                       onClick={handleNextStep}
                       disabled={!values.leaveType}
                     >
@@ -334,6 +342,7 @@ const LeaveRequestForm = () => {
                         </label>
                         <Field
                           type="number"
+                          id="fullDayCount"
                           name="fullDayCount"
                           className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                           min="1"
@@ -360,6 +369,7 @@ const LeaveRequestForm = () => {
                       </label>
                       <Field
                         type="date"
+                        id="startDate"
                         name="startDate"
                         className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                         innerRef={startDateRef}
@@ -384,6 +394,7 @@ const LeaveRequestForm = () => {
                           </label>
                           <Field
                             type="date"
+                            id="endDate"
                             name="endDate"
                             className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                             innerRef={endDateRef}
@@ -441,6 +452,7 @@ const LeaveRequestForm = () => {
                     </label>
                     <Field
                       as="textarea"
+                      id="reason"
                       name="reason"
                       className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                     />
@@ -475,4 +487,5 @@ const LeaveRequestForm = () => {
     </div>
   );
 };
+
 export default LeaveRequestForm;
