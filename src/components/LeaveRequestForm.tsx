@@ -145,10 +145,12 @@ const LeaveRequestForm = () => {
       });
 
       if (response.ok) {
+        console.log('Leave request created successfully');
         sessionStorage.setItem('leaveSummary', JSON.stringify(leaveData));
         router.push('/leave-summary');
       } else {
         const errorData = await response.json();
+        console.error(`Error: ${errorData.error}`);
         alert(`Error: ${errorData.error}`);
       }
     } catch (error) {
