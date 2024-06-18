@@ -24,7 +24,7 @@ const leaveLimits: { [key: string]: number } = {
 
 const leaveRequestSchema = Yup.object().shape({
   leaveType: Yup.string()
-    .required('กรุณาเลือกประเภทการลา')
+    .nullable()
     .test('check-leave-limit', 'สิทธิ์การลาที่เลือกหมดแล้ว', function (value) {
       return value ? leaveLimits[value] > 0 : true;
     }),
@@ -45,14 +45,9 @@ const leaveRequestSchema = Yup.object().shape({
         return leaveType === 'ลาเต็มวัน' ? !!value : true;
       },
     ),
-  startDate: Yup.date().required('กรุณาเลือกวันที่เริ่มต้น'),
-  endDate: Yup.date()
-    .nullable()
-    .test('required-end-date', 'กรุณาเลือกวันที่สิ้นสุด', function (value) {
-      const { fullDayCount } = this.parent as FormValues;
-      return fullDayCount && fullDayCount > 1 ? !!value : true;
-    }),
-  reason: Yup.string().required('กรุณาระบุเหตุผล'),
+  startDate: Yup.date().nullable(),
+  endDate: Yup.date().nullable(),
+  reason: Yup.string().nullable(),
 });
 
 const LeaveRequestForm = () => {

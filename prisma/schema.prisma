@@ -33,6 +33,8 @@ model LeaveRequest {
   user          User       @relation(fields: [userId], references: [id])
   leaveType     String
   leaveFormat   String
+  halfDay       String?
+  fullDayCount  Float
   startDate     DateTime
   endDate       DateTime
   reason        String
