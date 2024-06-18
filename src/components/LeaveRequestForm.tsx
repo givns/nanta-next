@@ -56,9 +56,6 @@ const LeaveRequestForm = () => {
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(
-    null,
-  );
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -71,7 +68,6 @@ const LeaveRequestForm = () => {
               .getProfile()
               .then((profile) => {
                 setLineUserId(profile.userId);
-                setProfilePictureUrl(profile.pictureUrl);
               })
               .catch((err) => {
                 console.error('Error getting profile:', err);
@@ -123,17 +119,38 @@ const LeaveRequestForm = () => {
   };
 
   const handleSubmit = async (
-    values: FormValues,
-    { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
+    values: {
+      leaveType: any;
+      halfDay: any;
+      reason: any;
+      startDate: string | number | Date;
+      fullDayCount: number;
+      endDate: string | number | Date;
+    },
+    { setSubmitting }: any,
   ) => {
     try {
+      const leaveData = {
+        userId: lineUserId,
+        leaveType: values.leaveType,
+        leaveFormat: values.halfDay ? 'Half Day' : 'Full Day',
+        reason: values.reason,
+        startDate: new Date(values.startDate),
+        endDate:
+          values.halfDay || values.fullDayCount === 1
+            ? new Date(values.startDate)
+            : new Date(values.endDate),
+        status: 'Pending',
+        fullDayCount: values.halfDay ? 0.5 : values.fullDayCount,
+      };
+
       // Save form data to session storage
-      sessionStorage.setItem('leaveSummary', JSON.stringify(values));
+      sessionStorage.setItem('leaveSummary', JSON.stringify(leaveData));
       // Navigate to the leave-summary page
       router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);
-      alert('เกิดข้อผิดพลาดในการส่งคำขอ');
+      alert('Error submitting leave request');
     } finally {
       setSubmitting(false);
     }

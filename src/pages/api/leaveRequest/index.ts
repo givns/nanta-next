@@ -20,6 +20,7 @@ export default async function handler(
           startDate: new Date(startDate),
           endDate: new Date(endDate),
           status: 'pending',
+          fullDayCount: /* provide a value for fullDayCount */ 0,
         },
       });
 

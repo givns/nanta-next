@@ -1,55 +1,47 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../utils/db';
-import { sendLeaveRequestNotification } from '../../../utils/sendNotifications';
+import { PrismaClient } from '@prisma/client';
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
+  if (req.method === 'POST') {
+    const {
+      userId,
+      leaveType,
+      leaveFormat,
+      reason,
+      startDate,
+      endDate,
+      status,
+      fullDayCount,
+    } = req.body;
 
-  const { userId, leaveType, leaveFormat, reason, startDate, endDate } =
-    req.body;
+    try {
+      const leaveRequest = await prisma.leaveRequest.create({
+        data: {
+          userId,
+          leaveType,
+          leaveFormat,
+          reason,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          status,
+          fullDayCount,
+        },
+      });
 
-  if (
-    !userId ||
-    !leaveType ||
-    !leaveFormat ||
-    !reason ||
-    !startDate ||
-    !endDate
-  ) {
-    return res
-      .status(400)
-      .json({ success: false, error: 'Missing required fields' });
-  }
-
-  try {
-    const newLeaveRequest = await prisma.leaveRequest.create({
-      data: {
-        userId,
-        leaveType,
-        leaveFormat,
-        reason,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        status: 'pending',
-      },
-    });
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (user) {
-      await sendLeaveRequestNotification(user, newLeaveRequest);
+      res.status(200).json({ success: true, data: leaveRequest });
+    } catch (error) {
+      console.error('Error creating leave request:', error);
+      res.status(500).json({ success: false, error: 'Internal Server Error' });
+    } finally {
+      await prisma.$disconnect();
     }
-
-    return res.status(201).json({ success: true, data: newLeaveRequest });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+  } else {
+    res.setHeader('Allow', ['POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }

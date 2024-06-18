@@ -23,6 +23,8 @@ Table LeaveRequest {
   user User [not null]
   leaveType String [not null]
   leaveFormat String [not null]
+  halfDay String
+  fullDayCount Float [not null]
   startDate DateTime [not null]
   endDate DateTime [not null]
   reason String [not null]
