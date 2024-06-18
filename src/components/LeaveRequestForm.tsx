@@ -122,7 +122,7 @@ const LeaveRequestForm = () => {
     values: FormValues,
     { setSubmitting }: FormikHelpers<FormValues>,
   ) => {
-    console.log('Form is submitting with values:', values);
+    console.log('Form is submitting with values:', values); // Check if this log appears
     try {
       const leaveData = {
         userId: lineUserId,
@@ -138,7 +138,7 @@ const LeaveRequestForm = () => {
         fullDayCount: values.halfDay ? 0.5 : values.fullDayCount,
       };
 
-      console.log('Submitting leaveData:', leaveData);
+      console.log('Submitting leaveData:', leaveData); // Check if this log appears
 
       const response = await fetch('/api/leaveRequest/create', {
         method: 'POST',
@@ -148,6 +148,8 @@ const LeaveRequestForm = () => {
         },
         body: JSON.stringify(leaveData),
       });
+
+      console.log('Response received:', response); // Check the response
 
       if (response.ok) {
         console.log('Leave request created successfully');
