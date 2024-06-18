@@ -21,7 +21,7 @@ const LeaveSummaryPage = () => {
 
   const handleSubmit = async () => {
     try {
-      const response = await axios.post('/api/leaveRequest', {
+      const response = await axios.post('/api/leave-request', {
         ...summaryData,
         status: 'pending',
       });
