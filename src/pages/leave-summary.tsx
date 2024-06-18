@@ -11,8 +11,10 @@ const LeaveSummaryPage = () => {
   useEffect(() => {
     const data = sessionStorage.getItem('leaveSummary');
     if (data) {
+      console.log('Data retrieved from session storage:', data);
       setSummaryData(JSON.parse(data));
     } else {
+      console.log('No data found, redirecting to leave request page.');
       router.push('/leave-request');
     }
   }, [router]);
@@ -23,16 +25,20 @@ const LeaveSummaryPage = () => {
 
   const handleSubmit = async () => {
     try {
+      console.log('Submitting data:', summaryData);
       const response = await axios.post('/api/leaveRequest/create', {
         ...summaryData,
         status: 'Pending',
       });
       if (response.status === 201) {
+        console.log('Leave request submitted successfully');
         router.push('/leave-confirmation');
       } else {
+        console.error('Error:', response.data.error);
         alert('Error: ' + response.data.error);
       }
     } catch (error: any) {
+      console.error('Error:', error.response?.data?.error || error.message);
       alert('Error: ' + (error.response?.data?.error || error.message));
     }
   };
