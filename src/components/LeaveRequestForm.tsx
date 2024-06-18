@@ -144,6 +144,7 @@ const LeaveRequestForm = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
         },
         body: JSON.stringify(leaveData),
       });
@@ -163,10 +164,6 @@ const LeaveRequestForm = () => {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const formatThaiDate = (date: string) => {
-    return dayjs(date).locale('th').format('D MMM YYYY');
   };
 
   return (
