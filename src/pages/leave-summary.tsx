@@ -1,14 +1,12 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import dayjs from 'dayjs';
 
 const LeaveSummaryPage = () => {
   const router = useRouter();
   const [summaryData, setSummaryData] = useState<any>(null);
 
   useEffect(() => {
-    // Retrieve the data from session storage
     const data = sessionStorage.getItem('leaveSummary');
     if (data) {
       setSummaryData(JSON.parse(data));
@@ -25,17 +23,14 @@ const LeaveSummaryPage = () => {
     try {
       const response = await axios.post('/api/leaveRequest', {
         ...summaryData,
-        status: 'pending', // Ensure status is included
+        status: 'pending',
       });
       if (response.status === 201) {
-        // Redirect to leave confirmation page
         router.push('/leave-confirmation');
       } else {
-        console.error('Error response:', response.data);
         alert('Error: ' + response.data.error);
       }
     } catch (error: any) {
-      console.error('Submission error:', error);
       alert('Error: ' + (error.response?.data?.error || error.message));
     }
   };
@@ -43,44 +38,51 @@ const LeaveSummaryPage = () => {
   return (
     <div className="main-container flex justify-center items-center h-screen">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
-          สรุปการขอวันลา
-        </h5>
+        <div className="mb-1 text-base font-medium dark:text-white">
+          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+            <div
+              className="bg-blue-600 h-2.5 rounded-full"
+              style={{ width: '100%' }}
+            ></div>
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold mb-4">ขอวันลา</h1>
         <div className="mb-4">
           <p className="mb-2">
             <strong>ประเภทการลา:</strong> {summaryData.leaveType}
           </p>
           <p className="mb-2">
-            <strong>รูปแบบวันลา:</strong>{' '}
-            {summaryData.halfDay
-              ? `ลาครึ่งวัน (${summaryData.halfDay})`
-              : 'ลาเต็มวัน'}
+            <strong>รูปแบบการลา:</strong> {summaryData.halfDay || 'ลาเต็มวัน'}
           </p>
           <p className="mb-2">
-            <strong>วันที่ลา:</strong>{' '}
-            {summaryData.startDate && !summaryData.endDate
-              ? dayjs(summaryData.startDate).format('YYYY-MM-DD')
-              : `${dayjs(summaryData.startDate).format('YYYY-MM-DD')} - ${dayjs(summaryData.endDate).format('YYYY-MM-DD')}`}
+            <strong>จำนวนวันลา:</strong> {summaryData.fullDayCount}
           </p>
           <p className="mb-2">
-            <strong>จำนวนวัน:</strong> {summaryData.fullDayCount} วัน
+            <strong>วันที่เริ่มต้น:</strong> {summaryData.startDate}
           </p>
+          {summaryData.fullDayCount > 1 && (
+            <p className="mb-2">
+              <strong>วันที่สิ้นสุด:</strong> {summaryData.endDate}
+            </p>
+          )}
           <p className="mb-2">
-            <strong>หมายเหตุ:</strong> {summaryData.reason}
+            <strong>เหตุผล:</strong> {summaryData.reason}
           </p>
         </div>
-        <div className="flex space-x-4">
+        <div className="button-container flex justify-between mt-4">
           <button
-            className="flex-1 p-2 bg-green-500 text-white rounded hover:bg-green-600"
-            onClick={handleSubmit}
-          >
-            ยืนยัน & ส่งคำขอ
-          </button>
-          <button
-            className="flex-1 p-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            type="button"
+            className="py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
             onClick={() => router.push('/leave-request')}
           >
             ย้อนกลับ
+          </button>
+          <button
+            type="button"
+            className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+            onClick={handleSubmit}
+          >
+            ยืนยัน
           </button>
         </div>
       </div>
