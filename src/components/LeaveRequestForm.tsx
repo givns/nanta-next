@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import 'flowbite';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
+import liff from '@line/liff';
 
 interface FormValues {
   leaveType: string;
@@ -59,6 +60,36 @@ const LeaveRequestForm = () => {
   const router = useRouter();
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
+  const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (liffId) {
+      liff
+        .init({ liffId })
+        .then(() => {
+          if (liff.isLoggedIn()) {
+            liff
+              .getProfile()
+              .then((profile) => {
+                setLineUserId(profile.userId);
+                setProfilePictureUrl(profile.pictureUrl);
+              })
+              .catch((err) => {
+                console.error('Error getting profile:', err);
+              });
+          } else {
+            liff.login();
+          }
+        })
+        .catch((err) => {
+          console.error('Error initializing LIFF:', err);
+        });
+    }
+  }, []);
 
   useEffect(() => {
     const startInput = startDateRef.current;
@@ -103,6 +134,7 @@ const LeaveRequestForm = () => {
     try {
       // Save form data to session storage
       sessionStorage.setItem('leaveSummary', JSON.stringify(values));
+      // Navigate to the leave-summary page
       router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);
