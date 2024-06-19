@@ -7,14 +7,8 @@ class MyDocument extends Document {
       <Html>
         <Head>
           <meta charSet="UTF-8" />
-          <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1.0"
-          />
-          <meta
-            httpEquiv="Content-Security-Policy"
-            content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; connect-src 'self' https://liffsdk.line-scdn.net https://api.line.me;"
-          />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <meta httpEquiv="Content-Security-Policy" content="default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; img-src * data:; connect-src *;" />
         </Head>
         <body>
           <Main />
@@ -26,3 +20,4 @@ class MyDocument extends Document {
 }
 
 export default MyDocument;
+
