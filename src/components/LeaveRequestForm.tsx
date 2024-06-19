@@ -20,7 +20,10 @@ const leaveRequestSchema = Yup.object().shape({
   leaveFormat: Yup.string().required('กรุณาเลือกลักษณะการลา'),
   reason: Yup.string().required('กรุณาระบุเหตุผล'),
   startDate: Yup.date().required('กรุณาเลือกวันที่เริ่มลา'),
-  endDate: Yup.date().required('กรุณาเลือกวันที่สิ้นสุด'),
+  endDate: Yup.date().when('leaveFormat', {
+    is: 'ลาเต็มวัน',
+    then: (schema) => schema.required('กรุณาเลือกวันที่สิ้นสุด'),
+  }),
   fullDayCount: Yup.number()
     .min(0.5, 'จำนวนวันต้องมากกว่าหรือเท่ากับ 0.5')
     .required('กรุณาระบุจำนวนวัน'),
@@ -106,9 +109,13 @@ const LeaveRequestForm: React.FC = () => {
         leaveFormat: values.leaveFormat,
         reason: values.reason,
         startDate: new Date(values.startDate),
-        endDate: new Date(values.endDate),
+        endDate:
+          values.leaveFormat === 'ลาเต็มวัน'
+            ? new Date(values.endDate)
+            : new Date(values.startDate),
         status: 'Pending',
-        fullDayCount: values.fullDayCount,
+        fullDayCount:
+          values.leaveFormat === 'ลาครึ่งวัน' ? 0.5 : values.fullDayCount,
       };
 
       console.log('Submitting leaveData:', leaveData);
@@ -247,7 +254,7 @@ const LeaveRequestForm: React.FC = () => {
                       as="select"
                       id="leaveFormat"
                       name="leaveFormat"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600                     dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                     >
                       <option value="">เลือกลักษณะการลา</option>
                       <option value="ลาเต็มวัน">ลาเต็มวัน</option>
@@ -305,26 +312,28 @@ const LeaveRequestForm: React.FC = () => {
                         className="text-danger"
                       />
                     </div>
-                    <div>
-                      <label
-                        htmlFor="endDate"
-                        className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >
-                        วันที่สิ้นสุด
-                      </label>
-                      <Field
-                        type="date"
-                        id="endDate"
-                        name="endDate"
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                        innerRef={endDateRef}
-                      />
-                      <ErrorMessage
-                        name="endDate"
-                        component="div"
-                        className="text-danger"
-                      />
-                    </div>
+                    {values.leaveFormat === 'ลาเต็มวัน' && (
+                      <div>
+                        <label
+                          htmlFor="endDate"
+                          className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                        >
+                          วันที่สิ้นสุด
+                        </label>
+                        <Field
+                          type="date"
+                          id="endDate"
+                          name="endDate"
+                          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                          innerRef={endDateRef}
+                        />
+                        <ErrorMessage
+                          name="endDate"
+                          component="div"
+                          className="text-danger"
+                        />
+                      </div>
+                    )}
                     <div>
                       <label
                         htmlFor="fullDayCount"
