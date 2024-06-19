@@ -255,6 +255,13 @@ const LeaveRequestForm: React.FC = () => {
                       id="leaveFormat"
                       name="leaveFormat"
                       className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        const value = e.target.value;
+                        setFieldValue('leaveFormat', value);
+                        if (value === 'ลาครึ่งวัน') {
+                          setFieldValue('fullDayCount', 0.5);
+                        }
+                      }}
                     >
                       <option value="">เลือกลักษณะการลา</option>
                       <option value="ลาเต็มวัน">ลาเต็มวัน</option>
@@ -334,27 +341,29 @@ const LeaveRequestForm: React.FC = () => {
                         />
                       </div>
                     )}
-                    <div>
-                      <label
-                        htmlFor="fullDayCount"
-                        className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >
-                        จำนวนวันลา (เต็มวัน)
-                      </label>
-                      <Field
-                        type="number"
-                        id="fullDayCount"
-                        name="fullDayCount"
-                        min="0.5"
-                        step="0.5"
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                      />
-                      <ErrorMessage
-                        name="fullDayCount"
-                        component="div"
-                        className="text-danger"
-                      />
-                    </div>
+                    {values.leaveFormat === 'ลาเต็มวัน' && (
+                      <div>
+                        <label
+                          htmlFor="fullDayCount"
+                          className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                        >
+                          จำนวนวันลา (เต็มวัน)
+                        </label>
+                        <Field
+                          type="number"
+                          id="fullDayCount"
+                          name="fullDayCount"
+                          min="1"
+                          step="1"
+                          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                        />
+                        <ErrorMessage
+                          name="fullDayCount"
+                          component="div"
+                          className="text-danger"
+                        />
+                      </div>
+                    )}
                     <div>
                       <label
                         htmlFor="reason"
