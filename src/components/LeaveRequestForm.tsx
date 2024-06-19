@@ -4,7 +4,6 @@ import { Formik, Field, Form, ErrorMessage, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/router';
 import 'flowbite';
-import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
 
@@ -55,7 +54,7 @@ const leaveRequestSchema = Yup.object().shape({
   reason: Yup.string().nullable(),
 });
 
-const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({ nonce }) => {
+const LeaveRequestForm: React.FC = () => {
   const [step, setStep] = useState(1);
   const router = useRouter();
   const startDateRef = useRef<HTMLInputElement>(null);
