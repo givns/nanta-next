@@ -1,12 +1,18 @@
+// pages/_app.tsx
 import '../styles/globals.css';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { AppProps } from 'next/app';
+import App, { AppProps, AppContext } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
 import liff from '@line/liff';
+import { nanoid } from 'nanoid';
 
-function MyApp({ Component, pageProps }: AppProps) {
+interface MyAppProps extends AppProps {
+  nonce: string;
+}
+
+function MyApp({ Component, pageProps, nonce }: MyAppProps) {
   const router = useRouter();
 
   useEffect(() => {
@@ -37,9 +43,15 @@ function MyApp({ Component, pageProps }: AppProps) {
 
   return (
     <Provider store={store}>
-      <Component {...pageProps} />
+      <Component {...pageProps} nonce={nonce} />
     </Provider>
   );
 }
+
+MyApp.getInitialProps = async (appContext: AppContext) => {
+  const appProps = await App.getInitialProps(appContext);
+  const nonce = nanoid();
+  return { ...appProps, nonce };
+};
 
 export default MyApp;

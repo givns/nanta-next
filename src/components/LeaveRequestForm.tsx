@@ -1,3 +1,4 @@
+// pages/leaverequestform.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { Formik, Field, Form, ErrorMessage, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
@@ -13,6 +14,10 @@ interface FormValues {
   startDate: string;
   endDate: string;
   reason: string;
+}
+
+interface LeaveRequestFormProps {
+  nonce: string;
 }
 
 const leaveLimits: { [key: string]: number } = {
@@ -49,7 +54,7 @@ const leaveRequestSchema = Yup.object().shape({
   reason: Yup.string().nullable(),
 });
 
-const LeaveRequestForm = () => {
+const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({ nonce }) => {
   const [step, setStep] = useState(1);
   const router = useRouter();
   const startDateRef = useRef<HTMLInputElement>(null);
@@ -121,7 +126,7 @@ const LeaveRequestForm = () => {
     values: FormValues,
     { setSubmitting }: FormikHelpers<FormValues>,
   ) => {
-    console.log('Form is submitting with values:', values); // Check if this log appears
+    console.log('Form is submitting with values:', values);
     try {
       const leaveData = {
         userId: lineUserId,
@@ -137,7 +142,7 @@ const LeaveRequestForm = () => {
         fullDayCount: values.halfDay ? 0.5 : values.fullDayCount,
       };
 
-      console.log('Submitting leaveData:', leaveData); // Check if this log appears
+      console.log('Submitting leaveData:', leaveData);
 
       const response = await fetch('/api/leaveRequest/create', {
         method: 'POST',
@@ -148,7 +153,7 @@ const LeaveRequestForm = () => {
         body: JSON.stringify(leaveData),
       });
 
-      console.log('Response received:', response); // Check the response
+      console.log('Response received:', response);
 
       if (response.ok) {
         console.log('Leave request created successfully');
@@ -482,6 +487,17 @@ const LeaveRequestForm = () => {
           )}
         </Formik>
       </div>
+      {/* Inline script using nonce */}
+      <script
+        nonce={nonce}
+        dangerouslySetInnerHTML={{
+          __html: `
+            document.addEventListener('DOMContentLoaded', function() {
+              // Custom inline script logic here
+            });
+          `,
+        }}
+      ></script>
     </div>
   );
 };
