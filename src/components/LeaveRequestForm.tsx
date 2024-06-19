@@ -174,7 +174,7 @@ const LeaveRequestForm: React.FC = () => {
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
         <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mb-4">
           <div
-            className="bg-blue-600 h-2             .5 rounded-full"
+            className="bg-blue-600 h-2.5 rounded-full"
             style={{ width: `${(step / 3) * 100}%` }}
           ></div>
         </div>
