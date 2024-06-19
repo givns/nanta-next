@@ -1,4 +1,3 @@
-import { nanoid } from 'nanoid';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -7,6 +6,21 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const ContentSecurityPolicy = `
+  default-src 'self';
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https:;
+  style-src 'self' 'unsafe-inline' https:;
+  img-src 'self' data: https:;
+  connect-src 'self' https://liffsdk.line-scdn.net https://api.line.me;
+`;
+
+const securityHeaders = [
+  {
+    key: 'Content-Security-Policy',
+    value: ContentSecurityPolicy.replace(/\s+/g, ' ').trim(),
+  },
+];
 
 export default {
   reactStrictMode: true,
@@ -26,27 +40,7 @@ export default {
     return [
       {
         source: '/(.*)',
-        headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: (req, res) => {
-              const nonce = nanoid();
-              res.setHeader(
-                'Content-Security-Policy',
-                `
-                default-src 'self';
-                script-src 'self' 'unsafe-eval' 'unsafe-inline' https: 'nonce-${nonce}';
-                style-src 'self' 'unsafe-inline' https:;
-                img-src 'self' data: https:;
-                connect-src 'self' https://liffsdk.line-scdn.net https://api.line.me;
-              `
-                  .replace(/\s+/g, ' ')
-                  .trim(),
-              );
-              return next();
-            },
-          },
-        ],
+        headers: securityHeaders,
       },
     ];
   },

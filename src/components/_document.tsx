@@ -1,4 +1,4 @@
-// pages/_document.tsx
+// src/pages/_document.tsx
 import Document, {
   Html,
   Head,
