@@ -1,4 +1,3 @@
-// src/components/LeaveRequestForm.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { Formik, Field, Form, ErrorMessage, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
@@ -7,6 +6,7 @@ import 'flowbite';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
 
+// Form values and schema definitions...
 interface FormValues {
   leaveType: string;
   halfDay: 'ลาครึ่งวัน' | 'ลาครึ่งวันเช้า' | 'ลาครึ่งวันบ่าย' | '';
@@ -49,7 +49,6 @@ const leaveRequestSchema = Yup.object().shape({
   endDate: Yup.date().nullable(),
   reason: Yup.string().nullable(),
 });
-
 const LeaveRequestForm: React.FC = () => {
   const [step, setStep] = useState(1);
   const router = useRouter();
@@ -68,6 +67,30 @@ const LeaveRequestForm: React.FC = () => {
               .getProfile()
               .then((profile) => {
                 console.log('Profile:', profile);
+                setLineUserId(profile.userId);
+              })
+              .catch((err) => {
+                console.error('Error getting profile:', err);
+              });
+          } else {
+            liff.login();
+          }
+        })
+        .catch((err) => {
+          console.error('Error initializing LIFF:', err);
+        });
+    }
+  }, []);
+  useEffect(() => {
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (liffId) {
+      liff
+        .init({ liffId })
+        .then(() => {
+          if (liff.isLoggedIn()) {
+            liff
+              .getProfile()
+              .then((profile) => {
                 setLineUserId(profile.userId);
               })
               .catch((err) => {
@@ -150,8 +173,6 @@ const LeaveRequestForm: React.FC = () => {
         body: JSON.stringify(leaveData),
       });
 
-      console.log('Response received:', response);
-
       if (response.ok) {
         console.log('Leave request created successfully');
         sessionStorage.setItem('leaveSummary', JSON.stringify(leaveData));
@@ -168,6 +189,7 @@ const LeaveRequestForm: React.FC = () => {
       setSubmitting(false);
     }
   };
+  // Rest of the component code...
 
   return (
     <div className="main-container flex justify-center items-center h-screen">
