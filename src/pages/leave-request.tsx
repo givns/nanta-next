@@ -12,8 +12,7 @@ const LeaveRequestPage = ({ nonce }: LeaveRequestPageProps) => {
 };
 
 LeaveRequestPage.getInitialProps = async (ctx: NextPageContext) => {
-  const req = ctx.req as { nonce?: string }; // Type the req parameter
-  const nonce = req?.nonce || '';
+  const nonce = ctx.req?.headers['nonce'] || '';
   return { nonce };
 };
 
