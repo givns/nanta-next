@@ -16,10 +16,6 @@ interface FormValues {
   reason: string;
 }
 
-interface LeaveRequestFormProps {
-  nonce: string;
-}
-
 const leaveLimits: { [key: string]: number } = {
   ลากิจ: 3,
   ลาป่วย: 30,
