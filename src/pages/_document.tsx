@@ -13,7 +13,13 @@ class MyDocument extends Document {
           />
           <meta
             httpEquiv="Content-Security-Policy"
-            content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://liffsdk.line-scdn.net; style-src 'self' 'unsafe-inline' https://liffsdk.line-scdn.net; img-src 'self' data: https://liffsdk.line-scdn.net; connect-src 'self' https://liffsdk.line-scdn.net https://api.line.me;"
+            content="
+            default-src 'self';
+            script-src 'self' 'unsafe-eval' 'unsafe-inline' https://static.line-scdn.net https://liffsdk.line-scdn.net;
+            style-src 'self' 'unsafe-inline' https://static.line-scdn.net https://liffsdk.line-scdn.net;
+            img-src 'self' data: https://static.line-scdn.net https://liffsdk.line-scdn.net;
+            connect-src 'self' https://static.line-scdn.net https://liffsdk.line-scdn.net https://api.line.me;
+          "
           />
           <script>{`console.log("CSP Loaded");`}</script>
         </Head>
