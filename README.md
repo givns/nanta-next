@@ -461,6 +461,7 @@ fullDayCount: values.halfDay ? 0.5 : values.fullDayCount,
 // Rest of the component code...
 
 return (
+
 <div className="main-container flex justify-center items-center h-screen">
 <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
 <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mb-4">
