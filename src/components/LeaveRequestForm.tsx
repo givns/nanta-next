@@ -8,14 +8,22 @@ import liff from '@line/liff';
 
 interface FormValues {
   leaveType: string;
+  leaveFormat: string;
+  reason: string;
   startDate: string;
   endDate: string;
+  fullDayCount: number;
 }
 
 const leaveRequestSchema = Yup.object().shape({
   leaveType: Yup.string().required('กรุณาเลือกประเภทการลา'),
+  leaveFormat: Yup.string().required('กรุณาเลือกลักษณะการลา'),
+  reason: Yup.string().required('กรุณาระบุเหตุผล'),
   startDate: Yup.date().required('กรุณาเลือกวันที่เริ่มลา'),
   endDate: Yup.date().required('กรุณาเลือกวันที่สิ้นสุด'),
+  fullDayCount: Yup.number()
+    .min(0.5, 'จำนวนวันต้องมากกว่าหรือเท่ากับ 0.5')
+    .required('กรุณาระบุจำนวนวัน'),
 });
 
 const LeaveRequestForm: React.FC = () => {
@@ -58,9 +66,12 @@ const LeaveRequestForm: React.FC = () => {
       const leaveData = {
         userId: lineUserId,
         leaveType: values.leaveType,
+        leaveFormat: values.leaveFormat,
+        reason: values.reason,
         startDate: new Date(values.startDate),
         endDate: new Date(values.endDate),
         status: 'Pending',
+        fullDayCount: values.fullDayCount,
       };
 
       console.log('Submitting leaveData:', leaveData);
@@ -100,8 +111,11 @@ const LeaveRequestForm: React.FC = () => {
         <Formik
           initialValues={{
             leaveType: '',
+            leaveFormat: '',
+            reason: '',
             startDate: '',
             endDate: '',
+            fullDayCount: 1,
           }}
           validationSchema={leaveRequestSchema}
           onSubmit={handleSubmit}
@@ -162,6 +176,48 @@ const LeaveRequestForm: React.FC = () => {
                 </div>
                 <div className="mt-4">
                   <label
+                    htmlFor="leaveFormat"
+                    className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                  >
+                    ลักษณะการลา
+                  </label>
+                  <Field
+                    as="select"
+                    id="leaveFormat"
+                    name="leaveFormat"
+                    className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                  >
+                    <option value="">เลือกลักษณะการลา</option>
+                    <option value="ลาเต็มวัน">ลาเต็มวัน</option>
+                    <option value="ลาครึ่งวัน">ลาครึ่งวัน</option>
+                  </Field>
+                  <ErrorMessage
+                    name="leaveFormat"
+                    component="div"
+                    className="text-danger"
+                  />
+                </div>
+                <div className="mt-4">
+                  <label
+                    htmlFor="reason"
+                    className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                  >
+                    ระบุเหตุผล
+                  </label>
+                  <Field
+                    as="textarea"
+                    id="reason"
+                    name="reason"
+                    className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                  />
+                  <ErrorMessage
+                    name="reason"
+                    component="div"
+                    className="text-danger"
+                  />
+                </div>
+                <div className="mt-4">
+                  <label
                     htmlFor="startDate"
                     className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                   >
@@ -196,6 +252,27 @@ const LeaveRequestForm: React.FC = () => {
                   />
                   <ErrorMessage
                     name="endDate"
+                    component="div"
+                    className="text-danger"
+                  />
+                </div>
+                <div className="mt-4">
+                  <label
+                    htmlFor="fullDayCount"
+                    className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                  >
+                    จำนวนวันลา (เต็มวัน)
+                  </label>
+                  <Field
+                    type="number"
+                    id="fullDayCount"
+                    name="fullDayCount"
+                    min="0.5"
+                    step="0.5"
+                    className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                  />
+                  <ErrorMessage
+                    name="fullDayCount"
                     component="div"
                     className="text-danger"
                   />
