@@ -6,25 +6,19 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
-
-generator dbml {
-  provider = "prisma-dbml-generator"
-  output   = "./generated"
-}
-
 model User {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  lineUserId     String   @unique
-  name           String
-  nickname       String
-  department     String
-  employeeNumber String?
-  role           String
-  profilePictureUrl String? 
-  createdAt      DateTime @default(now())
-  leaveRequests  LeaveRequest[]
-  overtimeRequests OvertimeRequest[]
-  checkIns       CheckIn[]
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+  lineUserId        String            @unique
+  name              String
+  nickname          String
+  department        String
+  employeeNumber    String?
+  role              String
+  profilePictureUrl String?
+  createdAt         DateTime          @default(now())
+  leaveRequests     LeaveRequest[]
+  overtimeRequests  OvertimeRequest[]
+  checkIns          CheckIn[]
 }
 
 model LeaveRequest {
