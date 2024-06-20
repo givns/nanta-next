@@ -41,6 +41,7 @@ export default async function handler(
 
       res.status(201).json(newLeaveRequest);
     } catch (error: any) {
+      console.error('Error creating leave request:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   } else if (req.method === 'GET') {

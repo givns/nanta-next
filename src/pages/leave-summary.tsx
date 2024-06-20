@@ -69,13 +69,12 @@ const LeaveSummaryPage = () => {
             <strong>วันที่เริ่มต้น:</strong>{' '}
             {dayjs(summaryData.startDate).locale('th').format('D MMM YYYY')}
           </p>
-          {summaryData.leaveFormat === 'ลาเต็มวัน' &&
-            summaryData.fullDayCount > 1 && (
-              <p className="mb-2">
-                <strong>วันที่สิ้นสุด:</strong>{' '}
-                {dayjs(summaryData.endDate).locale('th').format('D MMM YYYY')}
-              </p>
-            )}
+          {summaryData.fullDayCount > 1 && (
+            <p className="mb-2">
+              <strong>วันที่สิ้นสุด:</strong>{' '}
+              {dayjs(summaryData.endDate).locale('th').format('D MMM YYYY')}
+            </p>
+          )}
           <p className="mb-2">
             <strong>เหตุผล:</strong> {summaryData.reason}
           </p>
