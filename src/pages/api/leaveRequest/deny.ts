@@ -1,13 +1,16 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
 import { sendDenyNotification } from '../../../utils/sendNotifications';
-//fix prettier error
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
     const { requestId, approverId, denialReason } = req.body;
+
+    // Log the received data for debugging
+    console.log('Received data:', { requestId, approverId, denialReason });
 
     if (!requestId || !approverId || !denialReason) {
       return res.status(400).json({
@@ -32,6 +35,7 @@ export default async function handler(
 
       return res.status(200).json(leaveRequest);
     } catch (error: any) {
+      console.error('Error denying leave request:', error);
       return res.status(500).json({ success: false, error: error.message });
     }
   } else {
