@@ -1,4 +1,3 @@
-// leaveRequestHandlers.ts
 import { PrismaClient } from '@prisma/client';
 import {
   sendApproveNotification,
@@ -7,30 +6,30 @@ import {
 
 const prisma = new PrismaClient();
 
-// leaveRequestHandlers.ts
-
 export const handleApprove = async (requestId: string, userId: string) => {
   try {
-    const leaveRequest = await prisma.leaveRequest.findUnique({
+    // Check if the request has already been approved or denied
+    const existingRequest = await prisma.leaveRequest.findUnique({
       where: { id: requestId },
     });
 
-    if (leaveRequest && leaveRequest.status === 'pending') {
-      const updatedLeaveRequest = await prisma.leaveRequest.update({
-        where: { id: requestId },
-        data: { status: 'approved', approverId: userId },
-      });
-      console.log('Leave request approved:', updatedLeaveRequest);
+    if (!existingRequest || existingRequest.status !== 'Pending') {
+      console.log('Leave request has already been processed:', existingRequest);
+      return;
+    }
 
-      const user = await prisma.user.findUnique({
-        where: { id: leaveRequest.userId },
-      });
+    const leaveRequest = await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: { status: 'Approved', approverId: userId },
+    });
+    console.log('Leave request approved:', leaveRequest);
 
-      if (user) {
-        await sendApproveNotification(user, updatedLeaveRequest);
-      }
-    } else {
-      console.log('Leave request already handled or not found.');
+    const user = await prisma.user.findUnique({
+      where: { id: leaveRequest.userId },
+    });
+
+    if (user) {
+      await sendApproveNotification(user, leaveRequest);
     }
   } catch (error: any) {
     console.error('Error approving leave request:', error.message);
@@ -43,26 +42,28 @@ export const handleDeny = async (
   denialReason: string,
 ) => {
   try {
-    const leaveRequest = await prisma.leaveRequest.findUnique({
+    // Check if the request has already been approved or denied
+    const existingRequest = await prisma.leaveRequest.findUnique({
       where: { id: requestId },
     });
 
-    if (leaveRequest && leaveRequest.status === 'pending') {
-      const updatedLeaveRequest = await prisma.leaveRequest.update({
-        where: { id: requestId },
-        data: { status: 'denied', approverId: userId, denialReason },
-      });
-      console.log('Leave request denied:', updatedLeaveRequest);
+    if (!existingRequest || existingRequest.status !== 'Pending') {
+      console.log('Leave request has already been processed:', existingRequest);
+      return;
+    }
 
-      const user = await prisma.user.findUnique({
-        where: { id: leaveRequest.userId },
-      });
+    const leaveRequest = await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: { status: 'Denied', approverId: userId, denialReason },
+    });
+    console.log('Leave request denied:', leaveRequest);
 
-      if (user) {
-        await sendDenyNotification(user, updatedLeaveRequest, denialReason);
-      }
-    } else {
-      console.log('Leave request already handled or not found.');
+    const user = await prisma.user.findUnique({
+      where: { id: leaveRequest.userId },
+    });
+
+    if (user) {
+      await sendDenyNotification(user, leaveRequest, denialReason);
     }
   } catch (error: any) {
     console.error('Error denying leave request:', error.message);

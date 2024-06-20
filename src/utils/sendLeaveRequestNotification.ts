@@ -1,20 +1,47 @@
 import { Client, FlexMessage } from '@line/bot-sdk';
 import { LeaveRequest, User } from '@prisma/client';
+import prisma from './db';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
+const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
+  const currentMonthStart = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    1,
+  );
+  const leaveRequests = await prisma.leaveRequest.findMany({
+    where: {
+      approverId: adminId,
+      createdAt: {
+        gte: currentMonthStart,
+      },
+    },
+  });
+  return leaveRequests.length;
+};
+
 export const sendLeaveRequestNotification = async (
-  user: User,
+  admin: User,
   leaveRequest: LeaveRequest,
 ) => {
+  const leaveCount = await getLeaveCountForAdmin(admin.id);
+  const user = await prisma.user.findUnique({
+    where: { id: leaveRequest.userId },
+  });
+
+  if (!user) {
+    throw new Error(`User with ID ${leaveRequest.userId} not found`);
+  }
+
   const message: FlexMessage = {
     type: 'flex',
     altText: 'Leave Request Notification',
     contents: {
       type: 'bubble',
-      size: 'giga',
+      size: 'mega',
       header: {
         type: 'box',
         layout: 'vertical',
@@ -22,25 +49,31 @@ export const sendLeaveRequestNotification = async (
           {
             type: 'box',
             layout: 'vertical',
-            contents: [
-              {
-                type: 'text',
-                text: 'Leave Request',
-                color: '#000000',
-                align: 'start',
-                size: 'xl',
-                weight: 'bold',
-              },
-            ],
+            contents: [],
+            width: '25px',
+            height: '25px',
+            cornerRadius: '30px',
+            backgroundColor: '#FF1900',
           },
           {
             type: 'box',
             layout: 'vertical',
-            contents: [],
-            backgroundColor: '#F0F0F0',
+            contents: [
+              {
+                type: 'text',
+                text: 'อนุมัติขอลางาน',
+                color: '#000000',
+                size: 'xl',
+                flex: 4,
+                weight: 'bold',
+              },
+            ],
           },
         ],
+        paddingAll: '20px',
         backgroundColor: '#F0F0F0',
+        spacing: 'md',
+        paddingTop: '22px',
       },
       hero: {
         type: 'box',
@@ -144,6 +177,12 @@ export const sendLeaveRequestNotification = async (
                     size: 'sm',
                     color: '#4682B4',
                   },
+                  {
+                    type: 'text',
+                    text: `จำนวนการลาในเดือนนี้: ${leaveCount}`,
+                    size: 'sm',
+                    color: '#FF6347',
+                  },
                 ],
               },
             ],
@@ -190,5 +229,17 @@ export const sendLeaveRequestNotification = async (
     },
   };
 
-  await client.pushMessage(user.lineUserId, message);
+  await client.pushMessage(admin.lineUserId, message);
+};
+
+export const notifyAdmins = async (leaveRequest: LeaveRequest) => {
+  const admins = await prisma.user.findMany({
+    where: {
+      OR: [{ role: 'admin' }, { role: 'superadmin' }],
+    },
+  });
+
+  for (const admin of admins) {
+    await sendLeaveRequestNotification(admin, leaveRequest);
+  }
 };

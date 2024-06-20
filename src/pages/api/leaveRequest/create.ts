@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
+import { notifyAdmins } from '../../../utils/sendLeaveRequestNotification';
 
 const prisma = new PrismaClient();
 
@@ -34,13 +34,7 @@ export default async function handler(
         },
       });
 
-      const user = await prisma.user.findUnique({
-        where: { lineUserId: userId }, // Use lineUserId to find the user
-      });
-
-      if (user) {
-        await sendLeaveRequestNotification(user, leaveRequest);
-      }
+      await notifyAdmins(leaveRequest);
 
       res.status(201).json({ success: true, data: leaveRequest });
     } catch (error) {
