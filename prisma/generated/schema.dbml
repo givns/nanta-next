@@ -23,12 +23,11 @@ Table LeaveRequest {
   user User [not null]
   leaveType String [not null]
   leaveFormat String [not null]
-  halfDay String
-  fullDayCount Float [not null]
+  reason String [not null]
   startDate DateTime [not null]
   endDate DateTime [not null]
-  reason String [not null]
   status String [not null]
+  fullDayCount Float [not null]
   approverId String
   denialReason String
   createdAt DateTime [default: `now()`, not null]

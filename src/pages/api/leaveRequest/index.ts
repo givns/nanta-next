@@ -26,8 +26,8 @@ export default async function handler(
           reason,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          status: 'pending',
-          fullDayCount: fullDayCount, // Use the fullDayCount from the request body
+          status: 'Pending', // Ensure the status field is included
+          fullDayCount,
         },
       });
 
