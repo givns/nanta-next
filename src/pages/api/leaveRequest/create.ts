@@ -35,7 +35,7 @@ export default async function handler(
       });
 
       const user = await prisma.user.findUnique({
-        where: { lineUserId: userId },
+        where: { id: userId },
       });
 
       if (user) {
@@ -49,8 +49,43 @@ export default async function handler(
     } finally {
       await prisma.$disconnect();
     }
+  } else if (req.method === 'PATCH') {
+    const { requestId, action } = req.body;
+
+    try {
+      const leaveRequest = await prisma.leaveRequest.findUnique({
+        where: { id: requestId },
+      });
+
+      if (!leaveRequest) {
+        return res
+          .status(404)
+          .json({ success: false, error: 'Leave request not found' });
+      }
+
+      if (leaveRequest.status !== 'Pending') {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: 'Leave request has already been processed',
+          });
+      }
+
+      const updatedRequest = await prisma.leaveRequest.update({
+        where: { id: requestId },
+        data: { status: action === 'approve' ? 'Approved' : 'Denied' },
+      });
+
+      res.status(200).json({ success: true, data: updatedRequest });
+    } catch (error) {
+      console.error('Error updating leave request:', error);
+      res.status(500).json({ success: false, error: 'Internal Server Error' });
+    } finally {
+      await prisma.$disconnect();
+    }
   } else {
-    res.setHeader('Allow', ['POST']);
+    res.setHeader('Allow', ['POST', 'PATCH']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }

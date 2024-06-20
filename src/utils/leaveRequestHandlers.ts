@@ -1,3 +1,4 @@
+// leaveRequestHandlers.ts
 import { PrismaClient } from '@prisma/client';
 import {
   sendApproveNotification,
@@ -10,7 +11,7 @@ export const handleApprove = async (requestId: string, userId: string) => {
   try {
     const leaveRequest = await prisma.leaveRequest.update({
       where: { id: requestId },
-      data: { status: 'approved', approverId: userId },
+      data: { status: 'Approved', approverId: userId },
     });
     console.log('Leave request approved:', leaveRequest);
 
@@ -34,7 +35,7 @@ export const handleDeny = async (
   try {
     const leaveRequest = await prisma.leaveRequest.update({
       where: { id: requestId },
-      data: { status: 'denied', approverId: userId, denialReason },
+      data: { status: 'Denied', approverId: userId, denialReason },
     });
     console.log('Leave request denied:', leaveRequest);
 

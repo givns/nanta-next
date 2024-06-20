@@ -82,13 +82,33 @@ const handler = async (event: WebhookEvent) => {
     const requestId = params.get('requestId');
 
     if (action && requestId && userId) {
-      if (action === 'approve') {
-        await handleApprove(requestId, userId);
-      } else if (action === 'deny') {
-        const denialReason = params.get('denialReason');
-        if (denialReason) {
-          await handleDeny(requestId, userId, denialReason);
+      try {
+        const leaveRequest = await prisma.leaveRequest.findUnique({
+          where: { id: requestId },
+        });
+
+        if (leaveRequest?.status !== 'Pending') {
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: 'This leave request has already been processed.',
+          });
+          return;
         }
+
+        if (action === 'approve') {
+          await handleApprove(requestId, userId);
+        } else if (action === 'deny') {
+          const denialReason = params.get('denialReason');
+          if (denialReason) {
+            await handleDeny(requestId, userId, denialReason);
+          }
+        }
+      } catch (error) {
+        console.error('Error processing postback action:', error);
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: 'There was an error processing your request. Please try again later.',
+        });
       }
     }
   } else if (event.type === 'unfollow') {
