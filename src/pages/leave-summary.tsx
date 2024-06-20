@@ -1,4 +1,3 @@
-// leave-summary.tsx
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -31,8 +30,7 @@ const LeaveSummaryPage = () => {
         ...summaryData,
         status: 'Pending',
       });
-
-      if (response.status === 201 && response.data.success) {
+      if (response.status === 201) {
         console.log('Leave request submitted successfully');
         router.push('/leave-confirmation');
       } else {
@@ -71,12 +69,13 @@ const LeaveSummaryPage = () => {
             <strong>วันที่เริ่มต้น:</strong>{' '}
             {dayjs(summaryData.startDate).locale('th').format('D MMM YYYY')}
           </p>
-          {summaryData.fullDayCount > 1 && (
-            <p className="mb-2">
-              <strong>วันที่สิ้นสุด:</strong>{' '}
-              {dayjs(summaryData.endDate).locale('th').format('D MMM YYYY')}
-            </p>
-          )}
+          {summaryData.leaveFormat === 'ลาเต็มวัน' &&
+            summaryData.fullDayCount > 1 && (
+              <p className="mb-2">
+                <strong>วันที่สิ้นสุด:</strong>{' '}
+                {dayjs(summaryData.endDate).locale('th').format('D MMM YYYY')}
+              </p>
+            )}
           <p className="mb-2">
             <strong>เหตุผล:</strong> {summaryData.reason}
           </p>

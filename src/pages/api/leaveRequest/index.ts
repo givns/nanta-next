@@ -7,8 +7,15 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    const { userId, leaveType, leaveFormat, reason, startDate, endDate } =
-      req.body;
+    const {
+      userId,
+      leaveType,
+      leaveFormat,
+      reason,
+      startDate,
+      endDate,
+      fullDayCount,
+    } = req.body;
 
     try {
       const newLeaveRequest = await prisma.leaveRequest.create({
@@ -20,7 +27,7 @@ export default async function handler(
           startDate: new Date(startDate),
           endDate: new Date(endDate),
           status: 'pending',
-          fullDayCount: /* provide a value for fullDayCount */ 0,
+          fullDayCount: fullDayCount, // Use the fullDayCount from the request body
         },
       });
 
