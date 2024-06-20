@@ -34,6 +34,7 @@ const LeaveRequestForm: React.FC = () => {
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false); // Add loading state
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -101,6 +102,7 @@ const LeaveRequestForm: React.FC = () => {
     { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
   ) => {
     console.log('Form is submitting with values:', values);
+    setLoading(true); // Set loading to true when submitting the form
     try {
       const leaveData = {
         userId: lineUserId,
@@ -125,6 +127,7 @@ const LeaveRequestForm: React.FC = () => {
       console.error('Error submitting leave request:', error);
       alert('Error submitting leave request');
     } finally {
+      setLoading(false); // Set loading to false when the submission is complete
       setSubmitting(false);
     }
   };

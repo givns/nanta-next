@@ -76,3 +76,24 @@
 button {
   border-radius: 9999px;
 }
+
+/* styles/globals.css or another CSS file */
+.loader {
+  border-top-color: #3498db;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+input,
+textarea,
+select {
+  font-size: 16px;
+}
