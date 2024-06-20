@@ -122,7 +122,7 @@ export const sendLeaveRequestNotification = async (
                         month: 'short',
                         day: 'numeric',
                       },
-                    )} (${Math.ceil((new Date(leaveRequest.endDate).getTime() - new Date(leaveRequest.startDate).getTime()) / (1000 * 60 * 60 * 24))} วัน)`,
+                    )} (${leaveRequest.fullDayCount} วัน)`,
                     size: 'sm',
                     wrap: true,
                   },
