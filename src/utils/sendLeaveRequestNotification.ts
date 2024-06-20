@@ -27,7 +27,7 @@ export const sendLeaveRequestNotification = async (
   admin: User,
   leaveRequest: LeaveRequest,
 ) => {
-  const leaveCount = await getLeaveCountForAdmin(admin.id);
+  const requestCount = await getLeaveCountForAdmin;
   const user = await prisma.user.findUnique({
     where: { id: leaveRequest.userId },
   });
@@ -49,7 +49,18 @@ export const sendLeaveRequestNotification = async (
           {
             type: 'box',
             layout: 'vertical',
-            contents: [],
+            contents: [
+              {
+                type: 'text',
+                text: requestCount.toString(),
+                align: 'center',
+                gravity: 'center',
+                color: '#FFFFFF',
+                wrap: true,
+                adjustMode: 'shrink-to-fit',
+                weight: 'bold',
+              },
+            ],
             width: '25px',
             height: '25px',
             cornerRadius: '30px',
@@ -61,7 +72,7 @@ export const sendLeaveRequestNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'อนุมัติขอลางาน',
+                text: 'Leave Request',
                 color: '#000000',
                 size: 'xl',
                 flex: 4,
@@ -176,12 +187,6 @@ export const sendLeaveRequestNotification = async (
                     })}`,
                     size: 'sm',
                     color: '#4682B4',
-                  },
-                  {
-                    type: 'text',
-                    text: `จำนวนการลาในเดือนนี้: ${leaveCount}`,
-                    size: 'sm',
-                    color: '#FF6347',
                   },
                 ],
               },
