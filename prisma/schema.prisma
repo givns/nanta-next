@@ -33,11 +33,11 @@ model LeaveRequest {
   user          User       @relation(fields: [userId], references: [id])
   leaveType     String
   leaveFormat   String
-  reason       String
-  startDate    DateTime
-  endDate      DateTime
-  status       String
-  fullDayCount Float
+  reason        String
+  startDate     DateTime
+  endDate       DateTime
+  status        String
+  fullDayCount  Float
   approverId    String?
   denialReason  String?
   createdAt     DateTime   @default(now())
