@@ -1,3 +1,4 @@
+// create.ts
 import { PrismaClient } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
@@ -33,7 +34,7 @@ export default async function handler(
         },
       });
 
-      res.status(200).json({ success: true, data: leaveRequest });
+      res.status(201).json({ success: true, data: leaveRequest });
     } catch (error) {
       console.error('Error creating leave request:', error);
       res.status(500).json({ success: false, error: 'Internal Server Error' });

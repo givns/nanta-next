@@ -1,3 +1,4 @@
+// leave-summary.tsx
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -30,7 +31,8 @@ const LeaveSummaryPage = () => {
         ...summaryData,
         status: 'Pending',
       });
-      if (response.status === 201) {
+
+      if (response.status === 201 && response.data.success) {
         console.log('Leave request submitted successfully');
         router.push('/leave-confirmation');
       } else {
