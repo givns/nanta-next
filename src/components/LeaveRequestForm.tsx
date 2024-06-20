@@ -61,34 +61,6 @@ const LeaveRequestForm: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    const startInput = startDateRef.current;
-    const endInput = endDateRef.current;
-
-    if (startInput && endInput) {
-      startInput.addEventListener('change', (event: Event) => {
-        const target = event.target as HTMLInputElement;
-        const startDate = target.value;
-        if (endInput) {
-          endInput.min = startDate;
-        }
-      });
-
-      endInput.addEventListener('change', (event: Event) => {
-        const target = event.target as HTMLInputElement;
-        const endDate = target.value;
-        if (startInput) {
-          startInput.max = endDate;
-        }
-      });
-    }
-
-    return () => {
-      if (startInput) startInput.removeEventListener('change', () => {});
-      if (endInput) endInput.removeEventListener('change', () => {});
-    };
-  }, []);
-
   const handleNextStep = () => {
     setStep(step + 1);
   };
@@ -244,61 +216,63 @@ const LeaveRequestForm: React.FC = () => {
                     เลือกลักษณะการลา
                   </h5>
                   <div className="space-y-4">
-                    <label
-                      htmlFor="leaveFormat"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      ลักษณะการลา
-                    </label>
-                    <Field
-                      as="select"
-                      id="leaveFormat"
-                      name="leaveFormat"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                        const value = e.target.value;
-                        setFieldValue('leaveFormat', value);
-                        if (value === 'ลาครึ่งวัน') {
-                          setFieldValue('fullDayCount', 0.5);
-                        }
+                    <button
+                      type="button"
+                      className={`block w-full p-2.5 text-center border rounded-lg ${
+                        values.leaveFormat === 'ลาเต็มวัน'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-50 text-gray-900'
+                      }`}
+                      onClick={() => {
+                        setFieldValue('leaveFormat', 'ลาเต็มวัน');
+                        setFieldValue('fullDayCount', 1);
                       }}
                     >
-                      <option value="">เลือกลักษณะการลา</option>
-                      <option value="ลาเต็มวัน">ลาเต็มวัน</option>
-                      <option value="ลาครึ่งวัน">ลาครึ่งวัน</option>
-                    </Field>
-                    <ErrorMessage
-                      name="leaveFormat"
-                      component="div"
-                      className="text-danger"
-                    />
-                  </div>
-                  <div className="button-container flex justify-between mt-4">
-                    <button
-                      type="button"
-                      className="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
-                      onClick={handlePreviousStep}
-                    >
-                      ย้อนกลับ
+                      ลาเต็มวัน
                     </button>
                     <button
                       type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={handleNextStep}
-                      disabled={!values.leaveFormat}
+                      className={`block w-full p-2.5 text-center border rounded-lg ${
+                        values.leaveFormat === 'ลาครึ่งวัน'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-50 text-gray-900'
+                      }`}
+                      onClick={() => {
+                        setFieldValue('leaveFormat', 'ลาครึ่งวัน');
+                        setFieldValue('fullDayCount', 0.5);
+                        setFieldValue('endDate', values.startDate); // Ensure endDate matches startDate for half-day leave
+                      }}
                     >
-                      ถัดไป
+                      ลาครึ่งวัน
                     </button>
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div>
-                  <h5 className="text-xl font-medium text-gray-900 dark:text-white">
-                    กรอกรายละเอียดการลา
-                  </h5>
-                  <div className="space-y-4">
+                    {values.leaveFormat === 'ลาเต็มวัน' && (
+                      <div>
+                        <label
+                          htmlFor="fullDayCount"
+                          className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                        >
+                          จำนวนวันลา
+                        </label>
+                        <Field
+                          type="number"
+                          id="fullDayCount"
+                          name="fullDayCount"
+                          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                          min="1"
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            setFieldValue(
+                              'fullDayCount',
+                              parseFloat(e.target.value),
+                            )
+                          }
+                        />
+                        <ErrorMessage
+                          name="fullDayCount"
+                          component="div"
+                          className="text-danger"
+                        />
+                      </div>
+                    )}
                     <div>
                       <label
                         htmlFor="startDate"
@@ -312,6 +286,12 @@ const LeaveRequestForm: React.FC = () => {
                         name="startDate"
                         className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                         innerRef={startDateRef}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          setFieldValue('startDate', e.target.value);
+                          if (values.leaveFormat === 'ลาครึ่งวัน') {
+                            setFieldValue('endDate', e.target.value); // Ensure endDate matches startDate for half-day leave
+                          }
+                        }}
                       />
                       <ErrorMessage
                         name="startDate"
@@ -319,70 +299,85 @@ const LeaveRequestForm: React.FC = () => {
                         className="text-danger"
                       />
                     </div>
-                    {values.leaveFormat === 'ลาเต็มวัน' && (
-                      <div>
-                        <label
-                          htmlFor="endDate"
-                          className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                        >
-                          วันที่สิ้นสุด
-                        </label>
-                        <Field
-                          type="date"
-                          id="endDate"
-                          name="endDate"
-                          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                          innerRef={endDateRef}
-                        />
-                        <ErrorMessage
-                          name="endDate"
-                          component="div"
-                          className="text-danger"
-                        />
-                      </div>
-                    )}
-                    {values.leaveFormat === 'ลาเต็มวัน' && (
-                      <div>
-                        <label
-                          htmlFor="fullDayCount"
-                          className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                        >
-                          จำนวนวันลา (เต็มวัน)
-                        </label>
-                        <Field
-                          type="number"
-                          id="fullDayCount"
-                          name="fullDayCount"
-                          min="1"
-                          step="1"
-                          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                        />
-                        <ErrorMessage
-                          name="fullDayCount"
-                          component="div"
-                          className="text-danger"
-                        />
-                      </div>
-                    )}
-                    <div>
-                      <label
-                        htmlFor="reason"
-                        className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >
-                        ระบุเหตุผล
-                      </label>
-                      <Field
-                        as="textarea"
-                        id="reason"
-                        name="reason"
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                      />
-                      <ErrorMessage
-                        name="reason"
-                        component="div"
-                        className="text-danger"
-                      />
-                    </div>
+                    {values.leaveFormat === 'ลาเต็มวัน' &&
+                      values.fullDayCount > 1 && (
+                        <div>
+                          <label
+                            htmlFor="endDate"
+                            className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                          >
+                            วันที่สิ้นสุด
+                          </label>
+                          <Field
+                            type="date"
+                            id="endDate"
+                            name="endDate"
+                            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                            innerRef={endDateRef}
+                            onChange={(
+                              e: React.ChangeEvent<HTMLInputElement>,
+                            ) => {
+                              setFieldValue('endDate', e.target.value);
+                            }}
+                          />
+                          <ErrorMessage
+                            name="endDate"
+                            component="div"
+                            className="text-danger"
+                          />
+                        </div>
+                      )}
+                  </div>
+                  <div className="button-container flex justify-between mt-4">
+                    <button
+                      type="button"
+                      className="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
+                      onClick={handlePreviousStep}
+                    >
+                      ย้อนกลับ
+                    </button>
+                    <button
+                      type="button"
+                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                      onClick={handleNextStep}
+                      disabled={
+                        !values.startDate ||
+                        (values.leaveFormat === 'ลาเต็มวัน' &&
+                          values.fullDayCount > 1 &&
+                          !values.endDate) ||
+                        (values.leaveFormat === 'ลาครึ่งวัน' &&
+                          !values.startDate)
+                      }
+                    >
+                      ถัดไป
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div>
+                  <h5 className="text-xl font-medium text-gray-900 dark:text-white">
+                    สาเหตุการลา
+                  </h5>
+                  <div className="space-y-4">
+                    <label
+                      htmlFor="reason"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    >
+                      ระบุเหตุผล
+                    </label>
+                    <Field
+                      as="textarea"
+                      id="reason"
+                      name="reason"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                    />
+                    <ErrorMessage
+                      name="reason"
+                      component="div"
+                      className="text-danger"
+                    />
                   </div>
                   <div className="button-container flex justify-between mt-4">
                     <button
@@ -394,7 +389,7 @@ const LeaveRequestForm: React.FC = () => {
                     </button>
                     <button
                       type="submit"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
                       disabled={isSubmitting}
                     >
                       ยืนยัน
