@@ -64,12 +64,10 @@ export default async function handler(
       }
 
       if (leaveRequest.status !== 'Pending') {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error: 'Leave request has already been processed',
-          });
+        return res.status(400).json({
+          success: false,
+          error: 'Leave request has already been processed',
+        });
       }
 
       const updatedRequest = await prisma.leaveRequest.update({
