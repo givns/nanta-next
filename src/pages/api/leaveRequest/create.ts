@@ -1,6 +1,6 @@
-// create.ts
 import { PrismaClient } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
 
 const prisma = new PrismaClient();
 
@@ -33,6 +33,14 @@ export default async function handler(
           fullDayCount,
         },
       });
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (user) {
+        await sendLeaveRequestNotification(user, leaveRequest);
+      }
 
       res.status(201).json({ success: true, data: leaveRequest });
     } catch (error) {
