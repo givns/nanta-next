@@ -3,32 +3,30 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
-import Head from 'next/head';
 
 const LeaveSummaryPage = () => {
   const router = useRouter();
   const [summaryData, setSummaryData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const data = sessionStorage.getItem('leaveSummary');
     if (data) {
       console.log('Data retrieved from session storage:', data);
-      const parsedData = JSON.parse(data);
-      const startDate = dayjs(parsedData.startDate);
-      const endDate = dayjs(parsedData.endDate);
-      const fullDayCount = endDate.diff(startDate, 'day') + 1;
-      setSummaryData({ ...parsedData, fullDayCount });
-      setIsLoading(false);
+      setSummaryData(JSON.parse(data));
     } else {
       console.log('No data found, redirecting to leave request page.');
       router.push('/leave-request');
     }
   }, [router]);
 
+  if (!summaryData) {
+    return <div>Loading...</div>;
+  }
+
   const handleSubmit = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true); // Start loading
       console.log('Submitting data:', summaryData);
       const response = await axios.post('/api/leaveRequest/create', {
         ...summaryData,
@@ -45,28 +43,41 @@ const LeaveSummaryPage = () => {
       console.error('Error:', error.response?.data?.error || error.message);
       alert('Error: ' + (error.response?.data?.error || error.message));
     } finally {
-      setIsLoading(false); // Stop loading
+      setIsLoading(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="main-container flex justify-center items-center h-screen">
-        <div className="loader">Loading...</div>
-      </div>
-    );
-  }
+  const calculateLeaveDays = (
+    startDate: string,
+    endDate: string,
+    leaveFormat: string,
+  ): number => {
+    let count = 0;
+    let currentDate = new Date(startDate);
 
-  if (!summaryData) {
-    return <div>Loading...</div>;
-  }
+    while (currentDate <= new Date(endDate)) {
+      if (currentDate.getDay() !== 0) {
+        // Exclude Sunday (0)
+        count++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    if (leaveFormat.includes('ครึ่งวัน')) {
+      count = 0.5;
+    }
+
+    return count;
+  };
+
+  const fullDayCount = calculateLeaveDays(
+    summaryData.startDate,
+    summaryData.endDate,
+    summaryData.leaveFormat,
+  );
 
   return (
     <div className="main-container flex justify-center items-center h-screen">
-      <Head>
-        <title>Leave Summary</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      </Head>
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
         <div className="mb-1 text-base font-medium dark:text-white">
           <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
@@ -76,7 +87,7 @@ const LeaveSummaryPage = () => {
             ></div>
           </div>
         </div>
-        <h1 className="text-2xl font-bold mb-4">ขอวันลา</h1>
+        <h1 className="text-2xl font-bold mb-4">แบบฟอร์มขอลางาน</h1>
         <div className="mb-4">
           <p className="mb-2">
             <strong>ประเภทการลา:</strong> {summaryData.leaveType}
@@ -85,13 +96,13 @@ const LeaveSummaryPage = () => {
             <strong>รูปแบบการลา:</strong> {summaryData.leaveFormat}
           </p>
           <p className="mb-2">
-            <strong>จำนวนวันลา:</strong> {summaryData.fullDayCount}
+            <strong>จำนวนวันลา:</strong> {fullDayCount}
           </p>
           <p className="mb-2">
             <strong>วันที่เริ่มต้น:</strong>{' '}
             {dayjs(summaryData.startDate).locale('th').format('D MMM YYYY')}
           </p>
-          {summaryData.fullDayCount > 1 && (
+          {fullDayCount > 1 && (
             <p className="mb-2">
               <strong>วันที่สิ้นสุด:</strong>{' '}
               {dayjs(summaryData.endDate).locale('th').format('D MMM YYYY')}
@@ -111,11 +122,11 @@ const LeaveSummaryPage = () => {
           </button>
           <button
             type="button"
-            className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center"
+            className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
             onClick={handleSubmit}
-            disabled={isLoading} // Disable button while loading
+            disabled={isLoading}
           >
-            ยืนยัน
+            {isLoading ? 'กำลังส่ง...' : 'ยืนยัน'}
           </button>
         </div>
       </div>
