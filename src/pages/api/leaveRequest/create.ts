@@ -1,3 +1,4 @@
+// create.ts
 import { PrismaClient } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
@@ -29,7 +30,7 @@ export default async function handler(
           reason,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          status,
+          status: status as string, // Ensure status is treated as a string
           fullDayCount,
         },
       });
@@ -43,7 +44,7 @@ export default async function handler(
       }
 
       res.status(201).json({ success: true, data: leaveRequest });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating leave request:', error);
       res.status(500).json({ success: false, error: 'Internal Server Error' });
     } finally {
