@@ -47,7 +47,13 @@ export default async function handler(
       res.status(201).json({ success: true, data: leaveRequest });
     } catch (error: any) {
       console.error('Error creating leave request:', error.message);
-      res.status(500).json({ success: false, error: 'Internal Server Error', details: error.message });
+      res
+        .status(500)
+        .json({
+          success: false,
+          error: 'Internal Server Error',
+          details: error.message,
+        });
     } finally {
       await prisma.$disconnect();
     }
