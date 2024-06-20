@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Formik, Field, Form, ErrorMessage, FormikHelpers } from 'formik';
+import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/router';
-import 'flowbite';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
 
@@ -61,6 +60,34 @@ const LeaveRequestForm: React.FC = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const startInput = startDateRef.current;
+    const endInput = endDateRef.current;
+
+    if (startInput && endInput) {
+      startInput.addEventListener('change', (event: Event) => {
+        const target = event.target as HTMLInputElement;
+        const startDate = target.value;
+        if (endInput) {
+          endInput.min = startDate;
+        }
+      });
+
+      endInput.addEventListener('change', (event: Event) => {
+        const target = event.target as HTMLInputElement;
+        const endDate = target.value;
+        if (startInput) {
+          startInput.max = endDate;
+        }
+      });
+    }
+
+    return () => {
+      if (startInput) startInput.removeEventListener('change', () => {});
+      if (endInput) endInput.removeEventListener('change', () => {});
+    };
+  }, []);
+
   const handleNextStep = () => {
     setStep(step + 1);
   };
@@ -71,7 +98,7 @@ const LeaveRequestForm: React.FC = () => {
 
   const handleSubmit = async (
     values: FormValues,
-    { setSubmitting }: FormikHelpers<FormValues>,
+    { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
   ) => {
     console.log('Form is submitting with values:', values);
     try {
@@ -82,9 +109,9 @@ const LeaveRequestForm: React.FC = () => {
         reason: values.reason,
         startDate: new Date(values.startDate),
         endDate:
-          values.leaveFormat === 'ลาเต็มวัน'
-            ? new Date(values.endDate)
-            : new Date(values.startDate),
+          values.leaveFormat === 'ลาครึ่งวัน'
+            ? new Date(values.startDate)
+            : new Date(values.endDate),
         status: 'Pending',
         fullDayCount:
           values.leaveFormat === 'ลาครึ่งวัน' ? 0.5 : values.fullDayCount,
@@ -92,24 +119,8 @@ const LeaveRequestForm: React.FC = () => {
 
       console.log('Submitting leaveData:', leaveData);
 
-      const response = await fetch('/api/leaveRequest/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-        },
-        body: JSON.stringify(leaveData),
-      });
-
-      if (response.ok) {
-        console.log('Leave request created successfully');
-        sessionStorage.setItem('leaveSummary', JSON.stringify(leaveData));
-        router.push('/leave-summary');
-      } else {
-        const errorData = await response.json();
-        console.error(`Error: ${errorData.error}`);
-        alert(`Error: ${errorData.error}`);
-      }
+      sessionStorage.setItem('leaveSummary', JSON.stringify(leaveData));
+      router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);
       alert('Error submitting leave request');
@@ -137,7 +148,7 @@ const LeaveRequestForm: React.FC = () => {
             reason: '',
             startDate: '',
             endDate: '',
-            fullDayCount: 1,
+            fullDayCount: 0,
           }}
           validationSchema={leaveRequestSchema}
           onSubmit={handleSubmit}
@@ -235,118 +246,73 @@ const LeaveRequestForm: React.FC = () => {
                       className={`block w-full p-2.5 text-center border rounded-lg ${
                         values.leaveFormat === 'ลาครึ่งวัน'
                           ? 'bg-blue-500 text-white'
-                          : 'bg-gray-50 text-gray-900'
+                          : '                      bg-gray-50 text-gray-900'
                       }`}
                       onClick={() => {
                         setFieldValue('leaveFormat', 'ลาครึ่งวัน');
                         setFieldValue('fullDayCount', 0.5);
-                        setFieldValue('endDate', values.startDate); // Ensure endDate matches startDate for half-day leave
                       }}
                     >
                       ลาครึ่งวัน
                     </button>
-                    {values.leaveFormat === 'ลาเต็มวัน' && (
-                      <div>
-                        <label
-                          htmlFor="fullDayCount"
-                          className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                        >
-                          จำนวนวันลา
-                        </label>
-                        <Field
-                          type="number"
-                          id="fullDayCount"
-                          name="fullDayCount"
-                          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                          min="1"
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                            setFieldValue(
-                              'fullDayCount',
-                              parseFloat(e.target.value),
-                            )
-                          }
-                        />
-                        <ErrorMessage
-                          name="fullDayCount"
-                          component="div"
-                          className="text-danger"
-                        />
-                      </div>
-                    )}
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="startDate"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    >
+                      วันที่เริ่มลา
+                    </label>
+                    <Field
+                      type="date"
+                      id="startDate"
+                      name="startDate"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                      innerRef={startDateRef}
+                    />
+                    <ErrorMessage
+                      name="startDate"
+                      component="div"
+                      className="text-danger"
+                    />
+                  </div>
+                  {values.leaveFormat === 'ลาเต็มวัน' && (
                     <div>
                       <label
-                        htmlFor="startDate"
+                        htmlFor="endDate"
                         className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                       >
-                        วันที่เริ่มต้น
+                        วันที่สิ้นสุด
                       </label>
                       <Field
                         type="date"
-                        id="startDate"
-                        name="startDate"
+                        id="endDate"
+                        name="endDate"
                         className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                        innerRef={startDateRef}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                          setFieldValue('startDate', e.target.value);
-                          if (values.leaveFormat === 'ลาครึ่งวัน') {
-                            setFieldValue('endDate', e.target.value); // Ensure endDate matches startDate for half-day leave
-                          }
-                        }}
+                        innerRef={endDateRef}
                       />
                       <ErrorMessage
-                        name="startDate"
+                        name="endDate"
                         component="div"
                         className="text-danger"
                       />
                     </div>
-                    {values.leaveFormat === 'ลาเต็มวัน' &&
-                      values.fullDayCount > 1 && (
-                        <div>
-                          <label
-                            htmlFor="endDate"
-                            className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                          >
-                            วันที่สิ้นสุด
-                          </label>
-                          <Field
-                            type="date"
-                            id="endDate"
-                            name="endDate"
-                            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                            innerRef={endDateRef}
-                            onChange={(
-                              e: React.ChangeEvent<HTMLInputElement>,
-                            ) => {
-                              setFieldValue('endDate', e.target.value);
-                            }}
-                          />
-                          <ErrorMessage
-                            name="endDate"
-                            component="div"
-                            className="text-danger"
-                          />
-                        </div>
-                      )}
-                  </div>
+                  )}
                   <div className="button-container flex justify-between mt-4">
                     <button
                       type="button"
-                      className="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
+                      className="py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
                       onClick={handlePreviousStep}
                     >
                       ย้อนกลับ
                     </button>
                     <button
                       type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
                       onClick={handleNextStep}
                       disabled={
                         !values.startDate ||
-                        (values.leaveFormat === 'ลาเต็มวัน' &&
-                          values.fullDayCount > 1 &&
-                          !values.endDate) ||
-                        (values.leaveFormat === 'ลาครึ่งวัน' &&
-                          !values.startDate)
+                        (values.leaveFormat === 'ลาเต็มวัน' && !values.endDate)
                       }
                     >
                       ถัดไป
@@ -382,14 +348,14 @@ const LeaveRequestForm: React.FC = () => {
                   <div className="button-container flex justify-between mt-4">
                     <button
                       type="button"
-                      className="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
+                      className="py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
                       onClick={handlePreviousStep}
                     >
                       ย้อนกลับ
                     </button>
                     <button
                       type="submit"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
                       disabled={isSubmitting}
                     >
                       ยืนยัน

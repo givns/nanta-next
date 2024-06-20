@@ -1,4 +1,3 @@
-// pages/api/leaveRequest/index.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
 import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
@@ -19,31 +18,26 @@ export default async function handler(
     } = req.body;
 
     try {
-      // Find user by lineUserId
-      const user = await prisma.user.findUnique({
-        where: { lineUserId: userId },
-      });
-
-      if (!user) {
-        return res
-          .status(404)
-          .json({ success: false, error: 'User not found' });
-      }
-
       const newLeaveRequest = await prisma.leaveRequest.create({
         data: {
-          userId: user.id, // Use user's actual id here
+          userId,
           leaveType,
           leaveFormat,
           reason,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          status: 'Pending',
+          status: 'Pending', // Ensure the status field is included
           fullDayCount,
         },
       });
 
-      await sendLeaveRequestNotification(user, newLeaveRequest);
+      const user = await prisma.user.findUnique({
+        where: { lineUserId: userId },
+      });
+
+      if (user) {
+        await sendLeaveRequestNotification(user, newLeaveRequest);
+      }
 
       res.status(201).json(newLeaveRequest);
     } catch (error: any) {

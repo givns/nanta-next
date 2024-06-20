@@ -1,4 +1,3 @@
-// pages/api/leaveRequest/create.ts
 import { PrismaClient } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
@@ -22,20 +21,9 @@ export default async function handler(
     } = req.body;
 
     try {
-      // Find user by lineUserId
-      const user = await prisma.user.findUnique({
-        where: { lineUserId: userId },
-      });
-
-      if (!user) {
-        return res
-          .status(404)
-          .json({ success: false, error: 'User not found' });
-      }
-
       const leaveRequest = await prisma.leaveRequest.create({
         data: {
-          userId: user.id, // Use user's actual id here
+          userId,
           leaveType,
           leaveFormat,
           reason,
@@ -46,16 +34,18 @@ export default async function handler(
         },
       });
 
-      await sendLeaveRequestNotification(user, leaveRequest);
+      const user = await prisma.user.findUnique({
+        where: { lineUserId: userId },
+      });
+
+      if (user) {
+        await sendLeaveRequestNotification(user, leaveRequest);
+      }
 
       res.status(201).json({ success: true, data: leaveRequest });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error creating leave request:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Internal Server Error',
-        details: error.message,
-      });
+      res.status(500).json({ success: false, error: 'Internal Server Error' });
     } finally {
       await prisma.$disconnect();
     }
