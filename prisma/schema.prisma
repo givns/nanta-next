@@ -15,7 +15,7 @@ model User {
   department        String
   employeeNumber    String?
   role              String
-  profilePictureUrl String?
+  profilePictureUrl String? 
   createdAt         DateTime          @default(now())
   leaveRequests     LeaveRequest[]
   overtimeRequests  OvertimeRequest[]
@@ -24,7 +24,7 @@ model User {
 
 model LeaveRequest {
   id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String     @db.ObjectId
+  userId        String
   user          User       @relation(fields: [userId], references: [id])
   leaveType     String
   leaveFormat   String
