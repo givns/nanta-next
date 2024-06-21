@@ -12,6 +12,7 @@ interface FormValues {
   reason: string;
   startDate: string;
   endDate: string;
+  fullDayCount: number;
 }
 
 const leaveRequestSchema = Yup.object().shape({
@@ -23,6 +24,9 @@ const leaveRequestSchema = Yup.object().shape({
     is: 'ลาเต็มวัน',
     then: (schema) => schema.required('กรุณาเลือกวันที่สิ้นสุด'),
   }),
+  fullDayCount: Yup.number()
+    .min(0.5, 'จำนวนวันต้องมากกว่าหรือเท่ากับ 0.5')
+    .required('กรุณาระบุจำนวนวัน'),
 });
 
 const LeaveRequestForm: React.FC = () => {
@@ -31,6 +35,7 @@ const LeaveRequestForm: React.FC = () => {
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false); // Add loading state
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -97,13 +102,32 @@ const LeaveRequestForm: React.FC = () => {
     values: FormValues,
     { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
   ) => {
+    console.log('Form is submitting with values:', values);
+    setLoading(true); // Set loading to true when submitting the form
     try {
-      sessionStorage.setItem('leaveSummary', JSON.stringify(values));
+      const leaveData = {
+        userId: lineUserId,
+        leaveType: values.leaveType,
+        leaveFormat: values.leaveFormat,
+        reason: values.reason,
+        startDate: new Date(values.startDate),
+        endDate:
+          values.leaveFormat === 'ลาครึ่งวัน'
+            ? new Date(values.startDate)
+            : new Date(values.endDate),
+        status: 'Pending',
+        fullDayCount: values.leaveFormat === 'ลาครึ่งวัน' ? 0.5 : 0,
+      };
+
+      console.log('Submitting leaveData:', leaveData);
+
+      sessionStorage.setItem('leaveSummary', JSON.stringify(leaveData));
       router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);
       alert('Error submitting leave request');
     } finally {
+      setLoading(false); // Set loading to false when the submission is complete
       setSubmitting(false);
     }
   };
@@ -143,6 +167,7 @@ const LeaveRequestForm: React.FC = () => {
               reason: '',
               startDate: '',
               endDate: '',
+              fullDayCount: 0,
             }}
             validationSchema={leaveRequestSchema}
             onSubmit={handleSubmit}
@@ -230,6 +255,7 @@ const LeaveRequestForm: React.FC = () => {
                         }`}
                         onClick={() => {
                           setFieldValue('leaveFormat', 'ลาเต็มวัน');
+                          setFieldValue('fullDayCount', 0);
                         }}
                       >
                         ลาเต็มวัน
@@ -243,6 +269,7 @@ const LeaveRequestForm: React.FC = () => {
                         }`}
                         onClick={() => {
                           setFieldValue('leaveFormat', 'ลาครึ่งวัน');
+                          setFieldValue('fullDayCount', 0.5);
                         }}
                       >
                         ลาครึ่งวัน
