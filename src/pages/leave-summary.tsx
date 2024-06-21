@@ -8,45 +8,8 @@ import liff from '@line/liff';
 const LeaveSummaryPage = () => {
   const router = useRouter();
   const [summaryData, setSummaryData] = useState<any>(null);
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false); // Add loading state
-
-  useEffect(() => {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (liffId) {
-      liff
-        .init({ liffId })
-        .then(() => {
-          if (liff.isLoggedIn()) {
-            liff
-              .getProfile()
-              .then((profile) => {
-                setLineUserId(profile.userId);
-              })
-              .catch((err) => {
-                console.error('Error getting profile:', err);
-              });
-          } else {
-            liff.login();
-          }
-        })
-        .catch((err) => {
-          console.error('Error initializing LIFF:', err);
-        });
-    }
-    const data = sessionStorage.getItem('leaveSummary');
-    if (data) {
-      console.log('Data retrieved from session storage:', data);
-      setSummaryData(JSON.parse(data));
-    } else {
-      console.log('No data found, redirecting to leave request page.');
-      router.push('/leave-request');
-    }
-  }, [router]);
-
-  if (!summaryData) {
-    return <div>Loading...</div>;
-  }
+  const [lineUserId, setLineUserId] = useState<string | null>(null); // Correctly set up useState
+  const [loading, setLoading] = useState(false);
 
   const calculateFullDayCount = (
     startDate: string,
@@ -72,6 +35,44 @@ const LeaveSummaryPage = () => {
     return fullDayCount;
   };
 
+  useEffect(() => {
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (liffId) {
+      liff
+        .init({ liffId })
+        .then(() => {
+          if (liff.isLoggedIn()) {
+            liff
+              .getProfile()
+              .then((profile) => {
+                setLineUserId(profile.userId);
+              })
+              .catch((err) => {
+                console.error('Error getting profile:', err);
+              });
+          } else {
+            liff.login();
+          }
+        })
+        .catch((err) => {
+          console.error('Error initializing LIFF:', err);
+        });
+    }
+
+    const data = sessionStorage.getItem('leaveSummary');
+    if (data) {
+      console.log('Data retrieved from session storage:', data);
+      setSummaryData(JSON.parse(data));
+    } else {
+      console.log('No data found, redirecting to leave request page.');
+      router.push('/leave-request');
+    }
+  }, [router]);
+
+  if (!summaryData || !lineUserId) {
+    return <div>Loading...</div>;
+  }
+
   const handleSubmit = async () => {
     setLoading(true); // Set loading to true when submitting the form
     try {
@@ -83,6 +84,7 @@ const LeaveSummaryPage = () => {
 
       const leaveData = {
         ...summaryData,
+        userId: lineUserId,
         status: 'Pending',
         fullDayCount,
       };
@@ -101,7 +103,7 @@ const LeaveSummaryPage = () => {
       console.error('Error:', error.response?.data?.error || error.message);
       alert('Error: ' + (error.response?.data?.error || error.message));
     } finally {
-      setLoading(false); // Set loading to false when the submission is complete
+      setLoading(false);
     }
   };
 
@@ -125,18 +127,13 @@ const LeaveSummaryPage = () => {
             <strong>รูปแบบการลา:</strong> {summaryData.leaveFormat}
           </p>
           <p className="mb-2">
-            <strong>จำนวนวันลา:</strong>{' '}
-            {calculateFullDayCount(
-              summaryData.startDate,
-              summaryData.endDate,
-              summaryData.leaveFormat,
-            )}
+            <strong>จำนวนวันลา:</strong> {summaryData.fullDayCount}
           </p>
           <p className="mb-2">
             <strong>วันที่เริ่มต้น:</strong>{' '}
             {dayjs(summaryData.startDate).locale('th').format('D MMM YYYY')}
           </p>
-          {summaryData.leaveFormat === 'ลาเต็มวัน' && (
+          {summaryData.fullDayCount > 1 && (
             <p className="mb-2">
               <strong>วันที่สิ้นสุด:</strong>{' '}
               {dayjs(summaryData.endDate).locale('th').format('D MMM YYYY')}
@@ -156,10 +153,10 @@ const LeaveSummaryPage = () => {
           </button>
           <button
             type="button"
-            className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+            className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
             onClick={handleSubmit}
           >
-            {loading ? 'กำลังส่งข้อมูล...' : 'ยืนยัน'}
+            {loading ? 'กำลังส่ง...' : 'ยืนยัน'}
           </button>
         </div>
       </div>
