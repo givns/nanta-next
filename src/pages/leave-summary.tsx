@@ -9,7 +9,7 @@ const LeaveSummaryPage = () => {
   const router = useRouter();
   const [summaryData, setSummaryData] = useState<any>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false); // Add loading state
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const data = sessionStorage.getItem('leaveSummary');
@@ -32,7 +32,7 @@ const LeaveSummaryPage = () => {
             liff
               .getProfile()
               .then((profile) => {
-                setLineUserId(profile.userId); // Set the line user ID
+                setLineUserId(profile.userId);
               })
               .catch((err) => {
                 console.error('Error getting profile:', err);
@@ -82,7 +82,7 @@ const LeaveSummaryPage = () => {
 
       const leaveData = {
         ...summaryData,
-        userId: lineUserId,
+        userId: lineUserId, // Include lineUserId in the data
         status: 'Pending',
         fullDayCount,
       };
@@ -105,7 +105,7 @@ const LeaveSummaryPage = () => {
     }
   };
 
-  if (!summaryData || !lineUserId) {
+  if (!summaryData) {
     return <div>Loading...</div>;
   }
 
@@ -160,12 +160,18 @@ const LeaveSummaryPage = () => {
           </button>
           <button
             type="button"
-            className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+            className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
             onClick={handleSubmit}
           >
-            {loading ? 'กำลังส่งข้อมูล...' : 'ยืนยัน'}
+            ยืนยัน
           </button>
         </div>
+        {loading && (
+          <div className="loading-spinner flex justify-center mt-4">
+            {/* Add your loading spinner component or HTML here */}
+            Loading...
+          </div>
+        )}
       </div>
     </div>
   );
