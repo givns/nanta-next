@@ -8,32 +8,8 @@ import liff from '@line/liff';
 const LeaveSummaryPage = () => {
   const router = useRouter();
   const [summaryData, setSummaryData] = useState<any>(null);
-  const [lineUserId, setLineUserId] = useState<string | null>(null); // Correctly set up useState
-  const [loading, setLoading] = useState(false);
-
-  const calculateFullDayCount = (
-    startDate: string,
-    endDate: string,
-    leaveFormat: string,
-  ) => {
-    if (leaveFormat === 'ลาครึ่งวัน') {
-      return 0.5;
-    }
-    const start = dayjs(startDate);
-    const end = dayjs(endDate);
-    let fullDayCount = 0;
-    for (
-      let date = start;
-      date.isBefore(end) || date.isSame(end, 'day');
-      date = date.add(1, 'day')
-    ) {
-      if (date.day() !== 0) {
-        // Exclude Sundays
-        fullDayCount += 1;
-      }
-    }
-    return fullDayCount;
-  };
+  const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false); // Add loading state
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -58,7 +34,6 @@ const LeaveSummaryPage = () => {
           console.error('Error initializing LIFF:', err);
         });
     }
-
     const data = sessionStorage.getItem('leaveSummary');
     if (data) {
       console.log('Data retrieved from session storage:', data);
@@ -72,6 +47,30 @@ const LeaveSummaryPage = () => {
   if (!summaryData || !lineUserId) {
     return <div>Loading...</div>;
   }
+
+  const calculateFullDayCount = (
+    startDate: string,
+    endDate: string,
+    leaveFormat: string,
+  ) => {
+    if (leaveFormat === 'ลาครึ่งวัน') {
+      return 0.5;
+    }
+    const start = dayjs(startDate);
+    const end = dayjs(endDate);
+    let fullDayCount = 0;
+    for (
+      let date = start;
+      date.isBefore(end) || date.isSame(end, 'day');
+      date = date.add(1, 'day')
+    ) {
+      if (date.day() !== 0) {
+        // Exclude Sundays
+        fullDayCount += 1;
+      }
+    }
+    return fullDayCount;
+  };
 
   const handleSubmit = async () => {
     setLoading(true); // Set loading to true when submitting the form
@@ -103,7 +102,7 @@ const LeaveSummaryPage = () => {
       console.error('Error:', error.response?.data?.error || error.message);
       alert('Error: ' + (error.response?.data?.error || error.message));
     } finally {
-      setLoading(false);
+      setLoading(false); // Set loading to false when the submission is complete
     }
   };
 
@@ -127,13 +126,18 @@ const LeaveSummaryPage = () => {
             <strong>รูปแบบการลา:</strong> {summaryData.leaveFormat}
           </p>
           <p className="mb-2">
-            <strong>จำนวนวันลา:</strong> {summaryData.fullDayCount}
+            <strong>จำนวนวันลา:</strong>{' '}
+            {calculateFullDayCount(
+              summaryData.startDate,
+              summaryData.endDate,
+              summaryData.leaveFormat,
+            )}
           </p>
           <p className="mb-2">
             <strong>วันที่เริ่มต้น:</strong>{' '}
             {dayjs(summaryData.startDate).locale('th').format('D MMM YYYY')}
           </p>
-          {summaryData.fullDayCount > 1 && (
+          {summaryData.leaveFormat === 'ลาเต็มวัน' && (
             <p className="mb-2">
               <strong>วันที่สิ้นสุด:</strong>{' '}
               {dayjs(summaryData.endDate).locale('th').format('D MMM YYYY')}
@@ -153,10 +157,10 @@ const LeaveSummaryPage = () => {
           </button>
           <button
             type="button"
-            className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
+            className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
             onClick={handleSubmit}
           >
-            {loading ? 'กำลังส่ง...' : 'ยืนยัน'}
+            {loading ? 'กำลังส่งข้อมูล...' : 'ยืนยัน'}
           </button>
         </div>
       </div>
