@@ -1,36 +1,35 @@
 import { PrismaClient } from '@prisma/client';
-import dayjs from 'dayjs';
 
 const prisma = new PrismaClient();
 
-export const getLeaveRequestCount = async () => {
-  const today = dayjs();
-  const currentMonth = today.month();
-  const currentYear = today.year();
+const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
+  const now = new Date();
+  let currentMonthStart: Date;
 
-  let startOfPeriod, endOfPeriod;
-
-  if (today.date() >= 26) {
-    startOfPeriod = dayjs(`${currentYear}-${currentMonth + 1}-26`)
-      .subtract(1, 'month')
-      .startOf('day');
-    endOfPeriod = dayjs(`${currentYear}-${currentMonth + 1}-25`).endOf('day');
+  if (now.getDate() < 26) {
+    // Before the 26th, get the 26th of the previous month
+    const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 26);
+    currentMonthStart = previousMonth;
   } else {
-    startOfPeriod = dayjs(`${currentYear}-${currentMonth}-26`)
-      .subtract(1, 'month')
-      .startOf('day');
-    endOfPeriod = dayjs(`${currentYear}-${currentMonth}-25`).endOf('day');
+    // On or after the 26th, get the 26th of the current month
+    currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 26);
   }
 
-  const leaveRequestCount = await prisma.leaveRequest.count({
+  console.log('Admin ID:', adminId);
+  console.log('Current Month Start:', currentMonthStart);
+
+  const leaveRequests = await prisma.leaveRequest.findMany({
     where: {
+      approverId: adminId,
       createdAt: {
-        gte: startOfPeriod.toDate(),
-        lt: endOfPeriod.toDate(),
+        gte: currentMonthStart,
       },
-      status: 'Pending',
     },
   });
 
-  return leaveRequestCount;
+  console.log('Leave Requests:', leaveRequests);
+
+  return leaveRequests.length;
 };
+
+export default getLeaveCountForAdmin;

@@ -1,6 +1,5 @@
 import { Client, FlexMessage } from '@line/bot-sdk';
 import { LeaveRequest, User } from '@prisma/client';
-
 import prisma from './db';
 
 const client = new Client({
@@ -8,11 +7,18 @@ const client = new Client({
 });
 
 const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
-  const currentMonthStart = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth(),
-    1,
-  );
+  const now = new Date();
+  let currentMonthStart: Date;
+
+  if (now.getDate() < 26) {
+    // Before the 26th, get the 26th of the previous month
+    const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 26);
+    currentMonthStart = previousMonth;
+  } else {
+    // On or after the 26th, get the 26th of the current month
+    currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 26);
+  }
+
   const leaveRequests = await prisma.leaveRequest.findMany({
     where: {
       approverId: adminId,
@@ -21,6 +27,7 @@ const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
       },
     },
   });
+
   return leaveRequests.length;
 };
 
