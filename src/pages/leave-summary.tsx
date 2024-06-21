@@ -12,6 +12,17 @@ const LeaveSummaryPage = () => {
   const [loading, setLoading] = useState(false); // Add loading state
 
   useEffect(() => {
+    const data = sessionStorage.getItem('leaveSummary');
+    if (data) {
+      console.log('Data retrieved from session storage:', data);
+      setSummaryData(JSON.parse(data));
+    } else {
+      console.log('No data found, redirecting to leave request page.');
+      router.push('/leave-request');
+    }
+  }, [router]);
+
+  useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
     if (liffId) {
       liff
@@ -21,7 +32,7 @@ const LeaveSummaryPage = () => {
             liff
               .getProfile()
               .then((profile) => {
-                setLineUserId(profile.userId);
+                setLineUserId(profile.userId); // Set the line user ID
               })
               .catch((err) => {
                 console.error('Error getting profile:', err);
@@ -34,19 +45,7 @@ const LeaveSummaryPage = () => {
           console.error('Error initializing LIFF:', err);
         });
     }
-    const data = sessionStorage.getItem('leaveSummary');
-    if (data) {
-      console.log('Data retrieved from session storage:', data);
-      setSummaryData(JSON.parse(data));
-    } else {
-      console.log('No data found, redirecting to leave request page.');
-      router.push('/leave-request');
-    }
-  }, [router]);
-
-  if (!summaryData || !lineUserId) {
-    return <div>Loading...</div>;
-  }
+  }, []);
 
   const calculateFullDayCount = (
     startDate: string,
@@ -105,6 +104,10 @@ const LeaveSummaryPage = () => {
       setLoading(false); // Set loading to false when the submission is complete
     }
   };
+
+  if (!summaryData || !lineUserId) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="main-container flex justify-center items-center h-screen">

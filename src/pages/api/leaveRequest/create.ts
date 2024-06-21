@@ -10,7 +10,7 @@ export default async function handler(
 ) {
   if (req.method === 'POST') {
     const {
-      userId,
+      lineUserId, // Expecting lineUserId from the request body
       leaveType,
       leaveFormat,
       reason,
@@ -21,9 +21,18 @@ export default async function handler(
     } = req.body;
 
     try {
+      // Retrieve the user based on the lineUserId
+      const user = await prisma.user.findUnique({
+        where: { lineUserId }, // This should match the database schema
+      });
+
+      if (!user) {
+        throw new Error(`User with LINE user ID ${lineUserId} not found`);
+      }
+
       const leaveRequest = await prisma.leaveRequest.create({
         data: {
-          userId,
+          userId: user.id, // Use the user ID from the found user
           leaveType,
           leaveFormat,
           reason,
@@ -33,14 +42,6 @@ export default async function handler(
           fullDayCount,
         },
       });
-
-      const user = await prisma.user.findUnique({
-        where: { lineUserId: userId },
-      });
-
-      if (!user) {
-        throw new Error(`User with LINE user ID ${userId} not found`);
-      }
 
       await notifyAdmins(leaveRequest);
 
