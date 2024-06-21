@@ -80,11 +80,18 @@ const LeaveSummaryPage = () => {
         summaryData.leaveFormat,
       );
 
+      // Ensure endDate is valid for half-day leave
+      const formattedEndDate =
+        summaryData.leaveFormat === 'ลาครึ่งวัน'
+          ? summaryData.startDate
+          : summaryData.endDate;
+
       const leaveData = {
         ...summaryData,
         userId: lineUserId, // Include lineUserId in the data
         status: 'Pending',
         fullDayCount,
+        endDate: formattedEndDate,
       };
 
       console.log('Submitting leaveData:', leaveData);

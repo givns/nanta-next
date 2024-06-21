@@ -30,6 +30,10 @@ export default async function handler(
         throw new Error(`User with LINE user ID ${userId} not found`);
       }
 
+      // Handle half-day leave format by ensuring endDate is valid
+      const formattedEndDate =
+        leaveFormat === 'ลาครึ่งวัน' ? startDate : endDate;
+
       const leaveRequest = await prisma.leaveRequest.create({
         data: {
           userId: user.id, // Use the user ID from the found user
@@ -37,7 +41,7 @@ export default async function handler(
           leaveFormat,
           reason,
           startDate: new Date(startDate),
-          endDate: new Date(endDate),
+          endDate: new Date(formattedEndDate),
           status,
           fullDayCount,
         },
