@@ -24,9 +24,6 @@ const leaveRequestSchema = Yup.object().shape({
     is: 'ลาเต็มวัน',
     then: (schema) => schema.required('กรุณาเลือกวันที่สิ้นสุด'),
   }),
-  fullDayCount: Yup.number()
-    .min(0.5, 'จำนวนวันต้องมากกว่าหรือเท่ากับ 0.5')
-    .required('กรุณาระบุจำนวนวัน'),
 });
 
 const LeaveRequestForm: React.FC = () => {
