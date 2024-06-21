@@ -20,20 +20,16 @@ export default async function handler(
       fullDayCount,
     } = req.body;
 
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'User ID is required' });
+    }
+
     try {
-      const user = await prisma.user.findUnique({
-        where: { lineUserId: userId },
-      });
-
-      if (!user) {
-        return res
-          .status(400)
-          .json({ success: false, error: 'User not found' });
-      }
-
       const leaveRequest = await prisma.leaveRequest.create({
         data: {
-          userId: user.id,
+          userId,
           leaveType,
           leaveFormat,
           reason,
@@ -43,6 +39,16 @@ export default async function handler(
           fullDayCount,
         },
       });
+
+      const user = await prisma.user.findUnique({
+        where: { lineUserId: userId },
+      });
+
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, error: 'User not found' });
+      }
 
       await notifyAdmins(leaveRequest);
 

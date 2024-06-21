@@ -9,6 +9,22 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 dayjs.extend(isSameOrBefore);
 dayjs.extend(customParseFormat);
 
+const calculateFullDayCount = (startDate: Date, endDate: Date): number => {
+  let count = 0;
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    const dayOfWeek = currentDate.getDay();
+    if (dayOfWeek !== 0) {
+      // 0 corresponds to Sunday
+      count++;
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return count;
+};
+
 const LeaveSummary: React.FC = () => {
   const router = useRouter();
   const [leaveData, setLeaveData] = useState<any>(null);
@@ -21,11 +37,10 @@ const LeaveSummary: React.FC = () => {
       const fullDayCount =
         parsedData.leaveFormat === 'ลาครึ่งวัน'
           ? 0.5
-          : Math.ceil(
-              (new Date(parsedData.endDate).getTime() -
-                new Date(parsedData.startDate).getTime()) /
-                (1000 * 60 * 60 * 24),
-            ) + 1;
+          : calculateFullDayCount(
+              new Date(parsedData.startDate),
+              new Date(parsedData.endDate),
+            );
       parsedData.fullDayCount = fullDayCount;
       setLeaveData(parsedData);
     } else {
