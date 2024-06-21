@@ -1,5 +1,6 @@
 import { Client, FlexMessage } from '@line/bot-sdk';
 import { LeaveRequest, User } from '@prisma/client';
+
 import prisma from './db';
 
 const client = new Client({
