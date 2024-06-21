@@ -3,34 +3,12 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
-
-const calculateFullDayCount = (
-  startDate: string,
-  endDate: string,
-  leaveFormat: string,
-) => {
-  if (leaveFormat === 'ลาครึ่งวัน') {
-    return 0.5;
-  }
-  const start = dayjs(startDate);
-  const end = dayjs(endDate);
-  let fullDayCount = 0;
-  for (
-    let date = start;
-    date.isBefore(end) || date.isSame(end, 'day');
-    date = date.add(1, 'day')
-  ) {
-    if (date.day() !== 0) {
-      // Exclude Sundays
-      fullDayCount += 1;
-    }
-  }
-  return fullDayCount;
-};
+import liff from '@line/liff';
 
 const LeaveSummaryPage = () => {
   const router = useRouter();
   const [summaryData, setSummaryData] = useState<any>(null);
+  const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -44,9 +22,54 @@ const LeaveSummaryPage = () => {
     }
   }, [router]);
 
-  if (!summaryData) {
-    return <div>Loading...</div>;
-  }
+  useEffect(() => {
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (liffId) {
+      liff
+        .init({ liffId })
+        .then(() => {
+          if (liff.isLoggedIn()) {
+            liff
+              .getProfile()
+              .then((profile) => {
+                setLineUserId(profile.userId);
+              })
+              .catch((err) => {
+                console.error('Error getting profile:', err);
+              });
+          } else {
+            liff.login();
+          }
+        })
+        .catch((err) => {
+          console.error('Error initializing LIFF:', err);
+        });
+    }
+  }, []);
+
+  const calculateFullDayCount = (
+    startDate: string,
+    endDate: string,
+    leaveFormat: string,
+  ) => {
+    if (leaveFormat === 'ลาครึ่งวัน') {
+      return 0.5;
+    }
+    const start = dayjs(startDate);
+    const end = dayjs(endDate);
+    let fullDayCount = 0;
+    for (
+      let date = start;
+      date.isBefore(end) || date.isSame(end, 'day');
+      date = date.add(1, 'day')
+    ) {
+      if (date.day() !== 0) {
+        // Exclude Sundays
+        fullDayCount += 1;
+      }
+    }
+    return fullDayCount;
+  };
 
   const handleSubmit = async () => {
     setLoading(true); // Set loading to true when submitting the form
@@ -59,6 +82,7 @@ const LeaveSummaryPage = () => {
 
       const leaveData = {
         ...summaryData,
+        userId: lineUserId, // Include lineUserId in the data
         status: 'Pending',
         fullDayCount,
       };
@@ -81,14 +105,20 @@ const LeaveSummaryPage = () => {
     }
   };
 
+  if (!summaryData) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="main-container flex justify-center items-center h-screen">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mb-4">
-          <div
-            className="bg-blue-600 h-2.5 rounded-full"
-            style={{ width: '100%' }}
-          ></div>
+        <div className="mb-1 text-base font-medium dark:text-white">
+          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+            <div
+              className="bg-blue-600 h-2.5 rounded-full"
+              style={{ width: '100%' }}
+            ></div>
+          </div>
         </div>
         <h1 className="text-2xl font-bold mb-4">รายละเอียดการลา</h1>
         <div className="mb-4">
