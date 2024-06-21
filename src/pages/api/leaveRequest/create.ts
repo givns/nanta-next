@@ -21,9 +21,19 @@ export default async function handler(
     } = req.body;
 
     try {
+      const user = await prisma.user.findUnique({
+        where: { lineUserId: userId },
+      });
+
+      if (!user) {
+        return res
+          .status(400)
+          .json({ success: false, error: 'User not found' });
+      }
+
       const leaveRequest = await prisma.leaveRequest.create({
         data: {
-          userId,
+          userId: user.id,
           leaveType,
           leaveFormat,
           reason,
