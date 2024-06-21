@@ -20,10 +20,18 @@ export default async function handler(
       fullDayCount,
     } = req.body;
 
-    if (!userId) {
+    if (
+      !userId ||
+      !leaveType ||
+      !leaveFormat ||
+      !reason ||
+      !startDate ||
+      (!endDate && leaveFormat === 'ลาเต็มวัน') ||
+      fullDayCount === undefined
+    ) {
       return res
         .status(400)
-        .json({ success: false, error: 'User ID is required' });
+        .json({ success: false, error: 'Missing required fields' });
     }
 
     try {
