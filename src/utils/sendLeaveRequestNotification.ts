@@ -27,7 +27,7 @@ export const sendLeaveRequestNotification = async (
   admin: User,
   leaveRequest: LeaveRequest,
 ) => {
-  const requestCount = await getLeaveCountForAdmin;
+  const requestCount = await getLeaveCountForAdmin(admin.id);
   const user = await prisma.user.findUnique({
     where: { id: leaveRequest.userId },
   });
@@ -44,7 +44,7 @@ export const sendLeaveRequestNotification = async (
       size: 'mega',
       header: {
         type: 'box',
-        layout: 'vertical',
+        layout: 'horizontal',
         contents: [
           {
             type: 'box',
@@ -52,7 +52,29 @@ export const sendLeaveRequestNotification = async (
             contents: [
               {
                 type: 'text',
-                text: requestCount.toString(),
+                text: 'แบบฟอร์มขอลางาน',
+                color: '#000000',
+                size: 'xl',
+                flex: 4,
+                weight: 'bold',
+                align: 'center',
+                gravity: 'center',
+              },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            contents: [],
+            width: '10px',
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            contents: [
+              {
+                type: 'text',
+                text: `${requestCount}`,
                 align: 'center',
                 gravity: 'center',
                 color: '#FFFFFF',
@@ -66,25 +88,12 @@ export const sendLeaveRequestNotification = async (
             cornerRadius: '30px',
             backgroundColor: '#FF1900',
           },
-          {
-            type: 'box',
-            layout: 'vertical',
-            contents: [
-              {
-                type: 'text',
-                text: 'Leave Request',
-                color: '#000000',
-                size: 'xl',
-                flex: 4,
-                weight: 'bold',
-              },
-            ],
-          },
         ],
         paddingAll: '20px',
         backgroundColor: '#F0F0F0',
         spacing: 'md',
         paddingTop: '22px',
+        height: '100px',
       },
       hero: {
         type: 'box',

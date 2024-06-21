@@ -116,8 +116,7 @@ const LeaveRequestForm: React.FC = () => {
             ? new Date(values.startDate)
             : new Date(values.endDate),
         status: 'Pending',
-        fullDayCount:
-          values.leaveFormat === 'ลาครึ่งวัน' ? 0.5 : values.fullDayCount,
+        fullDayCount: values.leaveFormat === 'ลาครึ่งวัน' ? 0.5 : 0,
       };
 
       console.log('Submitting leaveData:', leaveData);
@@ -256,7 +255,7 @@ const LeaveRequestForm: React.FC = () => {
                         }`}
                         onClick={() => {
                           setFieldValue('leaveFormat', 'ลาเต็มวัน');
-                          setFieldValue('fullDayCount', 1);
+                          setFieldValue('fullDayCount', 0);
                         }}
                       >
                         ลาเต็มวัน
@@ -266,7 +265,7 @@ const LeaveRequestForm: React.FC = () => {
                         className={`block w-full p-2.5 text-center border rounded-lg ${
                           values.leaveFormat === 'ลาครึ่งวัน'
                             ? 'bg-blue-500 text-white'
-                            : '                      bg-gray-50 text-gray-900'
+                            : 'bg-gray-50 text-gray-900'
                         }`}
                         onClick={() => {
                           setFieldValue('leaveFormat', 'ลาครึ่งวัน');
