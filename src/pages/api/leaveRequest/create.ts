@@ -20,20 +20,6 @@ export default async function handler(
       fullDayCount,
     } = req.body;
 
-    if (
-      !userId ||
-      !leaveType ||
-      !leaveFormat ||
-      !reason ||
-      !startDate ||
-      (!endDate && leaveFormat === 'ลาเต็มวัน') ||
-      fullDayCount === undefined
-    ) {
-      return res
-        .status(400)
-        .json({ success: false, error: 'Missing required fields' });
-    }
-
     try {
       const leaveRequest = await prisma.leaveRequest.create({
         data: {
@@ -53,15 +39,13 @@ export default async function handler(
       });
 
       if (!user) {
-        return res
-          .status(404)
-          .json({ success: false, error: 'User not found' });
+        throw new Error(`User with LINE user ID ${userId} not found`);
       }
 
       await notifyAdmins(leaveRequest);
 
       res.status(201).json({ success: true, data: leaveRequest });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating leave request:', error);
       res.status(500).json({ success: false, error: 'Internal Server Error' });
     } finally {
