@@ -87,6 +87,7 @@ export const sendLeaveRequestNotification = async (
             height: '25px',
             cornerRadius: '30px',
             backgroundColor: '#FF1900',
+            justifyContent: 'center',
           },
         ],
         paddingAll: '20px',

@@ -356,6 +356,7 @@ export const notifyAdmins = async (leaveRequest: LeaveRequest) => {
               height: '25px',
               cornerRadius: '30px',
               backgroundColor: '#FF1900',
+              justifyContent: 'center',
             },
           ],
           paddingAll: '20px',
