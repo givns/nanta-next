@@ -232,7 +232,7 @@ export const sendLeaveRequestNotification = async (
             action: {
               type: 'uri',
               label: 'ไม่อนุมัติ',
-              uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}?path=/deny-reason&requestId=${leaveRequest.id}`,
+              uri: `action=deny&requestId=${leaveRequest.id}&approverId=${admin.id}`,
             },
             color: '#F0F0F0',
             style: 'secondary',
