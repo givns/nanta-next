@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import axios from 'axios';
 import liff from '@line/liff';
 
 const DenyReasonPage = () => {
   const router = useRouter();
-  const { requestId } = router.query; // Get requestId from query params
+  const { requestId, approverId } = router.query; // Get requestId from query params
   const [denialReason, setDenialReason] = useState('');
   const [lineUserId, setLineUserId] = useState<string | null>(null);
 
@@ -29,69 +30,45 @@ const DenyReasonPage = () => {
     initializeLiff();
   }, []);
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    console.log('Submitting with values:', {
-      requestId,
-      lineUserId,
-      denialReason,
-    }); // Log the values before submission
-
-    if (!denialReason || !requestId || !lineUserId) {
-      console.log('Missing required information:', {
+  const handleSubmit = async () => {
+    try {
+      const response = await axios.post('/api/leaveRequest/deny', {
         requestId,
-        lineUserId,
+        approverId,
         denialReason,
       });
-      alert('Missing required information.');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/leaveRequest/deny', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'deny', // Include the deny action
-          requestId,
-          lineUserId,
-          denialReason,
-        }),
-      });
-
-      if (response.ok) {
-        alert('Leave request denied successfully.');
-        liff.closeWindow(); // Close the LIFF window
+      if (response.status === 200) {
+        liff.closeWindow();
       } else {
-        alert('Error denying leave request.');
+        alert('Failed to submit denial reason.');
       }
     } catch (error) {
-      console.error('Error denying leave request:', error);
-      alert('Error denying leave request.');
+      console.error('Error submitting denial reason:', error);
+      alert('An error occurred. Please try again.');
     }
   };
 
   return (
-    <div className="container">
-      <h1>Deny Leave Request</h1>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">ระบุเหตุผลในการไม่อนุมัติ</h1>
       <form onSubmit={handleSubmit}>
         <input type="hidden" name="requestId" value={requestId as string} />
         <input type="hidden" name="lineUserId" value={lineUserId as string} />
         <div>
           <label htmlFor="denialReason">Reason for Denial</label>
           <textarea
-            id="denialReason"
-            name="denialReason"
+            className="w-full p-2 border rounded mb-4"
+            rows={4} // Fixing the type by passing a number instead of a string
             value={denialReason}
             onChange={(e) => setDenialReason(e.target.value)}
-            required
+            placeholder="กรุณาระบุเหตุผล..."
           />
         </div>
-        <button type="submit" disabled={!lineUserId}>
-          Submit
+        <button
+          className="w-full p-2 bg-red-500 text-white rounded"
+          onClick={handleSubmit}
+        >
+          ยืนยัน
         </button>
       </form>
     </div>
