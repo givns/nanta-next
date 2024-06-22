@@ -32,11 +32,11 @@ const DenyReasonPage = () => {
       }
     };
     initializeLiff();
-  }, []);
+  }, [requestId]);
 
   const fetchLeaveRequest = async () => {
     try {
-      const response = await axios.get(`/api/leave-request/${requestId}`);
+      const response = await axios.get(`/api/leaveRequest/${requestId}`);
       setLeaveRequest(response.data);
       console.log('Leave request data:', response.data); // Log the leave request data
       setIsLoading(false); // Set loading to false once data is fetched
