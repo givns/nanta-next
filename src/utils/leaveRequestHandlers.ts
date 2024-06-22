@@ -37,6 +37,7 @@ export const handleApprove = async (requestId: string, lineUserId: string) => {
       console.log('Sending approval notifications to user and admins');
       await sendApproveNotification(user, leaveRequest, admin);
       console.log('Approval notifications sent successfully');
+      // Ensure notifyAdmins is called only once
       await notifyAdmins(leaveRequest);
       console.log('Admin notifications sent successfully');
     } else {
