@@ -80,7 +80,6 @@ const handler = async (event: WebhookEvent) => {
     const params = new URLSearchParams(data);
     const action = params.get('action');
     const requestId = params.get('requestId');
-    const denialReason = params.get('denialReason');
 
     if (action && requestId && userId) {
       try {
@@ -99,15 +98,7 @@ const handler = async (event: WebhookEvent) => {
         if (action === 'approve') {
           await handleApprove(requestId, userId);
         } else if (action === 'deny') {
-          if (denialReason) {
-            await handleDeny(requestId, userId, denialReason);
-          } else {
-            // If denialReason is not present, prompt the user for it
-            await client.replyMessage(event.replyToken, {
-              type: 'text',
-              text: 'Please provide a reason for denial.',
-            });
-          }
+          await handleDeny(requestId, userId);
         }
       } catch (error) {
         console.error('Error processing postback action:', error);
