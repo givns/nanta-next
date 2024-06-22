@@ -901,3 +901,45 @@ export default LeaveRequestForm;
 "paddingAll": "0px"
 }
 }
+
+{
+"type": "box",
+"layout": "horizontal",
+"contents": [
+{
+"type": "box",
+"layout": "baseline",
+"contents": [
+{
+"type": "filler"
+}
+],
+"flex": 1
+},
+{
+"type": "box",
+"layout": "vertical",
+"contents": [
+{
+"type": "box",
+"layout": "horizontal",
+"contents": [
+{
+"type": "filler"
+},
+{
+"type": "box",
+"layout": "vertical",
+"contents": [],
+"width": "2px",
+"backgroundColor": "#B7B7B7"
+},
+{
+"type": "filler"
+}
+],
+"flex": 1
+}
+],
+"width": "12px"
+},
