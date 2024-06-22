@@ -34,8 +34,12 @@ export const handleApprove = async (requestId: string, userId: string) => {
     });
 
     if (user && admin) {
+      console.log('Sending approval notifications');
       await sendApproveNotification(user, leaveRequest, admin);
+      console.log('Notifying admins');
       await notifyAdmins(leaveRequest);
+    } else {
+      console.error('User or admin not found:', { user, admin });
     }
   } catch (error: any) {
     console.error('Error approving leave request:', error.message);
@@ -73,8 +77,12 @@ export const handleDeny = async (
     });
 
     if (user && admin) {
+      console.log('Sending denial notifications');
       await sendDenyNotification(user, leaveRequest, denialReason, admin);
+      console.log('Notifying admins');
       await notifyAdmins(leaveRequest);
+    } else {
+      console.error('User or admin not found:', { user, admin });
     }
   } catch (error: any) {
     console.error('Error denying leave request:', error.message);
