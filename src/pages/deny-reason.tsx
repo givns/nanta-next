@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import axios from 'axios';
 import liff from '@line/liff';
 
 const DenyReasonPage = () => {
@@ -8,22 +7,17 @@ const DenyReasonPage = () => {
   const { requestId, approverId } = router.query; // Get requestId and approverId from query params
   const [denialReason, setDenialReason] = useState('');
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [leaveRequest, setLeaveRequest] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const initializeLiff = async () => {
-      console.log('Initializing LIFF...');
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
-        console.log('LIFF initialized.');
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
-          console.log('User logged in. User ID:', profile.userId); // Log the user ID
-          fetchLeaveRequest(); // Fetch leave request information after getting the user ID
+          setIsLoading(false); // Set loading to false once LIFF is initialized and user ID is obtained
         } else {
-          console.log('User not logged in. Redirecting to login...');
           liff.login();
         }
       } catch (error) {
@@ -32,53 +26,27 @@ const DenyReasonPage = () => {
       }
     };
     initializeLiff();
-  }, [requestId]);
-
-  const fetchLeaveRequest = async () => {
-    try {
-      if (requestId) {
-        const response = await axios.get(`/api/leaveRequest/${requestId}`);
-        setLeaveRequest(response.data);
-        console.log('Leave request data:', response.data); // Log the leave request data
-        setIsLoading(false); // Set loading to false once data is fetched
-      }
-    } catch (error) {
-      console.error('Error fetching leave request:', error);
-      setIsLoading(false); // Set loading to false in case of an error
-    }
-  };
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    // Add detailed logging before submission
-    console.log('Submitting with values:', {
-      requestId,
-      approverId,
-      lineUserId,
-      denialReason,
-      leaveRequest,
-    });
-
     if (!denialReason || !requestId || !lineUserId || !approverId) {
-      console.log('Missing required information:', {
-        requestId,
-        approverId,
-        lineUserId,
-        denialReason,
-      });
       alert('Missing required information.');
       return;
     }
 
     try {
-      const response = await axios.post('/api/leaveRequest/deny', {
-        action: 'deny',
-        requestId,
-        approverId,
-        lineUserId,
-        denialReason,
-        leaveRequest, // Include leave request information
+      const response = await fetch('/api/leaveRequest/deny', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'deny',
+          requestId,
+          approverId,
+          lineUserId,
+          denialReason,
+        }),
       });
 
       if (response.status === 200) {
@@ -117,7 +85,7 @@ const DenyReasonPage = () => {
           <button
             type="submit"
             className="w-full p-2 bg-red-500 text-white rounded"
-            disabled={!lineUserId || isLoading}
+            disabled={!lineUserId}
           >
             ยืนยัน
           </button>
