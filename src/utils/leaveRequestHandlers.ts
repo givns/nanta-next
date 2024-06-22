@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import {
   sendApproveNotification,
   sendDenyNotification,
+  notifyAdmins,
 } from './sendNotifications';
 
 const prisma = new PrismaClient();
@@ -28,8 +29,13 @@ export const handleApprove = async (requestId: string, userId: string) => {
       where: { id: leaveRequest.userId },
     });
 
-    if (user) {
-      await sendApproveNotification(user, leaveRequest);
+    const admin = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (user && admin) {
+      await sendApproveNotification(user, leaveRequest, admin);
+      await notifyAdmins(leaveRequest);
     }
   } catch (error: any) {
     console.error('Error approving leave request:', error.message);
@@ -62,8 +68,13 @@ export const handleDeny = async (
       where: { id: leaveRequest.userId },
     });
 
-    if (user) {
-      await sendDenyNotification(user, leaveRequest, denialReason);
+    const admin = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (user && admin) {
+      await sendDenyNotification(user, leaveRequest, denialReason, admin);
+      await notifyAdmins(leaveRequest);
     }
   } catch (error: any) {
     console.error('Error denying leave request:', error.message);

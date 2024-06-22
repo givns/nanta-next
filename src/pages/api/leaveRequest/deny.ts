@@ -1,44 +1,42 @@
+import { PrismaClient } from '@prisma/client';
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../utils/db';
 import { sendDenyNotification } from '../../../utils/sendNotifications';
+
+const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  if (req.method === 'POST') {
-    const { requestId, approverId, denialReason } = req.body;
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-    // Log the received data for debugging
-    console.log('Received data:', { requestId, approverId, denialReason });
+  const { leaveRequestId, adminId, denialReason } = req.body;
 
-    if (!requestId || !approverId || !denialReason) {
-      return res.status(400).json({
-        error:
-          'Missing required fields: requestId, approverId, or denialReason',
-      });
+  try {
+    const leaveRequest = await prisma.leaveRequest.update({
+      where: { id: leaveRequestId },
+      data: { status: 'Denied', approverId: adminId, denialReason },
+    });
+
+    const admin = await prisma.user.findUnique({ where: { id: adminId } });
+    const user = await prisma.user.findUnique({
+      where: { id: leaveRequest.userId },
+    });
+
+    if (!admin || !user) {
+      throw new Error('Admin or user not found');
     }
 
-    try {
-      const leaveRequest = await prisma.leaveRequest.update({
-        where: { id: requestId },
-        data: { status: 'denied', approverId, denialReason },
-      });
+    // Send notifications
+    await sendDenyNotification(user, leaveRequest, denialReason, admin);
 
-      const user = await prisma.user.findUnique({
-        where: { id: leaveRequest.userId },
-      });
-
-      if (user) {
-        await sendDenyNotification(user, leaveRequest, denialReason);
-      }
-
-      return res.status(200).json(leaveRequest);
-    } catch (error: any) {
-      console.error('Error denying leave request:', error);
-      return res.status(500).json({ success: false, error: error.message });
-    }
-  } else {
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error denying leave request:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  } finally {
+    await prisma.$disconnect();
   }
 }
