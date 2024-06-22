@@ -36,10 +36,12 @@ const DenyReasonPage = () => {
 
   const fetchLeaveRequest = async () => {
     try {
-      const response = await axios.get(`/api/leaveRequest/${requestId}`);
-      setLeaveRequest(response.data);
-      console.log('Leave request data:', response.data); // Log the leave request data
-      setIsLoading(false); // Set loading to false once data is fetched
+      if (requestId) {
+        const response = await axios.get(`/api/leaveRequest/${requestId}`);
+        setLeaveRequest(response.data);
+        console.log('Leave request data:', response.data); // Log the leave request data
+        setIsLoading(false); // Set loading to false once data is fetched
+      }
     } catch (error) {
       console.error('Error fetching leave request:', error);
       setIsLoading(false); // Set loading to false in case of an error
