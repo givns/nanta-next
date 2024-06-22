@@ -15,6 +15,7 @@ const DenyReasonPage = () => {
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
+          console.log('LIFF initialized and user ID set:', profile.userId); // Log the user ID
         } else {
           liff.login();
         }
@@ -27,6 +28,12 @@ const DenyReasonPage = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    console.log('Submitting with values:', {
+      requestId,
+      lineUserId,
+      denialReason,
+    }); // Log the values before submission
 
     if (!denialReason || !requestId || !lineUserId) {
       alert('Missing required information.');
@@ -60,19 +67,19 @@ const DenyReasonPage = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">ระบุเหตุผลในการไม่อนุมัติ</h1>
+    <div className="container">
+      <h1>Deny Leave Request</h1>
       <form onSubmit={handleSubmit}>
         <input type="hidden" name="requestId" value={requestId as string} />
         <input type="hidden" name="lineUserId" value={lineUserId as string} />
         <div>
           <label htmlFor="denialReason">Reason for Denial</label>
           <textarea
-            className="w-full p-2 border rounded mb-4"
-            rows={4} // Fixing the type by passing a number instead of a string
+            id="denialReason"
+            name="denialReason"
             value={denialReason}
             onChange={(e) => setDenialReason(e.target.value)}
-            placeholder="กรุณาระบุเหตุผล..."
+            required
           />
         </div>
         <button type="submit" disabled={!lineUserId}>
