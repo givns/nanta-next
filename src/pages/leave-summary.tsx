@@ -44,9 +44,18 @@ const LeaveSummaryPage = () => {
         .catch((err) => {
           console.error('Error initializing LIFF:', err);
         });
+    } else {
+      console.error('LIFF ID is not set in the environment variables.');
     }
   }, []);
 
+  const isNonWorkingDay = (date: dayjs.Dayjs) => {
+    // List of public holidays in 'YYYY-MM-DD' format
+    const publicHolidays = ['2023-12-31', '2024-01-01', '2024-04-06']; // Example holidays
+    return (
+      date.day() === 0 || publicHolidays.includes(date.format('YYYY-MM-DD'))
+    );
+  };
   const calculateFullDayCount = (
     startDate: string,
     endDate: string,
