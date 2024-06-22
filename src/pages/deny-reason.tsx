@@ -1,47 +1,36 @@
-import { useState } from 'react';
+// pages/deny-reason.js
 import { useRouter } from 'next/router';
+import { useState } from 'react';
 import axios from 'axios';
-import liff from '@line/liff';
 
 const DenyReasonPage = () => {
   const router = useRouter();
-  const { requestId, approverId } = router.query;
+  const { requestId } = router.query;
   const [denialReason, setDenialReason] = useState('');
 
-  const handleSubmit = async () => {
+  const handleDeny = async () => {
     try {
-      const response = await axios.post('/api/leaveRequest/deny', {
+      await axios.post('/api/leaveRequest/deny', {
         requestId,
-        approverId,
         denialReason,
       });
-      if (response.status === 200) {
-        liff.closeWindow();
-      } else {
-        alert('Failed to submit denial reason.');
-      }
+      alert('Denial reason submitted successfully');
+      router.push('/');
     } catch (error) {
       console.error('Error submitting denial reason:', error);
-      alert('An error occurred. Please try again.');
+      alert('Error submitting denial reason');
     }
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">ระบุเหตุผลในการไม่อนุมัติ</h1>
+    <div>
+      <h1>Provide Denial Reason</h1>
       <textarea
-        className="w-full p-2 border rounded mb-4"
-        rows={4} // Fixing the type by passing a number instead of a string
         value={denialReason}
         onChange={(e) => setDenialReason(e.target.value)}
-        placeholder="กรุณาระบุเหตุผล..."
+        placeholder="Enter denial reason"
       />
-      <button
-        className="w-full p-2 bg-red-500 text-white rounded"
-        onClick={handleSubmit}
-      >
-        ยืนยัน
-      </button>
+      <button onClick={handleDeny}>Submit Denial Reason</button>
     </div>
   );
 };
