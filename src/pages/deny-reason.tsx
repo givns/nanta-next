@@ -8,6 +8,7 @@ const DenyReasonPage = () => {
   const { requestId, approverId } = router.query; // Get requestId and approverId from query params
   const [denialReason, setDenialReason] = useState('');
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [leaveRequest, setLeaveRequest] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -20,7 +21,7 @@ const DenyReasonPage = () => {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
           console.log('User logged in. User ID:', profile.userId); // Log the user ID
-          setIsLoading(false); // Set loading to false once LIFF is initialized and user ID is obtained
+          fetchLeaveRequest(); // Fetch leave request information after getting the user ID
         } else {
           console.log('User not logged in. Redirecting to login...');
           liff.login();
@@ -33,6 +34,18 @@ const DenyReasonPage = () => {
     initializeLiff();
   }, []);
 
+  const fetchLeaveRequest = async () => {
+    try {
+      const response = await axios.get(`/api/leaveRequest/${requestId}`);
+      setLeaveRequest(response.data);
+      console.log('Leave request data:', response.data); // Log the leave request data
+      setIsLoading(false); // Set loading to false once data is fetched
+    } catch (error) {
+      console.error('Error fetching leave request:', error);
+      setIsLoading(false); // Set loading to false in case of an error
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -42,6 +55,7 @@ const DenyReasonPage = () => {
       approverId,
       lineUserId,
       denialReason,
+      leaveRequest,
     });
 
     if (!denialReason || !requestId || !lineUserId || !approverId) {
@@ -62,6 +76,7 @@ const DenyReasonPage = () => {
         approverId,
         lineUserId,
         denialReason,
+        leaveRequest, // Include leave request information
       });
 
       if (response.status === 200) {
@@ -100,7 +115,7 @@ const DenyReasonPage = () => {
           <button
             type="submit"
             className="w-full p-2 bg-red-500 text-white rounded"
-            disabled={!lineUserId}
+            disabled={!lineUserId || isLoading}
           >
             ยืนยัน
           </button>
