@@ -16,20 +16,29 @@ const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
   }
 
   console.log('Admin ID:', adminId);
-  console.log('Current Month Start:', currentMonthStart);
+  console.log('Current Month Start:', currentMonthStart.toISOString());
 
-  const leaveRequests = await prisma.leaveRequest.findMany({
-    where: {
-      approverId: adminId,
-      createdAt: {
-        gte: currentMonthStart,
+  try {
+    const leaveRequests = await prisma.leaveRequest.findMany({
+      where: {
+        createdAt: {
+          gte: currentMonthStart,
+        },
       },
-    },
-  });
+    });
 
-  console.log('Leave Requests:', leaveRequests);
+    console.log('Leave Requests Found:', leaveRequests.length);
+    leaveRequests.forEach((request) => {
+      console.log(
+        `Leave Request: ${request.id}, Created At: ${request.createdAt}`,
+      );
+    });
 
-  return leaveRequests.length;
+    return leaveRequests.length;
+  } catch (error) {
+    console.error('Error fetching leave requests:', error);
+    return 0;
+  }
 };
 
 export default getLeaveCountForAdmin;
