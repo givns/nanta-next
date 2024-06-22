@@ -46,13 +46,16 @@ export const handleApprove = async (requestId: string, lineUserId: string) => {
     console.error('Error approving leave request:', error.message);
   }
 };
-
 export const handleDeny = async (
   requestId: string,
   lineUserId: string,
   denialReason: string,
 ) => {
   try {
+    console.log(
+      `Handling denial for requestId: ${requestId}, lineUserId: ${lineUserId}, denialReason: ${denialReason}`,
+    );
+
     // Check if the request has already been approved or denied
     const existingRequest = await prisma.leaveRequest.findUnique({
       where: { id: requestId },
