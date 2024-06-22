@@ -8,8 +8,6 @@ const prisma = new PrismaClient();
 
 export const handleApprove = async (requestId: string, lineUserId: string) => {
   try {
-    console.log(`Approving leave request: ${requestId} by user: ${lineUserId}`);
-
     // Check if the request has already been approved or denied
     const existingRequest = await prisma.leaveRequest.findUnique({
       where: { id: requestId },
@@ -35,27 +33,19 @@ export const handleApprove = async (requestId: string, lineUserId: string) => {
     });
 
     if (user && admin) {
-      console.log('Sending approval notifications to user and admins');
       await sendApproveNotification(user, leaveRequest, admin);
-      console.log('Approval notifications sent successfully');
     } else {
       console.error('User or admin not found:', { user, admin });
     }
   } catch (error: any) {
     console.error('Error approving leave request:', error.message);
+  } finally {
+    await prisma.$disconnect();
   }
 };
 
-export const handleDeny = async (
-  requestId: string,
-  lineUserId: string,
-  denialReason: string,
-) => {
+export const handleDeny = async (requestId: string, lineUserId: string) => {
   try {
-    console.log(
-      `Denying leave request: ${requestId} by user: ${lineUserId} with reason: ${denialReason}`,
-    );
-
     // Check if the request has already been approved or denied
     const existingRequest = await prisma.leaveRequest.findUnique({
       where: { id: requestId },
@@ -68,7 +58,7 @@ export const handleDeny = async (
 
     const leaveRequest = await prisma.leaveRequest.update({
       where: { id: requestId },
-      data: { status: 'Denied', approverId: lineUserId, denialReason },
+      data: { status: 'Denied', approverId: lineUserId, denialReason: '' },
     });
     console.log('Leave request denied:', leaveRequest);
 
@@ -81,13 +71,13 @@ export const handleDeny = async (
     });
 
     if (user && admin) {
-      console.log('Sending denial notifications to user and admins');
-      await sendDenyNotification(user, leaveRequest, denialReason, admin);
-      console.log('Denial notifications sent successfully');
+      await sendDenyNotification(user, leaveRequest, admin);
     } else {
       console.error('User or admin not found:', { user, admin });
     }
   } catch (error: any) {
     console.error('Error denying leave request:', error.message);
+  } finally {
+    await prisma.$disconnect();
   }
 };

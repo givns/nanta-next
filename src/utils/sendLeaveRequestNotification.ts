@@ -230,9 +230,9 @@ export const sendLeaveRequestNotification = async (
           {
             type: 'button',
             action: {
-              type: 'uri',
+              type: 'postback',
               label: 'ไม่อนุมัติ',
-              uri: `action=deny&requestId=${leaveRequest.id}&approverId=${admin.id}`,
+              data: `action=deny&requestId=${leaveRequest.id}&approverId=${admin.id}`,
             },
             color: '#F0F0F0',
             style: 'secondary',
