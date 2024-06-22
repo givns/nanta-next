@@ -101,6 +101,12 @@ const handler = async (event: WebhookEvent) => {
           const denialReason = params.get('denialReason');
           if (denialReason) {
             await handleDeny(requestId, userId, denialReason);
+          } else {
+            // If denialReason is not present, prompt the user for it
+            await client.replyMessage(event.replyToken, {
+              type: 'text',
+              text: 'Please provide a reason for denial.',
+            });
           }
         }
       } catch (error) {
