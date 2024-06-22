@@ -7,7 +7,7 @@ import {
 
 const prisma = new PrismaClient();
 
-export const handleApprove = async (requestId: string, userId: string) => {
+export const handleApprove = async (requestId: string, lineUserId: string) => {
   try {
     // Check if the request has already been approved or denied
     const existingRequest = await prisma.leaveRequest.findUnique({
@@ -21,7 +21,7 @@ export const handleApprove = async (requestId: string, userId: string) => {
 
     const leaveRequest = await prisma.leaveRequest.update({
       where: { id: requestId },
-      data: { status: 'Approved', approverId: userId },
+      data: { status: 'Approved', approverId: lineUserId },
     });
     console.log('Leave request approved:', leaveRequest);
 
@@ -30,14 +30,15 @@ export const handleApprove = async (requestId: string, userId: string) => {
     });
 
     const admin = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { lineUserId },
     });
 
     if (user && admin) {
-      console.log('Sending approval notifications');
+      console.log('Sending approval notifications to user and admins');
       await sendApproveNotification(user, leaveRequest, admin);
-      console.log('Notifying admins');
+      console.log('Approval notifications sent successfully');
       await notifyAdmins(leaveRequest);
+      console.log('Admin notifications sent successfully');
     } else {
       console.error('User or admin not found:', { user, admin });
     }
@@ -48,7 +49,7 @@ export const handleApprove = async (requestId: string, userId: string) => {
 
 export const handleDeny = async (
   requestId: string,
-  userId: string,
+  lineUserId: string,
   denialReason: string,
 ) => {
   try {
@@ -64,7 +65,7 @@ export const handleDeny = async (
 
     const leaveRequest = await prisma.leaveRequest.update({
       where: { id: requestId },
-      data: { status: 'Denied', approverId: userId, denialReason },
+      data: { status: 'Denied', approverId: lineUserId, denialReason },
     });
     console.log('Leave request denied:', leaveRequest);
 
@@ -73,14 +74,15 @@ export const handleDeny = async (
     });
 
     const admin = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { lineUserId },
     });
 
     if (user && admin) {
-      console.log('Sending denial notifications');
+      console.log('Sending denial notifications to user and admins');
       await sendDenyNotification(user, leaveRequest, denialReason, admin);
-      console.log('Notifying admins');
+      console.log('Denial notifications sent successfully');
       await notifyAdmins(leaveRequest);
+      console.log('Admin notifications sent successfully');
     } else {
       console.error('User or admin not found:', { user, admin });
     }
