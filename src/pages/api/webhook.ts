@@ -80,7 +80,6 @@ const handler = async (event: WebhookEvent) => {
     const params = new URLSearchParams(data);
     const action = params.get('action');
     const requestId = params.get('requestId');
-    const denialReason = params.get('denialReason');
 
     if (action && requestId && userId) {
       try {
@@ -99,6 +98,7 @@ const handler = async (event: WebhookEvent) => {
         if (action === 'approve') {
           await handleApprove(requestId, userId);
         } else if (action === 'deny') {
+          const denialReason = params.get('denialReason');
           if (denialReason) {
             await handleDeny(requestId, userId, denialReason);
           } else {
@@ -132,6 +132,8 @@ const createAndAssignRichMenu = async (
   let richMenuId;
   if (role === 'superadmin') {
     richMenuId = 'richmenu-5610259c0139fc6a9d6475b628986fcf'; // Super Admin Rich Menu
+  } else if (role === 'admin') {
+    richMenuId = 'richmenu-2e10f099c17149de5386d2cf6f936051'; // Admin Rich Menu
   } else if (role === 'admin') {
     richMenuId = 'richmenu-2e10f099c17149de5386d2cf6f936051'; // Admin Rich Menu
   } else if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
