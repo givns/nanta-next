@@ -9,10 +9,35 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    const { requestId, lineUserId } = req.body;
+    const { action, requestId, lineUserId, denialReason, approverId } =
+      req.body;
+
+    // Log received values
+    console.log(
+      `Received action: ${action}, requestId: ${requestId}, lineUserId: ${lineUserId}, denialReason: ${denialReason}, approverId: ${approverId}`,
+    );
+
+    if (
+      action !== 'deny' ||
+      !requestId ||
+      !lineUserId ||
+      !denialReason ||
+      !approverId
+    ) {
+      console.log('Missing required parameters:', {
+        action,
+        requestId,
+        lineUserId,
+        denialReason,
+        approverId,
+      });
+      return res.status(400).json({ error: 'Missing required parameters.' });
+    }
 
     try {
-      console.log(`Denying leave request: ${requestId} by user: ${lineUserId}`);
+      console.log(
+        `Denying leave request: ${requestId} by user: ${lineUserId} with reason: ${denialReason}`,
+      );
 
       // Check if the request has already been approved or denied
       const existingRequest = await prisma.leaveRequest.findUnique({
@@ -31,7 +56,7 @@ export default async function handler(
 
       const leaveRequest = await prisma.leaveRequest.update({
         where: { id: requestId },
-        data: { status: 'Denied', approverId: lineUserId, denialReason: '' },
+        data: { status: 'Denied', approverId, denialReason },
       });
       console.log('Leave request denied:', leaveRequest);
 
@@ -40,12 +65,12 @@ export default async function handler(
       });
 
       const admin = await prisma.user.findUnique({
-        where: { lineUserId },
+        where: { lineUserId: approverId },
       });
 
       if (user && admin) {
         console.log('Sending denial notifications to user and admins');
-        await sendDenyNotification(user, leaveRequest, admin);
+        await sendDenyNotification(user, leaveRequest, denialReason, admin);
         console.log('Denial notifications sent successfully');
       } else {
         console.error('User or admin not found:', { user, admin });

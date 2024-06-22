@@ -1,5 +1,3 @@
-// utils/sendNotifications.ts
-
 import { Client } from '@line/bot-sdk';
 import { PrismaClient, User, LeaveRequest } from '@prisma/client';
 import {
@@ -10,6 +8,7 @@ import {
   generateDenialMessage,
   generateDenialMessageForAdmins,
 } from './generateDenialMessage';
+import { sendLeaveRequestNotification } from './sendLeaveRequestNotification';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -23,12 +22,13 @@ export const sendApproveNotification = async (
   admin: User,
 ) => {
   try {
-    // Send approval message to the user
+    console.log('Generating approval message for user...');
     const userMessage = generateApprovalMessage(user, leaveRequest);
+    console.log('Sending approval message to user...');
     await client.pushMessage(user.lineUserId, userMessage);
-    console.log('Sent approval message to user:', user.lineUserId);
+    console.log('Approval message sent to user:', user.lineUserId);
 
-    // Send approval message to all admins
+    console.log('Generating approval message for admins...');
     const adminMessage = generateApprovalMessageForAdmins(
       user,
       leaveRequest,
@@ -39,9 +39,11 @@ export const sendApproveNotification = async (
         OR: [{ role: 'admin' }, { role: 'superadmin' }],
       },
     });
-    for (const admin of admins) {
-      await client.pushMessage(admin.lineUserId, adminMessage);
-      console.log('Sent approval message to admin:', admin.lineUserId);
+
+    console.log('Sending approval messages to admins...');
+    for (const adminUser of admins) {
+      await client.pushMessage(adminUser.lineUserId, adminMessage);
+      console.log('Approval message sent to admin:', adminUser.lineUserId);
     }
   } catch (error) {
     console.error('Error sending approval notifications:', error);
@@ -51,55 +53,35 @@ export const sendApproveNotification = async (
 export const sendDenyNotification = async (
   user: User,
   leaveRequest: LeaveRequest,
+  denialReason: string,
   admin: User,
 ) => {
   try {
-    // Send denial message to the user
-    const userMessage = generateDenialMessage(user, leaveRequest, '');
+    console.log('Generating denial message for user...');
+    const userMessage = generateDenialMessage(user, leaveRequest, denialReason);
+    console.log('Sending denial message to user...');
     await client.pushMessage(user.lineUserId, userMessage);
-    console.log('Sent denial message to user:', user.lineUserId);
+    console.log('Denial message sent to user:', user.lineUserId);
 
-    // Send denial message to all admins
+    console.log('Generating denial message for admins...');
     const adminMessage = generateDenialMessageForAdmins(
       user,
       leaveRequest,
       admin,
-      '',
+      denialReason,
     );
     const admins = await prisma.user.findMany({
       where: {
         OR: [{ role: 'admin' }, { role: 'superadmin' }],
       },
     });
-    for (const admin of admins) {
-      await client.pushMessage(admin.lineUserId, adminMessage);
-      console.log('Sent denial message to admin:', admin.lineUserId);
+
+    console.log('Sending denial messages to admins...');
+    for (const adminUser of admins) {
+      await client.pushMessage(adminUser.lineUserId, adminMessage);
+      console.log('Denial message sent to admin:', adminUser.lineUserId);
     }
   } catch (error) {
     console.error('Error sending denial notifications:', error);
   }
-};
-
-export const getLeaveRequestCount = async () => {
-  const startOfMonth = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth(),
-    1,
-  );
-  const endOfMonth = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth() + 1,
-    0,
-  );
-
-  const leaveRequestCount = await prisma.leaveRequest.count({
-    where: {
-      createdAt: {
-        gte: startOfMonth,
-        lte: endOfMonth,
-      },
-    },
-  });
-
-  return leaveRequestCount;
 };
