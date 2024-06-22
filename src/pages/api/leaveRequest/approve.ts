@@ -1,6 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { sendApproveNotification } from '../../../utils/sendNotifications';
+import {
+  sendApproveNotification,
+  notifyAdmins,
+} from '../../../utils/sendNotifications';
 
 const prisma = new PrismaClient();
 
@@ -31,6 +34,7 @@ export default async function handler(
 
     // Send notifications
     await sendApproveNotification(user, leaveRequest, admin);
+    await notifyAdmins(leaveRequest);
 
     res.status(200).json({ success: true });
   } catch (error) {
