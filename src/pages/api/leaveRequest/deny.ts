@@ -9,7 +9,16 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    const { requestId, lineUserId, denialReason } = req.body;
+    const { action, requestId, lineUserId, denialReason } = req.body;
+
+    // Log received values
+    console.log(
+      `Received action: ${action}, requestId: ${requestId}, lineUserId: ${lineUserId}, denialReason: ${denialReason}`,
+    );
+
+    if (action !== 'deny' || !requestId || !lineUserId || !denialReason) {
+      return res.status(400).json({ error: 'Missing required parameters.' });
+    }
 
     try {
       console.log(
