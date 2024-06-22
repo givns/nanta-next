@@ -2,7 +2,6 @@ import { PrismaClient } from '@prisma/client';
 import {
   sendApproveNotification,
   sendDenyNotification,
-  notifyAdmins,
 } from './sendNotifications';
 
 const prisma = new PrismaClient();
@@ -39,8 +38,6 @@ export const handleApprove = async (requestId: string, lineUserId: string) => {
       console.log('Sending approval notifications to user and admins');
       await sendApproveNotification(user, leaveRequest, admin);
       console.log('Approval notifications sent successfully');
-      await notifyAdmins(leaveRequest);
-      console.log('Admin notifications sent successfully');
     } else {
       console.error('User or admin not found:', { user, admin });
     }
@@ -87,8 +84,6 @@ export const handleDeny = async (
       console.log('Sending denial notifications to user and admins');
       await sendDenyNotification(user, leaveRequest, denialReason, admin);
       console.log('Denial notifications sent successfully');
-      await notifyAdmins(leaveRequest);
-      console.log('Admin notifications sent successfully');
     } else {
       console.error('User or admin not found:', { user, admin });
     }
