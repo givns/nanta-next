@@ -36,12 +36,13 @@ const DenyReasonPage = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
+    // Add detailed logging before submission
     console.log('Submitting with values:', {
       requestId,
       approverId,
       lineUserId,
       denialReason,
-    }); // Log the values before submission
+    });
 
     if (!denialReason || !requestId || !lineUserId || !approverId) {
       console.log('Missing required information:', {
@@ -56,7 +57,7 @@ const DenyReasonPage = () => {
 
     try {
       const response = await axios.post('/api/leaveRequest/deny', {
-        action: 'deny', // Include the deny action
+        action: 'deny',
         requestId,
         approverId,
         lineUserId,
