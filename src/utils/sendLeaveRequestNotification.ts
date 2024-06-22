@@ -46,7 +46,7 @@ export const sendLeaveRequestNotification = async (
     altText: 'Leave Request Notification',
     contents: {
       type: 'bubble',
-      size: 'mega',
+      size: 'giga',
       header: {
         type: 'box',
         layout: 'horizontal',
