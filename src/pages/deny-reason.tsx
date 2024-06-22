@@ -10,13 +10,16 @@ const DenyReasonPage = () => {
 
   useEffect(() => {
     const initializeLiff = async () => {
+      console.log('Initializing LIFF...');
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
+        console.log('LIFF initialized.');
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
-          console.log('LIFF initialized and user ID set:', profile.userId); // Log the user ID
+          console.log('User logged in. User ID:', profile.userId); // Log the user ID
         } else {
+          console.log('User not logged in. Redirecting to login...');
           liff.login();
         }
       } catch (error) {
@@ -36,6 +39,11 @@ const DenyReasonPage = () => {
     }); // Log the values before submission
 
     if (!denialReason || !requestId || !lineUserId) {
+      console.log('Missing required information:', {
+        requestId,
+        lineUserId,
+        denialReason,
+      });
       alert('Missing required information.');
       return;
     }
