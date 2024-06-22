@@ -57,7 +57,7 @@ export const sendLeaveRequestNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'แบบฟอร์มขอลางาน',
+                text: 'Leave Request',
                 color: '#000000',
                 size: 'xl',
                 flex: 4,
@@ -88,8 +88,8 @@ export const sendLeaveRequestNotification = async (
                 weight: 'bold',
               },
             ],
-            width: '25px',
-            height: '25px',
+            width: '35px',
+            height: '35px',
             cornerRadius: '30px',
             backgroundColor: '#FF1900',
             justifyContent: 'center',

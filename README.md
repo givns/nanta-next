@@ -776,56 +776,21 @@ setFieldValue('leaveType', 'ลาโดยไม่ได้รับค่า�
 };
 
 export default LeaveRequestForm;
-
 {
 "type": "bubble",
-"size": "mega",
 "header": {
 "type": "box",
-"layout": "horizontal",
-"contents": [
-{
-"type": "box",
 "layout": "vertical",
 "contents": [
-{
-"type": "filler"
-},
 {
 "type": "text",
-"text": "อนุมัติคำขอเรียบร้อยแล้ว",
-"color": "#FFFFFF",
-"align": "center",
-"wrap": true
-}
-]
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [
-{
-"type": "box",
-"layout": "vertical",
-"contents": [],
-"width": "25px",
-"height": "25px",
-"backgroundColor": "#FFFFFF",
-"cornerRadius": "30px"
-},
-{
-"type": "filler"
+"text": "Leave Request is Approved",
+"size": "md",
+"weight": "bold",
+"color": "#FFFFFF"
 }
 ],
-"alignItems": "flex-end",
-"width": "40px"
-}
-],
-"paddingAll": "20px",
-"backgroundColor": "#0367D3",
-"spacing": "md",
-"height": "80px",
-"paddingTop": "22px"
+"backgroundColor": "#00964a"
 },
 "body": {
 "type": "box",
@@ -836,247 +801,103 @@ export default LeaveRequestForm;
 "layout": "horizontal",
 "contents": [
 {
-"type": "text",
-"text": "20:30",
-"size": "sm",
-"gravity": "center"
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [
-{
-"type": "filler"
-},
-{
 "type": "box",
 "layout": "vertical",
 "contents": [],
-"cornerRadius": "30px",
-"height": "12px",
-"width": "12px",
-"borderColor": "#EF454D",
-"borderWidth": "2px"
-},
-{
-"type": "filler"
-}
-],
-"flex": 0
-},
-{
-"type": "text",
-"text": "Akihabara",
-"gravity": "center",
-"flex": 4,
-"size": "sm"
-}
-],
-"spacing": "lg",
-"cornerRadius": "30px",
-"margin": "xl"
-},
-{
-"type": "box",
-"layout": "horizontal",
-"contents": [
-{
-"type": "box",
-"layout": "baseline",
-"contents": [
-{
-"type": "filler"
-}
-],
-"flex": 1
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [
-{
-"type": "box",
-"layout": "horizontal",
-"contents": [
-{
-"type": "filler"
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [],
-"width": "2px",
-"backgroundColor": "#B7B7B7"
-},
-{
-"type": "filler"
-}
-],
-"flex": 1
-}
-],
-"width": "12px"
-},
-{
-"type": "text",
-"text": "Walk 4min",
-"gravity": "center",
-"flex": 4,
-"size": "xs",
-"color": "#8c8c8c"
-}
-],
-"spacing": "lg",
-"height": "64px"
-},
-{
-"type": "box",
-"layout": "horizontal",
-"contents": [
-{
-"type": "box",
-"layout": "horizontal",
-"contents": [
-{
-"type": "text",
-"text": "20:34",
-"gravity": "center",
-"size": "sm"
-}
-],
-"flex": 1
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [
-{
-"type": "filler"
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [],
-"cornerRadius": "30px",
-"width": "12px",
-"height": "12px",
-"borderWidth": "2px",
-"borderColor": "#6486E3"
-},
-{
-"type": "filler"
-}
-],
-"flex": 0
-},
-{
-"type": "text",
-"text": "Ochanomizu",
-"gravity": "center",
-"flex": 4,
-"size": "sm"
-}
-],
-"spacing": "lg",
-"cornerRadius": "30px"
-},
-{
-"type": "box",
-"layout": "horizontal",
-"contents": [
-{
-"type": "box",
-"layout": "baseline",
-"contents": [
-{
-"type": "filler"
-}
-],
-"flex": 1
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [
-{
-"type": "box",
-"layout": "horizontal",
-"contents": [
-{
-"type": "filler"
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [],
-"width": "2px",
-"backgroundColor": "#6486E3"
-},
-{
-"type": "filler"
-}
-],
-"flex": 1
-}
-],
-"width": "12px"
-},
-{
-"type": "text",
-"text": "Metro 1hr",
-"gravity": "center",
-"flex": 4,
-"size": "xs",
-"color": "#8c8c8c"
-}
-],
-"spacing": "lg",
-"height": "64px"
-},
-{
-"type": "box",
-"layout": "horizontal",
-"contents": [
-{
-"type": "text",
-"text": "20:40",
-"gravity": "center",
-"size": "sm"
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [
-{
-"type": "filler"
-},
-{
-"type": "box",
-"layout": "vertical",
-"contents": [],
-"cornerRadius": "30px",
-"width": "12px",
-"height": "12px",
-"borderColor": "#6486E3",
-"borderWidth": "2px"
-},
-{
-"type": "filler"
-}
-],
-"flex": 0
-},
-{
-"type": "text",
-"text": "Shinjuku",
-"gravity": "center",
-"flex": 4,
-"size": "sm"
-}
-],
-"spacing": "lg",
-"cornerRadius": "30px"
+"flex": 1,
+"cornerRadius": "100px",
+"width": "72px",
+"height": "72px"
 }
 ]
+},
+{
+"type": "box",
+"layout": "horizontal",
+"contents": [
+{
+"type": "box",
+"layout": "vertical",
+"contents": [],
+"borderWidth": "2px",
+"borderColor": "#000000",
+"height": "120px",
+"width": "60px"
+},
+{
+"type": "box",
+"layout": "vertical",
+"contents": []
+}
+],
+"alignItems": "center",
+"height": "100px"
+},
+{
+"type": "box",
+"layout": "horizontal",
+"contents": [
+{
+"type": "box",
+"layout": "vertical",
+"contents": [
+{
+"type": "image",
+"url": "https://developers-resource.landpress.line.me/fx/clip/clip13.jpg",
+"aspectMode": "cover",
+"size": "full"
+}
+],
+"cornerRadius": "100px",
+"width": "72px",
+"height": "72px"
+},
+{
+"type": "box",
+"layout": "vertical",
+"contents": [
+{
+"type": "text",
+"contents": [
+{
+"type": "span",
+"text": "brown_05",
+"weight": "bold",
+"color": "#000000"
+},
+{
+"type": "span",
+"text": " "
+},
+{
+"type": "span",
+"text": "I went to the Brown&Cony cafe in Tokyo and took a picture"
+}
+],
+"size": "sm",
+"wrap": true
+},
+{
+"type": "box",
+"layout": "baseline",
+"contents": [
+{
+"type": "text",
+"text": "1,140,753 Like",
+"size": "sm",
+"color": "#bcbcbc"
+}
+],
+"spacing": "sm",
+"margin": "md"
+}
+]
+}
+],
+"spacing": "xl",
+"paddingAll": "20px"
+}
+],
+"paddingAll": "0px"
 }
 }

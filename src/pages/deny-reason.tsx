@@ -87,6 +87,7 @@ const DenyReasonPage = () => {
             value={denialReason}
             onChange={(e) => setDenialReason(e.target.value)}
             placeholder="กรุณาระบุเหตุผล..."
+            required
           />
         </div>
         <button
