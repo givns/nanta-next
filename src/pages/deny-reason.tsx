@@ -4,7 +4,7 @@ import liff from '@line/liff';
 
 const DenyReasonPage = () => {
   const router = useRouter();
-  const { requestId, approverId } = router.query; // Get requestId and approverId from query params
+  const { requestId } = router.query; // We only need requestId now
   const [denialReason, setDenialReason] = useState('');
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,13 +16,13 @@ const DenyReasonPage = () => {
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
-          setIsLoading(false); // Set loading to false once LIFF is initialized and user ID is obtained
+          setIsLoading(false);
         } else {
           liff.login();
         }
       } catch (error) {
         console.error('Error initializing LIFF:', error);
-        setIsLoading(false); // Set loading to false in case of an error
+        setIsLoading(false);
       }
     };
     initializeLiff();
@@ -31,7 +31,7 @@ const DenyReasonPage = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!denialReason || !requestId || !lineUserId || !approverId) {
+    if (!denialReason || !requestId || !lineUserId) {
       alert('Missing required information.');
       return;
     }
@@ -41,19 +41,19 @@ const DenyReasonPage = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'deny',
           requestId,
-          approverId,
           lineUserId,
           denialReason,
         }),
       });
 
-      if (response.status === 200) {
-        alert('Leave request denied successfully.');
-        liff.closeWindow(); // Close the LIFF window
+      if (response.ok) {
+        const result = await response.json();
+        alert(result.message);
+        liff.closeWindow();
       } else {
-        alert('Failed to submit denial reason.');
+        const errorData = await response.json();
+        alert(`Failed to submit denial reason: ${errorData.error}`);
       }
     } catch (error) {
       console.error('Error submitting denial reason:', error);
@@ -69,7 +69,6 @@ const DenyReasonPage = () => {
       ) : (
         <form onSubmit={handleSubmit}>
           <input type="hidden" name="requestId" value={requestId as string} />
-          <input type="hidden" name="approverId" value={approverId as string} />
           <input type="hidden" name="lineUserId" value={lineUserId as string} />
           <div>
             <label htmlFor="denialReason">Reason for Denial</label>
