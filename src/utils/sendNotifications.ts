@@ -9,75 +9,74 @@ import {
   generateDenialMessageForAdmins,
 } from './generateDenialMessage';
 
+const prisma = new PrismaClient();
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
-const prisma = new PrismaClient();
-
 export const sendApproveNotification = async (
   user: User,
   leaveRequest: LeaveRequest,
-  admin: User,
+  approver: User,
 ) => {
   try {
+    // Send approval message to the user
     const userMessage = generateApprovalMessage(user, leaveRequest);
     await client.pushMessage(user.lineUserId, userMessage);
     console.log('Sent approval message to user:', user.lineUserId);
 
+    // Send approval notification to all admins and super admins, including the approver
     const adminMessage = generateApprovalMessageForAdmins(
       user,
       leaveRequest,
-      admin,
+      approver,
     );
-    const admins = await prisma.user.findMany({
+    const adminsAndSuperAdmins = await prisma.user.findMany({
       where: {
         OR: [{ role: 'admin' }, { role: 'superadmin' }],
       },
     });
-    for (const otherAdmin of admins) {
-      if (otherAdmin.id !== admin.id) {
-        await client.pushMessage(otherAdmin.lineUserId, adminMessage);
-        console.log('Sent approval message to admin:', otherAdmin.lineUserId);
-      }
+
+    for (const admin of adminsAndSuperAdmins) {
+      await client.pushMessage(admin.lineUserId, adminMessage);
+      console.log(`Sent approval message to ${admin.role}:`, admin.lineUserId);
     }
   } catch (error) {
     console.error('Error sending approval notifications:', error);
-    throw error;
   }
 };
 
 export const sendDenyNotification = async (
   user: User,
   leaveRequest: LeaveRequest,
-  admin: User,
+  denier: User,
   denialReason: string,
 ) => {
   try {
+    // Send denial message to the user
     const userMessage = generateDenialMessage(user, leaveRequest, denialReason);
     await client.pushMessage(user.lineUserId, userMessage);
     console.log('Sent denial message to user:', user.lineUserId);
 
+    // Send denial notification to all admins and super admins, including the denier
     const adminMessage = generateDenialMessageForAdmins(
       user,
       leaveRequest,
-      admin,
+      denier,
       denialReason,
     );
-    const admins = await prisma.user.findMany({
+    const adminsAndSuperAdmins = await prisma.user.findMany({
       where: {
         OR: [{ role: 'admin' }, { role: 'superadmin' }],
       },
     });
-    for (const otherAdmin of admins) {
-      if (otherAdmin.id !== admin.id) {
-        await client.pushMessage(otherAdmin.lineUserId, adminMessage);
-        console.log('Sent denial message to admin:', otherAdmin.lineUserId);
-      }
+
+    for (const admin of adminsAndSuperAdmins) {
+      await client.pushMessage(admin.lineUserId, adminMessage);
+      console.log(`Sent denial message to ${admin.role}:`, admin.lineUserId);
     }
   } catch (error) {
     console.error('Error sending denial notifications:', error);
-    throw error;
   }
 };
 
