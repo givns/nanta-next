@@ -235,8 +235,8 @@ export const sendLeaveRequestNotification = async (
               label: 'อนุมัติ',
               data: `action=approve&requestId=${leaveRequest.id}&approverId=${admin.id}`,
             },
-            color: '#00FF7F',
-            style: 'secondary',
+            color: '#0662FF',
+            style: 'primary',
             adjustMode: 'shrink-to-fit',
           },
           {

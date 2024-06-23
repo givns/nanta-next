@@ -112,24 +112,6 @@ export const generateApprovalMessage = (
         ],
         paddingAll: '0px',
       },
-      footer: {
-        type: 'box',
-        layout: 'horizontal',
-        contents: [
-          {
-            type: 'button',
-            action: {
-              type: 'message',
-              label: 'กลับ',
-              text: 'กลับ',
-            },
-            color: '#F0F0F0',
-            style: 'secondary',
-            adjustMode: 'shrink-to-fit',
-            margin: 'lg',
-          },
-        ],
-      },
       styles: {
         hero: {
           backgroundColor: '#FFFFFF',

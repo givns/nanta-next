@@ -134,17 +134,7 @@ export const generateDenialMessage = (
               label: 'ส่งคำขอใหม่',
               uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/leave-request?resubmit=true&originalId=${leaveRequest.id}`,
             },
-          },
-          {
-            type: 'button',
-            action: {
-              type: 'message',
-              label: 'กลับ',
-              text: 'กลับ',
-            },
-            color: '#F0F0F0',
-            style: 'secondary',
-            adjustMode: 'shrink-to-fit',
+            color: '#0662FF', // Set the button color to #0662FF
           },
         ],
       },
