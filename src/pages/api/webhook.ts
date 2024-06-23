@@ -3,7 +3,11 @@ import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
-import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
+import {
+  handleApprove,
+  handleDeny,
+  handleResubmit,
+} from '../../utils/leaveRequestHandlers';
 
 dotenv.config({ path: './.env.local' });
 
@@ -87,18 +91,17 @@ const handler = async (event: WebhookEvent) => {
           where: { id: requestId },
         });
 
-        if (leaveRequest?.status !== 'Pending') {
+        if (action === 'approve' && leaveRequest?.status === 'Pending') {
+          await handleApprove(requestId, userId);
+        } else if (action === 'deny' && leaveRequest?.status === 'Pending') {
+          await handleDeny(requestId, userId);
+        } else if (action === 'resubmit') {
+          await handleResubmit(requestId, userId);
+        } else {
           await client.replyMessage(event.replyToken, {
             type: 'text',
-            text: 'This leave request has already been processed.',
+            text: 'This leave request has already been processed or the action is not valid.',
           });
-          return;
-        }
-
-        if (action === 'approve') {
-          await handleApprove(requestId, userId);
-        } else if (action === 'deny') {
-          await handleDeny(requestId, userId);
         }
       } catch (error) {
         console.error('Error processing postback action:', error);

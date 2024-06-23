@@ -130,9 +130,10 @@ export const generateDenialMessage = (
             style: 'primary',
             height: 'sm',
             action: {
-              type: 'uri',
+              type: 'postback',
               label: 'ส่งคำขอใหม่',
-              uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/leave-request?resubmit=true&originalId=${leaveRequest.id}`,
+              data: `action=resubmit&requestId=${leaveRequest.id}`,
+              displayText: 'กำลังดำเนินการส่งคำขอใหม่...',
             },
             color: '#0662FF', // Set the button color to #0662FF
           },
