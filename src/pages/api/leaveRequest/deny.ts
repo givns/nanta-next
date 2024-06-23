@@ -14,13 +14,11 @@ export default async function handler(
         lineUserId,
         denialReason,
       );
-      res
-        .status(200)
-        .json({
-          success: true,
-          message: 'Leave request denied successfully',
-          data: updatedLeaveRequest,
-        });
+      res.status(200).json({
+        success: true,
+        message: 'Leave request denied successfully',
+        data: updatedLeaveRequest,
+      });
     } catch (error: any) {
       console.error('Error denying leave request:', error.message);
       res.status(500).json({ success: false, error: 'Internal Server Error' });
