@@ -35,6 +35,8 @@ model LeaveRequest {
   fullDayCount  Float
   approverId    String?
   denialReason  String?
+  resubmitted      Boolean  @default(false)
+  originalRequestId String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 }

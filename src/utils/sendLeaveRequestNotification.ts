@@ -1,4 +1,4 @@
-import { Client, FlexMessage } from '@line/bot-sdk';
+import { Client, FlexMessage, FlexComponent } from '@line/bot-sdk';
 import { LeaveRequest, User } from '@prisma/client';
 import prisma from './db';
 
@@ -41,9 +41,11 @@ export const sendLeaveRequestNotification = async (
     throw new Error(`User with ID ${leaveRequest.userId} not found`);
   }
 
+  const resubmissionText = leaveRequest.resubmitted ? ' (ส่งใหม่)' : '';
+
   const message: FlexMessage = {
     type: 'flex',
-    altText: 'Leave Request Notification',
+    altText: `Leave Request Notification${resubmissionText}`,
     contents: {
       type: 'bubble',
       size: 'giga',
@@ -57,7 +59,7 @@ export const sendLeaveRequestNotification = async (
             contents: [
               {
                 type: 'text',
-                text: 'Leave Request',
+                text: `Leave Request${resubmissionText}`,
                 color: '#000000',
                 size: 'xl',
                 flex: 4,
@@ -162,7 +164,7 @@ export const sendLeaveRequestNotification = async (
                   },
                   {
                     type: 'text',
-                    text: `ประเภทการลา: ${leaveRequest.leaveType}`,
+                    text: `ประเภทการลา: ${leaveRequest.leaveType}${resubmissionText}`,
                     size: 'sm',
                     wrap: true,
                   },
@@ -203,7 +205,17 @@ export const sendLeaveRequestNotification = async (
                     size: 'sm',
                     color: '#4682B4',
                   },
-                ],
+                  ...(leaveRequest.resubmitted && leaveRequest.originalRequestId
+                    ? [
+                        {
+                          type: 'text',
+                          text: `คำขอเดิม: ${leaveRequest.originalRequestId}`,
+                          size: 'sm',
+                          color: '#4682B4',
+                        },
+                      ]
+                    : []),
+                ] as FlexComponent[],
               },
             ],
             spacing: 'xl',
@@ -221,7 +233,7 @@ export const sendLeaveRequestNotification = async (
             action: {
               type: 'postback',
               label: 'อนุมัติ',
-              data: `action=approve&requestId=${leaveRequest.id}`,
+              data: `action=approve&requestId=${leaveRequest.id}&approverId=${admin.id}`,
             },
             color: '#00FF7F',
             style: 'secondary',

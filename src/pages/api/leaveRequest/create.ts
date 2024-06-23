@@ -1,8 +1,8 @@
-import { PrismaClient } from '@prisma/client';
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { notifyAdmins } from '../../../utils/sendLeaveRequestNotification';
+// pages/api/leaveRequest/create.ts
 
-const prisma = new PrismaClient();
+import { NextApiRequest, NextApiResponse } from 'next';
+import prisma from '../../../utils/db';
+import { notifyAdmins } from '../../../utils/sendLeaveRequestNotification';
 
 export default async function handler(
   req: NextApiRequest,
@@ -10,54 +10,61 @@ export default async function handler(
 ) {
   if (req.method === 'POST') {
     const {
-      userId, // Expecting userId (lineUserId) from the request body
+      lineUserId,
       leaveType,
       leaveFormat,
       reason,
       startDate,
       endDate,
-      status,
       fullDayCount,
+      resubmitted,
+      originalRequestId,
     } = req.body;
 
     try {
-      // Retrieve the user based on the lineUserId
-      const user = await prisma.user.findUnique({
-        where: { lineUserId: userId }, // This should match the database schema
-      });
-
+      // Find the user by lineUserId
+      const user = await prisma.user.findUnique({ where: { lineUserId } });
       if (!user) {
-        throw new Error(`User with LINE user ID ${userId} not found`);
+        return res.status(404).json({ error: 'User not found' });
       }
 
-      // Handle half-day leave format by ensuring endDate is valid
-      const formattedEndDate =
-        leaveFormat === 'ลาครึ่งวัน' ? startDate : endDate;
-
-      const leaveRequest = await prisma.leaveRequest.create({
+      // Create the new leave request
+      const newLeaveRequest = await prisma.leaveRequest.create({
         data: {
-          userId: user.id, // Use the user ID from the found user
+          userId: user.id,
           leaveType,
           leaveFormat,
           reason,
           startDate: new Date(startDate),
-          endDate: new Date(formattedEndDate),
-          status,
+          endDate: new Date(endDate),
+          status: 'Pending',
           fullDayCount,
+          resubmitted: resubmitted || false,
+          originalRequestId: originalRequestId || null,
         },
       });
 
-      await notifyAdmins(leaveRequest);
+      // Notify admins about the new leave request
+      await notifyAdmins(newLeaveRequest);
 
-      res.status(201).json({ success: true, data: leaveRequest });
+      // Send a success response
+      res.status(201).json({
+        success: true,
+        message: 'Leave request created successfully',
+        data: newLeaveRequest,
+      });
     } catch (error: any) {
       console.error('Error creating leave request:', error);
-      res.status(500).json({ success: false, error: 'Internal Server Error' });
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: error.message,
+      });
     } finally {
       await prisma.$disconnect();
     }
   } else {
     res.setHeader('Allow', ['POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   }
 }

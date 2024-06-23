@@ -81,7 +81,7 @@ const LeaveSummaryPage = () => {
   };
 
   const handleSubmit = async () => {
-    setLoading(true); // Set loading to true when submitting the form
+    setLoading(true);
     try {
       const fullDayCount = calculateFullDayCount(
         summaryData.startDate,
@@ -89,7 +89,6 @@ const LeaveSummaryPage = () => {
         summaryData.leaveFormat,
       );
 
-      // Ensure endDate is valid for half-day leave
       const formattedEndDate =
         summaryData.leaveFormat === 'ลาครึ่งวัน'
           ? summaryData.startDate
@@ -97,7 +96,7 @@ const LeaveSummaryPage = () => {
 
       const leaveData = {
         ...summaryData,
-        userId: lineUserId, // Include lineUserId in the data
+        userId: lineUserId,
         status: 'Pending',
         fullDayCount,
         endDate: formattedEndDate,
@@ -105,7 +104,11 @@ const LeaveSummaryPage = () => {
 
       console.log('Submitting leaveData:', leaveData);
 
-      const response = await axios.post('/api/leaveRequest/create', leaveData);
+      const endpoint = leaveData.resubmitted
+        ? '/api/leaveRequest/resubmit'
+        : '/api/leaveRequest/create';
+      const response = await axios.post(endpoint, leaveData);
+
       if (response.status === 201) {
         console.log('Leave request submitted successfully');
         router.push('/leave-confirmation');
@@ -117,7 +120,7 @@ const LeaveSummaryPage = () => {
       console.error('Error:', error.response?.data?.error || error.message);
       alert('Error: ' + (error.response?.data?.error || error.message));
     } finally {
-      setLoading(false); // Set loading to false when the submission is complete
+      setLoading(false);
     }
   };
 

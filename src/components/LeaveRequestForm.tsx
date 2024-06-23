@@ -6,12 +6,18 @@ import 'dayjs/locale/th';
 import liff from '@line/liff';
 import Head from 'next/head';
 
-interface FormValues {
+export interface FormValues {
   leaveType: string;
   leaveFormat: string;
   reason: string;
   startDate: string;
   endDate: string;
+}
+
+interface LeaveRequestFormProps {
+  initialData?: FormValues;
+  isResubmission?: boolean;
+  lineUserId: string | null;
 }
 
 const leaveRequestSchema = Yup.object().shape({
@@ -25,7 +31,10 @@ const leaveRequestSchema = Yup.object().shape({
   }),
 });
 
-const LeaveRequestForm: React.FC = () => {
+const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
+  initialData,
+  isResubmission,
+}) => {
   const [step, setStep] = useState(1);
   const router = useRouter();
   const startDateRef = useRef<HTMLInputElement>(null);
@@ -98,7 +107,12 @@ const LeaveRequestForm: React.FC = () => {
     { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
   ) => {
     try {
-      sessionStorage.setItem('leaveSummary', JSON.stringify(values));
+      const submissionData = {
+        ...values,
+        lineUserId,
+        resubmitted: isResubmission,
+      };
+      sessionStorage.setItem('leaveSummary', JSON.stringify(submissionData));
       router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);
@@ -134,16 +148,18 @@ const LeaveRequestForm: React.FC = () => {
             ></div>
           </div>
           <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
-            แบบฟอร์มขอลางาน
+            {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
           </h5>
           <Formik
-            initialValues={{
-              leaveType: '',
-              leaveFormat: '',
-              reason: '',
-              startDate: '',
-              endDate: '',
-            }}
+            initialValues={
+              initialData || {
+                leaveType: '',
+                leaveFormat: '',
+                reason: '',
+                startDate: '',
+                endDate: '',
+              }
+            }
             validationSchema={leaveRequestSchema}
             onSubmit={handleSubmit}
           >
@@ -155,52 +171,25 @@ const LeaveRequestForm: React.FC = () => {
                       เลือกประเภทการลา
                     </h5>
                     <div className="space-y-4">
-                      <button
-                        type="button"
-                        className={`block w-full p-2.5 text-center border rounded-lg ${
-                          values.leaveType === 'ลากิจ'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-50 text-gray-900'
-                        }`}
-                        onClick={() => setFieldValue('leaveType', 'ลากิจ')}
-                      >
-                        ลากิจ 📅
-                      </button>
-                      <button
-                        type="button"
-                        className={`block w-full p-2.5 text-center border rounded-lg ${
-                          values.leaveType === 'ลาป่วย'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-50 text-gray-900'
-                        }`}
-                        onClick={() => setFieldValue('leaveType', 'ลาป่วย')}
-                      >
-                        ลาป่วย 😷
-                      </button>
-                      <button
-                        type="button"
-                        className={`block w-full p-2.5 text-center border rounded-lg ${
-                          values.leaveType === 'ลาพักร้อน'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-50 text-gray-900'
-                        }`}
-                        onClick={() => setFieldValue('leaveType', 'ลาพักร้อน')}
-                      >
-                        ลาพักร้อน 🏖️
-                      </button>
-                      <button
-                        type="button"
-                        className={`block w-full p-2.5 text-center border rounded-lg ${
-                          values.leaveType === 'ลาโดยไม่ได้รับค่าจ้าง'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-50 text-gray-900'
-                        }`}
-                        onClick={() =>
-                          setFieldValue('leaveType', 'ลาโดยไม่ได้รับค่าจ้าง')
-                        }
-                      >
-                        ลาโดยไม่ได้รับค่าจ้าง ❌
-                      </button>
+                      {[
+                        'ลากิจ',
+                        'ลาป่วย',
+                        'ลาพักร้อน',
+                        'ลาโดยไม่ได้รับค่าจ้าง',
+                      ].map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          className={`block w-full p-2.5 text-center border rounded-lg ${
+                            values.leaveType === type
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-50 text-gray-900'
+                          }`}
+                          onClick={() => setFieldValue('leaveType', type)}
+                        >
+                          {type}
+                        </button>
+                      ))}
                     </div>
                     <div className="button-container flex justify-end mt-4">
                       <button
@@ -221,32 +210,20 @@ const LeaveRequestForm: React.FC = () => {
                       เลือกลักษณะการลา
                     </h5>
                     <div className="space-y-4">
-                      <button
-                        type="button"
-                        className={`block w-full p-2.5 text-center border rounded-lg ${
-                          values.leaveFormat === 'ลาเต็มวัน'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-50 text-gray-900'
-                        }`}
-                        onClick={() => {
-                          setFieldValue('leaveFormat', 'ลาเต็มวัน');
-                        }}
-                      >
-                        ลาเต็มวัน
-                      </button>
-                      <button
-                        type="button"
-                        className={`block w-full p-2.5 text-center border rounded-lg ${
-                          values.leaveFormat === 'ลาครึ่งวัน'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-50 text-gray-900'
-                        }`}
-                        onClick={() => {
-                          setFieldValue('leaveFormat', 'ลาครึ่งวัน');
-                        }}
-                      >
-                        ลาครึ่งวัน
-                      </button>
+                      {['ลาเต็มวัน', 'ลาครึ่งวัน'].map((format) => (
+                        <button
+                          key={format}
+                          type="button"
+                          className={`block w-full p-2.5 text-center border rounded-lg ${
+                            values.leaveFormat === format
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-50 text-gray-900'
+                          }`}
+                          onClick={() => setFieldValue('leaveFormat', format)}
+                        >
+                          {format}
+                        </button>
+                      ))}
                     </div>
                     <div>
                       <label
