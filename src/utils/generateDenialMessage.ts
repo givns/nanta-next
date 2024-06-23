@@ -123,7 +123,18 @@ export const generateDenialMessage = (
       footer: {
         type: 'box',
         layout: 'horizontal',
+        spacing: 'sm',
         contents: [
+          {
+            type: 'button',
+            style: 'primary',
+            height: 'sm',
+            action: {
+              type: 'uri',
+              label: 'ส่งคำขอใหม่',
+              uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/leave-request?resubmit=true&originalId=${leaveRequest.id}`,
+            },
+          },
           {
             type: 'button',
             action: {
@@ -134,7 +145,6 @@ export const generateDenialMessage = (
             color: '#F0F0F0',
             style: 'secondary',
             adjustMode: 'shrink-to-fit',
-            margin: 'lg',
           },
         ],
       },
