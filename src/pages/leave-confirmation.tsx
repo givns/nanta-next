@@ -5,7 +5,7 @@ const LeaveConfirmationPage = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       liff.closeWindow();
-    }, 1000);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, []);

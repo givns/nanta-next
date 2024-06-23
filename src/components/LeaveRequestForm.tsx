@@ -33,7 +33,7 @@ const leaveRequestSchema = Yup.object().shape({
 
 const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   initialData,
-  isResubmission,
+  isResubmission = false,
 }) => {
   const [step, setStep] = useState(1);
   const router = useRouter();
@@ -127,17 +127,18 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       <Head>
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1.0, user-scalable=no"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
         />
-        <style>
-          {`
-            input,
-            textarea,
-            select {
-              font-size: 16px;
-            }
-          `}
-        </style>
+        <style jsx global>{`
+          input,
+          select,
+          textarea {
+            font-size: 16px !important;
+          }
+          body {
+            -webkit-text-size-adjust: 100%;
+          }
+        `}</style>
       </Head>
       <div className="main-container flex justify-center items-center h-screen">
         <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">

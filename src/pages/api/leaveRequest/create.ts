@@ -8,7 +8,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  if (req.method === 'POST') {
+  if (req.method === 'POST' || req.method === 'PUT') {
     const {
       lineUserId,
       leaveType,
@@ -64,7 +64,7 @@ export default async function handler(
       await prisma.$disconnect();
     }
   } else {
-    res.setHeader('Allow', ['POST']);
+    res.setHeader('Allow', ['POST', 'PUT']);
     res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   }
 }
