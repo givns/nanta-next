@@ -56,11 +56,11 @@ model OvertimeRequest {
 model CheckIn {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String   @db.ObjectId
-  date      DateTime
-  status    String
-  createdAt DateTime @default(now())
-
   user      User     @relation(fields: [userId], references: [id])
+  timestamp DateTime @default(now())
+  location  String?
+  method    String   // "GPS", "QR", or "MANUAL"
+  status    String   // "IN" or "OUT"
 }
 
 model Holiday {

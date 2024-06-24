@@ -1,43 +1,42 @@
+// pages/api/checkIn.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../utils/db';
 
-const prisma = new PrismaClient();
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === 'POST') {
+    try {
+      const { userId, location, method, status } = req.body;
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  if (req.method === 'GET') {
-    // Handle GET request - fetch all check-ins
-    try {
-      const checkIns = await prisma.checkIn.findMany();
-      res.status(200).json(checkIns);
-    } catch (error) {
-      console.error('Error fetching check-ins:', error);
-      res.status(500).send('Internal Server Error');
-    } finally {
-      await prisma.$disconnect();
-    }
-  } else if (req.method === 'POST') {
-    // Handle POST request - create a new check-in
-    const { userId, date, status } = req.body;
-    try {
-      const newCheckIn = await prisma.checkIn.create({
+      const checkIn = await prisma.checkIn.create({
         data: {
           userId,
-          date: new Date(date),
+          location,
+          method,
           status,
         },
       });
-      res.status(201).json(newCheckIn);
+
+      res.status(201).json({ success: true, data: checkIn });
     } catch (error) {
-      console.error('Error creating check-in:', error);
-      res.status(500).send('Internal Server Error');
-    } finally {
-      await prisma.$disconnect();
+      res.status(500).json({ success: false, message: 'Error creating check-in record' });
+    }
+  } else if (req.method === 'GET') {
+    try {
+      const { userId } = req.query;
+
+      const checkIns = await prisma.checkIn.findMany({
+        where: { userId: userId as string },
+        orderBy: { timestamp: 'desc' },
+        take: 10, // Limit to last 10 records
+      });
+
+      res.status(200).json({ success: true, data: checkIns });
+    } catch (error) {
+      res.status(500).json({ success: false, message: 'Error fetching check-in records' });
     }
   } else {
-    res.setHeader('Allow', ['GET', 'POST']);
+    res.setHeader('Allow', ['POST', 'GET']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
