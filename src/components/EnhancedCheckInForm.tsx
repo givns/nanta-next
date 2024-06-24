@@ -181,7 +181,9 @@ const EnhancedCheckInForm: React.FC = () => {
           </button>
           {showQRScanner && (
             <div>
-              <video ref={ref} />
+              <video ref={ref}>
+                <track kind="captions" />
+              </video>
             </div>
           )}
         </div>
