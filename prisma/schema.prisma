@@ -53,14 +53,23 @@ model OvertimeRequest {
   user      User     @relation(fields: [userId], references: [id])
 }
 
+enum CheckInType {
+  IN
+  OUT
+  CHECKPOINT
+}
+
 model CheckIn {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id])
-  timestamp DateTime @default(now())
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String     @db.ObjectId
+  user      User       @relation(fields: [userId], references: [id])
+  timestamp DateTime   @default(now())
+  latitude  Float?
+  longitude Float?
   location  String?
-  method    String   // "GPS", "QR", or "MANUAL"
-  status    String   // "IN" or "OUT"
+  method    String     // "GPS", "QR", or "MANUAL"
+  type      CheckInType
+  checkpointName String?
 }
 
 model Holiday {
