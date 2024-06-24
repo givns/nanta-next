@@ -55,7 +55,7 @@ export const handleDeny = async (requestId: string, lineUserId: string) => {
       const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&approverId=${lineUserId}`;
       await client.pushMessage(lineUserId, {
         type: 'text',
-        text: `Please provide a reason for denying this leave request: ${liffUrl}`,
+        text: `กรุณาระบุเหตุผลในการไม่อนุมัติคำขอลา: ${liffUrl}`,
       });
     } else {
       console.error('Admin not found:', { lineUserId });
@@ -105,40 +105,45 @@ export const finalizeDenial = async (
   }
 };
 
-export const handleResubmit = async (requestId: string, lineUserId: string) => {
+export const getOriginalLeaveRequest = async (requestId: string) => {
   try {
-    const originalRequest = await prisma.leaveRequest.findUnique({
+    const leaveRequest = await prisma.leaveRequest.findUnique({
       where: { id: requestId },
-      include: { user: true },
     });
 
-    if (!originalRequest) {
+    if (!leaveRequest) {
       throw new Error('Original leave request not found');
     }
 
-    // Create a new leave request based on the original
-    const newRequest = await prisma.leaveRequest.create({
+    return leaveRequest;
+  } catch (error: any) {
+    console.error('Error fetching original leave request:', error.message);
+    throw error;
+  }
+};
+
+export const createResubmittedLeaveRequest = async (
+  originalRequestId: string,
+  updatedData: Partial<LeaveRequest>,
+  lineUserId: string,
+) => {
+  try {
+    const originalRequest = await getOriginalLeaveRequest(originalRequestId);
+
+    const newLeaveRequest = await prisma.leaveRequest.create({
       data: {
-        userId: originalRequest.userId,
-        leaveType: originalRequest.leaveType,
-        leaveFormat: originalRequest.leaveFormat,
-        startDate: originalRequest.startDate,
-        endDate: originalRequest.endDate,
-        reason: originalRequest.reason,
-        fullDayCount: originalRequest.fullDayCount,
+        ...originalRequest,
+        ...updatedData,
+        id: undefined, // Let Prisma generate a new ID
         status: 'Pending',
         resubmitted: true,
-        originalRequestId: requestId,
+        originalRequestId,
+        createdAt: undefined, // Let Prisma set the current timestamp
+        updatedAt: undefined, // Let Prisma set the current timestamp
       },
     });
 
-    // Send a confirmation message to the user
-    await client.pushMessage(lineUserId, {
-      type: 'text',
-      text: 'คำขอลาใหม่ของคุณได้ถูกส่งเรียบร้อยแล้ว โปรดรอการอนุมัติ',
-    });
-
-    // Notify admins about the new request
+    // Notify admins about the resubmitted request
     const admins = await prisma.user.findMany({
       where: {
         OR: [{ role: 'admin' }, { role: 'superadmin' }],
@@ -148,17 +153,13 @@ export const handleResubmit = async (requestId: string, lineUserId: string) => {
     for (const admin of admins) {
       await client.pushMessage(admin.lineUserId, {
         type: 'text',
-        text: `มีคำขอลาใหม่จาก ${originalRequest.user.name} (ส่งใหม่)`,
+        text: `มีคำขอลาที่ส่งใหม่จาก ${lineUserId} กรุณาตรวจสอบและดำเนินการ`,
       });
     }
 
-    return newRequest;
+    return newLeaveRequest;
   } catch (error: any) {
-    console.error('Error handling resubmission:', error.message);
-    await client.pushMessage(lineUserId, {
-      type: 'text',
-      text: 'ขออภัย เกิดข้อผิดพลาดในการส่งคำขอลาใหม่ โปรดลองอีกครั้งในภายหลัง',
-    });
+    console.error('Error creating resubmitted leave request:', error.message);
     throw error;
   }
 };

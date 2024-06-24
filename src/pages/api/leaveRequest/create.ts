@@ -3,12 +3,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
 import { notifyAdmins } from '../../../utils/sendLeaveRequestNotification';
+import { getOriginalLeaveRequest } from '../../../utils/leaveRequestHandlers';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  if (req.method === 'POST' || req.method === 'PUT') {
+  if (req.method === 'POST') {
     const {
       lineUserId,
       leaveType,
@@ -22,15 +23,42 @@ export default async function handler(
     } = req.body;
 
     try {
-      // Find the user by lineUserId
       const user = await prisma.user.findUnique({ where: { lineUserId } });
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      // Create the new leave request
-      const newLeaveRequest = await prisma.leaveRequest.create({
-        data: {
+      let leaveRequestData;
+
+      if (resubmitted && originalRequestId) {
+        // Handling resubmission
+        const originalRequest =
+          await getOriginalLeaveRequest(originalRequestId);
+        if (!originalRequest) {
+          return res
+            .status(404)
+            .json({ error: 'Original leave request not found' });
+        }
+
+        leaveRequestData = {
+          ...originalRequest,
+          userId: user.id,
+          leaveType,
+          leaveFormat,
+          reason,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          fullDayCount,
+          status: 'Pending',
+          resubmitted: true,
+          originalRequestId,
+          id: undefined, // Let Prisma generate a new ID
+          createdAt: undefined, // Let Prisma set the current timestamp
+          updatedAt: undefined, // Let Prisma set the current timestamp
+        };
+      } else {
+        // Handling new submission
+        leaveRequestData = {
           userId: user.id,
           leaveType,
           leaveFormat,
@@ -39,32 +67,33 @@ export default async function handler(
           endDate: new Date(endDate),
           status: 'Pending',
           fullDayCount,
-          resubmitted: resubmitted || false,
-          originalRequestId: originalRequestId || null,
-        },
+          resubmitted: false,
+        };
+      }
+
+      const newLeaveRequest = await prisma.leaveRequest.create({
+        data: leaveRequestData,
       });
 
-      // Notify admins about the new leave request
       await notifyAdmins(newLeaveRequest);
 
-      // Send a success response
       res.status(201).json({
         success: true,
-        message: 'Leave request created successfully',
+        message: resubmitted
+          ? 'Leave request resubmitted successfully'
+          : 'Leave request created successfully',
         data: newLeaveRequest,
       });
     } catch (error: any) {
-      console.error('Error creating leave request:', error);
+      console.error('Error creating/resubmitting leave request:', error);
       res.status(500).json({
         success: false,
         error: 'Internal server error',
         message: error.message,
       });
-    } finally {
-      await prisma.$disconnect();
     }
   } else {
-    res.setHeader('Allow', ['POST', 'PUT']);
+    res.setHeader('Allow', ['POST']);
     res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   }
 }
