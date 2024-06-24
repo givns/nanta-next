@@ -1,9 +1,10 @@
-import { PrismaClient, User, LeaveRequest } from '@prisma/client';
+import { PrismaClient, LeaveRequest } from '@prisma/client';
 import { Client } from '@line/bot-sdk';
 import {
   sendApproveNotification,
   sendDenyNotification,
 } from './sendNotifications';
+import { sendLeaveRequestNotification } from './sendLeaveRequestNotification';
 
 const prisma = new PrismaClient();
 const client = new Client({
@@ -141,6 +142,7 @@ export const createResubmittedLeaveRequest = async (
         createdAt: undefined, // Let Prisma set the current timestamp
         updatedAt: undefined, // Let Prisma set the current timestamp
       },
+      include: { user: true }, // Include user data for the notification
     });
 
     // Notify admins about the resubmitted request
@@ -151,10 +153,7 @@ export const createResubmittedLeaveRequest = async (
     });
 
     for (const admin of admins) {
-      await client.pushMessage(admin.lineUserId, {
-        type: 'text',
-        text: `มีคำขอลาที่ส่งใหม่จาก ${lineUserId} กรุณาตรวจสอบและดำเนินการ`,
-      });
+      await sendLeaveRequestNotification(admin, newLeaveRequest);
     }
 
     return newLeaveRequest;
