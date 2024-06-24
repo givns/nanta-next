@@ -103,11 +103,7 @@ const LeaveSummaryPage = () => {
       };
 
       console.log('Submitting leaveData:', leaveData);
-
-      const endpoint = leaveData.resubmitted
-        ? '/api/leaveRequest/resubmit'
-        : '/api/leaveRequest/create';
-      const response = await axios.post(endpoint, leaveData);
+      const response = await axios.post('/api/leaveRequest/create', leaveData);
 
       if (response.status === 201) {
         console.log('Leave request submitted successfully');
