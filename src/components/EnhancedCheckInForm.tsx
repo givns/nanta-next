@@ -1,16 +1,23 @@
-// components/EnhancedCheckInForm.tsx
-
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
-import liff from '@line/liff';
 import { useZxing } from 'react-zxing';
 
-const EnhancedCheckInForm: React.FC = () => {
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<
-    'DRIVER' | 'REGULAR' | 'ADMIN' | null
-  >(null);
+interface EnhancedCheckInFormProps {
+  lineUserId: string;
+  userRole:
+    | 'DRIVER'
+    | 'REGULAR'
+    | 'ADMIN'
+    | 'OPERATION'
+    | 'GENERAL'
+    | 'SUPERADMIN';
+}
+
+const EnhancedCheckInForm: React.FC<EnhancedCheckInFormProps> = ({
+  lineUserId,
+  userRole,
+}) => {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [location, setLocation] = useState<string>('');
@@ -31,26 +38,6 @@ const EnhancedCheckInForm: React.FC = () => {
       setMethod('QR');
     },
   });
-
-  useEffect(() => {
-    const initializeLiff = async () => {
-      try {
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
-        if (liff.isLoggedIn()) {
-          const profile = await liff.getProfile();
-          setLineUserId(profile.userId);
-          // Fetch user role from your backend
-          const userResponse = await axios.get(`/api/user/${profile.userId}`);
-          setUserRole(userResponse.data.role);
-        } else {
-          liff.login();
-        }
-      } catch (error) {
-        console.error('Error initializing LIFF:', error);
-      }
-    };
-    initializeLiff();
-  }, []);
 
   useEffect(() => {
     if (method === 'GPS') {
@@ -87,13 +74,6 @@ const EnhancedCheckInForm: React.FC = () => {
 
       if (response.data.success) {
         alert('Check-in successful!');
-        if (userRole === 'DRIVER' && type === 'IN') {
-          // Start GPS tracking for drivers
-          startGPSTracking();
-        } else if (userRole === 'DRIVER' && type === 'OUT') {
-          // Stop GPS tracking for drivers
-          stopGPSTracking();
-        }
         router.push('/check-in-confirmation');
       } else {
         setError('Failed to check in. Please try again.');
@@ -104,21 +84,6 @@ const EnhancedCheckInForm: React.FC = () => {
       setLoading(false);
     }
   };
-
-  const startGPSTracking = () => {
-    // Implement GPS tracking logic here
-    console.log('Starting GPS tracking');
-    // You might want to use a Web Worker or a setInterval to periodically send GPS data
-  };
-
-  const stopGPSTracking = () => {
-    // Implement logic to stop GPS tracking
-    console.log('Stopping GPS tracking');
-  };
-
-  if (!lineUserId || !userRole) {
-    return <div>Loading...</div>;
-  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -220,10 +185,7 @@ const EnhancedCheckInForm: React.FC = () => {
           </button>
           {showQRScanner && (
             <div>
-              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-              <video ref={ref}>
-                <track kind="captions" />
-              </video>
+              <video ref={ref} />
             </div>
           )}
         </div>
