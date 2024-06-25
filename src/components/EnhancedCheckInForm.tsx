@@ -2,16 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import { useZxing } from 'react-zxing';
-
+import { UserRole } from '@/types/userRole';
 interface EnhancedCheckInFormProps {
   lineUserId: string;
-  userRole:
-    | 'DRIVER'
-    | 'REGULAR'
-    | 'ADMIN'
-    | 'OPERATION'
-    | 'GENERAL'
-    | 'SUPERADMIN';
+  userRole: 'DRIVER' | 'ADMIN' | 'OPERATION' | 'GENERAL' | 'SUPERADMIN';
 }
 
 const EnhancedCheckInForm: React.FC<EnhancedCheckInFormProps> = ({
@@ -73,13 +67,18 @@ const EnhancedCheckInForm: React.FC<EnhancedCheckInFormProps> = ({
       });
 
       if (response.data.success) {
-        alert('Check-in successful!');
+        alert('Check-in/out successful!');
         router.push('/check-in-confirmation');
       } else {
-        setError('Failed to check in. Please try again.');
+        setError('Failed to check in/out. Please try again.');
       }
     } catch (error) {
-      setError('An error occurred. Please try again.');
+      console.error('Error during check-in/out:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        setError(`Error: ${error.response.data.message || error.message}`);
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -92,34 +91,24 @@ const EnhancedCheckInForm: React.FC<EnhancedCheckInFormProps> = ({
           htmlFor="type"
           className="block text-sm font-medium text-gray-700"
         >
-          Check-in Type
+          Action Type
         </label>
         <select
           id="type"
           value={type}
           onChange={(e) =>
-            setType(
-              e.target.value as
-                | 'IN'
-                | 'OUT'
-                | 'CHECKPOINT'
-                | 'LEAVE_PREMISES'
-                | 'RETURN_PREMISES',
-            )
+            setType(e.target.value as 'IN' | 'OUT' | 'CHECKPOINT')
           }
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
         >
           <option value="IN">Check In</option>
           <option value="OUT">Check Out</option>
           {userRole === 'DRIVER' && (
-            <>
-              <option value="CHECKPOINT">Checkpoint</option>
-              <option value="LEAVE_PREMISES">Leave Premises</option>
-              <option value="RETURN_PREMISES">Return to Premises</option>
-            </>
+            <option value="CHECKPOINT">Checkpoint</option>
           )}
         </select>
       </div>
+
       {type === 'CHECKPOINT' && (
         <div>
           <label
@@ -138,6 +127,7 @@ const EnhancedCheckInForm: React.FC<EnhancedCheckInFormProps> = ({
           />
         </div>
       )}
+
       <div>
         <label
           htmlFor="method"

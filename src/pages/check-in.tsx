@@ -1,19 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
 import liff from '@line/liff';
 import axios from 'axios';
 import EnhancedCheckInForm from '../components/EnhancedCheckInForm';
-
+import { UserRole } from '@/types/userRole';
 const CheckInPage: React.FC = () => {
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<
-    | 'DRIVER'
-    | 'REGULAR'
-    | 'ADMIN'
-    | 'OPERATION'
-    | 'GENERAL'
-    | 'SUPERADMIN'
-    | null
+    'DRIVER' | 'ADMIN' | 'OPERATION' | 'GENERAL' | 'SUPERADMIN' | null
   >(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

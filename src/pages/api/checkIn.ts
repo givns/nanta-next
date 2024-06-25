@@ -8,7 +8,7 @@ export default async function handler(
   if (req.method === 'POST') {
     try {
       const {
-        userId,
+        lineUserId,
         latitude,
         longitude,
         location,
@@ -17,9 +17,21 @@ export default async function handler(
         checkpointName,
       } = req.body;
 
+      // Find the user
+      const user = await prisma.user.findUnique({
+        where: { lineUserId },
+      });
+
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: 'User not found' });
+      }
+
+      // Create the check-in record
       const checkIn = await prisma.checkIn.create({
         data: {
-          userId,
+          userId: user.id,
           latitude,
           longitude,
           location,
@@ -30,30 +42,18 @@ export default async function handler(
       });
 
       res.status(201).json({ success: true, data: checkIn });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error creating check-in:', error);
       res
         .status(500)
-        .json({ success: false, message: 'Error creating check-in record' });
-    }
-  } else if (req.method === 'GET') {
-    // ... (keep existing GET logic)
-    try {
-      const { userId } = req.query;
-
-      const checkIns = await prisma.checkIn.findMany({
-        where: { userId: userId as string },
-        orderBy: { timestamp: 'desc' },
-        take: 10, // Limit to last 10 records
-      });
-
-      res.status(200).json({ success: true, data: checkIns });
-    } catch (error) {
-      res
-        .status(500)
-        .json({ success: false, message: 'Error fetching check-in records' });
+        .json({
+          success: false,
+          message: 'Error creating check-in',
+          error: error.message,
+        });
     }
   } else {
-    res.setHeader('Allow', ['POST', 'GET']);
+    res.setHeader('Allow', ['POST']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
