@@ -7,6 +7,21 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum UserRole {
+  DRIVER
+  REGULAR
+  ADMIN
+  SUPERADMIN
+}
+
+enum CheckInType {
+  IN
+  OUT
+  CHECKPOINT
+  LEAVE_PREMISES
+  RETURN_PREMISES
+}
+
 model User {
   id                String             @id @default(auto()) @map("_id") @db.ObjectId
   lineUserId        String             @unique
@@ -14,31 +29,32 @@ model User {
   nickname          String
   department        String
   employeeNumber    String?
-  role              String
+  role              UserRole
   profilePictureUrl String?
   createdAt         DateTime           @default(now())
   leaveRequests     LeaveRequest[]
   overtimeRequests  OvertimeRequest[]
   checkIns          CheckIn[]
+  gpsLogs           GpsLog[]
 }
 
 model LeaveRequest {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String
-  user          User       @relation(fields: [userId], references: [id])
-  leaveType     String
-  leaveFormat   String
-  reason        String
-  startDate     DateTime
-  endDate       DateTime
-  status        String
-  fullDayCount  Float
-  approverId    String?
-  denialReason  String?
-  resubmitted      Boolean  @default(false)
+  id                String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String
+  user              User       @relation(fields: [userId], references: [id])
+  leaveType         String
+  leaveFormat       String
+  reason            String
+  startDate         DateTime
+  endDate           DateTime
+  status            String
+  fullDayCount      Float
+  approverId        String?
+  denialReason      String?
+  resubmitted       Boolean    @default(false)
   originalRequestId String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 }
 
 model OvertimeRequest {
@@ -53,23 +69,26 @@ model OvertimeRequest {
   user      User     @relation(fields: [userId], references: [id])
 }
 
-enum CheckInType {
-  IN
-  OUT
-  CHECKPOINT
+model CheckIn {
+  id             String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String     @db.ObjectId
+  user           User       @relation(fields: [userId], references: [id])
+  timestamp      DateTime   @default(now())
+  latitude       Float?
+  longitude      Float?
+  location       String?
+  method         String     // "GPS", "QR", or "MANUAL"
+  type           CheckInType
+  checkpointName String?
 }
 
-model CheckIn {
-  id        String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String     @db.ObjectId
-  user      User       @relation(fields: [userId], references: [id])
-  timestamp DateTime   @default(now())
-  latitude  Float?
-  longitude Float?
-  location  String?
-  method    String     // "GPS", "QR", or "MANUAL"
-  type      CheckInType
-  checkpointName String?
+model GpsLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  timestamp DateTime @default(now())
+  latitude  Float
+  longitude Float
 }
 
 model Holiday {

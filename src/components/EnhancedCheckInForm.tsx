@@ -8,11 +8,16 @@ import { useZxing } from 'react-zxing';
 
 const EnhancedCheckInForm: React.FC = () => {
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<
+    'DRIVER' | 'REGULAR' | 'ADMIN' | null
+  >(null);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [location, setLocation] = useState<string>('');
   const [method, setMethod] = useState<'GPS' | 'QR' | 'MANUAL'>('GPS');
-  const [type, setType] = useState<'IN' | 'OUT' | 'CHECKPOINT'>('IN');
+  const [type, setType] = useState<
+    'IN' | 'OUT' | 'CHECKPOINT' | 'LEAVE_PREMISES' | 'RETURN_PREMISES'
+  >('IN');
   const [checkpointName, setCheckpointName] = useState<string>('');
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,6 +39,9 @@ const EnhancedCheckInForm: React.FC = () => {
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
+          // Fetch user role from your backend
+          const userResponse = await axios.get(`/api/user/${profile.userId}`);
+          setUserRole(userResponse.data.role);
         } else {
           liff.login();
         }
@@ -68,7 +76,7 @@ const EnhancedCheckInForm: React.FC = () => {
 
     try {
       const response = await axios.post('/api/checkIn', {
-        userId: lineUserId,
+        lineUserId,
         latitude,
         longitude,
         location,
@@ -79,6 +87,13 @@ const EnhancedCheckInForm: React.FC = () => {
 
       if (response.data.success) {
         alert('Check-in successful!');
+        if (userRole === 'DRIVER' && type === 'IN') {
+          // Start GPS tracking for drivers
+          startGPSTracking();
+        } else if (userRole === 'DRIVER' && type === 'OUT') {
+          // Stop GPS tracking for drivers
+          stopGPSTracking();
+        }
         router.push('/check-in-confirmation');
       } else {
         setError('Failed to check in. Please try again.');
@@ -90,7 +105,18 @@ const EnhancedCheckInForm: React.FC = () => {
     }
   };
 
-  if (!lineUserId) {
+  const startGPSTracking = () => {
+    // Implement GPS tracking logic here
+    console.log('Starting GPS tracking');
+    // You might want to use a Web Worker or a setInterval to periodically send GPS data
+  };
+
+  const stopGPSTracking = () => {
+    // Implement logic to stop GPS tracking
+    console.log('Stopping GPS tracking');
+  };
+
+  if (!lineUserId || !userRole) {
     return <div>Loading...</div>;
   }
 
@@ -107,13 +133,26 @@ const EnhancedCheckInForm: React.FC = () => {
           id="type"
           value={type}
           onChange={(e) =>
-            setType(e.target.value as 'IN' | 'OUT' | 'CHECKPOINT')
+            setType(
+              e.target.value as
+                | 'IN'
+                | 'OUT'
+                | 'CHECKPOINT'
+                | 'LEAVE_PREMISES'
+                | 'RETURN_PREMISES',
+            )
           }
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
         >
           <option value="IN">Check In</option>
           <option value="OUT">Check Out</option>
-          <option value="CHECKPOINT">Checkpoint</option>
+          {userRole === 'DRIVER' && (
+            <>
+              <option value="CHECKPOINT">Checkpoint</option>
+              <option value="LEAVE_PREMISES">Leave Premises</option>
+              <option value="RETURN_PREMISES">Return to Premises</option>
+            </>
+          )}
         </select>
       </div>
       {type === 'CHECKPOINT' && (
