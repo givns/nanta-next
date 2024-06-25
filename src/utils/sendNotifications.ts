@@ -33,7 +33,7 @@ export const sendApproveNotification = async (
     );
     const adminsAndSuperAdmins = await prisma.user.findMany({
       where: {
-        OR: [{ role: 'admin' }, { role: 'superadmin' }],
+        OR: [{ role: 'ADMIN' }, { role: 'SUPERADMIN' }],
       },
     });
 
@@ -67,7 +67,7 @@ export const sendDenyNotification = async (
     );
     const adminsAndSuperAdmins = await prisma.user.findMany({
       where: {
-        OR: [{ role: 'admin' }, { role: 'superadmin' }],
+        OR: [{ role: 'ADMIN' }, { role: 'SUPERADMIN' }],
       },
     });
 

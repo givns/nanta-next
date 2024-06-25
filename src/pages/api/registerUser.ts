@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../utils/db';
 import { Client } from '@line/bot-sdk';
+import { UserRole } from '../../types/userRole';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -21,12 +22,23 @@ export default async function handler(
       });
 
       // Determine the role and rich menu ID
-      let role = 'general'; // Default role
+      let role: UserRole;
 
       // Check if this is the first user and assign super admin role
       const userCount = await prisma.user.count();
       if (userCount === 0) {
-        role = 'superadmin';
+        role = UserRole.SUPERADMIN;
+      } else {
+        switch (department) {
+          case 'ฝ่ายขนส่ง':
+            role = UserRole.DRIVER;
+            break;
+          case 'ฝ่ายปฏิบัติการ':
+            role = UserRole.OPERATION;
+            break;
+          default:
+            role = UserRole.GENERAL;
+        }
       }
 
       // If user does not exist, create a new one
@@ -56,15 +68,20 @@ export default async function handler(
       }
 
       // Determine the appropriate rich menu based on role
-      let richMenuId;
-      if (role === 'superadmin') {
-        richMenuId = 'richmenu-5610259c0139fc6a9d6475b628986fcf'; // Super Admin Rich Menu
-      } else if (role === 'admin') {
-        richMenuId = 'richmenu-2e10f099c17149de5386d2cf6f936051'; // Admin Rich Menu
-      } else if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
-        richMenuId = 'richmenu-d07da0e5fa90760bc50f7b2deec89ca2'; // Special User Rich Menu
-      } else {
-        richMenuId = 'richmenu-581e59c118fd514a45fc01d6f301138e'; // General User Rich Menu
+      let richMenuId: string;
+      switch (role) {
+        case UserRole.SUPERADMIN:
+          richMenuId = 'richmenu-0ea158465f8926515b7d159f18bfb6d6'; // Super Admin Rich Menu
+          break;
+        case UserRole.DRIVER:
+          richMenuId = 'richmenu-741553f870a405009fec483601830523'; // Placeholder for Route Rich Menu
+          break;
+        case UserRole.OPERATION:
+          richMenuId = 'richmenu-2fc50f25f3582448a3f53be2822cc66b'; // Special Rich Menu
+          break;
+        case UserRole.GENERAL:
+        default:
+          richMenuId = 'richmenu-741553f870a405009fec483601830523'; // General User Rich Menu
       }
 
       // Link the rich menu to the user

@@ -1,5 +1,6 @@
 import { Client, FlexMessage, FlexComponent } from '@line/bot-sdk';
 import { LeaveRequest, User } from '@prisma/client';
+import { UserRole } from '../types/userRole';
 import prisma from './db';
 
 const client = new Client({
@@ -267,7 +268,7 @@ export const sendLeaveRequestNotification = async (
 export const notifyAdmins = async (leaveRequest: LeaveRequest) => {
   const admins = await prisma.user.findMany({
     where: {
-      OR: [{ role: 'admin' }, { role: 'superadmin' }],
+      OR: [{ role: UserRole.ADMIN }, { role: UserRole.SUPERADMIN }],
     },
   });
 

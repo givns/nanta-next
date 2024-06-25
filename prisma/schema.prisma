@@ -9,7 +9,8 @@ generator client {
 
 enum UserRole {
   DRIVER
-  REGULAR
+  OPERATION
+  GENERAL
   ADMIN
   SUPERADMIN
 }
@@ -40,7 +41,7 @@ model User {
 
 model LeaveRequest {
   id                String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String
+  userId            String     @db.ObjectId
   user              User       @relation(fields: [userId], references: [id])
   leaveType         String
   leaveFormat       String
@@ -89,11 +90,4 @@ model GpsLog {
   timestamp DateTime @default(now())
   latitude  Float
   longitude Float
-}
-
-model Holiday {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  date        DateTime
-  description String
-  createdAt   DateTime @default(now())
 }

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
 import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
+import { UserRole } from '@/types/userRole';
 
 dotenv.config({ path: './.env.local' });
 
@@ -51,7 +52,7 @@ const handler = async (event: WebhookEvent) => {
 
         if (!user) {
           const registerRichMenuId =
-            'richmenu-1d20c92a5e0ca5c5c12cc4cb6fda1caa';
+            'richmenu-7f6cc44cf3643bec7374eaeb449c6c71';
           await client.linkRichMenuToUser(userId, registerRichMenuId);
           console.log('Register Rich menu linked to user:', userId);
         } else {
@@ -59,7 +60,7 @@ const handler = async (event: WebhookEvent) => {
           const richMenuId = await createAndAssignRichMenu(
             department,
             userId,
-            user.role,
+            user.role as UserRole,
           );
           console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
         }
@@ -115,17 +116,25 @@ const handler = async (event: WebhookEvent) => {
 const createAndAssignRichMenu = async (
   department: string,
   userId: string,
-  role: string,
+  role: UserRole,
 ) => {
   let richMenuId;
-  if (role === 'superadmin') {
-    richMenuId = 'richmenu-5610259c0139fc6a9d6475b628986fcf'; // Super Admin Rich Menu
-  } else if (role === 'admin') {
-    richMenuId = 'richmenu-2e10f099c17149de5386d2cf6f936051'; // Admin Rich Menu
-  } else if (['ฝ่ายขนส่ง', 'ฝ่ายปฏิบัติการ'].includes(department)) {
-    richMenuId = 'richmenu-d07da0e5fa90760bc50f7b2deec89ca2'; // Special User Rich Menu
-  } else {
-    richMenuId = 'richmenu-581e59c118fd514a45fc01d6f301138e'; // General User Rich Menu
+  switch (role) {
+    case UserRole.SUPERADMIN:
+      richMenuId = 'richmenu-0ea158465f8926515b7d159f18bfb6d6'; // Super Admin Rich Menu
+      break;
+    case UserRole.ADMIN:
+      richMenuId = 'richmenu-deec36bf2265338a9f48acd024ce1cde'; // Admin Rich Menu
+      break;
+    case UserRole.DRIVER:
+      richMenuId = 'richmenu-741553f870a405009fec483601830523'; // Placeholder for Route Rich Menu
+      break;
+    case UserRole.OPERATION:
+      richMenuId = 'richmenu-2fc50f25f3582448a3f53be2822cc66b'; // Special User Rich Menu
+      break;
+    case UserRole.GENERAL:
+    default:
+      richMenuId = 'richmenu-741553f870a405009fec483601830523'; // General User Rich Menu
   }
 
   await client.linkRichMenuToUser(userId, richMenuId);

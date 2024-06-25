@@ -79,7 +79,7 @@ const generalUserRichMenu: RichMenu = {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/holiday-calendar`,
+        uri: `${LIFF_URL}?path=/check-in`,
       } as URIAction, // Slot A
     },
     {
@@ -93,14 +93,14 @@ const generalUserRichMenu: RichMenu = {
       bounds: { x: 0, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/leave-balance`,
+        uri: `${LIFF_URL}?path=/leave-request`,
       } as URIAction, // Slot C
     },
     {
       bounds: { x: 1250, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/leave-request`,
+        uri: `${LIFF_URL}?path=/user-dashboard`,
       } as URIAction, // Slot D
     },
   ],
@@ -118,7 +118,7 @@ const specialUserRichMenu: RichMenu = {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/Check-in`,
+        uri: `${LIFF_URL}?path=/check-in`,
       } as URIAction, // Slot A
     },
     {
@@ -132,14 +132,14 @@ const specialUserRichMenu: RichMenu = {
       bounds: { x: 0, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/leave-balance`,
+        uri: `${LIFF_URL}?path=/leave-request`,
       } as URIAction, // Slot C
     },
     {
       bounds: { x: 1250, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/leave-request`,
+        uri: `${LIFF_URL}?path=/user-dashboard`,
       } as URIAction, // Slot D
     },
   ],
@@ -198,7 +198,7 @@ const superAdminRichMenu: RichMenu = {
       bounds: { x: 0, y: 0, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/approval-dashboard`,
+        uri: `${LIFF_URL}?path=/user-dashboard`,
       } as URIAction, // Slot A
     },
     {
@@ -219,14 +219,14 @@ const superAdminRichMenu: RichMenu = {
       bounds: { x: 0, y: 843, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/holiday-calendar`,
+        uri: `${LIFF_URL}?path=/check-in`,
       } as URIAction, // Slot D
     },
     {
       bounds: { x: 833, y: 843, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/leave-balance`,
+        uri: `${LIFF_URL}?path=/overtime-request`,
       } as URIAction, // Slot E
     },
     {

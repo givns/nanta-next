@@ -1,5 +1,3 @@
-// pages/api/gpsLog.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../utils/db';
 
@@ -11,6 +9,7 @@ export default async function handler(
     try {
       const { lineUserId, latitude, longitude } = req.body;
 
+      // Find the user by lineUserId
       const user = await prisma.user.findUnique({ where: { lineUserId } });
       if (!user) {
         return res
@@ -18,8 +17,8 @@ export default async function handler(
           .json({ success: false, message: 'User not found' });
       }
 
+      // Create a GPS log entry
       const gpsLog = await prisma.gpsLog.create({
-        // Changed from gPSLog to gpsLog
         data: {
           userId: user.id,
           latitude,
@@ -27,8 +26,10 @@ export default async function handler(
         },
       });
 
+      // Return the created GPS log entry
       res.status(201).json({ success: true, data: gpsLog });
     } catch (error) {
+      console.error('Error logging GPS data:', error);
       res
         .status(500)
         .json({ success: false, message: 'Error logging GPS data' });
