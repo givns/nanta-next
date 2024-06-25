@@ -17,7 +17,6 @@ const CheckInPage: React.FC = () => {
   >(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -33,7 +32,11 @@ const CheckInPage: React.FC = () => {
             setUserRole(response.data.role);
           } catch (err) {
             console.error('Error fetching user data:', err);
-            setError('Failed to fetch user data. Please try again.');
+            if (axios.isAxiosError(err) && err.response?.status === 404) {
+              setError('User not found. Please complete registration first.');
+            } else {
+              setError('Failed to fetch user data. Please try again.');
+            }
           }
         } else {
           liff.login();
