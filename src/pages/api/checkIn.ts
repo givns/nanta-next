@@ -44,13 +44,11 @@ export default async function handler(
       res.status(201).json({ success: true, data: checkIn });
     } catch (error: any) {
       console.error('Error creating check-in:', error);
-      res
-        .status(500)
-        .json({
-          success: false,
-          message: 'Error creating check-in',
-          error: error.message,
-        });
+      res.status(500).json({
+        success: false,
+        message: 'Error creating check-in',
+        error: error.message,
+      });
     }
   } else {
     res.setHeader('Allow', ['POST']);
