@@ -1,9 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { calculateDistance } from '../utils/distance';
 
-declare global {
-  var prisma: PrismaClient | undefined;
-}
+type GlobalWithPrisma = typeof globalThis & {
+  prisma?: PrismaClient;
+};
 
 const prismaClientSingleton = () => {
   const prisma = new PrismaClient();
@@ -38,8 +38,10 @@ const prismaClientSingleton = () => {
   return prisma;
 };
 
-const prisma = global.prisma ?? prismaClientSingleton();
+const globalWithPrisma = global as GlobalWithPrisma;
 
-if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
+const prisma = globalWithPrisma.prisma ?? prismaClientSingleton();
+
+if (process.env.NODE_ENV !== 'production') globalWithPrisma.prisma = prisma;
 
 export default prisma;
