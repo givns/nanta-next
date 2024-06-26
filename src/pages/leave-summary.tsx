@@ -3,14 +3,13 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
-import liff from '@line/liff';
 import { calculateFullDayCount } from '../lib/holidayUtils';
 
 interface SummaryData {
   leaveType: string;
   leaveFormat: string;
   startDate: string;
-  endDate: string;
+  endDate?: string;
   reason: string;
   lineUserId: string | null;
   resubmitted: boolean;
@@ -29,7 +28,7 @@ const LeaveSummaryPage: React.FC = () => {
       setSummaryData(parsedData);
       calculateFullDayCount(
         parsedData.startDate,
-        parsedData.endDate,
+        parsedData.endDate || parsedData.startDate,
         parsedData.leaveFormat,
       ).then(setLeaveDays);
     } else {
@@ -46,6 +45,11 @@ const LeaveSummaryPage: React.FC = () => {
       const leaveData = {
         ...summaryData,
         fullDayCount: leaveDays,
+        startDate: new Date(summaryData.startDate).toISOString(),
+        endDate:
+          summaryData.leaveFormat === 'ลาครึ่งวัน'
+            ? new Date(summaryData.startDate).toISOString()
+            : new Date(summaryData.endDate!).toISOString(),
       };
 
       console.log('Submitting leaveData:', leaveData);
@@ -53,7 +57,7 @@ const LeaveSummaryPage: React.FC = () => {
 
       if (response.status === 201) {
         console.log('Leave request submitted successfully');
-        sessionStorage.removeItem('leaveSummary'); // Clear the session storage
+        sessionStorage.removeItem('leaveSummary');
         router.push('/leave-confirmation');
       } else {
         throw new Error(response.data.error || 'Unknown error occurred');
@@ -73,14 +77,6 @@ const LeaveSummaryPage: React.FC = () => {
   return (
     <div className="main-container flex justify-center items-center h-screen">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <div className="mb-1 text-base font-medium dark:text-white">
-          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-            <div
-              className="bg-blue-600 h-2.5 rounded-full"
-              style={{ width: '100%' }}
-            ></div>
-          </div>
-        </div>
         <h1 className="text-2xl font-bold mb-4">รายละเอียดการลา</h1>
         <div className="mb-4">
           <p className="mb-2">
@@ -97,7 +93,7 @@ const LeaveSummaryPage: React.FC = () => {
             <strong>วันที่เริ่มต้น:</strong>{' '}
             {dayjs(summaryData.startDate).locale('th').format('D MMM YYYY')}
           </p>
-          {summaryData.leaveFormat === 'ลาเต็มวัน' && (
+          {summaryData.leaveFormat === 'ลาเต็มวัน' && summaryData.endDate && (
             <p className="mb-2">
               <strong>วันที่สิ้นสุด:</strong>{' '}
               {dayjs(summaryData.endDate).locale('th').format('D MMM YYYY')}
