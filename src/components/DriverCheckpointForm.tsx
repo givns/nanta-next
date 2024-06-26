@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { locationTrackingService } from '../services/locationTrackingService';
-import Map from './GoogleMap';
+import GoogleMapComponent from './GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 const DriverCheckpointForm: React.FC = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
@@ -62,7 +62,7 @@ const DriverCheckpointForm: React.FC = () => {
   return (
     <div>
       <h2>Driver Checkpoint</h2>
-      {location && <Map center={location} />}
+      {location && <GoogleMapComponent center={location} />}
       <p>Current Address: {address}</p>
       <input
         type="text"

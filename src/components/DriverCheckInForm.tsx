@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { locationTrackingService } from '../services/locationTrackingService';
-import Map from './GoogleMap';
+import GoogleMapComponent from './GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 
 interface DriverCheckInFormProps {
@@ -27,10 +27,11 @@ const DriverCheckInForm: React.FC<DriverCheckInFormProps> = ({
     try {
       const currentLocation =
         await locationTrackingService.getCurrentLocation();
-      setLocation({
+      const newLocation = {
         lat: currentLocation.latitude,
         lng: currentLocation.longitude,
-      });
+      };
+      setLocation(newLocation);
       const addressFromCoords = await getAddressFromCoordinates(
         currentLocation.latitude,
         currentLocation.longitude,
@@ -82,12 +83,12 @@ const DriverCheckInForm: React.FC<DriverCheckInFormProps> = ({
               id="address"
               className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
             >
-              {address}
+              {address || 'Loading...'}
             </div>
           </div>
           {location && (
             <div className="mb-3">
-              <Map center={location} />
+              <GoogleMapComponent center={location} />
             </div>
           )}
           <div className="button-container flex justify-end">

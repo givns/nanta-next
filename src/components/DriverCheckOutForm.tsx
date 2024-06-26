@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import liff from '@line/liff';
 import { locationTrackingService } from '../services/locationTrackingService';
-import Map from './GoogleMap';
+import GoogleMapComponent from './GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 
 interface DriverCheckOutFormProps {
@@ -70,7 +70,7 @@ const DriverCheckOutForm: React.FC<DriverCheckOutFormProps> = ({
   return (
     <div>
       <h2>Driver Check-Out</h2>
-      {location && <Map center={location} />}
+      {location && <GoogleMapComponent center={location} />}
       <p>Current Address: {address}</p>
       <button onClick={handleCheckOut} disabled={loading}>
         {loading ? 'Checking Out...' : 'Check Out'}

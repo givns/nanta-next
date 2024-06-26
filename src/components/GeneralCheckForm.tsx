@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { locationTrackingService } from '../services/locationTrackingService';
-import Map from './GoogleMap';
+import GoogleMapComponent from './GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 const GeneralCheckForm: React.FC = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
@@ -56,7 +56,7 @@ const GeneralCheckForm: React.FC = () => {
   return (
     <div>
       <h2>Check-In/Out</h2>
-      {location && <Map center={location} />}
+      {location && <GoogleMapComponent center={location} />}
       <p>Current Address: {address}</p>
       <button onClick={() => handleAction('checkIn')} disabled={loading}>
         Check In
