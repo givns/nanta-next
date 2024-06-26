@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { locationTrackingService } from '../services/locationTrackingService';
-import Map from '../components/Map';
+import Map from '../components/GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 const GeneralCheckPage = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(

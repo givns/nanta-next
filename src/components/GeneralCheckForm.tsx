@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { locationTrackingService } from '../services/locationTrackingService';
-import Map from './Map';
+import Map from './GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 const GeneralCheckForm: React.FC = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(

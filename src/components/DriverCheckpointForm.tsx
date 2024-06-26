@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { locationTrackingService } from '../services/locationTrackingService';
-import Map from './Map';
+import Map from './GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 const DriverCheckpointForm: React.FC = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(

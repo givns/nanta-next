@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import liff from '@line/liff';
 import { locationTrackingService } from '../services/locationTrackingService';
-import Map from '../components/Map';
+import Map from '../components/GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 
 const CheckpointPage: React.FC = () => {
