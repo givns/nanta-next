@@ -1,21 +1,26 @@
 import axios from 'axios';
 
-export async function getAddressFromCoordinates(
+export const getAddressFromCoordinates = async (
   lat: number,
   lon: number,
-): Promise<string> {
+): Promise<string> => {
   try {
     const response = await axios.get(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse`,
+      {
+        params: {
+          format: 'json',
+          lat,
+          lon,
+          zoom: 18,
+          addressdetails: 1,
+        },
+      },
     );
-
-    if (response.data && response.data.display_name) {
-      return response.data.display_name;
-    } else {
-      throw new Error('Unable to get address from coordinates');
-    }
+    // Process the response and return the address
+    return response.data.display_name || 'Address not found';
   } catch (error) {
-    console.error('Error in getAddressFromCoordinates:', error);
-    return 'Address not found';
+    console.error('Error fetching address:', error);
+    return 'Unable to fetch address';
   }
-}
+};

@@ -86,21 +86,21 @@ const GeneralCheckForm: React.FC = () => {
               disabled={loading}
               className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
             >
-              {loading ? 'Checking In...' : 'Check In'}
+              {loading ? 'Checking In...' : 'Check-In'}
             </button>
             <button
               onClick={() => handleAction('checkpoint')}
               disabled={loading}
-              className="text-white bg-yellow-700 hover:bg-yellow-800 focus:outline-none focus:ring-4 focus:ring-yellow-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-yellow-600 dark:hover:bg-yellow-700 dark:focus:ring-yellow-800"
+              className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
             >
-              {loading ? 'Adding Checkpoint...' : 'Add Checkpoint'}
+              {loading ? 'Adding Checkpoint...' : 'Checkpoint'}
             </button>
             <button
               onClick={() => handleAction('checkOut')}
               disabled={loading}
-              className="text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-800"
+              className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
             >
-              {loading ? 'Checking Out...' : 'Check Out'}
+              {loading ? 'Checking Out...' : 'Check-Out'}
             </button>
           </div>
           {error && <p className="text-danger text-red-500">{error}</p>}

@@ -15,10 +15,11 @@ class MyDocument extends Document {
             httpEquiv="Content-Security-Policy"
             content="
             default-src 'self';
-            script-src 'self' 'unsafe-eval' 'unsafe-inline' https://static.line-scdn.net https://liffsdk.line-scdn.net;
-            style-src 'self' 'unsafe-inline' https://static.line-scdn.net https://liffsdk.line-scdn.net;
-            img-src 'self' data: https://static.line-scdn.net https://liffsdk.line-scdn.net;
-            connect-src 'self' https://static.line-scdn.net https://liffsdk.line-scdn.net https://api.line.me;
+            script-src 'self' 'unsafe-eval' 'unsafe-inline' https://static.line-scdn.net https://liffsdk.line-scdn.net https://maps.googleapis.com;
+            style-src 'self' 'unsafe-inline' https://static.line-scdn.net https://liffsdk.line-scdn.net https://fonts.googleapis.com;
+            font-src 'self' https://fonts.gstatic.com;
+            img-src 'self' data: https://static.line-scdn.net https://liffsdk.line-scdn.net https://*.googleapis.com https://*.gstatic.com;
+            connect-src 'self' https://static.line-scdn.net https://liffsdk.line-scdn.net https://api.line.me https://nominatim.openstreetmap.org https://*.googleapis.com;
           "
           />
           <script>{`console.log("CSP Loaded");`}</script>

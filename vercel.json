@@ -6,7 +6,8 @@
     "MONGO_URI": "mongodb+srv://parunpatp:6RHIingg9kvWoP05@cluster0.hogpd3l.mongodb.net/myDatabase?retryWrites=true&w=majority",
     "LIFF_URL": "2005335337-8DwLbNrP",
     "NEXT_PUBLIC_LIFF_ID": "2005335337-8DwLbNrP",
-    "DATABASE_URL": "mongodb+srv://parunpatp:6RHIingg9kvWoP05@cluster0.hogpd3l.mongodb.net/myDatabase?retryWrites=true&w=majority"
+    "DATABASE_URL": "mongodb+srv://parunpatp:6RHIingg9kvWoP05@cluster0.hogpd3l.mongodb.net/myDatabase?retryWrites=true&w=majority",
+    "GOOGLE_MAPS_API": "AIzaSyBSCP7aUJ8LXgJGfKAjCMnruWOYu7cvV74"
   },
   "rewrites": [
     {

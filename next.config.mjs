@@ -31,6 +31,7 @@ export default {
     MONGO_URI: process.env.MONGO_URI,
     LIFF_ID: process.env.LIFF_ID,
     DATABASE_URL: process.env.DATABASE_URL,
+    GOOGLE_MAPS_API: process.env.GOOGLE_MAPS_API,
   },
   webpack: (config, { isServer }) => {
     config.resolve.modules.push(__dirname + '/src');
