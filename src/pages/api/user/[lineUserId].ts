@@ -1,5 +1,4 @@
-// pages/api/user/[lineUserId].ts
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
 
 export default async function handler(
@@ -12,7 +11,7 @@ export default async function handler(
     try {
       const user = await prisma.user.findUnique({
         where: { lineUserId: lineUserId as string },
-        select: { id: true, role: true },
+        select: { id: true, role: true, name: true, department: true },
       });
 
       if (user) {

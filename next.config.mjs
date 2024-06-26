@@ -30,7 +30,6 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: ContentSecurityPolicy.replace(/\s+/g, ' ').trim(),
   },
-  // You might want to remove or modify other security headers if they're too restrictive
   {
     key: 'X-Frame-Options',
     value: 'SAMEORIGIN',
@@ -43,10 +42,10 @@ const securityHeaders = [
     key: 'Referrer-Policy',
     value: 'origin-when-cross-origin',
   },
-  // Remove or modify other headers as needed
 ];
 
-export default {
+/** @type {import('next').NextConfig} */
+const config = {
   reactStrictMode: true,
   swcMinify: true,
   env: {
@@ -69,4 +68,9 @@ export default {
       },
     ];
   },
+  images: {
+    domains: ['maps.googleapis.com', 'maps.gstatic.com'],
+  },
 };
+
+export default config;
