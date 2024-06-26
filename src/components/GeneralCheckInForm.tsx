@@ -185,7 +185,6 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
             <div>
               <p>ชื่อ นามสกุล: {userName}</p>
               <p>แผนก: {department}</p>
-              className="flex justify-end mt-5"
               <button
                 onClick={handleNextStep}
                 className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
@@ -202,7 +201,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                 screenshotFormat="image/jpeg"
                 className="w-full h-auto mb-4"
               />
-              
+
               <button
                 onClick={capturePhoto}
                 className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
