@@ -1,75 +1,51 @@
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
 import { calculateFullDayCount } from '../lib/holidayUtils';
 
-const LeaveSummaryPage = () => {
+interface SummaryData {
+  leaveType: string;
+  leaveFormat: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  lineUserId: string | null;
+  resubmitted: boolean;
+}
+
+const LeaveSummaryPage: React.FC = () => {
   const router = useRouter();
-  const [summaryData, setSummaryData] = useState<any>(null);
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [leaveDays, setLeaveDays] = useState<number | null>(null);
 
   useEffect(() => {
     const data = sessionStorage.getItem('leaveSummary');
     if (data) {
-      console.log('Data retrieved from session storage:', data);
-      setSummaryData(JSON.parse(data));
+      const parsedData = JSON.parse(data) as SummaryData;
+      setSummaryData(parsedData);
+      calculateFullDayCount(
+        parsedData.startDate,
+        parsedData.endDate,
+        parsedData.leaveFormat,
+      ).then(setLeaveDays);
     } else {
       console.log('No data found, redirecting to leave request page.');
       router.push('/leave-request');
     }
   }, [router]);
 
-  useEffect(() => {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (liffId) {
-      liff
-        .init({ liffId })
-        .then(() => {
-          if (liff.isLoggedIn()) {
-            liff
-              .getProfile()
-              .then((profile) => {
-                setLineUserId(profile.userId);
-              })
-              .catch((err) => {
-                console.error('Error getting profile:', err);
-              });
-          } else {
-            liff.login();
-          }
-        })
-        .catch((err) => {
-          console.error('Error initializing LIFF:', err);
-        });
-    } else {
-      console.error('LIFF ID is not set in the environment variables.');
-    }
-  }, []);
-
   const handleSubmit = async () => {
+    if (!summaryData) return;
+
     setLoading(true);
     try {
-      const fullDayCount = await calculateFullDayCount(
-        summaryData.startDate,
-        summaryData.endDate,
-        summaryData.leaveFormat,
-      );
-
-      const formattedEndDate =
-        summaryData.leaveFormat === 'ลาครึ่งวัน'
-          ? summaryData.startDate
-          : summaryData.endDate;
-
       const leaveData = {
         ...summaryData,
-        userId: lineUserId,
-        status: 'Pending',
-        fullDayCount,
-        endDate: formattedEndDate,
+        fullDayCount: leaveDays,
       };
 
       console.log('Submitting leaveData:', leaveData);
@@ -77,18 +53,22 @@ const LeaveSummaryPage = () => {
 
       if (response.status === 201) {
         console.log('Leave request submitted successfully');
+        sessionStorage.removeItem('leaveSummary'); // Clear the session storage
         router.push('/leave-confirmation');
       } else {
-        console.error('Error:', response.data.error);
-        alert('Error: ' + response.data.error);
+        throw new Error(response.data.error || 'Unknown error occurred');
       }
     } catch (error: any) {
-      console.error('Error:', error.response?.data?.error || error.message);
-      alert('Error: ' + (error.response?.data?.error || error.message));
+      console.error('Error:', error.message);
+      alert('Error: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (!summaryData) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="main-container flex justify-center items-center h-screen">
@@ -111,15 +91,7 @@ const LeaveSummaryPage = () => {
           </p>
           <p className="mb-2">
             <strong>จำนวนวันลา:</strong>{' '}
-            {summaryData && (
-              <span id="leaveDaysCount">
-                {calculateFullDayCount(
-                  summaryData.startDate,
-                  summaryData.endDate,
-                  summaryData.leaveFormat,
-                ).then((count) => count.toString())}
-              </span>
-            )}
+            {leaveDays !== null ? leaveDays : 'กำลังคำนวณ...'}
           </p>
           <p className="mb-2">
             <strong>วันที่เริ่มต้น:</strong>{' '}
@@ -147,7 +119,7 @@ const LeaveSummaryPage = () => {
             type="button"
             className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || leaveDays === null}
           >
             {loading ? 'กำลังส่งคำขอ...' : 'ยืนยัน'}
           </button>
