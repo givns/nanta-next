@@ -13,7 +13,7 @@ export interface Holiday {
   types: string[];
 }
 
-let holidayCache: { [key: number]: Holiday[] } = {};
+const holidayCache: { [key: number]: Holiday[] } = {};
 
 export const fetchThaiHolidays = async (year: number): Promise<Holiday[]> => {
   if (holidayCache[year]) {
