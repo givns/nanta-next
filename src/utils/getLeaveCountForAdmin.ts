@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-
+import { LeaveRequest } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
@@ -28,7 +28,7 @@ const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
     });
 
     console.log('Leave Requests Found:', leaveRequests.length);
-    leaveRequests.forEach((request) => {
+    leaveRequests.forEach((request: LeaveRequest) => {
       console.log(
         `Leave Request: ${request.id}, Created At: ${request.createdAt}`,
       );

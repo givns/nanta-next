@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
-import GeneralCheckInForm from '../components/GeneralCheckForm';
+import GeneralCheckInForm from '../components/GeneralCheckInForm';
 
 const GeneralCheckInPage = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -38,7 +38,7 @@ const GeneralCheckInPage = () => {
   return (
     <div>
       <h1>General Check-In</h1>
-      <GeneralCheckInForm />
+      <GeneralCheckInForm lineUserId={''} />
     </div>
   );
 };

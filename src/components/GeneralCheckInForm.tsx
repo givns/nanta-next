@@ -5,11 +5,11 @@ import { saveData } from '../services/SyncService';
 import GoogleMapComponent from './GoogleMap';
 import Webcam from 'react-webcam';
 
-interface DriverCheckInFormProps {
+interface GeneralCheckInFormProps {
   lineUserId: string;
 }
 
-const DriverCheckInForm: React.FC<DriverCheckInFormProps> = ({
+const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   lineUserId,
 }) => {
   const [userId, setUserId] = useState<string | null>(null);
@@ -109,7 +109,7 @@ const DriverCheckInForm: React.FC<DriverCheckInFormProps> = ({
     <div className="main-container flex justify-center items-center h-screen">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
         <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
-          Driver Check-In
+          General Employee Check-In
         </h5>
         <div className="space-y-6">
           <div className="flex justify-between">
@@ -119,7 +119,7 @@ const DriverCheckInForm: React.FC<DriverCheckInFormProps> = ({
           {step === 1 && (
             <div>
               <p>Name: John Doe</p>
-              <p>Department: Drivers</p>
+              <p>Department: HR</p>
               <button
                 onClick={handleNextStep}
                 className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
@@ -195,4 +195,4 @@ const DriverCheckInForm: React.FC<DriverCheckInFormProps> = ({
   );
 };
 
-export default DriverCheckInForm;
+export default GeneralCheckInForm;

@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { locationTrackingService } from '../services/locationTrackingService';
 import GoogleMapComponent from './GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 
-const GeneralCheckForm: React.FC = () => {
+const CheckOutForm: React.FC = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
   const [address, setAddress] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     getCurrentLocation();
@@ -34,21 +36,29 @@ const GeneralCheckForm: React.FC = () => {
     }
   };
 
-  const handleAction = async (
-    action: 'checkIn' | 'checkpoint' | 'checkOut',
-  ) => {
+  const handleCheckOut = async () => {
     setLoading(true);
     setError(null);
     try {
-      await fetch(`/api/${action}`, {
+      await locationTrackingService.stopTracking(); // Add lineUserId if needed
+
+      const checkOutData = {
+        lineUserId: 'example-id', // Replace with actual user ID
+        location,
+        address,
+      };
+
+      await fetch('/api/checkOut', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location, address }),
+        body: JSON.stringify(checkOutData),
       });
-      alert(`${action} successful!`);
+
+      alert('Checked out successfully!');
+      router.push('/');
     } catch (error) {
-      console.error(`${action} failed:`, error);
-      setError(`Failed to ${action}. Please try again.`);
+      console.error('Check-out failed:', error);
+      setError('Failed to check out. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -58,7 +68,7 @@ const GeneralCheckForm: React.FC = () => {
     <div className="main-container flex justify-center items-center h-screen">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
         <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
-          Check-In/Out
+          Check-Out
         </h5>
         <div className="space-y-6">
           <div className="mb-3">
@@ -80,27 +90,13 @@ const GeneralCheckForm: React.FC = () => {
               <GoogleMapComponent center={location} />
             </div>
           )}
-          <div className="button-container flex justify-end space-x-2">
+          <div className="button-container flex justify-end">
             <button
-              onClick={() => handleAction('checkIn')}
+              onClick={handleCheckOut}
               disabled={loading}
               className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
             >
-              {loading ? 'Checking In...' : 'Check-In'}
-            </button>
-            <button
-              onClick={() => handleAction('checkpoint')}
-              disabled={loading}
-              className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-            >
-              {loading ? 'Adding Checkpoint...' : 'Checkpoint'}
-            </button>
-            <button
-              onClick={() => handleAction('checkOut')}
-              disabled={loading}
-              className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-            >
-              {loading ? 'Checking Out...' : 'Check-Out'}
+              {loading ? 'Checking Out...' : 'Check Out'}
             </button>
           </div>
           {error && <p className="text-danger text-red-500">{error}</p>}
@@ -110,4 +106,4 @@ const GeneralCheckForm: React.FC = () => {
   );
 };
 
-export default GeneralCheckForm;
+export default CheckOutForm;

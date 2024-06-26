@@ -8,7 +8,7 @@ interface LocationData {
 
 class LocationTrackingService {
   private batchSize: number = 5;
-  private updateInterval: number = 5 * 60 * 1000; // 5 minutes
+  private updateInterval: number = 30 * 60 * 1000; // 30 minutes
   private locationBatch: LocationData[] = [];
   private watchId: number | null = null;
   private trackingSessionId: string | null = null;

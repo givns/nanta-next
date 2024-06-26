@@ -1,14 +1,19 @@
 import { PrismaClient } from '@prisma/client';
 import { calculateDistance } from '../utils/distance';
 
-type GlobalWithPrisma = typeof globalThis & {
-  prisma?: PrismaClient;
+// Define the type for our custom methods
+type CustomMethods = {
+  trackingSession: {
+    calculateTotalDistance: (sessionId: string) => Promise<number>;
+  };
 };
 
-const prismaClientSingleton = () => {
-  const prisma = new PrismaClient();
+// Create a type that combines PrismaClient with our custom methods
+type PrismaClientWithExtensions = PrismaClient & CustomMethods;
 
-  prisma.$extends({
+// Function to create the Prisma client with extensions
+function createPrismaClient(): PrismaClientWithExtensions {
+  const prisma = new PrismaClient().$extends({
     model: {
       trackingSession: {
         async calculateTotalDistance(sessionId: string) {
@@ -35,13 +40,17 @@ const prismaClientSingleton = () => {
     },
   });
 
-  return prisma;
-};
+  return prisma as unknown as PrismaClientWithExtensions;
+}
 
-const globalWithPrisma = global as GlobalWithPrisma;
+// Declare the global type
+declare global {
+  var prisma: PrismaClientWithExtensions | undefined;
+}
 
-const prisma = globalWithPrisma.prisma ?? prismaClientSingleton();
+// Create or reuse the Prisma client
+const prisma = global.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== 'production') globalWithPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
 
 export default prisma;

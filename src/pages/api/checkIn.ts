@@ -7,21 +7,56 @@ export default async function handler(
 ) {
   if (req.method === 'POST') {
     try {
-      const { userId, location, address } = req.body;
+      const {
+        userId,
+        role,
+        photo,
+        timestamp,
+        latitude,
+        longitude,
+        address,
+        checkpointName,
+      } = req.body;
+
+      if (!userId || !role || !timestamp) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const checkInData: any = {
+        userId,
+        type: 'IN',
+        createdAt: new Date(timestamp),
+      };
+
+      if (role === 'DRIVER') {
+        if (!latitude || !longitude || !address) {
+          return res
+            .status(400)
+            .json({ error: 'Missing location data for driver check-in' });
+        }
+        checkInData.latitude = latitude;
+        checkInData.longitude = longitude;
+        checkInData.address = address;
+        checkInData.checkpointName = checkpointName;
+      } else if (role === 'GENERAL') {
+        if (!photo) {
+          return res
+            .status(400)
+            .json({ error: 'Missing photo for general employee check-in' });
+        }
+        checkInData.photo = photo;
+      } else {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
 
       const checkIn = await prisma.checkIn.create({
-        data: {
-          userId,
-          latitude: location.lat,
-          longitude: location.lng,
-          address,
-          type: 'IN',
-        },
+        data: checkInData,
       });
 
-      res.status(200).json({ success: true, data: checkIn });
+      res.status(201).json(checkIn);
     } catch (error) {
-      res.status(500).json({ success: false, error: 'Failed to check in' });
+      console.error('Check-in failed:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   } else {
     res.setHeader('Allow', ['POST']);
