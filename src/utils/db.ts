@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { calculateDistance } from '../utils/distance';
 
+declare global {
+  var prisma: PrismaClient | undefined;
+}
+
 const prismaClientSingleton = () => {
   const prisma = new PrismaClient();
 
@@ -34,13 +38,15 @@ const prismaClientSingleton = () => {
   return prisma;
 };
 
-let prisma: ReturnType<typeof prismaClientSingleton>;
+let prisma: PrismaClient;
 
-if (!globalThis.prisma) {
-  globalThis.prisma = prismaClientSingleton();
+if (process.env.NODE_ENV === 'production') {
+  prisma = prismaClientSingleton();
+} else {
+  if (!global.prisma) {
+    global.prisma = prismaClientSingleton();
+  }
+  prisma = global.prisma;
 }
-prisma = globalThis.prisma;
 
 export default prisma;
-
-if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma;
