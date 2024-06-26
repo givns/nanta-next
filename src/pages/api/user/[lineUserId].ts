@@ -1,3 +1,4 @@
+// pages/api/user/[lineUserId].ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/db';
 
@@ -11,13 +12,14 @@ export default async function handler(
     try {
       const user = await prisma.user.findUnique({
         where: { lineUserId: lineUserId as string },
+        select: { id: true, role: true },
       });
 
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
+      if (user) {
+        res.status(200).json(user);
+      } else {
+        res.status(404).json({ error: 'User not found' });
       }
-
-      res.status(200).json(user);
     } catch (error) {
       console.error('Error fetching user:', error);
       res.status(500).json({ error: 'Internal server error' });

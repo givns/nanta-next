@@ -4,11 +4,14 @@ import axios from 'axios';
 import { saveData } from '../services/SyncService';
 import GoogleMapComponent from './GoogleMap';
 import Webcam from 'react-webcam';
-
+import { Loader } from '@googlemaps/js-api-loader';
 interface GeneralCheckInFormProps {
   lineUserId: string;
 }
-
+const PREMISES = [
+  { lat: 13.50821, lng: 100.76405, radius: 100 },
+  { lat: 13.51444, lng: 100.70922, radius: 100 },
+];
 const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   lineUserId,
 }) => {
@@ -23,11 +26,22 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   const [address, setAddress] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [photo, setPhoto] = useState<string | null>(null);
-  const [inGeofence, setInGeofence] = useState<boolean>(true);
   const router = useRouter();
   const webcamRef = useRef<Webcam>(null);
+  const [inPremises, setInPremises] = useState<boolean>(false);
+  const [geocoder, setGeocoder] = useState<google.maps.Geocoder | null>(null);
 
   useEffect(() => {
+    const loader = new Loader({
+      apiKey: process.env.GOOGLE_MAPS_API as string,
+      version: 'weekly',
+      libraries: ['places', 'geometry'],
+    });
+
+    loader.load().then(() => {
+      setGeocoder(new google.maps.Geocoder());
+    });
+
     const fetchUserDetails = async () => {
       try {
         const response = await axios.get(`/api/user/${lineUserId}`);
@@ -35,20 +49,66 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
         setRole(response.data.role);
       } catch (error) {
         console.error('Error fetching user details:', error);
-        setError('Unable to fetch user details. Please try again.');
+        if (axios.isAxiosError(error)) {
+          if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            console.error('Error response data:', error.response.data);
+            console.error('Error response status:', error.response.status);
+            setError(
+              `Unable to fetch user details. Server responded with: ${error.response.status}`,
+            );
+          } else if (error.request) {
+            // The request was made but no response was received
+            console.error('No response received:', error.request);
+            setError(
+              'Unable to fetch user details. No response received from server.',
+            );
+          } else {
+            // Something happened in setting up the request that triggered an Error
+            console.error('Error message:', error.message);
+            setError(`Unable to fetch user details. Error: ${error.message}`);
+          }
+        } else {
+          setError('An unexpected error occurred while fetching user details.');
+        }
       }
     };
 
     const getCurrentLocation = async () => {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          (position) => {
+          async (position) => {
             const { latitude, longitude } = position.coords;
-            setLocation({ lat: latitude, lng: longitude });
-            // Mock geofencing check
-            const isInGeofence = true; // Replace with actual geofencing logic
-            setInGeofence(isInGeofence);
-            setAddress('Mock Address from Geocoding API'); // Replace with actual geocoding result
+            const currentLocation = { lat: latitude, lng: longitude };
+            setLocation(currentLocation);
+
+            // Check if the user is within any of the premises
+            const isInPremises = PREMISES.some(
+              (premise) =>
+                google.maps.geometry.spherical.computeDistanceBetween(
+                  new google.maps.LatLng(currentLocation),
+                  new google.maps.LatLng(premise),
+                ) <= premise.radius,
+            );
+            setInPremises(isInPremises);
+
+            // Reverse geocoding
+            if (geocoder) {
+              try {
+                const result = await geocoder.geocode({
+                  location: currentLocation,
+                });
+                if (result.results && result.results.length > 0) {
+                  setAddress(result.results[0].formatted_address);
+                } else {
+                  setAddress('Address not found');
+                }
+              } catch (error) {
+                console.error('Geocoder failed due to: ' + error);
+                setAddress('Error fetching address');
+              }
+            }
           },
           (error) => {
             console.error('Error getting current location:', error);
@@ -60,7 +120,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
 
     fetchUserDetails();
     getCurrentLocation();
-  }, [lineUserId]);
+  }, [lineUserId, geocoder]);
 
   const handleNextStep = () => {
     setStep(step + 1);
@@ -109,7 +169,11 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
     <div className="main-container flex justify-center items-center h-screen">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
         <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
-          General Employee Check-In
+          <div
+            className="bg-blue-600 h-2.5 rounded-full"
+            style={{ width: `${(step / 3) * 100}%` }}
+          ></div>
+          ระบบบันทึกเวลาทำงาน
         </h5>
         <div className="space-y-6">
           <div className="flex justify-between">
@@ -118,8 +182,8 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
           </div>
           {step === 1 && (
             <div>
-              <p>Name: John Doe</p>
-              <p>Department: HR</p>
+              <p>ชื่อ นามสกุล: John Doe</p>
+              <p>แผนก: HR</p>
               <button
                 onClick={handleNextStep}
                 className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
@@ -151,7 +215,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                   htmlFor="address"
                   className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                 >
-                  Current Address
+                  ที่อยู่ของคุณ
                 </label>
                 <div
                   id="address"
@@ -161,13 +225,13 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                 </div>
               </div>
               {location && <GoogleMapComponent center={location} />}
-              {!inGeofence && (
-                <div className="mb-3">
+              {!inPremises && (
+                <div className="mb-3 mt-5">
                   <label
                     htmlFor="reason"
                     className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                   >
-                    Reason for being outside the premises
+                    เหตุผลสำหรับการเข้างานนอกสถานที่
                   </label>
                   <input
                     type="text"
@@ -179,13 +243,15 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                   />
                 </div>
               )}
-              <button
-                onClick={handleCheckIn}
-                disabled={loading || (!inGeofence && !reason)}
-                className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-              >
-                {loading ? 'Checking In...' : 'Check In'}
-              </button>
+              <div className="flex justify-end mt-5">
+                <button
+                  onClick={handleCheckIn}
+                  disabled={loading || (!inPremises && !reason)}
+                  className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                >
+                  {loading ? 'กำลังลงเวลาเข้างาน...' : 'ลงเวลาเข้างาน'}
+                </button>
+              </div>
             </div>
           )}
           {error && <p className="text-danger text-red-500">{error}</p>}
@@ -194,5 +260,4 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
     </div>
   );
 };
-
 export default GeneralCheckInForm;

@@ -4,11 +4,15 @@ import axios from 'axios';
 import { saveData } from '../services/SyncService';
 import GoogleMapComponent from './GoogleMap';
 import Webcam from 'react-webcam';
+import { Loader } from '@googlemaps/js-api-loader';
 
 interface DriverCheckInFormProps {
   lineUserId: string;
 }
-
+const PREMISES = [
+  { lat: 13.50821, lng: 100.76405, radius: 100 },
+  { lat: 13.51444, lng: 100.70922, radius: 100 },
+];
 const DriverCheckInForm: React.FC<DriverCheckInFormProps> = ({
   lineUserId,
 }) => {
