@@ -7,7 +7,7 @@ const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
-const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
+const getLeaveCountForAdmin = async (_adminId: string): Promise<number> => {
   const now = new Date();
   let currentMonthStart: Date;
 

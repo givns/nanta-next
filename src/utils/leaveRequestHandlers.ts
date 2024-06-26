@@ -127,7 +127,6 @@ export const getOriginalLeaveRequest = async (requestId: string) => {
 export const createResubmittedLeaveRequest = async (
   originalRequestId: string,
   updatedData: Partial<LeaveRequest>,
-  lineUserId: string,
 ) => {
   try {
     const originalRequest = await getOriginalLeaveRequest(originalRequestId);

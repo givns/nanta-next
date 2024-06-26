@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { locationTrackingService } from '../services/locationTrackingService';
-import Map from '../components/Map';
+import dynamic from 'next/dynamic';
 import axios from 'axios';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 
+const Map = dynamic(() => import('../components/Map'), { ssr: false });
 const CheckInPage = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
