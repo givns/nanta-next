@@ -8,7 +8,7 @@ interface GoogleMapComponentProps {
 const GoogleMapComponent: React.FC<GoogleMapComponentProps> = ({ center }) => {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API!,
   });
 
   return isLoaded ? (
