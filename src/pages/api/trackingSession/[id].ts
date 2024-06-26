@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../utils/db';
+import prisma from '../../../utils/extendedPrismaClient';
 
 export default async function handler(
   req: NextApiRequest,
@@ -22,8 +22,7 @@ export default async function handler(
         return res.status(404).json({ error: 'Tracking session not found' });
       }
 
-      const totalDistance =
-        await prisma.trackingSession.calculateTotalDistance(id);
+      const totalDistance = await prisma.calculateTotalDistance(id);
 
       res.status(200).json({
         ...trackingSession,

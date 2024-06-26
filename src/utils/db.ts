@@ -2,7 +2,9 @@ import { PrismaClient } from '@prisma/client';
 import { calculateDistance } from '../utils/distance';
 
 const prismaClientSingleton = () => {
-  return new PrismaClient().$extends({
+  const prisma = new PrismaClient();
+
+  prisma.$extends({
     model: {
       trackingSession: {
         async calculateTotalDistance(sessionId: string) {
@@ -28,13 +30,16 @@ const prismaClientSingleton = () => {
       },
     },
   });
+
+  return prisma;
 };
 
-declare global {
-  var prisma: ReturnType<typeof prismaClientSingleton> | undefined;
-}
+let prisma: ReturnType<typeof prismaClientSingleton>;
 
-const prisma = globalThis.prisma ?? prismaClientSingleton();
+if (!globalThis.prisma) {
+  globalThis.prisma = prismaClientSingleton();
+}
+prisma = globalThis.prisma;
 
 export default prisma;
 

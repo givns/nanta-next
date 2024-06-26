@@ -4,6 +4,7 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
+import { calculateFullDayCount } from '../lib/holidayUtils';
 
 const LeaveSummaryPage = () => {
   const router = useRouter();
@@ -49,41 +50,10 @@ const LeaveSummaryPage = () => {
     }
   }, []);
 
-  const isNonWorkingDay = (date: dayjs.Dayjs) => {
-    // List of public holidays in 'YYYY-MM-DD' format
-    const publicHolidays = ['2023-12-31', '2024-01-01', '2024-04-06']; // Example holidays
-    return (
-      date.day() === 0 || publicHolidays.includes(date.format('YYYY-MM-DD'))
-    );
-  };
-  const calculateFullDayCount = (
-    startDate: string,
-    endDate: string,
-    leaveFormat: string,
-  ) => {
-    if (leaveFormat === 'ลาครึ่งวัน') {
-      return 0.5;
-    }
-    const start = dayjs(startDate);
-    const end = dayjs(endDate);
-    let fullDayCount = 0;
-    for (
-      let date = start;
-      date.isBefore(end) || date.isSame(end, 'day');
-      date = date.add(1, 'day')
-    ) {
-      if (date.day() !== 0) {
-        // Exclude Sundays
-        fullDayCount += 1;
-      }
-    }
-    return fullDayCount;
-  };
-
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const fullDayCount = calculateFullDayCount(
+      const fullDayCount = await calculateFullDayCount(
         summaryData.startDate,
         summaryData.endDate,
         summaryData.leaveFormat,
@@ -120,10 +90,6 @@ const LeaveSummaryPage = () => {
     }
   };
 
-  if (!summaryData) {
-    return <div>Loading...</div>;
-  }
-
   return (
     <div className="main-container flex justify-center items-center h-screen">
       <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
@@ -145,10 +111,14 @@ const LeaveSummaryPage = () => {
           </p>
           <p className="mb-2">
             <strong>จำนวนวันลา:</strong>{' '}
-            {calculateFullDayCount(
-              summaryData.startDate,
-              summaryData.endDate,
-              summaryData.leaveFormat,
+            {summaryData && (
+              <span id="leaveDaysCount">
+                {calculateFullDayCount(
+                  summaryData.startDate,
+                  summaryData.endDate,
+                  summaryData.leaveFormat,
+                ).then((count) => count.toString())}
+              </span>
             )}
           </p>
           <p className="mb-2">

@@ -20,7 +20,7 @@ const Map: React.FC<MapProps> = ({ center, zoom = 13 }) => {
       mapRef.current.setView([center.lat, center.lng], zoom);
     }
 
-    const marker = L.marker([center.lat, center.lng]).addTo(mapRef.current);
+    L.marker([center.lat, center.lng]).addTo(mapRef.current);
 
     return () => {
       if (mapRef.current) {

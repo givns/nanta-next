@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import liff from '@line/liff';
 import { locationTrackingService } from '../services/locationTrackingService';
 import Map from './Map';
 import { getAddressFromCoordinates } from '../utils/geocoding';

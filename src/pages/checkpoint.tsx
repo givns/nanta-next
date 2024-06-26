@@ -1,56 +1,117 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
+import liff from '@line/liff';
 import { locationTrackingService } from '../services/locationTrackingService';
 import Map from '../components/Map';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 
-const CheckpointPage = () => {
-  const [checkpoints, setCheckpoints] = useState<string[]>([]);
-  const [newCheckpoint, setNewCheckpoint] = useState('');
+const CheckpointPage: React.FC = () => {
+  const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
   const [address, setAddress] = useState<string>('');
+  const [checkpointName, setCheckpointName] = useState<string>('');
+  const [checkpoints, setCheckpoints] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  const checkUserStatus = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/userStatus');
+      if (!response.data.isCheckedIn) {
+        router.push('/check-in');
+      }
+    } catch (error) {
+      console.error('Error checking user status:', error);
+      setError('Failed to check user status. Please try again.');
+    }
+  }, [router]);
+
   useEffect(() => {
-    // Check if user is checked in
     checkUserStatus();
+  }, [checkUserStatus]);
+
+  useEffect(() => {
+    const initializeLiff = async () => {
+      try {
+        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          setLineUserId(profile.userId);
+        } else {
+          router.push('/login');
+        }
+      } catch (error) {
+        console.error('Error initializing LIFF:', error);
+        setError('Failed to initialize LIFF. Please try again.');
+      }
+    };
+
+    initializeLiff();
+  }, [router]);
+
+  useEffect(() => {
+    const getCurrentLocation = async () => {
+      try {
+        const currentLocation =
+          await locationTrackingService.getCurrentLocation();
+        setLocation({
+          lat: currentLocation.latitude,
+          lng: currentLocation.longitude,
+        });
+        const addressFromCoords = await getAddressFromCoordinates(
+          currentLocation.latitude,
+          currentLocation.longitude,
+        );
+        setAddress(addressFromCoords);
+      } catch (error) {
+        console.error('Error getting current location:', error);
+        setError('Unable to get current location. Please try again.');
+      }
+    };
+
+    getCurrentLocation();
   }, []);
 
-  const checkUserStatus = async () => {
-    const response = await axios.get('/api/userStatus');
-    if (!response.data.isCheckedIn) {
-      router.push('/check-in');
-    }
-  };
-
   const handleAddCheckpoint = async () => {
+    setLoading(true);
+    setError(null);
     try {
+      if (!lineUserId || !location) {
+        throw new Error('Missing user ID or location data');
+      }
+
+      await axios.post('/api/addCheckpoint', {
+        lineUserId,
+        latitude: location.lat,
+        longitude: location.lng,
+        address,
+        checkpointName,
+      });
+
+      setCheckpoints([...checkpoints, checkpointName]);
+      setCheckpointName('');
+
+      // Update location after adding checkpoint
       const currentLocation =
         await locationTrackingService.getCurrentLocation();
       setLocation({
         lat: currentLocation.latitude,
         lng: currentLocation.longitude,
       });
-
       const addressFromCoords = await getAddressFromCoordinates(
         currentLocation.latitude,
         currentLocation.longitude,
       );
       setAddress(addressFromCoords);
-
-      await axios.post('/api/addCheckpoint', {
-        checkpoint: newCheckpoint,
-        location: currentLocation,
-        address: addressFromCoords,
-      });
-
-      setCheckpoints([...checkpoints, newCheckpoint]);
-      setNewCheckpoint('');
     } catch (error) {
       console.error('Failed to add checkpoint:', error);
+      setError('Failed to add checkpoint. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -58,24 +119,49 @@ const CheckpointPage = () => {
     router.push('/check-out');
   };
 
+  if (error) {
+    return <div className="error">{error}</div>;
+  }
+
+  if (!location) {
+    return <div>Loading location...</div>;
+  }
+
   return (
-    <div>
-      <h1>Checkpoints</h1>
-      {location && <Map center={location} />}
-      <p>Current Address: {address}</p>
-      <ul>
-        {checkpoints.map((checkpoint, index) => (
-          <li key={index}>{checkpoint}</li>
-        ))}
-      </ul>
-      <input
-        type="text"
-        value={newCheckpoint}
-        onChange={(e) => setNewCheckpoint(e.target.value)}
-        placeholder="Enter new checkpoint"
-      />
-      <button onClick={handleAddCheckpoint}>Add Checkpoint</button>
-      <button onClick={handleProceedToCheckout}>Proceed to Check-Out</button>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-4">Driver Checkpoints</h1>
+      <Map center={location} />
+      <p className="my-4">Current Address: {address}</p>
+      <div className="mb-4">
+        <input
+          type="text"
+          value={checkpointName}
+          onChange={(e) => setCheckpointName(e.target.value)}
+          placeholder="Enter checkpoint name"
+          className="w-full p-2 border rounded"
+        />
+      </div>
+      <button
+        onClick={handleAddCheckpoint}
+        disabled={loading || !checkpointName}
+        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
+      >
+        {loading ? 'Adding...' : 'Add Checkpoint'}
+      </button>
+      <button
+        onClick={handleProceedToCheckout}
+        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+      >
+        Proceed to Check-Out
+      </button>
+      <div className="mt-4">
+        <h2 className="text-xl font-bold">Checkpoints:</h2>
+        <ul className="list-disc pl-5">
+          {checkpoints.map((checkpoint, index) => (
+            <li key={index}>{checkpoint}</li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };
