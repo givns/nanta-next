@@ -79,7 +79,7 @@ const generalUserRichMenu: RichMenu = {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/check-in`,
+        uri: `${LIFF_URL}?path=/check-in-router`,
       } as URIAction, // Slot A
     },
     {
@@ -118,7 +118,7 @@ const specialUserRichMenu: RichMenu = {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/check-in`,
+        uri: `${LIFF_URL}?path=/check-in-router`,
       } as URIAction, // Slot A
     },
     {
@@ -219,7 +219,7 @@ const superAdminRichMenu: RichMenu = {
       bounds: { x: 0, y: 843, width: 833, height: 843 },
       action: {
         type: 'uri',
-        uri: `${LIFF_URL}?path=/check-in`,
+        uri: `${LIFF_URL}?path=/check-in-router`,
       } as URIAction, // Slot D
     },
     {

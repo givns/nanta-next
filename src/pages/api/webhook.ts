@@ -121,20 +121,20 @@ const createAndAssignRichMenu = async (
   let richMenuId;
   switch (role) {
     case UserRole.SUPERADMIN:
-      richMenuId = 'richmenu-0ea158465f8926515b7d159f18bfb6d6'; // Super Admin Rich Menu
+      richMenuId = 'richmenu-5e2677dc4e68d4fde747ff413a88264f'; // Super Admin Rich Menu
       break;
     case UserRole.ADMIN:
       richMenuId = 'richmenu-deec36bf2265338a9f48acd024ce1cde'; // Admin Rich Menu
       break;
     case UserRole.DRIVER:
-      richMenuId = 'richmenu-741553f870a405009fec483601830523'; // Placeholder for Route Rich Menu
+      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // Placeholder for Route Rich Menu
       break;
     case UserRole.OPERATION:
-      richMenuId = 'richmenu-2fc50f25f3582448a3f53be2822cc66b'; // Special User Rich Menu
+      richMenuId = 'richmenu-834c002dbe1ccfbedb54a76b6c78bdde'; // Special User Rich Menu
       break;
     case UserRole.GENERAL:
     default:
-      richMenuId = 'richmenu-741553f870a405009fec483601830523'; // General User Rich Menu
+      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // General User Rich Menu
   }
 
   await client.linkRichMenuToUser(userId, richMenuId);
