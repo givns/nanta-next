@@ -8,11 +8,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const ContentSecurityPolicy = `
-  default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' https:;
-  style-src 'self' 'unsafe-inline' https:;
-  img-src 'self' data: https:;
-  connect-src 'self' https://liffsdk.line-scdn.net https://api.line.me;
+  default-src *;
+  script-src * 'unsafe-inline' 'unsafe-eval';
+  style-src * 'unsafe-inline';
+  img-src * data: blob:;
+  font-src * data:;
+  connect-src *;
+  media-src *;
+  object-src *;
+  child-src *;
+  frame-src *;
+  worker-src *;
+  form-action *;
+  base-uri *;
+  manifest-src *;
+  prefetch-src *;
 `;
 
 const securityHeaders = [
@@ -20,6 +30,20 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: ContentSecurityPolicy.replace(/\s+/g, ' ').trim(),
   },
+  // You might want to remove or modify other security headers if they're too restrictive
+  {
+    key: 'X-Frame-Options',
+    value: 'SAMEORIGIN',
+  },
+  {
+    key: 'X-Content-Type-Options',
+    value: 'nosniff',
+  },
+  {
+    key: 'Referrer-Policy',
+    value: 'origin-when-cross-origin',
+  },
+  // Remove or modify other headers as needed
 ];
 
 export default {

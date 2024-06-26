@@ -14,13 +14,22 @@ class MyDocument extends Document {
           <meta
             httpEquiv="Content-Security-Policy"
             content="
-            default-src 'self';
-            script-src 'self' 'unsafe-eval' 'unsafe-inline' https://static.line-scdn.net https://liffsdk.line-scdn.net https://maps.googleapis.com;
-            style-src 'self' 'unsafe-inline' https://static.line-scdn.net https://liffsdk.line-scdn.net https://fonts.googleapis.com;
-            font-src 'self' https://fonts.gstatic.com;
-            img-src 'self' data: https://static.line-scdn.net https://liffsdk.line-scdn.net https://*.googleapis.com https://*.gstatic.com;
-            connect-src 'self' https://static.line-scdn.net https://liffsdk.line-scdn.net https://api.line.me https://nominatim.openstreetmap.org https://*.googleapis.com;
-          "
+              default-src *;
+              script-src * 'unsafe-inline' 'unsafe-eval';
+              style-src * 'unsafe-inline';
+              img-src * data: blob:;
+              font-src * data:;
+              connect-src *;
+              media-src *;
+              object-src *;
+              child-src *;
+              frame-src *;
+              worker-src *;
+              form-action *;
+              base-uri *;
+              manifest-src *;
+              prefetch-src *;
+            "
           />
           <script>{`console.log("CSP Loaded");`}</script>
         </Head>
