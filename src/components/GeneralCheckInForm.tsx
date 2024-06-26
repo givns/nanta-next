@@ -49,6 +49,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
         console.log('User details response:', response.data);
         setUserId(response.data.id);
         setRole(response.data.role);
+        // Set other user details as needed
       } catch (error) {
         console.error('Error fetching user details:', error);
         if (axios.isAxiosError(error)) {
