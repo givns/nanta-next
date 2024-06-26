@@ -7,21 +7,22 @@ export default async function handler(
 ) {
   if (req.method === 'POST') {
     try {
-      const { userId, location, address } = req.body;
+      const { userId } = req.body;
 
-      const checkIn = await prisma.checkIn.create({
+      const trackingSession = await prisma.trackingSession.create({
         data: {
           userId,
-          latitude: location.lat,
-          longitude: location.lng,
-          address,
-          type: 'IN',
+          startTime: new Date(),
         },
       });
 
-      res.status(200).json({ success: true, data: checkIn });
+      res
+        .status(200)
+        .json({ success: true, trackingSessionId: trackingSession.id });
     } catch (error) {
-      res.status(500).json({ success: false, error: 'Failed to check in' });
+      res
+        .status(500)
+        .json({ success: false, error: 'Failed to start tracking session' });
     }
   } else {
     res.setHeader('Allow', ['POST']);

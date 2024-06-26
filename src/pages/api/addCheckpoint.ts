@@ -7,21 +7,24 @@ export default async function handler(
 ) {
   if (req.method === 'POST') {
     try {
-      const { userId, location, address } = req.body;
+      const { userId, location, address, checkpointName } = req.body;
 
-      const checkIn = await prisma.checkIn.create({
+      const checkpoint = await prisma.checkIn.create({
         data: {
           userId,
           latitude: location.lat,
           longitude: location.lng,
           address,
-          type: 'IN',
+          type: 'CHECKPOINT',
+          checkpointName,
         },
       });
 
-      res.status(200).json({ success: true, data: checkIn });
+      res.status(200).json({ success: true, data: checkpoint });
     } catch (error) {
-      res.status(500).json({ success: false, error: 'Failed to check in' });
+      res
+        .status(500)
+        .json({ success: false, error: 'Failed to add checkpoint' });
     }
   } else {
     res.setHeader('Allow', ['POST']);

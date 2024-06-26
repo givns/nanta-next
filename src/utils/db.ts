@@ -1,15 +1,41 @@
 import { PrismaClient } from '@prisma/client';
+import { calculateDistance } from '../utils/distance';
+
+const prismaClientSingleton = () => {
+  return new PrismaClient().$extends({
+    model: {
+      trackingSession: {
+        async calculateTotalDistance(sessionId: string) {
+          const locations = await prisma.gpsLocation.findMany({
+            where: { trackingSessionId: sessionId },
+            orderBy: { timestamp: 'asc' },
+          });
+
+          let totalDistance = 0;
+          for (let i = 1; i < locations.length; i++) {
+            const prevLoc = locations[i - 1];
+            const currLoc = locations[i];
+            totalDistance += calculateDistance(
+              prevLoc.latitude,
+              prevLoc.longitude,
+              currLoc.latitude,
+              currLoc.longitude,
+            );
+          }
+
+          return totalDistance;
+        },
+      },
+    },
+  });
+};
 
 declare global {
-  // Allow the variable to exist in the global scope in development
-  // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined;
+  var prisma: ReturnType<typeof prismaClientSingleton> | undefined;
 }
 
-const prisma = global.prisma || new PrismaClient();
-
-if (process.env.NODE_ENV === 'development') {
-  global.prisma = prisma;
-}
+const prisma = globalThis.prisma ?? prismaClientSingleton();
 
 export default prisma;
+
+if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma;

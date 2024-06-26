@@ -36,7 +36,7 @@ model User {
   leaveRequests     LeaveRequest[]
   overtimeRequests  OvertimeRequest[]
   checkIns          CheckIn[]
-  gpsLogs           GpsLog[]
+  trackingSessions TrackingSession[]
 }
 
 model LeaveRequest {
@@ -72,22 +72,30 @@ model OvertimeRequest {
 
 model CheckIn {
   id             String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String     @db.ObjectId
   user           User       @relation(fields: [userId], references: [id])
-  timestamp      DateTime   @default(now())
-  latitude       Float?
-  longitude      Float?
-  location       String?
-  method         String     // "GPS", "QR", or "MANUAL"
+  userId         String     @db.ObjectId
   type           CheckInType
+  latitude       Float
+  longitude      Float
+  address        String
   checkpointName String?
+  createdAt      DateTime   @default(now())
 }
 
-model GpsLog {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id])
-  timestamp DateTime @default(now())
-  latitude  Float
-  longitude Float
+model TrackingSession {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  user      User          @relation(fields: [userId], references: [id])
+  userId    String        @db.ObjectId
+  startTime DateTime
+  endTime   DateTime?
+  locations GpsLocation[]
+}
+
+model GpsLocation {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  trackingSession   TrackingSession @relation(fields: [trackingSessionId], references: [id])
+  trackingSessionId String          @db.ObjectId
+  latitude          Float
+  longitude         Float
+  timestamp         DateTime
 }

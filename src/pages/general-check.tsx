@@ -1,20 +1,17 @@
 import { useState } from 'react';
-import { useRouter } from 'next/router';
-import liff from '@line/liff';
+import axios from 'axios';
 import { locationTrackingService } from '../services/locationTrackingService';
 import Map from '../components/Map';
-import axios from 'axios';
 import { getAddressFromCoordinates } from '../utils/geocoding';
-
-const CheckInPage = () => {
+const GeneralCheckPage = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
   const [address, setAddress] = useState<string>('');
-  const router = useRouter();
-  const [lineUserId] = useState<string>('');
 
-  const handleCheckIn = async () => {
+  const handleAction = async (
+    action: 'checkIn' | 'checkpoint' | 'checkOut',
+  ) => {
     try {
       const currentLocation =
         await locationTrackingService.getCurrentLocation();
@@ -23,37 +20,33 @@ const CheckInPage = () => {
         lng: currentLocation.longitude,
       });
 
-      // Get address from coordinates (you'll need to implement this)
       const addressFromCoords = await getAddressFromCoordinates(
         currentLocation.latitude,
         currentLocation.longitude,
       );
       setAddress(addressFromCoords);
 
-      // Send check-in data to server
-      await axios.post('/api/checkIn', {
+      await axios.post(`/api/${action}`, {
         location: currentLocation,
         address: addressFromCoords,
       });
 
-      // Start tracking
-      await locationTrackingService.startTracking(lineUserId);
-
-      // Navigate to checkpoint page
-      router.push('/checkpoint');
+      alert(`${action} successful!`);
     } catch (error) {
-      console.error('Check-in failed:', error);
+      console.error(`${action} failed:`, error);
     }
   };
 
   return (
     <div>
-      <h1>Driver Check-In</h1>
+      <h1>Check-In/Out</h1>
       {location && <Map center={location} />}
       <p>Current Address: {address}</p>
-      <button onClick={handleCheckIn}>Check In</button>
+      <button onClick={() => handleAction('checkIn')}>Check In</button>
+      <button onClick={() => handleAction('checkpoint')}>Add Checkpoint</button>
+      <button onClick={() => handleAction('checkOut')}>Check Out</button>
     </div>
   );
 };
 
-export default CheckInPage;
+export default GeneralCheckPage;

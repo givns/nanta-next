@@ -9,19 +9,19 @@ export default async function handler(
     try {
       const { userId, location, address } = req.body;
 
-      const checkIn = await prisma.checkIn.create({
+      const checkOut = await prisma.checkIn.create({
         data: {
           userId,
           latitude: location.lat,
           longitude: location.lng,
           address,
-          type: 'IN',
+          type: 'OUT',
         },
       });
 
-      res.status(200).json({ success: true, data: checkIn });
+      res.status(200).json({ success: true, data: checkOut });
     } catch (error) {
-      res.status(500).json({ success: false, error: 'Failed to check in' });
+      res.status(500).json({ success: false, error: 'Failed to check out' });
     }
   } else {
     res.setHeader('Allow', ['POST']);
