@@ -45,6 +45,7 @@ function createPrismaClient(): PrismaClientWithExtensions {
 
 // Declare the global type
 declare global {
+  // eslint-disable-next-line no-var
   var prisma: PrismaClientWithExtensions | undefined;
 }
 
