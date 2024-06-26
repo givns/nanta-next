@@ -20,6 +20,7 @@
     "prettier": "prettier --write ."
   },
   "dependencies": {
+    "@googlemaps/js-api-loader": "^1.16.6",
     "@line/bot-sdk": "^9.2.2",
     "@line/liff": "^2.23.2",
     "@prisma/client": "^5.15.0",
