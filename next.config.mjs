@@ -1,8 +1,11 @@
-const dotenv = require('dotenv');
-const path = require('path');
-const webpack = require('webpack');
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ContentSecurityPolicy = `
   default-src *;
@@ -70,4 +73,4 @@ const config = {
   },
 };
 
-module.exports = config;
+export default config;
