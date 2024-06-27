@@ -26,9 +26,24 @@ interface Premise {
 }
 
 const PREMISES: Premise[] = [
-  { lat: 13.508218242834106, lng: 100.76430057661977, radius: 100, name: "บริษัท นันตา ฟู้ด จํากัด" },
-  { lat: 13.514266844792308, lng: 100.70922876954376, radius: 100, name: "บริษัท ปัตตานี ฟู้ด" },
-  { lat: 13.747911294119723, lng: 100.63444550572989, radius: 100, name: "Bat Cave" },
+  {
+    lat: 13.508218242834106,
+    lng: 100.76430057661977,
+    radius: 100,
+    name: 'บริษัท นันตา ฟู้ด จํากัด',
+  },
+  {
+    lat: 13.514266844792308,
+    lng: 100.70922876954376,
+    radius: 100,
+    name: 'บริษัท ปัตตานี ฟู้ด',
+  },
+  {
+    lat: 13.747911294119723,
+    lng: 100.63444550572989,
+    radius: 100,
+    name: 'Bat Cave',
+  },
 ];
 
 const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
@@ -82,10 +97,13 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
     return null;
   };
 
-  const getAddressFromCoordinates = async (lat: number, lng: number): Promise<string> => {
+  const getAddressFromCoordinates = async (
+    lat: number,
+    lng: number,
+  ): Promise<string> => {
     try {
       const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API}`
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API}`,
       );
 
       if (response.data.results && response.data.results.length > 0) {
@@ -123,25 +141,30 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
             const { latitude, longitude } = position.coords;
             console.log('Current location:', { lat: latitude, lng: longitude });
             setLocation({ lat: latitude, lng: longitude });
-            
+
             const premise = isWithinPremises(latitude, longitude);
             if (premise) {
               setInPremises(true);
               setAddress(premise.name);
             } else {
               setInPremises(false);
-              const fetchedAddress = await getAddressFromCoordinates(latitude, longitude);
+              const fetchedAddress = await getAddressFromCoordinates(
+                latitude,
+                longitude,
+              );
               setAddress(fetchedAddress);
             }
           },
           (error) => {
             console.error('Error getting current location:', error);
             setError('Unable to get current location. Please try again.');
-          }
+          },
         );
       } else {
         console.error('Geolocation is not supported by this browser.');
-        setError('Geolocation is not supported by your browser. Please use a different device or browser.');
+        setError(
+          'Geolocation is not supported by your browser. Please use a different device or browser.',
+        );
       }
     };
 
