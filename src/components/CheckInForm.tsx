@@ -4,10 +4,12 @@ import axios from 'axios';
 import { saveData } from '../services/SyncService';
 import dynamic from 'next/dynamic';
 import Webcam from 'react-webcam';
+import * as faceapi from 'face-api.js';
+import liff from '@line/liff';
 
 const GoogleMapComponent = dynamic(() => import('./GoogleMap'), { ssr: false });
 
-interface GeneralCheckInFormProps {
+interface CheckInFormProps {
   lineUserId: string;
 }
 
@@ -26,31 +28,13 @@ interface Premise {
 }
 
 const PREMISES: Premise[] = [
-  {
-    lat: 13.508218242834106,
-    lng: 100.76430057661977,
-    radius: 100,
-    name: 'บริษัท นันตา ฟู้ด จํากัด',
-  },
-  {
-    lat: 13.514266844792308,
-    lng: 100.70922876954376,
-    radius: 100,
-    name: 'บริษัท ปัตตานี ฟู้ด',
-  },
-  {
-    lat: 13.747911294119723,
-    lng: 100.63444550572989,
-    radius: 100,
-    name: 'Bat Cave',
-  },
+  { lat: 13.50821, lng: 100.76405, radius: 100, name: 'บริษัท นันตา ฟู้ด' },
+  { lat: 13.51444, lng: 100.70922, radius: 100, name: 'บริษัท ปัตตานี ฟู้ด' },
 ];
 
-const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
+const GOOGLE_MAPS_API = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
 
-const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
-  lineUserId,
-}) => {
+const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -130,7 +114,12 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
       }
     };
 
+    const loadFaceApiModels = async () => {
+      await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+    };
+
     fetchUserDetails();
+    loadFaceApiModels();
   }, [lineUserId]);
 
   useEffect(() => {
@@ -148,6 +137,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
               setAddress(premise.name);
             } else {
               setInPremises(false);
+              // Use the geocoding service to get the address for locations outside premises
               const fetchedAddress = await getAddressFromCoordinates(
                 latitude,
                 longitude,
@@ -171,15 +161,25 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
     getCurrentLocation();
   }, []);
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     console.log('Attempting to capture photo');
     if (webcamRef.current) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
-        console.log('Photo captured successfully');
-        setPhoto(imageSrc);
-        setShowCamera(false);
-        setStep(2);
+        const img = await faceapi.fetchImage(imageSrc);
+        const detections = await faceapi.detectAllFaces(
+          img,
+          new faceapi.TinyFaceDetectorOptions(),
+        );
+
+        if (detections.length > 0) {
+          console.log('Photo captured successfully');
+          setPhoto(imageSrc);
+          setShowCamera(false);
+        } else {
+          console.error('No face detected');
+          setError('No face detected. Please try again.');
+        }
       } else {
         console.error('Failed to capture photo: imageSrc is null');
         setError('Failed to capture photo. Please try again.');
@@ -198,11 +198,6 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
       return;
     }
 
-    if (!inPremises && !reason) {
-      setError('Please provide a reason for checking in outside the premises.');
-      return;
-    }
-
     setLoading(true);
     setError(null);
     try {
@@ -211,7 +206,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
         role: userData.role,
         location,
         address,
-        reason: inPremises ? '' : reason,
+        reason,
         photo,
         timestamp: new Date().toISOString(),
       };
@@ -231,7 +226,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   };
 
   if (!userData) {
-    return <div>กำลังโหลดข้อมูลผู้ใช้งาน...</div>;
+    return <div>Loading user data...</div>;
   }
 
   return (
@@ -275,7 +270,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                   />
                   <button
                     onClick={capturePhoto}
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition duration-300"
+                    className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue ribbon-700 transition duration-300"
                     aria-label="ถ่ายรูป"
                   >
                     ถ่ายรูป
@@ -343,4 +338,4 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   );
 };
 
-export default GeneralCheckInForm;
+export default CheckInForm;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import axios from 'axios';
 import liff from '@line/liff';
+import axios from 'axios';
 
 const CheckInRouter = () => {
   const router = useRouter();
@@ -15,25 +15,23 @@ const CheckInRouter = () => {
           const profile = await liff.getProfile();
           const lineUserId = profile.userId;
 
-          // Fetch user role from your API
+          // Check if user is already checked in
           const response = await axios.get(
-            `/api/user-role?lineUserId=${lineUserId}`,
+            `/api/check-status?lineUserId=${lineUserId}`,
           );
-          const userRole = response.data.role;
+          const { isCheckedIn } = response.data;
 
-          // Redirect based on user role
-          if (userRole === 'DRIVER') {
-            router.push('/driver-check-in');
+          if (isCheckedIn) {
+            router.push('/check-out');
           } else {
-            router.push('/general-check-in');
+            router.push('/check-in');
           }
         } else {
-          // If not logged in, redirect to login page or prompt LINE login
           liff.login();
         }
       } catch (error) {
         console.error('Error in check-in routing:', error);
-        // Handle error (e.g., show error message, redirect to error page)
+        // Handle error (e.g., show error message)
       } finally {
         setLoading(false);
       }
@@ -46,7 +44,6 @@ const CheckInRouter = () => {
     return <div>กำลังเข้าสู่ระบบ...</div>;
   }
 
-  // This component doesn't render anything itself, it just redirects
   return null;
 };
 
