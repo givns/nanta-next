@@ -195,7 +195,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                   />
                   <button
                     onClick={capturePhoto}
-                    className="w-full bg-[#FF1900] text-white py-3 px-4 rounded-lg hover:bg-red-700 transition duration-300"
+                    className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition duration-300"
                     aria-label="ถ่ายรูป"
                   >
                     ถ่ายรูป
