@@ -18,10 +18,20 @@ interface UserData {
   role: string;
 }
 
-const PREMISES = [
-  { lat: 13.50821, lng: 100.76405, radius: 100 },
-  { lat: 13.51444, lng: 100.70922, radius: 100 },
+interface Premise {
+  lat: number;
+  lng: number;
+  radius: number;
+  name: string;
+}
+
+const PREMISES: Premise[] = [
+  { lat: 13.508218242834106, lng: 100.76430057661977, radius: 100, name: "บริษัท นันตา ฟู้ด จํากัด" },
+  { lat: 13.514266844792308, lng: 100.70922876954376, radius: 100, name: "บริษัท ปัตตานี ฟู้ด" },
+  { lat: 13.747911294119723, lng: 100.63444550572989, radius: 100, name: "Bat Cave" },
 ];
+
+const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   lineUserId,
@@ -41,29 +51,6 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
 
   const router = useRouter();
   const webcamRef = useRef<Webcam>(null);
-
-  useEffect(() => {
-    const fetchUserDetails = async () => {
-      try {
-        console.log('Fetching user details for LINE User ID:', lineUserId);
-        const response = await axios.get(`/api/user/${lineUserId}`);
-        console.log('User details response:', response.data);
-        setUserData(response.data);
-      } catch (error) {
-        console.error('Error fetching user details:', error);
-        setError('Unable to fetch user details. Please try again.');
-      }
-    };
-
-    fetchUserDetails();
-  }, [lineUserId]);
-
-  const isWithinPremises = (lat: number, lng: number): boolean => {
-    return PREMISES.some((premise) => {
-      const distance = calculateDistance(lat, lng, premise.lat, premise.lng);
-      return distance <= premise.radius;
-    });
-  };
 
   const calculateDistance = (
     lat1: number,
@@ -85,32 +72,76 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
     return R * c; // Distance in meters
   };
 
+  const isWithinPremises = (lat: number, lng: number): Premise | null => {
+    for (const premise of PREMISES) {
+      const distance = calculateDistance(lat, lng, premise.lat, premise.lng);
+      if (distance <= premise.radius) {
+        return premise;
+      }
+    }
+    return null;
+  };
+
+  const getAddressFromCoordinates = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const response = await axios.get(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API}`
+      );
+
+      if (response.data.results && response.data.results.length > 0) {
+        return response.data.results[0].formatted_address;
+      } else {
+        throw new Error('No results found');
+      }
+    } catch (error) {
+      console.error('Error fetching address:', error);
+      return 'Unable to fetch address';
+    }
+  };
+
+  useEffect(() => {
+    const fetchUserDetails = async () => {
+      try {
+        console.log('Fetching user details for LINE User ID:', lineUserId);
+        const response = await axios.get(`/api/user/${lineUserId}`);
+        console.log('User details response:', response.data);
+        setUserData(response.data);
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+        setError('Unable to fetch user details. Please try again.');
+      }
+    };
+
+    fetchUserDetails();
+  }, [lineUserId]);
+
   useEffect(() => {
     const getCurrentLocation = async () => {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          (position) => {
+          async (position) => {
             const { latitude, longitude } = position.coords;
             console.log('Current location:', { lat: latitude, lng: longitude });
             setLocation({ lat: latitude, lng: longitude });
-
-            const withinPremises = isWithinPremises(latitude, longitude);
-            setInPremises(withinPremises);
-
-            // Here you would typically use a geocoding service to get the address
-            // For now, we'll use a mock address
-            setAddress('Mock Address from Geocoding API');
+            
+            const premise = isWithinPremises(latitude, longitude);
+            if (premise) {
+              setInPremises(true);
+              setAddress(premise.name);
+            } else {
+              setInPremises(false);
+              const fetchedAddress = await getAddressFromCoordinates(latitude, longitude);
+              setAddress(fetchedAddress);
+            }
           },
           (error) => {
             console.error('Error getting current location:', error);
             setError('Unable to get current location. Please try again.');
-          },
+          }
         );
       } else {
         console.error('Geolocation is not supported by this browser.');
-        setError(
-          'Geolocation is not supported by your browser. Please use a different device or browser.',
-        );
+        setError('Geolocation is not supported by your browser. Please use a different device or browser.');
       }
     };
 
