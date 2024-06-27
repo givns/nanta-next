@@ -117,7 +117,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
 
   const capturePhoto = useCallback(() => {
     if (webcamRef.current) {
-      const imageSrc = (webcamRef.current as any).getScreenshot();
+      const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
         setPhoto(imageSrc);
         setShowCamera(false);
@@ -177,30 +177,31 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
               <p className="text-md mb-4 text-gray-600">
                 {userData.department}
               </p>
-              <button
-                onClick={() => setShowCamera(true)}
-                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-                aria-label="ถ่ายรูปเพื่อเช็คอิน"
-              >
-                ถ่ายรูปเพื่อเช็คอิน
-              </button>
-            </div>
-          )}
-          {showCamera && (
-            <div className="mt-4">
-              <WebcamWrapper
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                className="w-full rounded-lg"
-              />
-              <button
-                onClick={capturePhoto}
-                className="w-full mt-4 bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition duration-300"
-                aria-label="ถ่ายรูป"
-              >
-                ถ่ายรูป
-              </button>
+              {!showCamera ? (
+                <button
+                  onClick={() => setShowCamera(true)}
+                  className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+                  aria-label="เปิดกล้องเพื่อถ่ายรูป"
+                >
+                  เปิดกล้องเพื่อถ่ายรูป
+                </button>
+              ) : (
+                <div className="mt-4">
+                  <WebcamWrapper
+                    audio={false}
+                    ref={webcamRef}
+                    screenshotFormat="image/jpeg"
+                    className="w-full rounded-lg mb-4"
+                  />
+                  <button
+                    onClick={capturePhoto}
+                    className="w-full bg-[#FF1900] text-white py-3 px-4 rounded-lg hover:bg-red-700 transition duration-300"
+                    aria-label="ถ่ายรูป"
+                  >
+                    ถ่ายรูป
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {step === 2 && (
