@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
-import { saveData } from '../services/SyncService';
 import dynamic from 'next/dynamic';
 import Webcam from 'react-webcam';
 import * as faceapi from 'face-api.js';
-import liff from '@line/liff';
+import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage';
 
 const GoogleMapComponent = dynamic(() => import('./GoogleMap'), { ssr: false });
 
@@ -15,9 +14,13 @@ interface CheckInFormProps {
 
 interface UserData {
   id: string;
+  lineUserId: string;
   name: string;
+  nickname: string;
   department: string;
-  role: string;
+  employeeNumber: string | null;
+  profilePictureUrl: string | null;
+  createdAt: Date;
 }
 
 interface Premise {
@@ -104,10 +107,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
   useEffect(() => {
     const fetchUserDetails = async () => {
       try {
-        console.log('Fetching user details for LINE User ID:', lineUserId);
         const response = await axios.get(`/api/user/${lineUserId}`);
-        console.log('User details response:', response.data);
-        setUserData(response.data);
+        const user = response.data;
+        setUserData({
+          id: user.id,
+          lineUserId: user.lineUserId,
+          name: user.name,
+          nickname: user.nickname,
+          department: user.department,
+          employeeNumber: user.employeeNumber,
+          profilePictureUrl: user.profilePictureUrl,
+          createdAt: new Date(user.createdAt),
+        });
       } catch (error) {
         console.error('Error fetching user details:', error);
         setError('Unable to fetch user details. Please try again.');
@@ -203,7 +214,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
     try {
       const data = {
         userId: userData.id,
-        role: userData.role,
         location,
         address,
         reason,
@@ -211,12 +221,20 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
         timestamp: new Date().toISOString(),
       };
 
-      console.log('Sending check-in data:', data);
-      await saveData('checkIn', data);
+      const response = await axios.post('/api/check-in', data);
 
-      console.log('Check-in successful');
-      alert('Check-in successful!');
-      router.push('/checkpoint');
+      if (response.status === 200) {
+        const checkInData = response.data.data; // Assuming response.data contains the saved check-in data
+
+        // Send flex message
+        await sendCheckInFlexMessage(userData, checkInData);
+
+        console.log('Check-in successful');
+        alert('Check-in successful!');
+        router.push('/checkpoint');
+      } else {
+        setError('Check-in failed. Please try again.');
+      }
     } catch (error) {
       console.error('Check-in failed:', error);
       setError('Failed to check in. Please try again.');

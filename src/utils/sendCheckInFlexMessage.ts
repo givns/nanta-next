@@ -1,5 +1,5 @@
 import { FlexMessage, Client } from '@line/bot-sdk';
-import { CheckIn, User } from '@prisma/client';
+import { CheckIn } from '@prisma/client';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -10,7 +10,19 @@ const checkInTime = new Date().toLocaleTimeString('th-TH', {
   minute: '2-digit',
 });
 
-export const sendCheckInFlexMessage = async (user: User, checkIn: CheckIn) => {
+export const sendCheckInFlexMessage = async (
+  user: {
+    id: string;
+    lineUserId: string;
+    name: string;
+    nickname: string;
+    department: string;
+    employeeNumber: string | null;
+    profilePictureUrl: string | null;
+    createdAt: Date;
+  },
+  checkIn: CheckIn,
+) => {
   const message: FlexMessage = {
     type: 'flex',
     altText: 'Check-In Notification',
@@ -111,9 +123,5 @@ export const sendCheckInFlexMessage = async (user: User, checkIn: CheckIn) => {
     },
   };
 
-  try {
-    await client.pushMessage(user.lineUserId, message);
-  } catch (error) {
-    console.error('Error sending Flex message:', error);
-  }
+  await client.pushMessage(user.lineUserId, message);
 };
