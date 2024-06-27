@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../utils/db';
+import { CheckInType } from '@prisma/client';
 
 export default async function handler(
   req: NextApiRequest,
@@ -9,44 +10,38 @@ export default async function handler(
     try {
       const {
         userId,
-        role,
+        type,
         photo,
-        timestamp,
         latitude,
         longitude,
         address,
         checkpointName,
       } = req.body;
 
-      if (!userId || !role || !timestamp) {
+      if (!userId || !type) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
       const checkInData: any = {
         userId,
-        type: 'IN',
-        createdAt: new Date(timestamp),
+        type: type as CheckInType,
+        createdAt: new Date(),
       };
 
-      if (role === 'DRIVER') {
+      if (type === 'IN' || type === 'CHECKPOINT') {
         if (!latitude || !longitude || !address) {
           return res
             .status(400)
-            .json({ error: 'Missing location data for driver check-in' });
+            .json({ error: 'Missing location data for check-in' });
         }
         checkInData.latitude = latitude;
         checkInData.longitude = longitude;
         checkInData.address = address;
         checkInData.checkpointName = checkpointName;
-      } else if (role === 'GENERAL') {
-        if (!photo) {
-          return res
-            .status(400)
-            .json({ error: 'Missing photo for general employee check-in' });
-        }
+      }
+
+      if (photo) {
         checkInData.photo = photo;
-      } else {
-        return res.status(400).json({ error: 'Invalid role' });
       }
 
       const checkIn = await prisma.checkIn.create({

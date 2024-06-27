@@ -1,24 +1,32 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import { saveData } from '../services/SyncService';
-import GoogleMapComponent from './GoogleMap';
-import Webcam from 'react-webcam';
+import dynamic from 'next/dynamic';
 import { Loader } from '@googlemaps/js-api-loader';
+import debounce from 'lodash/debounce';
+import Webcam from 'react-webcam';
+
+const GoogleMapComponent = dynamic(() => import('./GoogleMap'), { ssr: false });
+const WebcamWrapper = dynamic(() => import('./WebcamWrapper'), { ssr: false });
 interface GeneralCheckInFormProps {
   lineUserId: string;
 }
+
 const PREMISES = [
   { lat: 13.50821, lng: 100.76405, radius: 100 },
   { lat: 13.51444, lng: 100.70922, radius: 100 },
 ];
+
 const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   lineUserId,
 }) => {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
-  const [department, setDepartment] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
+  const [userData, setUserData] = useState<{
+    id: string;
+    name: string;
+    department: string;
+    role: string;
+  } | null>(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,14 +36,68 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   const [address, setAddress] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [photo, setPhoto] = useState<string | null>(null);
-  const router = useRouter();
-  const webcamRef = useRef<Webcam>(null);
   const [inPremises, setInPremises] = useState<boolean>(false);
   const [geocoder, setGeocoder] = useState<google.maps.Geocoder | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+
+  const router = useRouter();
+  const webcamRef = useRef<Webcam>(null);
+
+  const fetchUserDetails = useCallback(async () => {
+    try {
+      const response = await axios.get(`/api/user/${lineUserId}`);
+      setUserData(response.data);
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      setError('Unable to fetch user details. Please try again.');
+    }
+  }, [lineUserId]);
+
+  const debouncedSetLocation = useCallback(
+    debounce((newLocation: { lat: number; lng: number }) => {
+      setLocation(newLocation);
+    }, 1000),
+    [],
+  );
+
+  const getCurrentLocation = useCallback(async () => {
+    if (navigator.geolocation && geocoder) {
+      navigator.geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const currentLocation = { lat: latitude, lng: longitude };
+          debouncedSetLocation(currentLocation);
+
+          const isInPremises = PREMISES.some(
+            (premise) =>
+              google.maps.geometry.spherical.computeDistanceBetween(
+                new google.maps.LatLng(currentLocation),
+                new google.maps.LatLng(premise),
+              ) <= premise.radius,
+          );
+          setInPremises(isInPremises);
+
+          geocoder.geocode({ location: currentLocation }, (results, status) => {
+            if (status === 'OK' && results && results[0]) {
+              setAddress(results[0].formatted_address);
+            } else {
+              console.error('Geocoder failed due to: ' + status);
+              setAddress('Error fetching address');
+            }
+          });
+        },
+        (error) => {
+          console.error('Error getting current location:', error);
+          setError('Unable to get current location. Please try again.');
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 },
+      );
+    }
+  }, [geocoder, debouncedSetLocation]);
 
   useEffect(() => {
     const loader = new Loader({
-      apiKey: process.env.GOOGLE_MAPS_API as string,
+      apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
       version: 'weekly',
       libraries: ['places', 'geometry'],
     });
@@ -44,100 +106,29 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
       setGeocoder(new google.maps.Geocoder());
     });
 
-    const fetchUserDetails = async () => {
-      try {
-        console.log('Fetching user details for LINE User ID:', lineUserId);
-        const response = await axios.get(`/api/user/${lineUserId}`);
-        console.log('User details response:', response.data);
-        setUserId(response.data.id);
-        setRole(response.data.role);
-        // Set other user details as needed
-      } catch (error) {
-        console.error('Error fetching user details:', error);
-        if (axios.isAxiosError(error)) {
-          if (error.response) {
-            console.error('Error response data:', error.response.data);
-            console.error('Error response status:', error.response.status);
-            setError(
-              `Unable to fetch user details. Server responded with: ${error.response.status}`,
-            );
-          } else if (error.request) {
-            console.error('No response received:', error.request);
-            setError(
-              'Unable to fetch user details. No response received from server.',
-            );
-          } else {
-            console.error('Error message:', error.message);
-            setError(`Unable to fetch user details. Error: ${error.message}`);
-          }
-        } else {
-          setError('An unexpected error occurred while fetching user details.');
-        }
-      }
-    };
-
-    const getCurrentLocation = async () => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            const currentLocation = { lat: latitude, lng: longitude };
-            setLocation(currentLocation);
-
-            // Check if the user is within any of the premises
-            const isInPremises = PREMISES.some(
-              (premise) =>
-                google.maps.geometry.spherical.computeDistanceBetween(
-                  new google.maps.LatLng(currentLocation),
-                  new google.maps.LatLng(premise),
-                ) <= premise.radius,
-            );
-            setInPremises(isInPremises);
-
-            // Reverse geocoding
-            if (geocoder) {
-              try {
-                const result = await geocoder.geocode({
-                  location: currentLocation,
-                });
-                if (result.results && result.results.length > 0) {
-                  setAddress(result.results[0].formatted_address);
-                } else {
-                  setAddress('Address not found');
-                }
-              } catch (error) {
-                console.error('Geocoder failed due to: ' + error);
-                setAddress('Error fetching address');
-              }
-            }
-          },
-          (error) => {
-            console.error('Error getting current location:', error);
-            setError('Unable to get current location. Please try again.');
-          },
-        );
-      }
-    };
-
     fetchUserDetails();
-    getCurrentLocation();
-  }, [lineUserId, geocoder]);
+  }, [fetchUserDetails]);
 
-  const handleNextStep = () => {
-    setStep(step + 1);
-  };
-
-  const capturePhoto = () => {
-    const imageSrc = webcamRef.current?.getScreenshot();
-    if (imageSrc) {
-      setPhoto(imageSrc);
-      handleNextStep();
+  useEffect(() => {
+    if (geocoder) {
+      getCurrentLocation();
     }
-  };
+  }, [getCurrentLocation, geocoder]);
 
-  const handleCheckIn = async () => {
-    if (!userId || !role || !location || !photo) {
-      setError('User ID, role, location, and photo are required for check-in.');
+  const capturePhoto = useCallback(() => {
+    if (webcamRef.current) {
+      const imageSrc = (webcamRef.current as any).getScreenshot();
+      if (imageSrc) {
+        setPhoto(imageSrc);
+        setShowCamera(false);
+        setStep(2);
+      }
+    }
+  }, []);
+
+  const handleCheckIn = useCallback(async () => {
+    if (!userData?.id || !location || !photo) {
+      setError('User ID, location, and photo are required for check-in.');
       return;
     }
 
@@ -145,8 +136,8 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
     setError(null);
     try {
       const data = {
-        userId,
-        role,
+        userId: userData.id,
+        role: userData.role,
         location,
         address,
         reason,
@@ -164,74 +155,68 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [userData, location, address, reason, photo, router]);
+
+  if (!userData) {
+    return <div>Loading user details...</div>;
+  }
 
   return (
-    <div className="main-container flex justify-center items-center h-screen">
-      <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
-          <div
-            className="bg-blue-600 h-2.5 rounded-full"
-            style={{ width: `${(step / 3) * 100}%` }}
-          ></div>
+    <div className="main-container flex flex-col justify-center items-center h-screen bg-gray-100">
+      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
+        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
           ระบบบันทึกเวลาทำงาน
-        </h5>
+        </h1>
+        <div className="text-6xl font-bold text-center mb-8 text-blue-600">
+          {new Date().toLocaleTimeString()}
+        </div>
         <div className="space-y-6">
-          <div className="flex justify-between">
-            <span>Step {step}/3</span>
-            <span>{new Date().toLocaleTimeString()}</span>
-          </div>
           {step === 1 && (
             <div>
-              <p>ชื่อ นามสกุล: {userName}</p>
-              <p>แผนก: {department}</p>
+              <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
+              <p className="text-md mb-4 text-gray-600">
+                {userData.department}
+              </p>
               <button
-                onClick={handleNextStep}
-                className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                onClick={() => setShowCamera(true)}
+                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
               >
-                Next
+                ถ่ายรูปเพื่อเช็คอิน
+              </button>
+            </div>
+          )}
+          {showCamera && (
+            <div className="mt-4">
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                className="w-full rounded-lg"
+              />
+              <button
+                onClick={capturePhoto}
+                className="w-full mt-4 bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition duration-300"
+              >
+                ถ่ายรูป
               </button>
             </div>
           )}
           {step === 2 && (
             <div>
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                className="w-full h-auto mb-4"
-              />
-
-              <button
-                onClick={capturePhoto}
-                className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-              >
-                Take Photo
-              </button>
-            </div>
-          )}
-          {step === 3 && (
-            <div>
-              <div className="mb-3">
-                <label
-                  htmlFor="address"
-                  className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                >
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   ที่อยู่ของคุณ
                 </label>
-                <div
-                  id="address"
-                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
-                >
-                  {address}
+                <div className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5">
+                  {address || 'กำลังโหลดที่อยู่...'}
                 </div>
               </div>
               {location && <GoogleMapComponent center={location} />}
               {!inPremises && (
-                <div className="mb-3 mt-5">
+                <div className="mt-4">
                   <label
                     htmlFor="reason"
-                    className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    className="block text-sm font-medium text-gray-700 mb-2"
                   >
                     เหตุผลสำหรับการเข้างานนอกสถานที่
                   </label>
@@ -240,26 +225,27 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                     id="reason"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
                     required
                   />
                 </div>
               )}
-              <div className="flex justify-end mt-5">
+              <div className="mt-6">
                 <button
                   onClick={handleCheckIn}
                   disabled={loading || (!inPremises && !reason)}
-                  className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                  className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
                 >
                   {loading ? 'กำลังลงเวลาเข้างาน...' : 'ลงเวลาเข้างาน'}
                 </button>
               </div>
             </div>
           )}
-          {error && <p className="text-danger text-red-500">{error}</p>}
+          {error && <p className="text-red-500 mt-4">{error}</p>}
         </div>
       </div>
     </div>
   );
 };
+
 export default GeneralCheckInForm;
