@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { dirname, resolve } from 'path';
+import webpack from 'webpack';
 
 dotenv.config();
 
@@ -57,7 +58,7 @@ const config = {
     GOOGLE_MAPS_API: process.env.GOOGLE_MAPS_API,
   },
   webpack: (config, { isServer }) => {
-    config.resolve.modules.push(__dirname + '/src');
+    config.resolve.modules.push(resolve(__dirname, 'src'));
     return config;
   },
   async headers() {
