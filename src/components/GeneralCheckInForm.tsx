@@ -122,7 +122,11 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
         setPhoto(imageSrc);
         setShowCamera(false);
         setStep(2);
+      } else {
+        console.error('Failed to capture photo');
       }
+    } else {
+      console.error('Webcam ref is null');
     }
   }, []);
 
@@ -194,7 +198,10 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                     className="w-full rounded-lg mb-4"
                   />
                   <button
-                    onClick={capturePhoto}
+                    onClick={() => {
+                      console.log('Capture button clicked');
+                      capturePhoto();
+                    }}
                     className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition duration-300"
                     aria-label="ถ่ายรูป"
                   >

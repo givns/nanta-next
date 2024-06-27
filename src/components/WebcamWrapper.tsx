@@ -4,7 +4,7 @@ import Webcam from 'react-webcam';
 
 interface WebcamWrapperProps {
   audio?: boolean;
-  screenshotFormat?: 'image/webp' | 'image/png' | 'image/jpeg';
+  screenshotFormat?: 'image/webp' | 'image/png' | 'image/jpeg' | undefined;
   className?: string;
 }
 
