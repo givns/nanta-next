@@ -177,7 +177,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   };
 
   if (!userData) {
-    return <div>Loading user data...</div>;
+    return <div>กำลังโหลดข้อมูลผู้ใช้งาน...</div>;
   }
 
   return (

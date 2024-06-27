@@ -43,7 +43,7 @@ const CheckInRouter = () => {
   }, [router]);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <div>กำลังเข้าสู่ระบบ...</div>;
   }
 
   // This component doesn't render anything itself, it just redirects
