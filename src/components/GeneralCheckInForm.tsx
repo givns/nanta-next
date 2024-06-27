@@ -97,7 +97,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
 
   useEffect(() => {
     const loader = new Loader({
-      apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
+      apiKey: process.env.GOOGLE_MAPS_API as string,
       version: 'weekly',
       libraries: ['places', 'geometry'],
     });
@@ -180,6 +180,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
               <button
                 onClick={() => setShowCamera(true)}
                 className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+                aria-label="ถ่ายรูปเพื่อเช็คอิน"
               >
                 ถ่ายรูปเพื่อเช็คอิน
               </button>
@@ -187,7 +188,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
           )}
           {showCamera && (
             <div className="mt-4">
-              <Webcam
+              <WebcamWrapper
                 audio={false}
                 ref={webcamRef}
                 screenshotFormat="image/jpeg"
@@ -196,6 +197,7 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
               <button
                 onClick={capturePhoto}
                 className="w-full mt-4 bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition duration-300"
+                aria-label="ถ่ายรูป"
               >
                 ถ่ายรูป
               </button>
@@ -204,10 +206,17 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
           {step === 2 && (
             <div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="address-display"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   ที่อยู่ของคุณ
                 </label>
-                <div className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5">
+                <div
+                  id="address-display"
+                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
+                  aria-live="polite"
+                >
                   {address || 'กำลังโหลดที่อยู่...'}
                 </div>
               </div>
@@ -215,14 +224,14 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
               {!inPremises && (
                 <div className="mt-4">
                   <label
-                    htmlFor="reason"
+                    htmlFor="reason-input"
                     className="block text-sm font-medium text-gray-700 mb-2"
                   >
                     เหตุผลสำหรับการเข้างานนอกสถานที่
                   </label>
                   <input
                     type="text"
-                    id="reason"
+                    id="reason-input"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
@@ -235,13 +244,18 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                   onClick={handleCheckIn}
                   disabled={loading || (!inPremises && !reason)}
                   className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
+                  aria-label={loading ? 'กำลังลงเวลาเข้างาน' : 'ลงเวลาเข้างาน'}
                 >
                   {loading ? 'กำลังลงเวลาเข้างาน...' : 'ลงเวลาเข้างาน'}
                 </button>
               </div>
             </div>
           )}
-          {error && <p className="text-red-500 mt-4">{error}</p>}
+          {error && (
+            <p className="text-red-500 mt-4" role="alert">
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </div>
