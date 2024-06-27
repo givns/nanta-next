@@ -1,12 +1,8 @@
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
-import webpack from 'webpack';
+const dotenv = require('dotenv');
+const path = require('path');
+const webpack = require('webpack');
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const ContentSecurityPolicy = `
   default-src *;
@@ -58,7 +54,7 @@ const config = {
     GOOGLE_MAPS_API: process.env.GOOGLE_MAPS_API,
   },
   webpack: (config, { isServer }) => {
-    config.resolve.modules.push(resolve(__dirname, 'src'));
+    config.resolve.modules.push(path.resolve(__dirname, 'src'));
     return config;
   },
   async headers() {
@@ -74,4 +70,4 @@ const config = {
   },
 };
 
-export default config;
+module.exports = config;
