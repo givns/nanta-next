@@ -1,16 +1,21 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import { saveData } from '../services/SyncService';
 import dynamic from 'next/dynamic';
-import { Loader } from '@googlemaps/js-api-loader';
-import debounce from 'lodash/debounce';
 import Webcam from 'react-webcam';
 
 const GoogleMapComponent = dynamic(() => import('./GoogleMap'), { ssr: false });
-const WebcamWrapper = dynamic(() => import('./WebcamWrapper'), { ssr: false });
+
 interface GeneralCheckInFormProps {
   lineUserId: string;
+}
+
+interface UserData {
+  id: string;
+  name: string;
+  department: string;
+  role: string;
 }
 
 const PREMISES = [
@@ -21,12 +26,7 @@ const PREMISES = [
 const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   lineUserId,
 }) => {
-  const [userData, setUserData] = useState<{
-    id: string;
-    name: string;
-    department: string;
-    role: string;
-  } | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,103 +36,116 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
   const [address, setAddress] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [photo, setPhoto] = useState<string | null>(null);
-  const [inPremises, setInPremises] = useState<boolean>(false);
-  const [geocoder, setGeocoder] = useState<google.maps.Geocoder | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [inPremises, setInPremises] = useState<boolean>(false);
 
   const router = useRouter();
   const webcamRef = useRef<Webcam>(null);
 
-  const fetchUserDetails = useCallback(async () => {
-    try {
-      const response = await axios.get(`/api/user/${lineUserId}`);
-      setUserData(response.data);
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      setError('Unable to fetch user details. Please try again.');
-    }
-  }, [lineUserId]);
-
-  const debouncedSetLocation = useCallback(
-    debounce((newLocation: { lat: number; lng: number }) => {
-      setLocation(newLocation);
-    }, 1000),
-    [],
-  );
-
-  const getCurrentLocation = useCallback(async () => {
-    if (navigator.geolocation && geocoder) {
-      navigator.geolocation.watchPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          const currentLocation = { lat: latitude, lng: longitude };
-          debouncedSetLocation(currentLocation);
-
-          const isInPremises = PREMISES.some(
-            (premise) =>
-              google.maps.geometry.spherical.computeDistanceBetween(
-                new google.maps.LatLng(currentLocation),
-                new google.maps.LatLng(premise),
-              ) <= premise.radius,
-          );
-          setInPremises(isInPremises);
-
-          geocoder.geocode({ location: currentLocation }, (results, status) => {
-            if (status === 'OK' && results && results[0]) {
-              setAddress(results[0].formatted_address);
-            } else {
-              console.error('Geocoder failed due to: ' + status);
-              setAddress('Error fetching address');
-            }
-          });
-        },
-        (error) => {
-          console.error('Error getting current location:', error);
-          setError('Unable to get current location. Please try again.');
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 },
-      );
-    }
-  }, [geocoder, debouncedSetLocation]);
-
   useEffect(() => {
-    const loader = new Loader({
-      apiKey: process.env.GOOGLE_MAPS_API as string,
-      version: 'weekly',
-      libraries: ['places', 'geometry'],
-    });
-
-    loader.load().then(() => {
-      setGeocoder(new google.maps.Geocoder());
-    });
+    const fetchUserDetails = async () => {
+      try {
+        console.log('Fetching user details for LINE User ID:', lineUserId);
+        const response = await axios.get(`/api/user/${lineUserId}`);
+        console.log('User details response:', response.data);
+        setUserData(response.data);
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+        setError('Unable to fetch user details. Please try again.');
+      }
+    };
 
     fetchUserDetails();
-  }, [fetchUserDetails]);
+  }, [lineUserId]);
+
+  const isWithinPremises = (lat: number, lng: number): boolean => {
+    return PREMISES.some((premise) => {
+      const distance = calculateDistance(lat, lng, premise.lat, premise.lng);
+      return distance <= premise.radius;
+    });
+  };
+
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
 
   useEffect(() => {
-    if (geocoder) {
-      getCurrentLocation();
-    }
-  }, [getCurrentLocation, geocoder]);
+    const getCurrentLocation = async () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            console.log('Current location:', { lat: latitude, lng: longitude });
+            setLocation({ lat: latitude, lng: longitude });
 
-  const capturePhoto = useCallback(() => {
+            const withinPremises = isWithinPremises(latitude, longitude);
+            setInPremises(withinPremises);
+
+            // Here you would typically use a geocoding service to get the address
+            // For now, we'll use a mock address
+            setAddress('Mock Address from Geocoding API');
+          },
+          (error) => {
+            console.error('Error getting current location:', error);
+            setError('Unable to get current location. Please try again.');
+          },
+        );
+      } else {
+        console.error('Geolocation is not supported by this browser.');
+        setError(
+          'Geolocation is not supported by your browser. Please use a different device or browser.',
+        );
+      }
+    };
+
+    getCurrentLocation();
+  }, []);
+
+  const capturePhoto = () => {
+    console.log('Attempting to capture photo');
     if (webcamRef.current) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
+        console.log('Photo captured successfully');
         setPhoto(imageSrc);
         setShowCamera(false);
         setStep(2);
       } else {
-        console.error('Failed to capture photo');
+        console.error('Failed to capture photo: imageSrc is null');
+        setError('Failed to capture photo. Please try again.');
       }
     } else {
       console.error('Webcam ref is null');
+      setError(
+        'Camera is not initialized. Please refresh the page and try again.',
+      );
     }
-  }, []);
+  };
 
-  const handleCheckIn = useCallback(async () => {
+  const handleCheckIn = async () => {
     if (!userData?.id || !location || !photo) {
       setError('User ID, location, and photo are required for check-in.');
+      return;
+    }
+
+    if (!inPremises && !reason) {
+      setError('Please provide a reason for checking in outside the premises.');
       return;
     }
 
@@ -144,13 +157,15 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
         role: userData.role,
         location,
         address,
-        reason,
+        reason: inPremises ? '' : reason,
         photo,
         timestamp: new Date().toISOString(),
       };
 
+      console.log('Sending check-in data:', data);
       await saveData('checkIn', data);
 
+      console.log('Check-in successful');
       alert('Check-in successful!');
       router.push('/checkpoint');
     } catch (error) {
@@ -159,14 +174,14 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [userData, location, address, reason, photo, router]);
+  };
 
   if (!userData) {
-    return <div>Loading user details...</div>;
+    return <div>Loading user data...</div>;
   }
 
   return (
-    <div className="main-container flex flex-col justify-center items-center h-screen bg-gray-100">
+    <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
           ระบบบันทึกเวลาทำงาน
@@ -191,18 +206,22 @@ const GeneralCheckInForm: React.FC<GeneralCheckInFormProps> = ({
                 </button>
               ) : (
                 <div className="mt-4">
-                  <WebcamWrapper
+                  <Webcam
                     audio={false}
                     ref={webcamRef}
                     screenshotFormat="image/jpeg"
                     className="w-full rounded-lg mb-4"
+                    onUserMedia={() => console.log('Camera is ready')}
+                    onUserMediaError={(error) => {
+                      console.error('Camera error:', error);
+                      setError(
+                        'Failed to access camera. Please check your camera permissions and try again.',
+                      );
+                    }}
                   />
                   <button
-                    onClick={() => {
-                      console.log('Capture button clicked');
-                      capturePhoto();
-                    }}
-                    className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition duration-300"
+                    onClick={capturePhoto}
+                    className="w-full bg-[#FF1900] text-white py-3 px-4 rounded-lg hover:bg-red-700 transition duration-300"
                     aria-label="ถ่ายรูป"
                   >
                     ถ่ายรูป
