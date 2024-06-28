@@ -71,6 +71,14 @@ const config = {
         'process/browser': require.resolve('process/browser'),
       };
     }
+
+    // Add support for WebAssembly
+    config.experiments = { ...config.experiments, asyncWebAssembly: true };
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: 'webassembly/async',
+    });
+
     config.resolve.modules.push(path.resolve(__dirname, 'src'));
     return config;
   },
