@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/router';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import Webcam from 'react-webcam';
@@ -52,8 +51,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
   const [showCamera, setShowCamera] = useState(false);
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [inPremises, setInPremises] = useState<boolean>(false);
-
-  const router = useRouter();
   const webcamRef = useRef<Webcam>(null);
 
   const calculateDistance = (
@@ -246,7 +243,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
 
         console.log('Check-in successful');
         alert('Check-in successful!');
-        router.push('/checkpoint');
       } else {
         setError('Check-in failed. Please try again.');
       }

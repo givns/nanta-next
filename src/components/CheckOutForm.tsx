@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/router';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import Webcam from 'react-webcam';
@@ -56,8 +55,6 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
   const [showCamera, setShowCamera] = useState(false);
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [inPremises, setInPremises] = useState<boolean>(false);
-
-  const router = useRouter();
   const webcamRef = useRef<Webcam>(null);
 
   const calculateDistance = (
@@ -222,7 +219,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
     }
   };
 
-  const handleCheckIn = async () => {
+  const handleCheckOut = async () => {
     if (!userData?.id || !location || !photo) {
       setError('User ID, location, and photo are required for check-in.');
       return;
@@ -232,7 +229,8 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
     setError(null);
     try {
       const data = {
-        userId: userData.id,
+        checkInId,
+        lineUserId,
         location,
         address,
         reason,
@@ -240,22 +238,21 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
         timestamp: new Date().toISOString(),
       };
 
-      const response = await axios.post('/api/check-in', data);
+      const response = await axios.post('/api/check-out', data);
 
       if (response.status === 200) {
-        const checkInData = response.data.data; // Assuming response.data contains the saved check-in data
+        const checkOutData = response.data.data; // Assuming response.data contains the saved check-in data
 
         // Send flex message
-        await sendCheckInFlexMessage(userData, checkInData);
+        await sendCheckInFlexMessage(userData, checkOutData);
 
-        console.log('Check-in successful');
-        alert('Check-in successful!');
-        router.push('/checkpoint');
+        console.log('Check-out successful');
+        alert('Check-out successful!');
       } else {
-        setError('Check-in failed. Please try again.');
+        setError('Check-out failed. Please try again.');
       }
     } catch (error) {
-      console.error('Check-in failed:', error);
+      console.error('Check-out failed:', error);
       setError('Failed to check in. Please try again.');
     } finally {
       setLoading(false);
@@ -341,7 +338,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
                     htmlFor="reason-input"
                     className="block text-sm font-medium text-gray-700 mb-2"
                   >
-                    เหตุผลสำหรับการเข้างานนอกสถานที่
+                    เหตุผลสำหรับการออกงานนอกสถานที่
                   </label>
                   <input
                     type="text"
@@ -355,10 +352,10 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
               )}
               <div className="mt-6">
                 <button
-                  onClick={handleCheckIn}
+                  onClick={handleCheckOut}
                   disabled={loading || (!inPremises && !reason)}
                   className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
-                  aria-label={loading ? 'กำลังลงเวลาเข้างาน' : 'ลงเวลาเข้างาน'}
+                  aria-label={loading ? 'กำลังลงเวลาออกงาน' : 'ลงเวลาออกงาน'}
                 >
                   {loading ? 'กำลังลงเวลาเข้างาน...' : 'ลงเวลาเข้างาน'}
                 </button>

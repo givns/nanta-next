@@ -1,43 +1,35 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../utils/db';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  if (req.method === 'POST') {
-    const { lineUserId } = req.body;
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
 
-    try {
-      const user = await prisma.user.findUnique({
-        where: { lineUserId },
-        include: { checkIns: { orderBy: { timestamp: 'desc' }, take: 1 } },
-      });
+  const { checkInId, lineUserId, location, address, photo, checkOutTime } =
+    req.body;
 
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
+  try {
+    const updatedCheckIn = await prisma.checkIn.update({
+      where: { id: checkInId },
+      data: {
+        checkOutTime: new Date(checkOutTime),
+        // You might want to add additional fields here, like check-out location
+      },
+    });
 
-      const latestCheckIn = user.checkIns[0];
-
-      if (!latestCheckIn || latestCheckIn.checkOutTime) {
-        return res.status(400).json({ error: 'No active check-in found' });
-      }
-
-      const updatedCheckIn = await prisma.checkIn.update({
-        where: { id: latestCheckIn.id },
-        data: { checkOutTime: new Date() },
-      });
-
-      res
-        .status(200)
-        .json({ message: 'Check-out successful', data: updatedCheckIn });
-    } catch (error) {
-      console.error('Error during check-out:', error);
-      res.status(500).json({ error: 'Error during check-out' });
-    }
-  } else {
-    res.setHeader('Allow', ['POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    res
+      .status(200)
+      .json({ message: 'Check-out successful', data: updatedCheckIn });
+  } catch (error) {
+    console.error('Check-out error:', error);
+    res.status(500).json({ message: 'Error processing check-out' });
+  } finally {
+    await prisma.$disconnect();
   }
 }
