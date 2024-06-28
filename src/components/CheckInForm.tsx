@@ -1,14 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import dynamic from 'next/dynamic';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage';
 
-const GoogleMapComponent = dynamic(() => import('./GoogleMap'), { ssr: false });
+const StaticMap = ({ lat, lng }: { lat: number; lng: number }) => {
+  const apiKey = process.env.GOOGLE_MAPS_API;
+  const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=400x200&markers=${lat},${lng}&key=${apiKey}`;
 
+  return (
+    <img
+      src={mapUrl}
+      alt="Location Map"
+      style={{ width: '100%', maxWidth: '400px' }}
+    />
+  );
+};
 interface CheckInFormProps {
   lineUserId: string;
 }
@@ -42,7 +51,7 @@ const PREMISES: Premise[] = [
   },
 ];
 
-const GOOGLE_MAPS_API = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
+const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -58,6 +67,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
   const [showCamera, setShowCamera] = useState(false);
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [inPremises, setInPremises] = useState<boolean>(false);
+
   const webcamRef = useRef<Webcam>(null);
 
   const calculateDistance = (
@@ -213,7 +223,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
           setStep(2); // Move to the next step after successful capture
         } else {
           console.error('No face detected');
-          setError('No face detected. Please try again.');
+          setError('ไม่พบใบหน้า กรุณาลองอีกครั้ง');
         }
       } else {
         console.error('Failed to capture photo: imageSrc is null');
@@ -276,9 +286,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
           ระบบบันทึกเวลาทำงาน
         </h1>
-        <div className="text-6xl font-bold text-center mb-8 text-blue-600">
-          {new Date().toLocaleTimeString()}
-        </div>
+        {!showCamera && step === 1 && (
+          <div className="text-6xl font-bold text-center mb-8 text-blue-600">
+            {new Date().toLocaleTimeString()}
+          </div>
+        )}
         <div className="space-y-6">
           {step === 1 && (
             <div>
@@ -338,7 +350,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
                   {address || 'กำลังโหลดที่อยู่...'}
                 </div>
               </div>
-              {location && <GoogleMapComponent center={location} />}
+              {location && <StaticMap lat={location.lat} lng={location.lng} />}
               {!inPremises && (
                 <div className="mt-4">
                   <label

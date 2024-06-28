@@ -1,14 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import dynamic from 'next/dynamic';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage';
 
-const GoogleMapComponent = dynamic(() => import('./GoogleMap'), { ssr: false });
-
+const StaticMap = ({ lat, lng }: { lat: number; lng: number }) => {
+  const apiKey = process.env.GOOGLE_MAPS_API;
+  const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=400x200&markers=${lat},${lng}&key=${apiKey}`;
+  return (
+    <img
+      src={mapUrl}
+      alt="Location Map"
+      style={{ width: '100%', maxWidth: '400px' }}
+    />
+  );
+};
 interface CheckOutFormProps {
   checkInId: string;
   lineUserId: string;
@@ -37,7 +45,7 @@ const PREMISES: Premise[] = [
   { lat: 13.51444, lng: 100.70922, radius: 100, name: 'บริษัท ปัตตานี ฟู้ด' },
 ];
 
-const GOOGLE_MAPS_API = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
+const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const CheckOutForm: React.FC<CheckOutFormProps> = ({
   lineUserId,
@@ -45,6 +53,8 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
 }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [step, setStep] = useState(1);
+  const [showClock, setShowClock] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
@@ -275,9 +285,11 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
           ระบบบันทึกเวลาทำงาน
         </h1>
-        <div className="text-6xl font-bold text-center mb-8 text-blue-600">
-          {new Date().toLocaleTimeString()}
-        </div>
+        {!showCamera && step === 1 && (
+          <div className="text-6xl font-bold text-center mb-8 text-blue-600">
+            {new Date().toLocaleTimeString()}
+          </div>
+        )}
         <div className="space-y-6">
           {step === 1 && (
             <div>
@@ -314,7 +326,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
                     aria-label="ถ่ายรูป"
                     disabled={!model}
                   >
-                    {model ? 'ถ่ายรูป' : 'กำลังโหลดโมเดล...'}
+                    {model ? 'ถ่ายรูป' : 'กำลังโหลดรูปถ่าย...'}
                   </button>
                 </div>
               )}
@@ -337,7 +349,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
                   {address || 'กำลังโหลดที่อยู่...'}
                 </div>
               </div>
-              {location && <GoogleMapComponent center={location} />}
+              {location && <StaticMap lat={location.lat} lng={location.lng} />}
               {!inPremises && (
                 <div className="mt-4">
                   <label

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
 import liff from '@line/liff';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
@@ -8,7 +7,6 @@ const CheckInForm = dynamic(() => import('../components/CheckInForm'));
 const CheckOutForm = dynamic(() => import('../components/CheckOutForm'));
 
 const CheckInRouter = () => {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [componentToRender, setComponentToRender] =
     useState<JSX.Element | null>(null);
@@ -49,7 +47,11 @@ const CheckInRouter = () => {
   }, []);
 
   if (loading) {
-    return <div>กำลังเข้าสู่ระบบ...</div>;
+    return (
+      <div>
+        กำลังเข้าสู่ระบบ... <br /> โปรดรอสักครู่
+      </div>
+    );
   }
 
   return componentToRender;
