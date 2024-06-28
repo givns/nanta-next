@@ -14,7 +14,7 @@ export const sendCheckInFlexMessage = async (
   },
   checkIn: CheckIn,
 ) => {
-  console.log(checkIn);
+  console.log(`Check-in ID: ${checkIn.id}, Timestamp: ${checkIn.timestamp}`);
 
   const checkInTime = new Date(checkIn.timestamp).toLocaleTimeString();
 
