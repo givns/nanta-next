@@ -278,7 +278,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
     <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          ระบบบันทึกเวลาทำงาน
+          ระบบบันทึกเวลาออกงาน
         </h1>
         {!showCamera && step === 1 && (
           <div className="text-6xl font-bold text-center mb-8 text-blue-600">
@@ -370,7 +370,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
                   className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
                   aria-label={loading ? 'กำลังลงเวลาออกงาน' : 'ลงเวลาออกงาน'}
                 >
-                  {loading ? 'กำลังลงเวลาเข้างาน...' : 'ลงเวลาเข้างาน'}
+                  {loading ? 'กำลังลงเวลาออกงาน...' : 'ลงเวลาออกงาน'}
                 </button>
               </div>
             </div>

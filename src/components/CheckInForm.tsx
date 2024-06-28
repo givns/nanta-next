@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import axios from 'axios';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
@@ -43,6 +44,7 @@ const PREMISES: Premise[] = [
 const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
+  const router = useRouter();
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [step, setStep] = useState(1);
@@ -261,6 +263,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
 
         console.log('Check-in successful');
         alert('Check-in successful!');
+        router.push('/check-in-confirmation');
       } else {
         setError('Check-in failed. Please try again.');
       }
@@ -280,7 +283,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
     <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          ระบบบันทึกเวลาทำงาน
+          ระบบบันทึกเวลาเข้างาน
         </h1>
         {!showCamera && step === 1 && (
           <div className="text-6xl font-bold text-center mb-8 text-blue-600">
