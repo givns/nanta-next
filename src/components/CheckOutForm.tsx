@@ -5,18 +5,8 @@ import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage';
+import StaticMap from './StaticMap';
 
-const StaticMap = ({ lat, lng }: { lat: number; lng: number }) => {
-  const apiKey = process.env.GOOGLE_MAPS_API;
-  const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=400x200&markers=${lat},${lng}&key=${apiKey}`;
-  return (
-    <img
-      src={mapUrl}
-      alt="Location Map"
-      style={{ width: '100%', maxWidth: '400px' }}
-    />
-  );
-};
 interface CheckOutFormProps {
   checkInId: string;
   lineUserId: string;
