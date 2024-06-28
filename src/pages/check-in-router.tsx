@@ -23,7 +23,7 @@ const CheckInRouter = () => {
 
           // Check user's check-in status
           const response = await axios.get(
-            `/api/check-status?lineUserId=${lineUserId}`,
+            `/api/check-status?lineUserId=${encodeURIComponent(lineUserId)}`,
           );
           const { status, checkInId } = response.data;
 

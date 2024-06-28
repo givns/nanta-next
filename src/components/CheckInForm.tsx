@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
+import '@tensorflow/tfjs-backend-webgl';
 import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage';
 
 const GoogleMapComponent = dynamic(() => import('./GoogleMap'), { ssr: false });
