@@ -71,7 +71,7 @@ const config = {
         'process/browser': require.resolve('process/browser'),
       };
     }
-    
+
     // Add support for WebAssembly
     config.experiments = { ...config.experiments, asyncWebAssembly: true };
     config.module.rules.push({
