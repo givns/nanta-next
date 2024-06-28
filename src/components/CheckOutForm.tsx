@@ -102,7 +102,8 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
       if (response.data.results && response.data.results.length > 0) {
         return response.data.results[0].formatted_address;
       } else {
-        throw new Error('No results found');
+        console.warn('No address found for the given coordinates');
+        return 'Address not found';
       }
     } catch (error) {
       console.error('Error fetching address:', error);
@@ -133,10 +134,11 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
 
     const loadFaceDetectionModel = async () => {
       await tf.ready();
-      const loadedModel = await faceDetection.createDetector(
+      const model = await faceDetection.createDetector(
         faceDetection.SupportedModels.MediaPipeFaceDetector,
+        { runtime: 'tfjs' }, // Add this line
       );
-      setModel(loadedModel);
+      setModel(model);
       console.log('Face detection model loaded.');
     };
 
