@@ -1,28 +1,29 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../utils/db';
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  if (req.method === 'GET') {
-    const { userId } = req.query;
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { lineUserId } = req.query;
 
-    try {
-      const latestCheckIn = await prisma.checkIn.findFirst({
-        where: { userId: userId as string },
-        orderBy: { createdAt: 'desc' },
-      });
+  if (!lineUserId || typeof lineUserId !== 'string') {
+    return res.status(400).json({ error: 'Invalid lineUserId' });
+  }
 
-      const isCheckedIn = latestCheckIn && !latestCheckIn.checkOutTime;
+  try {
+    const latestCheckIn = await prisma.checkIn.findFirst({
+      where: { user: { lineUserId } },
+      orderBy: { timestamp: 'desc' },
+    });
 
-      res.status(200).json({ isCheckedIn });
-    } catch (error) {
-      console.error('Error checking status:', error);
-      res.status(500).json({ error: 'Error checking status' });
+    if (latestCheckIn) {
+      // Handle potential null address
+      latestCheckIn.address = latestCheckIn.address || 'Unknown';
     }
-  } else {
-    res.setHeader('Allow', ['GET']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+
+    res.status(200).json({ latestCheckIn });
+  } catch (error) {
+    console.error('Error in check-status API:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    await prisma.$disconnect();
   }
 }
