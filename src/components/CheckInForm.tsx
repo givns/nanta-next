@@ -236,8 +236,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
   };
 
   const handleCheckIn = async () => {
-    if (!userData?.id || !location || !photo) {
-      setError('User ID, location, and photo are required for check-in.');
+    if (!userData?.id || !address || !photo) {
+      setError('User ID, address, and photo are required for check-in.');
       return;
     }
 
@@ -246,23 +246,27 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
     try {
       const data = {
         userId: userData.id,
-        location,
+        name: userData.name, // Ensure this field is included
+        nickname: userData.nickname, // Ensure this field is included
+        department: userData.department, // Ensure this field is included
         address,
-        reason,
+        reason: reason || null, // Ensure reason is properly handled as an optional field
         photo,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString(), // Correct timestamp
       };
 
       const response = await axios.post('/api/check-in', data);
 
       if (response.status === 200) {
-        const checkInData = response.data.data; // Assuming response.data contains the saved check-in data
+        const checkInData = response.data.data;
 
         // Send flex message
         await sendCheckInFlexMessage(userData, checkInData);
 
         console.log('Check-in successful');
         alert('Check-in successful!');
+
+        // Redirect to check-in confirmation page
         router.push('/check-in-confirmation');
       } else {
         setError('Check-in failed. Please try again.');
