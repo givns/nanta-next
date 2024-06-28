@@ -240,6 +240,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
       setError('User ID, address, and photo are required for check-in.');
       return;
     }
+    console.log('User Data:', userData); // Check the contents of userData
 
     setLoading(true);
     setError(null);
@@ -254,6 +255,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
         photo,
         timestamp: new Date().toLocaleTimeString(), // Correct timestamp
       };
+      console.log('Data to send:', data); // Check the data being sent to the backend
 
       const response = await axios.post('/api/check-in', data);
 
