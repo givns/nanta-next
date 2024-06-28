@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import { LeaveRequest } from '@prisma/client';
+import { PrismaClient, LeaveRequest } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
 const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
@@ -76,15 +76,18 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
     return R * c; // Distance in meters
   };
 
-  const isWithinPremises = (lat: number, lng: number): Premise | null => {
-    for (const premise of PREMISES) {
-      const distance = calculateDistance(lat, lng, premise.lat, premise.lng);
-      if (distance <= premise.radius) {
-        return premise;
+  const isWithinPremises = useCallback(
+    (lat: number, lng: number): Premise | null => {
+      for (const premise of PREMISES) {
+        const distance = calculateDistance(lat, lng, premise.lat, premise.lng);
+        if (distance <= premise.radius) {
+          return premise;
+        }
       }
-    }
-    return null;
-  };
+      return null;
+    },
+    [],
+  );
 
   const getAddressFromCoordinates = async (
     lat: number,
@@ -177,7 +180,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
     };
 
     getCurrentLocation();
-  }, []);
+  }, [isWithinPremises]);
 
   const capturePhoto = async () => {
     console.log('Attempting to capture photo');

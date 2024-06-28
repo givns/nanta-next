@@ -1,9 +1,5 @@
-import { FlexMessage, Client } from '@line/bot-sdk';
+import { sendFlexMessage } from './lineSdkWrapper';
 import { CheckIn } from '@prisma/client';
-
-const client = new Client({
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-});
 
 const checkInTime = new Date().toLocaleTimeString('th-TH', {
   hour: '2-digit',
@@ -23,7 +19,9 @@ export const sendCheckInFlexMessage = async (
   },
   checkIn: CheckIn,
 ) => {
-  const message: FlexMessage = {
+  console.log(checkIn);
+
+  const flexMessage = {
     type: 'flex',
     altText: 'Check-In Notification',
     contents: {
@@ -123,5 +121,16 @@ export const sendCheckInFlexMessage = async (
     },
   };
 
-  await client.pushMessage(user.lineUserId, message);
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error('LINE Channel Access Token is not set');
+  }
+
+  try {
+    await sendFlexMessage(token, user.lineUserId, flexMessage);
+    console.log('Flex message sent successfully');
+  } catch (error) {
+    console.error('Error sending flex message:', error);
+    throw error;
+  }
 };

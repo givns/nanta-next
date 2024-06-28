@@ -7,7 +7,14 @@ const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
-const getLeaveCountForAdmin = async (_adminId: string): Promise<number> => {
+const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
+  const admin = await prisma.user.findUnique({
+    where: {
+      id: adminId,
+    },
+  });
+  console.log(admin);
+
   const now = new Date();
   let currentMonthStart: Date;
 

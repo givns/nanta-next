@@ -4,10 +4,6 @@ import { saveData } from '../services/SyncService';
 
 const CheckpointForm: React.FC = () => {
   const [checkpointName, setCheckpointName] = useState('');
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
-    null,
-  );
-  const [address, setAddress] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -19,7 +15,6 @@ const CheckpointForm: React.FC = () => {
       const data = {
         checkpointName,
         location,
-        address,
         timestamp: new Date().toISOString(),
       };
 
