@@ -26,11 +26,21 @@ export default async function handler(
     }
 
     res.status(200).json({ latestCheckIn });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error in check-status API:', error);
-    res
-      .status(500)
-      .json({ error: 'Internal server error', details: error.message });
+
+    if (error instanceof Error) {
+      res.status(500).json({
+        error: 'Internal server error',
+        details: error.message,
+        stack: error.stack,
+      });
+    } else {
+      res.status(500).json({
+        error: 'Internal server error',
+        details: 'An unknown error occurred',
+      });
+    }
   } finally {
     await prisma.$disconnect();
   }
