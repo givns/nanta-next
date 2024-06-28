@@ -1,10 +1,5 @@
-import { sendFlexMessage } from './lineSdkWrapper';
+import axios from 'axios';
 import { CheckIn } from '@prisma/client';
-
-const checkInTime = new Date().toLocaleTimeString('th-TH', {
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 export const sendCheckInFlexMessage = async (
   user: {
@@ -20,6 +15,8 @@ export const sendCheckInFlexMessage = async (
   checkIn: CheckIn,
 ) => {
   console.log(checkIn);
+
+  const checkInTime = new Date(checkIn.timestamp).toLocaleTimeString();
 
   const flexMessage = {
     type: 'flex',
@@ -127,10 +124,25 @@ export const sendCheckInFlexMessage = async (
   }
 
   try {
-    await sendFlexMessage(token, user.lineUserId, flexMessage);
+    await axios.post(
+      'https://api.line.me/v2/bot/message/push',
+      {
+        to: user.lineUserId,
+        messages: [flexMessage],
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
     console.log('Flex message sent successfully');
-  } catch (error) {
-    console.error('Error sending flex message:', error);
+  } catch (error: any) {
+    console.error(
+      'Error sending flex message:',
+      error.response?.data || error.message,
+    );
     throw error;
   }
 };
