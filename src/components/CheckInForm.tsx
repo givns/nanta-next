@@ -43,6 +43,7 @@ const PREMISES: Premise[] = [
 const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -112,6 +113,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
       return 'Unable to fetch address';
     }
   };
+
+  useEffect(() => {
+    fetch('/api/getMapApiKey')
+      .then((res) => res.json())
+      .then((data) => setApiKey(data.apiKey));
+  }, []);
 
   useEffect(() => {
     const fetchUserDetails = async () => {
@@ -339,7 +346,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
                   {address || 'กำลังโหลดที่อยู่...'}
                 </div>
               </div>
-              {location && <StaticMap lat={location.lat} lng={location.lng} />}
+              {apiKey && (
+                <StaticMap lat={40.7128} lng={-74.006} apiKey={apiKey} />
+              )}
               {!inPremises && (
                 <div className="mt-4">
                   <label

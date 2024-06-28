@@ -41,10 +41,9 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
   lineUserId,
   checkInId,
 }) => {
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [step, setStep] = useState(1);
-  const [showClock, setShowClock] = useState(true);
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
@@ -111,6 +110,12 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
       return 'Unable to fetch address';
     }
   };
+
+  useEffect(() => {
+    fetch('/api/getMapApiKey')
+      .then((res) => res.json())
+      .then((data) => setApiKey(data.apiKey));
+  }, []);
 
   useEffect(() => {
     const fetchUserDetails = async () => {
@@ -339,7 +344,9 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
                   {address || 'กำลังโหลดที่อยู่...'}
                 </div>
               </div>
-              {location && <StaticMap lat={location.lat} lng={location.lng} />}
+              {apiKey && (
+                <StaticMap lat={40.7128} lng={-74.006} apiKey={apiKey} />
+              )}
               {!inPremises && (
                 <div className="mt-4">
                   <label
