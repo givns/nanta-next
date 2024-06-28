@@ -246,7 +246,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
         address,
         reason,
         photo,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toLocaleTimeString(),
       };
 
       const response = await axios.post('/api/check-out', data);

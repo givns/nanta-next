@@ -23,7 +23,7 @@ export const sendCheckInFlexMessage = async (
     altText: 'Check-In Notification',
     contents: {
       type: 'bubble',
-      size: 'giga',
+      size: 'mega',
       header: {
         type: 'box',
         layout: 'horizontal',

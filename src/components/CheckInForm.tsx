@@ -252,7 +252,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
         address,
         reason: reason || null, // Ensure reason is properly handled as an optional field
         photo,
-        timestamp: new Date().toISOString(), // Correct timestamp
+        timestamp: new Date().toLocaleTimeString(), // Correct timestamp
       };
 
       const response = await axios.post('/api/check-in', data);
