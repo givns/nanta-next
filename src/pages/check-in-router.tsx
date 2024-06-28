@@ -2,10 +2,16 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import liff from '@line/liff';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
+
+const CheckInForm = dynamic(() => import('../components/CheckInForm'));
+const CheckOutForm = dynamic(() => import('../components/CheckOutForm'));
 
 const CheckInRouter = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [componentToRender, setComponentToRender] =
+    useState<JSX.Element | null>(null);
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -22,9 +28,11 @@ const CheckInRouter = () => {
           const { status, checkInId } = response.data;
 
           if (status === 'checkout') {
-            router.push(`/check-out?checkInId=${checkInId}`);
+            setComponentToRender(
+              <CheckOutForm checkInId={checkInId} lineUserId={lineUserId} />,
+            );
           } else {
-            router.push('/check-in');
+            setComponentToRender(<CheckInForm lineUserId={lineUserId} />);
           }
         } else {
           liff.login();
@@ -38,13 +46,13 @@ const CheckInRouter = () => {
     };
 
     initializeLiff();
-  }, [router]);
+  }, []);
 
   if (loading) {
     return <div>กำลังเข้าสู่ระบบ...</div>;
   }
 
-  return null;
+  return componentToRender;
 };
 
 export default CheckInRouter;
