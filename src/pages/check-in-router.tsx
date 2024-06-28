@@ -15,14 +15,14 @@ const CheckInRouter = () => {
           const profile = await liff.getProfile();
           const lineUserId = profile.userId;
 
-          // Check if user is already checked in
+          // Check user's check-in status
           const response = await axios.get(
             `/api/check-status?lineUserId=${lineUserId}`,
           );
-          const { isCheckedIn } = response.data;
+          const { status, checkInId } = response.data;
 
-          if (isCheckedIn) {
-            router.push('/check-out');
+          if (status === 'checkout') {
+            router.push(`/check-out?checkInId=${checkInId}`);
           } else {
             router.push('/check-in');
           }
