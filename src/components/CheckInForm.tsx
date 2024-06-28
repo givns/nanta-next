@@ -3,7 +3,8 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import Webcam from 'react-webcam';
-import * as faceapi from 'face-api.js';
+import * as tf from '@tensorflow/tfjs';
+import * as faceDetection from '@tensorflow-models/face-detection';
 import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage';
 
 const GoogleMapComponent = dynamic(() => import('./GoogleMap'), { ssr: false });
@@ -49,6 +50,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
   const [reason, setReason] = useState<string>('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [inPremises, setInPremises] = useState<boolean>(false);
 
   const router = useRouter();
@@ -125,12 +127,17 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
       }
     };
 
-    const loadFaceApiModels = async () => {
-      await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+    const loadFaceDetectionModel = async () => {
+      await tf.ready();
+      const loadedModel = await faceDetection.createDetector(
+        faceDetection.SupportedModels.MediaPipeFaceDetector,
+      );
+      setModel(loadedModel);
+      console.log('Face detection model loaded.');
     };
 
     fetchUserDetails();
-    loadFaceApiModels();
+    loadFaceDetectionModel();
   }, [lineUserId]);
 
   useEffect(() => {
@@ -174,19 +181,24 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
 
   const capturePhoto = async () => {
     console.log('Attempting to capture photo');
-    if (webcamRef.current) {
+    if (webcamRef.current && model) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
-        const img = await faceapi.fetchImage(imageSrc);
-        const detections = await faceapi.detectAllFaces(
-          img,
-          new faceapi.TinyFaceDetectorOptions(),
-        );
+        const img = new Image();
+        img.src = imageSrc;
+        await new Promise((resolve) => {
+          img.onload = resolve;
+        });
+
+        const detections = await model.estimateFaces(img, {
+          flipHorizontal: false,
+        });
 
         if (detections.length > 0) {
           console.log('Photo captured successfully');
           setPhoto(imageSrc);
           setShowCamera(false);
+          setStep(2); // Move to the next step after successful capture
         } else {
           console.error('No face detected');
           setError('No face detected. Please try again.');
@@ -196,9 +208,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
         setError('Failed to capture photo. Please try again.');
       }
     } else {
-      console.error('Webcam ref is null');
+      console.error('Webcam ref is null or model is not loaded');
       setError(
-        'Camera is not initialized. Please refresh the page and try again.',
+        'Camera is not initialized or face detection model is not loaded. Please refresh the page and try again.',
       );
     }
   };
@@ -288,10 +300,11 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
                   />
                   <button
                     onClick={capturePhoto}
-                    className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue ribbon-700 transition duration-300"
+                    className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
                     aria-label="ถ่ายรูป"
+                    disabled={!model}
                   >
-                    ถ่ายรูป
+                    {model ? 'ถ่ายรูป' : 'กำลังโหลดโมเดล...'}
                   </button>
                 </div>
               )}
@@ -355,5 +368,4 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
     </div>
   );
 };
-
 export default CheckInForm;
