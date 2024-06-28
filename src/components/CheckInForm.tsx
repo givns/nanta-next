@@ -346,9 +346,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
                   {address || 'กำลังโหลดที่อยู่...'}
                 </div>
               </div>
-              {apiKey && (
-                <StaticMap lat={40.7128} lng={-74.006} apiKey={apiKey} />
-              )}
+              {apiKey && <StaticMap apiKey={apiKey} />}
               {!inPremises && (
                 <div className="mt-4">
                   <label

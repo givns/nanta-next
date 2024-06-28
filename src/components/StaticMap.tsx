@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 
 interface StaticMapProps {
-  lat: number;
-  lng: number;
   apiKey: string;
   zoom?: number;
   width?: number;
@@ -11,8 +9,6 @@ interface StaticMapProps {
 }
 
 const StaticMap: React.FC<StaticMapProps> = ({
-  lat,
-  lng,
   apiKey,
   zoom = 15,
   width = 400,
@@ -27,9 +23,21 @@ const StaticMap: React.FC<StaticMapProps> = ({
       return;
     }
 
-    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${width}x${height}&markers=color:red%7C${lat},${lng}&key=${apiKey}`;
-    setMapUrl(url);
-  }, [lat, lng, zoom, width, height, apiKey]);
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const url = `https://maps.googleapis.com/maps/api/staticmap?center=${latitude},${longitude}&zoom=${zoom}&size=${width}x${height}&markers=color:red%7C${latitude},${longitude}&key=${apiKey}`;
+          setMapUrl(url);
+        },
+        () => {
+          setError('Unable to retrieve your location');
+        },
+      );
+    } else {
+      setError('Geolocation is not supported by your browser');
+    }
+  }, [apiKey, zoom, width, height]);
 
   if (error) {
     return <div>Error: {error}</div>;
@@ -49,7 +57,7 @@ const StaticMap: React.FC<StaticMapProps> = ({
         alt="Static Map"
         width={width}
         height={height}
-        className="rounded-lg shadow-md"
+        className="rounded-lg"
       />
     </div>
   );
