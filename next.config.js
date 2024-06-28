@@ -1,10 +1,10 @@
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com;
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://static.line-scdn.net;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com;
   font-src 'self' https://fonts.gstatic.com;
-  connect-src 'self' https://*.googleapis.com https://*.gstatic.com;
+  connect-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.line-scdn.net https://*.line.me;
   frame-src 'self' https://www.google.com;
   object-src 'none';
 `;
