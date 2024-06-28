@@ -1,7 +1,11 @@
-const dotenv = require('dotenv');
-const path = require('path');
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ContentSecurityPolicy = `
   default-src *;
@@ -59,16 +63,6 @@ const config = {
         fs: false,
         net: false,
         tls: false,
-        crypto: require.resolve('crypto-browserify'),
-        stream: require.resolve('stream-browserify'),
-        url: require.resolve('url/'),
-        zlib: require.resolve('browserify-zlib'),
-        http: require.resolve('stream-http'),
-        https: require.resolve('https-browserify'),
-        assert: require.resolve('assert/'),
-        os: require.resolve('os-browserify/browser'),
-        path: require.resolve('path-browserify'),
-        'process/browser': require.resolve('process/browser'),
       };
     }
 
@@ -95,4 +89,4 @@ const config = {
   },
 };
 
-module.exports = config;
+export default config;
