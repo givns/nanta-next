@@ -33,6 +33,12 @@ interface Premise {
 const PREMISES: Premise[] = [
   { lat: 13.50821, lng: 100.76405, radius: 100, name: 'บริษัท นันตา ฟู้ด' },
   { lat: 13.51444, lng: 100.70922, radius: 100, name: 'บริษัท ปัตตานี ฟู้ด' },
+  {
+    lat: 13.747920392683099,
+    lng: 100.63441771348242,
+    radius: 100,
+    name: 'Bat Cave',
+  },
 ];
 
 const GOOGLE_MAPS_API = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
@@ -132,7 +138,10 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
       await tf.ready();
       const model = await faceDetection.createDetector(
         faceDetection.SupportedModels.MediaPipeFaceDetector,
-        { runtime: 'tfjs' }, // Add this line
+        {
+          runtime: 'tfjs',
+          modelType: 'short',
+        },
       );
       setModel(model);
       console.log('Face detection model loaded.');

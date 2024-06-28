@@ -136,7 +136,10 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
       await tf.ready();
       const model = await faceDetection.createDetector(
         faceDetection.SupportedModels.MediaPipeFaceDetector,
-        { runtime: 'tfjs' }, // Add this line
+        {
+          runtime: 'tfjs',
+          modelType: 'short',
+        },
       );
       setModel(model);
       console.log('Face detection model loaded.');
