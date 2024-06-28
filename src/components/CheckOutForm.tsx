@@ -235,20 +235,30 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
       setError('User ID, location, and photo are required for check-in.');
       return;
     }
+    console.log('User Data:', userData); // Check the contents of userData
 
     setLoading(true);
     setError(null);
     try {
+      // Get the current time and adjust to GMT+7
+      const currentTime = new Date();
+      const timeZoneOffset = 7 * 60; // GMT+7 in minutes
+      const localTime = new Date(
+        currentTime.getTime() + timeZoneOffset * 60 * 1000,
+      );
+
       const data = {
-        checkInId,
-        lineUserId,
-        location,
+        userId: userData.id,
+        name: userData.name, // Ensure this field is included
+        nickname: userData.nickname, // Ensure this field is included
+        department: userData.department, // Ensure this field is included
         address,
-        reason,
+        reason: reason || null, // Ensure reason is properly handled as an optional field
         photo,
-        timestamp: new Date().toLocaleTimeString(),
+        timestamp: localTime.toISOString(), // Correct timestamp
       };
 
+      console.log('Data to send:', data); // Check the data being sent to the backend
       const response = await axios.post('/api/check-out', data);
 
       if (response.status === 200) {

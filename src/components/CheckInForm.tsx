@@ -245,6 +245,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
     setLoading(true);
     setError(null);
     try {
+      // Get the current time and adjust to GMT+7
+      const currentTime = new Date();
+      const timeZoneOffset = 7 * 60; // GMT+7 in minutes
+      const localTime = new Date(
+        currentTime.getTime() + timeZoneOffset * 60 * 1000,
+      );
+
       const data = {
         userId: userData.id,
         name: userData.name, // Ensure this field is included
@@ -253,7 +260,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
         address,
         reason: reason || null, // Ensure reason is properly handled as an optional field
         photo,
-        timestamp: new Date().toLocaleTimeString(), // Correct timestamp
+        timestamp: localTime.toISOString(), // Correct timestamp
       };
       console.log('Data to send:', data); // Check the data being sent to the backend
 
