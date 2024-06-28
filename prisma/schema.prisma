@@ -78,7 +78,7 @@ model CheckIn {
   type           CheckInType
   latitude       Float?
   longitude      Float?
-  address        String
+  address        String?
   checkpointName String?
   photo          String
   timestamp      DateTime  @default(now())

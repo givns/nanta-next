@@ -1,5 +1,7 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../utils/db';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
@@ -15,6 +17,7 @@ export default async function handler(
     const latestCheckIn = await prisma.checkIn.findFirst({
       where: { user: { lineUserId } },
       orderBy: { timestamp: 'desc' },
+      include: { user: true },
     });
 
     if (latestCheckIn) {
@@ -25,7 +28,9 @@ export default async function handler(
     res.status(200).json({ latestCheckIn });
   } catch (error) {
     console.error('Error in check-status API:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res
+      .status(500)
+      .json({ error: 'Internal server error', details: error.message });
   } finally {
     await prisma.$disconnect();
   }
