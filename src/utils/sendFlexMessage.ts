@@ -13,8 +13,17 @@ interface User {
 }
 
 const sendFlexMessage = async (
-  user: User,
-  checkIn: CheckIn,
+  user: {
+    id: string;
+    lineUserId: string;
+    name: string;
+    nickname: string;
+    department: string;
+    employeeNumber: string | null;
+    profilePictureUrl: string | null;
+    createdAt: Date;
+  },
+  checkIn: any,
   isCheckIn: boolean,
 ) => {
   const actionTime = isCheckIn
