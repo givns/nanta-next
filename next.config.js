@@ -32,41 +32,17 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-        crypto: require.resolve('crypto-browserify'),
-        stream: require.resolve('stream-browserify'),
-        assert: require.resolve('assert'),
-        http: require.resolve('stream-http'),
-        https: require.resolve('https-browserify'),
-        os: require.resolve('os-browserify/browser'),
-        url: require.resolve('url'),
-        buffer: require.resolve('buffer'),
-      };
-
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'node:crypto': 'crypto-browserify',
-        'node:stream': 'stream-browserify',
-        'node:buffer': 'buffer',
-      };
-    }
-
-    config.experiments = { ...config.experiments, asyncWebAssembly: true };
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: 'webassembly/async',
-    });
-
-    return config;
-  },
   images: {
-    domains: ['maps.googleapis.com', 'maps.gstatic.com'],
+    domains: [
+      'maps.googleapis.com',
+      'maps.gstatic.com',
+      'profile.line-scdn.net',
+      'example.com',
+    ],
+  },
+  env: {
+    NEXT_PUBLIC_LIFF_ID: process.env.NEXT_PUBLIC_LIFF_ID,
+    GOOGLE_MAPS_API: process.env.GOOGLE_MAPS_API,
   },
   async headers() {
     return [

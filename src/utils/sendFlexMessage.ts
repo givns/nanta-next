@@ -1,9 +1,5 @@
-import { Client, FlexMessage } from '@line/bot-sdk';
+import axios from 'axios';
 import { UserData, CheckIn } from '../types/user'; // Adjust the import path as needed
-
-const client = new Client({
-  channelAccessToken: process.env.NEXT_PUBLIC_LINE_CHANNEL_ACCESS_TOKEN || '',
-});
 
 const sendFlexMessage = async (
   user: UserData,
@@ -21,7 +17,7 @@ const sendFlexMessage = async (
       ? new Date(checkIn.checkOutTime).toLocaleTimeString()
       : 'N/A';
 
-  const message: FlexMessage = {
+  const flexMessage = {
     type: 'flex',
     altText: `${isCheckIn ? 'Check-In' : 'Check-Out'} Notification`,
     contents: {
@@ -142,14 +138,26 @@ const sendFlexMessage = async (
   };
 
   try {
-    await client.pushMessage(user.lineUserId, message);
+    const response = await axios.post(
+      '/api/send-line-message',
+      {
+        to: user.lineUserId,
+        messages: [flexMessage],
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    );
     console.log(
       `${isCheckIn ? 'Check-In' : 'Check-Out'} flex message sent successfully`,
     );
-  } catch (error: any) {
+    return response.data;
+  } catch (error) {
     console.error(
       `Error sending ${isCheckIn ? 'check-in' : 'check-out'} flex message:`,
-      error.response?.data || error.message,
+      error,
     );
     throw error;
   }
@@ -159,24 +167,12 @@ export const sendCheckInFlexMessage = async (
   user: UserData,
   checkIn: CheckIn,
 ) => {
-  try {
-    await sendFlexMessage(user, checkIn, true);
-  } catch (error) {
-    console.error('Error in sendCheckInFlexMessage:', error);
-    throw new Error('Failed to send check-in notification');
-  }
+  return sendFlexMessage(user, checkIn, true);
 };
 
 export const sendCheckOutFlexMessage = async (
   user: UserData,
   checkIn: CheckIn,
 ) => {
-  try {
-    await sendFlexMessage(user, checkIn, false);
-  } catch (error) {
-    console.error('Error in sendCheckOutFlexMessage:', error);
-    throw new Error('Failed to send check-out notification');
-  }
+  return sendFlexMessage(user, checkIn, false);
 };
-
-export { sendFlexMessage };
