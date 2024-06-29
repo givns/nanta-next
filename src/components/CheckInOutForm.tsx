@@ -238,24 +238,33 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       console.log('Response data:', JSON.stringify(response.data, null, 2));
 
       if (response.status === 200) {
-        const responseData = response.data.data;
+        const responseData: CheckIn = response.data.data;
         console.log(
           'Response data extracted:',
           JSON.stringify(responseData, null, 2),
         );
 
-        if (isCheckingIn) {
-          console.log('Attempting to send check-in flex message');
-          await sendCheckInFlexMessage(userData, responseData);
-        } else {
-          console.log('Attempting to send check-out flex message');
-          await sendCheckOutFlexMessage(userData, responseData);
+        try {
+          if (isCheckingIn) {
+            console.log('Attempting to send check-in flex message');
+            await sendCheckInFlexMessage(userData, responseData);
+            console.log('Check-in flex message sent successfully');
+          } else {
+            console.log('Attempting to send check-out flex message');
+            await sendCheckOutFlexMessage(userData, responseData);
+            console.log('Check-out flex message sent successfully');
+          }
+        } catch (flexError) {
+          console.error('Error sending flex message:', flexError);
+          console.error(
+            'Full flex error object:',
+            JSON.stringify(flexError, null, 2),
+          );
+          setError('Check-in successful, but failed to send notification.');
         }
-        console.log('Flex message sent successfully');
+
         alert(`${isCheckingIn ? 'Check-in' : 'Check-out'} successful!`);
         // Redirect or update UI as needed
-      } else {
-        throw new Error(`Unexpected response status: ${response.status}`);
       }
     } catch (error) {
       console.error('Error in handleSubmit:', error);

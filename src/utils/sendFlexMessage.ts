@@ -12,11 +12,15 @@ export interface UserData {
 }
 
 export interface CheckIn {
-  id: string;
-  checkInTime: Date;
-  checkOutTime?: Date;
+  _id: string;
+  userId: string;
+  checkInTime: string | Date;
+  location: any; // You might want to define a more specific type for this
   address: string;
-  reason?: string;
+  reason: string;
+  photo: string;
+  createdAt: string | Date;
+  checkOutTime?: string | Date;
   checkOutAddress?: string;
   checkOutReason?: string;
 }
@@ -33,7 +37,9 @@ const sendFlexMessage = async (
 
   const actionTime = isCheckIn
     ? new Date(checkIn.checkInTime).toLocaleTimeString()
-    : new Date(checkIn.checkOutTime!).toLocaleTimeString();
+    : checkIn.checkOutTime
+      ? new Date(checkIn.checkOutTime).toLocaleTimeString()
+      : 'N/A';
 
   const flexMessage = {
     type: 'flex',
@@ -42,31 +48,7 @@ const sendFlexMessage = async (
       type: 'bubble',
       size: 'mega',
       header: {
-        type: 'box',
-        layout: 'horizontal',
-        contents: [
-          {
-            type: 'box',
-            layout: 'vertical',
-            contents: [
-              {
-                type: 'text',
-                text: `${isCheckIn ? 'Check-In' : 'Check-Out'} Notification`,
-                color: '#000000',
-                size: 'xl',
-                flex: 4,
-                weight: 'bold',
-                align: 'center',
-                gravity: 'center',
-              },
-            ],
-          },
-        ],
-        paddingAll: '20px',
-        backgroundColor: isCheckIn ? '#F0F0F0' : '#FFE4E1',
-        spacing: 'md',
-        paddingTop: '22px',
-        height: '100px',
+        // ... (keep the header as it is)
       },
       body: {
         type: 'box',
@@ -155,40 +137,7 @@ const sendFlexMessage = async (
     },
   };
 
-  console.log('Flex message to be sent:', JSON.stringify(flexMessage, null, 2));
-
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!token) {
-    console.error('LINE Channel Access Token is not set');
-    throw new Error('LINE Channel Access Token is not set');
-  }
-
-  try {
-    const response = await axios.post(
-      'https://api.line.me/v2/bot/message/push',
-      {
-        to: user.lineUserId,
-        messages: [flexMessage],
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
-    console.log('LINE API response:', response.data);
-    console.log(
-      `${isCheckIn ? 'Check-In' : 'Check-Out'} flex message sent successfully`,
-    );
-  } catch (error: any) {
-    console.error(
-      `Error sending ${isCheckIn ? 'check-in' : 'check-out'} flex message:`,
-      error.response?.data || error.message,
-    );
-    console.error('Full error object:', JSON.stringify(error, null, 2));
-    throw error;
-  }
+  // ... (keep the rest of the function as it is)
 };
 
 export const sendCheckInFlexMessage = async (
