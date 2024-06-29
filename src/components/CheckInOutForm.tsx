@@ -10,22 +10,11 @@ import {
   sendCheckOutFlexMessage,
 } from '@/utils/sendFlexMessage';
 import StaticMap from './StaticMap';
-
+import { UserData } from '../types/user';
 interface CheckInOutFormProps {
   userData: UserData;
   checkInId: string | null;
   isCheckingIn: boolean;
-}
-
-interface UserData {
-  id: string;
-  lineUserId: string;
-  name: string;
-  nickname: string;
-  department: string;
-  employeeNumber: string | null;
-  profilePictureUrl: string | null;
-  createdAt: Date;
 }
 
 interface Premise {

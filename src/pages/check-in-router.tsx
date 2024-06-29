@@ -2,17 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { initializeLiff, getLiffProfile, liff } from '../utils/liff';
-
-interface UserData {
-  id: string;
-  lineUserId: string;
-  name: string;
-  nickname: string;
-  department: string;
-  employeeNumber: string | null;
-  profilePictureUrl: string | null;
-  createdAt: Date;
-}
+import { UserData } from '../types/user';
 
 const CheckInRouter: React.FC = () => {
   const [loading, setLoading] = useState(true);

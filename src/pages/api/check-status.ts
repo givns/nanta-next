@@ -1,3 +1,4 @@
+// pages/api/check-status.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
@@ -18,14 +19,19 @@ export default async function handler(
   }
 
   try {
+    console.log(`Fetching user for lineUserId: ${lineUserId}`);
     const user = await prisma.user.findUnique({
       where: { lineUserId },
     });
 
     if (!user) {
+      console.log(`User not found for lineUserId: ${lineUserId}`);
       return res.status(404).json({ message: 'User not found' });
     }
 
+    console.log(`User found: ${JSON.stringify(user)}`);
+
+    console.log(`Fetching latest check-in for userId: ${user.id}`);
     const latestCheckIn = await prisma.checkIn.findFirst({
       where: {
         userId: user.id,
@@ -37,23 +43,15 @@ export default async function handler(
     const status = latestCheckIn ? 'checkout' : 'checkin';
     const checkInId = latestCheckIn ? latestCheckIn.id : null;
 
+    console.log(`Sending response: status=${status}, checkInId=${checkInId}`);
     res.status(200).json({
       status,
       checkInId,
-      userData: {
-        id: user.id,
-        lineUserId: user.lineUserId,
-        name: user.name,
-        nickname: user.nickname,
-        department: user.department,
-        employeeNumber: user.employeeNumber,
-        profilePictureUrl: user.profilePictureUrl,
-        createdAt: user.createdAt,
-      },
+      userData: user,
     });
-  } catch (error) {
-    console.error('Error checking user status:', error);
-    res.status(500).json({ message: 'Server error' });
+  } catch (error: any) {
+    console.error('Error in check-status API:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   } finally {
     await prisma.$disconnect();
   }
