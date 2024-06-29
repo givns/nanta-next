@@ -87,13 +87,7 @@ const CheckInRouter: React.FC = () => {
 
   const isCheckingIn = userStatus === 'checkin';
 
-  return (
-    <CheckInOutForm
-      userData={userData}
-      checkInId={checkInId}
-      isCheckingIn={isCheckingIn}
-    />
-  );
+  return <CheckInOutForm userData={userData} isCheckingIn={isCheckingIn} />;
 };
 
 export default CheckInRouter;

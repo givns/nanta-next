@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import axios from 'axios';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
@@ -8,13 +7,14 @@ import '@tensorflow/tfjs-backend-webgl';
 import {
   sendCheckInFlexMessage,
   sendCheckOutFlexMessage,
+  UserData,
+  CheckIn,
 } from '../utils/sendFlexMessage';
+import axios from 'axios';
 import StaticMap from './StaticMap';
-import { UserData } from '../types/user';
 
 interface CheckInOutFormProps {
   userData: UserData;
-  checkInId: string | null;
   isCheckingIn: boolean;
 }
 
@@ -40,7 +40,6 @@ const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
-  checkInId,
   isCheckingIn,
 }) => {
   const router = useRouter();
@@ -243,7 +242,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       );
 
       if (response.status === 200) {
-        const responseData = response.data.data;
+        const responseData: CheckIn = response.data.data;
+
         if (isCheckingIn) {
           await sendCheckInFlexMessage(userData, responseData);
         } else {
