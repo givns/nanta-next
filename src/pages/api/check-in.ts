@@ -11,12 +11,15 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { userId, address, reason, photo, timestamp } = req.body;
+  const { userId, location, address, reason, photo, timestamp } = req.body;
 
   try {
     const checkIn = await prisma.checkIn.create({
       data: {
-        userId,
+        user: {
+          connect: { id: userId },
+        },
+        location: location, // Ensure this is a JSON object
         address,
         reason,
         photo,

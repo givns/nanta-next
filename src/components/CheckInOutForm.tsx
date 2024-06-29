@@ -232,7 +232,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     try {
       const data = {
         userId: userData.id,
-        location,
+        location: { lat: location.lat, lng: location.lng }, // Ensure this is a JSON object
         address,
         reason,
         photo,
