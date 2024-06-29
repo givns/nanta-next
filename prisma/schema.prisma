@@ -75,6 +75,9 @@ model CheckIn {
   id             String     @id @default(auto()) @map("_id") @db.ObjectId
   user           User       @relation(fields: [userId], references: [id])
   userId         String     @db.ObjectId
+  name           String   // Add this line
+  nickname       String   // Add this line
+  department     String   // Add this line
   address        String?
   reason         String?
   checkpointName String?

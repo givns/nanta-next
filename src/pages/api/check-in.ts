@@ -12,7 +12,16 @@ export default async function handler(
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { userId, address, reason, photo, timestamp } = req.body;
+  const {
+    userId,
+    address,
+    reason,
+    photo,
+    timestamp,
+    name,
+    nickname,
+    department,
+  } = req.body;
 
   if (!userId || !address || !photo || !timestamp) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -34,6 +43,9 @@ export default async function handler(
         reason: reason || null, // Ensure reason is properly handled as an optional field
         photo,
         timestamp: new Date(timestamp),
+        name,
+        nickname,
+        department,
       },
     });
 
