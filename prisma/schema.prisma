@@ -38,7 +38,7 @@ model User {
   checkIns          CheckIn[]
   trackingSessions TrackingSession[]
   checkPoints       CheckPoint[]  
-  updatedAt         DateTime  @updatedAt
+  updatedAt         DateTime?  @updatedAt
 }
 
 model LeaveRequest {
@@ -85,7 +85,6 @@ model CheckIn {
   checkOutReason  String?
   checkOutPhoto   String?
   createdAt       DateTime  @default(now())
-  updatedAt       DateTime?  @updatedAt
   user            User      @relation(fields: [userId], references: [id])
 }
 
