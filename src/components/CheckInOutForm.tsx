@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import axios from 'axios';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
-import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage';
+import {
+  sendCheckInFlexMessage,
+  sendCheckOutFlexMessage,
+} from '@/utils/sendFlexMessage';
 import StaticMap from './StaticMap';
 
-interface CheckOutFormProps {
-  checkInId: string;
-  lineUserId: string;
+interface CheckInOutFormProps {
+  userData: UserData;
+  checkInId: string | null;
+  isCheckingIn: boolean;
 }
 
 interface UserData {
@@ -33,16 +38,23 @@ interface Premise {
 const PREMISES: Premise[] = [
   { lat: 13.50821, lng: 100.76405, radius: 100, name: 'บริษัท นันตา ฟู้ด' },
   { lat: 13.51444, lng: 100.70922, radius: 100, name: 'บริษัท ปัตตานี ฟู้ด' },
+  {
+    lat: 13.747920392683099,
+    lng: 100.63441771348242,
+    radius: 100,
+    name: 'Bat Cave',
+  },
 ];
 
 const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
-const CheckOutForm: React.FC<CheckOutFormProps> = ({
-  lineUserId,
+const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
+  userData,
   checkInId,
+  isCheckingIn,
 }) => {
+  const router = useRouter();
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [userData, setUserData] = useState<UserData | null>(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +67,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
   const [showCamera, setShowCamera] = useState(false);
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [inPremises, setInPremises] = useState<boolean>(false);
+
   const webcamRef = useRef<Webcam>(null);
 
   const calculateDistance = (
@@ -118,26 +131,6 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
   }, []);
 
   useEffect(() => {
-    const fetchUserDetails = async () => {
-      try {
-        const response = await axios.get(`/api/user/${lineUserId}`);
-        const user = response.data;
-        setUserData({
-          id: user.id,
-          lineUserId: user.lineUserId,
-          name: user.name,
-          nickname: user.nickname,
-          department: user.department,
-          employeeNumber: user.employeeNumber,
-          profilePictureUrl: user.profilePictureUrl,
-          createdAt: new Date(user.createdAt),
-        });
-      } catch (error) {
-        console.error('Error fetching user details:', error);
-        setError('Unable to fetch user details. Please try again.');
-      }
-    };
-
     const loadFaceDetectionModel = async () => {
       await tf.ready();
       const model = await faceDetection.createDetector(
@@ -151,9 +144,8 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
       console.log('Face detection model loaded.');
     };
 
-    fetchUserDetails();
     loadFaceDetectionModel();
-  }, [lineUserId]);
+  }, []);
 
   useEffect(() => {
     const getCurrentLocation = async () => {
@@ -170,7 +162,6 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
               setAddress(premise.name);
             } else {
               setInPremises(false);
-              // Use the geocoding service to get the address for locations outside premises
               const fetchedAddress = await getAddressFromCoordinates(
                 latitude,
                 longitude,
@@ -216,7 +207,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
           setStep(2); // Move to the next step after successful capture
         } else {
           console.error('No face detected');
-          setError('No face detected. Please try again.');
+          setError('ไม่พบใบหน้า กรุณาลองอีกครั้ง');
         }
       } else {
         console.error('Failed to capture photo: imageSrc is null');
@@ -230,65 +221,74 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
     }
   };
 
-  const handleCheckOut = async () => {
+  const handleSubmit = async () => {
     if (!userData?.id || !location || !photo) {
-      setError('User ID, location, and photo are required for check-in.');
+      setError('User ID, location, and photo are required.');
       return;
     }
-    console.log('User Data:', userData); // Check the contents of userData
 
     setLoading(true);
     setError(null);
     try {
-      // Get the current time and adjust to GMT+7
-      const currentTime = new Date();
-      const timeZoneOffset = 7 * 60; // GMT+7 in minutes
-      const localTime = new Date(
-        currentTime.getTime() + timeZoneOffset * 60 * 1000,
-      );
-
       const data = {
         userId: userData.id,
-        name: userData.name, // Ensure this field is included
-        nickname: userData.nickname, // Ensure this field is included
-        department: userData.department, // Ensure this field is included
+        location,
         address,
-        reason: reason || null, // Ensure reason is properly handled as an optional field
+        reason,
         photo,
-        timestamp: localTime.toISOString(), // Correct timestamp
+        timestamp: new Date().toISOString(),
       };
 
-      console.log('Data to send:', data); // Check the data being sent to the backend
-      const response = await axios.post('/api/check-out', data);
+      console.log(
+        `Sending ${isCheckingIn ? 'check-in' : 'check-out'} data:`,
+        JSON.stringify(data, null, 2),
+      );
+
+      const endpoint = isCheckingIn ? '/api/check-in' : '/api/check-out';
+      const response = await axios.post(
+        endpoint,
+        isCheckingIn ? data : { ...data, checkInId },
+      );
+
+      console.log(
+        `${isCheckingIn ? 'Check-in' : 'Check-out'} response:`,
+        response.data,
+      );
 
       if (response.status === 200) {
-        const checkOutData = response.data.data; // Assuming response.data contains the saved check-in data
-
-        // Send flex message
-        await sendCheckInFlexMessage(userData, checkOutData);
-
-        console.log('Check-out successful');
-        alert('Check-out successful!');
-      } else {
-        setError('Check-out failed. Please try again.');
+        const responseData = response.data.data;
+        if (isCheckingIn) {
+          await sendCheckInFlexMessage(userData, responseData);
+        } else {
+          await sendCheckOutFlexMessage(userData, responseData);
+        }
+        console.log(`${isCheckingIn ? 'Check-in' : 'Check-out'} successful`);
+        alert(`${isCheckingIn ? 'Check-in' : 'Check-out'} successful!`);
+        router.push('/success'); // Redirect to a success page or refresh the current page
       }
     } catch (error) {
-      console.error('Check-out failed:', error);
-      setError('Failed to check in. Please try again.');
+      console.error(
+        `${isCheckingIn ? 'Check-in' : 'Check-out'} failed:`,
+        error,
+      );
+      if (axios.isAxiosError(error)) {
+        console.error('Error response:', error.response?.data);
+        setError(
+          `Failed to ${isCheckingIn ? 'check in' : 'check out'}: ${error.response?.data?.error || error.message}`,
+        );
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  if (!userData) {
-    return <div>Loading user data...</div>;
-  }
-
   return (
     <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          ระบบบันทึกเวลาออกงาน
+          {isCheckingIn ? 'ระบบบันทึกเวลาเข้างาน' : 'ระบบบันทึกเวลาออกงาน'}
         </h1>
         {!showCamera && step === 1 && (
           <div className="text-6xl font-bold text-center mb-8 text-blue-600">
@@ -331,7 +331,7 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
                     aria-label="ถ่ายรูป"
                     disabled={!model}
                   >
-                    {model ? 'ถ่ายรูป' : 'กำลังโหลดรูปถ่าย...'}
+                    {model ? 'ถ่ายรูป' : 'กำลังโหลดโมเดล...'}
                   </button>
                 </div>
               )}
@@ -361,7 +361,8 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
                     htmlFor="reason-input"
                     className="block text-sm font-medium text-gray-700 mb-2"
                   >
-                    เหตุผลสำหรับการออกงานนอกสถานที่
+                    เหตุผลสำหรับการ{isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+                    นอกสถานที่
                   </label>
                   <input
                     type="text"
@@ -375,12 +376,18 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
               )}
               <div className="mt-6">
                 <button
-                  onClick={handleCheckOut}
+                  onClick={handleSubmit}
                   disabled={loading || (!inPremises && !reason)}
                   className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
-                  aria-label={loading ? 'กำลังลงเวลาออกงาน' : 'ลงเวลาออกงาน'}
+                  aria-label={
+                    loading
+                      ? `กำลังลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`
+                      : `ลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`
+                  }
                 >
-                  {loading ? 'กำลังลงเวลาออกงาน...' : 'ลงเวลาออกงาน'}
+                  {loading
+                    ? `กำลังลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
+                    : `ลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
                 </button>
               </div>
             </div>
@@ -395,4 +402,5 @@ const CheckOutForm: React.FC<CheckOutFormProps> = ({
     </div>
   );
 };
-export default CheckOutForm;
+
+export default CheckInOutForm;

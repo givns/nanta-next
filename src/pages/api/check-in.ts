@@ -1,91 +1,33 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/utils/db'; // Adjust the import path based on your project structure
-import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage'; // Adjust the import path based on your project structure
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { PrismaClient } from '@prisma/client';
 
-interface CheckInRequestBody {
-  userId: string;
-  name: string;
-  nickname: string;
-  department: string;
-  address: string;
-  latitude: string;
-  longitude: string;
-  reason?: string;
-  photo: string;
-  timestamp: string;
-}
+const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const {
-    userId,
-    name,
-    nickname,
-    department,
-    address,
-    latitude,
-    longitude,
-    reason,
-    photo,
-    timestamp,
-  } = req.body as CheckInRequestBody;
-
-  if (
-    !userId ||
-    !name ||
-    !nickname ||
-    !department ||
-    !address ||
-    !latitude ||
-    !longitude ||
-    !photo ||
-    !timestamp
-  ) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
+  const { userId, address, reason, photo, timestamp } = req.body;
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const checkInData = await prisma.checkIn.create({
+    const checkIn = await prisma.checkIn.create({
       data: {
         userId,
-        name,
-        nickname,
-        department,
         address,
-        latitude: parseFloat(latitude),
-        longitude: parseFloat(longitude),
-        reason: reason || null,
+        reason,
         photo,
-        timestamp: new Date(timestamp),
+        checkInTime: new Date(timestamp),
       },
     });
 
-    await sendCheckInFlexMessage(user, checkInData);
-
-    return res.status(200).json({
-      message: 'Check-in successful',
-      data: checkInData,
-    });
+    res.status(200).json({ message: 'Check-in successful', data: checkIn });
   } catch (error) {
-    console.error('Error during check-in process:', error);
-    return res.status(500).json({
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    });
+    console.error('Error during check-in:', error);
+    res.status(500).json({ message: 'Error processing check-in' });
   } finally {
     await prisma.$disconnect();
   }

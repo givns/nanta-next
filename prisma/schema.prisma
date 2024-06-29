@@ -38,6 +38,7 @@ model User {
   checkIns          CheckIn[]
   trackingSessions TrackingSession[]
   checkPoints       CheckPoint[]  
+  updatedAt         DateTime  @updatedAt
 }
 
 model LeaveRequest {
@@ -72,18 +73,20 @@ model OvertimeRequest {
 }
 
 model CheckIn {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId     String   @db.ObjectId
-  name       String
-  nickname   String
-  department String
-  address    String
-  latitude   Float
-  longitude  Float
-  reason     String?
-  photo      String
-  timestamp  DateTime
-  user       User     @relation(fields: [userId], references: [id])
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
+  checkInTime     DateTime  @default(now())
+  checkOutTime    DateTime?
+  location        Json
+  address         String
+  reason          String?
+  photo           String
+  checkOutAddress String?
+  checkOutReason  String?
+  checkOutPhoto   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id])
 }
 
 model TrackingSession {

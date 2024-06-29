@@ -1,26 +1,29 @@
 import axios from 'axios';
 import { CheckIn } from '@prisma/client';
 
-export const sendCheckInFlexMessage = async (
-  user: {
-    id: string;
-    lineUserId: string;
-    name: string;
-    nickname: string;
-    department: string;
-    employeeNumber: string | null;
-    profilePictureUrl: string | null;
-    createdAt: Date;
-  },
-  checkIn: CheckIn,
-) => {
-  console.log(`Check-in ID: ${checkIn.id}, Timestamp: ${checkIn.timestamp}`);
+interface User {
+  id: string;
+  lineUserId: string;
+  name: string;
+  nickname: string;
+  department: string;
+  employeeNumber: string | null;
+  profilePictureUrl: string | null;
+  createdAt: Date;
+}
 
-  const checkInTime = new Date(checkIn.timestamp).toLocaleTimeString();
+const sendFlexMessage = async (
+  user: User,
+  checkIn: CheckIn,
+  isCheckIn: boolean,
+) => {
+  const actionTime = isCheckIn
+    ? new Date(checkIn.checkInTime).toLocaleTimeString()
+    : new Date(checkIn.checkOutTime!).toLocaleTimeString();
 
   const flexMessage = {
     type: 'flex',
-    altText: 'Check-In Notification',
+    altText: `${isCheckIn ? 'Check-In' : 'Check-Out'} Notification`,
     contents: {
       type: 'bubble',
       size: 'mega',
@@ -34,7 +37,7 @@ export const sendCheckInFlexMessage = async (
             contents: [
               {
                 type: 'text',
-                text: 'Check-In Notification',
+                text: `${isCheckIn ? 'Check-In' : 'Check-Out'} Notification`,
                 color: '#000000',
                 size: 'xl',
                 flex: 4,
@@ -46,7 +49,7 @@ export const sendCheckInFlexMessage = async (
           },
         ],
         paddingAll: '20px',
-        backgroundColor: '#F0F0F0',
+        backgroundColor: isCheckIn ? '#F0F0F0' : '#FFE4E1',
         spacing: 'md',
         paddingTop: '22px',
         height: '100px',
@@ -95,9 +98,9 @@ export const sendCheckInFlexMessage = async (
                   },
                   {
                     type: 'text',
-                    text: `Check-In Time: ${checkInTime}`,
+                    text: `${isCheckIn ? 'Check-In' : 'Check-Out'} Time: ${actionTime}`,
                     size: 'sm',
-                    color: '#4682B4',
+                    color: isCheckIn ? '#4682B4' : '#B22222',
                     margin: 'md',
                   },
                 ],
@@ -105,6 +108,26 @@ export const sendCheckInFlexMessage = async (
               },
             ],
             spacing: 'xl',
+            paddingAll: '20px',
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            contents: [
+              {
+                type: 'text',
+                text: `Address: ${isCheckIn ? checkIn.address : checkIn.checkOutAddress}`,
+                size: 'sm',
+                wrap: true,
+              },
+              {
+                type: 'text',
+                text: `Reason: ${isCheckIn ? checkIn.reason : checkIn.checkOutReason}`,
+                size: 'sm',
+                wrap: true,
+                margin: 'md',
+              },
+            ],
             paddingAll: '20px',
           },
         ],
@@ -137,12 +160,22 @@ export const sendCheckInFlexMessage = async (
         },
       },
     );
-    console.log('Flex message sent successfully');
+    console.log(
+      `${isCheckIn ? 'Check-In' : 'Check-Out'} flex message sent successfully`,
+    );
   } catch (error: any) {
     console.error(
-      'Error sending flex message:',
+      `Error sending ${isCheckIn ? 'check-in' : 'check-out'} flex message:`,
       error.response?.data || error.message,
     );
     throw error;
   }
+};
+
+export const sendCheckInFlexMessage = async (user: User, checkIn: CheckIn) => {
+  await sendFlexMessage(user, checkIn, true);
+};
+
+export const sendCheckOutFlexMessage = async (user: User, checkIn: CheckIn) => {
+  await sendFlexMessage(user, checkIn, false);
 };
