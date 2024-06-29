@@ -31,7 +31,7 @@ export default async function handler(
       return res.status(404).json({ message: 'User not found' });
     }
 
-    console.log('User found:', user);
+    console.log('User found:', JSON.stringify(user, null, 2));
 
     console.log('Fetching latest check-in for user:', user.id);
     const latestCheckIn = await prisma.checkIn.findFirst({
@@ -42,7 +42,7 @@ export default async function handler(
       orderBy: { checkInTime: 'desc' },
     });
 
-    console.log('Latest check-in:', latestCheckIn);
+    console.log('Latest check-in:', JSON.stringify(latestCheckIn, null, 2));
 
     const now = new Date();
     const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
@@ -57,6 +57,9 @@ export default async function handler(
         latestCheckIn.checkInTime.getTime() + 7 * 60 * 60 * 1000,
       );
       const timeSinceCheckIn = thaiNow.getTime() - thaiCheckInTime.getTime();
+
+      console.log('Time since check-in (ms):', timeSinceCheckIn);
+      console.log('Minimum check interval (ms):', MIN_CHECK_INTERVAL);
 
       if (timeSinceCheckIn < MIN_CHECK_INTERVAL) {
         status = 'checkin';
@@ -76,11 +79,14 @@ export default async function handler(
         orderBy: { checkOutTime: 'desc' },
       });
 
-      console.log('Latest check-out:', latestCheckOut);
+      console.log('Latest check-out:', JSON.stringify(latestCheckOut, null, 2));
 
       if (latestCheckOut) {
         const timeSinceCheckOut =
           now.getTime() - latestCheckOut.checkOutTime!.getTime();
+
+        console.log('Time since check-out (ms):', timeSinceCheckOut);
+        console.log('Minimum check interval (ms):', MIN_CHECK_INTERVAL);
 
         if (timeSinceCheckOut < MIN_CHECK_INTERVAL) {
           status = 'checkout';
