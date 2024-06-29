@@ -28,7 +28,6 @@ const securityHeaders = [
   },
 ];
 
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
@@ -41,6 +40,17 @@ const nextConfig = {
         tls: false,
         crypto: require.resolve('crypto-browserify'),
         stream: require.resolve('stream-browserify'),
+        assert: require.resolve('assert'),
+        http: require.resolve('stream-http'),
+        https: require.resolve('https-browserify'),
+        os: require.resolve('os-browserify/browser'),
+        url: require.resolve('url'),
+      };
+
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'node:crypto': 'crypto-browserify',
+        'node:stream': 'stream-browserify',
       };
     }
 
