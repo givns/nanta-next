@@ -46,12 +46,14 @@ const nextConfig = {
         https: require.resolve('https-browserify'),
         os: require.resolve('os-browserify/browser'),
         url: require.resolve('url'),
+        buffer: require.resolve('buffer'),
       };
 
       config.resolve.alias = {
         ...config.resolve.alias,
         'node:crypto': 'crypto-browserify',
         'node:stream': 'stream-browserify',
+        'node:buffer': 'buffer',
       };
     }
 
