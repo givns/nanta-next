@@ -14,20 +14,18 @@ export default async function handler(
   const { userId, location, address, reason, photo, timestamp } = req.body;
 
   try {
-    // Parse the timestamp (which is already in Thai time)
-    const checkInTime = new Date(timestamp);
-    if (isNaN(checkInTime.getTime())) {
-      throw new Error('Invalid timestamp provided');
-    }
+    // Parse the timestamp (which should be in Thai time) and convert to UTC
+    const thaiTime = new Date(timestamp);
+    const utcTime = new Date(thaiTime.getTime() - 7 * 60 * 60 * 1000); // Convert Thai time to UTC
 
     const checkIn = await prisma.checkIn.create({
       data: {
         userId,
-        location: JSON.stringify(location), // Assuming location is an object
+        location: location, // This will be stored as Json
         address,
         reason: reason || null,
         photo,
-        checkInTime, // Use the parsed Date object
+        checkInTime: utcTime,
       },
     });
 
