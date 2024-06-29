@@ -1,29 +1,9 @@
-import axios from 'axios';
+import { Client, FlexMessage } from '@line/bot-sdk';
+import { UserData, CheckIn } from '../types/user'; // Adjust the import path as needed
 
-export interface UserData {
-  id: string;
-  lineUserId: string;
-  name: string;
-  nickname: string;
-  department: string;
-  employeeNumber: string | null;
-  profilePictureUrl: string | null;
-  createdAt: Date;
-}
-
-export interface CheckIn {
-  _id: string;
-  userId: string;
-  checkInTime: string | Date;
-  location: any; // You might want to define a more specific type for this
-  address: string;
-  reason: string;
-  photo: string;
-  createdAt: string | Date;
-  checkOutTime?: string | Date;
-  checkOutAddress?: string;
-  checkOutReason?: string;
-}
+const client = new Client({
+  channelAccessToken: process.env.NEXT_PUBLIC_LINE_CHANNEL_ACCESS_TOKEN || '',
+});
 
 const sendFlexMessage = async (
   user: UserData,
@@ -41,14 +21,38 @@ const sendFlexMessage = async (
       ? new Date(checkIn.checkOutTime).toLocaleTimeString()
       : 'N/A';
 
-  const flexMessage = {
+  const message: FlexMessage = {
     type: 'flex',
     altText: `${isCheckIn ? 'Check-In' : 'Check-Out'} Notification`,
     contents: {
       type: 'bubble',
       size: 'mega',
       header: {
-        // ... (keep the header as it is)
+        type: 'box',
+        layout: 'horizontal',
+        contents: [
+          {
+            type: 'box',
+            layout: 'vertical',
+            contents: [
+              {
+                type: 'text',
+                text: `${isCheckIn ? 'Check-In' : 'Check-Out'} Notification`,
+                color: '#000000',
+                size: 'xl',
+                flex: 4,
+                weight: 'bold',
+                align: 'center',
+                gravity: 'center',
+              },
+            ],
+          },
+        ],
+        paddingAll: '20px',
+        backgroundColor: isCheckIn ? '#F0F0F0' : '#FFE4E1',
+        spacing: 'md',
+        paddingTop: '22px',
+        height: '100px',
       },
       body: {
         type: 'box',
@@ -137,7 +141,18 @@ const sendFlexMessage = async (
     },
   };
 
-  // ... (keep the rest of the function as it is)
+  try {
+    await client.pushMessage(user.lineUserId, message);
+    console.log(
+      `${isCheckIn ? 'Check-In' : 'Check-Out'} flex message sent successfully`,
+    );
+  } catch (error: any) {
+    console.error(
+      `Error sending ${isCheckIn ? 'check-in' : 'check-out'} flex message:`,
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
 };
 
 export const sendCheckInFlexMessage = async (

@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/router';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import {
+  UserData,
+  CheckIn,
+  CheckInFormData,
+  CheckOutFormData,
+} from '../types/user';
+import {
   sendCheckInFlexMessage,
   sendCheckOutFlexMessage,
-  UserData,
 } from '../utils/sendFlexMessage';
 import axios from 'axios';
 import StaticMap from './StaticMap';
@@ -15,6 +19,7 @@ import StaticMap from './StaticMap';
 interface CheckInOutFormProps {
   userData: UserData;
   isCheckingIn: boolean;
+  checkInId?: string; // Add this prop for check-out
 }
 
 interface Premise {
@@ -40,8 +45,8 @@ const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
   isCheckingIn,
+  checkInId,
 }) => {
-  const router = useRouter();
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -210,30 +215,47 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (!userData?.id || !location || !photo) {
+    if (!userData.id || !location || !photo) {
       setError('User ID, location, and photo are required.');
+      return;
+    }
+
+    if (!isCheckingIn && !checkInId) {
+      setError('Check-in ID is required for check-out.');
       return;
     }
 
     setLoading(true);
     setError(null);
+
     try {
-      const data = {
-        userId: userData.id,
-        location,
-        address,
-        reason,
-        photo,
-        timestamp: new Date().toISOString(),
-      };
+      let formData: CheckInFormData | CheckOutFormData;
+
+      if (isCheckingIn) {
+        formData = {
+          userId: userData.id,
+          location,
+          address,
+          reason: reason || undefined,
+          photo,
+        };
+      } else {
+        formData = {
+          checkInId: checkInId!,
+          location,
+          address,
+          reason: reason || undefined,
+          photo,
+        };
+      }
 
       console.log(
         `Sending ${isCheckingIn ? 'check-in' : 'check-out'} data:`,
-        JSON.stringify(data, null, 2),
+        JSON.stringify(formData, null, 2),
       );
 
       const endpoint = isCheckingIn ? '/api/check-in' : '/api/check-out';
-      const response = await axios.post(endpoint, data);
+      const response = await axios.post<{ data: CheckIn }>(endpoint, formData);
 
       console.log(
         `${isCheckingIn ? 'Check-in' : 'Check-out'} response:`,
@@ -242,33 +264,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
       if (response.status === 200) {
         const responseData = response.data.data;
-        console.log(
-          'Response data extracted:',
-          JSON.stringify(responseData, null, 2),
-        );
-
         try {
           if (isCheckingIn) {
-            console.log('Attempting to send check-in flex message');
             await sendCheckInFlexMessage(userData, responseData);
-            console.log('Check-in flex message sent successfully');
           } else {
-            console.log('Attempting to send check-out flex message');
             await sendCheckOutFlexMessage(userData, responseData);
-            console.log('Check-out flex message sent successfully');
           }
+          console.log(
+            `${isCheckingIn ? 'Check-in' : 'Check-out'} flex message sent successfully`,
+          );
         } catch (flexError) {
           console.error('Error sending flex message:', flexError);
-          // Log the full error object
-          console.error(
-            'Full flex error object:',
-            JSON.stringify(flexError, null, 2),
+          setError(
+            `${isCheckingIn ? 'Check-in' : 'Check-out'} successful, but failed to send notification.`,
           );
-          setError('Check-in/out successful, but failed to send notification.');
         }
 
         alert(`${isCheckingIn ? 'Check-in' : 'Check-out'} successful!`);
-        // Redirect or update UI as needed
+        // Reset form or redirect as needed
       }
     } catch (error) {
       console.error(
@@ -276,7 +289,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         error,
       );
       if (axios.isAxiosError(error) && error.response) {
-        console.error('Error response:', error.response.data);
         setError(
           `Failed to ${isCheckingIn ? 'check in' : 'check out'}: ${error.response.data.message || error.message}`,
         );

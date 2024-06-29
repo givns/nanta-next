@@ -2,17 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { initializeLiff, getLiffProfile, liff } from '../utils/liff';
-
-interface UserData {
-  id: string;
-  lineUserId: string;
-  name: string;
-  nickname: string;
-  department: string;
-  employeeNumber: string | null;
-  profilePictureUrl: string | null;
-  createdAt: Date;
-}
+import { UserData } from '@/types/user';
 
 const CheckInRouter: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -46,7 +36,6 @@ const CheckInRouter: React.FC = () => {
           lineUserId,
         );
 
-        // Use the lineUserId from LIFF in the API call
         const response = await axios.get(
           `/api/check-status?lineUserId=${lineUserId}`,
         );
@@ -74,20 +63,60 @@ const CheckInRouter: React.FC = () => {
   }, []);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div>{error}</div>;
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div
+          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
+          role="alert"
+        >
+          <strong className="font-bold">Error!</strong>
+          <span className="block sm:inline"> {error}</span>
+        </div>
+      </div>
+    );
   }
 
   if (!userData) {
-    return <div>User data not found.</div>;
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div
+          className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative"
+          role="alert"
+        >
+          <strong className="font-bold">Warning!</strong>
+          <span className="block sm:inline"> User data not found.</span>
+        </div>
+      </div>
+    );
   }
 
   const isCheckingIn = userStatus === 'checkin';
 
-  return <CheckInOutForm userData={userData} isCheckingIn={isCheckingIn} />;
+  return (
+    <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
+      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
+        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
+          {isCheckingIn ? 'ระบบบันทึกเวลาเข้างาน' : 'ระบบบันทึกเวลาออกงาน'}
+        </h1>
+        <div className="text-6xl font-bold text-center mb-8 text-blue-600">
+          {new Date().toLocaleTimeString()}
+        </div>
+        <CheckInOutForm
+          userData={userData}
+          isCheckingIn={isCheckingIn}
+          checkInId={isCheckingIn ? undefined : checkInId || undefined}
+        />
+      </div>
+    </div>
+  );
 };
 
 export default CheckInRouter;
