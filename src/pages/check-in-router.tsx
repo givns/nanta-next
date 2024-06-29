@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import CheckInOutForm from '../components/CheckInOutForm';
-import { getLiffProfile, liff } from '../utils/liff';
+import { initializeLiff, getLiffProfile, liff } from '../utils/liff';
 
 interface UserData {
   id: string;
@@ -26,22 +26,37 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     const fetchUserStatusAndData = async () => {
       try {
-        if (!liff.isLoggedIn()) {
-          liff.login();
-        } else {
-          const profile = await getLiffProfile();
-          const lineUserId = profile.userId;
+        console.log('Initializing LIFF...');
+        await initializeLiff();
+        console.log('LIFF initialized successfully');
 
-          const response = await axios.get(
-            `/api/check-status?lineUserId=${lineUserId}`,
-          );
-          const { status, checkInId, userData } = response.data;
-          setUserStatus(status);
-          setCheckInId(checkInId);
-          setUserData(userData);
+        if (!liff.isLoggedIn()) {
+          console.log('User not logged in, redirecting to login...');
+          liff.login();
+          return;
         }
+
+        console.log('Getting LIFF profile...');
+        const profile = await getLiffProfile();
+        console.log('LIFF profile retrieved:', profile);
+
+        const lineUserId = profile.userId;
+        console.log(
+          'Fetching user status and data for lineUserId:',
+          lineUserId,
+        );
+
+        const response = await axios.get(
+          `/api/check-status?lineUserId=${lineUserId}`,
+        );
+        console.log('User status and data received:', response.data);
+
+        const { status, checkInId, userData } = response.data;
+        setUserStatus(status);
+        setCheckInId(checkInId);
+        setUserData(userData);
       } catch (error) {
-        console.error('Error fetching user status and data:', error);
+        console.error('Error in fetchUserStatusAndData:', error);
         setError('Failed to fetch user data. Please try again.');
       } finally {
         setLoading(false);
@@ -52,39 +67,15 @@ const CheckInRouter: React.FC = () => {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
+    return <div>Loading...</div>;
   }
 
   if (error) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div
-          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
-          role="alert"
-        >
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> {error}</span>
-        </div>
-      </div>
-    );
+    return <div>{error}</div>;
   }
 
   if (!userData) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div
-          className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative"
-          role="alert"
-        >
-          <strong className="font-bold">Warning!</strong>
-          <span className="block sm:inline"> User data not found.</span>
-        </div>
-      </div>
-    );
+    return <div>User data not found.</div>;
   }
 
   const isCheckingIn = userStatus === 'checkin';

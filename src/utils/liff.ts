@@ -17,7 +17,7 @@ export const initializeLiff = async (): Promise<void> => {
 
 export const getLiffProfile = async () => {
   if (!liff.isLoggedIn()) {
-    liff.login();
+    throw new Error('User is not logged in');
   }
   return await liff.getProfile();
 };
