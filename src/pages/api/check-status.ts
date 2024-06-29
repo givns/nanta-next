@@ -20,6 +20,11 @@ export default async function handler(
 
   try {
     console.log(`Fetching user for lineUserId: ${lineUserId}`);
+
+    // Test database connection
+    await prisma.$connect();
+    console.log('Database connection successful');
+
     const user = await prisma.user.findUnique({
       where: { lineUserId },
     });
@@ -51,7 +56,13 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('Error in check-status API:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    // Log the full error object
+    console.error(JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
   } finally {
     await prisma.$disconnect();
   }
