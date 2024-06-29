@@ -2,7 +2,17 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { initializeLiff, getLiffProfile, liff } from '../utils/liff';
-import { UserData } from '../types/user';
+
+interface UserData {
+  id: string;
+  lineUserId: string;
+  name: string;
+  nickname: string;
+  department: string;
+  employeeNumber: string | null;
+  profilePictureUrl: string | null;
+  createdAt: Date;
+}
 
 const CheckInRouter: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -36,6 +46,7 @@ const CheckInRouter: React.FC = () => {
           lineUserId,
         );
 
+        // Use the lineUserId from LIFF in the API call
         const response = await axios.get(
           `/api/check-status?lineUserId=${lineUserId}`,
         );
@@ -47,7 +58,13 @@ const CheckInRouter: React.FC = () => {
         setUserData(userData);
       } catch (error) {
         console.error('Error in fetchUserStatusAndData:', error);
-        setError('Failed to fetch user data. Please try again.');
+        if (axios.isAxiosError(error) && error.response) {
+          setError(
+            `Failed to fetch user data: ${error.response.data.message || error.message}`,
+          );
+        } else {
+          setError('An unexpected error occurred. Please try again.');
+        }
       } finally {
         setLoading(false);
       }
