@@ -1,8 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/utils/db'; // Adjust the import path based on your project structure
 import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage'; // Adjust the import paths based on your project structure
-
-const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
@@ -14,16 +12,24 @@ export default async function handler(
 
   const {
     userId,
+    name,
+    nickname,
+    department,
     address,
     reason,
     photo,
     timestamp,
-    name,
-    nickname,
-    department,
   } = req.body;
 
-  if (!userId || !address || !photo || !timestamp) {
+  if (
+    !userId ||
+    !name ||
+    !nickname ||
+    !department ||
+    !address ||
+    !photo ||
+    !timestamp
+  ) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -39,13 +45,13 @@ export default async function handler(
     const checkInData = await prisma.checkIn.create({
       data: {
         userId,
+        name,
+        nickname,
+        department,
         address,
         reason: reason || null, // Ensure reason is properly handled as an optional field
         photo,
         timestamp: new Date(timestamp),
-        name,
-        nickname,
-        department,
       },
     });
 
