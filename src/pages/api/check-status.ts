@@ -51,6 +51,8 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('Error in check-status API:', error);
+    // Log the full error object
+    console.error(JSON.stringify(error, Object.getOwnPropertyNames(error)));
     res.status(500).json({ message: 'Server error', error: error.message });
   } finally {
     await prisma.$disconnect();
