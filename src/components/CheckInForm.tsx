@@ -240,7 +240,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
       setError('User ID, location, and photo are required for check-in.');
       return;
     }
-  
+
     setLoading(true);
     setError(null);
     try {
@@ -252,13 +252,13 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
         photo,
         timestamp: new Date().toISOString(),
       };
-  
+
       console.log('Sending check-in data:', JSON.stringify(data, null, 2));
-  
+
       const response = await axios.post('/api/check-in', data);
-  
+
       console.log('Check-in response:', response.data);
-  
+
       if (response.status === 200) {
         const checkInData = response.data.data;
         await sendCheckInFlexMessage(userData, checkInData);
@@ -269,7 +269,9 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
       console.error('Check-in failed:', error);
       if (axios.isAxiosError(error)) {
         console.error('Error response:', error.response?.data);
-        setError(`Failed to check in: ${error.response?.data?.error || error.message}`);
+        setError(
+          `Failed to check in: ${error.response?.data?.error || error.message}`,
+        );
       } else {
         setError('An unexpected error occurred. Please try again.');
       }

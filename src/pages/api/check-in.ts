@@ -17,7 +17,7 @@ interface CheckInRequestBody {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
@@ -75,16 +75,16 @@ export default async function handler(
     });
 
     await sendCheckInFlexMessage(user, checkInData);
-    
-    return res.status(200).json({ 
+
+    return res.status(200).json({
       message: 'Check-in successful',
-      data: checkInData 
+      data: checkInData,
     });
   } catch (error) {
     console.error('Error during check-in process:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error', 
-      details: error instanceof Error ? error.message : 'Unknown error'
+    return res.status(500).json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error',
     });
   } finally {
     await prisma.$disconnect();
