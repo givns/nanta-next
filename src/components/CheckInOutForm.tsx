@@ -301,122 +301,106 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   };
 
   return (
-    <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
-      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          {isCheckingIn ? 'ระบบบันทึกเวลาเข้างาน' : 'ระบบบันทึกเวลาออกงาน'}
-        </h1>
-        {!showCamera && step === 1 && (
-          <div className="text-6xl font-bold text-center mb-8 text-blue-600">
-            {new Date().toLocaleTimeString()}
-          </div>
-        )}
-        <div className="space-y-6">
-          {step === 1 && (
-            <div>
-              <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
-              <p className="text-md mb-4 text-gray-600">
-                {userData.department}
-              </p>
-              {!showCamera ? (
-                <button
-                  onClick={() => setShowCamera(true)}
-                  className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-                  aria-label="เปิดกล้องเพื่อถ่ายรูป"
-                >
-                  เปิดกล้องเพื่อถ่ายรูป
-                </button>
-              ) : (
-                <div className="mt-4">
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    className="w-full rounded-lg mb-4"
-                    onUserMedia={() => console.log('Camera is ready')}
-                    onUserMediaError={(error) => {
-                      console.error('Camera error:', error);
-                      setError(
-                        'Failed to access camera. Please check your camera permissions and try again.',
-                      );
-                    }}
-                  />
-                  <button
-                    onClick={capturePhoto}
-                    className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-                    aria-label="ถ่ายรูป"
-                    disabled={!model}
-                  >
-                    {model ? 'ถ่ายรูป' : 'กำลังโหลดโมเดล...'}
-                  </button>
-                </div>
-              )}
+    <div className="space-y-6">
+      {step === 1 && (
+        <div>
+          <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
+          <p className="text-md mb-4 text-gray-600">{userData.department}</p>
+          {!showCamera ? (
+            <button
+              onClick={() => setShowCamera(true)}
+              className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+              aria-label="เปิดกล้องเพื่อถ่ายรูป"
+            >
+              เปิดกล้องเพื่อถ่ายรูป
+            </button>
+          ) : (
+            <div className="mt-4">
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                className="w-full rounded-lg mb-4"
+                onUserMedia={() => console.log('Camera is ready')}
+                onUserMediaError={(error) => {
+                  console.error('Camera error:', error);
+                  setError(
+                    'Failed to access camera. Please check your camera permissions and try again.',
+                  );
+                }}
+              />
+              <button
+                onClick={capturePhoto}
+                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+                aria-label="ถ่ายรูป"
+                disabled={!model}
+              >
+                {model ? 'ถ่ายรูป' : 'กำลังโหลดโมเดล...'}
+              </button>
             </div>
-          )}
-          {step === 2 && (
-            <div>
-              <div className="mb-4">
-                <label
-                  htmlFor="address-display"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  ที่อยู่ของคุณ
-                </label>
-                <div
-                  id="address-display"
-                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
-                  aria-live="polite"
-                >
-                  {address || 'กำลังโหลดที่อยู่...'}
-                </div>
-              </div>
-              {apiKey && <StaticMap apiKey={apiKey} />}
-              {!inPremises && (
-                <div className="mt-4">
-                  <label
-                    htmlFor="reason-input"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    เหตุผลสำหรับการ{isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-                    นอกสถานที่
-                  </label>
-                  <input
-                    type="text"
-                    id="reason-input"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
-                    required
-                  />
-                </div>
-              )}
-              <div className="mt-6">
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading || (!inPremises && !reason)}
-                  className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
-                  aria-label={
-                    loading
-                      ? `กำลังลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`
-                      : `ลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`
-                  }
-                >
-                  {loading
-                    ? `กำลังลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
-                    : `ลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
-                </button>
-              </div>
-            </div>
-          )}
-          {error && (
-            <p className="text-red-500 mt-4" role="alert">
-              {error}
-            </p>
           )}
         </div>
-      </div>
+      )}
+      {step === 2 && (
+        <div>
+          <div className="mb-4">
+            <label
+              htmlFor="address-display"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              ที่อยู่ของคุณ
+            </label>
+            <div
+              id="address-display"
+              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
+              aria-live="polite"
+            >
+              {address || 'กำลังโหลดที่อยู่...'}
+            </div>
+          </div>
+          {apiKey && <StaticMap apiKey={apiKey} />}
+          {!inPremises && (
+            <div className="mt-4">
+              <label
+                htmlFor="reason-input"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                เหตุผลสำหรับการ{isCheckingIn ? 'เข้างาน' : 'ออกงาน'}นอกสถานที่
+              </label>
+              <input
+                type="text"
+                id="reason-input"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+                required
+              />
+            </div>
+          )}
+          <div className="mt-6">
+            <button
+              onClick={handleSubmit}
+              disabled={loading || (!inPremises && !reason)}
+              className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
+              aria-label={
+                loading
+                  ? `กำลังลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`
+                  : `ลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`
+              }
+            >
+              {loading
+                ? `กำลังลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
+                : `ลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
+            </button>
+          </div>
+        </div>
+      )}
+      {error && (
+        <p className="text-red-500 mt-4" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 };
-
 export default CheckInOutForm;
