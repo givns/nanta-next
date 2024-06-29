@@ -21,7 +21,6 @@ export default async function handler(
   try {
     console.log(`Fetching user for lineUserId: ${lineUserId}`);
 
-    // Test database connection
     await prisma.$connect();
     console.log('Database connection successful');
 
@@ -36,7 +35,6 @@ export default async function handler(
 
     console.log(`User found: ${JSON.stringify(user)}`);
 
-    console.log(`Fetching latest check-in for userId: ${user.id}`);
     const latestCheckIn = await prisma.checkIn.findFirst({
       where: {
         userId: user.id,
@@ -48,16 +46,17 @@ export default async function handler(
     const status = latestCheckIn ? 'checkout' : 'checkin';
     const checkInId = latestCheckIn ? latestCheckIn.id : null;
 
-    console.log(`Sending response: status=${status}, checkInId=${checkInId}`);
     res.status(200).json({
       status,
       checkInId,
-      userData: user,
+      userData: {
+        ...user,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt ? user.updatedAt.toISOString() : null,
+      },
     });
   } catch (error: any) {
     console.error('Error in check-status API:', error);
-    // Log the full error object
-    console.error(JSON.stringify(error, Object.getOwnPropertyNames(error)));
     res.status(500).json({
       message: 'Server error',
       error: error.message,
