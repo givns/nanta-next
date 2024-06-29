@@ -1,7 +1,5 @@
 import axios from 'axios';
-import { CheckIn } from '@prisma/client';
-
-interface User {
+export interface UserData {
   id: string;
   lineUserId: string;
   name: string;
@@ -10,20 +8,23 @@ interface User {
   employeeNumber: string | null;
   profilePictureUrl: string | null;
   createdAt: Date;
+  // Add any other fields that are in your UserData type
 }
 
+export interface CheckIn {
+  // Define the structure of your CheckIn data
+  id: string;
+  checkInTime: Date;
+  checkOutTime?: Date;
+  address: string;
+  reason?: string;
+  checkOutAddress?: string;
+  checkOutReason?: string;
+  // Add other relevant fields
+}
 const sendFlexMessage = async (
-  user: {
-    id: string;
-    lineUserId: string;
-    name: string;
-    nickname: string;
-    department: string;
-    employeeNumber: string | null;
-    profilePictureUrl: string | null;
-    createdAt: Date;
-  },
-  checkIn: any,
+  user: UserData,
+  checkIn: CheckIn,
   isCheckIn: boolean,
 ) => {
   const actionTime = isCheckIn
@@ -94,14 +95,14 @@ const sendFlexMessage = async (
                 contents: [
                   {
                     type: 'text',
-                    text: `${user.name} (${user.nickname})`,
+                    text: `${user.name} (${user.nickname || ''})`,
                     weight: 'bold',
                     size: 'md',
                     wrap: true,
                   },
                   {
                     type: 'text',
-                    text: user.department,
+                    text: user.department || '',
                     size: 'sm',
                     color: '#999999',
                   },
@@ -125,13 +126,13 @@ const sendFlexMessage = async (
             contents: [
               {
                 type: 'text',
-                text: `Address: ${isCheckIn ? checkIn.address : checkIn.checkOutAddress}`,
+                text: `Address: ${isCheckIn ? checkIn.address : checkIn.checkOutAddress || ''}`,
                 size: 'sm',
                 wrap: true,
               },
               {
                 type: 'text',
-                text: `Reason: ${isCheckIn ? checkIn.reason : checkIn.checkOutReason}`,
+                text: `Reason: ${isCheckIn ? checkIn.reason || '' : checkIn.checkOutReason || ''}`,
                 size: 'sm',
                 wrap: true,
                 margin: 'md',
@@ -181,10 +182,18 @@ const sendFlexMessage = async (
   }
 };
 
-export const sendCheckInFlexMessage = async (user: User, checkIn: CheckIn) => {
+export const sendCheckInFlexMessage = async (
+  user: UserData,
+  checkIn: CheckIn,
+) => {
   await sendFlexMessage(user, checkIn, true);
 };
 
-export const sendCheckOutFlexMessage = async (user: User, checkIn: CheckIn) => {
+export const sendCheckOutFlexMessage = async (
+  user: UserData,
+  checkIn: CheckIn,
+) => {
   await sendFlexMessage(user, checkIn, false);
 };
+
+export { sendFlexMessage };

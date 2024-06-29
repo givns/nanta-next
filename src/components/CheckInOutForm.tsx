@@ -8,9 +8,10 @@ import '@tensorflow/tfjs-backend-webgl';
 import {
   sendCheckInFlexMessage,
   sendCheckOutFlexMessage,
-} from '@/utils/sendFlexMessage';
+} from '../utils/sendFlexMessage';
 import StaticMap from './StaticMap';
 import { UserData } from '../types/user';
+
 interface CheckInOutFormProps {
   userData: UserData;
   checkInId: string | null;
@@ -244,14 +245,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       if (response.status === 200) {
         const responseData = response.data.data;
         if (isCheckingIn) {
-          await sendCheckInFlexMessage(
-            {
-              ...userData,
-              name: responseData.userName || userData.name,
-              department: responseData.userDepartment || userData.department,
-            },
-            responseData,
-          );
+          await sendCheckInFlexMessage(userData, responseData);
         } else {
           await sendCheckOutFlexMessage(userData, responseData);
         }
