@@ -1,4 +1,5 @@
 import axios from 'axios';
+
 export interface UserData {
   id: string;
   lineUserId: string;
@@ -8,11 +9,9 @@ export interface UserData {
   employeeNumber: string | null;
   profilePictureUrl: string | null;
   createdAt: Date;
-  // Add any other fields that are in your UserData type
 }
 
 export interface CheckIn {
-  // Define the structure of your CheckIn data
   id: string;
   checkInTime: Date;
   checkOutTime?: Date;
@@ -20,13 +19,18 @@ export interface CheckIn {
   reason?: string;
   checkOutAddress?: string;
   checkOutReason?: string;
-  // Add other relevant fields
 }
+
 const sendFlexMessage = async (
   user: UserData,
   checkIn: CheckIn,
   isCheckIn: boolean,
 ) => {
+  console.log('Preparing to send flex message');
+  console.log('User data:', JSON.stringify(user, null, 2));
+  console.log('Check-in data:', JSON.stringify(checkIn, null, 2));
+  console.log('Is check-in:', isCheckIn);
+
   const actionTime = isCheckIn
     ? new Date(checkIn.checkInTime).toLocaleTimeString()
     : new Date(checkIn.checkOutTime!).toLocaleTimeString();
@@ -151,13 +155,16 @@ const sendFlexMessage = async (
     },
   };
 
+  console.log('Flex message to be sent:', JSON.stringify(flexMessage, null, 2));
+
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!token) {
+    console.error('LINE Channel Access Token is not set');
     throw new Error('LINE Channel Access Token is not set');
   }
 
   try {
-    await axios.post(
+    const response = await axios.post(
       'https://api.line.me/v2/bot/message/push',
       {
         to: user.lineUserId,
@@ -170,6 +177,7 @@ const sendFlexMessage = async (
         },
       },
     );
+    console.log('LINE API response:', response.data);
     console.log(
       `${isCheckIn ? 'Check-In' : 'Check-Out'} flex message sent successfully`,
     );
@@ -178,6 +186,7 @@ const sendFlexMessage = async (
       `Error sending ${isCheckIn ? 'check-in' : 'check-out'} flex message:`,
       error.response?.data || error.message,
     );
+    console.error('Full error object:', JSON.stringify(error, null, 2));
     throw error;
   }
 };
@@ -205,3 +214,5 @@ export const sendCheckOutFlexMessage = async (
     throw new Error('Failed to send check-out notification');
   }
 };
+
+export { sendFlexMessage };
