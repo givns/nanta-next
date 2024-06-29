@@ -14,7 +14,7 @@ import {
   sendCheckOutFlexMessage,
 } from '../utils/sendFlexMessage';
 import axios from 'axios';
-import StaticMap from './StaticMap';
+import InteractiveMap from './InteractiveMap';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -365,7 +365,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               {address || 'กำลังโหลดที่อยู่...'}
             </div>
           </div>
-          {apiKey && <StaticMap apiKey={apiKey} />}
+          {apiKey && location && (
+            <div className="mb-4">
+              <InteractiveMap
+                apiKey={apiKey}
+                lat={location.lat}
+                lng={location.lng}
+              />
+            </div>
+          )}
           {!inPremises && (
             <div className="mt-4">
               <label

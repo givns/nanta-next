@@ -14,6 +14,12 @@ export default async function handler(
   const { checkInId, address, reason, photo, timestamp } = req.body;
 
   try {
+    // Parse the timestamp (which is already in Thai time)
+    const checkOutTime = new Date(timestamp);
+    if (isNaN(checkOutTime.getTime())) {
+      throw new Error('Invalid timestamp provided');
+    }
+
     const updatedCheckIn = await prisma.checkIn.update({
       where: { id: checkInId },
       data: {

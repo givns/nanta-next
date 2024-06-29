@@ -12,6 +12,7 @@ const CheckInRouter: React.FC = () => {
   const [checkInId, setCheckInId] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUserStatusAndData = async () => {
@@ -41,10 +42,11 @@ const CheckInRouter: React.FC = () => {
         );
         console.log('User status and data received:', response.data);
 
-        const { status, checkInId, userData } = response.data;
+        const { status, checkInId, userData, message } = response.data;
         setUserStatus(status);
         setCheckInId(checkInId);
         setUserData(userData);
+        setMessage(message || null);
       } catch (error) {
         console.error('Error in fetchUserStatusAndData:', error);
         if (axios.isAxiosError(error) && error.response) {
@@ -107,8 +109,13 @@ const CheckInRouter: React.FC = () => {
           {isCheckingIn ? 'ระบบบันทึกเวลาเข้างาน' : 'ระบบบันทึกเวลาออกงาน'}
         </h1>
         <div className="text-6xl font-bold text-center mb-8 text-blue-600">
-          {new Date().toLocaleTimeString()}
+          {new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' })}
         </div>
+        {message && (
+          <div className="mb-4 p-2 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
+            {message}
+          </div>
+        )}
         <CheckInOutForm
           userData={userData}
           isCheckingIn={isCheckingIn}

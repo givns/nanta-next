@@ -77,6 +77,8 @@ model CheckIn {
   userId          String    @db.ObjectId
   checkInTime     DateTime  @default(now())
   checkOutTime    DateTime?
+  latitude        Float
+  longitude       Float
   location        Json
   address         String
   reason          String?
