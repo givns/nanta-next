@@ -1,5 +1,3 @@
-/** @type {import('next').NextConfig} */
-
 const ContentSecurityPolicy = `
   default-src 'self';
   script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://static.line-scdn.net;
@@ -27,7 +25,7 @@ const securityHeaders = [
     value: 'strict-origin-when-cross-origin',
   },
 ];
-
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
