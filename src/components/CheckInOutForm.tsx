@@ -228,41 +228,44 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         timestamp: new Date().toISOString(),
       };
 
-      console.log(
-        `Sending ${isCheckingIn ? 'check-in' : 'check-out'} data:`,
-        JSON.stringify(data, null, 2),
-      );
+      console.log('Sending data:', JSON.stringify(data, null, 2));
 
       const endpoint = isCheckingIn ? '/api/check-in' : '/api/check-out';
       const response = await axios.post(endpoint, data);
 
-      console.log(
-        `${isCheckingIn ? 'Check-in' : 'Check-out'} response:`,
-        response.data,
-      );
+      console.log('Full API response:', response);
+      console.log('Response status:', response.status);
+      console.log('Response data:', JSON.stringify(response.data, null, 2));
 
       if (response.status === 200) {
-        const responseData: CheckIn = response.data.data;
+        const responseData = response.data.data;
+        console.log(
+          'Response data extracted:',
+          JSON.stringify(responseData, null, 2),
+        );
 
         if (isCheckingIn) {
+          console.log('Attempting to send check-in flex message');
           await sendCheckInFlexMessage(userData, responseData);
         } else {
+          console.log('Attempting to send check-out flex message');
           await sendCheckOutFlexMessage(userData, responseData);
         }
-        console.log(`${isCheckingIn ? 'Check-in' : 'Check-out'} successful`);
+        console.log('Flex message sent successfully');
         alert(`${isCheckingIn ? 'Check-in' : 'Check-out'} successful!`);
         // Redirect or update UI as needed
+      } else {
+        throw new Error(`Unexpected response status: ${response.status}`);
       }
     } catch (error) {
-      console.error(
-        `${isCheckingIn ? 'Check-in' : 'Check-out'} failed:`,
-        error,
-      );
-      if (axios.isAxiosError(error) && error.response) {
-        console.error('Error response:', error.response.data);
+      console.error('Error in handleSubmit:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error response:', error.response?.data);
         setError(
-          `Failed to ${isCheckingIn ? 'check in' : 'check out'}: ${error.response.data.message || error.message}`,
+          `Failed to ${isCheckingIn ? 'check in' : 'check out'}: ${error.response?.data?.message || error.message}`,
         );
+      } else if (error instanceof Error) {
+        setError(error.message);
       } else {
         setError('An unexpected error occurred. Please try again.');
       }

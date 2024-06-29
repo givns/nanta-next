@@ -186,14 +186,22 @@ export const sendCheckInFlexMessage = async (
   user: UserData,
   checkIn: CheckIn,
 ) => {
-  await sendFlexMessage(user, checkIn, true);
+  try {
+    await sendFlexMessage(user, checkIn, true);
+  } catch (error) {
+    console.error('Error in sendCheckInFlexMessage:', error);
+    throw new Error('Failed to send check-in notification');
+  }
 };
 
 export const sendCheckOutFlexMessage = async (
   user: UserData,
   checkIn: CheckIn,
 ) => {
-  await sendFlexMessage(user, checkIn, false);
+  try {
+    await sendFlexMessage(user, checkIn, false);
+  } catch (error) {
+    console.error('Error in sendCheckOutFlexMessage:', error);
+    throw new Error('Failed to send check-out notification');
+  }
 };
-
-export { sendFlexMessage };
