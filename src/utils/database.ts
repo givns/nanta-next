@@ -1,29 +1,64 @@
-import { PrismaClient } from '@prisma/client'; // Assuming you are using Prisma for database operations
+import { NextApiRequest, NextApiResponse } from 'next';
+import prisma from '@/utils/db'; // Adjust the import path based on your project structure
+import { sendCheckInFlexMessage } from '@/utils/sendCheckInFlexMessage'; // Adjust the import paths based on your project structure
 
-const prisma = new PrismaClient();
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
 
-interface CheckInData {
-  userId: string;
-  address: string;
-  reason: string;
-  photo: string;
-  timestamp: string;
-}
+  const {
+    userId,
+    name,
+    nickname,
+    department,
+    address,
+    reason,
+    photo,
+    timestamp,
+  } = req.body;
 
-export async function getUserByLineUserId(lineUserId: string) {
-  return prisma.user.findUnique({
-    where: { lineUserId },
-  });
-}
+  if (
+    !userId ||
+    !address ||
+    !photo ||
+    !timestamp ||
+    !name ||
+    !nickname ||
+    !department
+  ) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
 
-export async function saveCheckInData(checkInData: CheckInData) {
-  return prisma.checkIn.create({
-    data: {
-      userId: checkInData.userId,
-      address: checkInData.address,
-      reason: checkInData.reason,
-      photo: checkInData.photo,
-      timestamp: new Date(checkInData.timestamp),
-    },
-  });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const checkInData = await prisma.checkIn.create({
+      data: {
+        userId,
+        name,
+        nickname,
+        department,
+        address,
+        reason: reason || null, // Ensure reason is properly handled as an optional field
+        photo,
+        timestamp: new Date(timestamp),
+      },
+    });
+
+    await sendCheckInFlexMessage(user, checkInData);
+    return res.status(200).json({ data: checkInData });
+  } catch (error) {
+    console.error('Error during check-in process:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 }
