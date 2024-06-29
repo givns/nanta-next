@@ -236,53 +236,43 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ lineUserId }) => {
   };
 
   const handleCheckIn = async () => {
-    if (!userData?.id || !address || !photo) {
-      setError('User ID, address, and photo are required for check-in.');
+    if (!userData?.id || !location || !photo) {
+      setError('User ID, location, and photo are required for check-in.');
       return;
     }
-    console.log('User Data:', userData); // Check the contents of userData
-
+  
     setLoading(true);
     setError(null);
     try {
-      // Get the current time and adjust to GMT+7
-      const currentTime = new Date();
-      const timeZoneOffset = 7 * 60; // GMT+7 in minutes
-      const localTime = new Date(
-        currentTime.getTime() + timeZoneOffset * 60 * 1000,
-      );
-
       const data = {
         userId: userData.id,
-        name: userData.name, // Ensure this field is included
-        nickname: userData.nickname, // Ensure this field is included
-        department: userData.department, // Ensure this field is included
+        location,
         address,
-        reason: reason || null, // Ensure reason is properly handled as an optional field
+        reason,
         photo,
-        timestamp: localTime.toISOString(), // Correct timestamp
+        timestamp: new Date().toISOString(),
       };
-      console.log('Data to send:', data); // Check the data being sent to the backend
-
+  
+      console.log('Sending check-in data:', JSON.stringify(data, null, 2));
+  
       const response = await axios.post('/api/check-in', data);
-
+  
+      console.log('Check-in response:', response.data);
+  
       if (response.status === 200) {
         const checkInData = response.data.data;
-
-        // Send flex message
         await sendCheckInFlexMessage(userData, checkInData);
-
         console.log('Check-in successful');
         alert('Check-in successful!');
-
-        // Redirect to check-in confirmation page
-        router.push('/check-in-confirmation');
-      } else {
-        setError('Check-in failed. Please try again.');
       }
     } catch (error) {
       console.error('Check-in failed:', error);
-      setError('Failed to check in. Please try again.');
+      if (axios.isAxiosError(error)) {
+        console.error('Error response:', error.response?.data);
+        setError(`Failed to check in: ${error.response?.data?.error || error.message}`);
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
