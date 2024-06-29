@@ -47,6 +47,8 @@ const CheckInRouter: React.FC = () => {
         setCheckInId(checkInId);
         setUserData(userData);
         setMessage(message || null);
+
+        console.log('User status set to:', status);
       } catch (error) {
         console.error('Error in fetchUserStatusAndData:', error);
         if (axios.isAxiosError(error) && error.response) {
@@ -67,7 +69,9 @@ const CheckInRouter: React.FC = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="text-xl font-semibold text-blue-600">
+          กำลังเข้าสู่ระบบ...
+        </div>
       </div>
     );
   }
@@ -100,13 +104,13 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  const isCheckingIn = userStatus === 'checkin';
-
   return (
     <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          {isCheckingIn ? 'ระบบบันทึกเวลาเข้างาน' : 'ระบบบันทึกเวลาออกงาน'}
+          {userStatus === 'checkin'
+            ? 'ระบบบันทึกเวลาเข้างาน'
+            : 'ระบบบันทึกเวลาออกงาน'}
         </h1>
         <div className="text-6xl font-bold text-center mb-8 text-blue-600">
           {new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' })}
@@ -118,8 +122,10 @@ const CheckInRouter: React.FC = () => {
         )}
         <CheckInOutForm
           userData={userData}
-          isCheckingIn={isCheckingIn}
-          checkInId={isCheckingIn ? undefined : checkInId || undefined}
+          isCheckingIn={userStatus === 'checkin'}
+          checkInId={
+            userStatus === 'checkin' ? undefined : checkInId || undefined
+          }
         />
       </div>
     </div>

@@ -1,10 +1,7 @@
-// pages/api/check-status.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
-
 const MIN_CHECK_INTERVAL = 1 * 60 * 1000; // 1 minute in milliseconds, adjust as needed
 
 export default async function handler(
@@ -41,6 +38,10 @@ export default async function handler(
     const now = new Date();
     const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
 
+    let status: 'checkin' | 'checkout';
+    let message: string | null = null;
+    let checkInId: string | null = null;
+
     if (latestCheckIn) {
       const thaiCheckInTime = new Date(
         latestCheckIn.checkInTime.getTime() + 7 * 60 * 60 * 1000,
@@ -48,21 +49,14 @@ export default async function handler(
       const timeSinceCheckIn = thaiNow.getTime() - thaiCheckInTime.getTime();
 
       if (timeSinceCheckIn < MIN_CHECK_INTERVAL) {
-        return res.status(200).json({
-          status: 'checkin',
-          message:
-            'Too soon to check out. Please wait before attempting to check out.',
-          userData: user,
-        });
+        status = 'checkin';
+        message =
+          'Too soon to check out. Please wait before attempting to check out.';
+      } else {
+        status = 'checkout';
+        checkInId = latestCheckIn.id;
       }
-
-      return res.status(200).json({
-        status: 'checkout',
-        checkInId: latestCheckIn.id,
-        userData: user,
-      });
     } else {
-      // Check if there's a recent check-out
       const latestCheckOut = await prisma.checkIn.findFirst({
         where: {
           userId: user.id,
@@ -76,24 +70,33 @@ export default async function handler(
           now.getTime() - latestCheckOut.checkOutTime!.getTime();
 
         if (timeSinceCheckOut < MIN_CHECK_INTERVAL) {
-          return res.status(200).json({
-            status: 'checkout',
-            message:
-              'Too soon to check in. Please wait before attempting to check in again.',
-            userData: user,
-          });
+          status = 'checkout';
+          message =
+            'Too soon to check in. Please wait before attempting to check in again.';
+        } else {
+          status = 'checkin';
         }
+      } else {
+        status = 'checkin';
       }
-
-      return res.status(200).json({
-        status: 'checkin',
-        checkInId: null,
-        userData: user,
-      });
     }
+
+    const responseBody = {
+      status,
+      checkInId,
+      userData: user,
+      message,
+    };
+
+    console.log('Returning status:', {
+      statusCode: 200,
+      responseBody,
+    });
+
+    return res.status(200).json(responseBody);
   } catch (error) {
     console.error('Error checking user status:', error);
-    res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Server error' });
   } finally {
     await prisma.$disconnect();
   }
