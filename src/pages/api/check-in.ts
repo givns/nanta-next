@@ -1,4 +1,3 @@
-// pages/api/check-in.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
@@ -15,37 +14,29 @@ export default async function handler(
   const { userId, location, address, reason, photo, timestamp } = req.body;
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, department: true },
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    // Parse the timestamp (which is already in Thai time)
+    const checkInTime = new Date(timestamp);
+    if (isNaN(checkInTime.getTime())) {
+      throw new Error('Invalid timestamp provided');
     }
 
     const checkIn = await prisma.checkIn.create({
       data: {
         userId,
-        location,
+        location: JSON.stringify(location), // Assuming location is an object
         address,
-        reason,
+        reason: reason || null,
         photo,
-        checkInTime: new Date(timestamp),
+        checkInTime, // Use the parsed Date object
       },
     });
 
-    res.status(200).json({
-      message: 'Check-in successful',
-      data: {
-        ...checkIn,
-        userName: user.name,
-        userDepartment: user.department,
-      },
-    });
-  } catch (error) {
+    res.status(200).json({ message: 'Check-in successful', data: checkIn });
+  } catch (error: any) {
     console.error('Error during check-in:', error);
-    res.status(500).json({ message: 'Error processing check-in' });
+    res
+      .status(500)
+      .json({ message: 'Error processing check-in', error: error.message });
   } finally {
     await prisma.$disconnect();
   }

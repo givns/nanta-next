@@ -229,6 +229,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setError(null);
 
     try {
+      // Create a date in Thai time (UTC+7)
+      const now = new Date();
+      const thaiTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+      const timestamp = thaiTime.toISOString();
+
       let formData: CheckInFormData | CheckOutFormData;
 
       if (isCheckingIn) {
@@ -238,6 +243,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           address,
           reason: reason || undefined,
           photo,
+          timestamp,
         };
       } else {
         formData = {
@@ -246,6 +252,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           address,
           reason: reason || undefined,
           photo,
+          timestamp,
         };
       }
 
@@ -335,7 +342,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 aria-label="ถ่ายรูป"
                 disabled={!model}
               >
-                {model ? 'ถ่ายรูป' : 'กำลังโหลดโมเดล...'}
+                {model ? 'ถ่ายรูป' : 'กำลังเปิดกล้อง...'}
               </button>
             </div>
           )}

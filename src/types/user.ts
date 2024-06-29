@@ -47,6 +47,7 @@ export interface CheckInFormData {
   address: string;
   reason?: string;
   photo: string;
+  timestamp: string;
 }
 
 export interface CheckOutFormData {
@@ -55,4 +56,5 @@ export interface CheckOutFormData {
   address: string;
   reason?: string;
   photo: string;
+  timestamp: string;
 }
