@@ -20,8 +20,8 @@ export default async function handler(
 
     const checkIn = await prisma.checkIn.create({
       data: {
-        userId,
-        location: location, // This will be stored as Json
+        user: { connect: { id: userId } },
+        location: location as any, // Cast to any to bypass type checking
         address,
         reason: reason || null,
         photo,

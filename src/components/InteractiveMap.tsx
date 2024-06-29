@@ -42,8 +42,7 @@ const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
     return () => {
       if (googleMapRef.current) {
-        // Clean up the map instance if component unmounts
-        // @ts-ignore
+        // Clean up the map instance if the component unmounts
         googleMapRef.current = null;
       }
     };

@@ -1,12 +1,12 @@
+/** @type {import('next').NextConfig} */
+
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://static.line-scdn.net https://tfhub.dev;
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://static.line-scdn.net;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com;
+  img-src 'self' data: https://*.googleapis.com https://*.gstatic.com https://profile.line-scdn.net;
   font-src 'self' https://fonts.gstatic.com;
-  connect-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.line-scdn.net https://*.line.me https://tfhub.dev https://www.kaggle.com;
-  frame-src 'self' https://www.google.com;
-  object-src 'none';
+  connect-src 'self' https://*.googleapis.com https://*.line.me https://api.line.me;
 `;
 
 const securityHeaders = [
@@ -16,7 +16,7 @@ const securityHeaders = [
   },
   {
     key: 'X-Frame-Options',
-    value: 'SAMEORIGIN',
+    value: 'DENY',
   },
   {
     key: 'X-Content-Type-Options',
@@ -28,7 +28,6 @@ const securityHeaders = [
   },
 ];
 
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
@@ -51,6 +50,17 @@ const nextConfig = {
         headers: securityHeaders,
       },
     ];
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = [
+        ...config.externals,
+        'prisma',
+        'pino-pretty',
+        'encoding',
+      ];
+    }
+    return config;
   },
 };
 
