@@ -1,3 +1,5 @@
+// pages/api/check-status.ts
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
@@ -81,19 +83,19 @@ export default async function handler(
       }
     }
 
-    const responseBody = {
+    console.log('Returning status:', {
       status,
       checkInId,
       userData: user,
       message,
-    };
-
-    console.log('Returning status:', {
-      statusCode: 200,
-      responseBody,
     });
 
-    return res.status(200).json(responseBody);
+    return res.status(200).json({
+      status,
+      checkInId,
+      userData: user,
+      message,
+    });
   } catch (error) {
     console.error('Error checking user status:', error);
     return res.status(500).json({ message: 'Server error' });
