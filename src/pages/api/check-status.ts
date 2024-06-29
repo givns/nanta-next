@@ -21,14 +21,19 @@ export default async function handler(
   }
 
   try {
+    console.log('Fetching user for lineUserId:', lineUserId);
     const user = await prisma.user.findUnique({
       where: { lineUserId },
     });
 
     if (!user) {
+      console.log('User not found for lineUserId:', lineUserId);
       return res.status(404).json({ message: 'User not found' });
     }
 
+    console.log('User found:', user);
+
+    console.log('Fetching latest check-in for user:', user.id);
     const latestCheckIn = await prisma.checkIn.findFirst({
       where: {
         userId: user.id,
@@ -36,6 +41,8 @@ export default async function handler(
       },
       orderBy: { checkInTime: 'desc' },
     });
+
+    console.log('Latest check-in:', latestCheckIn);
 
     const now = new Date();
     const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
@@ -45,6 +52,7 @@ export default async function handler(
     let checkInId: string | null = null;
 
     if (latestCheckIn) {
+      console.log('Found an open check-in');
       const thaiCheckInTime = new Date(
         latestCheckIn.checkInTime.getTime() + 7 * 60 * 60 * 1000,
       );
@@ -59,6 +67,7 @@ export default async function handler(
         checkInId = latestCheckIn.id;
       }
     } else {
+      console.log('No open check-in found, checking for latest check-out');
       const latestCheckOut = await prisma.checkIn.findFirst({
         where: {
           userId: user.id,
@@ -66,6 +75,8 @@ export default async function handler(
         },
         orderBy: { checkOutTime: 'desc' },
       });
+
+      console.log('Latest check-out:', latestCheckOut);
 
       if (latestCheckOut) {
         const timeSinceCheckOut =
@@ -83,7 +94,7 @@ export default async function handler(
       }
     }
 
-    console.log('Returning status:', {
+    console.log('Final status:', {
       status,
       checkInId,
       userData: user,

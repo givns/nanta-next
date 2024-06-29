@@ -69,7 +69,7 @@ const CheckInRouter: React.FC = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <div className="text-xl font-semibold text-blue-600">
+        <div className="text-xl font-semibold text-black-950">
           กำลังเข้าสู่ระบบ...
         </div>
       </div>
