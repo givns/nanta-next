@@ -221,7 +221,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     try {
       const data = {
         userId: userData.id,
-        location: { lat: location.lat, lng: location.lng }, // Ensure this is a JSON object
+        location,
         address,
         reason,
         photo,
@@ -234,10 +234,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       );
 
       const endpoint = isCheckingIn ? '/api/check-in' : '/api/check-out';
-      const response = await axios.post(
-        endpoint,
-        isCheckingIn ? data : { ...data, checkInId },
-      );
+      const response = await axios.post(endpoint, data);
 
       console.log(
         `${isCheckingIn ? 'Check-in' : 'Check-out'} response:`,
@@ -247,23 +244,30 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       if (response.status === 200) {
         const responseData = response.data.data;
         if (isCheckingIn) {
-          await sendCheckInFlexMessage(userData, responseData);
+          await sendCheckInFlexMessage(
+            {
+              ...userData,
+              name: responseData.userName || userData.name,
+              department: responseData.userDepartment || userData.department,
+            },
+            responseData,
+          );
         } else {
           await sendCheckOutFlexMessage(userData, responseData);
         }
         console.log(`${isCheckingIn ? 'Check-in' : 'Check-out'} successful`);
         alert(`${isCheckingIn ? 'Check-in' : 'Check-out'} successful!`);
-        router.push('/success'); // Redirect to a success page or refresh the current page
+        // Redirect or update UI as needed
       }
     } catch (error) {
       console.error(
         `${isCheckingIn ? 'Check-in' : 'Check-out'} failed:`,
         error,
       );
-      if (axios.isAxiosError(error)) {
-        console.error('Error response:', error.response?.data);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('Error response:', error.response.data);
         setError(
-          `Failed to ${isCheckingIn ? 'check in' : 'check out'}: ${error.response?.data?.error || error.message}`,
+          `Failed to ${isCheckingIn ? 'check in' : 'check out'}: ${error.response.data.message || error.message}`,
         );
       } else {
         setError('An unexpected error occurred. Please try again.');

@@ -1,3 +1,4 @@
+// pages/api/check-in.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
@@ -14,12 +15,19 @@ export default async function handler(
   const { userId, location, address, reason, photo, timestamp } = req.body;
 
   try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, department: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     const checkIn = await prisma.checkIn.create({
       data: {
-        user: {
-          connect: { id: userId },
-        },
-        location: location, // Ensure this is a JSON object
+        userId,
+        location,
         address,
         reason,
         photo,
@@ -27,7 +35,14 @@ export default async function handler(
       },
     });
 
-    res.status(200).json({ message: 'Check-in successful', data: checkIn });
+    res.status(200).json({
+      message: 'Check-in successful',
+      data: {
+        ...checkIn,
+        userName: user.name,
+        userDepartment: user.department,
+      },
+    });
   } catch (error) {
     console.error('Error during check-in:', error);
     res.status(500).json({ message: 'Error processing check-in' });
