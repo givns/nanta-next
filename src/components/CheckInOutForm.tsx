@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
@@ -60,6 +61,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [showCamera, setShowCamera] = useState(false);
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [inPremises, setInPremises] = useState<boolean>(false);
+  const router = useRouter();
 
   const webcamRef = useRef<Webcam>(null);
 
@@ -270,25 +272,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       );
 
       if (response.status === 200) {
-        const responseData = response.data.data;
-        try {
-          if (isCheckingIn) {
-            await sendCheckInFlexMessage(userData, responseData);
-          } else {
-            await sendCheckOutFlexMessage(userData, responseData);
-          }
-          console.log(
-            `${isCheckingIn ? 'Check-in' : 'Check-out'} flex message sent successfully`,
-          );
-        } catch (flexError) {
-          console.error('Error sending flex message:', flexError);
-          setError(
-            `${isCheckingIn ? 'Check-in' : 'Check-out'} successful, but failed to send notification.`,
-          );
-        }
-
-        alert(`${isCheckingIn ? 'Check-in' : 'Check-out'} successful!`);
-        // Reset form or redirect as needed
+        router.push('/checkInOutSuccess');
       }
     } catch (error) {
       console.error(

@@ -1,5 +1,8 @@
+// pages/api/check-in.ts
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
+import { sendConfirmationMessage } from '../../utils/lineNotifications';
 
 const prisma = new PrismaClient();
 
@@ -14,20 +17,25 @@ export default async function handler(
   const { userId, location, address, reason, photo, timestamp } = req.body;
 
   try {
-    // Parse the timestamp (which should be in Thai time) and convert to UTC
     const thaiTime = new Date(timestamp);
-    const utcTime = new Date(thaiTime.getTime() - 7 * 60 * 60 * 1000); // Convert Thai time to UTC
+    const utcTime = new Date(thaiTime.getTime() - 7 * 60 * 60 * 1000);
 
     const checkIn = await prisma.checkIn.create({
       data: {
         user: { connect: { id: userId } },
-        location: location as any, // Cast to any to bypass type checking
+        location: location as any,
         address,
         reason: reason || null,
         photo,
         checkInTime: utcTime,
       },
     });
+
+    // Send confirmation message
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user) {
+      await sendConfirmationMessage(user.lineUserId, true, thaiTime);
+    }
 
     res.status(200).json({ message: 'Check-in successful', data: checkIn });
   } catch (error: any) {

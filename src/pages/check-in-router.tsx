@@ -13,7 +13,7 @@ const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     const fetchUserStatusAndData = async () => {
