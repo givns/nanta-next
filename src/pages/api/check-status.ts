@@ -33,11 +33,12 @@ export default async function handler(
 
     console.log('User found:', JSON.stringify(user, null, 2));
 
+    // ... (previous code remains the same)
+
     console.log('Fetching latest check-in for user:', user.id);
     const latestCheckIn = await prisma.checkIn.findFirst({
       where: {
         userId: user.id,
-        checkOutTime: null,
       },
       orderBy: { checkInTime: 'desc' },
     });
@@ -52,7 +53,7 @@ export default async function handler(
     let checkInId: string | null = null;
 
     if (latestCheckIn) {
-      console.log('Found an open check-in');
+      console.log('Found a check-in');
       const thaiCheckInTime = new Date(
         latestCheckIn.checkInTime.getTime() + 7 * 60 * 60 * 1000,
       );
@@ -61,33 +62,10 @@ export default async function handler(
       console.log('Time since check-in (ms):', timeSinceCheckIn);
       console.log('Minimum check interval (ms):', MIN_CHECK_INTERVAL);
 
-      if (timeSinceCheckIn < MIN_CHECK_INTERVAL) {
-        status = 'checkin';
-        message =
-          'Too soon to check out. Please wait before attempting to check out.';
-      } else {
-        status = 'checkout';
-        checkInId = latestCheckIn.id;
-      }
-    } else {
-      console.log('No open check-in found, checking for latest check-out');
-      const latestCheckOut = await prisma.checkIn.findFirst({
-        where: {
-          userId: user.id,
-          checkOutTime: { not: null },
-        },
-        orderBy: { checkOutTime: 'desc' },
-      });
-
-      console.log('Latest check-out:', JSON.stringify(latestCheckOut, null, 2));
-
-      if (latestCheckOut) {
+      if (latestCheckIn.checkOutTime) {
+        console.log('This check-in has a check-out time');
         const timeSinceCheckOut =
-          now.getTime() - latestCheckOut.checkOutTime!.getTime();
-
-        console.log('Time since check-out (ms):', timeSinceCheckOut);
-        console.log('Minimum check interval (ms):', MIN_CHECK_INTERVAL);
-
+          thaiNow.getTime() - new Date(latestCheckIn.checkOutTime).getTime();
         if (timeSinceCheckOut < MIN_CHECK_INTERVAL) {
           status = 'checkout';
           message =
@@ -96,10 +74,18 @@ export default async function handler(
           status = 'checkin';
         }
       } else {
-        status = 'checkin';
+        console.log('This check-in does not have a check-out time');
+        status = 'checkout';
+        checkInId = latestCheckIn.id;
+        if (timeSinceCheckIn < MIN_CHECK_INTERVAL) {
+          message =
+            'Too soon to check out. Please wait before attempting to check out.';
+        }
       }
+    } else {
+      console.log('No check-in found');
+      status = 'checkin';
     }
-
     console.log('Final status:', {
       status,
       checkInId,
