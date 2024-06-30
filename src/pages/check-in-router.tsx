@@ -13,6 +13,7 @@ const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     const fetchUserStatusAndData = async () => {
@@ -64,6 +65,12 @@ const CheckInRouter: React.FC = () => {
     };
 
     fetchUserStatusAndData();
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    // Clean up the interval on component unmount
+    return () => clearInterval(timer);
   }, []);
 
   if (loading) {
@@ -112,7 +119,7 @@ const CheckInRouter: React.FC = () => {
             ? 'ระบบบันทึกเวลาเข้างาน'
             : 'ระบบบันทึกเวลาออกงาน'}
         </h1>
-        <div className="text-6xl font-bold text-center mb-8 text-blue-600">
+        <div className="text-3xl font-bold text-center mb-8 text-black-950">
           {new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' })}
         </div>
         {message && (
