@@ -41,9 +41,9 @@ const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
-  isCheckingIn,
   attendanceId,
 }) => {
+  const [isCheckingIn, setIsCheckingIn] = useState<boolean>(true);
   const [latestCheckData, setLatestCheckData] = useState<Attendance | null>(
     null,
   );
@@ -68,20 +68,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   useEffect(() => {
     const fetchCheckStatus = async () => {
-      if (showCamera) return;
-
       setIsLoadingCheckData(true);
       try {
         const response = await axios.get('/api/check-status', {
-          params: { userId: userData.id },
+          params: { lineUserId: userData.lineUserId },
         });
         console.log('Check status response:', response.data);
-        const { latestAttendance, isCheckingIn: checkStatus } = response.data;
+        const { isCheckingIn, latestCheckData } = response.data;
 
-        setLatestCheckData(latestAttendance);
-        if (isCheckingIn !== checkStatus) {
-          setStep(2);
-        }
+        setIsCheckingIn(isCheckingIn);
+        setLatestCheckData(latestCheckData);
       } catch (error) {
         console.error('Error fetching check status:', error);
         setError('Failed to fetch check status. Please try again.');
@@ -91,7 +87,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
 
     fetchCheckStatus();
-  }, [userData.id, showCamera, isCheckingIn]);
+  }, [userData.lineUserId]);
 
   const calculateDistance = (
     lat1: number,

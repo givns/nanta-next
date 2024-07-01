@@ -1,18 +1,9 @@
 // pages/api/check-status.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
-import { query } from '../../services/ExternalDbService';
+import { attendanceService } from '../../services/AttendanceService';
 import { ExternalCheckData } from '../../types/user';
 
-const prisma = new PrismaClient();
-
 const MIN_CHECK_INTERVAL = 1 * 60 * 1000; // 1 minute in milliseconds, adjust as needed
-
-interface ExternalUserData {
-  user_serial: string;
-  user_no: string;
-  user_name: string;
-}
 
 export default async function handler(
   req: NextApiRequest,
@@ -31,68 +22,49 @@ export default async function handler(
   try {
     console.log('Fetching user for lineUserId:', lineUserId);
 
-    // Fetch user from Prisma
-    const prismaUser = await prisma.user.findUnique({
-      where: { lineUserId },
-    });
+    const { latestAttendance, latestExternal, user } =
+      await attendanceService.getLatestAttendanceData(lineUserId);
 
-    if (!prismaUser) {
-      console.log(
-        'User not found in Prisma database for lineUserId:',
-        lineUserId,
-      );
+    if (!user) {
+      console.log('User not found for lineUserId:', lineUserId);
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Fetch user from external SQL database
-    const externalUsers = await query<ExternalUserData>(
-      'SELECT * FROM dt_user WHERE user_no = ?',
-      [prismaUser.employeeId],
-    );
-
-    const externalUser = externalUsers[0];
-
-    if (!externalUser) {
-      console.log(
-        'User not found in external database for employeeId:',
-        prismaUser.employeeId,
-      );
-    }
-
-    console.log('User found:', JSON.stringify(prismaUser, null, 2));
-
-    // Fetch latest check-in from external database for the user
-    const userLatestCheckIn = await query<ExternalCheckData>(
-      'SELECT * FROM kt_jl WHERE user_serial = ? ORDER BY sj DESC LIMIT 1',
-      [externalUser ? externalUser.user_serial : prismaUser.employeeId],
-    );
-
-    // Fetch latest check-in from external device (regardless of user)
-    const latestDeviceCheckIn = await query<ExternalCheckData>(
-      'SELECT * FROM kt_jl ORDER BY sj DESC LIMIT 1',
-    );
-
-    console.log(
-      'Latest user check-in:',
-      JSON.stringify(userLatestCheckIn[0], null, 2),
-    );
-    console.log(
-      'Latest device check-in:',
-      JSON.stringify(latestDeviceCheckIn[0], null, 2),
-    );
+    console.log('User found:', JSON.stringify(user, null, 2));
 
     const now = new Date();
     const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
 
     // Determine the most recent check-in
-    let latestCheckIn = null;
-    if (userLatestCheckIn[0] && latestDeviceCheckIn[0]) {
-      latestCheckIn =
-        new Date(userLatestCheckIn[0].sj) > new Date(latestDeviceCheckIn[0].sj)
-          ? userLatestCheckIn[0]
-          : latestDeviceCheckIn[0];
-    } else {
-      latestCheckIn = userLatestCheckIn[0] || latestDeviceCheckIn[0];
+    let latestCheckIn: ExternalCheckData | null = null;
+    if (latestExternal) {
+      latestCheckIn = {
+        sj: latestExternal.sj,
+        user_serial: parseInt(user.employeeId),
+        bh: parseInt(latestExternal.bh),
+        fx: latestExternal.fx,
+        iden: null, // You may need to adjust these default values
+        dev_serial: '0010000', // Default to Nanta Next device
+        dev_state: 0,
+        jlzp_serial: null,
+        gly_no: null,
+        lx: 0,
+        shenhe: 0,
+        yich: 0,
+        deal_state: 0,
+        dev_logic_bh: null,
+        healthstatus: null,
+        body_temp: null,
+        temp_error: null,
+        passport_no: null,
+        date: new Date(latestExternal.sj).toISOString().split('T')[0],
+        time: new Date(latestExternal.sj)
+          .toISOString()
+          .split('T')[1]
+          .split('.')[0],
+        noti: 0,
+        flagmax: 0,
+      };
     }
 
     let isCheckingIn: boolean;
@@ -108,6 +80,8 @@ export default async function handler(
       } else {
         isCheckingIn = latestCheckIn.fx !== 0;
       }
+    } else if (latestAttendance) {
+      isCheckingIn = !!latestAttendance.checkOutTime;
     } else {
       isCheckingIn = true; // If no check-in record, user should check in
     }
@@ -115,9 +89,13 @@ export default async function handler(
     const responseData = {
       latestCheckIn,
       isCheckingIn,
-      checkInId: latestCheckIn ? latestCheckIn.bh.toString() : null,
+      checkInId: latestAttendance
+        ? latestAttendance.id
+        : latestCheckIn
+          ? latestCheckIn.bh.toString()
+          : null,
       message,
-      userData: prismaUser,
+      userData: user,
     };
 
     console.log('Final status:', JSON.stringify(responseData, null, 2));
@@ -128,7 +106,5 @@ export default async function handler(
     return res
       .status(500)
       .json({ message: 'Server error', error: error.message });
-  } finally {
-    await prisma.$disconnect();
   }
 }
