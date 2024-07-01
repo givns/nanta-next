@@ -57,6 +57,10 @@ export default async function handler(
         finalEmployeeId = employeeId || `TEMP_${Date.now()}`;
         alertAdmin(lineUserId, name, employeeId);
       }
+      // Ensure finalEmployeeId is never null or undefined
+      if (!finalEmployeeId) {
+        finalEmployeeId = `TEMP_${Date.now()}`;
+      }
 
       // If user does not exist in Prisma, create a new one
       if (!user) {
