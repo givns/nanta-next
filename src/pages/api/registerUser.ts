@@ -10,7 +10,7 @@ const client = new Client({
 
 interface ExternalUserData {
   user_no: string;
-  user_name: string;
+  user_Iname: string;
   department: string;
 }
 
@@ -22,25 +22,30 @@ async function findExternalUser(
     `Searching for external user with name: ${name} and employeeId: ${employeeId}`,
   );
 
-  let externalUsers = await query<ExternalUserData>(
-    'SELECT user_no, user_name, department FROM dt_user WHERE user_no = ?',
-    [employeeId],
-  );
-
-  if (externalUsers.length === 0) {
-    externalUsers = await query<ExternalUserData>(
-      'SELECT user_no, user_name, department FROM dt_user WHERE user_name LIKE ?',
-      [`%${name}%`],
+  try {
+    let externalUsers = await query<ExternalUserData>(
+      'SELECT user_no, user_Iname, department FROM dt_user WHERE user_no = ?',
+      [employeeId],
     );
-  }
 
-  if (externalUsers.length > 0) {
-    console.log('External user found:', externalUsers[0]);
-  } else {
-    console.log('No external user found');
-  }
+    if (externalUsers.length === 0) {
+      externalUsers = await query<ExternalUserData>(
+        'SELECT user_no, user_Iname, department FROM dt_user WHERE user_Iname LIKE ?',
+        [`%${name}%`],
+      );
+    }
 
-  return externalUsers.length > 0 ? externalUsers[0] : null;
+    if (externalUsers.length > 0) {
+      console.log('External user found:', externalUsers[0]);
+    } else {
+      console.log('No external user found');
+    }
+
+    return externalUsers.length > 0 ? externalUsers[0] : null;
+  } catch (error) {
+    console.error('Error in findExternalUser:', error);
+    return null;
+  }
 }
 
 function determineRole(department: string): UserRole {
@@ -117,7 +122,13 @@ export default async function handler(
   try {
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
-    const externalUser = await findExternalUser(name, employeeId);
+    let externalUser;
+    try {
+      externalUser = await findExternalUser(name, employeeId);
+    } catch (error) {
+      console.error('Error finding external user:', error);
+      // Continue with the registration process even if external user lookup fails
+    }
 
     let role: UserRole;
     let finalEmployeeId: string;
@@ -143,7 +154,7 @@ export default async function handler(
       user = await prisma.user.create({
         data: {
           lineUserId,
-          name: externalUser ? externalUser.user_name : name,
+          name: externalUser ? externalUser.user_Iname : name,
           nickname,
           department: externalUser ? externalUser.department : department,
           profilePictureUrl,
@@ -155,7 +166,7 @@ export default async function handler(
       user = await prisma.user.update({
         where: { lineUserId },
         data: {
-          name: externalUser ? externalUser.user_name : name,
+          name: externalUser ? externalUser.user_Iname : name,
           nickname,
           department: externalUser ? externalUser.department : department,
           profilePictureUrl,
