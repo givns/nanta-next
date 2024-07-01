@@ -52,20 +52,16 @@ export default async function handler(
     const monthlyWorkDays = await getMonthlyWorkDays(updatedAttendance.userId);
     await sendDailySummary(user.lineUserId, workHours, monthlyWorkDays);
 
-    res
-      .status(200)
-      .json({
-        message: 'Check-out successful',
-        data: { attendance: updatedAttendance, user },
-      });
+    res.status(200).json({
+      message: 'Check-out successful',
+      data: { attendance: updatedAttendance, user },
+    });
   } catch (error) {
     console.error('Error during check-out:', error);
-    res
-      .status(500)
-      .json({
-        message: 'Error processing check-out',
-        error: (error as Error).message,
-      });
+    res.status(500).json({
+      message: 'Error processing check-out',
+      error: (error as Error).message,
+    });
   }
 }
 

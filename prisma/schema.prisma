@@ -36,7 +36,6 @@ model User {
   leaveRequests     LeaveRequest[]
   overtimeRequests  OvertimeRequest[]
   attendances       Attendance[]
-  checkIns          CheckIn[]
   checkPoints       CheckPoint[]  
   updatedAt         DateTime?  @updatedAt
 }
