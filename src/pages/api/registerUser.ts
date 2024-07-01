@@ -29,6 +29,13 @@ export default async function handler(
       employeeId,
     } = req.body;
 
+    console.log('Received data:', req.body);
+
+    // Validate the required fields
+    if (!lineUserId || !name || !nickname || !department || !employeeId) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
     try {
       // Check if the user already exists in Prisma
       let user = await prisma.user.findUnique({

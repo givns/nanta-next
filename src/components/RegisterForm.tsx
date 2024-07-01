@@ -71,13 +71,20 @@ const RegisterForm: React.FC = () => {
     values: FormValues,
     { setSubmitting }: FormikHelpers<FormValues>,
   ) => {
-    console.log('handleSubmit called with values:', values);
+    console.log('Submitting data:', {
+      ...values,
+      lineUserId,
+      profilePictureUrl,
+    });
     try {
-      const response = await axios.post('/api/registerUser', {
-        ...values,
-        lineUserId,
-        profilePictureUrl,
-      });
+      const response = await axios.post(
+        'https://nanta-next.vercel.app/api/registerUser',
+        {
+          ...values,
+          lineUserId,
+          profilePictureUrl,
+        },
+      );
 
       if (response.data.success) {
         alert('Registration successful!');
