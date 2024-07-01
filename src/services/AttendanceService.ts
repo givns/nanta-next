@@ -78,21 +78,26 @@ export class AttendanceService {
     return { attendance, user };
   }
 
-  async getLatestAttendanceData(userId: string): Promise<{
+  async getLatestAttendanceData(lineUserId: string): Promise<{
     latestAttendance: Attendance | null;
     latestExternal: { sj: string; fx: number; bh: string } | null;
     user: User | null;
   }> {
-    const [latestAttendance, [latestExternal], user] = await Promise.all([
+    const user = await prisma.user.findUnique({ where: { lineUserId } });
+
+    if (!user) {
+      return { latestAttendance: null, latestExternal: null, user: null };
+    }
+
+    const [latestAttendance, [latestExternal]] = await Promise.all([
       prisma.attendance.findFirst({
-        where: { userId },
+        where: { userId: user.id },
         orderBy: { checkInTime: 'desc' },
       }),
       query<{ sj: string; fx: number; bh: string }>(
         'SELECT * FROM kt_jl WHERE user_serial = ? ORDER BY sj DESC LIMIT 1',
-        [userId],
+        [user.employeeId],
       ),
-      prisma.user.findUnique({ where: { id: userId } }),
     ]);
 
     return { latestAttendance, latestExternal, user };

@@ -43,8 +43,8 @@ export default async function handler(
         user_serial: parseInt(user.employeeId),
         bh: parseInt(latestExternal.bh),
         fx: latestExternal.fx,
-        iden: null, // You may need to adjust these default values
-        dev_serial: '0010000', // Default to Nanta Next device
+        iden: null,
+        dev_serial: '0010000',
         dev_state: 0,
         jlzp_serial: null,
         gly_no: null,
