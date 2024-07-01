@@ -2,9 +2,26 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import liff from '@line/liff';
-import { locationTrackingService } from '../services/locationTrackingService';
 import Map from '../components/GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
+
+interface Premise {
+  lat: number;
+  lng: number;
+  radius: number;
+  name: string;
+}
+
+const PREMISES: Premise[] = [
+  { lat: 13.50821, lng: 100.76405, radius: 100, name: 'บริษัท นันตา ฟู้ด' },
+  { lat: 13.51444, lng: 100.70922, radius: 100, name: 'บริษัท ปัตตานี ฟู้ด' },
+  {
+    lat: 13.747920392683099,
+    lng: 100.63441771348242,
+    radius: 100,
+    name: 'Bat Cave',
+  },
+];
 
 const CheckpointPage: React.FC = () => {
   const [lineUserId, setLineUserId] = useState<string | null>(null);
@@ -17,7 +34,7 @@ const CheckpointPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-
+  const [inPremises, setInPremises] = useState<boolean>(false);
   const checkUserStatus = useCallback(async () => {
     try {
       const response = await axios.get('/api/userStatus');
@@ -29,6 +46,39 @@ const CheckpointPage: React.FC = () => {
       setError('Failed to check user status. Please try again.');
     }
   }, [router]);
+
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
+
+  const isWithinPremises = useCallback(
+    (lat: number, lng: number): Premise | null => {
+      for (const premise of PREMISES) {
+        const distance = calculateDistance(lat, lng, premise.lat, premise.lng);
+        if (distance <= premise.radius) {
+          return premise;
+        }
+      }
+      return null;
+    },
+    [],
+  );
 
   useEffect(() => {
     checkUserStatus();
@@ -55,26 +105,41 @@ const CheckpointPage: React.FC = () => {
 
   useEffect(() => {
     const getCurrentLocation = async () => {
-      try {
-        const currentLocation =
-          await locationTrackingService.getCurrentLocation();
-        setLocation({
-          lat: currentLocation.latitude,
-          lng: currentLocation.longitude,
-        });
-        const addressFromCoords = await getAddressFromCoordinates(
-          currentLocation.latitude,
-          currentLocation.longitude,
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            console.log('Current location:', { lat: latitude, lng: longitude });
+            setLocation({ lat: latitude, lng: longitude });
+
+            const premise = isWithinPremises(latitude, longitude);
+            if (premise) {
+              setInPremises(true);
+              setAddress(premise.name);
+            } else {
+              setInPremises(false);
+              const fetchedAddress = await getAddressFromCoordinates(
+                latitude,
+                longitude,
+              );
+              setAddress(fetchedAddress);
+            }
+          },
+          (error) => {
+            console.error('Error getting current location:', error);
+            setError('Unable to get current location. Please try again.');
+          },
         );
-        setAddress(addressFromCoords);
-      } catch (error) {
-        console.error('Error getting current location:', error);
-        setError('Unable to get current location. Please try again.');
+      } else {
+        console.error('Geolocation is not supported by this browser.');
+        setError(
+          'Geolocation is not supported by your browser. Please use a different device or browser.',
+        );
       }
     };
 
     getCurrentLocation();
-  }, []);
+  }, [isWithinPremises]);
 
   const handleAddCheckpoint = async () => {
     setLoading(true);
@@ -94,19 +159,6 @@ const CheckpointPage: React.FC = () => {
 
       setCheckpoints([...checkpoints, checkpointName]);
       setCheckpointName('');
-
-      // Update location after adding checkpoint
-      const currentLocation =
-        await locationTrackingService.getCurrentLocation();
-      setLocation({
-        lat: currentLocation.latitude,
-        lng: currentLocation.longitude,
-      });
-      const addressFromCoords = await getAddressFromCoordinates(
-        currentLocation.latitude,
-        currentLocation.longitude,
-      );
-      setAddress(addressFromCoords);
     } catch (error) {
       console.error('Failed to add checkpoint:', error);
       setError('Failed to add checkpoint. Please try again.');

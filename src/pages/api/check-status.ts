@@ -1,7 +1,7 @@
 // pages/api/check-status.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { query } from '../../utils/mysqlConnection';
+import { query } from '../../services/ExternalDbService';
 import { ExternalCheckData } from '../../types/user';
 
 const prisma = new PrismaClient();

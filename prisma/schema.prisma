@@ -35,8 +35,8 @@ model User {
   createdAt         DateTime           @default(now())
   leaveRequests     LeaveRequest[]
   overtimeRequests  OvertimeRequest[]
+  attendances       Attendance[]
   checkIns          CheckIn[]
-  trackingSessions TrackingSession[]
   checkPoints       CheckPoint[]  
   updatedAt         DateTime?  @updatedAt
 }
@@ -72,39 +72,28 @@ model OvertimeRequest {
   user      User     @relation(fields: [userId], references: [id])
 }
 
-model CheckIn {
-  id             String    @id @default(cuid()) @map("_id")
-  user           User      @relation(fields: [userId], references: [id])
-  userId         String
-  location       Json
-  address        String
-  reason         String?
-  photo          String
-  checkInTime    DateTime
-  checkOutTime   DateTime?
-  checkOutAddress String?  // Add this line
-  checkOutReason  String?  // Add this line
-  checkOutPhoto   String?  // Add this line
-  deviceSerial    String?
+model Attendance {
+  id                String   @id @default(cuid()) @map("_id")
+  userId            String
+  checkInTime       DateTime
+  checkOutTime      DateTime?
+  checkInLocation   Json
+  checkOutLocation  Json?
+  checkInAddress    String
+  checkOutAddress   String?
+  checkInReason     String?
+  checkOutReason    String?
+  checkInPhoto      String
+  checkOutPhoto     String?
+  checkInDeviceSerial  String?
   checkOutDeviceSerial String?
-}
+  source            String   // "web" or "face_scan"
+  externalCheckId   String?  // To store the ID from the external system
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-model TrackingSession {
-  id        String        @id @default(auto()) @map("_id") @db.ObjectId
-  user      User          @relation(fields: [userId], references: [id])
-  userId    String        @db.ObjectId
-  startTime DateTime
-  endTime   DateTime?
-  locations GpsLocation[]
-}
+  user      User     @relation(fields: [userId], references: [id])
 
-model GpsLocation {
-  id                String          @id @default(auto()) @map("_id") @db.ObjectId
-  trackingSession   TrackingSession @relation(fields: [trackingSessionId], references: [id])
-  trackingSessionId String          @db.ObjectId
-  latitude          Float
-  longitude         Float
-  timestamp         DateTime
 }
 
 model CheckPoint {

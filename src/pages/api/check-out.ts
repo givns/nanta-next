@@ -1,14 +1,11 @@
-// pages/api/check-out.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
 import {
   sendConfirmationMessage,
   sendDailySummary,
 } from '../../utils/lineNotifications';
-import { query } from '../../utils/mysqlConnection';
-
-const prisma = new PrismaClient();
-
+import { attendanceService } from '../../services/AttendanceService';
+import { CheckOutFormData } from '../../types/user';
+import prisma from '@/lib/prisma';
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -17,8 +14,15 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { checkInId, address, reason, photo, timestamp, deviceSerial } =
-    req.body;
+  const {
+    attendanceId,
+    location,
+    address,
+    reason,
+    photo,
+    timestamp,
+    deviceSerial,
+  }: CheckOutFormData = req.body;
 
   try {
     const checkOutTime = new Date(timestamp);
@@ -26,50 +30,42 @@ export default async function handler(
       throw new Error('Invalid timestamp provided');
     }
 
-    const updatedCheckIn = await prisma.checkIn.update({
-      where: { id: checkInId },
-      data: {
-        checkOutTime: new Date(timestamp),
-        checkOutAddress: address,
-        checkOutReason: reason,
-        checkOutPhoto: photo,
-        checkOutDeviceSerial: deviceSerial || null,
-      },
-      include: { user: true },
-    });
-
-    await query('UPDATE kt_jl SET fx = 1, sj = ? WHERE bh = ?', [
-      timestamp,
-      checkInId,
-    ]);
+    // Use AttendanceService for check-out
+    const { attendance: updatedAttendance, user } =
+      await attendanceService.checkOut({
+        attendanceId,
+        location,
+        address,
+        reason,
+        photo,
+        deviceSerial,
+      });
 
     // Send confirmation message
-    await sendConfirmationMessage(
-      updatedCheckIn.user.lineUserId,
-      false,
-      checkOutTime,
-    );
+    await sendConfirmationMessage(user.lineUserId, false, checkOutTime);
 
     // Calculate work hours and send daily summary
     const workHours = calculateWorkHours(
-      updatedCheckIn.checkInTime,
+      updatedAttendance.checkInTime,
       checkOutTime,
     );
-    const monthlyWorkDays = await getMonthlyWorkDays(updatedCheckIn.userId);
-    await sendDailySummary(
-      updatedCheckIn.user.lineUserId,
-      workHours,
-      monthlyWorkDays,
-    );
+    const monthlyWorkDays = await getMonthlyWorkDays(updatedAttendance.userId);
+    await sendDailySummary(user.lineUserId, workHours, monthlyWorkDays);
 
     res
       .status(200)
-      .json({ message: 'Check-out successful', data: updatedCheckIn });
+      .json({
+        message: 'Check-out successful',
+        data: { attendance: updatedAttendance, user },
+      });
   } catch (error) {
     console.error('Error during check-out:', error);
-    res.status(500).json({ message: 'Error processing check-out' });
-  } finally {
-    await prisma.$disconnect();
+    res
+      .status(500)
+      .json({
+        message: 'Error processing check-out',
+        error: (error as Error).message,
+      });
   }
 }
 

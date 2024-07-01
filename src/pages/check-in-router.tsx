@@ -130,7 +130,7 @@ const CheckInRouter: React.FC = () => {
         <CheckInOutForm
           userData={userData}
           isCheckingIn={userStatus === 'checkin'}
-          checkInId={
+          attendanceId={
             userStatus === 'checkin' ? undefined : checkInId || undefined
           }
         />

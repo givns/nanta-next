@@ -6,10 +6,9 @@ import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import {
   UserData,
-  CheckIn,
+  Attendance,
   CheckInFormData,
   CheckOutFormData,
-  ExternalCheckData,
 } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
@@ -17,7 +16,7 @@ import InteractiveMap from './InteractiveMap';
 interface CheckInOutFormProps {
   userData: UserData;
   isCheckingIn: boolean;
-  checkInId?: string; // Add this prop for check-out
+  attendanceId?: string;
 }
 
 interface Premise {
@@ -43,13 +42,11 @@ const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
   isCheckingIn,
-  checkInId,
+  attendanceId,
 }) => {
-  const [externalCheckData, setExternalCheckData] = useState<
-    ExternalCheckData[]
-  >([]);
-  const [latestCheckData, setLatestCheckData] =
-    useState<ExternalCheckData | null>(null);
+  const [latestCheckData, setLatestCheckData] = useState<Attendance | null>(
+    null,
+  );
   const [isLoadingCheckData, setIsLoadingCheckData] = useState(true);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [deviceSerial, setDeviceSerial] = useState<string | null>(null);
@@ -71,17 +68,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   useEffect(() => {
     const fetchCheckStatus = async () => {
-      if (showCamera) return; // Don't fetch if camera is shown
+      if (showCamera) return;
 
       setIsLoadingCheckData(true);
       try {
         const response = await axios.get('/api/check-status', {
-          params: { lineUserId: userData.lineUserId },
+          params: { userId: userData.id },
         });
         console.log('Check status response:', response.data);
-        const { latestCheckIn } = response.data;
+        const { latestAttendance, isCheckingIn } = response.data;
 
-        setLatestCheckData(latestCheckIn);
+        setLatestCheckData(latestAttendance);
+        // Update isCheckingIn state if needed
       } catch (error) {
         console.error('Error fetching check status:', error);
         setError('Failed to fetch check status. Please try again.');
@@ -91,7 +89,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
 
     fetchCheckStatus();
-  }, [userData.lineUserId, showCamera]);
+  }, [userData.id, showCamera]);
 
   const calculateDistance = (
     lat1: number,
@@ -208,7 +206,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     getCurrentLocation();
   }, [isWithinPremises]);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (date: Date) => {
     const options: Intl.DateTimeFormatOptions = {
       year: 'numeric',
       month: 'long',
@@ -218,7 +216,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       second: '2-digit',
       hour12: false,
     };
-    return new Date(dateString).toLocaleString('th-TH', options);
+    return date.toLocaleString('th-TH', options);
   };
 
   const getDeviceType = (devSerial: string) => {
@@ -271,15 +269,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setError('User ID, location, and photo are required.');
       return;
     }
-    if (!isCheckingIn && !checkInId) {
-      setError('Check-in ID is required for check-out.');
+    if (!isCheckingIn && !attendanceId) {
+      setError('Attendance ID is required for check-out.');
       return;
     }
     setLoading(true);
     setError(null);
 
     try {
-      // Create a date in Thai time (UTC+7)
       const now = new Date();
       const thaiTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
       const timestamp = thaiTime.toISOString();
@@ -294,17 +291,17 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           reason: reason || undefined,
           photo,
           timestamp,
-          deviceSerial: deviceSerial || undefined, // Add this line
+          deviceSerial: deviceSerial || undefined,
         };
       } else {
         formData = {
-          checkInId: checkInId!,
+          attendanceId: attendanceId!,
           location,
           address,
           reason: reason || undefined,
           photo,
           timestamp,
-          deviceSerial: deviceSerial || undefined, // Add this line
+          deviceSerial: deviceSerial || undefined,
         };
       }
 
@@ -314,7 +311,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       );
 
       const endpoint = isCheckingIn ? '/api/check-in' : '/api/check-out';
-      const response = await axios.post<{ data: CheckIn }>(endpoint, formData);
+      const response = await axios.post<{ data: Attendance }>(
+        endpoint,
+        formData,
+      );
 
       console.log(
         `${isCheckingIn ? 'Check-in' : 'Check-out'} response:`,
@@ -360,10 +360,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                     สถานะการลงเวลาล่าสุดของคุณ:
                   </h3>
                   <div className="bg-gray-100 p-3 rounded-lg">
-                    <p>เวลา: {formatDate(latestCheckData.sj)}</p>
-                    <p>วิธีการ: {getDeviceType(latestCheckData.dev_serial)}</p>
+                    <p>เวลา: {formatDate(latestCheckData.checkInTime)}</p>
                     <p>
-                      สถานะ: {latestCheckData.fx === 0 ? 'เข้างาน' : 'ออกงาน'}
+                      วิธีการ:{' '}
+                      {getDeviceType(
+                        latestCheckData.checkInDeviceSerial || '0010000',
+                      )}
+                    </p>
+                    <p>
+                      สถานะ:{' '}
+                      {latestCheckData.checkOutTime ? 'ออกงาน' : 'เข้างาน'}
                     </p>
                   </div>
                 </div>
