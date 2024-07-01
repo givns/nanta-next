@@ -5,6 +5,7 @@ import {
   sendConfirmationMessage,
   sendDailySummary,
 } from '../../utils/lineNotifications';
+import { query } from '../../utils/mysqlConnection';
 
 const prisma = new PrismaClient();
 
@@ -36,6 +37,11 @@ export default async function handler(
       },
       include: { user: true },
     });
+
+    await query('UPDATE kt_jl SET fx = 1, sj = ? WHERE bh = ?', [
+      timestamp,
+      checkInId,
+    ]);
 
     // Send confirmation message
     await sendConfirmationMessage(

@@ -48,10 +48,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [externalCheckData, setExternalCheckData] = useState<
     ExternalCheckData[]
   >([]);
-  const [latestDeviceCheckData, setLatestDeviceCheckData] = useState<
-    ExternalCheckData[]
-  >([]);
-  const [showAllChecks, setShowAllChecks] = useState(false);
+  const [latestCheckData, setLatestCheckData] =
+    useState<ExternalCheckData | null>(null);
+  const [isLoadingCheckData, setIsLoadingCheckData] = useState(true);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [deviceSerial, setDeviceSerial] = useState<string | null>(null);
   const [step, setStep] = useState(1);
@@ -72,24 +71,27 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   useEffect(() => {
     const fetchCheckStatus = async () => {
+      if (showCamera) return; // Don't fetch if camera is shown
+
+      setIsLoadingCheckData(true);
       try {
         const response = await axios.get('/api/check-status', {
           params: { lineUserId: userData.lineUserId },
         });
         console.log('Check status response:', response.data);
-        const { userLatestCheckIn, latestDeviceCheckIn } = response.data;
-        setExternalCheckData(userLatestCheckIn ? [userLatestCheckIn] : []);
-        setLatestDeviceCheckData(
-          latestDeviceCheckIn ? [latestDeviceCheckIn] : [],
-        );
+        const { latestCheckIn } = response.data;
+
+        setLatestCheckData(latestCheckIn);
       } catch (error) {
         console.error('Error fetching check status:', error);
         setError('Failed to fetch check status. Please try again.');
+      } finally {
+        setIsLoadingCheckData(false);
       }
     };
 
     fetchCheckStatus();
-  }, [userData.lineUserId]);
+  }, [userData.lineUserId, showCamera]);
 
   const calculateDistance = (
     lat1: number,
@@ -219,6 +221,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     return new Date(dateString).toLocaleString('th-TH', options);
   };
 
+  const getDeviceType = (devSerial: string) => {
+    return devSerial === '0010000' ? 'Nanta Next' : 'เครื่องสแกนใบหน้า';
+  };
+
+  const handleOpenCamera = () => {
+    setShowCamera(true);
+    setLatestCheckData(null); // Clear the check data when opening camera
+  };
+
   const capturePhoto = async () => {
     console.log('Attempting to capture photo');
     if (webcamRef.current && model) {
@@ -337,45 +348,39 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
           <p className="text-md mb-4 text-gray-600">{userData.department}</p>
 
-          {externalCheckData.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2">
-                ข้อมูลการลงเวลาล่าสุดของคุณ:
-              </h3>
-              <div className="bg-gray-100 p-3 rounded-lg">
-                <p>เวลา: {formatDate(externalCheckData[0].sj)}</p>
-                <p>อุปกรณ์: {externalCheckData[0].dev_serial}</p>
-                <p>
-                  สถานะ: {externalCheckData[0].fx === 0 ? 'เข้างาน' : 'ออกงาน'}
-                </p>
-              </div>
-            </div>
-          )}
+          {!showCamera && (
+            <>
+              {isLoadingCheckData ? (
+                <div className="mb-4 text-center">
+                  <p>กำลังโหลดข้อมูลการลงเวลาล่าสุด กรุณารอสักครู่...</p>
+                </div>
+              ) : latestCheckData ? (
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold mb-2">
+                    สถานะการลงเวลาล่าสุดของคุณ:
+                  </h3>
+                  <div className="bg-gray-100 p-3 rounded-lg">
+                    <p>เวลา: {formatDate(latestCheckData.sj)}</p>
+                    <p>วิธีการ: {getDeviceType(latestCheckData.dev_serial)}</p>
+                    <p>
+                      สถานะ: {latestCheckData.fx === 0 ? 'เข้างาน' : 'ออกงาน'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="mb-4">ไม่พบข้อมูลการลงเวลาล่าสุด</p>
+              )}
 
-          {latestDeviceCheckData.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2">
-                ข้อมูลการลงเวลาล่าสุดในระบบ:
-              </h3>
-              <div className="bg-gray-100 p-3 rounded-lg">
-                <p>เวลา: {formatDate(latestDeviceCheckData[0].sj)}</p>
-                <p>อุปกรณ์: {latestDeviceCheckData[0].dev_serial}</p>
-                <p>
-                  สถานะ:{' '}
-                  {latestDeviceCheckData[0].fx === 0 ? 'เข้างาน' : 'ออกงาน'}
-                </p>
-              </div>
-            </div>
+              <button
+                onClick={handleOpenCamera}
+                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+                aria-label="เปิดกล้องเพื่อถ่ายรูป"
+              >
+                เปิดกล้องเพื่อถ่ายรูป
+              </button>
+            </>
           )}
-          {!showCamera ? (
-            <button
-              onClick={() => setShowCamera(true)}
-              className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-              aria-label="เปิดกล้องเพื่อถ่ายรูป"
-            >
-              เปิดกล้องเพื่อถ่ายรูป
-            </button>
-          ) : (
+          {!showCamera && (
             <div className="mt-4">
               <Webcam
                 audio={false}

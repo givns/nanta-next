@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { query } from '../../utils/mysqlConnection';
 import { ExternalCheckData } from '../../types/user';
+
 const prisma = new PrismaClient();
 
 const MIN_CHECK_INTERVAL = 1 * 60 * 1000; // 1 minute in milliseconds, adjust as needed
@@ -83,54 +84,40 @@ export default async function handler(
     const now = new Date();
     const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
 
-    let status: 'checkin' | 'checkout';
-    let message: string | null = null;
-    let checkInId: string | null = null;
-    let deviceSerial: string | null = null;
-
     // Determine the most recent check-in
-    const userCheckInTime = userLatestCheckIn[0]
-      ? new Date(userLatestCheckIn[0].sj)
-      : new Date(0);
-    const deviceCheckInTime = latestDeviceCheckIn[0]
-      ? new Date(latestDeviceCheckIn[0].sj)
-      : new Date(0);
-    const mostRecentCheckInTime = new Date(
-      Math.max(userCheckInTime.getTime(), deviceCheckInTime.getTime()),
-    );
-
-    const timeSinceCheckIn =
-      thaiNow.getTime() - mostRecentCheckInTime.getTime();
-
-    if (timeSinceCheckIn < MIN_CHECK_INTERVAL) {
-      status = 'checkout';
-      message =
-        'Too soon to check in/out. Please wait before attempting again.';
-    } else if (
-      (userLatestCheckIn[0] && userLatestCheckIn[0].fx === 0) ||
-      (latestDeviceCheckIn[0] && latestDeviceCheckIn[0].fx === 0)
-    ) {
-      status = 'checkout';
-      checkInId = userLatestCheckIn[0]
-        ? userLatestCheckIn[0].bh.toString()
-        : null;
-      deviceSerial = userLatestCheckIn[0]
-        ? userLatestCheckIn[0].dev_serial
-        : latestDeviceCheckIn[0]
-          ? latestDeviceCheckIn[0].dev_serial
-          : null;
+    let latestCheckIn = null;
+    if (userLatestCheckIn[0] && latestDeviceCheckIn[0]) {
+      latestCheckIn =
+        new Date(userLatestCheckIn[0].sj) > new Date(latestDeviceCheckIn[0].sj)
+          ? userLatestCheckIn[0]
+          : latestDeviceCheckIn[0];
     } else {
-      status = 'checkin';
+      latestCheckIn = userLatestCheckIn[0] || latestDeviceCheckIn[0];
+    }
+
+    let isCheckingIn: boolean;
+    let message: string | null = null;
+
+    if (latestCheckIn) {
+      const timeSinceCheckIn =
+        thaiNow.getTime() - new Date(latestCheckIn.sj).getTime();
+      if (timeSinceCheckIn < MIN_CHECK_INTERVAL) {
+        message =
+          'Too soon to check in/out. Please wait before attempting again.';
+        isCheckingIn = latestCheckIn.fx !== 0; // Keep the current status
+      } else {
+        isCheckingIn = latestCheckIn.fx !== 0;
+      }
+    } else {
+      isCheckingIn = true; // If no check-in record, user should check in
     }
 
     const responseData = {
-      status,
-      checkInId,
-      userData: prismaUser,
+      latestCheckIn,
+      isCheckingIn,
+      checkInId: latestCheckIn ? latestCheckIn.bh.toString() : null,
       message,
-      deviceSerial,
-      userLatestCheckIn: userLatestCheckIn[0] || null,
-      latestDeviceCheckIn: latestDeviceCheckIn[0] || null,
+      userData: prismaUser,
     };
 
     console.log('Final status:', JSON.stringify(responseData, null, 2));
