@@ -1,3 +1,4 @@
+// utils/mysqlConnection.ts
 import mysql from 'mysql2/promise';
 
 const pool = mysql.createPool({
@@ -9,7 +10,7 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
-export async function query<T>(sql: string, params: any[]): Promise<T[]> {
+export async function query<T>(sql: string, params: any[] = []): Promise<T[]> {
   const [results] = await pool.execute(sql, params);
   return results as T[];
 }

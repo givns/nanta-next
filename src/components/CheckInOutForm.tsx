@@ -50,6 +50,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   isCheckingIn,
   checkInId,
 }) => {
+  const [showAllChecks, setShowAllChecks] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [deviceSerial, setDeviceSerial] = useState<string | null>(null);
   const [externalCheckData, setExternalCheckData] = useState<
@@ -211,6 +212,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     getCurrentLocation();
   }, [isWithinPremises]);
 
+  const formatDate = (dateString: string) => {
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    };
+    return new Date(dateString).toLocaleString('th-TH', options);
+  };
+
   const capturePhoto = async () => {
     console.log('Attempting to capture photo');
     if (webcamRef.current && model) {
@@ -328,15 +342,39 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <div>
           <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
           <p className="text-md mb-4 text-gray-600">{userData.department}</p>
-          <h3>Recent External Check Data:</h3>
-          <ul>
-            {externalCheckData.map((check, index) => (
-              <li key={index}>
-                {new Date(check.sj).toLocaleString()} - Device:{' '}
-                {check.dev_serial}
-              </li>
-            ))}
-          </ul>
+
+          {externalCheckData.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold mb-2">
+                ข้อมูลการลงเวลาล่าสุด:
+              </h3>
+              <div className="bg-gray-100 p-3 rounded-lg">
+                <p>เวลา: {formatDate(externalCheckData[0].sj)}</p>
+                <p>อุปกรณ์: {externalCheckData[0].dev_serial}</p>
+              </div>
+
+              {externalCheckData.length > 1 && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => setShowAllChecks(!showAllChecks)}
+                    className="text-blue-500 hover:underline"
+                  >
+                    {showAllChecks ? 'ซ่อน' : 'แสดง'}ข้อมูลย้อนหลัง 7 วัน
+                  </button>
+                  {showAllChecks && (
+                    <ul className="mt-2 space-y-2">
+                      {externalCheckData.slice(1).map((check, index) => (
+                        <li key={index} className="bg-gray-50 p-2 rounded">
+                          เวลา: {formatDate(check.sj)} - อุปกรณ์:{' '}
+                          {check.dev_serial}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {!showCamera ? (
             <button
               onClick={() => setShowCamera(true)}

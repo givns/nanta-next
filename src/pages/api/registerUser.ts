@@ -132,7 +132,7 @@ export default async function handler(
     }
 
     let role: UserRole;
-    let finalEmployeeId: string = employeeId;
+    const finalEmployeeId: string = employeeId;
 
     const userCount = await prisma.user.count();
     if (userCount === 0) {

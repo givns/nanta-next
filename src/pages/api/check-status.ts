@@ -14,14 +14,12 @@ interface ExternalCheckData {
   fx: string | null;
   bh: number;
   dev_serial: string;
-  // Add other properties as needed
 }
 
 interface ExternalUserData {
   user_serial: string;
   user_no: string;
   user_name: string;
-  // Add other properties as needed
 }
 
 export default async function handler(
@@ -54,11 +52,10 @@ export default async function handler(
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Fetch user from external SQL database using the common identifier
-    // Assuming 'employeeId' is the common identifier
+    // Fetch user from external SQL database
     const externalUsers = await query<ExternalUserData>(
       'SELECT * FROM dt_user WHERE user_no = ?',
-      [prismaUser.employeeId], // Assuming we've added employeeId to the Prisma User model
+      [prismaUser.employeeId],
     );
 
     const externalUser = externalUsers[0];
@@ -68,32 +65,28 @@ export default async function handler(
         'User not found in external database for employeeId:',
         prismaUser.employeeId,
       );
-      // We might want to log this discrepancy for administrative review
     }
 
     console.log('User found:', JSON.stringify(prismaUser, null, 2));
 
-    // Fetch latest check-in from Prisma
-    const latestPrismaCheckIn = await prisma.checkIn.findFirst({
-      where: { userId: prismaUser.id },
-      orderBy: { checkInTime: 'desc' },
-    });
-
-    // Fetch latest check-in from external database
-    const externalCheckIns = await query<ExternalCheckData>(
+    // Fetch latest check-in from external database for the user
+    const userLatestCheckIn = await query<ExternalCheckData>(
       'SELECT * FROM kt_jl WHERE user_serial = ? ORDER BY sj DESC LIMIT 1',
       [externalUser ? externalUser.user_serial : prismaUser.employeeId],
     );
 
-    const latestExternalCheckIn = externalCheckIns[0];
+    // Fetch latest check-in from external device (regardless of user)
+    const latestDeviceCheckIn = await query<ExternalCheckData>(
+      'SELECT * FROM kt_jl ORDER BY sj DESC LIMIT 1',
+    );
 
     console.log(
-      'Latest Prisma check-in:',
-      JSON.stringify(latestPrismaCheckIn, null, 2),
+      'Latest user check-in:',
+      JSON.stringify(userLatestCheckIn[0], null, 2),
     );
     console.log(
-      'Latest external check-in:',
-      JSON.stringify(latestExternalCheckIn, null, 2),
+      'Latest device check-in:',
+      JSON.stringify(latestDeviceCheckIn[0], null, 2),
     );
 
     const now = new Date();
@@ -105,14 +98,14 @@ export default async function handler(
     let deviceSerial: string | null = null;
 
     // Determine the most recent check-in
-    const prismaCheckInTime = latestPrismaCheckIn
-      ? new Date(latestPrismaCheckIn.checkInTime)
+    const userCheckInTime = userLatestCheckIn[0]
+      ? new Date(userLatestCheckIn[0].sj)
       : new Date(0);
-    const externalCheckInTime = latestExternalCheckIn
-      ? new Date(latestExternalCheckIn.sj)
+    const deviceCheckInTime = latestDeviceCheckIn[0]
+      ? new Date(latestDeviceCheckIn[0].sj)
       : new Date(0);
     const mostRecentCheckInTime = new Date(
-      Math.max(prismaCheckInTime.getTime(), externalCheckInTime.getTime()),
+      Math.max(userCheckInTime.getTime(), deviceCheckInTime.getTime()),
     );
 
     const timeSinceCheckIn =
@@ -123,37 +116,35 @@ export default async function handler(
       message =
         'Too soon to check in/out. Please wait before attempting again.';
     } else if (
-      (latestPrismaCheckIn && !latestPrismaCheckIn.checkOutTime) ||
-      (latestExternalCheckIn && !latestExternalCheckIn.fx)
+      (userLatestCheckIn[0] && !userLatestCheckIn[0].fx) ||
+      (latestDeviceCheckIn[0] && !latestDeviceCheckIn[0].fx)
     ) {
       status = 'checkout';
-      checkInId = latestPrismaCheckIn ? latestPrismaCheckIn.id : null;
-      deviceSerial = latestPrismaCheckIn
-        ? latestPrismaCheckIn.deviceSerial
-        : latestExternalCheckIn
-          ? latestExternalCheckIn.dev_serial
+      checkInId = userLatestCheckIn[0]
+        ? userLatestCheckIn[0].id.toString()
+        : null;
+      deviceSerial = userLatestCheckIn[0]
+        ? userLatestCheckIn[0].dev_serial
+        : latestDeviceCheckIn[0]
+          ? latestDeviceCheckIn[0].dev_serial
           : null;
     } else {
       status = 'checkin';
     }
 
-    console.log('Final status:', {
+    const responseData = {
       status,
       checkInId,
       userData: prismaUser,
       message,
       deviceSerial,
-      externalCheckData: latestExternalCheckIn || null,
-    });
+      userLatestCheckIn: userLatestCheckIn[0] || null,
+      latestDeviceCheckIn: latestDeviceCheckIn[0] || null,
+    };
 
-    return res.status(200).json({
-      status,
-      checkInId,
-      userData: prismaUser,
-      message,
-      deviceSerial,
-      externalCheckData: latestExternalCheckIn || null,
-    });
+    console.log('Final status:', JSON.stringify(responseData, null, 2));
+
+    return res.status(200).json(responseData);
   } catch (error) {
     console.error('Error checking user status:', error);
     return res.status(500).json({ message: 'Server error' });
