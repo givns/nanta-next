@@ -12,124 +12,32 @@ interface ExternalUserData {
   user_no: string;
   user_name: string;
   department: string;
-  // other fields as needed
 }
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  if (req.method === 'POST') {
-    const {
-      lineUserId,
-      name,
-      nickname,
-      department,
-      profilePictureUrl,
-      employeeId,
-    } = req.body;
-
-    console.log('Received data:', req.body);
-
-    // Validate the required fields
-    if (!lineUserId || !name || !nickname || !department || !employeeId) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
-
-    try {
-      // Check if the user already exists in Prisma
-      let user = await prisma.user.findUnique({
-        where: { lineUserId },
-      });
-
-      // Find user in external database
-      const externalUser = await findExternalUser(name, employeeId);
-
-      // Determine the role and rich menu ID
-      let role: UserRole;
-      let finalEmployeeId: string;
-
-      // Check if this is the first user and assign super admin role
-      const userCount = await prisma.user.count();
-      if (userCount === 0) {
-        role = UserRole.SUPERADMIN;
-        finalEmployeeId = employeeId || `ADMIN_${Date.now()}`;
-      } else if (externalUser) {
-        // Assign role based on department from external database
-        role = determineRole(externalUser.department);
-        finalEmployeeId = externalUser.user_no;
-      } else {
-        // Assign role based on provided department
-        role = determineRole(department);
-        finalEmployeeId = employeeId || `TEMP_${Date.now()}`;
-        alertAdmin(lineUserId, name, employeeId);
-      }
-      // Ensure finalEmployeeId is never null or undefined
-      if (!finalEmployeeId) {
-        finalEmployeeId = `TEMP_${Date.now()}`;
-      }
-
-      // If user does not exist in Prisma, create a new one
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
-            lineUserId,
-            name: externalUser ? externalUser.user_name : name,
-            nickname,
-            department: externalUser ? externalUser.department : department,
-            profilePictureUrl,
-            role,
-            employeeId: finalEmployeeId,
-          },
-        });
-      } else {
-        // Update the existing user
-        user = await prisma.user.update({
-          where: { lineUserId },
-          data: {
-            name: externalUser ? externalUser.user_name : name,
-            nickname,
-            department: externalUser ? externalUser.department : department,
-            profilePictureUrl,
-            role,
-            employeeId: finalEmployeeId,
-          },
-        });
-      }
-
-      // Determine the appropriate rich menu based on role
-      const richMenuId = determineRichMenuId(role);
-
-      // Link the rich menu to the user
-      await client.linkRichMenuToUser(lineUserId, richMenuId);
-
-      res.status(201).json({ success: true, data: user });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  } else {
-    res.status(405).json({ success: false, message: 'Method not allowed' });
-  }
-}
-
-// ... rest of the file (findExternalUser, determineRole, determineRichMenuId, alertAdmin functions) ...
 
 async function findExternalUser(
   name: string,
-  employeeNumber: string,
+  employeeId: string,
 ): Promise<ExternalUserData | null> {
-  // First, try to find by employee number
+  console.log(
+    `Searching for external user with name: ${name} and employeeId: ${employeeId}`,
+  );
+
   let externalUsers = await query<ExternalUserData>(
     'SELECT user_no, user_name, department FROM dt_user WHERE user_no = ?',
-    [employeeNumber],
+    [employeeId],
   );
 
   if (externalUsers.length === 0) {
-    // If not found, try to find by name (using LIKE for partial match)
     externalUsers = await query<ExternalUserData>(
       'SELECT user_no, user_name, department FROM dt_user WHERE user_name LIKE ?',
       [`%${name}%`],
     );
+  }
+
+  if (externalUsers.length > 0) {
+    console.log('External user found:', externalUsers[0]);
+  } else {
+    console.log('No external user found');
   }
 
   return externalUsers.length > 0 ? externalUsers[0] : null;
@@ -149,21 +57,135 @@ function determineRole(department: string): UserRole {
 function determineRichMenuId(role: UserRole): string {
   switch (role) {
     case UserRole.SUPERADMIN:
-      return 'richmenu-5e2677dc4e68d4fde747ff413a88264f'; // Super Admin Rich Menu
+      return 'richmenu-5e2677dc4e68d4fde747ff413a88264f';
     case UserRole.DRIVER:
-      return 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // Placeholder for Route Rich Menu
+      return 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce';
     case UserRole.OPERATION:
-      return 'richmenu-834c002dbe1ccfbedb54a76b6c78bdde'; // Special Rich Menu
+      return 'richmenu-834c002dbe1ccfbedb54a76b6c78bdde';
     case UserRole.GENERAL:
     default:
-      return 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // General User Rich Menu
+      return 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce';
   }
 }
 
-function alertAdmin(lineUserId: string, name: string, employeeNumber: string) {
-  // Implement your admin alerting mechanism here
-  console.warn(
-    `New user registration with no exact match: LineUserId: ${lineUserId}, Name: ${name}, Employee Number: ${employeeNumber}`,
-  );
-  // You might want to store these alerts in a database table for admin review
+async function alertAdmin(
+  lineUserId: string,
+  name: string,
+  employeeId: string,
+) {
+  const message = `New user registration with no exact match:\nLineUserId: ${lineUserId}\nName: ${name}\nEmployee Number: ${employeeId}`;
+  console.warn(message);
+
+  try {
+    await client.pushMessage(lineUserId, { type: 'text', text: message });
+    console.log('Admin alert sent successfully');
+  } catch (error) {
+    console.error('Error sending admin alert:', error);
+  }
 }
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
+
+  console.log('Received data:', req.body);
+
+  const {
+    lineUserId,
+    name,
+    nickname,
+    department,
+    profilePictureUrl,
+    employeeId,
+  } = req.body;
+
+  if (!lineUserId || !name || !nickname || !department || !employeeId) {
+    console.log('Missing required fields:', {
+      lineUserId,
+      name,
+      nickname,
+      department,
+      employeeId,
+    });
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  try {
+    let user = await prisma.user.findUnique({ where: { lineUserId } });
+
+    const externalUser = await findExternalUser(name, employeeId);
+
+    let role: UserRole;
+    let finalEmployeeId: string;
+
+    const userCount = await prisma.user.count();
+    if (userCount === 0) {
+      role = UserRole.SUPERADMIN;
+      finalEmployeeId = employeeId || `ADMIN_${Date.now()}`;
+    } else if (externalUser) {
+      role = determineRole(externalUser.department);
+      finalEmployeeId = externalUser.user_no;
+    } else {
+      role = determineRole(department);
+      finalEmployeeId = employeeId || `TEMP_${Date.now()}`;
+      await alertAdmin(lineUserId, name, employeeId);
+    }
+
+    if (!finalEmployeeId) {
+      finalEmployeeId = `TEMP_${Date.now()}`;
+    }
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          lineUserId,
+          name: externalUser ? externalUser.user_name : name,
+          nickname,
+          department: externalUser ? externalUser.department : department,
+          profilePictureUrl,
+          role,
+          employeeId: finalEmployeeId,
+        },
+      });
+    } else {
+      user = await prisma.user.update({
+        where: { lineUserId },
+        data: {
+          name: externalUser ? externalUser.user_name : name,
+          nickname,
+          department: externalUser ? externalUser.department : department,
+          profilePictureUrl,
+          role,
+          employeeId: finalEmployeeId,
+        },
+      });
+    }
+
+    const richMenuId = determineRichMenuId(role);
+    await client.linkRichMenuToUser(lineUserId, richMenuId);
+
+    res.status(201).json({ success: true, data: user });
+  } catch (error: any) {
+    console.error('Error in registerUser:', error);
+    if (error.code === 'P2002') {
+      return res
+        .status(400)
+        .json({ success: false, error: 'User already exists' });
+    }
+    res
+      .status(500)
+      .json({ success: false, error: error.message, stack: error.stack });
+  }
+}
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+};
