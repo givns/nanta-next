@@ -1,4 +1,4 @@
-import { Formik, Field, Form, ErrorMessage } from 'formik';
+import { Formik, Field, Form, ErrorMessage, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
@@ -30,7 +30,7 @@ interface FormValues {
   department: string;
 }
 
-const RegisterForm = () => {
+const RegisterForm: React.FC = () => {
   const [lineUserId, setLineUserId] = useState('');
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const [step, setStep] = useState(1);
@@ -53,13 +53,23 @@ const RegisterForm = () => {
     }
   }, []);
 
-  const handleNextStep = () => {
+  const handleNextStep = (
+    values: FormValues,
+    setFieldTouched: (
+      field: string,
+      touched: boolean,
+      shouldValidate?: boolean,
+    ) => void,
+  ) => {
+    Object.keys(values).forEach((field) =>
+      setFieldTouched(field as keyof FormValues, true),
+    );
     setStep(step + 1);
   };
 
   const handleSubmit = async (
     values: FormValues,
-    { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
+    { setSubmitting }: FormikHelpers<FormValues>,
   ) => {
     console.log('handleSubmit called with values:', values);
     try {
@@ -75,8 +85,11 @@ const RegisterForm = () => {
       } else {
         alert('Error: ' + response.data.error);
       }
-    } catch (error: any) {
-      alert('Error: ' + (error.response?.data?.message || error.message));
+    } catch (error) {
+      alert(
+        'Error: ' + (error as any).response?.data?.message ||
+          (error as Error).message,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -104,8 +117,8 @@ const RegisterForm = () => {
           validationSchema={RegistrationSchema}
           onSubmit={handleSubmit}
         >
-          {({ isSubmitting }) => (
-            <Form id="registrationForm" className="space-y-6">
+          {({ isSubmitting, values, setFieldTouched, isValid, dirty }) => (
+            <Form className="space-y-6">
               {step === 1 && (
                 <div>
                   <div className="mb-3">
@@ -125,7 +138,7 @@ const RegisterForm = () => {
                     <ErrorMessage
                       name="name"
                       component="div"
-                      className="text-danger"
+                      className="text-red-500 text-sm"
                     />
                   </div>
                   <div className="mb-3">
@@ -145,14 +158,14 @@ const RegisterForm = () => {
                     <ErrorMessage
                       name="nickname"
                       component="div"
-                      className="text-danger"
+                      className="text-red-500 text-sm"
                     />
                   </div>
                   <div className="button-container flex justify-end">
                     <button
                       type="button"
                       className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={handleNextStep}
+                      onClick={() => handleNextStep(values, setFieldTouched)}
                     >
                       ถัดไป
                     </button>
@@ -163,29 +176,29 @@ const RegisterForm = () => {
                 <div>
                   <div className="mb-3">
                     <label
-                      htmlFor="employeeNumber"
+                      htmlFor="employeeId"
                       className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                     >
                       รหัสพนักงาน
                     </label>
                     <Field
                       type="text"
-                      name="employeeNumber"
-                      id="employeeNumber"
+                      name="employeeId"
+                      id="employeeId"
                       className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
                       placeholder="รหัสพนักงาน"
                     />
                     <ErrorMessage
-                      name="employeeNumber"
+                      name="employeeId"
                       component="div"
-                      className="text-danger"
+                      className="text-red-500 text-sm"
                     />
                   </div>
                   <div className="button-container flex justify-end">
                     <button
                       type="button"
                       className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={handleNextStep}
+                      onClick={() => handleNextStep(values, setFieldTouched)}
                     >
                       ถัดไป
                     </button>
@@ -217,14 +230,14 @@ const RegisterForm = () => {
                     <ErrorMessage
                       name="department"
                       component="div"
-                      className="text-danger"
+                      className="text-red-500 text-sm"
                     />
                   </div>
                   <div className="button-container flex justify-end">
                     <button
                       type="submit"
                       className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !isValid || !dirty}
                     >
                       {isSubmitting ? 'กำลังส่งเก็บข้อมูล...' : 'ยืนยัน'}
                     </button>
@@ -238,4 +251,5 @@ const RegisterForm = () => {
     </div>
   );
 };
+
 export default RegisterForm;
