@@ -15,26 +15,15 @@ interface ExternalUserData {
 }
 
 async function findExternalUser(
-  name: string,
   employeeId: string,
 ): Promise<ExternalUserData | null> {
-  console.log(
-    `Searching for external user with name: ${name} and employeeId: ${employeeId}`,
-  );
+  console.log(`Searching for external user with employeeId: ${employeeId}`);
 
   try {
-    let externalUsers: any[] = await query(
+    const externalUsers: any[] = await query(
       'SELECT * FROM dt_user WHERE user_no = ?',
       [employeeId],
     );
-
-    if (externalUsers.length === 0) {
-      // If not found by user_no, try searching by name
-      externalUsers = await query(
-        'SELECT * FROM dt_user WHERE user_fname LIKE ? OR user_lname LIKE ?',
-        [`%${name}%`, `%${name}%`],
-      );
-    }
 
     if (externalUsers.length > 0) {
       const user = externalUsers[0] as Record<string, unknown>;
@@ -44,7 +33,8 @@ async function findExternalUser(
       const mappedUser: ExternalUserData = {
         user_no: (user.user_no as string) || '',
         name: `${(user.user_fname as string) || ''} ${(user.user_lname as string) || ''}`.trim(),
-        department: (user.user_depname as string) || '',
+        department:
+          (user.user_depname as string) || (user.user_dep as string) || '',
       };
 
       console.log('Mapped external user:', mappedUser);
@@ -135,62 +125,44 @@ export default async function handler(
 
     let externalUser: ExternalUserData | null = null;
     try {
-      externalUser = await findExternalUser(name, employeeId);
+      externalUser = await findExternalUser(employeeId);
     } catch (error) {
       console.error('Error finding external user:', error);
       // Continue with the registration process even if external user lookup fails
     }
 
     let role: UserRole;
-    let finalEmployeeId: string;
+    let finalEmployeeId: string = employeeId;
 
     const userCount = await prisma.user.count();
     if (userCount === 0) {
       role = UserRole.SUPERADMIN;
-      finalEmployeeId = employeeId || `ADMIN_${Date.now()}`;
     } else if (externalUser) {
-      role = determineRole(externalUser.department);
-      finalEmployeeId = externalUser.user_no;
+      role = determineRole(externalUser.department || department);
     } else {
       role = determineRole(department);
-      finalEmployeeId = employeeId || `TEMP_${Date.now()}`;
       await alertAdmin(lineUserId, name, employeeId);
     }
 
-    if (!finalEmployeeId) {
-      finalEmployeeId = `TEMP_${Date.now()}`;
-    }
+    const userData = {
+      lineUserId,
+      name: externalUser?.name || name,
+      nickname,
+      department: externalUser?.department || department,
+      profilePictureUrl,
+      role,
+      employeeId: finalEmployeeId,
+    };
 
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          lineUserId,
-          name: externalUser && externalUser.name ? externalUser.name : name,
-          nickname,
-          department:
-            externalUser && externalUser.department
-              ? externalUser.department
-              : department,
-          profilePictureUrl,
-          role,
-          employeeId: finalEmployeeId,
-        },
-      });
+      user = await prisma.user.create({ data: userData });
+      console.log('New user created:', user);
     } else {
       user = await prisma.user.update({
         where: { lineUserId },
-        data: {
-          name: externalUser && externalUser.name ? externalUser.name : name,
-          nickname,
-          department:
-            externalUser && externalUser.department
-              ? externalUser.department
-              : department,
-          profilePictureUrl,
-          role,
-          employeeId: finalEmployeeId,
-        },
+        data: userData,
       });
+      console.log('Existing user updated:', user);
     }
 
     const richMenuId = determineRichMenuId(role);
