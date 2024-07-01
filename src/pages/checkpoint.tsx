@@ -34,8 +34,6 @@ const CheckpointPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const [inPremises, setInPremises] = useState<boolean>(false);
-
   const checkUserStatus = useCallback(async () => {
     try {
       const response = await axios.get('/api/userStatus');
@@ -115,10 +113,8 @@ const CheckpointPage: React.FC = () => {
 
             const premise = isWithinPremises(latitude, longitude);
             if (premise) {
-              setInPremises(true);
               setAddress(premise.name);
             } else {
-              setInPremises(false);
               const fetchedAddress = await getAddressFromCoordinates(
                 latitude,
                 longitude,
