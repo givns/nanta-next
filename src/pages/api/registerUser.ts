@@ -10,7 +10,7 @@ const client = new Client({
 
 interface ExternalUserData {
   user_no: string;
-  user_Iname: string;
+  user_lname: string;
   department: string;
 }
 
@@ -154,7 +154,7 @@ export default async function handler(
       user = await prisma.user.create({
         data: {
           lineUserId,
-          name: externalUser ? externalUser.user_Iname : name,
+          name: externalUser ? externalUser.user_lname : name,
           nickname,
           department: externalUser ? externalUser.department : department,
           profilePictureUrl,
@@ -166,7 +166,7 @@ export default async function handler(
       user = await prisma.user.update({
         where: { lineUserId },
         data: {
-          name: externalUser ? externalUser.user_Iname : name,
+          name: externalUser ? externalUser.user_lname : name,
           nickname,
           department: externalUser ? externalUser.department : department,
           profilePictureUrl,
