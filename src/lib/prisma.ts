@@ -11,15 +11,10 @@ declare global {
 // Learn more:
 // https://pris.ly/d/help/next-js-best-practices
 
-let prisma: PrismaClient;
+const prisma = global.prisma || new PrismaClient();
 
-if (process.env.NODE_ENV === 'production') {
-  prisma = new PrismaClient();
-} else {
-  if (!global.prisma) {
-    global.prisma = new PrismaClient();
-  }
-  prisma = global.prisma;
+if (process.env.NODE_ENV !== 'production') {
+  global.prisma = prisma;
 }
 
 export default prisma;

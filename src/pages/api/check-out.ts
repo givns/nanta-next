@@ -119,7 +119,7 @@ async function getMonthlyWorkDays(userId: string): Promise<number> {
       ? new Date(year, month, 25)
       : new Date(year, month + 1, 25);
 
-  const workDays = await prisma.checkIn.groupBy({
+  const workDays = await prisma.attendance.groupBy({
     by: ['userId'],
     where: {
       userId: userId,

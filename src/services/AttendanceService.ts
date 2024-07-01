@@ -8,7 +8,10 @@ export class AttendanceService {
   private locationToJsonValue(location: Location): Prisma.InputJsonValue {
     return JSON.parse(JSON.stringify(location));
   }
-  async checkIn(data: CheckInData): Promise<Prisma.AttendanceGetPayload<{}>> {
+
+  async checkIn(
+    data: CheckInData,
+  ): Promise<Prisma.AttendanceGetPayload<object>> {
     // Check for existing check-in in Prisma
     const latestAttendance = await this.getLatestAttendance(data.userId);
     if (latestAttendance && !latestAttendance.checkOutTime) {
@@ -81,9 +84,10 @@ export class AttendanceService {
 
     return { attendance, user };
   }
+
   async getLatestAttendance(
     userId: string,
-  ): Promise<Prisma.AttendanceGetPayload<{}> | null> {
+  ): Promise<Prisma.AttendanceGetPayload<object> | null> {
     const latestInternal = await prisma.attendance.findFirst({
       where: { userId },
       orderBy: { checkInTime: 'desc' },

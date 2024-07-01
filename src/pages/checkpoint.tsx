@@ -35,6 +35,7 @@ const CheckpointPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const [inPremises, setInPremises] = useState<boolean>(false);
+
   const checkUserStatus = useCallback(async () => {
     try {
       const response = await axios.get('/api/userStatus');

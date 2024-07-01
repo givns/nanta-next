@@ -76,10 +76,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           params: { userId: userData.id },
         });
         console.log('Check status response:', response.data);
-        const { latestAttendance, isCheckingIn } = response.data;
+        const { latestAttendance, isCheckingIn: checkStatus } = response.data;
 
         setLatestCheckData(latestAttendance);
-        // Update isCheckingIn state if needed
+        if (isCheckingIn !== checkStatus) {
+          setStep(2);
+        }
       } catch (error) {
         console.error('Error fetching check status:', error);
         setError('Failed to fetch check status. Please try again.');
@@ -89,7 +91,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
 
     fetchCheckStatus();
-  }, [userData.id, showCamera]);
+  }, [userData.id, showCamera, isCheckingIn]);
 
   const calculateDistance = (
     lat1: number,
@@ -101,7 +103,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
     const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+    const Δλ = ((lon1 - lon2) * Math.PI) / 180;
 
     const a =
       Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
