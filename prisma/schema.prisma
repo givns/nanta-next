@@ -29,7 +29,7 @@ model User {
   name              String
   nickname          String
   department        String
-  employeeNumber    String?
+  employeeId String   @unique  // Add this line
   role              UserRole
   profilePictureUrl String?
   createdAt         DateTime           @default(now())
@@ -85,6 +85,8 @@ model CheckIn {
   checkOutAddress String?  // Add this line
   checkOutReason  String?  // Add this line
   checkOutPhoto   String?  // Add this line
+  deviceSerial    String?
+  checkOutDeviceSerial String?
 }
 
 model TrackingSession {

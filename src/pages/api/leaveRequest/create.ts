@@ -1,7 +1,7 @@
 // pages/api/leaveRequest/create.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../utils/db';
+import prisma from '../../../lib/prisma';
 import { notifyAdmins } from '../../../utils/sendLeaveRequestNotification';
 import { getOriginalLeaveRequest } from '../../../utils/leaveRequestHandlers';
 

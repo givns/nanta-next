@@ -7,6 +7,7 @@ import liff from '@line/liff';
 const RegistrationSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
   nickname: Yup.string().required('Required'),
+  employeeId: Yup.string().required('Required'),
   department: Yup.string().required('Required'),
 });
 
@@ -25,6 +26,7 @@ const departments = [
 interface FormValues {
   name: string;
   nickname: string;
+  employeeId: string;
   department: string;
 }
 
@@ -40,7 +42,7 @@ const RegisterForm = () => {
         if (liff.isLoggedIn()) {
           liff.getProfile().then((profile) => {
             setLineUserId(profile.userId);
-            setProfilePictureUrl(profile.pictureUrl);
+            setProfilePictureUrl(profile.pictureUrl || '');
           });
         } else {
           liff.login();
@@ -65,13 +67,15 @@ const RegisterForm = () => {
         lineUserId,
         profilePictureUrl,
       });
+
       if (response.data.success) {
+        alert('Registration successful!');
         liff.closeWindow();
       } else {
         alert('Error: ' + response.data.error);
       }
     } catch (error: any) {
-      alert('Error: ' + error.message);
+      alert('Error: ' + (error.response?.data?.message || error.message));
     } finally {
       setSubmitting(false);
     }
@@ -93,6 +97,7 @@ const RegisterForm = () => {
           initialValues={{
             name: '',
             nickname: '',
+            employeeId: '',
             department: '',
           }}
           validationSchema={RegistrationSchema}
@@ -122,19 +127,6 @@ const RegisterForm = () => {
                       className="text-danger"
                     />
                   </div>
-                  <div className="button-container flex justify-end">
-                    <button
-                      type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={handleNextStep}
-                    >
-                      ถัดไป
-                    </button>
-                  </div>
-                </div>
-              )}
-              {step === 2 && (
-                <div>
                   <div className="mb-3">
                     <label
                       htmlFor="nickname"
@@ -151,6 +143,39 @@ const RegisterForm = () => {
                     />
                     <ErrorMessage
                       name="nickname"
+                      component="div"
+                      className="text-danger"
+                    />
+                  </div>
+                  <div className="button-container flex justify-end">
+                    <button
+                      type="button"
+                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                      onClick={handleNextStep}
+                    >
+                      ถัดไป
+                    </button>
+                  </div>
+                </div>
+              )}
+              {step === 2 && (
+                <div>
+                  <div className="mb-3">
+                    <label
+                      htmlFor="employeeNumber"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    >
+                      รหัสพนักงาน
+                    </label>
+                    <Field
+                      type="text"
+                      name="employeeNumber"
+                      id="employeeNumber"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                      placeholder="รหัสพนักงาน"
+                    />
+                    <ErrorMessage
+                      name="employeeNumber"
                       component="div"
                       className="text-danger"
                     />
@@ -212,5 +237,4 @@ const RegisterForm = () => {
     </div>
   );
 };
-
 export default RegisterForm;

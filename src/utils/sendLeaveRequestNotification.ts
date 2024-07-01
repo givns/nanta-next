@@ -1,7 +1,7 @@
 import { Client, FlexMessage, FlexComponent } from '@line/bot-sdk';
 import { LeaveRequest, User } from '@prisma/client';
-import { UserRole } from '../types/userRole';
-import prisma from './db';
+import { UserRole } from '../types/user';
+import prisma from '../lib/prisma';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',

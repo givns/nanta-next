@@ -10,10 +10,6 @@ import {
   CheckInFormData,
   CheckOutFormData,
 } from '../types/user';
-import {
-  sendCheckInFlexMessage,
-  sendCheckOutFlexMessage,
-} from '../utils/sendFlexMessage';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 
@@ -28,6 +24,12 @@ interface Premise {
   lng: number;
   radius: number;
   name: string;
+}
+
+interface ExternalCheckData {
+  dev_serial: string;
+  sj: string;
+  dt_user: string;
 }
 
 const PREMISES: Premise[] = [
@@ -49,6 +51,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   checkInId,
 }) => {
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [deviceSerial, setDeviceSerial] = useState<string | null>(null);
+  const [externalCheckData, setExternalCheckData] = useState<
+    ExternalCheckData[]
+  >([]);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +70,31 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const router = useRouter();
 
   const webcamRef = useRef<Webcam>(null);
+
+  useEffect(() => {
+    const fetchExternalData = async () => {
+      if (userData.id) {
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7); // Fetch last 7 days of data
+        const endDate = new Date();
+
+        try {
+          const response = await axios.get('/api/external-check', {
+            params: {
+              userId: userData.id,
+              startDate: startDate.toISOString(),
+              endDate: endDate.toISOString(),
+            },
+          });
+          setExternalCheckData(response.data);
+        } catch (error) {
+          console.error('Error fetching external check data:', error);
+        }
+      }
+    };
+
+    fetchExternalData();
+  }, [userData.id]);
 
   const calculateDistance = (
     lat1: number,
@@ -221,12 +252,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setError('User ID, location, and photo are required.');
       return;
     }
-
     if (!isCheckingIn && !checkInId) {
       setError('Check-in ID is required for check-out.');
       return;
     }
-
     setLoading(true);
     setError(null);
 
@@ -246,6 +275,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           reason: reason || undefined,
           photo,
           timestamp,
+          deviceSerial: deviceSerial || undefined, // Add this line
         };
       } else {
         formData = {
@@ -255,6 +285,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           reason: reason || undefined,
           photo,
           timestamp,
+          deviceSerial: deviceSerial || undefined, // Add this line
         };
       }
 
@@ -297,6 +328,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <div>
           <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
           <p className="text-md mb-4 text-gray-600">{userData.department}</p>
+          <h3>Recent External Check Data:</h3>
+          <ul>
+            {externalCheckData.map((check, index) => (
+              <li key={index}>
+                {new Date(check.sj).toLocaleString()} - Device:{' '}
+                {check.dev_serial}
+              </li>
+            ))}
+          </ul>
           {!showCamera ? (
             <button
               onClick={() => setShowCamera(true)}
@@ -376,6 +416,23 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               />
             </div>
           )}
+          <div className="mt-4">
+            <label
+              htmlFor="device-serial-input"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              รหัสอุปกรณ์ (ถ้าใช้อุปกรณ์ภายนอก)
+            </label>
+            <input
+              type="text"
+              id="device-serial-input"
+              value={deviceSerial || ''}
+              onChange={(e) => setDeviceSerial(e.target.value)}
+              placeholder="รหัสอุปกรณ์"
+              className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+            />
+          </div>
+
           <div className="mt-6">
             <button
               onClick={handleSubmit}

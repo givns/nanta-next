@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
 import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
-import { UserRole } from '@/types/userRole';
+import { UserRole } from '@/types/user';
 
 dotenv.config({ path: './.env.local' });
 

@@ -1,5 +1,4 @@
 // pages/api/check-out.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import {
@@ -17,7 +16,8 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { checkInId, address, reason, photo, timestamp } = req.body;
+  const { checkInId, address, reason, photo, timestamp, deviceSerial } =
+    req.body;
 
   try {
     const checkOutTime = new Date(timestamp);
@@ -32,6 +32,7 @@ export default async function handler(
         checkOutAddress: address,
         checkOutReason: reason,
         checkOutPhoto: photo,
+        checkOutDeviceSerial: deviceSerial || null,
       },
       include: { user: true },
     });

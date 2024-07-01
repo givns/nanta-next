@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../utils/db';
+import prisma from '../../../lib/prisma';
 import { sendLeaveRequestNotification } from '../../../utils/sendLeaveRequestNotification';
 
 export default async function handler(

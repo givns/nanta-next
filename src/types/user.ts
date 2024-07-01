@@ -48,6 +48,7 @@ export interface CheckInFormData {
   reason?: string;
   photo: string;
   timestamp: string;
+  deviceSerial?: string;
 }
 
 export interface CheckOutFormData {
@@ -57,4 +58,11 @@ export interface CheckOutFormData {
   reason?: string;
   photo: string;
   timestamp: string;
+  deviceSerial?: string;
+}
+
+export interface externalCheckData {
+  dev_serial: string;
+  sj: string;
+  dt_user: string;
 }
