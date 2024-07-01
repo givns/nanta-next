@@ -23,7 +23,6 @@ async function findExternalUser(
   );
 
   try {
-    // First, let's get all columns for this user
     let externalUsers: any[] = await query(
       'SELECT * FROM dt_user WHERE user_no = ?',
       [employeeId],
@@ -32,8 +31,8 @@ async function findExternalUser(
     if (externalUsers.length === 0) {
       // If not found by user_no, try searching by name
       externalUsers = await query(
-        'SELECT * FROM dt_user WHERE name LIKE ? OR user_name LIKE ? OR user_Iname LIKE ?',
-        [`%${name}%`, `%${name}%`, `%${name}%`],
+        'SELECT * FROM dt_user WHERE user_fname LIKE ? OR user_lname LIKE ?',
+        [`%${name}%`, `%${name}%`],
       );
     }
 
@@ -43,13 +42,9 @@ async function findExternalUser(
 
       // Map the found user to our expected structure
       const mappedUser: ExternalUserData = {
-        user_no: (user.user_no as string) || (user.employee_id as string) || '',
-        name:
-          (user.name as string) ||
-          (user.user_name as string) ||
-          (user.user_Iname as string) ||
-          '',
-        department: (user.department as string) || '',
+        user_no: (user.user_no as string) || '',
+        name: `${(user.user_fname as string) || ''} ${(user.user_lname as string) || ''}`.trim(),
+        department: (user.user_depname as string) || '',
       };
 
       console.log('Mapped external user:', mappedUser);
@@ -170,9 +165,12 @@ export default async function handler(
       user = await prisma.user.create({
         data: {
           lineUserId,
-          name: externalUser ? externalUser.name : name,
+          name: externalUser && externalUser.name ? externalUser.name : name,
           nickname,
-          department: externalUser ? externalUser.department : department,
+          department:
+            externalUser && externalUser.department
+              ? externalUser.department
+              : department,
           profilePictureUrl,
           role,
           employeeId: finalEmployeeId,
@@ -182,9 +180,12 @@ export default async function handler(
       user = await prisma.user.update({
         where: { lineUserId },
         data: {
-          name: externalUser ? externalUser.name : name,
+          name: externalUser && externalUser.name ? externalUser.name : name,
           nickname,
-          department: externalUser ? externalUser.department : department,
+          department:
+            externalUser && externalUser.department
+              ? externalUser.department
+              : department,
           profilePictureUrl,
           role,
           employeeId: finalEmployeeId,
