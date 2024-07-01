@@ -9,6 +9,7 @@ import {
   CheckIn,
   CheckInFormData,
   CheckOutFormData,
+  ExternalCheckData,
 } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
@@ -24,12 +25,6 @@ interface Premise {
   lng: number;
   radius: number;
   name: string;
-}
-
-interface ExternalCheckData {
-  dev_serial: string;
-  sj: string;
-  dt_user: string;
 }
 
 const PREMISES: Premise[] = [
@@ -50,12 +45,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   isCheckingIn,
   checkInId,
 }) => {
-  const [showAllChecks, setShowAllChecks] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [deviceSerial, setDeviceSerial] = useState<string | null>(null);
   const [externalCheckData, setExternalCheckData] = useState<
     ExternalCheckData[]
   >([]);
+  const [latestDeviceCheckData, setLatestDeviceCheckData] = useState<
+    ExternalCheckData[]
+  >([]);
+  const [showAllChecks, setShowAllChecks] = useState(false);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [deviceSerial, setDeviceSerial] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,29 +71,25 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const webcamRef = useRef<Webcam>(null);
 
   useEffect(() => {
-    const fetchExternalData = async () => {
-      if (userData.id) {
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 7); // Fetch last 7 days of data
-        const endDate = new Date();
-
-        try {
-          const response = await axios.get('/api/external-check', {
-            params: {
-              userId: userData.id,
-              startDate: startDate.toISOString(),
-              endDate: endDate.toISOString(),
-            },
-          });
-          setExternalCheckData(response.data);
-        } catch (error) {
-          console.error('Error fetching external check data:', error);
-        }
+    const fetchCheckStatus = async () => {
+      try {
+        const response = await axios.get('/api/check-status', {
+          params: { lineUserId: userData.lineUserId },
+        });
+        console.log('Check status response:', response.data);
+        const { userLatestCheckIn, latestDeviceCheckIn } = response.data;
+        setExternalCheckData(userLatestCheckIn ? [userLatestCheckIn] : []);
+        setLatestDeviceCheckData(
+          latestDeviceCheckIn ? [latestDeviceCheckIn] : [],
+        );
+      } catch (error) {
+        console.error('Error fetching check status:', error);
+        setError('Failed to fetch check status. Please try again.');
       }
     };
 
-    fetchExternalData();
-  }, [userData.id]);
+    fetchCheckStatus();
+  }, [userData.lineUserId]);
 
   const calculateDistance = (
     lat1: number,
@@ -346,33 +340,31 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           {externalCheckData.length > 0 && (
             <div className="mb-4">
               <h3 className="text-lg font-semibold mb-2">
-                ข้อมูลการลงเวลาล่าสุด:
+                ข้อมูลการลงเวลาล่าสุดของคุณ:
               </h3>
               <div className="bg-gray-100 p-3 rounded-lg">
                 <p>เวลา: {formatDate(externalCheckData[0].sj)}</p>
                 <p>อุปกรณ์: {externalCheckData[0].dev_serial}</p>
+                <p>
+                  สถานะ: {externalCheckData[0].fx === 0 ? 'เข้างาน' : 'ออกงาน'}
+                </p>
               </div>
+            </div>
+          )}
 
-              {externalCheckData.length > 1 && (
-                <div className="mt-2">
-                  <button
-                    onClick={() => setShowAllChecks(!showAllChecks)}
-                    className="text-blue-500 hover:underline"
-                  >
-                    {showAllChecks ? 'ซ่อน' : 'แสดง'}ข้อมูลย้อนหลัง 7 วัน
-                  </button>
-                  {showAllChecks && (
-                    <ul className="mt-2 space-y-2">
-                      {externalCheckData.slice(1).map((check, index) => (
-                        <li key={index} className="bg-gray-50 p-2 rounded">
-                          เวลา: {formatDate(check.sj)} - อุปกรณ์:{' '}
-                          {check.dev_serial}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
+          {latestDeviceCheckData.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold mb-2">
+                ข้อมูลการลงเวลาล่าสุดในระบบ:
+              </h3>
+              <div className="bg-gray-100 p-3 rounded-lg">
+                <p>เวลา: {formatDate(latestDeviceCheckData[0].sj)}</p>
+                <p>อุปกรณ์: {latestDeviceCheckData[0].dev_serial}</p>
+                <p>
+                  สถานะ:{' '}
+                  {latestDeviceCheckData[0].fx === 0 ? 'เข้างาน' : 'ออกงาน'}
+                </p>
+              </div>
             </div>
           )}
           {!showCamera ? (
