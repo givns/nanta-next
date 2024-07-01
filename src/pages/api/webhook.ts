@@ -95,7 +95,7 @@ const handler = async (event: WebhookEvent) => {
         } else {
           await client.replyMessage(event.replyToken, {
             type: 'text',
-            text: 'คำขอลานี้ได้รับการดำเนินการแล้วหรือการกระทำไม่ถูกต้อง',
+            text: 'คำขอลานี้ได้รับการดำเนินการแล้ว',
           });
         }
       } catch (error) {

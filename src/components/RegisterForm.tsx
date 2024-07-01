@@ -61,6 +61,7 @@ const RegisterForm = () => {
     values: FormValues,
     { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
   ) => {
+    console.log('handleSubmit called with values:', values);
     try {
       const response = await axios.post('/api/registerUser', {
         ...values,
@@ -225,7 +226,7 @@ const RegisterForm = () => {
                       className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
                       disabled={isSubmitting}
                     >
-                      ยืนยัน
+                      {isSubmitting ? 'กำลังส่งเก็บข้อมูล...' : 'ยืนยัน'}
                     </button>
                   </div>
                 </div>
