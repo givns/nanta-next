@@ -10,7 +10,7 @@ const client = new Client({
 
 interface ExternalUserData {
   user_no: string;
-  user_lname: string;
+  name: string;
   department: string;
 }
 
@@ -23,25 +23,41 @@ async function findExternalUser(
   );
 
   try {
-    let externalUsers = await query<ExternalUserData>(
-      'SELECT user_no, user_Iname, department FROM dt_user WHERE user_no = ?',
+    // First, let's get all columns for this user
+    let externalUsers: any[] = await query(
+      'SELECT * FROM dt_user WHERE user_no = ?',
       [employeeId],
     );
 
     if (externalUsers.length === 0) {
-      externalUsers = await query<ExternalUserData>(
-        'SELECT user_no, user_Iname, department FROM dt_user WHERE user_Iname LIKE ?',
-        [`%${name}%`],
+      // If not found by user_no, try searching by name
+      externalUsers = await query(
+        'SELECT * FROM dt_user WHERE name LIKE ? OR user_name LIKE ? OR user_Iname LIKE ?',
+        [`%${name}%`, `%${name}%`, `%${name}%`],
       );
     }
 
     if (externalUsers.length > 0) {
-      console.log('External user found:', externalUsers[0]);
+      const user = externalUsers[0] as Record<string, unknown>;
+      console.log('External user found. Columns:', Object.keys(user));
+
+      // Map the found user to our expected structure
+      const mappedUser: ExternalUserData = {
+        user_no: (user.user_no as string) || (user.employee_id as string) || '',
+        name:
+          (user.name as string) ||
+          (user.user_name as string) ||
+          (user.user_Iname as string) ||
+          '',
+        department: (user.department as string) || '',
+      };
+
+      console.log('Mapped external user:', mappedUser);
+      return mappedUser;
     } else {
       console.log('No external user found');
+      return null;
     }
-
-    return externalUsers.length > 0 ? externalUsers[0] : null;
   } catch (error) {
     console.error('Error in findExternalUser:', error);
     return null;
@@ -122,7 +138,7 @@ export default async function handler(
   try {
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
-    let externalUser;
+    let externalUser: ExternalUserData | null = null;
     try {
       externalUser = await findExternalUser(name, employeeId);
     } catch (error) {
@@ -154,7 +170,7 @@ export default async function handler(
       user = await prisma.user.create({
         data: {
           lineUserId,
-          name: externalUser ? externalUser.user_lname : name,
+          name: externalUser ? externalUser.name : name,
           nickname,
           department: externalUser ? externalUser.department : department,
           profilePictureUrl,
@@ -166,7 +182,7 @@ export default async function handler(
       user = await prisma.user.update({
         where: { lineUserId },
         data: {
-          name: externalUser ? externalUser.user_lname : name,
+          name: externalUser ? externalUser.name : name,
           nickname,
           department: externalUser ? externalUser.department : department,
           profilePictureUrl,
