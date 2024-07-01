@@ -61,8 +61,27 @@ export interface CheckOutFormData {
   deviceSerial?: string;
 }
 
-export interface externalCheckData {
-  dev_serial: string;
+export interface ExternalCheckData {
   sj: string;
-  dt_user: string;
+  user_serial: number;
+  bh: number;
+  fx: number | null; // Change this to number | null
+  iden: string | null;
+  dev_serial: string;
+  dev_state: number;
+  jlzp_serial: number | null;
+  gly_no: string | null;
+  lx: number;
+  shenhe: number;
+  yich: number;
+  deal_state: number;
+  dev_logic_bh: number | null;
+  healthstatus: number | null;
+  body_temp: string | null;
+  temp_error: string | null;
+  passport_no: string | null;
+  date: string;
+  time: string;
+  noti: number;
+  flagmax: number;
 }

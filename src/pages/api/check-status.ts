@@ -2,19 +2,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { query } from '../../utils/mysqlConnection';
-
+import { ExternalCheckData } from '../../types/user';
 const prisma = new PrismaClient();
 
 const MIN_CHECK_INTERVAL = 1 * 60 * 1000; // 1 minute in milliseconds, adjust as needed
-
-interface ExternalCheckData {
-  id: number;
-  user_serial: string;
-  sj: string;
-  fx: string | null;
-  bh: number;
-  dev_serial: string;
-}
 
 interface ExternalUserData {
   user_serial: string;
@@ -116,12 +107,12 @@ export default async function handler(
       message =
         'Too soon to check in/out. Please wait before attempting again.';
     } else if (
-      (userLatestCheckIn[0] && !userLatestCheckIn[0].fx) ||
-      (latestDeviceCheckIn[0] && !latestDeviceCheckIn[0].fx)
+      (userLatestCheckIn[0] && userLatestCheckIn[0].fx === 0) ||
+      (latestDeviceCheckIn[0] && latestDeviceCheckIn[0].fx === 0)
     ) {
       status = 'checkout';
       checkInId = userLatestCheckIn[0]
-        ? userLatestCheckIn[0].id.toString()
+        ? userLatestCheckIn[0].bh.toString()
         : null;
       deviceSerial = userLatestCheckIn[0]
         ? userLatestCheckIn[0].dev_serial
@@ -145,9 +136,11 @@ export default async function handler(
     console.log('Final status:', JSON.stringify(responseData, null, 2));
 
     return res.status(200).json(responseData);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error checking user status:', error);
-    return res.status(500).json({ message: 'Server error' });
+    return res
+      .status(500)
+      .json({ message: 'Server error', error: error.message });
   } finally {
     await prisma.$disconnect();
   }
