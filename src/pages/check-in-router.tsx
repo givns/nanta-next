@@ -13,7 +13,7 @@ const CheckInRouter: React.FC = () => {
     const fetchUserData = async () => {
       try {
         // Fetch user data from your API
-        const userResponse = await axios.get('/api/user');
+        const userResponse = await axios.get('/api/users');
         setUserData(userResponse.data);
 
         // Fetch attendance status
