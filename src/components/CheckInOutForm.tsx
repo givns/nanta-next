@@ -4,7 +4,7 @@ import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
-import { Attendance } from '../types/user';
+import { UserData, AttendanceStatus } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 
@@ -37,51 +37,65 @@ const PREMISES: Premise[] = [
 const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
-  const [isCheckingIn, setIsCheckingIn] = useState(true);
-  const [latestAttendance, setLatestAttendance] = useState<Attendance | null>(
-    null,
-  );
-  const [loading, setLoading] = useState(false);
+  const [attendanceStatus, setAttendanceStatus] =
+    useState<AttendanceStatus | null>(null);
   const [isLoadingCheckData, setIsLoadingCheckData] = useState(true);
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [deviceSerial, setDeviceSerial] = useState<string>('WEBAPP001');
-  const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState(1);
+  const [showCamera, setShowCamera] = useState(false);
+  const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [address, setAddress] = useState<string>('');
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
-  const [address, setAddress] = useState<string>('');
   const [reason, setReason] = useState<string>('');
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [showCamera, setShowCamera] = useState(false);
-  const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
-  const [inPremises, setInPremises] = useState<boolean>(false);
-  const router = useRouter();
+  const [deviceSerial, setDeviceSerial] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [inPremises, setInPremises] = useState(false);
+  const [apiKey, setApiKey] = useState<string | null>(null);
 
   const webcamRef = useRef<Webcam>(null);
 
-  const fetchAttendanceStatus = useCallback(async () => {
+  useEffect(() => {
+    fetchAttendanceStatus();
+    loadFaceDetectionModel();
+    fetchApiKey();
+  }, [userData.employeeId]);
+
+  const fetchAttendanceStatus = async () => {
     setIsLoadingCheckData(true);
     try {
-      const response = await axios.get('/api/check-status', {
+      const response = await axios.get<AttendanceStatus>('/api/check-status', {
         params: { employeeId: userData.employeeId },
       });
-      setIsCheckingIn(response.data.isCheckingIn);
-      setLatestAttendance(response.data.latestAttendance);
+      setAttendanceStatus(response.data);
     } catch (error) {
       console.error('Error fetching attendance status:', error);
       setError('Failed to fetch attendance status');
     } finally {
       setIsLoadingCheckData(false);
     }
-  }, [userData.employeeId]);
+  };
 
-  useEffect(() => {
-    fetchAttendanceStatus();
-    fetch('/api/getMapApiKey')
-      .then((res) => res.json())
-      .then((data) => setApiKey(data.apiKey));
-  }, [fetchAttendanceStatus]);
+  const loadFaceDetectionModel = async () => {
+    await tf.ready();
+    const loadedModel = await faceDetection.createDetector(
+      faceDetection.SupportedModels.MediaPipeFaceDetector,
+      { runtime: 'tfjs', modelType: 'short' },
+    );
+    setModel(loadedModel);
+    console.log('Face detection model loaded.');
+  };
+
+  const fetchApiKey = async () => {
+    try {
+      const response = await axios.get('/api/getMapApiKey');
+      setApiKey(response.data.apiKey);
+    } catch (error) {
+      console.error('Error fetching API key:', error);
+    }
+  };
 
   const calculateDistance = (
     lat1: number,
@@ -138,23 +152,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
   };
 
   useEffect(() => {
-    const loadFaceDetectionModel = async () => {
-      await tf.ready();
-      const model = await faceDetection.createDetector(
-        faceDetection.SupportedModels.MediaPipeFaceDetector,
-        {
-          runtime: 'tfjs',
-          modelType: 'short',
-        },
-      );
-      setModel(model);
-      console.log('Face detection model loaded.');
-    };
-
-    loadFaceDetectionModel();
-  }, []);
-
-  useEffect(() => {
     const getCurrentLocation = async () => {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -192,26 +189,30 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     getCurrentLocation();
   }, [isWithinPremises]);
 
-  const formatDate = (date: Date) => {
-    const options: Intl.DateTimeFormatOptions = {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('th-TH', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    };
-    return date.toLocaleString('th-TH', options);
+    });
   };
 
-  const getDeviceType = (devSerial: string) => {
-    return devSerial === '0010000' ? 'Nanta Next' : 'เครื่องสแกนใบหน้า';
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('th-TH', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  };
+  const getDeviceType = (deviceSerial: string | null) => {
+    if (!deviceSerial) return 'ไม่ทราบ';
+    return deviceSerial === 'WEBAPP001' ? 'Nanta Next' : 'เครื่องสแกนใบหน้า';
   };
 
   const handleOpenCamera = () => {
     setShowCamera(true);
-    setLatestAttendance(null);
   };
 
   const capturePhoto = async () => {
@@ -250,34 +251,32 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!userData.id || !location || !photo) {
-      setError('User ID, location, and photo are required.');
+  const handleCheckInOut = async () => {
+    if (!photo) {
+      setError('กรุณาถ่ายรูปก่อนลงเวลา');
       return;
     }
-    setLoading(true);
-    setError(null);
 
     try {
       const response = await axios.post('/api/check-in-out', {
         userId: userData.id,
         employeeId: userData.employeeId,
-        checkTime: new Date(),
-        location,
-        address,
-        reason: reason || undefined,
-        photo,
-        deviceSerial,
+        photo: photo,
+        timestamp: new Date().toISOString(),
+        isCheckIn: attendanceStatus?.isCheckingIn,
       });
 
-      setLatestAttendance(response.data);
-      setIsCheckingIn(!isCheckingIn);
-      router.push('/checkInOutSuccess');
+      if (response.data.success) {
+        await fetchAttendanceStatus(); // Refresh the attendance status
+        setStep(1); // Go back to the first step
+        setShowCamera(false);
+        setPhoto(null);
+      } else {
+        setError('เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง');
+      }
     } catch (error) {
-      console.error('Check-in/out failed:', error);
-      setError('Failed to process check-in/out');
-    } finally {
-      setLoading(false);
+      console.error('Error during check-in/out:', error);
+      setError('เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง');
     }
   };
 
@@ -293,22 +292,35 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
                 <div className="mb-4 text-center">
                   <p>กำลังโหลดข้อมูลการลงเวลาล่าสุด กรุณารอสักครู่...</p>
                 </div>
-              ) : latestAttendance ? (
+              ) : attendanceStatus?.latestAttendance ? (
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold mb-2">
                     สถานะการลงเวลาล่าสุดของคุณ:
                   </h3>
                   <div className="bg-gray-100 p-3 rounded-lg">
-                    <p>เวลา: {formatDate(latestAttendance.checkInTime)}</p>
+                    <p>
+                      วันที่:{' '}
+                      {formatDate(
+                        attendanceStatus.latestAttendance.checkInTime.toString(),
+                      )}
+                    </p>
+                    <p>
+                      เวลา:{' '}
+                      {formatTime(
+                        attendanceStatus.latestAttendance.checkInTime.toString(),
+                      )}
+                    </p>
                     <p>
                       วิธีการ:{' '}
                       {getDeviceType(
-                        latestAttendance.checkInDeviceSerial || 'WEBAPP001',
+                        attendanceStatus.latestAttendance.checkInDeviceSerial,
                       )}
                     </p>
                     <p>
                       สถานะ:{' '}
-                      {latestAttendance.checkOutTime ? 'ออกงาน' : 'เข้างาน'}
+                      {attendanceStatus.latestAttendance.checkOutTime
+                        ? 'ออกงาน'
+                        : 'เข้างาน'}
                     </p>
                   </div>
                 </div>
@@ -319,12 +331,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
               <button
                 onClick={handleOpenCamera}
                 className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-                aria-label={`เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+                aria-label={`เปิดกล้องเพื่อ${attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
               >
-                เปิดกล้องเพื่อ{isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+                เปิดกล้องเพื่อ
+                {attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
               </button>
             </>
           )}
+
           {showCamera && (
             <div className="mt-4">
               <Webcam
@@ -353,6 +367,35 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
         </div>
       )}
       {step === 2 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-2">
+            ยืนยันการ{attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+          </h3>
+          {photo && (
+            <img
+              src={photo}
+              alt="Captured"
+              className="w-full rounded-lg mb-4"
+            />
+          )}
+          <button
+            onClick={() => setStep(3)}
+            className="w-full bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition duration-300"
+          >
+            ถัดไป
+          </button>
+          <button
+            onClick={() => {
+              setStep(1);
+              setPhoto(null);
+            }}
+            className="w-full mt-2 bg-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-400 transition duration-300"
+          >
+            ถ่ายรูปใหม่
+          </button>
+        </div>
+      )}
+      {step === 3 && (
         <div>
           <div className="mb-4">
             <label
@@ -384,7 +427,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
                 htmlFor="reason-input"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                เหตุผลสำหรับการ{isCheckingIn ? 'เข้างาน' : 'ออกงาน'}นอกสถานที่
+                เหตุผลสำหรับการ
+                {attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+                นอกสถานที่
               </label>
               <input
                 type="text"
@@ -406,7 +451,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
             <input
               type="text"
               id="device-serial-input"
-              value={deviceSerial || ''}
+              value={deviceSerial}
               onChange={(e) => setDeviceSerial(e.target.value)}
               placeholder="รหัสอุปกรณ์"
               className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
@@ -415,18 +460,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
           <div className="mt-6">
             <button
-              onClick={handleSubmit}
+              onClick={handleCheckInOut}
               disabled={loading || (!inPremises && !reason)}
               className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
               aria-label={
                 loading
-                  ? `กำลังลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`
-                  : `ลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`
+                  ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`
+                  : `ลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`
               }
             >
               {loading
-                ? `กำลังลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
-                : `ลงเวลา${isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
+                ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
+                : `ลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
             </button>
           </div>
         </div>
