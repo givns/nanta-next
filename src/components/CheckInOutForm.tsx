@@ -4,7 +4,7 @@ import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
-import { UserData, AttendanceStatus } from '../types/user';
+import { AttendanceStatus } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 
@@ -15,6 +15,7 @@ interface CheckInOutFormProps {
     name: string;
   };
 }
+const BANGKOK_TIMEZONE = 'Asia/Bangkok';
 
 interface Premise {
   lat: number;
@@ -191,21 +192,25 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('th-TH', {
+    return new Intl.DateTimeFormat('th-TH', {
+      timeZone: BANGKOK_TIMEZONE,
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-    });
+    }).format(date);
   };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('th-TH', {
+    return new Intl.DateTimeFormat('th-TH', {
+      timeZone: BANGKOK_TIMEZONE,
       hour: '2-digit',
       minute: '2-digit',
+      second: '2-digit',
       hour12: false,
-    });
+    }).format(date);
   };
+
   const getDeviceType = (deviceSerial: string | null) => {
     if (!deviceSerial) return 'ไม่ทราบ';
     return deviceSerial === 'WEBAPP001' ? 'Nanta Next' : 'เครื่องสแกนใบหน้า';
@@ -252,31 +257,38 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
   };
 
   const handleCheckInOut = async () => {
-    if (!photo) {
-      setError('กรุณาถ่ายรูปก่อนลงเวลา');
-      return;
-    }
-
+    setLoading(true);
     try {
+      const bangkokTime = new Date().toLocaleString('en-US', {
+        timeZone: BANGKOK_TIMEZONE,
+      });
       const response = await axios.post('/api/check-in-out', {
         userId: userData.id,
         employeeId: userData.employeeId,
         photo: photo,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(bangkokTime).toISOString(),
         isCheckIn: attendanceStatus?.isCheckingIn,
+        location,
+        address,
+        reason: !inPremises ? reason : undefined,
+        deviceSerial: deviceSerial || undefined,
       });
 
       if (response.data.success) {
-        await fetchAttendanceStatus(); // Refresh the attendance status
-        setStep(1); // Go back to the first step
+        await fetchAttendanceStatus();
+        setStep(1);
         setShowCamera(false);
         setPhoto(null);
+        setReason('');
+        setDeviceSerial('');
       } else {
         setError('เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง');
       }
     } catch (error) {
       console.error('Error during check-in/out:', error);
       setError('เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง');
+    } finally {
+      setLoading(false);
     }
   };
 
