@@ -205,6 +205,32 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     }).format(date);
   };
 
+  const convertUTCToBangkokDate = (utcDateString: string) => {
+    const date = new Date(utcDateString);
+    return new Date(date.getTime() + 7 * 60 * 60 * 1000).toLocaleDateString(
+      'th-TH',
+      {
+        timeZone: 'Asia/Bangkok',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      },
+    );
+  };
+
+  const convertUTCToBangkokTime = (utcDateString: string) => {
+    const date = new Date(utcDateString);
+    return new Date(date.getTime() + 7 * 60 * 60 * 1000).toLocaleTimeString(
+      'th-TH',
+      {
+        timeZone: 'Asia/Bangkok',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      },
+    );
+  };
+
   const getDeviceType = (deviceSerial: string | null) => {
     if (!deviceSerial) return 'ไม่ทราบ';
     return deviceSerial === 'WEBAPP001' ? 'Nanta Next' : 'เครื่องสแกนใบหน้า';
@@ -254,21 +280,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
   const handleCheckInOut = async () => {
     setLoading(true);
+    setError(null); // Reset error state
     try {
-      const bangkokTime = new Date().toLocaleString('en-US', {
-        timeZone: BANGKOK_TIMEZONE,
-      });
       const response = await axios.post('/api/check-in-out', {
         userId: userData.id,
         employeeId: userData.employeeId,
         photo: photo,
-        timestamp: new Date(bangkokTime).toISOString(),
+        timestamp: new Date().toISOString(), // Use ISO string for consistency
         isCheckIn: attendanceStatus?.isCheckingIn,
         location,
         address,
         reason: !inPremises ? reason : undefined,
         deviceSerial: deviceSerial || undefined,
       });
+
+      console.log('Check-in/out response:', response.data);
 
       if (response.data.success) {
         await fetchAttendanceStatus();
@@ -278,11 +304,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
         setReason('');
         setDeviceSerial('');
       } else {
-        setError('เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง');
+        setError(
+          response.data.error || 'เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง',
+        );
       }
     } catch (error) {
       console.error('Error during check-in/out:', error);
-      setError('เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง');
+      if (axios.isAxiosError(error) && error.response) {
+        setError(
+          `เกิดข้อผิดพลาดในการลงเวลา: ${error.response.data.message || error.message}`,
+        );
+      } else {
+        setError('เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ กรุณาลองอีกครั้ง');
+      }
     } finally {
       setLoading(false);
     }
@@ -307,8 +341,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
                   </h3>
                   <div className="bg-gray-100 p-3 rounded-lg">
                     <p>
-                      วันที่และเวลา:{' '}
-                      {formatDateTime(
+                      วันที่:{' '}
+                      {convertUTCToBangkokDate(
+                        attendanceStatus.latestAttendance.checkInTime.toString(),
+                      )}
+                    </p>
+                    <p>
+                      เวลา:{' '}
+                      {convertUTCToBangkokTime(
                         attendanceStatus.latestAttendance.checkInTime.toString(),
                       )}
                     </p>
