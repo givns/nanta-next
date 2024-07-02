@@ -201,12 +201,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     });
   };
 
-  const convertToBangkokTime = (DateString: string) => {
-    const date = new Date(DateString);
-    const bangkokTime = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+  const convertToBangkokTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const bangkokTime = new Date(date.getTime() + 7 * 60 * 60 * 1000); // Add 7 hours for Bangkok time
     return bangkokTime.toLocaleTimeString('th-TH', {
       hour: '2-digit',
       minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Bangkok',
+    });
+  };
+
+  const getCurrentBangkokTime = () => {
+    const now = new Date();
+    return now.toLocaleString('th-TH', {
+      timeZone: 'Asia/Bangkok',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
       hour12: false,
     });
   };
@@ -226,22 +238,27 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     if (webcamRef.current && model) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
-        const img = new Image();
-        img.src = imageSrc;
-        await new Promise((resolve) => {
-          img.onload = resolve;
-        });
+        try {
+          const img = new Image();
+          img.src = imageSrc;
+          await new Promise((resolve) => {
+            img.onload = resolve;
+          });
 
-        const detections = await model.estimateFaces(img);
+          const detections = await model.estimateFaces(img);
 
-        if (detections.length > 0) {
-          console.log('Photo captured successfully');
-          setPhoto(imageSrc);
-          setShowCamera(false);
-          setStep(2); // Move to the next step after successful capture
-        } else {
-          console.error('No face detected');
-          setError('ไม่พบใบหน้า กรุณาลองอีกครั้ง');
+          if (detections.length > 0) {
+            console.log('Photo captured successfully');
+            setPhoto(imageSrc);
+            setShowCamera(false);
+            setStep(2); // Automatically proceed to next step
+          } else {
+            console.error('No face detected');
+            setError('ไม่พบใบหน้า กรุณาลองอีกครั้ง');
+          }
+        } catch (error) {
+          console.error('Error during face detection:', error);
+          setError('เกิดข้อผิดพลาดในการตรวจจับใบหน้า กรุณาลองอีกครั้ง');
         }
       } else {
         console.error('Failed to capture photo: imageSrc is null');
@@ -262,13 +279,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
       const checkInOutData = {
         userId: userData.id,
         employeeId: userData.employeeId,
-        photo: photo,
-        timestamp: new Date().toISOString(),
-        isCheckIn: attendanceStatus?.isCheckingIn,
-        location: location, // Make sure this is defined
-        address: address, // Make sure this is defined
+        checkTime: getCurrentBangkokTime(),
+        location: JSON.stringify(location), // Stringify the location object
+        address,
         reason: !inPremises ? reason : undefined,
-        deviceSerial: deviceSerial || undefined,
+        photo,
+        deviceSerial: deviceSerial || 'WEBAPP001',
+        isCheckIn: attendanceStatus?.isCheckingIn,
       };
 
       console.log('Submitting data:', checkInOutData);
@@ -277,7 +294,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
       console.log('Check-in/out response:', response.data);
 
-      if (response.data.success) {
+      if (response.data) {
         await fetchAttendanceStatus();
         setStep(1);
         setShowCamera(false);
@@ -285,9 +302,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
         setReason('');
         setDeviceSerial('');
       } else {
-        setError(
-          response.data.error || 'เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง',
-        );
+        setError('เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง');
       }
     } catch (error) {
       console.error('Error during check-in/out:', error);
