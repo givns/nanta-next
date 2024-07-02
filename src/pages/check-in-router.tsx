@@ -12,8 +12,13 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
+        // Fetch lineUserId from your source (e.g., LIFF or localStorage)
+        const lineUserId = 'your-fetched-lineUserId'; // Replace with actual lineUserId fetching logic
+
         // Fetch user data from your API
-        const userResponse = await axios.get('/api/users');
+        const userResponse = await axios.get('/api/users', {
+          params: { lineUserId },
+        });
         setUserData(userResponse.data);
 
         // Fetch attendance status

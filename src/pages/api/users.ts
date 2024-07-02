@@ -1,4 +1,4 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 
 export default async function handler(
@@ -7,24 +7,22 @@ export default async function handler(
 ) {
   const { lineUserId } = req.query;
 
-  if (req.method === 'GET') {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { lineUserId: lineUserId as string },
-        select: { id: true, role: true, name: true, department: true },
-      });
+  if (!lineUserId) {
+    return res.status(400).json({ error: 'Missing lineUserId parameter' });
+  }
 
-      if (user) {
-        res.status(200).json(user);
-      } else {
-        res.status(404).json({ error: 'User not found' });
-      }
-    } catch (error) {
-      console.error('Error fetching user:', error);
-      res.status(500).json({ error: 'Internal server error' });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { lineUserId: lineUserId as string },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
-  } else {
-    res.setHeader('Allow', ['GET']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
