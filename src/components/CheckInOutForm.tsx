@@ -240,6 +240,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
           setPhoto(imageSrc);
           setShowCamera(false);
           setStep(2); // Move to the next step after successful capture
+          setError(null); // Clear any existing error
         } else {
           console.error('No face detected');
           setError('ไม่พบใบหน้า กรุณาลองอีกครั้ง');
@@ -391,19 +392,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
             />
           )}
           <button
-            onClick={() => setStep(3)}
-            className="w-full bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition duration-300"
+            onClick={handleCheckInOut}
+            className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+            disabled={loading}
+            aria-label={
+              loading
+                ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`
+                : `ยืนยันการ${attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+            }
           >
-            ถัดไป
-          </button>
-          <button
-            onClick={() => {
-              setStep(1);
-              setPhoto(null);
-            }}
-            className="w-full mt-2 bg-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-400 transition duration-300"
-          >
-            ถ่ายรูปใหม่
+            {loading
+              ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
+              : `ยืนยันการ${attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
           </button>
         </div>
       )}

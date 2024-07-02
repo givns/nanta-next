@@ -24,6 +24,8 @@ export default async function handler(
     deviceSerial,
   } = req.body;
 
+  console.log('Request body:', req.body);
+
   if (
     !userId ||
     !employeeId ||
@@ -32,6 +34,7 @@ export default async function handler(
     !address ||
     !deviceSerial
   ) {
+    console.error('Missing required fields');
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
@@ -46,9 +49,10 @@ export default async function handler(
       photo,
       deviceSerial,
     });
+    console.log('Attendance processed successfully:', attendance);
     res.status(200).json(attendance);
   } catch (error) {
     console.error('Check-in/out failed:', error);
-    res.status(500).json({ message: 'Check-in/out failed' });
+    res.status(500).json({ message: 'Check-in/out failed', error });
   }
 }
