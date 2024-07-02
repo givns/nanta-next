@@ -191,44 +191,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     getCurrentLocation();
   }, [isWithinPremises]);
 
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('th-TH', {
-      timeZone: BANGKOK_TIMEZONE,
+  const convertToBangkokDate = (DateString: string) => {
+    const date = new Date(DateString);
+    return date.toLocaleDateString('th-TH', {
+      timeZone: 'Asia/Bangkok',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+    });
+  };
+
+  const convertToBangkokTime = (DateString: string) => {
+    const date = new Date(DateString);
+    return date.toLocaleTimeString('th-TH', {
+      timeZone: 'Asia/Bangkok',
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
       hour12: false,
-    }).format(date);
-  };
-
-  const convertUTCToBangkokDate = (utcDateString: string) => {
-    const date = new Date(utcDateString);
-    return new Date(date.getTime() + 7 * 60 * 60 * 1000).toLocaleDateString(
-      'th-TH',
-      {
-        timeZone: 'Asia/Bangkok',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      },
-    );
-  };
-
-  const convertUTCToBangkokTime = (utcDateString: string) => {
-    const date = new Date(utcDateString);
-    return new Date(date.getTime() + 7 * 60 * 60 * 1000).toLocaleTimeString(
-      'th-TH',
-      {
-        timeZone: 'Asia/Bangkok',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      },
-    );
+    });
   };
 
   const getDeviceType = (deviceSerial: string | null) => {
@@ -280,19 +260,23 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
   const handleCheckInOut = async () => {
     setLoading(true);
-    setError(null); // Reset error state
+    setError(null);
     try {
-      const response = await axios.post('/api/check-in-out', {
+      const checkInOutData = {
         userId: userData.id,
         employeeId: userData.employeeId,
         photo: photo,
-        timestamp: new Date().toISOString(), // Use ISO string for consistency
+        timestamp: new Date().toISOString(),
         isCheckIn: attendanceStatus?.isCheckingIn,
-        location,
-        address,
+        location: location, // Make sure this is defined
+        address: address, // Make sure this is defined
         reason: !inPremises ? reason : undefined,
         deviceSerial: deviceSerial || undefined,
-      });
+      };
+
+      console.log('Submitting data:', checkInOutData);
+
+      const response = await axios.post('/api/check-in-out', checkInOutData);
 
       console.log('Check-in/out response:', response.data);
 
@@ -342,13 +326,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
                   <div className="bg-gray-100 p-3 rounded-lg">
                     <p>
                       วันที่:{' '}
-                      {convertUTCToBangkokDate(
+                      {convertToBangkokDate(
                         attendanceStatus.latestAttendance.checkInTime.toString(),
                       )}
                     </p>
                     <p>
                       เวลา:{' '}
-                      {convertUTCToBangkokTime(
+                      {convertToBangkokTime(
                         attendanceStatus.latestAttendance.checkInTime.toString(),
                       )}
                     </p>
