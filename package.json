@@ -30,6 +30,7 @@
     "@tensorflow-models/face-detection": "^1.0.2",
     "@tensorflow/tfjs": "^4.20.0",
     "@types/localforage": "^0.0.34",
+    "@types/react-webcam": "^3.0.0",
     "@vercel/node": "^3.2.0",
     "assert": "^2.1.0",
     "axios": "^1.7.2",

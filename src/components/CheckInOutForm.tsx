@@ -15,6 +15,7 @@ interface CheckInOutFormProps {
     name: string;
   };
 }
+
 const BANGKOK_TIMEZONE = 'Asia/Bangkok';
 
 interface Premise {
@@ -31,7 +32,7 @@ const PREMISES: Premise[] = [
     lat: 13.747920392683099,
     lng: 100.63441771348242,
     radius: 100,
-    name: 'Bat Cave',
+    name: 'สำนักงานใหญ่',
   },
 ];
 
@@ -190,20 +191,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     getCurrentLocation();
   }, [isWithinPremises]);
 
-  const formatDate = (dateString: string) => {
+  const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('th-TH', {
       timeZone: BANGKOK_TIMEZONE,
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-    }).format(date);
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('th-TH', {
-      timeZone: BANGKOK_TIMEZONE,
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
@@ -218,6 +212,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
   const handleOpenCamera = () => {
     setShowCamera(true);
+    setError(null); // Clear any existing errors when opening the camera
   };
 
   const capturePhoto = async () => {
@@ -231,16 +226,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
           img.onload = resolve;
         });
 
-        const detections = await model.estimateFaces(img, {
-          flipHorizontal: false,
-        });
+        // Convert the Image to an HTMLImageElement
+        const imgElement = img as unknown as HTMLImageElement;
+
+        const detections = await model.estimateFaces(imgElement);
 
         if (detections.length > 0) {
           console.log('Photo captured successfully');
           setPhoto(imageSrc);
           setShowCamera(false);
           setStep(2); // Move to the next step after successful capture
-          setError(null); // Clear any existing error
         } else {
           console.error('No face detected');
           setError('ไม่พบใบหน้า กรุณาลองอีกครั้ง');
@@ -312,14 +307,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
                   </h3>
                   <div className="bg-gray-100 p-3 rounded-lg">
                     <p>
-                      วันที่:{' '}
-                      {formatDate(
-                        attendanceStatus.latestAttendance.checkInTime.toString(),
-                      )}
-                    </p>
-                    <p>
-                      เวลา:{' '}
-                      {formatTime(
+                      วันที่และเวลา:{' '}
+                      {formatDateTime(
                         attendanceStatus.latestAttendance.checkInTime.toString(),
                       )}
                     </p>
@@ -392,18 +381,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
             />
           )}
           <button
-            onClick={handleCheckInOut}
+            onClick={() => setStep(3)}
             className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-            disabled={loading}
-            aria-label={
-              loading
-                ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`
-                : `ยืนยันการ${attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-            }
           >
-            {loading
-              ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
-              : `ยืนยันการ${attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+            ถัดไป
           </button>
         </div>
       )}
@@ -453,23 +434,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
               />
             </div>
           )}
-          <div className="mt-4">
-            <label
-              htmlFor="device-serial-input"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              รหัสอุปกรณ์ (ถ้าใช้อุปกรณ์ภายนอก)
-            </label>
-            <input
-              type="text"
-              id="device-serial-input"
-              value={deviceSerial}
-              onChange={(e) => setDeviceSerial(e.target.value)}
-              placeholder="รหัสอุปกรณ์"
-              className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
-            />
-          </div>
-
           <div className="mt-6">
             <button
               onClick={handleCheckInOut}
