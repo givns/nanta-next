@@ -75,6 +75,11 @@ export class AttendanceService {
   }
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {
+    const checkTime = new Date(data.checkTime);
+    if (isNaN(checkTime.getTime())) {
+      throw new Error('Invalid checkTime provided');
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
     });
@@ -98,10 +103,11 @@ export class AttendanceService {
   }
 
   private async processCheckIn(data: AttendanceData): Promise<Attendance> {
+    const checkTime = new Date(data.checkTime);
     const attendance = await prisma.attendance.create({
       data: {
         userId: data.userId,
-        checkInTime: data.checkTime,
+        checkInTime: checkTime,
         checkInLocation: JSON.stringify(data.location),
         checkInAddress: data.address,
         checkInReason: data.reason || '',
@@ -114,7 +120,7 @@ export class AttendanceService {
 
     await externalDb.createCheckIn({
       employeeId: data.employeeId,
-      timestamp: data.checkTime,
+      timestamp: checkTime,
       checkType: 0, // 0 for check-in
       deviceSerial: data.deviceSerial,
     });
@@ -126,10 +132,11 @@ export class AttendanceService {
     attendanceId: string,
     data: AttendanceData,
   ): Promise<Attendance> {
+    const checkTime = new Date(data.checkTime);
     const updatedAttendance = await prisma.attendance.update({
       where: { id: attendanceId },
       data: {
-        checkOutTime: data.checkTime,
+        checkOutTime: checkTime,
         checkOutLocation: JSON.stringify(data.location),
         checkOutAddress: data.address,
         checkOutReason: data.reason || null,
@@ -141,7 +148,7 @@ export class AttendanceService {
 
     await externalDb.updateCheckOut({
       employeeId: data.employeeId,
-      timestamp: data.checkTime,
+      timestamp: checkTime,
       checkType: 1, // 1 for check-out
       deviceSerial: data.deviceSerial,
     });
@@ -154,7 +161,11 @@ export class AttendanceService {
     externalData: ExternalCheckInData,
   ): Promise<Attendance> {
     const isCheckOut = externalData.fx !== 0;
+    const checkInTime = new Date(externalData.sj);
 
+    if (isNaN(checkInTime.getTime())) {
+      throw new Error('Invalid date in external data');
+    }
     const attendanceData = {
       userId: userId,
       checkInTime: new Date(externalData.sj),
@@ -222,7 +233,7 @@ export class AttendanceService {
 interface AttendanceData {
   userId: string;
   employeeId: string;
-  checkTime: Date;
+  checkTime: string;
   location: { lat: number; lng: number };
   address: string;
   reason?: string;

@@ -42,7 +42,7 @@ export default async function handler(
     const attendance = await attendanceService.processAttendance({
       userId,
       employeeId,
-      checkTime: new Date(checkTime),
+      checkTime: checkTime,
       location,
       address,
       reason,

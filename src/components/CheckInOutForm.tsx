@@ -203,24 +203,25 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
   const convertToBangkokTime = (dateString: string) => {
     const date = new Date(dateString);
-    const bangkokTime = new Date(date.getTime() + 7 * 60 * 60 * 1000); // Add 7 hours for Bangkok time
-    return bangkokTime.toLocaleTimeString('th-TH', {
+    return new Intl.DateTimeFormat('th-TH', {
+      timeZone: 'Asia/Bangkok',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
-      timeZone: 'Asia/Bangkok',
-    });
+    }).format(date);
   };
 
   const getCurrentBangkokTime = () => {
-    const now = new Date();
-    return now.toLocaleString('th-TH', {
+    return new Intl.DateTimeFormat('th-TH', {
       timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
       hour12: false,
-    });
+    }).format(new Date());
   };
 
   const getDeviceType = (deviceSerial: string | null) => {
@@ -251,7 +252,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
             console.log('Photo captured successfully');
             setPhoto(imageSrc);
             setShowCamera(false);
-            setStep(2); // Automatically proceed to next step
+            setStep(2); // This should move to the next step
+            console.log('Step set to 2');
           } else {
             console.error('No face detected');
             setError('ไม่พบใบหน้า กรุณาลองอีกครั้ง');
@@ -279,8 +281,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
       const checkInOutData = {
         userId: userData.id,
         employeeId: userData.employeeId,
-        checkTime: getCurrentBangkokTime(),
-        location: JSON.stringify(location), // Stringify the location object
+        checkTime: new Date().toISOString(),
+        location: JSON.stringify(location),
         address,
         reason: !inPremises ? reason : undefined,
         photo,
