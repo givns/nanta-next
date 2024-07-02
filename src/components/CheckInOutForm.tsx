@@ -203,8 +203,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
   const convertToBangkokTime = (DateString: string) => {
     const date = new Date(DateString);
-    return date.toLocaleTimeString('th-TH', {
-      timeZone: 'Asia/Bangkok',
+    const bangkokTime = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+    return bangkokTime.toLocaleTimeString('th-TH', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
@@ -218,10 +218,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
   const handleOpenCamera = () => {
     setShowCamera(true);
-    setError(null); // Clear any existing errors when opening the camera
   };
 
   const capturePhoto = async () => {
+    setError(null);
     console.log('Attempting to capture photo');
     if (webcamRef.current && model) {
       const imageSrc = webcamRef.current.getScreenshot();
@@ -232,10 +232,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
           img.onload = resolve;
         });
 
-        // Convert the Image to an HTMLImageElement
-        const imgElement = img as unknown as HTMLImageElement;
-
-        const detections = await model.estimateFaces(imgElement);
+        const detections = await model.estimateFaces(img);
 
         if (detections.length > 0) {
           console.log('Photo captured successfully');
