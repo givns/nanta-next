@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { UserData, AttendanceStatus } from '../types/user';
 import axios from 'axios';
+import liff from '@line/liff';
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -10,29 +11,34 @@ const CheckInRouter: React.FC = () => {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUserData = async () => {
+    const initializeLiff = async () => {
       try {
-        // Fetch lineUserId from your source (e.g., LIFF or localStorage)
-        const lineUserId = 'your-fetched-lineUserId'; // Replace with actual lineUserId fetching logic
+        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          const lineUserId = profile.userId;
 
-        // Fetch user data from your API
-        const userResponse = await axios.get('/api/users', {
-          params: { lineUserId },
-        });
-        setUserData(userResponse.data);
+          // Fetch user data from your API
+          const userResponse = await axios.get('/api/users', {
+            params: { lineUserId },
+          });
+          setUserData(userResponse.data);
 
-        // Fetch attendance status
-        const statusResponse = await axios.get('/api/check-status', {
-          params: { employeeId: userResponse.data.employeeId },
-        });
-        setAttendanceStatus(statusResponse.data);
+          // Fetch attendance status
+          const statusResponse = await axios.get('/api/check-status', {
+            params: { employeeId: userResponse.data.employeeId },
+          });
+          setAttendanceStatus(statusResponse.data);
+        } else {
+          liff.login();
+        }
       } catch (error) {
-        console.error('Error fetching user data or attendance status:', error);
+        console.error('Error initializing LIFF or fetching data:', error);
         setMessage('Failed to load user data or attendance status');
       }
     };
 
-    fetchUserData();
+    initializeLiff();
   }, []);
 
   if (!userData || !attendanceStatus) {
