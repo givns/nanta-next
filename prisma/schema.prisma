@@ -78,7 +78,7 @@ model Attendance {
   checkOutTime      DateTime?
   checkInLocation   Json
   checkOutLocation  Json?
-  checkInAddress    String
+  checkInAddress    String?
   checkOutAddress   String?
   checkInReason     String?
   checkOutReason    String?
@@ -86,9 +86,9 @@ model Attendance {
   checkOutPhoto     String?
   checkInDeviceSerial  String?
   checkOutDeviceSerial String?
-  source            String   // "web" or "face_scan"
-  externalCheckId   String?  // To store the ID from the external system
-  createdAt         DateTime @default(now())
+  status           String    // e.g., "checked-in", "checked-out", "incomplete"
+  isManualEntry    Boolean   @default(false)
+  createdAt        DateTime  @default(now())
   updatedAt         DateTime @updatedAt
 
   user      User     @relation(fields: [userId], references: [id])

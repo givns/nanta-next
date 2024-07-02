@@ -4,19 +4,16 @@ import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
-import {
-  UserData,
-  Attendance,
-  CheckInFormData,
-  CheckOutFormData,
-} from '../types/user';
+import { Attendance } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 
 interface CheckInOutFormProps {
-  userData: UserData;
-  isCheckingIn: boolean;
-  attendanceId?: string;
+  userData: {
+    id: string;
+    employeeId: string;
+    name: string;
+  };
 }
 
 interface Premise {
@@ -39,19 +36,16 @@ const PREMISES: Premise[] = [
 
 const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
-const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
-  userData,
-  attendanceId,
-}) => {
-  const [isCheckingIn, setIsCheckingIn] = useState<boolean>(true);
-  const [latestCheckData, setLatestCheckData] = useState<Attendance | null>(
+const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
+  const [isCheckingIn, setIsCheckingIn] = useState(true);
+  const [latestAttendance, setLatestAttendance] = useState<Attendance | null>(
     null,
   );
+  const [loading, setLoading] = useState(false);
   const [isLoadingCheckData, setIsLoadingCheckData] = useState(true);
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [deviceSerial, setDeviceSerial] = useState<string | null>(null);
+  const [deviceSerial, setDeviceSerial] = useState<string>('WEBAPP001');
   const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
@@ -66,28 +60,28 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const webcamRef = useRef<Webcam>(null);
 
+  const fetchAttendanceStatus = useCallback(async () => {
+    setIsLoadingCheckData(true);
+    try {
+      const response = await axios.get('/api/check-status', {
+        params: { employeeId: userData.employeeId },
+      });
+      setIsCheckingIn(response.data.isCheckingIn);
+      setLatestAttendance(response.data.latestAttendance);
+    } catch (error) {
+      console.error('Error fetching attendance status:', error);
+      setError('Failed to fetch attendance status');
+    } finally {
+      setIsLoadingCheckData(false);
+    }
+  }, [userData.employeeId]);
+
   useEffect(() => {
-    const fetchCheckStatus = async () => {
-      setIsLoadingCheckData(true);
-      try {
-        const response = await axios.get('/api/check-status', {
-          params: { lineUserId: userData.lineUserId },
-        });
-        console.log('Check status response:', response.data);
-        const { isCheckingIn, latestCheckData } = response.data;
-
-        setIsCheckingIn(isCheckingIn);
-        setLatestCheckData(latestCheckData);
-      } catch (error) {
-        console.error('Error fetching check status:', error);
-        setError('Failed to fetch check status. Please try again.');
-      } finally {
-        setIsLoadingCheckData(false);
-      }
-    };
-
-    fetchCheckStatus();
-  }, [userData.lineUserId]);
+    fetchAttendanceStatus();
+    fetch('/api/getMapApiKey')
+      .then((res) => res.json())
+      .then((data) => setApiKey(data.apiKey));
+  }, [fetchAttendanceStatus]);
 
   const calculateDistance = (
     lat1: number,
@@ -142,12 +136,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       return 'Unable to fetch address';
     }
   };
-
-  useEffect(() => {
-    fetch('/api/getMapApiKey')
-      .then((res) => res.json())
-      .then((data) => setApiKey(data.apiKey));
-  }, []);
 
   useEffect(() => {
     const loadFaceDetectionModel = async () => {
@@ -223,7 +211,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handleOpenCamera = () => {
     setShowCamera(true);
-    setLatestCheckData(null); // Clear the check data when opening camera
+    setLatestAttendance(null);
   };
 
   const capturePhoto = async () => {
@@ -267,73 +255,27 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setError('User ID, location, and photo are required.');
       return;
     }
-    if (!isCheckingIn && !attendanceId) {
-      setError('Attendance ID is required for check-out.');
-      return;
-    }
     setLoading(true);
     setError(null);
 
     try {
-      const now = new Date();
-      const thaiTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-      const timestamp = thaiTime.toISOString();
+      const response = await axios.post('/api/check-in-out', {
+        userId: userData.id,
+        employeeId: userData.employeeId,
+        checkTime: new Date(),
+        location,
+        address,
+        reason: reason || undefined,
+        photo,
+        deviceSerial,
+      });
 
-      let formData: CheckInFormData | CheckOutFormData;
-
-      if (isCheckingIn) {
-        formData = {
-          userId: userData.id,
-          location,
-          address,
-          reason: reason || undefined,
-          photo,
-          timestamp,
-          deviceSerial: deviceSerial || undefined,
-        };
-      } else {
-        formData = {
-          attendanceId: attendanceId!,
-          location,
-          address,
-          reason: reason || undefined,
-          photo,
-          timestamp,
-          deviceSerial: deviceSerial || undefined,
-        };
-      }
-
-      console.log(
-        `Sending ${isCheckingIn ? 'check-in' : 'check-out'} data:`,
-        JSON.stringify(formData, null, 2),
-      );
-
-      const endpoint = isCheckingIn ? '/api/check-in' : '/api/check-out';
-      const response = await axios.post<{ data: Attendance }>(
-        endpoint,
-        formData,
-      );
-
-      console.log(
-        `${isCheckingIn ? 'Check-in' : 'Check-out'} response:`,
-        response.data,
-      );
-
-      if (response.status === 200) {
-        router.push('/checkInOutSuccess');
-      }
+      setLatestAttendance(response.data);
+      setIsCheckingIn(!isCheckingIn);
+      router.push('/checkInOutSuccess');
     } catch (error) {
-      console.error(
-        `${isCheckingIn ? 'Check-in' : 'Check-out'} failed:`,
-        error,
-      );
-      if (axios.isAxiosError(error) && error.response) {
-        setError(
-          `Failed to ${isCheckingIn ? 'check in' : 'check out'}: ${error.response.data.message || error.message}`,
-        );
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
+      console.error('Check-in/out failed:', error);
+      setError('Failed to process check-in/out');
     } finally {
       setLoading(false);
     }
@@ -344,7 +286,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       {step === 1 && (
         <div>
           <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
-          <p className="text-md mb-4 text-gray-600">{userData.department}</p>
 
           {!showCamera && (
             <>
@@ -352,22 +293,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 <div className="mb-4 text-center">
                   <p>กำลังโหลดข้อมูลการลงเวลาล่าสุด กรุณารอสักครู่...</p>
                 </div>
-              ) : latestCheckData ? (
+              ) : latestAttendance ? (
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold mb-2">
                     สถานะการลงเวลาล่าสุดของคุณ:
                   </h3>
                   <div className="bg-gray-100 p-3 rounded-lg">
-                    <p>เวลา: {formatDate(latestCheckData.checkInTime)}</p>
+                    <p>เวลา: {formatDate(latestAttendance.checkInTime)}</p>
                     <p>
                       วิธีการ:{' '}
                       {getDeviceType(
-                        latestCheckData.checkInDeviceSerial || '0010000',
+                        latestAttendance.checkInDeviceSerial || 'WEBAPP001',
                       )}
                     </p>
                     <p>
                       สถานะ:{' '}
-                      {latestCheckData.checkOutTime ? 'ออกงาน' : 'เข้างาน'}
+                      {latestAttendance.checkOutTime ? 'ออกงาน' : 'เข้างาน'}
                     </p>
                   </div>
                 </div>
@@ -378,13 +319,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               <button
                 onClick={handleOpenCamera}
                 className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-                aria-label="เปิดกล้องเพื่อถ่ายรูป"
+                aria-label={`เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
               >
-                เปิดกล้องเพื่อถ่ายรูป
+                เปิดกล้องเพื่อ{isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
               </button>
             </>
           )}
-          {!showCamera && (
+          {showCamera && (
             <div className="mt-4">
               <Webcam
                 audio={false}
@@ -498,4 +439,5 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 };
+
 export default CheckInOutForm;

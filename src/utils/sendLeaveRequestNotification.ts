@@ -1,6 +1,6 @@
 import { Client, FlexMessage, FlexComponent } from '@line/bot-sdk';
-import { LeaveRequest, User } from '@prisma/client';
-import { UserRole } from '../types/user';
+import { LeaveRequest, User, UserRole } from '@prisma/client';
+
 import prisma from '../lib/prisma';
 
 const client = new Client({

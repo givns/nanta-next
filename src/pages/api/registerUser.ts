@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { Client } from '@line/bot-sdk';
-import { UserRole } from '../../types/user';
-import { query } from '../../services/ExternalDbService';
+import { query } from '../../utils/mysqlConnection';
+import { UserRole } from '@prisma/client';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',

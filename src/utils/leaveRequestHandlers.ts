@@ -1,6 +1,5 @@
-import { PrismaClient, LeaveRequest } from '@prisma/client';
+import { PrismaClient, LeaveRequest, UserRole } from '@prisma/client';
 import { Client } from '@line/bot-sdk';
-import { UserRole } from '../types/user';
 import {
   sendApproveNotification,
   sendDenyNotification,
