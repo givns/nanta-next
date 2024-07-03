@@ -1,22 +1,15 @@
-import { useRouter } from 'next/router';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
-import { AttendanceStatus } from '../types/user';
+import { AttendanceStatus, UserData } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 
 interface CheckInOutFormProps {
-  userData: {
-    id: string;
-    employeeId: string;
-    name: string;
-  };
+  userData: UserData;
 }
-
-const BANGKOK_TIMEZONE = 'Asia/Bangkok';
 
 interface Premise {
   lat: number;
@@ -209,19 +202,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
       minute: '2-digit',
       hour12: false,
     }).format(date);
-  };
-
-  const getCurrentBangkokTime = () => {
-    return new Intl.DateTimeFormat('th-TH', {
-      timeZone: 'Asia/Bangkok',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).format(new Date());
   };
 
   const getDeviceType = (deviceSerial: string | null) => {

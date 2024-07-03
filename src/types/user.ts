@@ -27,6 +27,17 @@ export interface AttendanceStatus {
   isCheckingIn: boolean;
 }
 
+export interface AttendanceData {
+  userId: string;
+  employeeId: string;
+  checkTime: string;
+  location: { lat: number; lng: number };
+  address: string;
+  reason?: string;
+  photo?: string;
+  deviceSerial: string;
+}
+
 export interface CheckInFormData {
   userId: string;
   employeeId: string;

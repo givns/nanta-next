@@ -2,7 +2,11 @@
 
 import { PrismaClient, Attendance } from '@prisma/client';
 import { ExternalDbService } from './ExternalDbService';
-import { UserData, AttendanceStatus, ExternalCheckInData } from '../types/user';
+import {
+  AttendanceStatus,
+  ExternalCheckInData,
+  AttendanceData,
+} from '../types/user';
 
 const prisma = new PrismaClient();
 const externalDb = new ExternalDbService();
@@ -11,26 +15,8 @@ export class AttendanceService {
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatus> {
-    const user = await prisma.user.findUnique({
-      where: { employeeId },
-    });
-
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const userData: UserData = {
-      id: user.id,
-      lineUserId: user.lineUserId,
-      name: user.name,
-      nickname: user.nickname,
-      department: user.department,
-      employeeId: user.employeeId,
-      role: user.role,
-      profilePictureUrl: user.profilePictureUrl,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
+    const user = await prisma.user.findUnique({ where: { employeeId } });
+    if (!user) throw new Error('User not found');
 
     const latestAttendance = await prisma.attendance.findFirst({
       where: { userId: user.id },
@@ -39,39 +25,104 @@ export class AttendanceService {
 
     const externalCheckIn = await externalDb.getLatestCheckIn(employeeId);
 
+    let consolidatedAttendance = latestAttendance;
     let isCheckingIn = true;
-    let mostRecentRecord: Attendance | null = null;
 
-    if (latestAttendance && externalCheckIn) {
-      const latestAttendanceTime = new Date(latestAttendance.checkInTime);
+    if (externalCheckIn) {
       const externalCheckInTime = new Date(externalCheckIn.sj);
-
-      if (latestAttendanceTime > externalCheckInTime) {
-        mostRecentRecord = latestAttendance;
-        isCheckingIn = !latestAttendance.checkOutTime;
-      } else {
-        mostRecentRecord = await this.createAttendanceFromExternalData(
-          user.id,
-          externalCheckIn,
-        );
-        isCheckingIn = externalCheckIn.fx !== 0;
+      if (
+        !latestAttendance ||
+        externalCheckInTime > latestAttendance.checkInTime
+      ) {
+        // External check-in is more recent, create or update attendance record
+        consolidatedAttendance =
+          await this.createOrUpdateAttendanceFromExternalData(
+            user.id,
+            externalCheckIn,
+          );
       }
-    } else if (latestAttendance) {
-      mostRecentRecord = latestAttendance;
-      isCheckingIn = !latestAttendance.checkOutTime;
-    } else if (externalCheckIn) {
-      mostRecentRecord = await this.createAttendanceFromExternalData(
-        user.id,
-        externalCheckIn,
-      );
-      isCheckingIn = externalCheckIn.fx !== 0;
+    }
+
+    if (consolidatedAttendance) {
+      isCheckingIn = !consolidatedAttendance.checkOutTime;
     }
 
     return {
-      user: userData,
-      latestAttendance: mostRecentRecord,
+      user: {
+        id: user.id,
+        lineUserId: user.lineUserId,
+        name: user.name,
+        nickname: user.nickname,
+        department: user.department,
+        employeeId: user.employeeId,
+        role: user.role,
+        profilePictureUrl: user.profilePictureUrl,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+      latestAttendance: consolidatedAttendance,
       isCheckingIn,
     };
+  }
+
+  private async createOrUpdateAttendanceFromExternalData(
+    userId: string,
+    externalData: ExternalCheckInData,
+  ): Promise<Attendance> {
+    const isCheckOut = externalData.fx !== 0;
+    const checkTime = new Date(externalData.sj);
+
+    const existingAttendance = await prisma.attendance.findFirst({
+      where: {
+        userId,
+        checkInTime: {
+          gte: new Date(
+            checkTime.getFullYear(),
+            checkTime.getMonth(),
+            checkTime.getDate(),
+          ),
+          lt: new Date(
+            checkTime.getFullYear(),
+            checkTime.getMonth(),
+            checkTime.getDate() + 1,
+          ),
+        },
+      },
+    });
+
+    if (existingAttendance) {
+      return prisma.attendance.update({
+        where: { id: existingAttendance.id },
+        data: {
+          checkOutTime: isCheckOut ? checkTime : undefined,
+          checkOutDeviceSerial: isCheckOut
+            ? externalData.dev_serial
+            : undefined,
+          status: isCheckOut ? 'checked-out' : 'checked-in',
+        },
+      });
+    } else {
+      return prisma.attendance.create({
+        data: {
+          userId,
+          checkInTime: checkTime,
+          checkOutTime: isCheckOut ? checkTime : null,
+          checkInDeviceSerial: externalData.dev_serial,
+          checkOutDeviceSerial: isCheckOut ? externalData.dev_serial : null,
+          status: isCheckOut ? 'checked-out' : 'checked-in',
+          isManualEntry: false,
+          checkInLocation: JSON.stringify({ lat: 0, lng: 0 }),
+          checkOutLocation: isCheckOut
+            ? JSON.stringify({ lat: 0, lng: 0 })
+            : null,
+          checkInAddress: 'N/A',
+          checkOutAddress: isCheckOut ? 'N/A' : null,
+          checkOutReason: isCheckOut ? 'External check-out' : null,
+          checkInPhoto: 'N/A',
+          checkOutPhoto: isCheckOut ? 'N/A' : null,
+        },
+      });
+    }
   }
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {
@@ -88,6 +139,7 @@ export class AttendanceService {
       throw new Error('User not found');
     }
 
+    // Check for existing attendance record
     const latestAttendance = await prisma.attendance.findFirst({
       where: { userId: user.id },
       orderBy: { checkInTime: 'desc' },
@@ -101,13 +153,11 @@ export class AttendanceService {
       return this.processCheckIn(data);
     }
   }
-
   private async processCheckIn(data: AttendanceData): Promise<Attendance> {
-    const checkTime = new Date(data.checkTime);
-    const attendance = await prisma.attendance.create({
+    return prisma.attendance.create({
       data: {
         userId: data.userId,
-        checkInTime: checkTime,
+        checkInTime: new Date(data.checkTime),
         checkInLocation: JSON.stringify(data.location),
         checkInAddress: data.address,
         checkInReason: data.reason || '',
@@ -117,26 +167,16 @@ export class AttendanceService {
         isManualEntry: false,
       },
     });
-
-    await externalDb.createCheckIn({
-      employeeId: data.employeeId,
-      timestamp: checkTime,
-      checkType: 0, // 0 for check-in
-      deviceSerial: data.deviceSerial,
-    });
-
-    return attendance;
   }
 
   private async processCheckOut(
     attendanceId: string,
     data: AttendanceData,
   ): Promise<Attendance> {
-    const checkTime = new Date(data.checkTime);
-    const updatedAttendance = await prisma.attendance.update({
+    return prisma.attendance.update({
       where: { id: attendanceId },
       data: {
-        checkOutTime: checkTime,
+        checkOutTime: new Date(data.checkTime),
         checkOutLocation: JSON.stringify(data.location),
         checkOutAddress: data.address,
         checkOutReason: data.reason || null,
@@ -145,15 +185,6 @@ export class AttendanceService {
         status: 'checked-out',
       },
     });
-
-    await externalDb.updateCheckOut({
-      employeeId: data.employeeId,
-      timestamp: checkTime,
-      checkType: 1, // 1 for check-out
-      deviceSerial: data.deviceSerial,
-    });
-
-    return updatedAttendance;
   }
 
   private async createAttendanceFromExternalData(
@@ -228,15 +259,4 @@ export class AttendanceService {
 
     return totalHours;
   }
-}
-
-interface AttendanceData {
-  userId: string;
-  employeeId: string;
-  checkTime: string;
-  location: { lat: number; lng: number };
-  address: string;
-  reason?: string;
-  photo?: string;
-  deviceSerial: string;
 }
