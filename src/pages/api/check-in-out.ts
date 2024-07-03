@@ -49,11 +49,9 @@ export default async function handler(
     res.status(200).json(attendance);
   } catch (error) {
     console.error('Check-in/out failed:', error);
-    res
-      .status(500)
-      .json({
-        message: 'Check-in/out failed',
-        error: (error as Error).message,
-      });
+    res.status(500).json({
+      message: 'Check-in/out failed',
+      error: (error as Error).message,
+    });
   }
 }
