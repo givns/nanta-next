@@ -1,38 +1,33 @@
 // services/ShiftManagementService.ts
 
+// services/ShiftManagementService.ts
+
 import { PrismaClient, Shift } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 export class ShiftManagementService {
-  constructor() {
-    this.initializeShifts().catch(console.error);
-  }
   async initializeShifts() {
     const shifts = [
       {
-        id: '101',
         shiftCode: 'SHIFT101',
         name: 'กะเช้า 6 โมง',
         startTime: '06:00',
         endTime: '15:00',
       },
       {
-        id: '102',
         shiftCode: 'SHIFT102',
         name: 'กะเช้า 7 โมง',
         startTime: '07:00',
         endTime: '16:00',
       },
       {
-        id: '103',
         shiftCode: 'SHIFT103',
         name: 'ช่วงเวลาปกติ',
         startTime: '08:00',
         endTime: '17:00',
       },
       {
-        id: '104',
         shiftCode: 'SHIFT104',
         name: 'กะบ่าย 2 โมง',
         startTime: '14:00',
@@ -48,6 +43,7 @@ export class ShiftManagementService {
       });
     }
   }
+
   async areShiftsInitialized(): Promise<boolean> {
     const count = await prisma.shift.count();
     return count > 0;
