@@ -22,8 +22,9 @@ export const sendApproveNotification = async (
   try {
     // Send approval message to the user
     const userMessage = generateApprovalMessage(user, leaveRequest);
-    await client.pushMessage(user.lineUserId, userMessage);
-    console.log('Sent approval message to user:', user.lineUserId);
+    if (user.lineUserId) {
+      await client.pushMessage(user.lineUserId, userMessage);
+    }
 
     // Send approval notification to all admins and super admins, including the approver
     const adminMessage = generateApprovalMessageForAdmins(
@@ -38,7 +39,9 @@ export const sendApproveNotification = async (
     });
 
     for (const admin of adminsAndSuperAdmins) {
-      await client.pushMessage(admin.lineUserId, adminMessage);
+      if (user.lineUserId) {
+        await client.pushMessage(user.lineUserId, adminMessage);
+      }
       console.log(`Sent approval message to ${admin.role}:`, admin.lineUserId);
     }
   } catch (error) {
@@ -55,7 +58,9 @@ export const sendDenyNotification = async (
   try {
     // Send denial message to the user
     const userMessage = generateDenialMessage(user, leaveRequest, denialReason);
-    await client.pushMessage(user.lineUserId, userMessage);
+    if (user.lineUserId) {
+      await client.pushMessage(user.lineUserId, userMessage);
+    }
     console.log('Sent denial message to user:', user.lineUserId);
 
     // Send denial notification to all admins and super admins, including the denier
@@ -72,8 +77,9 @@ export const sendDenyNotification = async (
     });
 
     for (const admin of adminsAndSuperAdmins) {
-      await client.pushMessage(admin.lineUserId, adminMessage);
-      console.log(`Sent denial message to ${admin.role}:`, admin.lineUserId);
+      if (admin.lineUserId) {
+        await client.pushMessage(admin.lineUserId, adminMessage);
+      }
     }
   } catch (error) {
     console.error('Error sending denial notifications:', error);
@@ -87,7 +93,9 @@ export const sendDenyReasonPrompt = async (admin: User, requestId: string) => {
       type: 'text',
       text: `Please provide a reason for denying this leave request: ${liffUrl}`,
     };
-    await client.pushMessage(admin.lineUserId, message);
+    if (admin.lineUserId) {
+      await client.pushMessage(admin.lineUserId, message);
+    }
     console.log('Sent deny reason prompt to admin:', admin.lineUserId);
   } catch (error) {
     console.error('Error sending deny reason prompt:', error);

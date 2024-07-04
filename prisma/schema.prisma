@@ -15,93 +15,119 @@ enum UserRole {
   SUPERADMIN
 }
 
-enum CheckInType {
-  IN
-  OUT
-  CHECKPOINT
-  LEAVE_PREMISES
-  RETURN_PREMISES
+model User {
+  id                      String                   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId              String                   @unique
+  name                    String
+  lineUserId              String?                  @unique
+  nickname                String?
+  department              String?
+  role                    String
+  profilePictureUrl       String?
+  shiftId              String    @db.ObjectId
+  assignedShift        Shift     @relation("UserAssignedShift", fields: [shiftId], references: [id])
+  overtimeHours        Float     @default(0)
+  attendances             Attendance[]
+  shiftAdjustmentRequests ShiftAdjustmentRequest[]
+  leaveRequests           LeaveRequest[]
+  overtimeRequests        OvertimeRequest[]
+  checkPoints             CheckPoint[]
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
 }
 
-model User {
-  id                String             @id @default(auto()) @map("_id") @db.ObjectId
-  lineUserId        String             @unique
-  name              String
-  nickname          String
-  department        String
-  employeeId String   @unique  // Add this line
-  role              UserRole
-  profilePictureUrl String?
-  createdAt         DateTime           @default(now())
-  leaveRequests     LeaveRequest[]
-  overtimeRequests  OvertimeRequest[]
-  attendances       Attendance[]
-  checkPoints       CheckPoint[]  
-  updatedAt         DateTime?  @updatedAt
+model Shift {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  shiftCode String @unique
+  name      String
+  startTime String
+  endTime   String
+   assignedUsers        User[]    @relation("UserAssignedShift")
+  shiftAdjustmentRequests ShiftAdjustmentRequest[] @relation("RequestedShift")
+}
+
+model ShiftAdjustmentRequest {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id])
+  requestedShiftId  String   @db.ObjectId
+  requestedShift    Shift    @relation("RequestedShift", fields: [requestedShiftId], references: [id])
+  date              DateTime
+  reason            String
+  status            String   // 'pending', 'approved', 'rejected'
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model LeaveRequest {
-  id                String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String     @db.ObjectId
-  user              User       @relation(fields: [userId], references: [id])
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  user              User     @relation(fields: [userId], references: [id])
   leaveType         String
   leaveFormat       String
   reason            String
+  useOvertimeHours  Boolean
   startDate         DateTime
   endDate           DateTime
   status            String
   fullDayCount      Float
-  approverId        String?
+  approverId        String?  @db.ObjectId
   denialReason      String?
-  resubmitted       Boolean    @default(false)
-  originalRequestId String?
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  resubmitted       Boolean  @default(false)
+  originalRequestId String?  @db.ObjectId
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model OvertimeRequest {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(uuid()) @map("_id")
   userId    String   @db.ObjectId
-  date      DateTime
-  hours     Int
-  reason    String
-  status    String
-  createdAt DateTime @default(now())
-
   user      User     @relation(fields: [userId], references: [id])
+  date      DateTime
+  startTime String // Store as HH:mm
+  endTime   String // Store as HH:mm
+  status    String // 'pending', 'approved', 'rejected'
+   reason        String?  // Add this line
+  denialReason  String?  // Add this line
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Attendance {
-  id                String   @id @default(cuid()) @map("_id")
-  userId            String
-  checkInTime       DateTime
-  checkOutTime      DateTime?
-  checkInLocation   Json
-  checkOutLocation  Json?
-  checkInAddress    String?
-  checkOutAddress   String?
-  checkInReason     String?
-  checkOutReason    String?
-  checkInPhoto      String
-  checkOutPhoto     String?
+  id                   String    @id @default(cuid()) @map("_id")
+  userId               String    @db.ObjectId
+  date                 DateTime
+  checkInTime          DateTime
+  checkOutTime         DateTime?
+  overtimeStartTime    DateTime?
+  overtimeEndTime      DateTime?
+  checkInLocation      Json
+  checkOutLocation     Json?
+  checkInAddress       String?
+  checkOutAddress      String?
+  checkInReason        String?
+  checkOutReason       String?
+  checkInPhoto         String
+  checkOutPhoto        String?
   checkInDeviceSerial  String?
   checkOutDeviceSerial String?
-  status           String    // e.g., "checked-in", "checked-out", "incomplete"
-  isManualEntry    Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt         DateTime @updatedAt
+  status               String // e.g., "checked-in", "checked-out", "incomplete"
+  isManualEntry        Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  user      User     @relation(fields: [userId], references: [id])
-
+  user User @relation(fields: [userId], references: [id])
 }
 
 model CheckPoint {
-  id         String      @id @default(auto()) @map("_id") @db.ObjectId
-  user       User        @relation(fields: [userId], references: [id])
-  userId     String      @db.ObjectId
-  jobTitle   String
-  timestamp  DateTime    @default(now())
-  latitude   Float
-  longitude  Float
-  address    String?
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  jobTitle  String
+  timestamp DateTime @default(now())
+  latitude  Float
+  longitude Float
+  address   String?
+
+  user User @relation(fields: [userId], references: [id])
 }
+

@@ -5,6 +5,8 @@ import { useRouter } from 'next/router';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
 import Head from 'next/head';
+import { ILeaveService } from '@/types/LeaveService';
+import { LeaveServiceClient } from '@/services/LeaveServiceClient';
 
 export interface FormValues {
   leaveType: string;
@@ -40,6 +42,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [leaveBalance, setLeaveBalance] = useState<number | null>(null);
+  const leaveService: ILeaveService = new LeaveServiceClient();
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -65,6 +69,21 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         });
     }
   }, []);
+
+  useEffect(() => {
+    if (lineUserId) {
+      fetchLeaveBalance(lineUserId);
+    }
+  }, [lineUserId]);
+
+  const fetchLeaveBalance = async (userId: string) => {
+    try {
+      const balance = await leaveService.checkLeaveBalance(userId);
+      setLeaveBalance(balance);
+    } catch (error) {
+      console.error('Error fetching leave balance:', error);
+    }
+  };
 
   useEffect(() => {
     const startInput = startDateRef.current;
@@ -107,12 +126,30 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
   ) => {
     try {
+      if (!lineUserId) {
+        throw new Error('User ID not available');
+      }
+
+      const leaveRequest = await leaveService.createLeaveRequest(
+        lineUserId,
+        values.leaveType,
+        values.leaveFormat,
+        values.startDate,
+        values.endDate,
+        values.reason,
+        calculateFullDayCount(values.startDate, values.endDate),
+        false, // Assuming useOvertimeHours is false by default
+      );
+      console.log('Leave request submitted:', leaveRequest);
+
+      // Store the submission data in session storage
       const submissionData = {
         ...values,
         lineUserId,
         resubmitted: isResubmission,
       };
       sessionStorage.setItem('leaveSummary', JSON.stringify(submissionData));
+
       router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);
@@ -120,6 +157,17 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const calculateFullDayCount = (
+    startDate: string,
+    endDate: string,
+  ): number => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays + 1; // Including both start and end date
   };
 
   return (
@@ -150,6 +198,10 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
             {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
           </h5>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            วันลาคงเหลือ:{' '}
+            {leaveBalance !== null ? leaveBalance : 'กำลังโหลด...'} วัน
+          </p>
           <Formik
             initialValues={
               initialData || {

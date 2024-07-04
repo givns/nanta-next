@@ -1,13 +1,5 @@
-// types/user.ts
-
-import {
-  UserRole as PrismaUserRole,
-  Attendance as PrismaAttendance,
-} from '@prisma/client';
-
-export type UserRole = PrismaUserRole;
-export type Attendance = PrismaAttendance;
-
+import { User, Attendance, Shift } from '@prisma/client';
+import { UserRole } from '@/types/enum';
 export interface UserData {
   id: string;
   lineUserId: string;
@@ -16,26 +8,82 @@ export interface UserData {
   department: string;
   employeeId: string;
   role: UserRole;
+  shiftId: string;
+  assignedShift?: Shift;
   profilePictureUrl: string | null;
   createdAt: Date;
   updatedAt: Date | null;
 }
 
-export interface AttendanceStatus {
-  user: UserData;
-  latestAttendance: Attendance | null;
-  isCheckingIn: boolean;
+export enum CheckType {
+  Auto = 0,
+  CheckIn = 1,
+  CheckOut = 2,
+  OvertimeStart = 3,
+  OvertimeEnd = 4,
 }
 
 export interface AttendanceData {
   userId: string;
   employeeId: string;
   checkTime: string;
-  location: { lat: number; lng: number };
+  location: string;
   address: string;
   reason?: string;
   photo?: string;
   deviceSerial: string;
+  isCheckIn: boolean;
+  isOvertime?: boolean;
+}
+
+export interface AttendanceStatus {
+  user: {
+    id: string;
+    employeeId: string;
+    name: string;
+    assignedShift: Shift;
+  };
+  latestAttendance: Attendance | null;
+  isCheckingIn: boolean;
+}
+
+export interface ShiftData {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface ShiftAdjustmentRequestData {
+  userId: string;
+  requestedShiftId: string;
+  date: string;
+  reason: string;
+}
+
+export interface LeaveRequestData {
+  userId: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  useOvertimeHours: boolean;
+}
+
+export interface WorkHoursCalculation {
+  regularHours: number;
+  overtimeHours: number;
+}
+
+export interface ManualEntryData {
+  userId: string;
+  date: string;
+  checkInTime: string;
+  checkOutTime: string;
+  reason: string;
+}
+
+export interface UserWithShift extends User {
+  shift: Shift;
 }
 
 export interface CheckInFormData {
@@ -60,8 +108,13 @@ export interface CheckOutFormData
 export interface ExternalCheckInData {
   sj: string;
   user_serial: number;
+  user_no: string;
+  user_fname: string;
+  user_lname: string;
+  user_depname: string;
+  user_dep: string;
   bh: number;
-  fx: number | null;
+  fx: CheckType;
   iden: string | null;
   dev_serial: string;
   dev_state: number;
@@ -82,7 +135,20 @@ export interface ExternalCheckInData {
   flagmax: number;
 }
 
-// New interfaces for AttendanceService
+export interface ExternalCheckInInputData {
+  employeeId: string;
+  timestamp: Date;
+  checkType: number;
+  deviceSerial: string;
+}
+
+export interface ExternalManualEntryInputData {
+  employeeId: string;
+  checkInTimestamp: Date;
+  checkOutTimestamp?: Date;
+  deviceSerial: string;
+}
+
 export interface CheckInData {
   userId: string;
   location: Location;

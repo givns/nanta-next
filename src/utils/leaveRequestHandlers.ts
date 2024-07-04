@@ -1,10 +1,11 @@
-import { PrismaClient, LeaveRequest, UserRole } from '@prisma/client';
+import { PrismaClient, LeaveRequest } from '@prisma/client';
 import { Client } from '@line/bot-sdk';
 import {
   sendApproveNotification,
   sendDenyNotification,
 } from './sendNotifications';
 import { sendLeaveRequestNotification } from './sendLeaveRequestNotification';
+import { UserRole } from '@/types/enum';
 
 const prisma = new PrismaClient();
 const client = new Client({
@@ -147,7 +148,9 @@ export const createResubmittedLeaveRequest = async (
     // Notify admins about the resubmitted request
     const admins = await prisma.user.findMany({
       where: {
-        OR: [{ role: UserRole.ADMIN }, { role: UserRole.SUPERADMIN }],
+        role: {
+          in: [UserRole.ADMIN.toString(), UserRole.SUPERADMIN.toString()],
+        },
       },
     });
 

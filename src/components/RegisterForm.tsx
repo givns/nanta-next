@@ -5,28 +5,33 @@ import { useEffect, useState } from 'react';
 import liff from '@line/liff';
 
 const RegistrationSchema = Yup.object().shape({
+  employeeId: Yup.string().required('Required'),
   name: Yup.string().required('Required'),
   nickname: Yup.string().required('Required'),
-  employeeId: Yup.string().required('Required'),
   department: Yup.string().required('Required'),
 });
 
 const departments = [
-  'ฝ่ายผลิต',
   'ฝ่ายปฏิบัติการ',
-  'ฝ่ายคัดคุณภาพและบรรจุ',
-  'ฝ่ายขนส่ง',
-  'ฝ่ายคลังสินค้าและแพ็คกิ้ง',
-  'ฝ่ายสำนักงาน',
+  'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)',
+  'ฝ่ายผลิต-กระบวนการที่ 2 (เช้า)',
+  'ฝ่ายผลิต-คัดคุณภาพและบรรจุ',
+  'ฝ่ายผลิต-ข้าวเกรียบ-ข้าวตัง',
+  'ฝ่ายผลิต-วิจัยและพัฒนาคุณภาพผลิตภัณฑ์',
   'ฝ่ายประกันคุณภาพ',
+  'ฝ่ายคลังสินค้าและแพ็คกิ้ง',
+  'ฝ่ายจัดส่งสินค้า',
+  'ฝ่ายจัดซื้อและประสานงานขาย',
+  'ฝ่ายบัญชีและการเงิน',
+  'ฝ่ายทรัพยากรบุคคล',
   'ฝ่ายรักษาความสะอาด',
   'ฝ่ายรักษาความปลอดภัย',
 ];
 
 interface FormValues {
+  employeeId: string;
   name: string;
   nickname: string;
-  employeeId: string;
   department: string;
 }
 
@@ -34,6 +39,7 @@ const RegisterForm: React.FC = () => {
   const [lineUserId, setLineUserId] = useState('');
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const [step, setStep] = useState(1);
+  const [externalUserData, setExternalUserData] = useState<any>(null);
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -53,17 +59,34 @@ const RegisterForm: React.FC = () => {
     }
   }, []);
 
-  const handleNextStep = (
+  const fetchExternalUserData = async (employeeId: string) => {
+    try {
+      const response = await axios.get(
+        `/api/getExternalUserData?employeeId=${employeeId}`,
+      );
+      setExternalUserData(response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching external user data:', error);
+      return null;
+    }
+  };
+
+  const handleNextStep = async (
     values: FormValues,
-    setFieldTouched: (
+    setFieldValue: (
       field: string,
-      touched: boolean,
+      value: any,
       shouldValidate?: boolean,
     ) => void,
   ) => {
-    Object.keys(values).forEach((field) =>
-      setFieldTouched(field as keyof FormValues, true),
-    );
+    if (step === 1) {
+      const data = await fetchExternalUserData(values.employeeId);
+      if (data) {
+        setFieldValue('name', data.name);
+        setFieldValue('department', data.department);
+      }
+    }
     setStep(step + 1);
   };
 
@@ -71,20 +94,12 @@ const RegisterForm: React.FC = () => {
     values: FormValues,
     { setSubmitting }: FormikHelpers<FormValues>,
   ) => {
-    console.log('Submitting data:', {
-      ...values,
-      lineUserId,
-      profilePictureUrl,
-    });
     try {
-      const response = await axios.post(
-        'https://nanta-next.vercel.app/api/registerUser',
-        {
-          ...values,
-          lineUserId,
-          profilePictureUrl,
-        },
-      );
+      const response = await axios.post('/api/registerUser', {
+        ...values,
+        lineUserId,
+        profilePictureUrl,
+      });
 
       if (response.data.success) {
         alert('Registration successful!');
@@ -116,17 +131,50 @@ const RegisterForm: React.FC = () => {
         </h5>
         <Formik
           initialValues={{
+            employeeId: '',
             name: '',
             nickname: '',
-            employeeId: '',
             department: '',
           }}
           validationSchema={RegistrationSchema}
           onSubmit={handleSubmit}
         >
-          {({ isSubmitting, values, setFieldTouched, isValid, dirty }) => (
+          {({ isSubmitting, values, setFieldValue, isValid, dirty }) => (
             <Form className="space-y-6">
               {step === 1 && (
+                <div>
+                  <div className="mb-3">
+                    <label
+                      htmlFor="employeeId"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    >
+                      รหัสพนักงาน
+                    </label>
+                    <Field
+                      type="text"
+                      name="employeeId"
+                      id="employeeId"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                      placeholder="รหัสพนักงาน"
+                    />
+                    <ErrorMessage
+                      name="employeeId"
+                      component="div"
+                      className="text-red-500 text-sm"
+                    />
+                  </div>
+                  <div className="button-container flex justify-end">
+                    <button
+                      type="button"
+                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                      onClick={() => handleNextStep(values, setFieldValue)}
+                    >
+                      ถัดไป
+                    </button>
+                  </div>
+                </div>
+              )}
+              {step === 2 && (
                 <div>
                   <div className="mb-3">
                     <label
@@ -172,40 +220,7 @@ const RegisterForm: React.FC = () => {
                     <button
                       type="button"
                       className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={() => handleNextStep(values, setFieldTouched)}
-                    >
-                      ถัดไป
-                    </button>
-                  </div>
-                </div>
-              )}
-              {step === 2 && (
-                <div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="employeeId"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      รหัสพนักงาน
-                    </label>
-                    <Field
-                      type="text"
-                      name="employeeId"
-                      id="employeeId"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                      placeholder="รหัสพนักงาน"
-                    />
-                    <ErrorMessage
-                      name="employeeId"
-                      component="div"
-                      className="text-red-500 text-sm"
-                    />
-                  </div>
-                  <div className="button-container flex justify-end">
-                    <button
-                      type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={() => handleNextStep(values, setFieldTouched)}
+                      onClick={() => handleNextStep(values, setFieldValue)}
                     >
                       ถัดไป
                     </button>
@@ -240,6 +255,13 @@ const RegisterForm: React.FC = () => {
                       className="text-red-500 text-sm"
                     />
                   </div>
+                  {externalUserData && (
+                    <div className="mb-3">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        กะการทำงานจะถูกกำหนดโดยอัตโนมัติตามแผนกของคุณ
+                      </p>
+                    </div>
+                  )}
                   <div className="button-container flex justify-end">
                     <button
                       type="submit"

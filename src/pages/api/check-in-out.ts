@@ -45,6 +45,7 @@ export default async function handler(
       reason,
       photo,
       deviceSerial,
+      isCheckIn: true,
     });
     res.status(200).json(attendance);
   } catch (error) {

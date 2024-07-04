@@ -2,7 +2,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
-import { PrismaClient, UserRole } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { UserRole } from '../../types/enum';
 import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
 
 dotenv.config({ path: './.env.local' });
@@ -56,12 +57,14 @@ const handler = async (event: WebhookEvent) => {
           console.log('Register Rich menu linked to user:', userId);
         } else {
           const department = user.department;
-          const richMenuId = await createAndAssignRichMenu(
-            department,
-            userId,
-            user.role as UserRole,
-          );
-          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+          if (department !== null) {
+            const richMenuId = await createAndAssignRichMenu(
+              department,
+              userId,
+              user.role as UserRole,
+            );
+            console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+          }
         }
       } catch (error: any) {
         console.error(

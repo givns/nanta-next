@@ -6,6 +6,7 @@ import '@tensorflow/tfjs-backend-webgl';
 import { AttendanceStatus, UserData } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
+import Image from 'next/image';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -52,13 +53,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
   const webcamRef = useRef<Webcam>(null);
 
-  useEffect(() => {
-    fetchAttendanceStatus();
-    loadFaceDetectionModel();
-    fetchApiKey();
-  }, [userData.employeeId]);
-
-  const fetchAttendanceStatus = async () => {
+  const fetchAttendanceStatus = useCallback(async () => {
     setIsLoadingCheckData(true);
     try {
       const response = await axios.get<AttendanceStatus>('/api/check-status', {
@@ -71,9 +66,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     } finally {
       setIsLoadingCheckData(false);
     }
-  };
+  }, [userData.employeeId]);
 
-  const loadFaceDetectionModel = async () => {
+  const loadFaceDetectionModel = useCallback(async () => {
     await tf.ready();
     const loadedModel = await faceDetection.createDetector(
       faceDetection.SupportedModels.MediaPipeFaceDetector,
@@ -81,16 +76,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     );
     setModel(loadedModel);
     console.log('Face detection model loaded.');
-  };
+  }, []);
 
-  const fetchApiKey = async () => {
+  const fetchApiKey = useCallback(async () => {
     try {
       const response = await axios.get('/api/getMapApiKey');
       setApiKey(response.data.apiKey);
     } catch (error) {
       console.error('Error fetching API key:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchAttendanceStatus();
+    loadFaceDetectionModel();
+    fetchApiKey();
+  }, [fetchAttendanceStatus, loadFaceDetectionModel, fetchApiKey]);
 
   const calculateDistance = (
     lat1: number,
@@ -102,7 +103,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
     const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon1 - lon2) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
     const a =
       Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
@@ -185,23 +186,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
   }, [isWithinPremises]);
 
   const convertToBangkokDate = (DateString: string) => {
-    const date = new Date(DateString);
-    return date.toLocaleDateString('th-TH', {
-      timeZone: 'Asia/Bangkok',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    return DateString.split('T')[0]; // Just return the date part
   };
 
   const convertToBangkokTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('th-TH', {
-      timeZone: 'Asia/Bangkok',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).format(date);
+    return dateString.split('T')[1].substring(0, 5); // Return HH:MM
   };
 
   const getDeviceType = (deviceSerial: string | null) => {
@@ -220,7 +209,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
         try {
-          const img = new Image();
+          const img = new window.Image();
           img.src = imageSrc;
           await new Promise((resolve) => {
             img.onload = resolve;
@@ -392,9 +381,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
             ยืนยันการ{attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
           </h3>
           {photo && (
-            <img
+            <Image
               src={photo}
               alt="Captured"
+              width={500}
+              height={300}
+              layout="responsive"
               className="w-full rounded-lg mb-4"
             />
           )}

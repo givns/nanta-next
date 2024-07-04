@@ -2,11 +2,14 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { Client } from '@line/bot-sdk';
 import { query } from '../../utils/mysqlConnection';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/types/enum';
+import { ShiftManagementService } from '../../services/ShiftManagementService';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
+
+const shiftManagementService = new ShiftManagementService();
 
 interface ExternalUserData {
   user_no: string;
@@ -29,7 +32,6 @@ async function findExternalUser(
       const user = externalUsers[0] as Record<string, unknown>;
       console.log('External user found. Columns:', Object.keys(user));
 
-      // Map the found user to our expected structure
       const mappedUser: ExternalUserData = {
         user_no: (user.user_no as string) || '',
         name: `${(user.user_fname as string) || ''} ${(user.user_lname as string) || ''}`.trim(),
@@ -109,13 +111,13 @@ export default async function handler(
     employeeId,
   } = req.body;
 
-  if (!lineUserId || !name || !nickname || !department || !employeeId) {
+  if (!lineUserId || !name || !nickname || !employeeId || !department) {
     console.log('Missing required fields:', {
       lineUserId,
       name,
       nickname,
-      department,
       employeeId,
+      department,
     });
     return res.status(400).json({ message: 'Missing required fields' });
   }
@@ -128,11 +130,9 @@ export default async function handler(
       externalUser = await findExternalUser(employeeId);
     } catch (error) {
       console.error('Error finding external user:', error);
-      // Continue with the registration process even if external user lookup fails
     }
 
     let role: UserRole;
-    const finalEmployeeId: string = employeeId;
 
     const userCount = await prisma.user.count();
     if (userCount === 0) {
@@ -150,12 +150,27 @@ export default async function handler(
       nickname,
       department: externalUser?.department || department,
       profilePictureUrl,
-      role,
-      employeeId: finalEmployeeId,
+      role: role.toString(),
+      employeeId,
+      overtimeHours: 0,
     };
 
     if (!user) {
-      user = await prisma.user.create({ data: userData });
+      // For new user creation, we need to assign a default shift first
+      const defaultShift = await shiftManagementService.getDefaultShift(
+        userData.department,
+      );
+
+      if (!defaultShift) {
+        throw new Error('No default shift found for the given department');
+      }
+
+      user = await prisma.user.create({
+        data: {
+          ...userData,
+          shiftId: defaultShift.id, // Assign the default shift
+        },
+      });
       console.log('New user created:', user);
     } else {
       user = await prisma.user.update({
@@ -165,10 +180,29 @@ export default async function handler(
       console.log('Existing user updated:', user);
     }
 
+    // Fetch the complete user data including the assigned shift
+    const finalUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { assignedShift: true },
+    });
+
+    // Prepare the response data
+    const responseData = {
+      ...finalUser,
+      assignedShift: finalUser?.assignedShift
+        ? {
+            id: finalUser.assignedShift.id,
+            name: finalUser.assignedShift.name,
+            startTime: finalUser.assignedShift.startTime,
+            endTime: finalUser.assignedShift.endTime,
+          }
+        : null,
+    };
+
+    res.status(201).json({ success: true, data: responseData });
+
     const richMenuId = determineRichMenuId(role);
     await client.linkRichMenuToUser(lineUserId, richMenuId);
-
-    res.status(201).json({ success: true, data: user });
   } catch (error: any) {
     console.error('Error in registerUser:', error);
     if (error.code === 'P2002') {
@@ -181,7 +215,6 @@ export default async function handler(
       .json({ success: false, error: error.message, stack: error.stack });
   }
 }
-
 export const config = {
   api: {
     bodyParser: {
