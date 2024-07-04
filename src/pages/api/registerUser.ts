@@ -7,6 +7,7 @@ import { ExternalDbService } from '../../services/ExternalDbService';
 import { UserRole } from '@/types/enum';
 import { ShiftManagementService } from '../../services/ShiftManagementService';
 import { ExternalCheckInData } from '../../types/user';
+import { refreshShiftCache } from '../../lib/shiftCache';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -88,9 +89,10 @@ export default async function handler(
   }
 
   try {
-    console.time('initializeShifts');
-    await shiftManagementService.initializeShifts();
-    console.timeEnd('initializeShifts');
+    // Refresh shift cache at the start of the registration process
+    console.time('refreshShiftCache');
+    await refreshShiftCache();
+    console.timeEnd('refreshShiftCache');
 
     console.time('findUser');
     let user = await prisma.user.findUnique({ where: { lineUserId } });
@@ -121,13 +123,13 @@ export default async function handler(
     const userData = {
       lineUserId,
       name: externalUser
-        ? `${externalUser.user_fname} ${externalUser.user_lname}`.trim()
+        ? `${externalUser.user_fname || ''} ${externalUser.user_lname || ''}`.trim()
         : name,
       nickname,
       department: externalUser?.user_depname || department,
       profilePictureUrl,
       role: role.toString(),
-      employeeId: externalUser?.user_no || employeeId,
+      employeeId: externalUser?.user_serial?.toString() || employeeId,
       overtimeHours: 0,
     };
 
@@ -199,3 +201,11 @@ export default async function handler(
       .json({ success: false, error: error.message, stack: error.stack });
   }
 }
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+};

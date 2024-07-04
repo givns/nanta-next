@@ -13,5 +13,10 @@
       "source": "/(.*)",
       "destination": "/$1"
     }
-  ]
+  ],
+  "functions": {
+    "api/*.ts": {
+      "maxDuration": 30
+    }
+  }
 }
