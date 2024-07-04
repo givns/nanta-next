@@ -108,7 +108,6 @@ export interface CheckOutFormData
 export interface ExternalCheckInData {
   sj: string;
   user_serial: number;
-  user_no: string;
   user_fname: string;
   user_lname: string;
   user_depname: string;

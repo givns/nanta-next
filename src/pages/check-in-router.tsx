@@ -25,13 +25,18 @@ const CheckInRouter: React.FC = () => {
           const userResponse = await axios.get('/api/users', {
             params: { lineUserId },
           });
-          setUserData(userResponse.data);
+          const userData = userResponse.data;
+          setUserData(userData);
 
-          // Fetch attendance status
-          const statusResponse = await axios.get('/api/check-status', {
-            params: { employeeId: userResponse.data.employeeId },
-          });
-          setAttendanceStatus(statusResponse.data);
+          if (userData && userData.employeeId) {
+            // Fetch attendance status
+            const statusResponse = await axios.get('/api/check-status', {
+              params: { employeeId: userData.employeeId },
+            });
+            setAttendanceStatus(statusResponse.data);
+          } else {
+            setMessage('Employee ID not found. Please contact support.');
+          }
         } else {
           liff.login();
         }
@@ -58,6 +63,7 @@ const CheckInRouter: React.FC = () => {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">กำลังเข้าสู่ระบบ...</h1>
+        {message && <p className="text-red-500">{message}</p>}
       </div>
     );
   }

@@ -15,13 +15,21 @@ const externalDbService = new ExternalDbService();
 const notificationService = new NotificationService();
 
 export class AttendanceService {
+  externalDbService: any;
+  // services/AttendanceService.ts
+
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatus> {
+    if (!employeeId) {
+      throw new Error('Employee ID is required');
+    }
+
     const user = await prisma.user.findUnique({
       where: { employeeId },
       include: { assignedShift: true },
     });
+
     if (!user) throw new Error('User not found');
 
     const latestAttendance = await prisma.attendance.findFirst({
@@ -29,20 +37,24 @@ export class AttendanceService {
       orderBy: { checkInTime: 'desc' },
     });
 
-    const externalCheckIn =
-      await externalDbService.getLatestCheckIn(employeeId);
+    let externalUser: ExternalCheckInData | null = null;
+    try {
+      externalUser = await this.externalDbService.getLatestCheckIn(employeeId);
+    } catch (error) {
+      console.error('Error fetching external user data:', error);
+    }
 
     let consolidatedAttendance = latestAttendance;
     let isCheckingIn = true;
 
-    if (externalCheckIn) {
-      const externalCheckInTime = new Date(externalCheckIn.sj);
+    if (externalUser) {
+      const externalCheckInTime = new Date(externalUser.sj);
       if (
         !latestAttendance ||
         externalCheckInTime > new Date(latestAttendance.checkInTime)
       ) {
         consolidatedAttendance =
-          await this.processExternalCheckInOut(externalCheckIn);
+          await this.processExternalCheckInOut(externalUser);
       }
     }
 
@@ -108,7 +120,7 @@ export class AttendanceService {
     externalData: ExternalCheckInData,
   ): Promise<Attendance> {
     const user = await prisma.user.findUnique({
-      where: { employeeId: externalData.user_no },
+      where: { employeeId: externalData.user_serial.toString() },
     });
     if (!user) throw new Error('User not found');
 
