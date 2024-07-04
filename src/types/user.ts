@@ -21,6 +21,8 @@ export enum CheckType {
   CheckOut = 2,
   OvertimeStart = 3,
   OvertimeEnd = 4,
+  BackToWork = 5,
+  LeaveDuringWork = 6,
 }
 
 export interface AttendanceData {

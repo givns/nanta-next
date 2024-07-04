@@ -1,42 +1,30 @@
 // services/NotificationService.ts
 
-import axios from 'axios';
+import { Client } from '@line/bot-sdk';
 
 export class NotificationService {
-  private lineApiUrl = 'https://api.line.me/v2/bot/message/push';
-  private channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  private client: Client;
 
-  async sendNotification(userId: string, message: string): Promise<void> {
-    try {
-      await axios.post(
-        this.lineApiUrl,
-        {
-          to: userId,
-          messages: [
-            {
-              type: 'text',
-              text: message,
-            },
-          ],
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.channelAccessToken}`,
-          },
-        },
-      );
-      console.log(`Notification sent to user ${userId}: ${message}`);
-    } catch (error) {
-      console.error('Error sending LINE notification:', error);
-    }
+  constructor() {
+    this.client = new Client({
+      channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+    });
   }
 
-  async sendConfirmationRequest(
-    userId: string,
-    action: 'check-in' | 'check-out',
-  ): Promise<void> {
-    const message = `Do you want to confirm your ${action}?`;
-    await this.sendNotification(userId, message);
+  async sendNotification(lineUserId: string, message: string): Promise<void> {
+    if (!lineUserId) {
+      console.warn('No LINE user ID provided for notification');
+      return;
+    }
+
+    try {
+      await this.client.pushMessage(lineUserId, {
+        type: 'text',
+        text: message,
+      });
+    } catch (error) {
+      console.error('Error sending LINE notification:', error);
+      // Don't throw the error, just log it
+    }
   }
 }

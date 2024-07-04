@@ -11,7 +11,6 @@ import {
 
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
-const externalDbService = new ExternalDbService();
 const notificationService = new NotificationService();
 
 export class AttendanceService {
@@ -35,7 +34,7 @@ export class AttendanceService {
 
     if (!user) throw new Error('User not found');
 
-    const latestAttendance = await prisma.attendance.findFirst({
+    let latestAttendance = await prisma.attendance.findFirst({
       where: { userId: user.id },
       orderBy: { checkInTime: 'desc' },
     });
@@ -47,22 +46,25 @@ export class AttendanceService {
       console.error('Error fetching external user data:', error);
     }
 
-    let consolidatedAttendance = latestAttendance;
     let isCheckingIn = true;
 
     if (externalUser) {
-      const externalCheckInTime = new Date(externalUser.sj);
-      if (
-        !latestAttendance ||
-        externalCheckInTime > new Date(latestAttendance.checkInTime)
-      ) {
-        consolidatedAttendance =
-          await this.processExternalCheckInOut(externalUser);
+      try {
+        const externalCheckInTime = new Date(externalUser.sj);
+        if (
+          !latestAttendance ||
+          externalCheckInTime > new Date(latestAttendance.checkInTime)
+        ) {
+          latestAttendance = await this.processExternalCheckInOut(externalUser);
+        }
+      } catch (error) {
+        console.error('Error processing external check-in data:', error);
+        // Don't throw the error, continue with the existing latestAttendance
       }
     }
 
-    if (consolidatedAttendance) {
-      isCheckingIn = !consolidatedAttendance.checkOutTime;
+    if (latestAttendance) {
+      isCheckingIn = !latestAttendance.checkOutTime;
     }
 
     return {
@@ -72,7 +74,7 @@ export class AttendanceService {
         name: user.name,
         assignedShift: user.assignedShift,
       },
-      latestAttendance: consolidatedAttendance,
+      latestAttendance,
       isCheckingIn,
     };
   }
@@ -129,62 +131,105 @@ export class AttendanceService {
 
     const checkTime = new Date(externalData.sj);
 
-    try {
-      switch (externalData.fx) {
-        case CheckType.Auto: {
-          const latestAttendance = await prisma.attendance.findFirst({
-            where: { userId: user.id },
-            orderBy: { checkInTime: 'desc' },
-          });
-          if (!latestAttendance || latestAttendance.checkOutTime) {
-            return await processingService.processCheckIn(
-              user.id,
-              checkTime,
-              false,
-            );
-          } else {
-            return await processingService.processCheckOut(
-              user.id,
-              checkTime,
-              false,
-            );
-          }
-        }
-        case CheckType.CheckIn:
-          return await processingService.processCheckIn(
-            user.id,
-            checkTime,
-            false,
-          );
-        case CheckType.CheckOut:
-          return await processingService.processCheckOut(
-            user.id,
-            checkTime,
-            false,
-          );
-        case CheckType.OvertimeStart:
-          return await processingService.processCheckIn(
-            user.id,
-            checkTime,
-            true,
-          );
-        case CheckType.OvertimeEnd:
-          return await processingService.processCheckOut(
-            user.id,
-            checkTime,
-            true,
-          );
-        default:
-          throw new Error('Invalid check type');
-      }
-    } catch (error: any) {
-      console.error('Error processing external check-in/out:', error);
-      await notificationService.sendNotification(
-        user.id,
-        `Error processing attendance: ${error.message}`,
-      );
-      throw error;
+    console.log(`Processing external check type: ${externalData.fx}`);
+
+    let checkType: CheckType = externalData.fx as CheckType;
+    let isOvertime: boolean = false;
+
+    switch (checkType) {
+      case CheckType.Auto:
+        checkType = await this.determineAutoCheckType(user.id, checkTime);
+        break;
+      case CheckType.OvertimeStart:
+        checkType = CheckType.CheckIn;
+        isOvertime = true;
+        break;
+      case CheckType.OvertimeEnd:
+        checkType = CheckType.CheckOut;
+        isOvertime = true;
+        break;
+      case CheckType.BackToWork:
+        checkType = CheckType.CheckIn;
+        break;
+      case CheckType.LeaveDuringWork:
+        checkType = CheckType.CheckOut;
+        break;
     }
+
+    if (checkType === CheckType.CheckIn) {
+      return await this.createAttendance(user.id, checkTime, isOvertime);
+    } else if (checkType === CheckType.CheckOut) {
+      return await this.updateAttendance(user.id, checkTime, isOvertime);
+    } else {
+      throw new Error(`Unhandled check type: ${checkType}`);
+    }
+  }
+
+  private async determineAutoCheckType(
+    userId: string,
+    checkTime: Date,
+  ): Promise<CheckType> {
+    const latestAttendance = await prisma.attendance.findFirst({
+      where: { userId },
+      orderBy: { checkInTime: 'desc' },
+    });
+
+    if (!latestAttendance || latestAttendance.checkOutTime) {
+      return CheckType.CheckIn;
+    } else {
+      return CheckType.CheckOut;
+    }
+  }
+
+  private async createAttendance(
+    userId: string,
+    checkTime: Date,
+    isOvertime: boolean,
+  ): Promise<Attendance> {
+    return prisma.attendance.create({
+      data: {
+        userId,
+        date: new Date(
+          checkTime.getFullYear(),
+          checkTime.getMonth(),
+          checkTime.getDate(),
+        ),
+        checkInTime: checkTime,
+        status: isOvertime ? 'overtime-started' : 'checked-in',
+        checkInLocation: JSON.stringify({ lat: 0, lng: 0 }), // You should replace this with actual location data
+        checkInPhoto: 'N/A', // Replace with actual photo data or path if available
+        checkInAddress: 'N/A', // Replace with actual address if available
+        checkInDeviceSerial: 'EXTERNAL', // Or any identifier for your external system
+        isManualEntry: false,
+      },
+    });
+  }
+
+  private async updateAttendance(
+    userId: string,
+    checkTime: Date,
+    isOvertime: boolean,
+  ): Promise<Attendance> {
+    const latestAttendance = await prisma.attendance.findFirst({
+      where: { userId, checkOutTime: null },
+      orderBy: { checkInTime: 'desc' },
+    });
+
+    if (!latestAttendance) {
+      throw new Error('No open attendance record found for check-out');
+    }
+
+    return prisma.attendance.update({
+      where: { id: latestAttendance.id },
+      data: {
+        checkOutTime: checkTime,
+        status: isOvertime ? 'overtime-ended' : 'checked-out',
+        checkOutLocation: JSON.stringify({ lat: 0, lng: 0 }), // Replace with actual location data
+        checkOutPhoto: 'N/A', // Replace with actual photo data or path if available
+        checkOutAddress: 'N/A', // Replace with actual address if available
+        checkOutDeviceSerial: 'EXTERNAL', // Or any identifier for your external system
+      },
+    });
   }
 
   async getAttendanceHistory(
