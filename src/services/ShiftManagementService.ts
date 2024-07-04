@@ -1,12 +1,13 @@
 // services/ShiftManagementService.ts
 
-import { Shift } from '@prisma/client';
+import { PrismaClient, Shift } from '@prisma/client';
 import {
   getShifts,
   getShiftByCode,
   getDefaultShiftCode,
 } from '../lib/shiftCache';
-import prisma from '../lib/prisma';
+
+const prisma = new PrismaClient();
 
 export class ShiftManagementService {
   async getDefaultShift(department: string): Promise<Shift | null> {
@@ -23,6 +24,23 @@ export class ShiftManagementService {
     return prisma.user.update({
       where: { id: userId },
       data: { shiftId: shift.id },
+    });
+  }
+
+  async requestShiftAdjustment(
+    userId: string,
+    requestedShiftId: string,
+    date: Date,
+    reason: string,
+  ) {
+    return prisma.shiftAdjustmentRequest.create({
+      data: {
+        userId,
+        requestedShiftId,
+        date,
+        reason,
+        status: 'pending',
+      },
     });
   }
 }
