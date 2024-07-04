@@ -15,8 +15,11 @@ const externalDbService = new ExternalDbService();
 const notificationService = new NotificationService();
 
 export class AttendanceService {
-  externalDbService: any;
-  // services/AttendanceService.ts
+  private externalDbService: ExternalDbService;
+
+  constructor() {
+    this.externalDbService = new ExternalDbService();
+  }
 
   async getLatestAttendanceStatus(
     employeeId: string,

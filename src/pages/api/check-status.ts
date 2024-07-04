@@ -16,7 +16,7 @@ export default async function handler(
   const { employeeId } = req.query;
 
   if (!employeeId || typeof employeeId !== 'string') {
-    return res.status(400).json({ message: 'Invalid employeeId' });
+    return res.status(400).json({ message: 'Employee ID is required' });
   }
 
   try {
@@ -25,6 +25,11 @@ export default async function handler(
     res.status(200).json(status);
   } catch (error) {
     console.error('Error checking status:', error);
-    res.status(500).json({ message: 'Server error' });
+    res
+      .status(500)
+      .json({
+        message: 'Error checking status',
+        error: (error as Error).message,
+      });
   }
 }
