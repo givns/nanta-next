@@ -93,7 +93,7 @@ export class ShiftManagementService {
     const shiftId = departmentShiftMap[department] || '103'; // Default to '103' if no match
 
     return prisma.shift.findUnique({
-      where: { id: shiftId },
+      where: { shiftCode: shiftId },
     });
   }
 

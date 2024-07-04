@@ -132,7 +132,7 @@ export default async function handler(
       user = await prisma.user.create({
         data: {
           ...userData,
-          shiftId: new ObjectId(defaultShift.id).toString(),
+          shiftId: defaultShift.id,
         },
       });
       console.log('New user created:', user);
