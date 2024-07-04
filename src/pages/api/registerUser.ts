@@ -93,11 +93,11 @@ export default async function handler(
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
     let externalUser: ExternalCheckInData | null = null;
-    try {
-      externalUser = await externalDbService.getLatestCheckIn(employeeId);
-    } catch (error) {
-      console.error('Error finding external user:', error);
-    }
+try {
+  externalUser = await externalDbService.getLatestCheckIn(employeeId);
+} catch (error) {
+  console.error('Error finding external user:', error);
+}
 
     let role: UserRole;
 
@@ -125,16 +125,15 @@ export default async function handler(
     };
 
     if (!user) {
-      const defaultShift = await shiftManagementService.getDefaultShift(
-        userData.department,
-      );
-
+      const defaultShift = await shiftManagementService.getDefaultShift(userData.department);
+    
       if (!defaultShift) {
-        throw new Error(
-          `No default shift found for department: ${userData.department}`,
-        );
+        console.error(`No default shift found for department: ${userData.department}`);
+        throw new Error(`No default shift found for department: ${userData.department}`);
       }
-
+    
+      console.log(`Assigning shift to new user:`, defaultShift);
+    
       user = await prisma.user.create({
         data: {
           ...userData,
@@ -150,21 +149,21 @@ export default async function handler(
       console.log('Existing user updated:', user);
     }
 
-    // Fetch the complete user data including the assigned shift
-    const finalUser = await prisma.user.findUnique({
+    const createdUser = await prisma.user.findUnique({
       where: { id: user.id },
       include: { assignedShift: true },
     });
+    console.log('Created user with assigned shift:', createdUser);
 
     // Prepare the response data
     const responseData = {
-      ...finalUser,
-      assignedShift: finalUser?.assignedShift
+      ...createdUser,
+      assignedShift: createdUser?.assignedShift
         ? {
-            id: finalUser.assignedShift.id,
-            name: finalUser.assignedShift.name,
-            startTime: finalUser.assignedShift.startTime,
-            endTime: finalUser.assignedShift.endTime,
+            id: createdUser.assignedShift.id,
+            name: createdUser.assignedShift.name,
+            startTime: createdUser.assignedShift.startTime,
+            endTime: createdUser.assignedShift.endTime,
           }
         : null,
     };

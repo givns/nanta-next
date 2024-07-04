@@ -8,32 +8,29 @@ import {
 } from '../types/user';
 
 export class ExternalDbService {
-  // services/ExternalDbService.ts
 
-  async getLatestCheckIn(
-    employeeId: string,
-  ): Promise<ExternalCheckInData | null> {
-    console.log(`Searching for external user with employeeId: ${employeeId}`);
+async getLatestCheckIn(employeeId: string): Promise<ExternalCheckInData | null> {
+  console.log(`Searching for external user with employeeId: ${employeeId}`);
 
-    try {
-      const result = await query<ExternalCheckInData[]>(
-        'SELECT * FROM kt_jl WHERE user_no = ? ORDER BY sj DESC LIMIT 1',
-        [employeeId],
-      );
+  try {
+    const result = await query<ExternalCheckInData[]>(
+      'SELECT * FROM kt_jl WHERE user_serial = ? ORDER BY sj DESC LIMIT 1',
+      [employeeId]
+    );
 
-      if (result.length > 0) {
-        const checkInData = result[0];
-        console.log('External check-in found:', checkInData);
-        return checkInData;
-      } else {
-        console.log('No external check-in found');
-        return null;
-      }
-    } catch (error) {
-      console.error('Error in getLatestCheckIn:', error);
+    if (result.length > 0) {
+      const checkInData = result[0];
+      console.log('External check-in found:', checkInData);
+      return checkInData;
+    } else {
+      console.log('No external check-in found');
       return null;
     }
+  } catch (error) {
+    console.error('Error in getLatestCheckIn:', error);
+    return null;
   }
+}
 
   async createCheckIn(data: ExternalCheckInInputData) {
     await query(

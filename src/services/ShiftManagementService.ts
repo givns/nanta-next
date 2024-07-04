@@ -69,13 +69,21 @@ export class ShiftManagementService {
       ฝ่ายรักษาความปลอดภัย: 'SHIFT102',
     };
 
-    const shiftCode = departmentShiftMap[department] || 'SHIFT103'; // Default to '103' if no match
-    console.log(`Mapped shift ID: ${shiftCode}`);
+    const shiftCode = departmentShiftMap[department] || 'SHIFT103'; // Default to 'SHIFT103' if no match
+  console.log(`Mapped shift code: ${shiftCode}`);
 
-    return prisma.shift.findUnique({
-      where: { shiftCode },
-    });
+  const shift = await prisma.shift.findUnique({
+    where: { shiftCode },
+  });
+
+  if (!shift) {
+    console.log(`No shift found for code: ${shiftCode}`);
+  } else {
+    console.log(`Found shift:`, shift);
   }
+
+  return shift;
+}
   async listAllShifts(): Promise<Shift[]> {
     return prisma.shift.findMany();
   }
