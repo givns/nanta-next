@@ -7,7 +7,11 @@ import { PrismaClient, Shift } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class ShiftManagementService {
+  private shifts: Shift[] | null = null;
   async initializeShifts() {
+    if (this.shifts !== null) {
+      return;
+    }
     const shifts = [
       {
         shiftCode: 'SHIFT101',
@@ -35,22 +39,21 @@ export class ShiftManagementService {
       },
     ];
 
-    for (const shift of shifts) {
-      await prisma.shift.upsert({
-        where: { shiftCode: shift.shiftCode },
-        update: shift,
-        create: shift,
-      });
-    }
-  }
-
-  async areShiftsInitialized(): Promise<boolean> {
-    const count = await prisma.shift.count();
-    return count > 0;
+    this.shifts = await Promise.all(
+      shifts.map((shift) =>
+        prisma.shift.upsert({
+          where: { shiftCode: shift.shiftCode },
+          update: shift,
+          create: shift,
+        }),
+      ),
+    );
   }
 
   async getDefaultShift(department: string): Promise<Shift | null> {
-    console.log(`Getting default shift for department: ${department}`);
+    if (this.shifts === null) {
+      await this.initializeShifts();
+    }
     const departmentShiftMap: { [key: string]: string } = {
       ฝ่ายขนส่ง: 'SHIFT101',
       ฝ่ายปฏิบัติการ: 'SHIFT103',

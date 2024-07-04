@@ -60,6 +60,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  console.time('registerUser');
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -87,20 +88,25 @@ export default async function handler(
   }
 
   try {
-    // Initialize shifts if they don't exist
+    console.time('initializeShifts');
     await shiftManagementService.initializeShifts();
+    console.timeEnd('initializeShifts');
 
+    console.time('findUser');
     let user = await prisma.user.findUnique({ where: { lineUserId } });
+    console.timeEnd('findUser');
 
+    console.time('getExternalUser');
     let externalUser: ExternalCheckInData | null = null;
     try {
       externalUser = await externalDbService.getLatestCheckIn(employeeId);
     } catch (error) {
       console.error('Error finding external user:', error);
     }
+    console.timeEnd('getExternalUser');
 
+    console.time('determineRole');
     let role: UserRole;
-
     const userCount = await prisma.user.count();
     if (userCount === 0) {
       role = UserRole.SUPERADMIN;
@@ -110,6 +116,7 @@ export default async function handler(
       role = determineRole(department);
       await alertAdmin(lineUserId, name, employeeId);
     }
+    console.timeEnd('determineRole');
 
     const userData = {
       lineUserId,
@@ -124,21 +131,19 @@ export default async function handler(
       overtimeHours: 0,
     };
 
+    console.time('createOrUpdateUser');
     if (!user) {
+      console.time('getDefaultShift');
       const defaultShift = await shiftManagementService.getDefaultShift(
         userData.department,
       );
+      console.timeEnd('getDefaultShift');
 
       if (!defaultShift) {
-        console.error(
-          `No default shift found for department: ${userData.department}`,
-        );
         throw new Error(
           `No default shift found for department: ${userData.department}`,
         );
       }
-
-      console.log(`Assigning shift to new user:`, defaultShift);
 
       user = await prisma.user.create({
         data: {
@@ -154,29 +159,33 @@ export default async function handler(
       });
       console.log('Existing user updated:', user);
     }
+    console.timeEnd('createOrUpdateUser');
 
-    const createdUser = await prisma.user.findUnique({
+    console.time('getFinalUser');
+    const finalUser = await prisma.user.findUnique({
       where: { id: user.id },
       include: { assignedShift: true },
     });
-    console.log('Created user with assigned shift:', createdUser);
+    console.timeEnd('getFinalUser');
 
-    // Prepare the response data
     const responseData = {
-      ...createdUser,
-      assignedShift: createdUser?.assignedShift
+      ...finalUser,
+      assignedShift: finalUser?.assignedShift
         ? {
-            id: createdUser.assignedShift.id,
-            name: createdUser.assignedShift.name,
-            startTime: createdUser.assignedShift.startTime,
-            endTime: createdUser.assignedShift.endTime,
+            id: finalUser.assignedShift.id,
+            name: finalUser.assignedShift.name,
+            startTime: finalUser.assignedShift.startTime,
+            endTime: finalUser.assignedShift.endTime,
           }
         : null,
     };
 
+    console.time('linkRichMenu');
     const richMenuId = determineRichMenuId(role);
     await client.linkRichMenuToUser(lineUserId, richMenuId);
+    console.timeEnd('linkRichMenu');
 
+    console.timeEnd('registerUser');
     res.status(201).json({ success: true, data: responseData });
   } catch (error: any) {
     console.error('Error in registerUser:', error);
@@ -190,11 +199,3 @@ export default async function handler(
       .json({ success: false, error: error.message, stack: error.stack });
   }
 }
-
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '1mb',
-    },
-  },
-};
