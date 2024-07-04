@@ -42,7 +42,7 @@ export class ShiftManagementService {
 
     for (const shift of shifts) {
       await prisma.shift.upsert({
-        where: { id: shift.id },
+        where: { shiftCode: shift.shiftCode },
         update: shift,
         create: shift,
       });
@@ -52,29 +52,61 @@ export class ShiftManagementService {
     const count = await prisma.shift.count();
     return count > 0;
   }
-  async assignShift(userId: string, department: string) {
+
+  async getDefaultShift(department: string): Promise<Shift | null> {
+    console.log(`Getting default shift for department: ${department}`);
     const departmentShiftMap: { [key: string]: string } = {
-      ฝ่ายขนส่ง: '101',
-      ฝ่ายปฏิบัติการ: '103',
-      'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)': '104',
-      'ฝ่ายผลิต-กระบวนการที่ 2 (เช้า)': '101',
-      'ฝ่ายผลิต-คัดคุณภาพและบรรจุ': '103',
-      'ฝ่ายผลิต-ข้าวเกรียบ-ข้าวตัง': '103',
-      'ฝ่ายผลิต-วิจัยและพัฒนาคุณภาพผลิตภัณฑ์': '102',
-      ฝ่ายประกันคุณภาพ: '103',
-      ฝ่ายคลังสินค้าและแพ็คกิ้ง: '103',
-      ฝ่ายจัดส่งสินค้า: '103',
-      ฝ่ายจัดซื้อและประสานงานขาย: '103',
-      ฝ่ายบัญชีและการเงิน: '103',
-      ฝ่ายทรัพยากรบุคคล: '103',
-      ฝ่ายรักษาความสะอาด: '102',
-      ฝ่ายรักษาความปลอดภัย: '102',
+      ฝ่ายขนส่ง: 'SHIFT101',
+      ฝ่ายปฏิบัติการ: 'SHIFT103',
+      'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)': 'SHIFT104',
+      'ฝ่ายผลิต-กระบวนการที่ 2 (เช้า)': 'SHIFT101',
+      'ฝ่ายผลิต-คัดคุณภาพและบรรจุ': 'SHIFT103',
+      'ฝ่ายผลิต-ข้าวเกรียบ-ข้าวตัง': 'SHIFT103',
+      'ฝ่ายผลิต-วิจัยและพัฒนาคุณภาพผลิตภัณฑ์': 'SHIFT102',
+      ฝ่ายประกันคุณภาพ: 'SHIFT103',
+      ฝ่ายคลังสินค้าและแพ็คกิ้ง: 'SHIFT103',
+      ฝ่ายจัดส่งสินค้า: 'SHIFT103',
+      ฝ่ายจัดซื้อและประสานงานขาย: 'SHIFT103',
+      ฝ่ายบัญชีและการเงิน: 'SHIFT103',
+      ฝ่ายทรัพยากรบุคคล: 'SHIFT103',
+      ฝ่ายรักษาความสะอาด: 'SHIFT102',
+      ฝ่ายรักษาความปลอดภัย: 'SHIFT102',
     };
 
-    const shiftId = departmentShiftMap[department] || '103'; // Default to '103' if no match
+    const shiftCode = departmentShiftMap[department] || 'SHIFT103'; // Default to '103' if no match
+    console.log(`Mapped shift ID: ${shiftCode}`);
 
-    const shift = await prisma.shift.findFirst({
-      where: { id: shiftId },
+    return prisma.shift.findUnique({
+      where: { shiftCode },
+    });
+  }
+  async listAllShifts(): Promise<Shift[]> {
+    return prisma.shift.findMany();
+  }
+
+  async assignShift(userId: string, department: string) {
+    const departmentShiftMap: { [key: string]: string } = {
+      ฝ่ายขนส่ง: 'SHIFT101',
+      ฝ่ายปฏิบัติการ: 'SHIFT103',
+      'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)': 'SHIFT104',
+      'ฝ่ายผลิต-กระบวนการที่ 2 (เช้า)': 'SHIFT101',
+      'ฝ่ายผลิต-คัดคุณภาพและบรรจุ': 'SHIFT103',
+      'ฝ่ายผลิต-ข้าวเกรียบ-ข้าวตัง': 'SHIFT103',
+      'ฝ่ายผลิต-วิจัยและพัฒนาคุณภาพผลิตภัณฑ์': 'SHIFT102',
+      ฝ่ายประกันคุณภาพ: 'SHIFT103',
+      ฝ่ายคลังสินค้าและแพ็คกิ้ง: 'SHIFT103',
+      ฝ่ายจัดส่งสินค้า: 'SHIFT103',
+      ฝ่ายจัดซื้อและประสานงานขาย: 'SHIFT103',
+      ฝ่ายบัญชีและการเงิน: 'SHIFT103',
+      ฝ่ายทรัพยากรบุคคล: 'SHIFT103',
+      ฝ่ายรักษาความสะอาด: 'SHIFT102',
+      ฝ่ายรักษาความปลอดภัย: 'SHIFT102',
+    };
+
+    const shiftCode = departmentShiftMap[department] || 'SHIFT103';
+
+    const shift = await prisma.shift.findUnique({
+      where: { shiftCode },
     });
 
     if (!shift) {
@@ -85,44 +117,6 @@ export class ShiftManagementService {
       where: { id: userId },
       data: { shiftId: shift.id },
     });
-  }
-  async getDefaultShift(department: string): Promise<Shift | null> {
-    console.log(`Getting default shift for department: ${department}`);
-    const departmentShiftMap: { [key: string]: string } = {
-      ฝ่ายขนส่ง: '101',
-      ฝ่ายปฏิบัติการ: '103',
-      'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)': '104',
-      'ฝ่ายผลิต-กระบวนการที่ 2 (เช้า)': '101',
-      'ฝ่ายผลิต-คัดคุณภาพและบรรจุ': '103',
-      'ฝ่ายผลิต-ข้าวเกรียบ-ข้าวตัง': '103',
-      'ฝ่ายผลิต-วิจัยและพัฒนาคุณภาพผลิตภัณฑ์': '102',
-      ฝ่ายประกันคุณภาพ: '103',
-      ฝ่ายคลังสินค้าและแพ็คกิ้ง: '103',
-      ฝ่ายจัดส่งสินค้า: '103',
-      ฝ่ายจัดซื้อและประสานงานขาย: '103',
-      ฝ่ายบัญชีและการเงิน: '103',
-      ฝ่ายทรัพยากรบุคคล: '103',
-      ฝ่ายรักษาความสะอาด: '102',
-      ฝ่ายรักษาความปลอดภัย: '102',
-    };
-
-    const shiftId = departmentShiftMap[department] || '103'; // Default to '103' if no match
-    console.log(`Mapped shift ID: ${shiftId}`);
-
-    const shift = await prisma.shift.findFirst({
-      where: { id: shiftId },
-    });
-
-    if (!shift) {
-      console.log(`No shift found with id: ${shiftId}`);
-    } else {
-      console.log(`Found shift: ${JSON.stringify(shift)}`);
-    }
-
-    return shift;
-  }
-  async listAllShifts(): Promise<Shift[]> {
-    return prisma.shift.findMany();
   }
 
   async requestShiftAdjustment(
