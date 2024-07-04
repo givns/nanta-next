@@ -93,11 +93,11 @@ export default async function handler(
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
     let externalUser: ExternalCheckInData | null = null;
-try {
-  externalUser = await externalDbService.getLatestCheckIn(employeeId);
-} catch (error) {
-  console.error('Error finding external user:', error);
-}
+    try {
+      externalUser = await externalDbService.getLatestCheckIn(employeeId);
+    } catch (error) {
+      console.error('Error finding external user:', error);
+    }
 
     let role: UserRole;
 
@@ -125,15 +125,21 @@ try {
     };
 
     if (!user) {
-      const defaultShift = await shiftManagementService.getDefaultShift(userData.department);
-    
+      const defaultShift = await shiftManagementService.getDefaultShift(
+        userData.department,
+      );
+
       if (!defaultShift) {
-        console.error(`No default shift found for department: ${userData.department}`);
-        throw new Error(`No default shift found for department: ${userData.department}`);
+        console.error(
+          `No default shift found for department: ${userData.department}`,
+        );
+        throw new Error(
+          `No default shift found for department: ${userData.department}`,
+        );
       }
-    
+
       console.log(`Assigning shift to new user:`, defaultShift);
-    
+
       user = await prisma.user.create({
         data: {
           ...userData,

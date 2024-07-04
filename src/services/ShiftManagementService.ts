@@ -70,20 +70,20 @@ export class ShiftManagementService {
     };
 
     const shiftCode = departmentShiftMap[department] || 'SHIFT103'; // Default to 'SHIFT103' if no match
-  console.log(`Mapped shift code: ${shiftCode}`);
+    console.log(`Mapped shift code: ${shiftCode}`);
 
-  const shift = await prisma.shift.findUnique({
-    where: { shiftCode },
-  });
+    const shift = await prisma.shift.findUnique({
+      where: { shiftCode },
+    });
 
-  if (!shift) {
-    console.log(`No shift found for code: ${shiftCode}`);
-  } else {
-    console.log(`Found shift:`, shift);
+    if (!shift) {
+      console.log(`No shift found for code: ${shiftCode}`);
+    } else {
+      console.log(`Found shift:`, shift);
+    }
+
+    return shift;
   }
-
-  return shift;
-}
   async listAllShifts(): Promise<Shift[]> {
     return prisma.shift.findMany();
   }
