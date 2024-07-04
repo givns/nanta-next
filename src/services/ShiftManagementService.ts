@@ -5,6 +5,9 @@ import { PrismaClient, Shift } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class ShiftManagementService {
+  constructor() {
+    this.initializeShifts().catch(console.error);
+  }
   async initializeShifts() {
     const shifts = [
       {
@@ -45,6 +48,10 @@ export class ShiftManagementService {
       });
     }
   }
+  async areShiftsInitialized(): Promise<boolean> {
+    const count = await prisma.shift.count();
+    return count > 0;
+  }
   async assignShift(userId: string, department: string) {
     const departmentShiftMap: { [key: string]: string } = {
       ฝ่ายขนส่ง: '101',
@@ -66,9 +73,17 @@ export class ShiftManagementService {
 
     const shiftId = departmentShiftMap[department] || '103'; // Default to '103' if no match
 
+    const shift = await prisma.shift.findFirst({
+      where: { id: shiftId },
+    });
+
+    if (!shift) {
+      throw new Error(`No shift found for department: ${department}`);
+    }
+
     return prisma.user.update({
       where: { id: userId },
-      data: { shiftId },
+      data: { shiftId: shift.id },
     });
   }
   async getDefaultShift(department: string): Promise<Shift | null> {
@@ -92,10 +107,19 @@ export class ShiftManagementService {
     };
 
     const shiftId = departmentShiftMap[department] || '103'; // Default to '103' if no match
+    console.log(`Mapped shift ID: ${shiftId}`);
 
-    return prisma.shift.findFirst({
+    const shift = await prisma.shift.findFirst({
       where: { id: shiftId },
     });
+
+    if (!shift) {
+      console.log(`No shift found with id: ${shiftId}`);
+    } else {
+      console.log(`Found shift: ${JSON.stringify(shift)}`);
+    }
+
+    return shift;
   }
   async listAllShifts(): Promise<Shift[]> {
     return prisma.shift.findMany();

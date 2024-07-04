@@ -13,6 +13,10 @@ const client = new Client({
 const shiftManagementService = new ShiftManagementService();
 const externalDbService = new ExternalDbService();
 
+if (!(await shiftManagementService.areShiftsInitialized())) {
+  await shiftManagementService.initializeShifts();
+}
+
 function determineRole(department: string): UserRole {
   switch (department) {
     case 'ฝ่ายขนส่ง':
