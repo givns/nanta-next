@@ -1,55 +1,18 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { Client } from '@line/bot-sdk';
-import { query } from '../../utils/mysqlConnection';
+import { ExternalDbService } from '../../services/ExternalDbService';
 import { UserRole } from '@/types/enum';
 import { ShiftManagementService } from '../../services/ShiftManagementService';
+import { ObjectId } from 'mongodb';
+import { ExternalCheckInData } from '../../types/user';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
 const shiftManagementService = new ShiftManagementService();
-
-interface ExternalUserData {
-  user_no: string;
-  name: string;
-  department: string;
-}
-
-async function findExternalUser(
-  employeeId: string,
-): Promise<ExternalUserData | null> {
-  console.log(`Searching for external user with employeeId: ${employeeId}`);
-
-  try {
-    const externalUsers: any[] = await query(
-      'SELECT * FROM dt_user WHERE user_no = ?',
-      [employeeId],
-    );
-
-    if (externalUsers.length > 0) {
-      const user = externalUsers[0] as Record<string, unknown>;
-      console.log('External user found. Columns:', Object.keys(user));
-
-      const mappedUser: ExternalUserData = {
-        user_no: (user.user_no as string) || '',
-        name: `${(user.user_fname as string) || ''} ${(user.user_lname as string) || ''}`.trim(),
-        department:
-          (user.user_depname as string) || (user.user_dep as string) || '',
-      };
-
-      console.log('Mapped external user:', mappedUser);
-      return mappedUser;
-    } else {
-      console.log('No external user found');
-      return null;
-    }
-  } catch (error) {
-    console.error('Error in findExternalUser:', error);
-    return null;
-  }
-}
+const externalDbService = new ExternalDbService();
 
 function determineRole(department: string): UserRole {
   switch (department) {
@@ -125,9 +88,9 @@ export default async function handler(
   try {
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
-    let externalUser: ExternalUserData | null = null;
+    let externalUser: ExternalCheckInData | null = null;
     try {
-      externalUser = await findExternalUser(employeeId);
+      externalUser = await externalDbService.getLatestCheckIn(employeeId);
     } catch (error) {
       console.error('Error finding external user:', error);
     }
@@ -138,7 +101,7 @@ export default async function handler(
     if (userCount === 0) {
       role = UserRole.SUPERADMIN;
     } else if (externalUser) {
-      role = determineRole(externalUser.department || department);
+      role = determineRole(externalUser.user_depname || department);
     } else {
       role = determineRole(department);
       await alertAdmin(lineUserId, name, employeeId);
@@ -146,9 +109,11 @@ export default async function handler(
 
     const userData = {
       lineUserId,
-      name: externalUser?.name || name,
+      name: externalUser
+        ? `${externalUser.user_fname} ${externalUser.user_lname}`.trim()
+        : name,
       nickname,
-      department: externalUser?.department || department,
+      department: externalUser?.user_depname || department,
       profilePictureUrl,
       role: role.toString(),
       employeeId,
@@ -156,7 +121,6 @@ export default async function handler(
     };
 
     if (!user) {
-      // For new user creation, we need to assign a default shift first
       const defaultShift = await shiftManagementService.getDefaultShift(
         userData.department,
       );
@@ -168,7 +132,7 @@ export default async function handler(
       user = await prisma.user.create({
         data: {
           ...userData,
-          shiftId: defaultShift.id, // Assign the default shift
+          shiftId: new ObjectId(defaultShift.id).toString(),
         },
       });
       console.log('New user created:', user);
@@ -180,13 +144,11 @@ export default async function handler(
       console.log('Existing user updated:', user);
     }
 
-    // Fetch the complete user data including the assigned shift
     const finalUser = await prisma.user.findUnique({
       where: { id: user.id },
       include: { assignedShift: true },
     });
 
-    // Prepare the response data
     const responseData = {
       ...finalUser,
       assignedShift: finalUser?.assignedShift
@@ -215,6 +177,7 @@ export default async function handler(
       .json({ success: false, error: error.message, stack: error.stack });
   }
 }
+
 export const config = {
   api: {
     bodyParser: {
