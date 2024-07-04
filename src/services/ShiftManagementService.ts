@@ -72,6 +72,7 @@ export class ShiftManagementService {
     });
   }
   async getDefaultShift(department: string): Promise<Shift | null> {
+    console.log(`Getting default shift for department: ${department}`);
     const departmentShiftMap: { [key: string]: string } = {
       ฝ่ายขนส่ง: '101',
       ฝ่ายปฏิบัติการ: '103',

@@ -4,7 +4,6 @@ import { Client } from '@line/bot-sdk';
 import { ExternalDbService } from '../../services/ExternalDbService';
 import { UserRole } from '@/types/enum';
 import { ShiftManagementService } from '../../services/ShiftManagementService';
-import { ObjectId } from 'mongodb';
 import { ExternalCheckInData } from '../../types/user';
 
 const client = new Client({
@@ -126,7 +125,12 @@ export default async function handler(
       );
 
       if (!defaultShift) {
-        throw new Error('No default shift found for the given department');
+        console.error(
+          `No default shift found for department: ${userData.department}`,
+        );
+        throw new Error(
+          `No default shift found for department: ${userData.department}`,
+        );
       }
 
       user = await prisma.user.create({
