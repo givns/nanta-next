@@ -1,3 +1,5 @@
+// pages/api/registerUser.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { Client } from '@line/bot-sdk';
@@ -10,12 +12,8 @@ const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
-const shiftManagementService = new ShiftManagementService();
 const externalDbService = new ExternalDbService();
-
-if (!(await shiftManagementService.areShiftsInitialized())) {
-  await shiftManagementService.initializeShifts();
-}
+const shiftManagementService = new ShiftManagementService();
 
 function determineRole(department: string): UserRole {
   switch (department) {
@@ -89,6 +87,9 @@ export default async function handler(
   }
 
   try {
+    // Initialize shifts if they don't exist
+    await shiftManagementService.initializeShifts();
+
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
     let externalUser: ExternalCheckInData | null = null;
@@ -119,7 +120,7 @@ export default async function handler(
       department: externalUser?.user_depname || department,
       profilePictureUrl,
       role: role.toString(),
-      employeeId,
+      employeeId: externalUser?.user_no || employeeId,
       overtimeHours: 0,
     };
 
@@ -129,9 +130,6 @@ export default async function handler(
       );
 
       if (!defaultShift) {
-        console.error(
-          `No default shift found for department: ${userData.department}`,
-        );
         throw new Error(
           `No default shift found for department: ${userData.department}`,
         );
@@ -152,11 +150,13 @@ export default async function handler(
       console.log('Existing user updated:', user);
     }
 
+    // Fetch the complete user data including the assigned shift
     const finalUser = await prisma.user.findUnique({
       where: { id: user.id },
       include: { assignedShift: true },
     });
 
+    // Prepare the response data
     const responseData = {
       ...finalUser,
       assignedShift: finalUser?.assignedShift
@@ -169,10 +169,10 @@ export default async function handler(
         : null,
     };
 
-    res.status(201).json({ success: true, data: responseData });
-
     const richMenuId = determineRichMenuId(role);
     await client.linkRichMenuToUser(lineUserId, richMenuId);
+
+    res.status(201).json({ success: true, data: responseData });
   } catch (error: any) {
     console.error('Error in registerUser:', error);
     if (error.code === 'P2002') {

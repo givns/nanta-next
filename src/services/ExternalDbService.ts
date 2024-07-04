@@ -17,7 +17,7 @@ export class ExternalDbService {
 
     try {
       const result = await query<ExternalCheckInData[]>(
-        'SELECT * FROM kt_jl WHERE user_serial = ? ORDER BY sj DESC LIMIT 1',
+        'SELECT * FROM kt_jl WHERE user_no = ? ORDER BY sj DESC LIMIT 1',
         [employeeId],
       );
 
