@@ -1,6 +1,6 @@
 // services/ShiftManagementService.ts
 
-import { PrismaClient, Shift } from '@prisma/client';
+import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
 import {
   getShifts,
   getShiftByCode,
@@ -32,7 +32,7 @@ export class ShiftManagementService {
     requestedShiftId: string,
     date: Date,
     reason: string,
-  ) {
+  ): Promise<ShiftAdjustmentRequest> {
     return prisma.shiftAdjustmentRequest.create({
       data: {
         userId,
@@ -40,6 +40,60 @@ export class ShiftManagementService {
         date,
         reason,
         status: 'pending',
+      },
+    });
+  }
+
+  async getShiftAdjustmentForDate(
+    userId: string,
+    date: Date,
+  ): Promise<(ShiftAdjustmentRequest & { requestedShift: Shift }) | null> {
+    return prisma.shiftAdjustmentRequest.findFirst({
+      where: {
+        userId,
+        date: {
+          gte: new Date(date.setHours(0, 0, 0, 0)),
+          lt: new Date(date.setHours(23, 59, 59, 999)),
+        },
+        status: 'approved',
+      },
+      include: {
+        requestedShift: true,
+      },
+    });
+  }
+
+  async approveShiftAdjustment(id: string): Promise<ShiftAdjustmentRequest> {
+    return prisma.shiftAdjustmentRequest.update({
+      where: { id },
+      data: { status: 'approved' },
+    });
+  }
+
+  async rejectShiftAdjustment(id: string): Promise<ShiftAdjustmentRequest> {
+    return prisma.shiftAdjustmentRequest.update({
+      where: { id },
+      data: { status: 'rejected' },
+    });
+  }
+
+  async getUserShift(userId: string): Promise<Shift | null> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { assignedShift: true },
+    });
+
+    return user?.assignedShift || null;
+  }
+
+  async getShiftAdjustmentRequests(
+    status?: 'pending' | 'approved' | 'rejected',
+  ): Promise<ShiftAdjustmentRequest[]> {
+    return prisma.shiftAdjustmentRequest.findMany({
+      where: status ? { status } : undefined,
+      include: {
+        user: true,
+        requestedShift: true,
       },
     });
   }

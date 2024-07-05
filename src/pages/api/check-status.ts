@@ -2,8 +2,11 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
+import { ShiftManagementService } from '../../services/ShiftManagementService';
+import prisma from '../../lib/prisma';
 
 const attendanceService = new AttendanceService();
+const shiftManagementService = new ShiftManagementService();
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,14 +23,32 @@ export default async function handler(
   }
 
   try {
+    const user = await prisma.user.findUnique({
+      where: { employeeId },
+      include: { assignedShift: true },
+    });
+    if (!user) throw new Error('User not found');
+
     const status =
       await attendanceService.getLatestAttendanceStatus(employeeId);
-    res.status(200).json(status);
-  } catch (error) {
-    console.error('Error checking status:', error);
-    res.status(500).json({
-      message: 'Error checking status',
-      error: (error as Error).message,
+    const shiftAdjustment =
+      await shiftManagementService.getShiftAdjustmentForDate(
+        user.id,
+        new Date(),
+      );
+
+    res.status(200).json({
+      ...status,
+      user: {
+        ...user,
+        assignedShift: user.assignedShift,
+      },
+      shiftAdjustment: shiftAdjustment,
     });
+  } catch (error: any) {
+    console.error('Error checking status:', error);
+    res
+      .status(500)
+      .json({ message: 'Error checking status', error: error.message });
   }
 }

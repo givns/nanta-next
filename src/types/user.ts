@@ -1,4 +1,9 @@
-import { User, Attendance, Shift } from '@prisma/client';
+import {
+  User,
+  Attendance,
+  Shift,
+  ShiftAdjustmentRequest,
+} from '@prisma/client';
 import { UserRole } from '@/types/enum';
 export interface UserData {
   id: string;
@@ -47,6 +52,7 @@ export interface AttendanceStatus {
   };
   latestAttendance: Attendance | null;
   isCheckingIn: boolean;
+  shiftAdjustment: (ShiftAdjustmentRequest & { requestedShift: Shift }) | null;
 }
 
 export interface ShiftData {
@@ -54,6 +60,23 @@ export interface ShiftData {
   name: string;
   startTime: string;
   endTime: string;
+}
+
+export interface ShiftAdjustment {
+  id: string;
+  userId: string;
+  requestedShiftId: string;
+  date: Date;
+  status: 'pending' | 'approved' | 'rejected';
+  reason: string;
+}
+
+export interface OvertimeApproval {
+  id: string;
+  userId: string;
+  date: Date;
+  status: 'pending' | 'approved' | 'rejected';
+  reason: string;
 }
 
 export interface ShiftAdjustmentRequestData {

@@ -76,6 +76,7 @@ export class AttendanceService {
       },
       latestAttendance,
       isCheckingIn,
+      shiftAdjustment: null, // Add the shiftAdjustment property here
     };
   }
 

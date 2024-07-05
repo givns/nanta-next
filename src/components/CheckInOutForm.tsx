@@ -297,6 +297,56 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     }
   };
 
+  const isWithinShiftTime = () => {
+    if (!attendanceStatus) return false;
+
+    const now = new Date();
+    const shift =
+      attendanceStatus.shiftAdjustment?.requestedShift ||
+      attendanceStatus.user.assignedShift;
+    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+
+    const shiftStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      startHour,
+      startMinute,
+    );
+    const shiftEnd = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      endHour,
+      endMinute,
+    );
+
+    // Allow check-in up to 30 minutes before shift start
+    const earliestCheckIn = new Date(shiftStart.getTime() - 30 * 60000);
+
+    return now >= earliestCheckIn && now <= shiftEnd;
+  };
+
+  const renderShiftInfo = () => {
+    if (!attendanceStatus) return null;
+
+    const { user, shiftAdjustment } = attendanceStatus;
+    const shift = shiftAdjustment?.requestedShift || user.assignedShift;
+
+    return (
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold mb-2">Shift Information:</h3>
+        <p>Shift: {shift.name}</p>
+        <p>Start Time: {shift.startTime}</p>
+        <p>End Time: {shift.endTime}</p>
+        {shiftAdjustment && (
+          <p className="text-blue-600">Shift adjusted for today</p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {step === 1 && (
@@ -309,50 +359,61 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
                 <div className="mb-4 text-center">
                   <p>กำลังโหลดข้อมูลการลงเวลาล่าสุด กรุณารอสักครู่...</p>
                 </div>
-              ) : attendanceStatus?.latestAttendance ? (
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold mb-2">
-                    สถานะการลงเวลาล่าสุดของคุณ:
-                  </h3>
-                  <div className="bg-gray-100 p-3 rounded-lg">
-                    <p>
-                      วันที่:{' '}
-                      {convertToBangkokDate(
-                        attendanceStatus.latestAttendance.checkInTime.toString(),
-                      )}
-                    </p>
-                    <p>
-                      เวลา:{' '}
-                      {convertToBangkokTime(
-                        attendanceStatus.latestAttendance.checkInTime.toString(),
-                      )}
-                    </p>
-                    <p>
-                      วิธีการ:{' '}
-                      {getDeviceType(
-                        attendanceStatus.latestAttendance.checkInDeviceSerial,
-                      )}
-                    </p>
-                    <p>
-                      สถานะ:{' '}
-                      {attendanceStatus.latestAttendance.checkOutTime
-                        ? 'ออกงาน'
-                        : 'เข้างาน'}
-                    </p>
-                  </div>
-                </div>
               ) : (
-                <p className="mb-4">ไม่พบข้อมูลการลงเวลาล่าสุด</p>
-              )}
+                <>
+                  {renderShiftInfo()}
+                  {attendanceStatus?.latestAttendance && (
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold mb-2">
+                        สถานะการลงเวลาล่าสุดของคุณ:
+                      </h3>
+                      <div className="bg-gray-100 p-3 rounded-lg">
+                        <p>
+                          วันที่:{' '}
+                          {convertToBangkokDate(
+                            attendanceStatus.latestAttendance.checkInTime.toString(),
+                          )}
+                        </p>
+                        <p>
+                          เวลา:{' '}
+                          {convertToBangkokTime(
+                            attendanceStatus.latestAttendance.checkInTime.toString(),
+                          )}
+                        </p>
+                        <p>
+                          วิธีการ:{' '}
+                          {getDeviceType(
+                            attendanceStatus.latestAttendance
+                              .checkInDeviceSerial,
+                          )}
+                        </p>
+                        <p>
+                          สถานะ:{' '}
+                          {attendanceStatus.latestAttendance.checkOutTime
+                            ? 'ออกงาน'
+                            : 'เข้างาน'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
-              <button
-                onClick={handleOpenCamera}
-                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-                aria-label={`เปิดกล้องเพื่อ${attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-              >
-                เปิดกล้องเพื่อ
-                {attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-              </button>
+                  {isWithinShiftTime() ? (
+                    <button
+                      onClick={handleOpenCamera}
+                      className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+                      aria-label={`เปิดกล้องเพื่อ${attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+                    >
+                      เปิดกล้องเพื่อ
+                      {attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+                    </button>
+                  ) : (
+                    <p className="text-red-500">
+                      ไม่สามารถลงเวลาได้ในขณะนี้
+                      กรุณาลองอีกครั้งในช่วงเวลาที่กำหนด
+                    </p>
+                  )}
+                </>
+              )}
             </>
           )}
 
