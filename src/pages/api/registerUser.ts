@@ -41,19 +41,48 @@ function determineRichMenuId(role: UserRole): string {
   }
 }
 
-async function alertAdmin(
-  lineUserId: string,
+async function alertAdmins(
+  newUserLineId: string,
   name: string,
   employeeId: string,
+  department: string,
 ) {
-  const message = `New user registration with no exact match:\nLineUserId: ${lineUserId}\nName: ${name}\nEmployee Number: ${employeeId}`;
+  const message = `New user registration with no exact match:
+LineUserId: ${newUserLineId}
+Name: ${name}
+Employee Number: ${employeeId}
+Department: ${department}`;
   console.warn(message);
 
   try {
-    await client.pushMessage(lineUserId, { type: 'text', text: message });
-    console.log('Admin alert sent successfully');
+    const adminUsers = await prisma.user.findMany({
+      where: {
+        role: {
+          in: [UserRole.ADMIN, UserRole.SUPERADMIN],
+        },
+      },
+      select: {
+        lineUserId: true,
+      },
+    });
+
+    for (const admin of adminUsers) {
+      try {
+        if (admin.lineUserId) {
+          await client.pushMessage(admin.lineUserId, {
+            type: 'text',
+            text: message,
+          });
+          console.log(`Admin alert sent successfully to ${admin.lineUserId}`);
+        } else {
+          console.error('Admin lineUserId is null');
+        }
+      } catch (error) {
+        console.error('Error sending admin alert:', error);
+      }
+    }
   } catch (error) {
-    console.error('Error sending admin alert:', error);
+    console.error('Error fetching admin users or sending alerts:', error);
   }
 }
 
@@ -89,7 +118,6 @@ export default async function handler(
   }
 
   try {
-    // Refresh shift cache at the start of the registration process
     console.time('refreshShiftCache');
     await refreshShiftCache();
     console.timeEnd('refreshShiftCache');
@@ -102,6 +130,7 @@ export default async function handler(
     let externalUser: ExternalCheckInData | null = null;
     try {
       externalUser = await externalDbService.getLatestCheckIn(employeeId);
+      console.log('External user data:', externalUser); // Log external user data
     } catch (error) {
       console.error('Error finding external user:', error);
     }
@@ -113,25 +142,41 @@ export default async function handler(
     if (userCount === 0) {
       role = UserRole.SUPERADMIN;
     } else if (externalUser) {
-      role = determineRole(externalUser.user_depname || department);
+      role = determineRole(externalUser.dev_serial || department);
     } else {
       role = determineRole(department);
-      await alertAdmin(lineUserId, name, employeeId);
+      await alertAdmins(lineUserId, name, employeeId, department);
     }
     console.timeEnd('determineRole');
 
+    // Improved name construction
+    const constructName = (
+      externalUser: ExternalCheckInData | null,
+      providedName: string,
+    ): string => {
+      if (externalUser) {
+        const parts = [
+          externalUser.user_serial,
+          externalUser.user_lname,
+          externalUser.user_fname,
+        ].filter(Boolean);
+        return parts.length > 0 ? parts.join(' ') : providedName;
+      }
+      return providedName;
+    };
+
     const userData = {
       lineUserId,
-      name: externalUser
-        ? `${externalUser.user_fname || ''} ${externalUser.user_lname || ''}`.trim()
-        : name,
+      name: constructName(externalUser, name),
       nickname,
-      department: externalUser?.user_depname || department,
+      department: externalUser?.dev_serial || department,
       profilePictureUrl,
       role: role.toString(),
       employeeId: externalUser?.user_serial?.toString() || employeeId,
       overtimeHours: 0,
     };
+
+    console.log('User data before saving:', userData);
 
     console.time('createOrUpdateUser');
     if (!user) {
@@ -157,7 +202,10 @@ export default async function handler(
     } else {
       user = await prisma.user.update({
         where: { lineUserId },
-        data: userData,
+        data: {
+          ...userData,
+          shiftId: user.shiftId, // Preserve existing shiftId for updates
+        },
       });
       console.log('Existing user updated:', user);
     }
