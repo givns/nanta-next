@@ -88,10 +88,17 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
   }, []);
 
   useEffect(() => {
-    fetchAttendanceStatus();
-    loadFaceDetectionModel();
-    fetchApiKey();
-  }, [fetchAttendanceStatus, loadFaceDetectionModel, fetchApiKey]);
+    console.log('userData:', userData);
+    fetchAttendanceStatus().catch((error) => {
+      console.error('Error in fetchAttendanceStatus:', error);
+    });
+    loadFaceDetectionModel().catch((error) => {
+      console.error('Error in loadFaceDetectionModel:', error);
+    });
+    fetchApiKey().catch((error) => {
+      console.error('Error in fetchApiKey:', error);
+    });
+  }, [userData, fetchAttendanceStatus, loadFaceDetectionModel, fetchApiKey]);
 
   const calculateDistance = (
     lat1: number,
@@ -221,8 +228,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
             console.log('Photo captured successfully');
             setPhoto(imageSrc);
             setShowCamera(false);
-            setStep(2); // This should move to the next step
-            console.log('Step set to 2');
+            setStep((prevStep) => prevStep + 1);
+            console.log('Step incremented');
           } else {
             console.error('No face detected');
             setError('ไม่พบใบหน้า กรุณาลองอีกครั้ง');
@@ -257,6 +264,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
         photo,
         deviceSerial: deviceSerial || 'WEBAPP001',
         isCheckIn: attendanceStatus?.isCheckingIn,
+        isOvertime: false,
       };
 
       console.log('Submitting data:', checkInOutData);

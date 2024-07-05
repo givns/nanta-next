@@ -46,6 +46,7 @@ export default async function handler(
       photo,
       deviceSerial,
       isCheckIn: true,
+      isOvertime: false,
     });
     res.status(200).json(attendance);
   } catch (error) {
