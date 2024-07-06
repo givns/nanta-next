@@ -43,12 +43,16 @@ export class AttendanceService {
     const currentShift = user.assignedShift;
     if (!currentShift) throw new Error('User has no assigned shift');
 
-    let externalUser: ExternalCheckInData | null = null;
+    let externalUser: any | null = null;
     try {
       externalUser = await this.externalDbService.getLatestCheckIn(employeeId, {
         startTime: currentShift.startTime,
         endTime: currentShift.endTime,
       });
+
+      if (!externalUser) {
+        console.log(`No check-in found for employee ID: ${employeeId}`);
+      }
     } catch (error) {
       console.error('Error fetching external user data:', error);
     }
@@ -113,9 +117,6 @@ export class AttendanceService {
       isCheckingIn,
       shiftAdjustment: null,
     };
-  }
-  async getUserCheckInHistory(employeeId: string): Promise<any[]> {
-    return this.externalDbService.getUserCheckInData(employeeId);
   }
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {

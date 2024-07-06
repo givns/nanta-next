@@ -24,6 +24,23 @@ export class ExternalDbService {
       return false;
     }
   }
+  async getUserInfo(userNo: string): Promise<any | null> {
+    const sqlQuery = `
+      SELECT * FROM dt_user
+      WHERE user_no = ?
+    `;
+
+    console.log('Running query for user info:', sqlQuery);
+
+    try {
+      const result = await query<any[]>(sqlQuery, [userNo]);
+      console.log('Query result for user info:', result);
+      return result.length > 0 ? result[0] : null;
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+      return null;
+    }
+  }
 
   async getRecentEntries(): Promise<any[]> {
     const sqlQuery = `
@@ -46,51 +63,17 @@ export class ExternalDbService {
     }
   }
 
-  // New method for detailed user check-in data
-  async getUserCheckInData(userNo: string): Promise<any[]> {
-    const sqlQuery = `
-      SELECT 
-        kj.sj, 
-        kj.user_serial, 
-        kj.bh as check_id, 
-        kj.fx as check_type,
-        du.user_no, 
-        du.user_lname, 
-        du.user_fname,
-        dd.dep_name as department,
-        sd.mc as device_name
-      FROM 
-        kt_jl kj
-      JOIN 
-        dt_user du ON kj.user_serial = du.user_serial
-      LEFT JOIN 
-        dt_dep dd ON du.user_dep = dd.dep_serial
-      LEFT JOIN 
-        st_device sd ON kj.dev_serial = sd.bh
-      WHERE 
-        du.user_no = ?
-      ORDER BY 
-        kj.sj DESC
-      LIMIT 10
-    `;
-
-    console.log('Running query for user check-in data:', sqlQuery);
-
-    try {
-      const result = await query<any[]>(sqlQuery, [userNo]);
-      console.log('Query results for user check-in data:', result);
-      return result;
-    } catch (error) {
-      console.error('Error fetching user check-in data:', error);
-      throw error;
-    }
-  }
-
-  // Updated method to get the latest check-in for a user
   async getLatestCheckIn(
     userNo: string,
     shift: { startTime: string; endTime: string },
   ): Promise<any | null> {
+    // First, get the user_serial
+    const userInfo = await this.getUserInfo(userNo);
+    if (!userInfo) {
+      console.log(`No user found with user_no: ${userNo}`);
+      return null;
+    }
+
     const sqlQuery = `
       SELECT 
         kj.sj, 
@@ -111,7 +94,7 @@ export class ExternalDbService {
       LEFT JOIN 
         st_device sd ON kj.dev_serial = sd.bh
       WHERE 
-        du.user_no = ?
+        kj.user_serial = ?
       ORDER BY 
         kj.sj DESC
       LIMIT 1
@@ -120,7 +103,7 @@ export class ExternalDbService {
     console.log('Running query for latest check-in:', sqlQuery);
 
     try {
-      const result = await query<any[]>(sqlQuery, [userNo]);
+      const result = await query<any[]>(sqlQuery, [userInfo.user_serial]);
       console.log('Query result for latest check-in:', result);
       return result.length > 0 ? result[0] : null;
     } catch (error) {
