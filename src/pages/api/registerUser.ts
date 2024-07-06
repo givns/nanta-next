@@ -157,16 +157,17 @@ export default async function handler(
     console.timeEnd('determineRole');
 
     const constructName = (
-      externalUser: ExternalCheckInData | null,
+      externalCheckIn: ExternalCheckInData | null | undefined,
       providedName: string,
     ): string => {
       if (
-        externalUser &&
-        (externalUser.user_fname || externalUser.user_lname)
+        externalCheckIn &&
+        (externalCheckIn.user_fname || externalCheckIn.user_lname)
       ) {
-        const parts = [externalUser.user_fname, externalUser.user_lname].filter(
-          Boolean,
-        );
+        const parts = [
+          externalCheckIn.user_fname,
+          externalCheckIn.user_lname,
+        ].filter(Boolean);
         return parts.length > 0 ? parts.join(' ') : providedName;
       }
       return providedName;
@@ -179,8 +180,8 @@ export default async function handler(
       department: externalData?.checkIn?.department || department,
       profilePictureUrl,
       role: role.toString(),
-      employeeId: externalData?.userInfo?.user_no || employeeId, // Use user_no instead of user_serial
-      externalEmployeeId: externalData?.userInfo?.user_serial?.toString(), // Store the external ID separately
+      employeeId: externalData?.userInfo?.user_no || employeeId,
+      externalEmployeeId: externalData?.userInfo?.user_serial?.toString(),
       overtimeHours: 0,
     };
 

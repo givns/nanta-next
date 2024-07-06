@@ -134,8 +134,9 @@ export interface ExternalCheckInData {
   sj: string;
   user_serial: number;
   user_no: string;
-  user_fname: string;
-  user_lname: string;
+  user_fname?: string;
+  user_lname?: string;
+  department: string;
   user_depname: string;
   user_dep: string;
   bh: number;
