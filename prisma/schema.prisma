@@ -18,6 +18,8 @@ enum UserRole {
 model User {
   id                      String                   @id @default(auto()) @map("_id") @db.ObjectId
   employeeId              String                   @unique
+    externalEmployeeId  String?
+
   name                    String
   lineUserId              String?                  @unique
   nickname                String?

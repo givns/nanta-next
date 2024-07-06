@@ -64,51 +64,33 @@ export class ExternalDbService {
   }
 
   async getLatestCheckIn(
-    userNo: string,
+    employeeId: string,
     shift: { startTime: string; endTime: string },
-  ): Promise<any | null> {
-    // First, get the user_serial
-    const userInfo = await this.getUserInfo(userNo);
-    if (!userInfo) {
-      console.log(`No user found with user_no: ${userNo}`);
-      return null;
-    }
-
-    const sqlQuery = `
-      SELECT 
-        kj.sj, 
-        kj.user_serial, 
-        kj.bh as check_id, 
-        kj.fx as check_type,
-        du.user_no, 
-        du.user_lname, 
-        du.user_fname,
-        dd.dep_name as department,
-        sd.mc as device_name
-      FROM 
-        kt_jl kj
-      JOIN 
-        dt_user du ON kj.user_serial = du.user_serial
-      LEFT JOIN 
-        dt_dep dd ON du.user_dep = dd.dep_serial
-      LEFT JOIN 
-        st_device sd ON kj.dev_serial = sd.bh
-      WHERE 
-        kj.user_serial = ?
-      ORDER BY 
-        kj.sj DESC
+  ): Promise<{ checkIn: ExternalCheckInData | null; userInfo: any | null }> {
+    const userInfoQuery = `SELECT * FROM dt_user WHERE user_no = ?`;
+    const checkInQuery = `
+      SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
+      FROM kt_jl kj
+      JOIN dt_user du ON kj.user_serial = du.user_serial
+      LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
+      WHERE du.user_no = ?
+      ORDER BY kj.sj DESC
       LIMIT 1
     `;
 
-    console.log('Running query for latest check-in:', sqlQuery);
-
     try {
-      const result = await query<any[]>(sqlQuery, [userInfo.user_serial]);
-      console.log('Query result for latest check-in:', result);
-      return result.length > 0 ? result[0] : null;
+      const [userInfoResult, checkInResult] = await Promise.all([
+        query<any[]>(userInfoQuery, [employeeId]),
+        query<ExternalCheckInData[]>(checkInQuery, [employeeId]),
+      ]);
+
+      return {
+        userInfo: userInfoResult.length > 0 ? userInfoResult[0] : null,
+        checkIn: checkInResult.length > 0 ? checkInResult[0] : null,
+      };
     } catch (error) {
-      console.error('Error fetching latest check-in:', error);
-      return null;
+      console.error('Error in getLatestCheckIn:', error);
+      return { userInfo: null, checkIn: null };
     }
   }
 
