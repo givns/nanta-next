@@ -84,16 +84,12 @@ export const departmentShiftMap: { [key: string]: string } = {
   ฝ่ายรักษาความปลอดภัย: 'SHIFT102',
 };
 
-export function getDefaultShiftCode(department: string): string {
-  return departmentShiftMap[department] || 'SHIFT103';
-}
-
 export async function getShiftByDepartmentId(
-  departmentId: number,
+  department: string,
 ): Promise<Shift | null> {
-  const departmentShiftCode = departmentShiftMap[departmentId];
-  if (departmentShiftCode) {
-    return getShiftByCode(departmentShiftCode);
+  const shiftCode = departmentShiftMap[department];
+  if (shiftCode) {
+    return getShiftByCode(shiftCode);
   }
   return getShiftByCode('SHIFT103'); // Default to SHIFT103 if no match
 }
