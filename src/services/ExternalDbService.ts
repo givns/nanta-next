@@ -12,6 +12,7 @@ type QueryResult = {
   insertId?: number;
   warningStatus?: number;
 };
+
 export class ExternalDbService {
   async testConnection(): Promise<boolean> {
     try {
@@ -31,30 +32,6 @@ export class ExternalDbService {
     console.log(`Searching for external user with employeeId: ${employeeId}`);
 
     const now = new Date();
-    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
-    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
-
-    const shiftStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      startHour,
-      startMinute,
-    );
-    const shiftEnd = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      endHour,
-      endMinute,
-    );
-
-    // Adjust for midnight crossing
-    if (shiftEnd < shiftStart) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
-    }
-
-    // Look back 24 hours and 30 minutes into the future
     const searchStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Look back 7 days
     const searchEnd = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes into the future
 
@@ -62,27 +39,20 @@ export class ExternalDbService {
       `Searching for check-ins between ${searchStart.toISOString()} and ${searchEnd.toISOString()}`,
     );
 
-    const normalizedEmployeeId = employeeId.padStart(6, '0');
-
     const sqlQuery = `
       SELECT * FROM kt_jl 
       WHERE user_serial = ? 
       AND sj BETWEEN ? AND ?
-      AND dev_serial IN ('0010012', '0010000')
       ORDER BY sj DESC 
       LIMIT 1
     `;
 
     console.log('SQL Query:', sqlQuery);
-    console.log('Query parameters:', [
-      normalizedEmployeeId,
-      searchStart,
-      searchEnd,
-    ]);
+    console.log('Query parameters:', [employeeId, searchStart, searchEnd]);
 
     try {
       const result = await query<ExternalCheckInData[]>(sqlQuery, [
-        normalizedEmployeeId,
+        employeeId,
         searchStart,
         searchEnd,
       ]);
@@ -92,45 +62,8 @@ export class ExternalDbService {
       if (result.length > 0) {
         const checkInData = result[0];
         console.log('External check-in found:', checkInData);
-
-        if (checkInData.dev_serial === '0010012') {
-          console.log('Regular check-in detected');
-        } else if (checkInData.dev_serial === '0010000') {
-          console.log('Fallback check-in detected');
-        }
-
-        const checkInTime = new Date(checkInData.sj);
-        const isWithinAllowedTime = this.isWithinAllowedTimeRange(
-          checkInTime,
-          shiftStart,
-          shiftEnd,
-        );
-
-        if (!isWithinAllowedTime) {
-          console.log('Check-in time is outside the allowed range');
-        }
-
         return checkInData;
       } else {
-        console.log(
-          'No check-in found within shift time range. Performing wider search...',
-        );
-        const widerResult = await query<ExternalCheckInData[]>(
-          `SELECT * FROM kt_jl 
-           WHERE user_serial = ? 
-           AND sj > ?
-           AND dev_serial IN ('0010012', '0010000')
-           ORDER BY sj DESC 
-           LIMIT 1`,
-          [
-            normalizedEmployeeId,
-            new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
-          ], // Look back 7 days
-        );
-        console.log('Wider search results:', widerResult);
-        if (widerResult.length > 0) {
-          return widerResult[0];
-        }
         console.log('No external check-in found');
         return null;
       }
@@ -140,26 +73,32 @@ export class ExternalDbService {
     }
   }
 
-  private isWithinAllowedTimeRange(
-    checkTime: Date,
-    shiftStart: Date,
-    shiftEnd: Date,
-  ): boolean {
-    // Allow check-in up to 30 minutes before shift start and check-out up to 30 minutes after shift end
-    const earliestAllowed = new Date(shiftStart.getTime() - 30 * 60000);
-    const latestAllowed = new Date(shiftEnd.getTime() + 30 * 60000);
-
-    return checkTime >= earliestAllowed && checkTime <= latestAllowed;
+  interpretCheckType(fx: number): string {
+    switch (fx) {
+      case 0:
+        return 'Check In';
+      case 1:
+        return 'Check Out';
+      case 5:
+        return 'Break Start';
+      case 6:
+        return 'Break End';
+      default:
+        return 'Unknown';
+    }
   }
 
   async createCheckIn(data: ExternalCheckInInputData) {
     const sqlQuery =
-      'INSERT INTO kt_jl (user_serial, sj, fx, dev_serial) VALUES (?, ?, ?, ?)';
+      'INSERT INTO kt_jl (user_serial, sj, fx, dev_serial, date, time) VALUES (?, ?, ?, ?, ?, ?)';
+    const checkTime = new Date(data.timestamp);
     const params = [
       data.employeeId,
       data.timestamp,
       data.checkType,
       data.deviceSerial,
+      checkTime.toISOString().split('T')[0], // date
+      checkTime.toTimeString().split(' ')[0], // time
     ];
 
     console.log('Creating check-in with query:', sqlQuery);
@@ -179,10 +118,13 @@ export class ExternalDbService {
 
   async updateCheckOut(data: ExternalCheckInInputData) {
     const sqlQuery =
-      'UPDATE kt_jl SET fx = ?, sj = ? WHERE user_serial = ? AND dev_serial = ? AND fx = 0 ORDER BY sj DESC LIMIT 1';
+      'UPDATE kt_jl SET fx = ?, sj = ?, date = ?, time = ? WHERE user_serial = ? AND dev_serial = ? AND fx = 0 ORDER BY sj DESC LIMIT 1';
+    const checkTime = new Date(data.timestamp);
     const params = [
       data.checkType,
       data.timestamp,
+      checkTime.toISOString().split('T')[0], // date
+      checkTime.toTimeString().split(' ')[0], // time
       data.employeeId,
       data.deviceSerial,
     ];
@@ -209,16 +151,24 @@ export class ExternalDbService {
 
   async createManualEntry(data: ExternalManualEntryInputData) {
     const sqlQuery =
-      'INSERT INTO kt_jl (user_serial, sj, fx, dev_serial) VALUES (?, ?, ?, ?), (?, ?, ?, ?)';
+      'INSERT INTO kt_jl (user_serial, sj, fx, dev_serial, date, time) VALUES (?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?)';
+    const checkInTime = new Date(data.checkInTimestamp);
+    const checkOutTime = new Date(
+      data.checkOutTimestamp || data.checkInTimestamp,
+    );
     const params = [
       data.employeeId,
       data.checkInTimestamp,
-      0, // Assuming 0 is for check-in
+      0, // Check-in
       data.deviceSerial,
+      checkInTime.toISOString().split('T')[0], // date
+      checkInTime.toTimeString().split(' ')[0], // time
       data.employeeId,
       data.checkOutTimestamp || data.checkInTimestamp,
-      1, // Assuming 1 is for check-out
+      1, // Check-out
       data.deviceSerial,
+      checkOutTime.toISOString().split('T')[0], // date
+      checkOutTime.toTimeString().split(' ')[0], // time
     ];
 
     console.log('Creating manual entry with query:', sqlQuery);
@@ -235,34 +185,32 @@ export class ExternalDbService {
       throw error;
     }
   }
+
   async runDiagnosticQueries() {
     console.log('Running diagnostic queries on external database...');
+    const results: any = {};
 
     try {
       // Query 1: Get all columns and a sample of data
-      const sampleData = await query<any[]>('SELECT * FROM kt_jl LIMIT 10');
-      console.log('Sample data from kt_jl table:');
-      console.log(JSON.stringify(sampleData, null, 2));
+      results.sampleData = await query<any[]>('SELECT * FROM kt_jl LIMIT 10');
 
       // Query 2: Get data for specific users
-      const specificUserData = await query<any[]>(
+      results.specificUserData = await query<any[]>(
         "SELECT * FROM kt_jl WHERE user_serial IN ('1001', '100271') ORDER BY sj DESC LIMIT 20",
       );
-      console.log('Data for users 1001 and 100271:');
-      console.log(JSON.stringify(specificUserData, null, 2));
 
       // Query 3: Get table structure (this might not work depending on the database system and permissions)
       try {
-        const tableStructure = await query<any[]>('DESCRIBE kt_jl');
-        console.log('Structure of kt_jl table:');
-        console.log(JSON.stringify(tableStructure, null, 2));
+        results.tableStructure = await query<any[]>('DESCRIBE kt_jl');
       } catch (error) {
-        console.log(
-          'Unable to fetch table structure. This might require additional permissions.',
-        );
+        results.tableStructureError =
+          'Unable to fetch table structure. This might require additional permissions.';
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error running diagnostic queries:', error);
+      results.error = error.message;
     }
+
+    return results;
   }
 }

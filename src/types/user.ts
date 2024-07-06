@@ -133,12 +133,13 @@ export interface CheckOutFormData
 export interface ExternalCheckInData {
   sj: string;
   user_serial: number;
+  user_no: string;
   user_fname: string;
   user_lname: string;
   user_depname: string;
   user_dep: string;
   bh: number;
-  fx: CheckType;
+  fx: number;
   iden: string | null;
   dev_serial: string;
   dev_state: number;

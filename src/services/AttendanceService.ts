@@ -8,6 +8,7 @@ import {
   AttendanceData,
   AttendanceStatus,
 } from '../types/user';
+import { isWithinAllowedTimeRange } from '../utils/timeUtils'; // Import from utilities
 
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
@@ -39,13 +40,11 @@ export class AttendanceService {
       orderBy: { checkInTime: 'desc' },
     });
 
-    // Get the user's current shift
     const currentShift = user.assignedShift;
     if (!currentShift) throw new Error('User has no assigned shift');
 
     let externalUser: ExternalCheckInData | null = null;
     try {
-      // Pass the shift information to getLatestCheckIn
       externalUser = await this.externalDbService.getLatestCheckIn(employeeId, {
         startTime: currentShift.startTime,
         endTime: currentShift.endTime,
@@ -66,25 +65,36 @@ export class AttendanceService {
           latestAttendance = await this.processExternalCheckInOut(externalUser);
         }
 
-        // Log the type of check-in (regular or fallback)
         if (externalUser.dev_serial === '0010012') {
           console.log('Regular check-in detected');
         } else if (externalUser.dev_serial === '0010000') {
           console.log('Fallback check-in detected');
         }
 
-        // Check if the check-in time is within the allowed range
-        const isWithinAllowedTime = this.isWithinAllowedTimeRange(
-          externalCheckInTime,
-          currentShift,
+        // Using the imported isWithinAllowedTimeRange function
+        const shiftStart = new Date(externalCheckInTime);
+        shiftStart.setHours(
+          parseInt(currentShift.startTime.split(':')[0]),
+          parseInt(currentShift.startTime.split(':')[1]),
+          0,
+          0,
         );
-        if (!isWithinAllowedTime) {
+        const shiftEnd = new Date(externalCheckInTime);
+        shiftEnd.setHours(
+          parseInt(currentShift.endTime.split(':')[0]),
+          parseInt(currentShift.endTime.split(':')[1]),
+          0,
+          0,
+        );
+
+        if (
+          !isWithinAllowedTimeRange(externalCheckInTime, shiftStart, shiftEnd)
+        ) {
           console.log('Check-in time is outside the allowed range');
-          // You might want to handle this case differently
+          // Handle this case as needed
         }
       } catch (error) {
         console.error('Error processing external check-in data:', error);
-        // Don't throw the error, continue with the existing latestAttendance
       }
     }
 
@@ -101,33 +111,8 @@ export class AttendanceService {
       },
       latestAttendance,
       isCheckingIn,
-      shiftAdjustment: null, // Add the shiftAdjustment property here
+      shiftAdjustment: null,
     };
-  }
-
-  private isWithinAllowedTimeRange(
-    checkTime: Date,
-    shift: { startTime: string; endTime: string },
-  ): boolean {
-    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
-    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
-
-    const shiftStart = new Date(checkTime);
-    shiftStart.setHours(startHour, startMinute, 0, 0);
-
-    const shiftEnd = new Date(checkTime);
-    shiftEnd.setHours(endHour, endMinute, 0, 0);
-
-    // Adjust for midnight crossing
-    if (shiftEnd < shiftStart) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
-    }
-
-    // Allow check-in up to 30 minutes before shift start and check-out up to 30 minutes after shift end
-    const earliestAllowed = new Date(shiftStart.getTime() - 30 * 60000);
-    const latestAllowed = new Date(shiftEnd.getTime() + 30 * 60000);
-
-    return checkTime >= earliestAllowed && checkTime <= latestAllowed;
   }
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {
