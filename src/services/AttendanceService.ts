@@ -39,9 +39,17 @@ export class AttendanceService {
       orderBy: { checkInTime: 'desc' },
     });
 
+    // Get the user's current shift
+    const currentShift = user.assignedShift;
+    if (!currentShift) throw new Error('User has no assigned shift');
+
     let externalUser: ExternalCheckInData | null = null;
     try {
-      externalUser = await this.externalDbService.getLatestCheckIn(employeeId);
+      // Pass the shift information to getLatestCheckIn
+      externalUser = await this.externalDbService.getLatestCheckIn(employeeId, {
+        startTime: currentShift.startTime,
+        endTime: currentShift.endTime,
+      });
     } catch (error) {
       console.error('Error fetching external user data:', error);
     }
@@ -56,6 +64,23 @@ export class AttendanceService {
           externalCheckInTime > new Date(latestAttendance.checkInTime)
         ) {
           latestAttendance = await this.processExternalCheckInOut(externalUser);
+        }
+
+        // Log the type of check-in (regular or fallback)
+        if (externalUser.dev_serial === '0010012') {
+          console.log('Regular check-in detected');
+        } else if (externalUser.dev_serial === '0010000') {
+          console.log('Fallback check-in detected');
+        }
+
+        // Check if the check-in time is within the allowed range
+        const isWithinAllowedTime = this.isWithinAllowedTimeRange(
+          externalCheckInTime,
+          currentShift,
+        );
+        if (!isWithinAllowedTime) {
+          console.log('Check-in time is outside the allowed range');
+          // You might want to handle this case differently
         }
       } catch (error) {
         console.error('Error processing external check-in data:', error);
@@ -78,6 +103,31 @@ export class AttendanceService {
       isCheckingIn,
       shiftAdjustment: null, // Add the shiftAdjustment property here
     };
+  }
+
+  private isWithinAllowedTimeRange(
+    checkTime: Date,
+    shift: { startTime: string; endTime: string },
+  ): boolean {
+    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+
+    const shiftStart = new Date(checkTime);
+    shiftStart.setHours(startHour, startMinute, 0, 0);
+
+    const shiftEnd = new Date(checkTime);
+    shiftEnd.setHours(endHour, endMinute, 0, 0);
+
+    // Adjust for midnight crossing
+    if (shiftEnd < shiftStart) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
+
+    // Allow check-in up to 30 minutes before shift start and check-out up to 30 minutes after shift end
+    const earliestAllowed = new Date(shiftStart.getTime() - 30 * 60000);
+    const latestAllowed = new Date(shiftEnd.getTime() + 30 * 60000);
+
+    return checkTime >= earliestAllowed && checkTime <= latestAllowed;
   }
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {

@@ -132,8 +132,18 @@ export default async function handler(
     console.time('getExternalUser');
     let externalUser: ExternalCheckInData | null = null;
     try {
-      externalUser = await externalDbService.getLatestCheckIn(employeeId);
-      console.log('External user data:', externalUser); // Log external user data
+      // Get the default shift for the user's department
+      const defaultShift =
+        await shiftManagementService.getDefaultShift(department);
+
+      if (!defaultShift) {
+        throw new Error(`No default shift found for department: ${department}`);
+      }
+
+      externalUser = await externalDbService.getLatestCheckIn(employeeId, {
+        startTime: defaultShift.startTime,
+        endTime: defaultShift.endTime,
+      });
     } catch (error) {
       console.error('Error finding external user:', error);
     }
@@ -145,7 +155,6 @@ export default async function handler(
     const role = determineRole(department, isFirstUser);
     console.timeEnd('determineRole');
 
-    // Improved name construction
     const constructName = (
       externalUser: ExternalCheckInData | null,
       providedName: string,
