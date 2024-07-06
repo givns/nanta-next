@@ -30,6 +30,8 @@ export class ExternalDbService {
     shift: { startTime: string; endTime: string },
   ): Promise<ExternalCheckInData | null> {
     console.log(`Searching for external user with employeeId: ${employeeId}`);
+    const employeeIdInt = parseInt(employeeId, 10);
+    // Use employeeIdInt in your query
 
     const now = new Date();
     const searchStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Look back 30 days
@@ -47,12 +49,12 @@ export class ExternalDbService {
 
     for (const idVariation of employeeIdVariations) {
       const sqlQuery = `
-        SELECT * FROM kt_jl 
-        WHERE user_serial = ? 
-        AND sj BETWEEN ? AND ?
-        ORDER BY sj DESC 
-        LIMIT 1
-      `;
+  SELECT * FROM kt_jl 
+  WHERE user_serial = ? 
+  AND sj BETWEEN ? AND ?
+  ORDER BY sj DESC 
+  LIMIT 1
+`;
 
       console.log(`Trying with employee ID: ${idVariation}`);
       console.log('SQL Query:', sqlQuery);
@@ -87,10 +89,12 @@ export class ExternalDbService {
         return 'Check In';
       case 1:
         return 'Check Out';
-      case 5:
+      case 2:
         return 'Break Start';
+      case 5:
+        return 'Overtime Start';
       case 6:
-        return 'Break End';
+        return 'Overtime End';
       default:
         return 'Unknown';
     }
