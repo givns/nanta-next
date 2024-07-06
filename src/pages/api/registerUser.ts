@@ -7,8 +7,8 @@ import { ShiftManagementService } from '../../services/ShiftManagementService';
 import { ExternalCheckInData } from '../../types/user';
 import {
   refreshShiftCache,
-  getShiftByCode,
-  getDefaultShiftCode,
+  getShiftByDepartmentId,
+  getDefaultShift,
 } from '../../lib/shiftCache';
 
 const client = new Client({
@@ -101,13 +101,10 @@ export default async function handler(
     console.time('determineShift');
     let shift = null;
     if (externalData?.userInfo?.user_dep) {
-      shift = await shiftManagementService.getShiftByDepartmentId(
-        externalData.userInfo.user_dep,
-      );
+      shift = await getShiftByDepartmentId(externalData.userInfo.user_dep);
     }
     if (!shift) {
-      const shiftCode = getDefaultShiftCode(department);
-      shift = await getShiftByCode(shiftCode);
+      shift = await getDefaultShift(department);
     }
     if (!shift) {
       throw new Error(`No shift found for department: ${department}`);

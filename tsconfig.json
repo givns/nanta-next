@@ -16,6 +16,7 @@
     "incremental": true,
     "baseUrl": ".",
     "paths": {
+      "@/lib/*": ["lib/*"],
       "@/*": ["src/*"],
       "@prisma/client": ["./node_modules/@prisma/client"]
     },
