@@ -235,4 +235,34 @@ export class ExternalDbService {
       throw error;
     }
   }
+  async runDiagnosticQueries() {
+    console.log('Running diagnostic queries on external database...');
+
+    try {
+      // Query 1: Get all columns and a sample of data
+      const sampleData = await query<any[]>('SELECT * FROM kt_jl LIMIT 10');
+      console.log('Sample data from kt_jl table:');
+      console.log(JSON.stringify(sampleData, null, 2));
+
+      // Query 2: Get data for specific users
+      const specificUserData = await query<any[]>(
+        "SELECT * FROM kt_jl WHERE user_serial IN ('1001', '100271') ORDER BY sj DESC LIMIT 20",
+      );
+      console.log('Data for users 1001 and 100271:');
+      console.log(JSON.stringify(specificUserData, null, 2));
+
+      // Query 3: Get table structure (this might not work depending on the database system and permissions)
+      try {
+        const tableStructure = await query<any[]>('DESCRIBE kt_jl');
+        console.log('Structure of kt_jl table:');
+        console.log(JSON.stringify(tableStructure, null, 2));
+      } catch (error) {
+        console.log(
+          'Unable to fetch table structure. This might require additional permissions.',
+        );
+      }
+    } catch (error) {
+      console.error('Error running diagnostic queries:', error);
+    }
+  }
 }
