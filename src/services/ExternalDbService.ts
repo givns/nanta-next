@@ -81,12 +81,15 @@ export class ExternalDbService {
     try {
       const [userInfoResult, checkInResult] = await Promise.all([
         query<any[]>(userInfoQuery, [employeeId]),
-        query<ExternalCheckInData[]>(checkInQuery, [employeeId]),
+        query<ExternalCheckInData[]>(checkInQuery, [employeeId])
       ]);
-
+  
+      console.log('User info result:', JSON.stringify(userInfoResult, null, 2));
+      console.log('Check-in result:', JSON.stringify(checkInResult, null, 2));
+  
       return {
         userInfo: userInfoResult.length > 0 ? userInfoResult[0] : null,
-        checkIn: checkInResult.length > 0 ? checkInResult[0] : null,
+        checkIn: checkInResult.length > 0 ? checkInResult[0] : null
       };
     } catch (error) {
       console.error('Error in getLatestCheckIn:', error);

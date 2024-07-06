@@ -21,9 +21,7 @@ export class AttendanceService {
     this.externalDbService = new ExternalDbService();
   }
 
-  async getLatestAttendanceStatus(
-    employeeId: string,
-  ): Promise<AttendanceStatus> {
+  async getLatestAttendanceStatus(employeeId: string): Promise<AttendanceStatus> {
     if (!employeeId) {
       throw new Error('Employee ID is required');
     }
@@ -43,63 +41,45 @@ export class AttendanceService {
     const currentShift = user.assignedShift;
     if (!currentShift) throw new Error('User has no assigned shift');
 
-    let externalUser: any | null = null;
+    let externalData: { checkIn: ExternalCheckInData | null, userInfo: any | null } | null = null;
     try {
-      externalUser = await this.externalDbService.getLatestCheckIn(employeeId, {
+      externalData = await this.externalDbService.getLatestCheckIn(employeeId, {
         startTime: currentShift.startTime,
         endTime: currentShift.endTime,
       });
-
-      if (!externalUser) {
-        console.log(`No check-in found for employee ID: ${employeeId}`);
-      }
+      console.log('External data:', JSON.stringify(externalData, null, 2));
     } catch (error) {
       console.error('Error fetching external user data:', error);
     }
 
     let isCheckingIn = true;
 
-    if (externalUser) {
+    if (externalData?.checkIn) {
       try {
-        const externalCheckInTime = new Date(externalUser.sj);
-        if (
-          !latestAttendance ||
-          externalCheckInTime > new Date(latestAttendance.checkInTime)
-        ) {
-          latestAttendance = await this.processExternalCheckInOut(externalUser);
+        const externalCheckInTime = new Date(externalData.checkIn.sj);
+        if (!latestAttendance || externalCheckInTime > new Date(latestAttendance.checkInTime)) {
+          latestAttendance = await this.processExternalCheckInOut(externalData.checkIn, externalData.userInfo);
         }
 
-        if (externalUser.dev_serial === '0010012') {
+        if (externalData.checkIn.dev_serial === '0010012') {
           console.log('Regular check-in detected');
-        } else if (externalUser.dev_serial === '0010000') {
+        } else if (externalData.checkIn.dev_serial === '0010000') {
           console.log('Fallback check-in detected');
         }
 
-        // Using the imported isWithinAllowedTimeRange function
         const shiftStart = new Date(externalCheckInTime);
-        shiftStart.setHours(
-          parseInt(currentShift.startTime.split(':')[0]),
-          parseInt(currentShift.startTime.split(':')[1]),
-          0,
-          0,
-        );
+        shiftStart.setHours(parseInt(currentShift.startTime.split(':')[0]), parseInt(currentShift.startTime.split(':')[1]), 0, 0);
         const shiftEnd = new Date(externalCheckInTime);
-        shiftEnd.setHours(
-          parseInt(currentShift.endTime.split(':')[0]),
-          parseInt(currentShift.endTime.split(':')[1]),
-          0,
-          0,
-        );
+        shiftEnd.setHours(parseInt(currentShift.endTime.split(':')[0]), parseInt(currentShift.endTime.split(':')[1]), 0, 0);
 
-        if (
-          !isWithinAllowedTimeRange(externalCheckInTime, shiftStart, shiftEnd)
-        ) {
+        if (!isWithinAllowedTimeRange(externalCheckInTime, shiftStart, shiftEnd)) {
           console.log('Check-in time is outside the allowed range');
-          // Handle this case as needed
         }
       } catch (error) {
         console.error('Error processing external check-in data:', error);
       }
+    } else {
+      console.log(`No external check-in found for employee ID: ${employeeId}`);
     }
 
     if (latestAttendance) {
@@ -117,6 +97,58 @@ export class AttendanceService {
       isCheckingIn,
       shiftAdjustment: null,
     };
+  }
+
+  async processExternalCheckInOut(
+    externalCheckIn: ExternalCheckInData,
+    userInfo: any
+  ): Promise<Attendance> {
+    console.log('Processing external check-in data:', JSON.stringify(externalCheckIn, null, 2));
+    console.log('User info:', JSON.stringify(userInfo, null, 2));
+
+    const user = await prisma.user.findUnique({
+      where: { employeeId: userInfo.user_no.toString() },
+    });
+
+    if (!user) {
+      console.error('User not found for employee ID:', userInfo.user_no);
+      throw new Error('User not found');
+    }
+
+    const checkTime = new Date(externalCheckIn.sj);
+
+    console.log(`Processing external check type: ${externalCheckIn.fx}`);
+
+    let checkType: CheckType = externalCheckIn.fx as CheckType;
+    let isOvertime: boolean = false;
+
+    switch (checkType) {
+      case CheckType.Auto:
+        checkType = await this.determineAutoCheckType(user.id, checkTime);
+        break;
+      case CheckType.OvertimeStart:
+        checkType = CheckType.CheckIn;
+        isOvertime = true;
+        break;
+      case CheckType.OvertimeEnd:
+        checkType = CheckType.CheckOut;
+        isOvertime = true;
+        break;
+      case CheckType.BackToWork:
+        checkType = CheckType.CheckIn;
+        break;
+      case CheckType.LeaveDuringWork:
+        checkType = CheckType.CheckOut;
+        break;
+    }
+
+    if (checkType === CheckType.CheckIn) {
+      return await this.createAttendance(user.id, checkTime, isOvertime);
+    } else if (checkType === CheckType.CheckOut) {
+      return await this.updateAttendance(user.id, checkTime, isOvertime);
+    } else {
+      throw new Error(`Unhandled check type: ${checkType}`);
+    }
   }
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {
@@ -158,50 +190,6 @@ export class AttendanceService {
         `Error processing ${data.isCheckIn ? 'check-in' : 'check-out'}: ${error.message}`,
       );
       throw error;
-    }
-  }
-
-  async processExternalCheckInOut(
-    externalData: ExternalCheckInData,
-  ): Promise<Attendance> {
-    const user = await prisma.user.findUnique({
-      where: { employeeId: externalData.user_serial.toString() },
-    });
-    if (!user) throw new Error('User not found');
-
-    const checkTime = new Date(externalData.sj);
-
-    console.log(`Processing external check type: ${externalData.fx}`);
-
-    let checkType: CheckType = externalData.fx as CheckType;
-    let isOvertime: boolean = false;
-
-    switch (checkType) {
-      case CheckType.Auto:
-        checkType = await this.determineAutoCheckType(user.id, checkTime);
-        break;
-      case CheckType.OvertimeStart:
-        checkType = CheckType.CheckIn;
-        isOvertime = true;
-        break;
-      case CheckType.OvertimeEnd:
-        checkType = CheckType.CheckOut;
-        isOvertime = true;
-        break;
-      case CheckType.BackToWork:
-        checkType = CheckType.CheckIn;
-        break;
-      case CheckType.LeaveDuringWork:
-        checkType = CheckType.CheckOut;
-        break;
-    }
-
-    if (checkType === CheckType.CheckIn) {
-      return await this.createAttendance(user.id, checkTime, isOvertime);
-    } else if (checkType === CheckType.CheckOut) {
-      return await this.updateAttendance(user.id, checkTime, isOvertime);
-    } else {
-      throw new Error(`Unhandled check type: ${checkType}`);
     }
   }
 
