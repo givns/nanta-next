@@ -30,8 +30,6 @@ export class ExternalDbService {
     shift: { startTime: string; endTime: string },
   ): Promise<ExternalCheckInData | null> {
     console.log(`Searching for external user with employeeId: ${employeeId}`);
-    const employeeIdInt = parseInt(employeeId, 10);
-    // Use employeeIdInt in your query
 
     const now = new Date();
     const searchStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Look back 30 days
@@ -41,46 +39,36 @@ export class ExternalDbService {
       `Searching for check-ins between ${searchStart.toISOString()} and ${searchEnd.toISOString()}`,
     );
 
-    const employeeIdVariations = [
-      employeeId,
-      employeeId.padStart(6, '0'),
-      employeeId.padStart(6, '0').slice(-6),
-    ];
+    const sqlQuery = `
+      SELECT * FROM kt_jl 
+      WHERE user_serial = ?
+      AND sj BETWEEN ? AND ?
+      ORDER BY sj DESC 
+      LIMIT 1
+    `;
 
-    for (const idVariation of employeeIdVariations) {
-      const sqlQuery = `
-  SELECT * FROM kt_jl 
-  WHERE user_serial = ? 
-  AND sj BETWEEN ? AND ?
-  ORDER BY sj DESC 
-  LIMIT 1
-`;
+    const params = [parseInt(employeeId, 10), searchStart, searchEnd];
 
-      console.log(`Trying with employee ID: ${idVariation}`);
-      console.log('SQL Query:', sqlQuery);
-      console.log('Query parameters:', [idVariation, searchStart, searchEnd]);
+    console.log('SQL Query:', sqlQuery);
+    console.log('Query parameters:', params);
 
-      try {
-        const result = await query<ExternalCheckInData[]>(sqlQuery, [
-          idVariation,
-          searchStart,
-          searchEnd,
-        ]);
+    try {
+      const result = await query<ExternalCheckInData[]>(sqlQuery, params);
 
-        console.log(`Raw query results for ${idVariation}:`, result);
+      console.log('Raw query results:', result);
 
-        if (result.length > 0) {
-          const checkInData = result[0];
-          console.log('External check-in found:', checkInData);
-          return checkInData;
-        }
-      } catch (error) {
-        console.error(`Error in getLatestCheckIn for ${idVariation}:`, error);
+      if (result.length > 0) {
+        const checkInData = result[0];
+        console.log('External check-in found:', checkInData);
+        return checkInData;
+      } else {
+        console.log('No external check-in found');
+        return null;
       }
+    } catch (error) {
+      console.error('Error in getLatestCheckIn:', error);
+      return null;
     }
-
-    console.log('No external check-in found');
-    return null;
   }
 
   interpretCheckType(fx: number): string {
