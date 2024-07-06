@@ -21,7 +21,9 @@ export class AttendanceService {
     this.externalDbService = new ExternalDbService();
   }
 
-  async getLatestAttendanceStatus(employeeId: string): Promise<AttendanceStatus> {
+  async getLatestAttendanceStatus(
+    employeeId: string,
+  ): Promise<AttendanceStatus> {
     if (!employeeId) {
       throw new Error('Employee ID is required');
     }
@@ -41,7 +43,10 @@ export class AttendanceService {
     const currentShift = user.assignedShift;
     if (!currentShift) throw new Error('User has no assigned shift');
 
-    let externalData: { checkIn: ExternalCheckInData | null, userInfo: any | null } | null = null;
+    let externalData: {
+      checkIn: ExternalCheckInData | null;
+      userInfo: any | null;
+    } | null = null;
     try {
       externalData = await this.externalDbService.getLatestCheckIn(employeeId, {
         startTime: currentShift.startTime,
@@ -57,8 +62,14 @@ export class AttendanceService {
     if (externalData?.checkIn) {
       try {
         const externalCheckInTime = new Date(externalData.checkIn.sj);
-        if (!latestAttendance || externalCheckInTime > new Date(latestAttendance.checkInTime)) {
-          latestAttendance = await this.processExternalCheckInOut(externalData.checkIn, externalData.userInfo);
+        if (
+          !latestAttendance ||
+          externalCheckInTime > new Date(latestAttendance.checkInTime)
+        ) {
+          latestAttendance = await this.processExternalCheckInOut(
+            externalData.checkIn,
+            externalData.userInfo,
+          );
         }
 
         if (externalData.checkIn.dev_serial === '0010012') {
@@ -68,11 +79,23 @@ export class AttendanceService {
         }
 
         const shiftStart = new Date(externalCheckInTime);
-        shiftStart.setHours(parseInt(currentShift.startTime.split(':')[0]), parseInt(currentShift.startTime.split(':')[1]), 0, 0);
+        shiftStart.setHours(
+          parseInt(currentShift.startTime.split(':')[0]),
+          parseInt(currentShift.startTime.split(':')[1]),
+          0,
+          0,
+        );
         const shiftEnd = new Date(externalCheckInTime);
-        shiftEnd.setHours(parseInt(currentShift.endTime.split(':')[0]), parseInt(currentShift.endTime.split(':')[1]), 0, 0);
+        shiftEnd.setHours(
+          parseInt(currentShift.endTime.split(':')[0]),
+          parseInt(currentShift.endTime.split(':')[1]),
+          0,
+          0,
+        );
 
-        if (!isWithinAllowedTimeRange(externalCheckInTime, shiftStart, shiftEnd)) {
+        if (
+          !isWithinAllowedTimeRange(externalCheckInTime, shiftStart, shiftEnd)
+        ) {
           console.log('Check-in time is outside the allowed range');
         }
       } catch (error) {
@@ -101,9 +124,12 @@ export class AttendanceService {
 
   async processExternalCheckInOut(
     externalCheckIn: ExternalCheckInData,
-    userInfo: any
+    userInfo: any,
   ): Promise<Attendance> {
-    console.log('Processing external check-in data:', JSON.stringify(externalCheckIn, null, 2));
+    console.log(
+      'Processing external check-in data:',
+      JSON.stringify(externalCheckIn, null, 2),
+    );
     console.log('User info:', JSON.stringify(userInfo, null, 2));
 
     const user = await prisma.user.findUnique({
