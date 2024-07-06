@@ -43,10 +43,7 @@ export class AttendanceService {
       userInfo: any | null;
     } | null = null;
     try {
-      externalData = await this.externalDbService.getLatestCheckIn(employeeId, {
-        startTime: currentShift.startTime,
-        endTime: currentShift.endTime,
-      });
+      externalData = await this.externalDbService.getLatestCheckIn(employeeId);
       console.log('External data:', JSON.stringify(externalData, null, 2));
     } catch (error) {
       console.error('Error fetching external user data:', error);
@@ -56,56 +53,75 @@ export class AttendanceService {
     let latestAttendance = null;
 
     if (externalData?.checkIn) {
-      const externalCheckInTime = new Date(externalData.checkIn.sj);
-      const now = new Date();
-      const shiftStart = new Date(
-        now.setHours(
-          parseInt(currentShift.startTime.split(':')[0]),
-          parseInt(currentShift.startTime.split(':')[1]),
-          0,
-          0,
-        ),
-      );
-      const shiftEnd = new Date(
-        now.setHours(
-          parseInt(currentShift.endTime.split(':')[0]),
-          parseInt(currentShift.endTime.split(':')[1]),
-          0,
-          0,
-        ),
-      );
-
-      console.log(
-        `Shift start: ${shiftStart.toISOString()}, Shift end: ${shiftEnd.toISOString()}, Last check-in: ${externalCheckInTime.toISOString()}`,
-      );
-
-      if (externalCheckInTime > shiftStart && externalCheckInTime < shiftEnd) {
-        isCheckingIn = false;
-        console.log('User should be checking out');
-      } else {
-        isCheckingIn = true;
-        console.log('User should be checking in');
-      }
-
       try {
+        const externalCheckInTime = new Date(externalData.checkIn.sj);
+        const today = new Date();
+        const shiftStart = new Date(
+          today.setHours(
+            parseInt(currentShift.startTime.split(':')[0]),
+            parseInt(currentShift.startTime.split(':')[1]),
+            0,
+            0,
+          ),
+        );
+        const shiftEnd = new Date(
+          today.setHours(
+            parseInt(currentShift.endTime.split(':')[0]),
+            parseInt(currentShift.endTime.split(':')[1]),
+            0,
+            0,
+          ),
+        );
+
+        // Adjust for shifts that cross midnight
+        if (shiftEnd < shiftStart) {
+          shiftEnd.setDate(shiftEnd.getDate() + 1);
+        }
+
+        console.log(
+          `Shift start: ${shiftStart.toISOString()}, Shift end: ${shiftEnd.toISOString()}, Last check-in: ${externalCheckInTime.toISOString()}`,
+        );
+
+        // Get the latest attendance record for today
+        const todayStart = new Date(today.setHours(0, 0, 0, 0));
+        const todayEnd = new Date(today.setHours(23, 59, 59, 999));
+        const latestAttendanceToday = await prisma.attendance.findFirst({
+          where: {
+            userId: user.id,
+            checkInTime: {
+              gte: todayStart,
+              lte: todayEnd,
+            },
+          },
+          orderBy: { checkInTime: 'desc' },
+        });
+
+        if (!latestAttendanceToday || latestAttendanceToday.checkOutTime) {
+          // If no attendance today or last attendance is checked out, this should be a check-in
+          isCheckingIn = true;
+          console.log('User should be checking in');
+        } else {
+          // If there's an open attendance, this should be a check-out
+          isCheckingIn = false;
+          console.log('User should be checking out');
+        }
+
         latestAttendance = await this.processExternalCheckInOut(
           externalData.checkIn,
           externalData.userInfo,
+          currentShift,
         );
+
+        if (
+          externalCheckInTime < shiftStart ||
+          externalCheckInTime > shiftEnd
+        ) {
+          console.log(
+            'Check-in/out time is outside of shift hours. This may require adjustment or overtime approval.',
+          );
+        }
       } catch (error) {
         console.error('Error processing external check-in data:', error);
-      }
-
-      if (externalData.checkIn.dev_serial === '0010012') {
-        console.log('Regular check-in detected');
-      } else if (externalData.checkIn.dev_serial === '0010000') {
-        console.log('Fallback check-in detected');
-      }
-
-      if (
-        !isWithinAllowedTimeRange(externalCheckInTime, shiftStart, shiftEnd)
-      ) {
-        console.log('Check-in time is outside the allowed range');
       }
     } else {
       console.log(`No external check-in found for employee ID: ${employeeId}`);
@@ -127,6 +143,7 @@ export class AttendanceService {
   async processExternalCheckInOut(
     externalCheckIn: ExternalCheckInData,
     userInfo: any,
+    shift: { startTime: string; endTime: string },
   ): Promise<Attendance> {
     console.log(
       'Processing external check-in data:',
@@ -145,42 +162,53 @@ export class AttendanceService {
 
     const checkTime = new Date(externalCheckIn.sj);
 
-    // Find the latest attendance record for this user
-    const latestAttendance = await prisma.attendance.findFirst({
-      where: { userId: user.id },
+    // Get the latest attendance record for today
+    const today = new Date(checkTime);
+    const todayStart = new Date(today.setHours(0, 0, 0, 0));
+    const todayEnd = new Date(today.setHours(23, 59, 59, 999));
+    const latestAttendanceToday = await prisma.attendance.findFirst({
+      where: {
+        userId: user.id,
+        checkInTime: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
       orderBy: { checkInTime: 'desc' },
     });
 
+    let isCheckIn =
+      !latestAttendanceToday || latestAttendanceToday.checkOutTime !== null;
     let isOvertime = false;
-    let checkType: CheckType;
 
-    switch (externalCheckIn.fx) {
-      case CheckType.OvertimeStart:
-        checkType = CheckType.CheckIn;
-        isOvertime = true;
-        break;
-      case CheckType.OvertimeEnd:
-        checkType = CheckType.CheckOut;
-        isOvertime = true;
-        break;
-      case CheckType.BackToWork:
-        checkType = CheckType.CheckIn;
-        break;
-      case CheckType.LeaveDuringWork:
-        checkType = CheckType.CheckOut;
-        break;
-      default:
-        checkType =
-          !latestAttendance || latestAttendance.checkOutTime
-            ? CheckType.CheckIn
-            : CheckType.CheckOut;
+    // Determine if it's overtime
+    const shiftStart = new Date(
+      today.setHours(
+        parseInt(shift.startTime.split(':')[0]),
+        parseInt(shift.startTime.split(':')[1]),
+        0,
+        0,
+      ),
+    );
+    const shiftEnd = new Date(
+      today.setHours(
+        parseInt(shift.endTime.split(':')[0]),
+        parseInt(shift.endTime.split(':')[1]),
+        0,
+        0,
+      ),
+    );
+    if (shiftEnd < shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
+
+    if (checkTime < shiftStart || checkTime > shiftEnd) {
+      isOvertime = true;
     }
 
     console.log(
-      `Processing external check type: ${checkType}, Overtime: ${isOvertime}`,
+      `Processing as ${isCheckIn ? 'check-in' : 'check-out'}, Overtime: ${isOvertime}`,
     );
 
-    if (checkType === CheckType.CheckIn) {
+    if (isCheckIn) {
       return await this.createAttendance(user.id, checkTime, isOvertime);
     } else {
       return await this.updateAttendance(user.id, checkTime, isOvertime);

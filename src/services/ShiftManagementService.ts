@@ -94,6 +94,6 @@ export class ShiftManagementService {
   }
 
   async getShiftByDepartmentId(departmentId: number): Promise<Shift | null> {
-    return getShiftByDepartmentId(departmentId.toString());
+    return getShiftByDepartmentId(departmentId);
   }
 }

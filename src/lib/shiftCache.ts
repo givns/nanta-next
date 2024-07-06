@@ -84,19 +84,61 @@ export const departmentShiftMap: { [key: string]: string } = {
   ฝ่ายรักษาความปลอดภัย: 'SHIFT102',
 };
 
+export function getDefaultShiftCode(department: string): string {
+  return departmentShiftMap[department] || 'SHIFT103';
+}
+
+// lib/shiftCache.ts
+
+// ... (previous code remains the same)
+
+// Add this mapping of department IDs to department names
+const departmentIdNameMap: { [key: number]: string } = {
+  10001: 'ฝ่ายขนส่ง',
+  10002: 'ฝ่ายปฏิบัติการ',
+  10003: 'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)',
+  10004: 'ฝ่ายผลิต-กระบวนการที่ 2 (เช้า)',
+  10005: 'ฝ่ายผลิต-คัดคุณภาพและบรรจุ',
+  10006: 'ฝ่ายผลิต-ข้าวเกรียบ-ข้าวตัง',
+  10007: 'ฝ่ายผลิต-วิจัยและพัฒนาคุณภาพผลิตภัณฑ์',
+  10008: 'ฝ่ายประกันคุณภาพ',
+  10009: 'ฝ่ายคลังสินค้าและแพ็คกิ้ง',
+  10010: 'ฝ่ายจัดส่งสินค้า',
+  10011: 'ฝ่ายจัดซื้อและประสานงานขาย',
+  10012: 'ฝ่ายบัญชีและการเงิน',
+  10013: 'ฝ่ายทรัพยากรบุคคล',
+  10014: 'ฝ่ายรักษาความสะอาด',
+  10015: 'ฝ่ายรักษาความปลอดภัย',
+  // Add more mappings as needed
+};
+
 export async function getShiftByDepartmentId(
-  department: string,
+  departmentId: number,
 ): Promise<Shift | null> {
-  const shiftCode = departmentShiftMap[department];
-  if (shiftCode) {
-    return getShiftByCode(shiftCode);
+  const departmentName = departmentIdNameMap[departmentId];
+  if (!departmentName) {
+    console.warn(`No department name found for ID: ${departmentId}`);
+    return getShiftByCode('SHIFT103'); // Default shift if department not found
   }
-  return getShiftByCode('SHIFT103'); // Default to SHIFT103 if no match
+
+  const shiftCode = departmentShiftMap[departmentName];
+  if (!shiftCode) {
+    console.warn(`No shift code found for department: ${departmentName}`);
+    return getShiftByCode('SHIFT103'); // Default shift if no mapping found
+  }
+
+  const shift = await getShiftByCode(shiftCode);
+  if (!shift) {
+    console.warn(`No shift found for code: ${shiftCode}`);
+    return getShiftByCode('SHIFT103'); // Default shift if shift not found
+  }
+
+  return shift;
 }
 
 export async function getDefaultShift(
   department: string,
 ): Promise<Shift | null> {
-  const shiftCode = departmentShiftMap[department] || 'SHIFT103';
+  const shiftCode = getDefaultShiftCode(department);
   return getShiftByCode(shiftCode);
 }

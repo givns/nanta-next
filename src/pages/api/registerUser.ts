@@ -1,5 +1,3 @@
-// pages/api/registerUser.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { Client } from '@line/bot-sdk';
@@ -7,7 +5,11 @@ import { ExternalDbService } from '../../services/ExternalDbService';
 import { UserRole } from '@/types/enum';
 import { ShiftManagementService } from '../../services/ShiftManagementService';
 import { ExternalCheckInData } from '../../types/user';
-import { refreshShiftCache } from '../../lib/shiftCache';
+import {
+  refreshShiftCache,
+  getShiftByCode,
+  getDefaultShiftCode,
+} from '../../lib/shiftCache';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -43,53 +45,6 @@ function determineRichMenuId(role: UserRole): string {
       return 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce';
   }
 }
-
-async function alertAdmins(
-  newUserLineId: string,
-  name: string,
-  employeeId: string,
-  department: string,
-) {
-  const message = `New user registration with no exact match:
-LineUserId: ${newUserLineId}
-Name: ${name}
-Employee Number: ${employeeId}
-Department: ${department}`;
-  console.warn(message);
-
-  try {
-    const adminUsers = await prisma.user.findMany({
-      where: {
-        role: {
-          in: [UserRole.ADMIN, UserRole.SUPERADMIN],
-        },
-      },
-      select: {
-        lineUserId: true,
-      },
-    });
-
-    for (const admin of adminUsers) {
-      try {
-        if (admin.lineUserId) {
-          await client.pushMessage(admin.lineUserId, {
-            type: 'text',
-            text: message,
-          });
-          console.log(`Admin alert sent successfully to ${admin.lineUserId}`);
-        } else {
-          console.error('Admin lineUserId is null');
-        }
-      } catch (error) {
-        console.error('Error sending admin alert:', error);
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching admin users or sending alerts:', error);
-  }
-}
-
-// ... (previous imports and constants remain the same)
 
 export default async function handler(
   req: NextApiRequest,
@@ -137,14 +92,27 @@ export default async function handler(
       userInfo: any | null;
     } | null = null;
     try {
-      externalData = await externalDbService.getLatestCheckIn(employeeId, {
-        startTime: '08:00',
-        endTime: '17:00',
-      });
+      externalData = await externalDbService.getLatestCheckIn(employeeId);
     } catch (error) {
       console.error('Error finding external user:', error);
     }
     console.timeEnd('getExternalUser');
+
+    console.time('determineShift');
+    let shift = null;
+    if (externalData?.userInfo?.user_dep) {
+      shift = await shiftManagementService.getShiftByDepartmentId(
+        externalData.userInfo.user_dep,
+      );
+    }
+    if (!shift) {
+      const shiftCode = getDefaultShiftCode(department);
+      shift = await getShiftByCode(shiftCode);
+    }
+    if (!shift) {
+      throw new Error(`No shift found for department: ${department}`);
+    }
+    console.timeEnd('determineShift');
 
     console.time('determineRole');
     const userCount = await prisma.user.count();
@@ -169,21 +137,6 @@ export default async function handler(
       return providedName;
     };
 
-    console.time('getShift');
-    let shift = null;
-    if (externalData?.userInfo?.user_dep) {
-      shift = await shiftManagementService.getShiftByDepartmentId(
-        externalData.userInfo.user_dep,
-      );
-    }
-    if (!shift) {
-      shift = await shiftManagementService.getDefaultShift(department);
-    }
-    if (!shift) {
-      throw new Error(`No shift found for department: ${department}`);
-    }
-    console.timeEnd('getShift');
-
     const userData = {
       lineUserId,
       name: constructName(externalData?.checkIn, name),
@@ -201,9 +154,7 @@ export default async function handler(
 
     console.time('createOrUpdateUser');
     if (!user) {
-      user = await prisma.user.create({
-        data: userData,
-      });
+      user = await prisma.user.create({ data: userData });
       console.log('New user created:', user);
     } else {
       user = await prisma.user.update({

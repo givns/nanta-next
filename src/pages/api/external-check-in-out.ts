@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { ExternalDbService } from '../../services/ExternalDbService';
 import { AttendanceService } from '../../services/AttendanceService';
+import prisma from '../../lib/prisma';
 
 const externalDbService = new ExternalDbService();
 const attendanceService = new AttendanceService();
@@ -18,36 +19,50 @@ export default async function handler(
   const data = req.body;
 
   try {
-    // Create manual entry in external database
-    await externalDbService.createManualEntry(data);
+    // Create entry in external database
+    if (data.isManualEntry) {
+      await externalDbService.createManualEntry(data);
+    } else {
+      await externalDbService.createCheckIn(data);
+    }
 
-    // Fetch user info
-    const userInfo = await externalDbService.getUserInfo(data.employeeId);
+    // Fetch user info and latest check-in
+    const { userInfo, checkIn } = await externalDbService.getLatestCheckIn(
+      data.employeeId,
+    );
+
     if (!userInfo) {
       throw new Error('User not found in external database');
     }
 
-    // Process both check-in and check-out for manual entry
-    await attendanceService.processExternalCheckInOut(
-      { ...data, fx: 0 },
-      userInfo,
-    );
-    if (data.checkOutTimestamp) {
-      await attendanceService.processExternalCheckInOut(
-        {
-          ...data,
-          fx: 1,
-          sj: data.checkOutTimestamp,
-        },
-        userInfo,
-      );
+    // Fetch user from our database
+    const user = await prisma.user.findUnique({
+      where: { employeeId: data.employeeId },
+      include: { assignedShift: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found in our database');
     }
 
-    res.status(200).json({ message: 'Manual entry processed successfully' });
+    if (!checkIn) {
+      throw new Error('No check-in data found');
+    }
+
+    // Process the check-in/out
+    const attendance = await attendanceService.processExternalCheckInOut(
+      checkIn,
+      userInfo,
+      user.assignedShift,
+    );
+
+    res
+      .status(200)
+      .json({ message: 'Check-in/out processed successfully', attendance });
   } catch (error: any) {
-    console.error('Error processing manual entry:', error);
+    console.error('Error processing check-in/out:', error);
     res
       .status(500)
-      .json({ message: 'Error processing manual entry', error: error.message });
+      .json({ message: 'Error processing check-in/out', error: error.message });
   }
 }
