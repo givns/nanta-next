@@ -16,7 +16,10 @@ const client = new Client({
 const externalDbService = new ExternalDbService();
 const shiftManagementService = new ShiftManagementService();
 
-function determineRole(department: string): UserRole {
+function determineRole(department: string, isFirstUser: boolean): UserRole {
+  if (isFirstUser) {
+    return UserRole.SUPERADMIN;
+  }
   switch (department) {
     case 'ฝ่ายขนส่ง':
       return UserRole.DRIVER;
@@ -137,16 +140,9 @@ export default async function handler(
     console.timeEnd('getExternalUser');
 
     console.time('determineRole');
-    let role: UserRole;
     const userCount = await prisma.user.count();
-    if (userCount === 0) {
-      role = UserRole.SUPERADMIN;
-    } else if (externalUser) {
-      role = determineRole(externalUser.dev_serial || department);
-    } else {
-      role = determineRole(department);
-      await alertAdmins(lineUserId, name, employeeId, department);
-    }
+    const isFirstUser = userCount === 0;
+    const role = determineRole(department, isFirstUser);
     console.timeEnd('determineRole');
 
     // Improved name construction
@@ -154,12 +150,13 @@ export default async function handler(
       externalUser: ExternalCheckInData | null,
       providedName: string,
     ): string => {
-      if (externalUser) {
-        const parts = [
-          externalUser.user_serial,
-          externalUser.user_lname,
-          externalUser.user_fname,
-        ].filter(Boolean);
+      if (
+        externalUser &&
+        (externalUser.user_fname || externalUser.user_lname)
+      ) {
+        const parts = [externalUser.user_fname, externalUser.user_lname].filter(
+          Boolean,
+        );
         return parts.length > 0 ? parts.join(' ') : providedName;
       }
       return providedName;
