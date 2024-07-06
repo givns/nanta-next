@@ -114,6 +114,9 @@ export class AttendanceService {
       shiftAdjustment: null,
     };
   }
+  async getUserCheckInHistory(employeeId: string): Promise<any[]> {
+    return this.externalDbService.getUserCheckInData(employeeId);
+  }
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {
     const user = await prisma.user.findUnique({ where: { id: data.userId } });

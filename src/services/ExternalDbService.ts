@@ -25,66 +25,107 @@ export class ExternalDbService {
     }
   }
 
-  async getLatestCheckIn(
-    employeeId: string,
-    shift: { startTime: string; endTime: string },
-  ): Promise<ExternalCheckInData | null> {
-    console.log(`Searching for external user with employeeId: ${employeeId}`);
-
-    const now = new Date();
-    const searchStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Look back 30 days
-    const searchEnd = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes into the future
-
-    console.log(
-      `Searching for check-ins between ${searchStart.toISOString()} and ${searchEnd.toISOString()}`,
-    );
-
+  async getRecentEntries(): Promise<any[]> {
     const sqlQuery = `
-      SELECT * FROM kt_jl 
-      WHERE user_serial = ?
-      AND sj BETWEEN ? AND ?
-      ORDER BY sj DESC 
-      LIMIT 1
+      SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
+      FROM kt_jl kj
+      JOIN dt_user du ON kj.user_serial = du.user_serial
+      LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
+      ORDER BY kj.sj DESC 
+      LIMIT 10
     `;
-
-    const params = [parseInt(employeeId, 10), searchStart, searchEnd];
-
-    console.log('SQL Query:', sqlQuery);
-    console.log('Query parameters:', params);
+    console.log('Running query for recent entries:', sqlQuery);
 
     try {
-      const result = await query<ExternalCheckInData[]>(sqlQuery, params);
-
-      console.log('Raw query results:', result);
-
-      if (result.length > 0) {
-        const checkInData = result[0];
-        console.log('External check-in found:', checkInData);
-        return checkInData;
-      } else {
-        console.log('No external check-in found');
-        return null;
-      }
+      const result = await query<any[]>(sqlQuery);
+      console.log('Query results for recent entries:', result);
+      return result;
     } catch (error) {
-      console.error('Error in getLatestCheckIn:', error);
-      return null;
+      console.error('Error fetching recent entries:', error);
+      throw error;
     }
   }
 
-  interpretCheckType(fx: number): string {
-    switch (fx) {
-      case 0:
-        return 'Check In';
-      case 1:
-        return 'Check Out';
-      case 2:
-        return 'Break Start';
-      case 5:
-        return 'Overtime Start';
-      case 6:
-        return 'Overtime End';
-      default:
-        return 'Unknown';
+  // New method for detailed user check-in data
+  async getUserCheckInData(userNo: string): Promise<any[]> {
+    const sqlQuery = `
+      SELECT 
+        kj.sj, 
+        kj.user_serial, 
+        kj.bh as check_id, 
+        kj.fx as check_type,
+        du.user_no, 
+        du.user_lname, 
+        du.user_fname,
+        dd.dep_name as department,
+        sd.mc as device_name
+      FROM 
+        kt_jl kj
+      JOIN 
+        dt_user du ON kj.user_serial = du.user_serial
+      LEFT JOIN 
+        dt_dep dd ON du.user_dep = dd.dep_serial
+      LEFT JOIN 
+        st_device sd ON kj.dev_serial = sd.bh
+      WHERE 
+        du.user_no = ?
+      ORDER BY 
+        kj.sj DESC
+      LIMIT 10
+    `;
+
+    console.log('Running query for user check-in data:', sqlQuery);
+
+    try {
+      const result = await query<any[]>(sqlQuery, [userNo]);
+      console.log('Query results for user check-in data:', result);
+      return result;
+    } catch (error) {
+      console.error('Error fetching user check-in data:', error);
+      throw error;
+    }
+  }
+
+  // Updated method to get the latest check-in for a user
+  async getLatestCheckIn(
+    userNo: string,
+    shift: { startTime: string; endTime: string },
+  ): Promise<any | null> {
+    const sqlQuery = `
+      SELECT 
+        kj.sj, 
+        kj.user_serial, 
+        kj.bh as check_id, 
+        kj.fx as check_type,
+        du.user_no, 
+        du.user_lname, 
+        du.user_fname,
+        dd.dep_name as department,
+        sd.mc as device_name
+      FROM 
+        kt_jl kj
+      JOIN 
+        dt_user du ON kj.user_serial = du.user_serial
+      LEFT JOIN 
+        dt_dep dd ON du.user_dep = dd.dep_serial
+      LEFT JOIN 
+        st_device sd ON kj.dev_serial = sd.bh
+      WHERE 
+        du.user_no = ?
+      ORDER BY 
+        kj.sj DESC
+      LIMIT 1
+    `;
+
+    console.log('Running query for latest check-in:', sqlQuery);
+
+    try {
+      const result = await query<any[]>(sqlQuery, [userNo]);
+      console.log('Query result for latest check-in:', result);
+      return result.length > 0 ? result[0] : null;
+    } catch (error) {
+      console.error('Error fetching latest check-in:', error);
+      return null;
     }
   }
 
