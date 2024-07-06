@@ -8,7 +8,7 @@ import {
   AttendanceData,
   AttendanceStatus,
 } from '../types/user';
-import { isWithinAllowedTimeRange } from '../utils/timeUtils'; // Import from utilities
+import { isWithinAllowedTimeRange } from '../utils/timeUtils';
 
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
@@ -34,9 +34,7 @@ export class AttendanceService {
     });
 
     if (!user) throw new Error('User not found');
-
-    const currentShift = user.assignedShift;
-    if (!currentShift) throw new Error('User has no assigned shift');
+    if (!user.assignedShift) throw new Error('User has no assigned shift');
 
     let externalData: {
       checkIn: ExternalCheckInData | null;
@@ -54,72 +52,12 @@ export class AttendanceService {
 
     if (externalData?.checkIn) {
       try {
-        const externalCheckInTime = new Date(externalData.checkIn.sj);
-        const today = new Date();
-        const shiftStart = new Date(
-          today.setHours(
-            parseInt(currentShift.startTime.split(':')[0]),
-            parseInt(currentShift.startTime.split(':')[1]),
-            0,
-            0,
-          ),
-        );
-        const shiftEnd = new Date(
-          today.setHours(
-            parseInt(currentShift.endTime.split(':')[0]),
-            parseInt(currentShift.endTime.split(':')[1]),
-            0,
-            0,
-          ),
-        );
-
-        // Adjust for shifts that cross midnight
-        if (shiftEnd < shiftStart) {
-          shiftEnd.setDate(shiftEnd.getDate() + 1);
-        }
-
-        console.log(
-          `Shift start: ${shiftStart.toISOString()}, Shift end: ${shiftEnd.toISOString()}, Last check-in: ${externalCheckInTime.toISOString()}`,
-        );
-
-        // Get the latest attendance record for today
-        const todayStart = new Date(today.setHours(0, 0, 0, 0));
-        const todayEnd = new Date(today.setHours(23, 59, 59, 999));
-        const latestAttendanceToday = await prisma.attendance.findFirst({
-          where: {
-            userId: user.id,
-            checkInTime: {
-              gte: todayStart,
-              lte: todayEnd,
-            },
-          },
-          orderBy: { checkInTime: 'desc' },
-        });
-
-        if (!latestAttendanceToday || latestAttendanceToday.checkOutTime) {
-          // If no attendance today or last attendance is checked out, this should be a check-in
-          isCheckingIn = true;
-          console.log('User should be checking in');
-        } else {
-          // If there's an open attendance, this should be a check-out
-          isCheckingIn = false;
-          console.log('User should be checking out');
-        }
-
         latestAttendance = await this.processExternalCheckInOut(
           externalData.checkIn,
           externalData.userInfo,
-          currentShift,
+          user.assignedShift,
         );
-
-        if (
-          externalCheckInTime < shiftStart ||
-          externalCheckInTime > shiftEnd
-        ) {
-          console.log(
-            'Check-in/out time is outside of shift hours. This may require adjustment or overtime approval.',
-          );
-        }
+        isCheckingIn = !latestAttendance.checkOutTime;
       } catch (error) {
         console.error('Error processing external check-in data:', error);
       }
@@ -162,46 +100,55 @@ export class AttendanceService {
 
     const checkTime = new Date(externalCheckIn.sj);
 
-    // Get the latest attendance record for today
-    const today = new Date(checkTime);
-    const todayStart = new Date(today.setHours(0, 0, 0, 0));
-    const todayEnd = new Date(today.setHours(23, 59, 59, 999));
-    const latestAttendanceToday = await prisma.attendance.findFirst({
+    // Get all attendance records for the day
+    const startOfDay = new Date(checkTime);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(checkTime);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const attendanceRecords = await prisma.attendance.findMany({
       where: {
         userId: user.id,
-        checkInTime: {
-          gte: todayStart,
-          lte: todayEnd,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
         },
       },
-      orderBy: { checkInTime: 'desc' },
+      orderBy: { checkInTime: 'asc' },
     });
 
-    let isCheckIn =
-      !latestAttendanceToday || latestAttendanceToday.checkOutTime !== null;
+    console.log('Attendance records for the day:', attendanceRecords);
+
+    let isCheckIn = true;
     let isOvertime = false;
 
     // Determine if it's overtime
-    const shiftStart = new Date(
-      today.setHours(
-        parseInt(shift.startTime.split(':')[0]),
-        parseInt(shift.startTime.split(':')[1]),
-        0,
-        0,
-      ),
+    const shiftStart = new Date(checkTime);
+    shiftStart.setHours(
+      parseInt(shift.startTime.split(':')[0]),
+      parseInt(shift.startTime.split(':')[1]),
+      0,
+      0,
     );
-    const shiftEnd = new Date(
-      today.setHours(
-        parseInt(shift.endTime.split(':')[0]),
-        parseInt(shift.endTime.split(':')[1]),
-        0,
-        0,
-      ),
+    const shiftEnd = new Date(checkTime);
+    shiftEnd.setHours(
+      parseInt(shift.endTime.split(':')[0]),
+      parseInt(shift.endTime.split(':')[1]),
+      0,
+      0,
     );
     if (shiftEnd < shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
 
     if (checkTime < shiftStart || checkTime > shiftEnd) {
       isOvertime = true;
+    }
+
+    // Determine if it's a check-in or check-out
+    if (attendanceRecords.length > 0) {
+      const lastRecord = attendanceRecords[attendanceRecords.length - 1];
+      if (!lastRecord.checkOutTime) {
+        isCheckIn = false; // It's a check-out if the last record doesn't have a check-out time
+      }
     }
 
     console.log(
@@ -211,7 +158,21 @@ export class AttendanceService {
     if (isCheckIn) {
       return await this.createAttendance(user.id, checkTime, isOvertime);
     } else {
-      return await this.updateAttendance(user.id, checkTime, isOvertime);
+      const lastOpenRecord = attendanceRecords.find(
+        (record) => !record.checkOutTime,
+      );
+      if (lastOpenRecord) {
+        return await this.updateAttendance(
+          lastOpenRecord.id,
+          checkTime,
+          isOvertime,
+        );
+      } else {
+        console.warn(
+          'No open attendance record found. Creating a new check-in record.',
+        );
+        return await this.createAttendance(user.id, checkTime, isOvertime);
+      }
     }
   }
   async processAttendance(data: AttendanceData): Promise<Attendance> {
@@ -287,38 +248,29 @@ export class AttendanceService {
         ),
         checkInTime: checkTime,
         status: isOvertime ? 'overtime-started' : 'checked-in',
-        checkInLocation: JSON.stringify({ lat: 0, lng: 0 }), // You should replace this with actual location data
-        checkInPhoto: 'N/A', // Replace with actual photo data or path if available
-        checkInAddress: 'N/A', // Replace with actual address if available
-        checkInDeviceSerial: 'EXTERNAL', // Or any identifier for your external system
+        checkInLocation: JSON.stringify({ lat: 0, lng: 0 }),
+        checkInPhoto: 'N/A',
+        checkInAddress: 'N/A',
+        checkInDeviceSerial: 'EXTERNAL',
         isManualEntry: false,
       },
     });
   }
 
   private async updateAttendance(
-    userId: string,
-    checkTime: Date,
+    attendanceId: string,
+    checkOutTime: Date,
     isOvertime: boolean,
   ): Promise<Attendance> {
-    const latestAttendance = await prisma.attendance.findFirst({
-      where: { userId, checkOutTime: null },
-      orderBy: { checkInTime: 'desc' },
-    });
-
-    if (!latestAttendance) {
-      throw new Error('No open attendance record found for check-out');
-    }
-
     return prisma.attendance.update({
-      where: { id: latestAttendance.id },
+      where: { id: attendanceId },
       data: {
-        checkOutTime: checkTime,
+        checkOutTime,
         status: isOvertime ? 'overtime-ended' : 'checked-out',
-        checkOutLocation: JSON.stringify({ lat: 0, lng: 0 }), // Replace with actual location data
-        checkOutPhoto: 'N/A', // Replace with actual photo data or path if available
-        checkOutAddress: 'N/A', // Replace with actual address if available
-        checkOutDeviceSerial: 'EXTERNAL', // Or any identifier for your external system
+        checkOutLocation: JSON.stringify({ lat: 0, lng: 0 }),
+        checkOutPhoto: 'N/A',
+        checkOutAddress: 'N/A',
+        checkOutDeviceSerial: 'EXTERNAL',
       },
     });
   }
