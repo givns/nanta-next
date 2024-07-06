@@ -180,6 +180,12 @@ export default async function handler(
           }
         : null,
     };
+    console.log(
+      'Department ID from external data:',
+      externalData?.userInfo?.user_dep,
+    );
+    console.log('Department name:', department);
+    console.log('Assigned shift:', shift);
 
     console.time('linkRichMenu');
     const richMenuId = determineRichMenuId(role);
