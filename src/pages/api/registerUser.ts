@@ -89,6 +89,8 @@ Department: ${department}`;
   }
 }
 
+// ... (previous imports and constants remain the same)
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -135,15 +137,9 @@ export default async function handler(
       userInfo: any | null;
     } | null = null;
     try {
-      const defaultShift =
-        await shiftManagementService.getDefaultShift(department);
-      if (!defaultShift) {
-        throw new Error(`No default shift found for department: ${department}`);
-      }
-
       externalData = await externalDbService.getLatestCheckIn(employeeId, {
-        startTime: defaultShift.startTime,
-        endTime: defaultShift.endTime,
+        startTime: '08:00',
+        endTime: '17:00',
       });
     } catch (error) {
       console.error('Error finding external user:', error);
@@ -173,48 +169,46 @@ export default async function handler(
       return providedName;
     };
 
+    console.time('getShift');
+    let shift = null;
+    if (externalData?.userInfo?.user_dep) {
+      shift = await shiftManagementService.getShiftByDepartmentId(
+        externalData.userInfo.user_dep,
+      );
+    }
+    if (!shift) {
+      shift = await shiftManagementService.getDefaultShift(department);
+    }
+    if (!shift) {
+      throw new Error(`No shift found for department: ${department}`);
+    }
+    console.timeEnd('getShift');
+
     const userData = {
       lineUserId,
       name: constructName(externalData?.checkIn, name),
       nickname,
-      department: externalData?.checkIn?.department || department,
+      department: externalData?.userInfo?.user_depname || department,
       profilePictureUrl,
       role: role.toString(),
       employeeId: externalData?.userInfo?.user_no || employeeId,
       externalEmployeeId: externalData?.userInfo?.user_serial?.toString(),
       overtimeHours: 0,
+      shiftId: shift.id,
     };
 
     console.log('User data before saving:', userData);
 
     console.time('createOrUpdateUser');
     if (!user) {
-      console.time('getDefaultShift');
-      const defaultShift = await shiftManagementService.getDefaultShift(
-        userData.department,
-      );
-      console.timeEnd('getDefaultShift');
-
-      if (!defaultShift) {
-        throw new Error(
-          `No default shift found for department: ${userData.department}`,
-        );
-      }
-
       user = await prisma.user.create({
-        data: {
-          ...userData,
-          shiftId: defaultShift.id,
-        },
+        data: userData,
       });
       console.log('New user created:', user);
     } else {
       user = await prisma.user.update({
         where: { lineUserId },
-        data: {
-          ...userData,
-          shiftId: user.shiftId, // Preserve existing shiftId for updates
-        },
+        data: userData,
       });
       console.log('Existing user updated:', user);
     }

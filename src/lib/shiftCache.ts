@@ -87,3 +87,18 @@ export const departmentShiftMap: { [key: string]: string } = {
 export function getDefaultShiftCode(department: string): string {
   return departmentShiftMap[department] || 'SHIFT103';
 }
+
+export async function getShiftByDepartmentId(
+  departmentId: number,
+): Promise<Shift | null> {
+  // This is a placeholder implementation. You'll need to modify this based on your actual data structure.
+  // For now, we'll just return the default shift.
+  return getShiftByCode('SHIFT103');
+}
+
+export async function getDefaultShift(
+  department: string,
+): Promise<Shift | null> {
+  const shiftCode = getDefaultShiftCode(department);
+  return getShiftByCode(shiftCode);
+}

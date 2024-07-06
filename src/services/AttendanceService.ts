@@ -35,11 +35,6 @@ export class AttendanceService {
 
     if (!user) throw new Error('User not found');
 
-    let latestAttendance = await prisma.attendance.findFirst({
-      where: { userId: user.id },
-      orderBy: { checkInTime: 'desc' },
-    });
-
     const currentShift = user.assignedShift;
     if (!currentShift) throw new Error('User has no assigned shift');
 
@@ -58,55 +53,62 @@ export class AttendanceService {
     }
 
     let isCheckingIn = true;
+    let latestAttendance = null;
 
     if (externalData?.checkIn) {
-      try {
-        const externalCheckInTime = new Date(externalData.checkIn.sj);
-        if (
-          !latestAttendance ||
-          externalCheckInTime > new Date(latestAttendance.checkInTime)
-        ) {
-          latestAttendance = await this.processExternalCheckInOut(
-            externalData.checkIn,
-            externalData.userInfo,
-          );
-        }
-
-        if (externalData.checkIn.dev_serial === '0010012') {
-          console.log('Regular check-in detected');
-        } else if (externalData.checkIn.dev_serial === '0010000') {
-          console.log('Fallback check-in detected');
-        }
-
-        const shiftStart = new Date(externalCheckInTime);
-        shiftStart.setHours(
+      const externalCheckInTime = new Date(externalData.checkIn.sj);
+      const now = new Date();
+      const shiftStart = new Date(
+        now.setHours(
           parseInt(currentShift.startTime.split(':')[0]),
           parseInt(currentShift.startTime.split(':')[1]),
           0,
           0,
-        );
-        const shiftEnd = new Date(externalCheckInTime);
-        shiftEnd.setHours(
+        ),
+      );
+      const shiftEnd = new Date(
+        now.setHours(
           parseInt(currentShift.endTime.split(':')[0]),
           parseInt(currentShift.endTime.split(':')[1]),
           0,
           0,
-        );
+        ),
+      );
 
-        if (
-          !isWithinAllowedTimeRange(externalCheckInTime, shiftStart, shiftEnd)
-        ) {
-          console.log('Check-in time is outside the allowed range');
-        }
+      console.log(
+        `Shift start: ${shiftStart.toISOString()}, Shift end: ${shiftEnd.toISOString()}, Last check-in: ${externalCheckInTime.toISOString()}`,
+      );
+
+      if (externalCheckInTime > shiftStart && externalCheckInTime < shiftEnd) {
+        isCheckingIn = false;
+        console.log('User should be checking out');
+      } else {
+        isCheckingIn = true;
+        console.log('User should be checking in');
+      }
+
+      try {
+        latestAttendance = await this.processExternalCheckInOut(
+          externalData.checkIn,
+          externalData.userInfo,
+        );
       } catch (error) {
         console.error('Error processing external check-in data:', error);
       }
+
+      if (externalData.checkIn.dev_serial === '0010012') {
+        console.log('Regular check-in detected');
+      } else if (externalData.checkIn.dev_serial === '0010000') {
+        console.log('Fallback check-in detected');
+      }
+
+      if (
+        !isWithinAllowedTimeRange(externalCheckInTime, shiftStart, shiftEnd)
+      ) {
+        console.log('Check-in time is outside the allowed range');
+      }
     } else {
       console.log(`No external check-in found for employee ID: ${employeeId}`);
-    }
-
-    if (latestAttendance) {
-      isCheckingIn = !latestAttendance.checkOutTime;
     }
 
     return {
@@ -143,15 +145,16 @@ export class AttendanceService {
 
     const checkTime = new Date(externalCheckIn.sj);
 
-    console.log(`Processing external check type: ${externalCheckIn.fx}`);
+    // Find the latest attendance record for this user
+    const latestAttendance = await prisma.attendance.findFirst({
+      where: { userId: user.id },
+      orderBy: { checkInTime: 'desc' },
+    });
 
-    let checkType: CheckType = externalCheckIn.fx as CheckType;
-    let isOvertime: boolean = false;
+    let isOvertime = false;
+    let checkType: CheckType;
 
-    switch (checkType) {
-      case CheckType.Auto:
-        checkType = await this.determineAutoCheckType(user.id, checkTime);
-        break;
+    switch (externalCheckIn.fx) {
       case CheckType.OvertimeStart:
         checkType = CheckType.CheckIn;
         isOvertime = true;
@@ -166,17 +169,23 @@ export class AttendanceService {
       case CheckType.LeaveDuringWork:
         checkType = CheckType.CheckOut;
         break;
+      default:
+        checkType =
+          !latestAttendance || latestAttendance.checkOutTime
+            ? CheckType.CheckIn
+            : CheckType.CheckOut;
     }
+
+    console.log(
+      `Processing external check type: ${checkType}, Overtime: ${isOvertime}`,
+    );
 
     if (checkType === CheckType.CheckIn) {
       return await this.createAttendance(user.id, checkTime, isOvertime);
-    } else if (checkType === CheckType.CheckOut) {
-      return await this.updateAttendance(user.id, checkTime, isOvertime);
     } else {
-      throw new Error(`Unhandled check type: ${checkType}`);
+      return await this.updateAttendance(user.id, checkTime, isOvertime);
     }
   }
-
   async processAttendance(data: AttendanceData): Promise<Attendance> {
     const user = await prisma.user.findUnique({ where: { id: data.userId } });
     if (!user) throw new Error('User not found');
