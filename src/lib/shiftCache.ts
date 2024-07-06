@@ -91,14 +91,16 @@ export function getDefaultShiftCode(department: string): string {
 export async function getShiftByDepartmentId(
   departmentId: number,
 ): Promise<Shift | null> {
-  // This is a placeholder implementation. You'll need to modify this based on your actual data structure.
-  // For now, we'll just return the default shift.
-  return getShiftByCode('SHIFT103');
+  const departmentShiftCode = departmentShiftMap[departmentId];
+  if (departmentShiftCode) {
+    return getShiftByCode(departmentShiftCode);
+  }
+  return getShiftByCode('SHIFT103'); // Default to SHIFT103 if no match
 }
 
 export async function getDefaultShift(
   department: string,
 ): Promise<Shift | null> {
-  const shiftCode = getDefaultShiftCode(department);
+  const shiftCode = departmentShiftMap[department] || 'SHIFT103';
   return getShiftByCode(shiftCode);
 }
