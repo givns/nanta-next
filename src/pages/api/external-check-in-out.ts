@@ -1,10 +1,11 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { AttendanceService } from '../../services/AttendanceService';
-import { ExternalDbService } from '../../services/ExternalDbService';
-import { ExternalCheckInData } from '../../types/user';
+// pages/api/external-check-in-out.ts
 
-const attendanceService = new AttendanceService();
+import { NextApiRequest, NextApiResponse } from 'next';
+import { ExternalDbService } from '../../services/ExternalDbService';
+import { AttendanceService } from '../../services/AttendanceService';
+
 const externalDbService = new ExternalDbService();
+const attendanceService = new AttendanceService();
 
 export default async function handler(
   req: NextApiRequest,
@@ -14,28 +15,39 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  try {
-    const { type, ...data } = req.body;
+  const data = req.body;
 
-    if (type === 'manual') {
-      await externalDbService.createManualEntry(data);
-      // Process both check-in and check-out for manual entry
-      await attendanceService.processExternalCheckInOut({ ...data, fx: 0 });
-      if (data.checkOutTimestamp) {
-        await attendanceService.processExternalCheckInOut({
+  try {
+    // Create manual entry in external database
+    await externalDbService.createManualEntry(data);
+
+    // Fetch user info
+    const userInfo = await externalDbService.getUserInfo(data.employeeId);
+    if (!userInfo) {
+      throw new Error('User not found in external database');
+    }
+
+    // Process both check-in and check-out for manual entry
+    await attendanceService.processExternalCheckInOut(
+      { ...data, fx: 0 },
+      userInfo,
+    );
+    if (data.checkOutTimestamp) {
+      await attendanceService.processExternalCheckInOut(
+        {
           ...data,
           fx: 1,
           sj: data.checkOutTimestamp,
-        });
-      }
-    } else {
-      const externalData: ExternalCheckInData = data;
-      await attendanceService.processExternalCheckInOut(externalData);
+        },
+        userInfo,
+      );
     }
 
-    res.status(200).json({ message: 'Check-in/out processed successfully' });
-  } catch (error) {
-    console.error('Error processing external check-in/out:', error);
-    res.status(500).json({ error: 'Failed to process check-in/out' });
+    res.status(200).json({ message: 'Manual entry processed successfully' });
+  } catch (error: any) {
+    console.error('Error processing manual entry:', error);
+    res
+      .status(500)
+      .json({ message: 'Error processing manual entry', error: error.message });
   }
 }
