@@ -178,7 +178,7 @@ export default async function handler(
       department: externalUser?.dev_serial || department,
       profilePictureUrl,
       role: role.toString(),
-      employeeId: externalUser?.user_serial?.toString() || employeeId,
+      employeeId: externalUser?.user_depname?.toString() || employeeId,
       overtimeHours: 0,
     };
 

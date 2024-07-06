@@ -55,8 +55,8 @@ export class ExternalDbService {
     }
 
     // Look back 24 hours and 30 minutes into the future
-    const searchStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const searchEnd = new Date(now.getTime() + 30 * 60 * 1000);
+    const searchStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Look back 7 days
+    const searchEnd = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes into the future
 
     console.log(
       `Searching for check-ins between ${searchStart.toISOString()} and ${searchEnd.toISOString()}`,
