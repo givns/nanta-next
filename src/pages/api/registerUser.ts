@@ -175,10 +175,10 @@ export default async function handler(
       lineUserId,
       name: constructName(externalUser, name),
       nickname,
-      department: externalUser?.dev_serial || department,
+      department: department,
       profilePictureUrl,
       role: role.toString(),
-      employeeId: externalUser?.user_depname?.toString() || employeeId,
+      employeeId: externalUser?.user_serial?.toString() || employeeId,
       overtimeHours: 0,
     };
 
