@@ -122,13 +122,48 @@ export async function getShiftByDepartmentId(
     return getShiftByCode('SHIFT103'); // Default shift if no mapping found
   }
 
-  const shift = await getShiftByCode(shiftCode);
-  if (!shift) {
-    console.warn(`No shift found for code: ${shiftCode}`);
-    return getShiftByCode('SHIFT103'); // Default shift if shift not found
+  try {
+    const shift = await getShiftByCode(shiftCode);
+    if (!shift) {
+      console.warn(`No shift found for code: ${shiftCode}`);
+      return getShiftByCode('SHIFT103'); // Default shift if shift not found
+    }
+    return shift;
+  } catch (error) {
+    console.error(
+      `Error getting shift for department ID ${departmentId}:`,
+      error,
+    );
+    return getShiftByCode('SHIFT103');
+  }
+}
+
+function fuzzyMatch(str1: string, str2: string): number {
+  str1 = str1.toLowerCase();
+  str2 = str2.toLowerCase();
+  let score = 0;
+  for (let i = 0; i < str1.length; i++) {
+    if (str2.includes(str1[i])) {
+      score++;
+    }
+  }
+  return score / Math.max(str1.length, str2.length);
+}
+
+export function getDepartmentByNameFuzzy(name: string): string | null {
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const depName of Object.values(departmentIdNameMap)) {
+    const score = fuzzyMatch(name, depName);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = depName;
+    }
   }
 
-  return shift;
+  // Only return a match if the score is above a certain threshold
+  return bestScore > 0.7 ? bestMatch : null;
 }
 
 export async function getDefaultShift(

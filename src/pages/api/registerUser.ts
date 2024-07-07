@@ -5,15 +5,19 @@ import prisma from '../../lib/prisma';
 import { Client } from '@line/bot-sdk';
 import { ExternalDbService } from '../../services/ExternalDbService';
 import { UserRole } from '@/types/enum';
-import { getShiftByDepartmentId, getDefaultShift } from '../../lib/shiftCache';
+import { ShiftManagementService } from '../../services/ShiftManagementService';
 import { ExternalCheckInData } from '../../types/user';
-import { refreshShiftCache } from '../../lib/shiftCache';
+import {
+  refreshShiftCache,
+  getDepartmentByNameFuzzy,
+} from '../../lib/shiftCache';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
 const externalDbService = new ExternalDbService();
+const shiftManagementService = new ShiftManagementService();
 
 function determineRole(department: string, isFirstUser: boolean): UserRole {
   if (isFirstUser) {
@@ -98,10 +102,12 @@ export default async function handler(
     console.time('determineShift');
     let shift = null;
     if (externalData?.userInfo?.user_dep) {
-      shift = await getShiftByDepartmentId(externalData.userInfo.user_dep);
+      shift = await shiftManagementService.getShiftByDepartmentId(
+        externalData.userInfo.user_dep,
+      );
     }
     if (!shift) {
-      shift = await getDefaultShift(department);
+      shift = await shiftManagementService.getDefaultShift(department);
     }
     if (!shift) {
       throw new Error(`No shift found for department: ${department}`);
@@ -109,12 +115,21 @@ export default async function handler(
     console.timeEnd('determineShift');
 
     console.time('determineDepartment');
+    const matchedDepartment = getDepartmentByNameFuzzy(
+      externalData?.userInfo?.user_depname || department,
+    );
+    if (!matchedDepartment) {
+      throw new Error(
+        `No matching department found: ${externalData?.userInfo?.user_depname || department}`,
+      );
+    }
+    await shiftManagementService.createDepartmentIfNotExists(matchedDepartment);
     const departmentRecord = await prisma.department.findFirst({
-      where: { name: externalData?.userInfo?.user_depname || department },
+      where: { name: matchedDepartment },
     });
     if (!departmentRecord) {
       throw new Error(
-        `Department not found: ${externalData?.userInfo?.user_depname || department}`,
+        `Failed to create or find department: ${matchedDepartment}`,
       );
     }
     console.timeEnd('determineDepartment');
@@ -149,7 +164,6 @@ export default async function handler(
       lineUserId,
       name: constructName(externalData?.userInfo, name),
       nickname,
-      department: externalData?.userInfo?.user_depname || department,
       departmentId: departmentRecord.id,
       profilePictureUrl, // Line profile picture
       profilePictureExternal: externalData?.userInfo?.user_photo || null, // External database profile picture
@@ -210,8 +224,13 @@ export default async function handler(
         .status(400)
         .json({ success: false, error: 'User already exists' });
     }
-    res
-      .status(500)
-      .json({ success: false, error: error.message, stack: error.stack });
+    if (
+      error.message.includes('Department not found') ||
+      error.message.includes('No matching department found')
+    ) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
