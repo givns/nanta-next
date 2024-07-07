@@ -169,6 +169,11 @@ export default async function handler(
       }
       return providedName;
     };
+    const profilePictureExternal = externalData?.userInfo?.user_photo
+      ? typeof externalData.userInfo.user_photo === 'string'
+        ? externalData.userInfo.user_photo
+        : externalData.userInfo.user_photo.toString()
+      : null;
 
     const userData = {
       lineUserId,
@@ -176,7 +181,9 @@ export default async function handler(
       nickname,
       departmentId: departmentRecord.id,
       profilePictureUrl, // Line profile picture
-      profilePictureExternal: externalData?.userInfo?.user_photo || null, // External database profile picture
+      profilePictureExternal: externalData?.userInfo?.user_photo
+        ? externalData.userInfo.user_photo.toString()
+        : null, // Convert to string or null
       role: role.toString(),
       employeeId: externalData?.userInfo?.user_no || employeeId,
       externalEmployeeId: externalData?.userInfo?.user_serial?.toString(),
