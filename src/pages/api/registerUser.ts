@@ -102,16 +102,26 @@ export default async function handler(
     console.time('determineShift');
     let shift = null;
     if (externalData?.userInfo?.user_dep) {
+      console.log(
+        `Attempting to get shift by department ID: ${externalData.userInfo.user_dep}`,
+      );
       shift = await shiftManagementService.getShiftByDepartmentId(
         externalData.userInfo.user_dep,
       );
+      console.log(`Shift result from department ID: ${JSON.stringify(shift)}`);
     }
     if (!shift) {
+      console.log(
+        `Attempting to get default shift for department: ${department}`,
+      );
       shift = await shiftManagementService.getDefaultShift(department);
+      console.log(`Default shift result: ${JSON.stringify(shift)}`);
     }
     if (!shift) {
+      console.error(`No shift found for department: ${department}`);
       throw new Error(`No shift found for department: ${department}`);
     }
+    console.log(`Final determined shift: ${JSON.stringify(shift)}`);
     console.timeEnd('determineShift');
 
     console.time('determineDepartment');

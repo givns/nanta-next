@@ -11,7 +11,10 @@ const prisma = new PrismaClient();
 
 export class ShiftManagementService {
   async getDefaultShift(department: string): Promise<Shift | null> {
-    return getDefaultShift(department);
+    console.log(`Getting default shift for department: ${department}`);
+    const shift = await getDefaultShift(department);
+    console.log(`Default shift result: ${JSON.stringify(shift)}`);
+    return shift;
   }
 
   async assignShift(userId: string, department: string) {
