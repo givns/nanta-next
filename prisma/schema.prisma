@@ -18,12 +18,12 @@ enum UserRole {
 model User {
   id                      String                   @id @default(auto()) @map("_id") @db.ObjectId
   employeeId              String                   @unique
-    externalEmployeeId  String?
-
+  externalEmployeeId  String?
   name                    String
   lineUserId              String?                  @unique
   nickname                String?
-  department              String?
+  department              Department @relation(fields: [departmentId], references: [id]) 
+  departmentId            String  @db.ObjectId
   role                    String
   profilePictureUrl       String?
   shiftId              String    @db.ObjectId
@@ -99,7 +99,7 @@ model Attendance {
   id                   String    @id @default(cuid()) @map("_id")
   userId               String    @db.ObjectId
   date                 DateTime
-  checkInTime          DateTime
+  checkInTime          DateTime?
   checkOutTime         DateTime?
   overtimeStartTime    DateTime?
   overtimeEndTime      DateTime?
@@ -133,3 +133,44 @@ model CheckPoint {
   user User @relation(fields: [userId], references: [id])
 }
 
+model PayrollPeriod {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Holiday {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  date        DateTime
+  name        String
+  localName   String?
+  countryCode String
+  fixed       Boolean
+  global      Boolean
+  counties    String?
+  launchYear  Int?
+  types       String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DepartmentDayOff {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  departmentId String   @db.ObjectId
+  date         DateTime
+  reason       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  department   Department @relation(fields: [departmentId], references: [id])
+}
+
+model Department {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  daysOff   DepartmentDayOff[]
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

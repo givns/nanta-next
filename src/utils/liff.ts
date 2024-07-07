@@ -1,25 +1,41 @@
 import liff from '@line/liff';
 
-const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+export type LiffContext = typeof liff;
 
-export const initializeLiff = async (): Promise<void> => {
-  try {
-    if (!liffId) {
-      throw new Error('LIFF ID is not defined');
-    }
-    await liff.init({ liffId });
-    console.log('LIFF initialization succeeded');
-  } catch (error) {
-    console.error('LIFF initialization failed', error);
-    throw error;
+declare global {
+  interface Window {
+    liff: LiffContext;
   }
-};
+}
 
-export const getLiffProfile = async () => {
-  if (!liff.isLoggedIn()) {
-    throw new Error('User is not logged in');
+export async function initializeLiff(): Promise<LiffContext> {
+  if (!window.liff) {
+    throw new Error('LIFF SDK is not loaded');
   }
-  return await liff.getProfile();
-};
 
-export { liff };
+  await window.liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
+  return window.liff;
+}
+
+export function getLiff(): LiffContext {
+  if (!window.liff) {
+    throw new Error('LIFF is not initialized');
+  }
+  return window.liff;
+}
+
+export function isLiffLoggedIn(): boolean {
+  return (
+    window.liff &&
+    (window.liff as any).isLoggedIn &&
+    (window.liff as any).isLoggedIn()
+  );
+}
+
+export function isLiffInClient(): boolean {
+  return (
+    window.liff &&
+    (window.liff as any).isInClient &&
+    (window.liff as any).isInClient()
+  );
+}
