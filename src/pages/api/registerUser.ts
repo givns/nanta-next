@@ -25,6 +25,7 @@ if (!REDIS_URL) {
 const registrationQueue = new Queue('user-registration', REDIS_URL);
 
 async function processRegistration(jobData: any) {
+  console.log('Starting registration process for job:', jobData);
   const {
     lineUserId,
     employeeId,
@@ -111,6 +112,7 @@ async function processRegistration(jobData: any) {
     const richMenuId = determineRichMenuId(role);
     await client.linkRichMenuToUser(lineUserId, richMenuId);
 
+    console.log('Registration process completed successfully');
     return { success: true, userId: user.id };
   } catch (error: any) {
     console.error('Error in registration process:', error);
@@ -163,7 +165,8 @@ export default async function handler(
     console.error('Error queuing registration job:', error);
     res.status(500).json({
       message: 'Error queuing registration job',
-      error: error.message,
+      error: error.message || 'Unknown error',
+      stack: error.stack,
     });
   }
 }
