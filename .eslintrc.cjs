@@ -27,6 +27,7 @@ module.exports = {
     'import/no-named-as-default-member': 'off', // Added this rule to resolve the axios warning
     'prefer-const': 'warn',
     'prettier/prettier': 'error',
+    'react/prop-types': 'off',
   },
   overrides: [
     {

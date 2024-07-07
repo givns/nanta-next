@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/router';
@@ -70,46 +70,53 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     }
   }, []);
 
+  const fetchLeaveBalance = useCallback(
+    async (userId: string) => {
+      try {
+        const balance = await leaveService.checkLeaveBalance(userId);
+        setLeaveBalance(balance);
+      } catch (error) {
+        console.error('Error fetching leave balance:', error);
+      }
+    },
+    [leaveService],
+  );
+
   useEffect(() => {
     if (lineUserId) {
       fetchLeaveBalance(lineUserId);
     }
-  }, [lineUserId]);
-
-  const fetchLeaveBalance = async (userId: string) => {
-    try {
-      const balance = await leaveService.checkLeaveBalance(userId);
-      setLeaveBalance(balance);
-    } catch (error) {
-      console.error('Error fetching leave balance:', error);
-    }
-  };
+  }, [lineUserId, fetchLeaveBalance]);
 
   useEffect(() => {
     const startInput = startDateRef.current;
     const endInput = endDateRef.current;
 
-    if (startInput && endInput) {
-      startInput.addEventListener('change', (event: Event) => {
-        const target = event.target as HTMLInputElement;
-        const startDate = target.value;
-        if (endInput) {
-          endInput.min = startDate;
-        }
-      });
+    const handleStartDateChange = (event: Event) => {
+      const target = event.target as HTMLInputElement;
+      const startDate = target.value;
+      if (endInput) {
+        endInput.min = startDate;
+      }
+    };
 
-      endInput.addEventListener('change', (event: Event) => {
-        const target = event.target as HTMLInputElement;
-        const endDate = target.value;
-        if (startInput) {
-          startInput.max = endDate;
-        }
-      });
+    const handleEndDateChange = (event: Event) => {
+      const target = event.target as HTMLInputElement;
+      const endDate = target.value;
+      if (startInput) {
+        startInput.max = endDate;
+      }
+    };
+
+    if (startInput && endInput) {
+      startInput.addEventListener('change', handleStartDateChange);
+      endInput.addEventListener('change', handleEndDateChange);
     }
 
     return () => {
-      if (startInput) startInput.removeEventListener('change', () => {});
-      if (endInput) endInput.removeEventListener('change', () => {});
+      if (startInput)
+        startInput.removeEventListener('change', handleStartDateChange);
+      if (endInput) endInput.removeEventListener('change', handleEndDateChange);
     };
   }, []);
 
