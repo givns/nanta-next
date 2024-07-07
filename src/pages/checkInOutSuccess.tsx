@@ -1,7 +1,7 @@
 // pages/checkInOutSuccess.tsx
 
 import { useEffect } from 'react';
-import { liff } from '../utils/liff';
+import liff from '@line/liff';
 
 const CheckInOutSuccess: React.FC = () => {
   useEffect(() => {

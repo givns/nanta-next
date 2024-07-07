@@ -16,7 +16,8 @@ export class PayrollService {
     for (const record of attendanceRecords) {
       if (record.checkOutTime) {
         const hours =
-          (record.checkOutTime.getTime() - record.checkInTime.getTime()) /
+          (record.checkOutTime.getTime() -
+            (record.checkInTime?.getTime() ?? 0)) /
           (1000 * 60 * 60);
         totalHours += hours;
       }

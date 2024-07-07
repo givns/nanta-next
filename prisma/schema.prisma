@@ -26,6 +26,7 @@ model User {
   departmentId            String  @db.ObjectId
   role                    String
   profilePictureUrl       String?
+  profilePictureExternal  String?
   shiftId              String    @db.ObjectId
   assignedShift        Shift     @relation("UserAssignedShift", fields: [shiftId], references: [id])
   overtimeHours        Float     @default(0)
@@ -44,7 +45,8 @@ model Shift {
   name      String
   startTime String
   endTime   String
-   assignedUsers        User[]    @relation("UserAssignedShift")
+  workDays  Int[]
+  assignedUsers        User[]    @relation("UserAssignedShift")
   shiftAdjustmentRequests ShiftAdjustmentRequest[] @relation("RequestedShift")
 }
 
@@ -154,6 +156,7 @@ model Holiday {
   types       String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  @@unique([date, name], name: "date_date")
 }
 
 model DepartmentDayOff {

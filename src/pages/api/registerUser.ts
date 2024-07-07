@@ -1,22 +1,19 @@
+// pages/api/registerUser.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { Client } from '@line/bot-sdk';
 import { ExternalDbService } from '../../services/ExternalDbService';
 import { UserRole } from '@/types/enum';
-import { ShiftManagementService } from '../../services/ShiftManagementService';
+import { getShiftByDepartmentId, getDefaultShift } from '../../lib/shiftCache';
 import { ExternalCheckInData } from '../../types/user';
-import {
-  refreshShiftCache,
-  getShiftByDepartmentId,
-  getDefaultShift,
-} from '../../lib/shiftCache';
+import { refreshShiftCache } from '../../lib/shiftCache';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
 const externalDbService = new ExternalDbService();
-const shiftManagementService = new ShiftManagementService();
 
 function determineRole(department: string, isFirstUser: boolean): UserRole {
   if (isFirstUser) {
@@ -62,7 +59,7 @@ export default async function handler(
     name,
     nickname,
     department,
-    profilePictureUrl,
+    profilePictureUrl, // This is the Line profile picture
     employeeId,
   } = req.body;
 
@@ -111,23 +108,37 @@ export default async function handler(
     }
     console.timeEnd('determineShift');
 
+    console.time('determineDepartment');
+    const departmentRecord = await prisma.department.findFirst({
+      where: { name: externalData?.userInfo?.user_depname || department },
+    });
+    if (!departmentRecord) {
+      throw new Error(
+        `Department not found: ${externalData?.userInfo?.user_depname || department}`,
+      );
+    }
+    console.timeEnd('determineDepartment');
+
     console.time('determineRole');
     const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
-    const role = determineRole(department, isFirstUser);
+    const role = determineRole(
+      externalData?.userInfo?.user_depname || department,
+      isFirstUser,
+    );
     console.timeEnd('determineRole');
 
     const constructName = (
-      externalCheckIn: ExternalCheckInData | null | undefined,
+      externalUserInfo: any | null | undefined,
       providedName: string,
     ): string => {
       if (
-        externalCheckIn &&
-        (externalCheckIn.user_fname || externalCheckIn.user_lname)
+        externalUserInfo &&
+        (externalUserInfo.user_fname || externalUserInfo.user_lname)
       ) {
         const parts = [
-          externalCheckIn.user_fname,
-          externalCheckIn.user_lname,
+          externalUserInfo.user_fname,
+          externalUserInfo.user_lname,
         ].filter(Boolean);
         return parts.length > 0 ? parts.join(' ') : providedName;
       }
@@ -136,10 +147,12 @@ export default async function handler(
 
     const userData = {
       lineUserId,
-      name: constructName(externalData?.checkIn, name),
+      name: constructName(externalData?.userInfo, name),
       nickname,
       department: externalData?.userInfo?.user_depname || department,
-      profilePictureUrl,
+      departmentId: departmentRecord.id,
+      profilePictureUrl, // Line profile picture
+      profilePictureExternal: externalData?.userInfo?.user_photo || null, // External database profile picture
       role: role.toString(),
       employeeId: externalData?.userInfo?.user_no || employeeId,
       externalEmployeeId: externalData?.userInfo?.user_serial?.toString(),
@@ -151,7 +164,9 @@ export default async function handler(
 
     console.time('createOrUpdateUser');
     if (!user) {
-      user = await prisma.user.create({ data: userData });
+      user = await prisma.user.create({
+        data: userData,
+      });
       console.log('New user created:', user);
     } else {
       user = await prisma.user.update({
@@ -165,7 +180,7 @@ export default async function handler(
     console.time('getFinalUser');
     const finalUser = await prisma.user.findUnique({
       where: { id: user.id },
-      include: { assignedShift: true },
+      include: { assignedShift: true, department: true },
     });
     console.timeEnd('getFinalUser');
 
@@ -180,12 +195,6 @@ export default async function handler(
           }
         : null,
     };
-    console.log(
-      'Department ID from external data:',
-      externalData?.userInfo?.user_dep,
-    );
-    console.log('Department name:', department);
-    console.log('Assigned shift:', shift);
 
     console.time('linkRichMenu');
     const richMenuId = determineRichMenuId(role);
@@ -206,11 +215,3 @@ export default async function handler(
       .json({ success: false, error: error.message, stack: error.stack });
   }
 }
-
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '1mb',
-    },
-  },
-};

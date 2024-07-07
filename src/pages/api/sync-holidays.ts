@@ -1,5 +1,3 @@
-// pages/api/sync-holidays.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { HolidayService } from '../../services/HolidayService';
 

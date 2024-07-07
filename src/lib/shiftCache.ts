@@ -1,5 +1,3 @@
-// lib/shiftCache.ts
-
 import { PrismaClient, Shift } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -16,24 +14,28 @@ export async function getShifts(): Promise<Shift[]> {
           name: 'กะเช้า 6 โมง',
           startTime: '06:00',
           endTime: '15:00',
+          workDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
         },
         {
           shiftCode: 'SHIFT102',
           name: 'กะเช้า 7 โมง',
           startTime: '07:00',
           endTime: '16:00',
+          workDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
         },
         {
           shiftCode: 'SHIFT103',
           name: 'ช่วงเวลาปกติ',
           startTime: '08:00',
           endTime: '17:00',
+          workDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
         },
         {
           shiftCode: 'SHIFT104',
           name: 'กะบ่าย 2 โมง',
           startTime: '14:00',
           endTime: '23:00',
+          workDays: [0, 1, 2, 3, 4, 5], // Sunday to Friday
         },
       ];
 
@@ -88,11 +90,6 @@ export function getDefaultShiftCode(department: string): string {
   return departmentShiftMap[department] || 'SHIFT103';
 }
 
-// lib/shiftCache.ts
-
-// ... (previous code remains the same)
-
-// Add this mapping of department IDs to department names
 const departmentIdNameMap: { [key: number]: string } = {
   10012: 'ฝ่ายจัดส่งสินค้า',
   10038: 'ฝ่ายปฏิบัติการ',
@@ -108,7 +105,6 @@ const departmentIdNameMap: { [key: number]: string } = {
   10013: 'ฝ่ายทรัพยากรบุคคล',
   10016: 'ฝ่ายรักษาความสะอาด',
   10020: 'ฝ่ายรักษาความปลอดภัย',
-  // Add more mappings as needed
 };
 
 export async function getShiftByDepartmentId(

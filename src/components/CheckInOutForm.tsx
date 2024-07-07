@@ -370,14 +370,25 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
                       <div className="bg-gray-100 p-3 rounded-lg">
                         <p>
                           วันที่:{' '}
-                          {convertToBangkokDate(
-                            attendanceStatus.latestAttendance.checkInTime.toString(),
-                          )}
+                          {attendanceStatus.latestAttendance.checkInTime
+                            ? convertToBangkokDate(
+                                attendanceStatus.latestAttendance.checkInTime.toString(),
+                              )
+                            : 'N/A'}
                         </p>
                         <p>
                           เวลา:{' '}
-                          {convertToBangkokTime(
-                            attendanceStatus.latestAttendance.checkInTime.toString(),
+                          {attendanceStatus.latestAttendance.checkInTime
+                            ? convertToBangkokTime(
+                                attendanceStatus.latestAttendance.checkInTime.toString(),
+                              )
+                            : 'N/A'}
+                        </p>
+                        <p>
+                          วิธีการ:{' '}
+                          {getDeviceType(
+                            attendanceStatus.latestAttendance
+                              .checkInDeviceSerial,
                           )}
                         </p>
                         <p>

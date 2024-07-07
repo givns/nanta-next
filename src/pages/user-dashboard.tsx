@@ -57,7 +57,11 @@ export default function UserDashboard() {
       <div className="flex flex-col items-center w-full space-y-4">
         <Avatar className="h-16 w-16 rounded-full">
           <AvatarImage
-            src={user.profilePictureUrl || '/placeholder-user.jpg'}
+            src={
+              user.profilePictureExternal ||
+              user.profilePictureUrl ||
+              '/placeholder-user.jpg'
+            }
           />
           <AvatarFallback>
             {user.name.substring(0, 2).toUpperCase()}

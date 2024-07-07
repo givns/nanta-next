@@ -56,7 +56,7 @@ const handler = async (event: WebhookEvent) => {
           await client.linkRichMenuToUser(userId, registerRichMenuId);
           console.log('Register Rich menu linked to user:', userId);
         } else {
-          const department = user.department;
+          const department = user.departmentId;
           if (department !== null) {
             const richMenuId = await createAndAssignRichMenu(
               department,

@@ -1,6 +1,4 @@
-// services/WorkdayCalculationService.ts
-
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Holiday } from '@prisma/client';
 import { HolidayService } from './HolidayService';
 
 const prisma = new PrismaClient();
@@ -17,7 +15,9 @@ export class WorkdayCalculationService {
       include: { department: true, assignedShift: true },
     });
 
-    if (!user) throw new Error('User not found');
+    if (!user || !user.assignedShift || !user.assignedShift.workDays) {
+      throw new Error('User or assigned shift not found or invalid');
+    }
 
     const holidays = await holidayService.getHolidays(startDate, endDate);
 
@@ -50,10 +50,11 @@ export class WorkdayCalculationService {
 
     return workingDays;
   }
+
   private isWorkDay(
     date: Date,
     shift: { workDays: number[] },
-    holidays: { date: Date }[],
+    holidays: Holiday[],
     departmentDaysOff: { date: Date }[],
   ): boolean {
     // Check if it's a holiday

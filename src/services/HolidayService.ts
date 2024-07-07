@@ -1,6 +1,4 @@
-// services/HolidayService.ts
-
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Holiday } from '@prisma/client';
 import axios from 'axios';
 
 const prisma = new PrismaClient();
@@ -16,7 +14,7 @@ export class HolidayService {
       for (const holiday of holidays) {
         await prisma.holiday.upsert({
           where: {
-            date_name: {
+            date_date: {
               date: new Date(holiday.date),
               name: holiday.name,
             },
@@ -28,7 +26,7 @@ export class HolidayService {
             global: holiday.global,
             counties: holiday.counties ? holiday.counties.join(',') : null,
             launchYear: holiday.launchYear,
-            types: holiday.types,
+            types: holiday.types, // Directly assign the array
           },
           create: {
             date: new Date(holiday.date),
@@ -39,7 +37,7 @@ export class HolidayService {
             global: holiday.global,
             counties: holiday.counties ? holiday.counties.join(',') : null,
             launchYear: holiday.launchYear,
-            types: holiday.types,
+            types: holiday.types, // Directly assign the array
           },
         });
       }
