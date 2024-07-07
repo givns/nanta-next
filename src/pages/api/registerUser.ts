@@ -163,12 +163,10 @@ export default async function handler(
     res.status(202).json({ jobId: job.id, message: 'Registration queued' });
   } catch (error: any) {
     console.error('Error queuing registration job:', error);
-    res
-      .status(500)
-      .json({
-        message: 'Error queuing registration job',
-        error: error.message,
-      });
+    res.status(500).json({
+      message: 'Error queuing registration job',
+      error: error.message,
+    });
   }
 }
 

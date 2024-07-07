@@ -5,7 +5,6 @@ import {
   getShiftByDepartmentId,
   getDefaultShift,
   getDepartmentByNameFuzzy,
-  getDepartmentIdByName,
   DepartmentId,
 } from '../lib/shiftCache';
 
@@ -40,7 +39,76 @@ export class ShiftManagementService {
     });
   }
 
-  // ... other methods remain the same ...
+  async requestShiftAdjustment(
+    userId: string,
+    requestedShiftId: string,
+    date: Date,
+    reason: string,
+  ): Promise<ShiftAdjustmentRequest> {
+    return prisma.shiftAdjustmentRequest.create({
+      data: {
+        userId,
+        requestedShiftId,
+        date,
+        reason,
+        status: 'pending',
+      },
+    });
+  }
+
+  async getShiftAdjustmentForDate(
+    userId: string,
+    date: Date,
+  ): Promise<(ShiftAdjustmentRequest & { requestedShift: Shift }) | null> {
+    return prisma.shiftAdjustmentRequest.findFirst({
+      where: {
+        userId,
+        date: {
+          gte: new Date(date.setHours(0, 0, 0, 0)),
+          lt: new Date(date.setHours(23, 59, 59, 999)),
+        },
+        status: 'approved',
+      },
+      include: {
+        requestedShift: true,
+      },
+    });
+  }
+
+  async approveShiftAdjustment(id: string): Promise<ShiftAdjustmentRequest> {
+    return prisma.shiftAdjustmentRequest.update({
+      where: { id },
+      data: { status: 'approved' },
+    });
+  }
+
+  async rejectShiftAdjustment(id: string): Promise<ShiftAdjustmentRequest> {
+    return prisma.shiftAdjustmentRequest.update({
+      where: { id },
+      data: { status: 'rejected' },
+    });
+  }
+
+  async getUserShift(userId: string): Promise<Shift | null> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { assignedShift: true },
+    });
+
+    return user?.assignedShift || null;
+  }
+
+  async getShiftAdjustmentRequests(
+    status?: 'pending' | 'approved' | 'rejected',
+  ): Promise<ShiftAdjustmentRequest[]> {
+    return prisma.shiftAdjustmentRequest.findMany({
+      where: status ? { status } : undefined,
+      include: {
+        user: true,
+        requestedShift: true,
+      },
+    });
+  }
 
   async getShiftByDepartmentId(
     departmentId: DepartmentId,
@@ -54,24 +122,16 @@ export class ShiftManagementService {
     });
 
     if (!department) {
-      const departmentId = getDepartmentIdByName(departmentName);
-      if (departmentId === null) {
-        throw new Error(`Invalid department name: ${departmentName}`);
-      }
       await prisma.department.create({
-        data: {
-          id: departmentId.toString(), // Assuming your Prisma schema uses string IDs
-          name: departmentName,
-        },
+        data: { name: departmentName },
       });
     }
   }
 
   async getDepartmentId(departmentName: string): Promise<string | null> {
-    const departmentId = getDepartmentIdByName(departmentName);
-    if (departmentId === null) {
-      return null;
-    }
-    return departmentId.toString(); // Convert to string if your Prisma schema uses string IDs
+    const department = await prisma.department.findFirst({
+      where: { name: { contains: departmentName, mode: 'insensitive' } },
+    });
+    return department?.id || null;
   }
 }
