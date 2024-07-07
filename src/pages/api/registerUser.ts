@@ -4,13 +4,14 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { Client } from '@line/bot-sdk';
 import { ExternalDbService } from '../../services/ExternalDbService';
-import { UserRole } from '@/types/enum';
-import { ShiftManagementService } from '../../services/ShiftManagementService';
-import { ExternalCheckInData } from '../../types/user';
 import {
-  refreshShiftCache,
   getDepartmentByNameFuzzy,
+  refreshShiftCache,
 } from '../../lib/shiftCache';
+import { ShiftManagementService } from '../../services/ShiftManagementService';
+import Queue from 'bull';
+import { ExternalCheckInData } from '../../types/user';
+import { determineRole, determineRichMenuId } from '../../utils/userUtils';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -19,31 +20,103 @@ const client = new Client({
 const externalDbService = new ExternalDbService();
 const shiftManagementService = new ShiftManagementService();
 
-function determineRole(department: string, isFirstUser: boolean): UserRole {
-  if (isFirstUser) {
-    return UserRole.SUPERADMIN;
-  }
-  switch (department) {
-    case 'ฝ่ายขนส่ง':
-      return UserRole.DRIVER;
-    case 'ฝ่ายปฏิบัติการ':
-      return UserRole.OPERATION;
-    default:
-      return UserRole.GENERAL;
-  }
+const REDIS_URL = process.env.REDIS_URL;
+if (!REDIS_URL) {
+  throw new Error('REDIS_URL is not defined in the environment variables');
 }
+const registrationQueue = new Queue('user-registration', REDIS_URL);
 
-function determineRichMenuId(role: UserRole): string {
-  switch (role) {
-    case UserRole.SUPERADMIN:
-      return 'richmenu-5e2677dc4e68d4fde747ff413a88264f';
-    case UserRole.DRIVER:
-      return 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce';
-    case UserRole.OPERATION:
-      return 'richmenu-834c002dbe1ccfbedb54a76b6c78bdde';
-    case UserRole.GENERAL:
-    default:
-      return 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce';
+async function processRegistration(jobData: any) {
+  const {
+    lineUserId,
+    employeeId,
+    name,
+    nickname,
+    department,
+    profilePictureUrl,
+  } = jobData;
+
+  try {
+    await refreshShiftCache();
+
+    let user = await prisma.user.findUnique({ where: { lineUserId } });
+
+    let externalData: {
+      checkIn: ExternalCheckInData | null;
+      userInfo: any | null;
+    } | null = null;
+    try {
+      externalData = await externalDbService.getLatestCheckIn(employeeId);
+    } catch (error) {
+      console.error('Error finding external user:', error);
+    }
+
+    let shift = null;
+    if (externalData?.userInfo?.user_dep) {
+      shift = await shiftManagementService.getShiftByDepartmentId(
+        externalData.userInfo.user_dep,
+      );
+    }
+    if (!shift) {
+      shift = await shiftManagementService.getDefaultShift(department);
+    }
+    if (!shift) {
+      throw new Error(`No shift found for department: ${department}`);
+    }
+
+    const matchedDepartment = getDepartmentByNameFuzzy(
+      externalData?.userInfo?.user_depname || department,
+    );
+    if (!matchedDepartment) {
+      throw new Error(
+        `No matching department found: ${externalData?.userInfo?.user_depname || department}`,
+      );
+    }
+    await shiftManagementService.createDepartmentIfNotExists(matchedDepartment);
+    const departmentId =
+      await shiftManagementService.getDepartmentId(matchedDepartment);
+    if (!departmentId) {
+      throw new Error(`Failed to get department ID for: ${matchedDepartment}`);
+    }
+
+    const userCount = await prisma.user.count();
+    const isFirstUser = userCount === 0;
+    const role = determineRole(matchedDepartment, isFirstUser);
+
+    const userData = {
+      lineUserId,
+      name: externalData?.userInfo?.user_lname || name,
+      nickname,
+      departmentId,
+      profilePictureUrl,
+      profilePictureExternal: externalData?.userInfo?.user_photo
+        ? externalData.userInfo.user_photo.toString()
+        : null,
+      role: role.toString(),
+      employeeId: externalData?.userInfo?.user_no || employeeId,
+      externalEmployeeId: externalData?.userInfo?.user_serial?.toString(),
+      overtimeHours: 0,
+      shiftId: shift.id,
+    };
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: userData,
+      });
+    } else {
+      user = await prisma.user.update({
+        where: { lineUserId },
+        data: userData,
+      });
+    }
+
+    const richMenuId = determineRichMenuId(role);
+    await client.linkRichMenuToUser(lineUserId, richMenuId);
+
+    return { success: true, userId: user.id };
+  } catch (error: any) {
+    console.error('Error in registration process:', error);
+    throw error;
   }
 }
 
@@ -51,7 +124,6 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  console.time('registerUser');
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -63,7 +135,7 @@ export default async function handler(
     name,
     nickname,
     department,
-    profilePictureUrl, // This is the Line profile picture
+    profilePictureUrl,
     employeeId,
   } = req.body;
 
@@ -79,175 +151,55 @@ export default async function handler(
   }
 
   try {
-    console.time('refreshShiftCache');
-    await refreshShiftCache();
-    console.timeEnd('refreshShiftCache');
-
-    console.time('findUser');
-    let user = await prisma.user.findUnique({ where: { lineUserId } });
-    console.timeEnd('findUser');
-
-    console.time('getExternalUser');
-    let externalData: {
-      checkIn: ExternalCheckInData | null;
-      userInfo: any | null;
-    } | null = null;
-    try {
-      externalData = await externalDbService.getLatestCheckIn(employeeId);
-    } catch (error) {
-      console.error('Error finding external user:', error);
-    }
-    console.timeEnd('getExternalUser');
-
-    console.time('determineShift');
-    let shift = null;
-    if (externalData?.userInfo?.user_dep) {
-      console.log(
-        `Attempting to get shift by department ID: ${externalData.userInfo.user_dep}`,
-      );
-      shift = await shiftManagementService.getShiftByDepartmentId(
-        externalData.userInfo.user_dep,
-      );
-      console.log(`Shift result from department ID: ${JSON.stringify(shift)}`);
-    }
-    if (!shift) {
-      console.log(
-        `Attempting to get default shift for department: ${department}`,
-      );
-      shift = await shiftManagementService.getDefaultShift(department);
-      console.log(`Default shift result: ${JSON.stringify(shift)}`);
-    }
-    if (!shift) {
-      console.error(`No shift found for department: ${department}`);
-      throw new Error(`No shift found for department: ${department}`);
-    }
-    console.log(`Final determined shift: ${JSON.stringify(shift)}`);
-    console.timeEnd('determineShift');
-
-    console.time('determineDepartment');
-    const matchedDepartment = getDepartmentByNameFuzzy(
-      externalData?.userInfo?.user_depname || department,
-    );
-    if (!matchedDepartment) {
-      throw new Error(
-        `No matching department found: ${externalData?.userInfo?.user_depname || department}`,
-      );
-    }
-    await shiftManagementService.createDepartmentIfNotExists(matchedDepartment);
-    const departmentRecord = await prisma.department.findFirst({
-      where: { name: matchedDepartment },
-    });
-    if (!departmentRecord) {
-      throw new Error(
-        `Failed to create or find department: ${matchedDepartment}`,
-      );
-    }
-    console.timeEnd('determineDepartment');
-
-    console.time('determineRole');
-    const userCount = await prisma.user.count();
-    const isFirstUser = userCount === 0;
-    const role = determineRole(
-      externalData?.userInfo?.user_depname || department,
-      isFirstUser,
-    );
-    console.timeEnd('determineRole');
-
-    const constructName = (
-      externalUserInfo: any | null | undefined,
-      providedName: string,
-    ): string => {
-      if (
-        externalUserInfo &&
-        (externalUserInfo.user_fname || externalUserInfo.user_lname)
-      ) {
-        const parts = [
-          externalUserInfo.user_fname,
-          externalUserInfo.user_lname,
-        ].filter(Boolean);
-        return parts.length > 0 ? parts.join(' ') : providedName;
-      }
-      return providedName;
-    };
-    const profilePictureExternal = externalData?.userInfo?.user_photo
-      ? typeof externalData.userInfo.user_photo === 'string'
-        ? externalData.userInfo.user_photo
-        : externalData.userInfo.user_photo.toString()
-      : null;
-
-    const userData = {
+    const job = await registrationQueue.add({
       lineUserId,
-      name: constructName(externalData?.userInfo, name),
+      employeeId,
+      name,
       nickname,
-      departmentId: departmentRecord.id,
-      profilePictureUrl, // Line profile picture
-      profilePictureExternal: externalData?.userInfo?.user_photo
-        ? externalData.userInfo.user_photo.toString()
-        : null, // Convert to string or null
-      role: role.toString(),
-      employeeId: externalData?.userInfo?.user_no || employeeId,
-      externalEmployeeId: externalData?.userInfo?.user_serial?.toString(),
-      overtimeHours: 0,
-      shiftId: shift.id,
-    };
-
-    console.log('User data before saving:', userData);
-
-    console.time('createOrUpdateUser');
-    if (!user) {
-      user = await prisma.user.create({
-        data: userData,
-      });
-      console.log('New user created:', user);
-    } else {
-      user = await prisma.user.update({
-        where: { lineUserId },
-        data: userData,
-      });
-      console.log('Existing user updated:', user);
-    }
-    console.timeEnd('createOrUpdateUser');
-
-    console.time('getFinalUser');
-    const finalUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: { assignedShift: true, department: true },
+      department,
+      profilePictureUrl,
     });
-    console.timeEnd('getFinalUser');
 
-    const responseData = {
-      ...finalUser,
-      assignedShift: finalUser?.assignedShift
-        ? {
-            id: finalUser.assignedShift.id,
-            name: finalUser.assignedShift.name,
-            startTime: finalUser.assignedShift.startTime,
-            endTime: finalUser.assignedShift.endTime,
-          }
-        : null,
-    };
-
-    console.time('linkRichMenu');
-    const richMenuId = determineRichMenuId(role);
-    await client.linkRichMenuToUser(lineUserId, richMenuId);
-    console.timeEnd('linkRichMenu');
-
-    console.timeEnd('registerUser');
-    res.status(201).json({ success: true, data: responseData });
+    res.status(202).json({ jobId: job.id, message: 'Registration queued' });
   } catch (error: any) {
-    console.error('Error in registerUser:', error);
-    if (error.code === 'P2002') {
-      return res
-        .status(400)
-        .json({ success: false, error: 'User already exists' });
-    }
-    if (
-      error.message.includes('Department not found') ||
-      error.message.includes('No matching department found')
-    ) {
-      return res.status(400).json({ success: false, error: error.message });
-    }
-    console.error('Stack trace:', error.stack);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    console.error('Error queuing registration job:', error);
+    res
+      .status(500)
+      .json({
+        message: 'Error queuing registration job',
+        error: error.message,
+      });
   }
 }
+
+export async function checkRegistrationStatus(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  const { jobId } = req.query;
+
+  if (!jobId) {
+    return res.status(400).json({ message: 'Missing jobId' });
+  }
+
+  try {
+    const job = await registrationQueue.getJob(jobId as string);
+
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+
+    const state = await job.getState();
+    const progress = job.progress();
+
+    res.json({ jobId, state, progress });
+  } catch (error) {
+    console.error('Error checking job status:', error);
+    res.status(500).json({ message: 'Error checking job status' });
+  }
+}
+
+// Set up the worker to process jobs
+registrationQueue.process(async (job) => {
+  return processRegistration(job.data);
+});

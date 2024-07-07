@@ -89,8 +89,23 @@ export const departmentShiftMap: { [key: string]: string } = {
 export function getDefaultShiftCode(department: string): string {
   return departmentShiftMap[department] || 'SHIFT103';
 }
+export type DepartmentId =
+  | 10012
+  | 10038
+  | 10030
+  | 10031
+  | 10032
+  | 10049
+  | 10053
+  | 10022
+  | 10010
+  | 10011
+  | 10037
+  | 10013
+  | 10016
+  | 10020;
 
-const departmentIdNameMap: { [key: number]: string } = {
+export const departmentIdNameMap: { [key: number]: string } = {
   10012: 'ฝ่ายจัดส่งสินค้า',
   10038: 'ฝ่ายปฏิบัติการ',
   10030: 'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)',
@@ -106,9 +121,12 @@ const departmentIdNameMap: { [key: number]: string } = {
   10016: 'ฝ่ายรักษาความสะอาด',
   10020: 'ฝ่ายรักษาความปลอดภัย',
 };
+export function getDepartmentById(departmentId: number): string | null {
+  return departmentIdNameMap[departmentId] || null;
+}
 
 export async function getShiftByDepartmentId(
-  departmentId: number,
+  departmentId: DepartmentId,
 ): Promise<Shift | null> {
   const departmentName = departmentIdNameMap[departmentId];
   if (!departmentName) {
@@ -148,6 +166,17 @@ function fuzzyMatch(str1: string, str2: string): number {
     }
   }
   return score / Math.max(str1.length, str2.length);
+}
+
+export function getDepartmentIdByName(
+  departmentName: string,
+): DepartmentId | null {
+  for (const [id, name] of Object.entries(departmentIdNameMap)) {
+    if (name === departmentName) {
+      return Number(id) as DepartmentId;
+    }
+  }
+  return null;
 }
 
 export function getDepartmentByNameFuzzy(name: string): string | null {
