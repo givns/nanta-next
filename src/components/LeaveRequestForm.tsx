@@ -1,4 +1,10 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
 import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/router';
@@ -43,7 +49,10 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const endDateRef = useRef<HTMLInputElement>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [leaveBalance, setLeaveBalance] = useState<number | null>(null);
-  const leaveService: ILeaveService = new LeaveServiceClient();
+  const leaveService: ILeaveService = useMemo(
+    () => new LeaveServiceClient(),
+    [],
+  );
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
