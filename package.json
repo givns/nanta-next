@@ -18,7 +18,7 @@
     "generate-signature": "ts-node --project tsconfig.ts-node.json scripts/generateSignature.ts",
     "postinstall": "prisma generate",
     "prettier": "prettier --write .",
-    "worker": "ts-node workers/index.ts"
+    "start:worker": "ts-node --project tsconfig.ts-node.json scripts/index.ts"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.6",
@@ -101,6 +101,7 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^14.2.3",
+    "@types/bull": "^4.10.0",
     "@types/jquery": "^3.5.30",
     "@types/leaflet": "^1.9.12",
     "@types/lodash": "^4.17.5",

@@ -1,5 +1,3 @@
-// workers/registrationWorker.ts
-
 import { Job } from 'bull';
 import prisma from '../lib/prisma';
 import { ExternalDbService } from '../services/ExternalDbService';
@@ -8,8 +6,15 @@ import { Client } from '@line/bot-sdk';
 import { determineRole, determineRichMenuId } from '../utils/userUtils';
 import { ShiftManagementService } from '../services/ShiftManagementService';
 
+// Ensure the environment variable is defined
+if (!process.env.LINE_CHANNEL_ACCESS_TOKEN) {
+  throw new Error(
+    'LINE_CHANNEL_ACCESS_TOKEN is not defined in environment variables',
+  );
+}
+
 const client = new Client({
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
 });
 
 const externalDbService = new ExternalDbService();

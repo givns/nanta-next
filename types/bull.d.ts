@@ -1,5 +1,7 @@
 // bull.d.ts
 declare module 'bull' {
+  import { EventEmitter } from 'events';
+  import { RedisClient } from 'redis';
   export interface JobOptions {
     // Add job options as needed
   }
