@@ -18,7 +18,7 @@
     "generate-signature": "ts-node --project tsconfig.ts-node.json scripts/generateSignature.ts",
     "postinstall": "prisma generate",
     "prettier": "prettier --write .",
-    "start:worker": "ts-node --project tsconfig.ts-node.json scripts/index.ts"
+    "start:worker": "ts-node workers//index.ts"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.6",

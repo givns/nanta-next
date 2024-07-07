@@ -29,6 +29,13 @@ export default async function processRegistration(job: Job) {
     department,
     profilePictureUrl,
   } = job.data;
+  console.log('Job data:', {
+    lineUserId,
+    employeeId,
+    name,
+    nickname,
+    department,
+  });
 
   try {
     job.progress(10);
@@ -112,6 +119,7 @@ export default async function processRegistration(job: Job) {
     }
 
     job.progress(100);
+    console.log('Registration process completed successfully');
     return { success: true, userId: user.id };
   } catch (error: any) {
     console.error('Error in registration process:', error);

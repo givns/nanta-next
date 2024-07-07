@@ -23,6 +23,15 @@ if (!REDIS_URL) {
   throw new Error('REDIS_URL is not defined in the environment variables');
 }
 const registrationQueue = new Queue('user-registration', REDIS_URL);
+try {
+  console.log('Adding job to queue...');
+  const job = await registrationQueue.add({
+    // job data
+  });
+  console.log('Job added successfully, ID:', job.id);
+} catch (error) {
+  console.error('Error adding job to queue:', error);
+}
 
 async function processRegistration(jobData: any) {
   console.log('Starting registration process for job:', jobData);
