@@ -15,7 +15,7 @@ const externalDbService = new ExternalDbService();
 const shiftManagementService = new ShiftManagementService();
 
 export async function processRegistration(
-  job: Job,
+  job: Job<any>,
 ): Promise<{ success: boolean; userId: string }> {
   console.log('Starting registration process for job:', job.id);
   const {
