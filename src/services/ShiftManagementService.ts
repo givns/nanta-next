@@ -129,9 +129,25 @@ export class ShiftManagementService {
   }
 
   async getDepartmentId(departmentName: string): Promise<string | null> {
+    console.log(`Attempting to get department ID for: ${departmentName}`);
     const department = await prisma.department.findFirst({
-      where: { name: { contains: departmentName, mode: 'insensitive' } },
+      where: { name: { equals: departmentName, mode: 'insensitive' } },
     });
-    return department?.id || null;
+    if (department) {
+      console.log(`Found department ID: ${department.id}`);
+      return department.id;
+    } else {
+      console.log(
+        `Department not found, attempting to create: ${departmentName}`,
+      );
+      const newDepartment = await prisma.department.create({
+        data: {
+          name: departmentName,
+          daysOff: { create: [] }, // Add this if you want to initialize with empty daysOff
+        },
+      });
+      console.log(`Created new department with ID: ${newDepartment.id}`);
+      return newDepartment.id;
+    }
   }
 }

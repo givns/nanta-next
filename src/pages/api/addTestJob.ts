@@ -10,7 +10,9 @@ export default async function handler(
   }
 
   try {
+    console.log('Getting registration queue...');
     const queue = getRegistrationQueue();
+    console.log('Queue obtained, adding job...');
     const job = await queue.add({
       testData: 'This is a test job',
       timestamp: new Date().toISOString(),

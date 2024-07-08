@@ -171,7 +171,7 @@ model DepartmentDayOff {
 
 model Department {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  name      String
+  name      String 
   daysOff   DepartmentDayOff[]
   users     User[]
   createdAt DateTime @default(now())
