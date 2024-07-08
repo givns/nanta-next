@@ -101,7 +101,7 @@ model Attendance {
   id                   String    @id @default(cuid()) @map("_id")
   userId               String    @db.ObjectId
   date                 DateTime
-  checkInTime          DateTime 
+  checkInTime          DateTime?
   checkOutTime         DateTime? 
   overtimeStartTime    DateTime?
   overtimeEndTime      DateTime?
