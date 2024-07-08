@@ -28,7 +28,6 @@ export default async function handler(
       await attendanceService.getLatestAttendanceStatus(employeeId);
     console.log(`Attendance status retrieved for ${employeeId}`);
 
-    // Fetch shift adjustment if needed
     const shiftAdjustment =
       await shiftManagementService.getShiftAdjustmentForDate(
         attendanceStatus.user.id,
@@ -42,14 +41,6 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('Error checking status:', error);
-    if (error.message === 'User not found') {
-      res.status(404).json({ message: 'User not found' });
-    } else if (error.message === 'User has no assigned shift') {
-      res.status(400).json({ message: 'User has no assigned shift' });
-    } else {
-      res
-        .status(500)
-        .json({ message: 'Error checking status', error: error.message });
-    }
+    res.status(400).json({ message: error.message || 'Error checking status' });
   }
 }

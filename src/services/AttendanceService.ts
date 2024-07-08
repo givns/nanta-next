@@ -24,7 +24,12 @@ export class AttendanceService {
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatus> {
+    console.log(
+      `Getting latest attendance status for employee ID: ${employeeId}`,
+    );
+
     if (!employeeId) {
+      console.error('Employee ID is required');
       throw new Error('Employee ID is required');
     }
 
@@ -33,13 +38,25 @@ export class AttendanceService {
       include: { assignedShift: true },
     });
 
-    if (!user) throw new Error('User not found');
-    if (!user.assignedShift) throw new Error('User has no assigned shift');
+    if (!user) {
+      console.error(`User not found for employee ID: ${employeeId}`);
+      throw new Error('User not found');
+    }
+
+    if (!user.assignedShift) {
+      console.error(`User has no assigned shift: ${employeeId}`);
+      throw new Error('User has no assigned shift');
+    }
+
+    console.log(
+      `User found: ${user.id}, Assigned shift: ${user.assignedShift.id}`,
+    );
 
     let externalData: {
       checkIn: ExternalCheckInData | null;
       userInfo: any | null;
     } | null = null;
+
     try {
       externalData = await this.externalDbService.getLatestCheckIn(employeeId);
       console.log('External data:', JSON.stringify(externalData, null, 2));
@@ -58,6 +75,9 @@ export class AttendanceService {
           user.assignedShift,
         );
         isCheckingIn = !latestAttendance.checkOutTime;
+        console.log(
+          `Processed attendance: ${JSON.stringify(latestAttendance)}`,
+        );
       } catch (error) {
         console.error('Error processing external check-in data:', error);
       }
@@ -65,7 +85,7 @@ export class AttendanceService {
       console.log(`No external check-in found for employee ID: ${employeeId}`);
     }
 
-    return {
+    const result: AttendanceStatus = {
       user: {
         id: user.id,
         employeeId: user.employeeId,
@@ -76,6 +96,9 @@ export class AttendanceService {
       isCheckingIn,
       shiftAdjustment: null,
     };
+
+    console.log(`Returning attendance status: ${JSON.stringify(result)}`);
+    return result;
   }
 
   async processExternalCheckInOut(
