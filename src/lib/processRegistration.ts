@@ -1,3 +1,4 @@
+import { Job } from 'bull';
 import prisma from './prisma';
 import { Client } from '@line/bot-sdk';
 import { ExternalDbService } from '../services/ExternalDbService';
@@ -5,7 +6,6 @@ import { getDepartmentByNameFuzzy, refreshShiftCache } from './shiftCache';
 import { ShiftManagementService } from '../services/ShiftManagementService';
 import { ExternalCheckInData } from '../types/user';
 import { determineRole, determineRichMenuId } from '../utils/userUtils';
-import { Job } from 'bull';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',

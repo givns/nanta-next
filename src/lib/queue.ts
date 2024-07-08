@@ -1,4 +1,4 @@
-import Queue from 'bull';
+import Queue, { Job } from 'bull';
 import { processRegistration } from './processRegistration';
 
 let registrationQueue: Queue.Queue | null = null;
@@ -11,12 +11,11 @@ export function getRegistrationQueue(): Queue.Queue {
     }
     registrationQueue = new Queue('user-registration', REDIS_URL);
 
-    // Type assertion to access 'on' method
-    (registrationQueue as any).on('failed', (job: any, err: Error) => {
+    registrationQueue.on('failed', (job: Job, err: Error) => {
       console.error(`Job ${job.id} failed with error:`, err);
     });
 
-    (registrationQueue as any).on('completed', (job: any, result: any) => {
+    registrationQueue.on('completed', (job: Job, result: any) => {
       console.log(`Job ${job.id} completed with result:`, result);
     });
 
