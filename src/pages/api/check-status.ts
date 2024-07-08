@@ -3,6 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '../../services/ShiftManagementService';
+import { formatDate } from '../../utils/dateUtils';
 
 const attendanceService = new AttendanceService();
 const shiftManagementService = new ShiftManagementService();
@@ -33,14 +34,36 @@ export default async function handler(
         attendanceStatus.user.id,
         new Date(),
       );
-    console.log(`Shift adjustment retrieved for ${employeeId}`);
 
-    res.status(200).json({
-      ...attendanceStatus,
+    console.log(
+      `Shift adjustment retrieved for ${employeeId}:`,
       shiftAdjustment,
-    });
+    );
+
+    const formattedStatus = {
+      ...attendanceStatus,
+      latestAttendance: attendanceStatus.latestAttendance
+        ? {
+            ...attendanceStatus.latestAttendance,
+            checkInTime: attendanceStatus.latestAttendance.checkInTime
+              ? formatDate(attendanceStatus.latestAttendance.checkInTime)
+              : null,
+            checkOutTime: attendanceStatus.latestAttendance.checkOutTime
+              ? formatDate(attendanceStatus.latestAttendance.checkOutTime)
+              : null,
+          }
+        : null,
+      shiftAdjustment: shiftAdjustment
+        ? {
+            ...shiftAdjustment,
+            date: formatDate(shiftAdjustment.date),
+          }
+        : null,
+    };
+
+    res.status(200).json(formattedStatus);
   } catch (error: any) {
     console.error('Error checking status:', error);
-    res.status(400).json({ message: error.message || 'Error checking status' });
+    res.status(500).json({ message: error.message || 'Error checking status' });
   }
 }

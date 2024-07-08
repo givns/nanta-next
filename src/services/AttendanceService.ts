@@ -8,7 +8,7 @@ import {
   AttendanceData,
   AttendanceStatus,
 } from '../types/user';
-import { isWithinAllowedTimeRange } from '../utils/timeUtils';
+import { formatDate } from '../utils/dateUtils';
 
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
@@ -64,7 +64,7 @@ export class AttendanceService {
       console.error('Error fetching external user data:', error);
     }
 
-    let isCheckingIn = true;
+    const checkType = await this.determineAutoCheckType(user.id);
     let latestAttendance = null;
 
     if (externalData?.checkIn) {
@@ -74,7 +74,6 @@ export class AttendanceService {
           externalData.userInfo,
           user.assignedShift,
         );
-        isCheckingIn = !latestAttendance.checkOutTime;
         console.log(
           `Processed attendance: ${JSON.stringify(latestAttendance)}`,
         );
@@ -93,7 +92,7 @@ export class AttendanceService {
         assignedShift: user.assignedShift,
       },
       latestAttendance,
-      isCheckingIn,
+      isCheckingIn: checkType === CheckType.CheckIn,
       shiftAdjustment: null,
     };
 
@@ -123,7 +122,6 @@ export class AttendanceService {
 
     const checkTime = new Date(externalCheckIn.sj);
 
-    // Get all attendance records for the day
     const startOfDay = new Date(checkTime);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(checkTime);
@@ -142,43 +140,12 @@ export class AttendanceService {
 
     console.log('Attendance records for the day:', attendanceRecords);
 
-    let isCheckIn = true;
-    let isOvertime = false;
+    const checkType = await this.determineAutoCheckType(user.id);
+    const isOvertime = this.isOvertime(checkTime, shift);
 
-    // Determine if it's overtime
-    const shiftStart = new Date(checkTime);
-    shiftStart.setHours(
-      parseInt(shift.startTime.split(':')[0]),
-      parseInt(shift.startTime.split(':')[1]),
-      0,
-      0,
-    );
-    const shiftEnd = new Date(checkTime);
-    shiftEnd.setHours(
-      parseInt(shift.endTime.split(':')[0]),
-      parseInt(shift.endTime.split(':')[1]),
-      0,
-      0,
-    );
-    if (shiftEnd < shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
+    console.log(`Processing as ${checkType}, Overtime: ${isOvertime}`);
 
-    if (checkTime < shiftStart || checkTime > shiftEnd) {
-      isOvertime = true;
-    }
-
-    // Determine if it's a check-in or check-out
-    if (attendanceRecords.length > 0) {
-      const lastRecord = attendanceRecords[attendanceRecords.length - 1];
-      if (!lastRecord.checkOutTime) {
-        isCheckIn = false; // It's a check-out if the last record doesn't have a check-out time
-      }
-    }
-
-    console.log(
-      `Processing as ${isCheckIn ? 'check-in' : 'check-out'}, Overtime: ${isOvertime}`,
-    );
-
-    if (isCheckIn) {
+    if (checkType === CheckType.CheckIn) {
       return await this.createAttendance(user.id, checkTime, isOvertime);
     } else {
       const lastOpenRecord = attendanceRecords.find(
@@ -198,6 +165,30 @@ export class AttendanceService {
       }
     }
   }
+
+  private isOvertime(
+    checkTime: Date,
+    shift: { startTime: string; endTime: string },
+  ): boolean {
+    const shiftStart = new Date(checkTime);
+    shiftStart.setHours(
+      parseInt(shift.startTime.split(':')[0]),
+      parseInt(shift.startTime.split(':')[1]),
+      0,
+      0,
+    );
+    const shiftEnd = new Date(checkTime);
+    shiftEnd.setHours(
+      parseInt(shift.endTime.split(':')[0]),
+      parseInt(shift.endTime.split(':')[1]),
+      0,
+      0,
+    );
+    if (shiftEnd < shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
+
+    return checkTime < shiftStart || checkTime > shiftEnd;
+  }
+
   async processAttendance(data: AttendanceData): Promise<Attendance> {
     const user = await prisma.user.findUnique({ where: { id: data.userId } });
     if (!user) throw new Error('User not found');
@@ -213,8 +204,6 @@ export class AttendanceService {
             data.isOvertime,
           );
         } else {
-          // Handle the case when isOvertime is undefined
-          // You can throw an error, use a default value, or handle it in a different way
           throw new Error('isOvertime is undefined');
         }
       } else {
@@ -225,8 +214,6 @@ export class AttendanceService {
             data.isOvertime,
           );
         } else {
-          // Handle the case when isOvertime is undefined
-          // You can throw an error, use a default value, or handle it in a different way
           throw new Error('isOvertime is undefined');
         }
       }
@@ -240,20 +227,28 @@ export class AttendanceService {
     }
   }
 
-  private async determineAutoCheckType(
-    userId: string,
-    checkTime: Date,
-  ): Promise<CheckType> {
+  private async determineAutoCheckType(userId: string): Promise<CheckType> {
     const latestAttendance = await prisma.attendance.findFirst({
       where: { userId },
       orderBy: { checkInTime: 'desc' },
     });
 
-    if (!latestAttendance || latestAttendance.checkOutTime) {
+    if (!latestAttendance) {
       return CheckType.CheckIn;
-    } else {
-      return CheckType.CheckOut;
     }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (latestAttendance.date < today) {
+      return CheckType.CheckIn;
+    }
+
+    if (latestAttendance.checkOutTime) {
+      return CheckType.CheckIn;
+    }
+
+    return CheckType.CheckOut;
   }
 
   private async createAttendance(

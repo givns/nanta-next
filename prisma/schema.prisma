@@ -101,8 +101,8 @@ model Attendance {
   id                   String    @id @default(cuid()) @map("_id")
   userId               String    @db.ObjectId
   date                 DateTime
-  checkInTime          DateTime?
-  checkOutTime         DateTime?
+  checkInTime          DateTime @db.timestamptz
+  checkOutTime         DateTime? @db.timestamptz
   overtimeStartTime    DateTime?
   overtimeEndTime      DateTime?
   checkInLocation      Json
