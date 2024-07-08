@@ -91,6 +91,7 @@ export default async function handler(
       overtimeHours,
       balanceLeave,
     };
+    console.log('User data being sent:', JSON.stringify(responseData, null, 2));
 
     console.log('Sending response for user:', user.id);
     res.status(200).json(responseData);

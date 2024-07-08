@@ -16,33 +16,51 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     const initializeLiff = async () => {
       try {
+        console.log('Initializing LIFF...');
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
+
         if (liff.isLoggedIn()) {
+          console.log('User is logged in, fetching profile...');
           const profile = await liff.getProfile();
           const lineUserId = profile.userId;
+          console.log('LINE User ID:', lineUserId);
 
           // Fetch user data from your API
+          console.log('Fetching user data...');
           const userResponse = await axios.get('/api/users', {
             params: { lineUserId },
           });
+          console.log('User data response:', userResponse.data);
           const userData = userResponse.data;
           setUserData(userData);
 
-          if (userData && userData.employeeId) {
+          if (userData && userData.user && userData.user.employeeId) {
+            console.log('Employee ID found:', userData.user.employeeId);
             // Fetch attendance status
             const statusResponse = await axios.get('/api/check-status', {
-              params: { employeeId: userData.employeeId },
+              params: { employeeId: userData.user.employeeId },
             });
+            console.log('Attendance status response:', statusResponse.data);
             setAttendanceStatus(statusResponse.data);
           } else {
+            console.error('Employee ID not found in user data');
             setMessage('Employee ID not found. Please contact support.');
           }
         } else {
+          console.log('User is not logged in, initiating login...');
           liff.login();
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error initializing LIFF or fetching data:', error);
-        setMessage('Failed to load user data or attendance status');
+        if (error.response) {
+          console.error('Error response:', error.response.data);
+          setMessage(
+            error.response.data.error ||
+              'Failed to load user data or attendance status',
+          );
+        } else {
+          setMessage('Failed to load user data or attendance status');
+        }
       }
     };
 
@@ -72,7 +90,7 @@ const CheckInRouter: React.FC = () => {
     <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          {attendanceStatus.isCheckingIn
+          {attendanceStatus?.isCheckingIn
             ? 'ระบบบันทึกเวลาเข้างาน'
             : 'ระบบบันทึกเวลาออกงาน'}
         </h1>
@@ -84,7 +102,7 @@ const CheckInRouter: React.FC = () => {
             {message}
           </div>
         )}
-        <CheckInOutForm userData={userData} />
+        {userData && attendanceStatus && <CheckInOutForm userData={userData} />}
       </div>
     </div>
   );
