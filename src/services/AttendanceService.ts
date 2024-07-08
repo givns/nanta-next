@@ -1,9 +1,12 @@
-import { PrismaClient, Attendance } from '@prisma/client';
+import {
+  PrismaClient,
+  Attendance,
+  ShiftAdjustmentRequest,
+} from '@prisma/client';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { ExternalDbService } from './ExternalDbService';
 import { NotificationService } from './NotificationService';
 import {
-  CheckType,
   ExternalCheckInData,
   AttendanceData,
   AttendanceStatus,
@@ -63,8 +66,32 @@ export class AttendanceService {
       console.error('Error fetching external user data:', error);
     }
 
-    const latestAttendance = await this.getLatestAttendanceRecord(user.id);
+    let latestAttendance = await this.getLatestAttendanceRecord(user.id);
     const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
+
+    if (latestAttendance) {
+      const startOfDay = new Date(latestAttendance.date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(startOfDay);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+
+      const latestCheckInForDay = await prisma.attendance.findFirst({
+        where: {
+          userId: user.id,
+          date: {
+            gte: startOfDay,
+            lt: endOfDay,
+          },
+        },
+        orderBy: {
+          checkInTime: 'desc',
+        },
+      });
+
+      if (latestCheckInForDay) {
+        latestAttendance = latestCheckInForDay;
+      }
+    }
 
     const result: AttendanceStatus = {
       user: {

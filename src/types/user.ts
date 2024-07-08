@@ -48,11 +48,18 @@ export interface AttendanceStatus {
     id: string;
     employeeId: string;
     name: string;
-    assignedShift: Shift;
+    assignedShift: {
+      id: string;
+      shiftCode: string;
+      name: string;
+      startTime: string;
+      endTime: string;
+      workDays: number[];
+    };
   };
   latestAttendance: Attendance | null;
   isCheckingIn: boolean;
-  shiftAdjustment: (ShiftAdjustmentRequest & { requestedShift: Shift }) | null;
+  shiftAdjustment: ShiftAdjustmentRequest | null;
 }
 
 export interface ShiftData {

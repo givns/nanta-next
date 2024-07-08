@@ -59,20 +59,34 @@ export class ShiftManagementService {
   async getShiftAdjustmentForDate(
     userId: string,
     date: Date,
-  ): Promise<(ShiftAdjustmentRequest & { requestedShift: Shift }) | null> {
-    return prisma.shiftAdjustmentRequest.findFirst({
-      where: {
-        userId,
-        date: {
-          gte: new Date(date.setHours(0, 0, 0, 0)),
-          lt: new Date(date.setHours(23, 59, 59, 999)),
+  ): Promise<ShiftAdjustmentRequest | null> {
+    const startOfDay = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+    );
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    try {
+      const adjustment = await prisma.shiftAdjustmentRequest.findFirst({
+        where: {
+          userId,
+          date: {
+            gte: startOfDay,
+            lt: endOfDay,
+          },
+          status: 'approved',
         },
-        status: 'approved',
-      },
-      include: {
-        requestedShift: true,
-      },
-    });
+        include: {
+          requestedShift: true,
+        },
+      });
+      return adjustment;
+    } catch (error) {
+      console.error('Error fetching shift adjustment request:', error);
+      return null;
+    }
   }
 
   async approveShiftAdjustment(id: string): Promise<ShiftAdjustmentRequest> {
