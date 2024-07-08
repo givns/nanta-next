@@ -8,7 +8,6 @@ import {
   AttendanceData,
   AttendanceStatus,
 } from '../types/user';
-import { formatDate } from '../utils/dateUtils';
 
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
@@ -64,25 +63,8 @@ export class AttendanceService {
       console.error('Error fetching external user data:', error);
     }
 
-    const checkType = await this.determineAutoCheckType(user.id);
-    let latestAttendance = null;
-
-    if (externalData?.checkIn) {
-      try {
-        latestAttendance = await this.processExternalCheckInOut(
-          externalData.checkIn,
-          externalData.userInfo,
-          user.assignedShift,
-        );
-        console.log(
-          `Processed attendance: ${JSON.stringify(latestAttendance)}`,
-        );
-      } catch (error) {
-        console.error('Error processing external check-in data:', error);
-      }
-    } else {
-      console.log(`No external check-in found for employee ID: ${employeeId}`);
-    }
+    const latestAttendance = await this.getLatestAttendanceRecord(user.id);
+    const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
 
     const result: AttendanceStatus = {
       user: {
@@ -92,7 +74,7 @@ export class AttendanceService {
         assignedShift: user.assignedShift,
       },
       latestAttendance,
-      isCheckingIn: checkType === CheckType.CheckIn,
+      isCheckingIn,
       shiftAdjustment: null,
     };
 
@@ -121,48 +103,38 @@ export class AttendanceService {
     }
 
     const checkTime = new Date(externalCheckIn.sj);
+    const startOfDay = new Date(
+      checkTime.getFullYear(),
+      checkTime.getMonth(),
+      checkTime.getDate(),
+    );
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
 
-    const startOfDay = new Date(checkTime);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(checkTime);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const attendanceRecords = await prisma.attendance.findMany({
+    let attendanceRecord = await prisma.attendance.findFirst({
       where: {
         userId: user.id,
         date: {
           gte: startOfDay,
-          lte: endOfDay,
+          lt: endOfDay,
         },
       },
-      orderBy: { checkInTime: 'asc' },
     });
 
-    console.log('Attendance records for the day:', attendanceRecords);
-
-    const checkType = await this.determineAutoCheckType(user.id);
     const isOvertime = this.isOvertime(checkTime, shift);
 
-    console.log(`Processing as ${checkType}, Overtime: ${isOvertime}`);
-
-    if (checkType === CheckType.CheckIn) {
-      return await this.createAttendance(user.id, checkTime, isOvertime);
+    if (!attendanceRecord) {
+      // Create new record if none exists for the day
+      return this.createAttendance(user.id, checkTime, isOvertime);
+    } else if (!attendanceRecord.checkOutTime) {
+      // Update existing record with check-out time
+      return this.updateAttendance(attendanceRecord.id, checkTime, isOvertime);
     } else {
-      const lastOpenRecord = attendanceRecords.find(
-        (record) => !record.checkOutTime,
+      // If there's already a complete record, log a warning and don't create a new one
+      console.warn(
+        `Duplicate check-in attempt for user ${user.id} on ${startOfDay.toISOString()}`,
       );
-      if (lastOpenRecord) {
-        return await this.updateAttendance(
-          lastOpenRecord.id,
-          checkTime,
-          isOvertime,
-        );
-      } else {
-        console.warn(
-          'No open attendance record found. Creating a new check-in record.',
-        );
-        return await this.createAttendance(user.id, checkTime, isOvertime);
-      }
+      return attendanceRecord;
     }
   }
 
@@ -197,25 +169,17 @@ export class AttendanceService {
 
     try {
       if (data.isCheckIn) {
-        if (typeof data.isOvertime === 'boolean') {
-          return await processingService.processCheckIn(
-            user.id,
-            checkTime,
-            data.isOvertime,
-          );
-        } else {
-          throw new Error('isOvertime is undefined');
-        }
+        return await processingService.processCheckIn(
+          user.id,
+          checkTime,
+          data.isOvertime || false,
+        );
       } else {
-        if (typeof data.isOvertime === 'boolean') {
-          return await processingService.processCheckOut(
-            user.id,
-            checkTime,
-            data.isOvertime,
-          );
-        } else {
-          throw new Error('isOvertime is undefined');
-        }
+        return await processingService.processCheckOut(
+          user.id,
+          checkTime,
+          data.isOvertime || false,
+        );
       }
     } catch (error: any) {
       console.error('Error processing attendance:', error);
@@ -227,28 +191,25 @@ export class AttendanceService {
     }
   }
 
-  private async determineAutoCheckType(userId: string): Promise<CheckType> {
-    const latestAttendance = await prisma.attendance.findFirst({
+  private async getLatestAttendanceRecord(
+    userId: string,
+  ): Promise<Attendance | null> {
+    return prisma.attendance.findFirst({
       where: { userId },
-      orderBy: { checkInTime: 'desc' },
+      orderBy: { date: 'desc' },
     });
+  }
 
-    if (!latestAttendance) {
-      return CheckType.CheckIn;
-    }
+  private determineIfCheckingIn(latestAttendance: Attendance | null): boolean {
+    if (!latestAttendance) return true;
 
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    if (latestAttendance.date < today) {
-      return CheckType.CheckIn;
-    }
+    if (latestAttendance.date < today) return true;
+    if (latestAttendance.checkOutTime) return true;
 
-    if (latestAttendance.checkOutTime) {
-      return CheckType.CheckIn;
-    }
-
-    return CheckType.CheckOut;
+    return false;
   }
 
   private async createAttendance(

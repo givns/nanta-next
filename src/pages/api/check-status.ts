@@ -61,7 +61,10 @@ export default async function handler(
         : null,
     };
 
-    res.status(200).json(formattedStatus);
+    res.status(200).json({
+      ...attendanceStatus,
+      shiftAdjustment: shiftAdjustment || null,
+    });
   } catch (error: any) {
     console.error('Error checking status:', error);
     res.status(500).json({ message: error.message || 'Error checking status' });
