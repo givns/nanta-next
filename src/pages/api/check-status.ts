@@ -3,7 +3,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '../../services/ShiftManagementService';
-import prisma from '../../lib/prisma';
 
 const attendanceService = new AttendanceService();
 const shiftManagementService = new ShiftManagementService();
@@ -23,32 +22,34 @@ export default async function handler(
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { employeeId },
-      include: { assignedShift: true },
-    });
-    if (!user) throw new Error('User not found');
+    console.log(`Checking status for employee ID: ${employeeId}`);
 
-    const status =
+    const attendanceStatus =
       await attendanceService.getLatestAttendanceStatus(employeeId);
+    console.log(`Attendance status retrieved for ${employeeId}`);
+
+    // Fetch shift adjustment if needed
     const shiftAdjustment =
       await shiftManagementService.getShiftAdjustmentForDate(
-        user.id,
+        attendanceStatus.user.id,
         new Date(),
       );
+    console.log(`Shift adjustment retrieved for ${employeeId}`);
 
     res.status(200).json({
-      ...status,
-      user: {
-        ...user,
-        assignedShift: user.assignedShift,
-      },
-      shiftAdjustment: shiftAdjustment,
+      ...attendanceStatus,
+      shiftAdjustment,
     });
   } catch (error: any) {
     console.error('Error checking status:', error);
-    res
-      .status(500)
-      .json({ message: 'Error checking status', error: error.message });
+    if (error.message === 'User not found') {
+      res.status(404).json({ message: 'User not found' });
+    } else if (error.message === 'User has no assigned shift') {
+      res.status(400).json({ message: 'User has no assigned shift' });
+    } else {
+      res
+        .status(500)
+        .json({ message: 'Error checking status', error: error.message });
+    }
   }
 }
