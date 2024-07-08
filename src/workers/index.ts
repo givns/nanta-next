@@ -38,7 +38,6 @@ async function startWorker(url: string) {
 
     const registrationQueue = new Queue('user-registration', url);
 
-    // Use the process method for both processing and logging
     registrationQueue.process(async (job) => {
       console.log('Job starting to be processed:', job.id);
       try {

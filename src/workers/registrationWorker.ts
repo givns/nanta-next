@@ -6,7 +6,6 @@ import { Client } from '@line/bot-sdk';
 import { determineRole, determineRichMenuId } from '../utils/userUtils';
 import { ShiftManagementService } from '../services/ShiftManagementService';
 
-// Ensure the environment variable is defined
 if (!process.env.LINE_CHANNEL_ACCESS_TOKEN) {
   throw new Error(
     'LINE_CHANNEL_ACCESS_TOKEN is not defined in environment variables',
@@ -29,6 +28,7 @@ export default async function processRegistration(job: Job) {
     department,
     profilePictureUrl,
   } = job.data;
+
   console.log('Job data:', {
     lineUserId,
     employeeId,

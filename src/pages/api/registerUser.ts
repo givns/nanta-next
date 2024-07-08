@@ -22,19 +22,11 @@ const REDIS_URL = process.env.REDIS_URL;
 if (!REDIS_URL) {
   throw new Error('REDIS_URL is not defined in the environment variables');
 }
-const registrationQueue = new Queue('user-registration', REDIS_URL);
-try {
-  console.log('Adding job to queue...');
-  const job = await registrationQueue.add({
-    // job data
-  });
-  console.log('Job added successfully, ID:', job.id);
-} catch (error) {
-  console.error('Error adding job to queue:', error);
-}
 
-async function processRegistration(jobData: any) {
-  console.log('Starting registration process for job:', jobData);
+const registrationQueue = new Queue('user-registration', REDIS_URL);
+
+async function processRegistration(job: any) {
+  console.log('Starting registration process for job:', job.id);
   const {
     lineUserId,
     employeeId,
@@ -42,7 +34,7 @@ async function processRegistration(jobData: any) {
     nickname,
     department,
     profilePictureUrl,
-  } = jobData;
+  } = job.data;
 
   try {
     await refreshShiftCache();
@@ -123,11 +115,13 @@ async function processRegistration(jobData: any) {
 
     console.log('Registration process completed successfully');
     return { success: true, userId: user.id };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in registration process:', error);
     throw error;
   }
 }
+
+registrationQueue.process(processRegistration);
 
 export default async function handler(
   req: NextApiRequest,
@@ -160,6 +154,7 @@ export default async function handler(
   }
 
   try {
+    console.log('Adding job to queue...');
     const job = await registrationQueue.add({
       lineUserId,
       employeeId,
@@ -168,46 +163,17 @@ export default async function handler(
       department,
       profilePictureUrl,
     });
+    console.log('Job added successfully, ID:', job.id);
 
-    res.status(202).json({ jobId: job.id, message: 'Registration queued' });
+    res
+      .status(202)
+      .json({
+        success: true,
+        jobId: job.id,
+        message: 'Registration job queued',
+      });
   } catch (error: any) {
-    console.error('Error queuing registration job:', error);
-    res.status(500).json({
-      message: 'Error queuing registration job',
-      error: error.message || 'Unknown error',
-      stack: error.stack,
-    });
+    console.error('Error in registration process:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 }
-
-export async function checkRegistrationStatus(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  const { jobId } = req.query;
-
-  if (!jobId) {
-    return res.status(400).json({ message: 'Missing jobId' });
-  }
-
-  try {
-    const job = await registrationQueue.getJob(jobId as string);
-
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
-
-    const state = await job.getState();
-    const progress = job.progress();
-
-    res.json({ jobId, state, progress });
-  } catch (error) {
-    console.error('Error checking job status:', error);
-    res.status(500).json({ message: 'Error checking job status' });
-  }
-}
-
-// Set up the worker to process jobs
-registrationQueue.process(async (job) => {
-  return processRegistration(job.data);
-});
