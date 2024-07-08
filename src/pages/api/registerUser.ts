@@ -165,13 +165,11 @@ export default async function handler(
     });
     console.log('Job added successfully, ID:', job.id);
 
-    res
-      .status(202)
-      .json({
-        success: true,
-        jobId: job.id,
-        message: 'Registration job queued',
-      });
+    res.status(202).json({
+      success: true,
+      jobId: job.id,
+      message: 'Registration job queued',
+    });
   } catch (error: any) {
     console.error('Error in registration process:', error);
     res.status(500).json({ success: false, error: error.message });
