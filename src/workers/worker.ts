@@ -1,5 +1,7 @@
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
+import getRegistrationQueue from '../lib/queue';
+import { processRegistration } from '../lib/processRegistration';
 
 console.log('Current working directory:', process.cwd());
 console.log('__dirname:', __dirname);
@@ -14,12 +16,36 @@ console.log(
 );
 console.log('REDIS_URL:', process.env.REDIS_URL ? 'Set' : 'Not set');
 
-import getRegistrationQueue from '../lib/queue';
+const queue = getRegistrationQueue();
 
-const registrationQueue = getRegistrationQueue();
+console.log('Worker started, connecting to queue...');
 
-console.log('Registration queue initialized');
-console.log('Worker started, waiting for jobs...');
+queue.on('error', (error) => {
+  console.error('Queue error:', error);
+});
+
+queue.on('waiting', (jobId) => {
+  console.log('Job waiting to be processed:', jobId);
+});
+
+queue.on('active', (job) => {
+  console.log('Job starting to be processed:', job.id);
+});
+
+queue.on('completed', (job, result) => {
+  console.log('Job completed:', job.id, 'Result:', result);
+});
+
+queue.on('failed', (job, err) => {
+  console.error('Job failed:', job.id, 'Error:', err);
+});
+
+queue.process(async (job) => {
+  console.log('Processing job:', job.id);
+  return processRegistration(job);
+});
+
+console.log('Worker setup complete, waiting for jobs...');
 
 // Keep the process alive
 setInterval(() => {

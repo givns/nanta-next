@@ -1,0 +1,146 @@
+2024-07-08 12:26:48 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:48 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:48 +07:00: Job failed: 1 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:48 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:49 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:49 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:49 +07:00: Job failed: 2 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:49 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:50 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:50 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:50 +07:00: Job failed: 3 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:50 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:50 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:50 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:50 +07:00: Job failed: 4 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:50 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:51 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:51 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:51 +07:00: Job failed: 5 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:51 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:51 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:51 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:51 +07:00: Job failed: 6 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:51 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:52 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:52 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:52 +07:00: Job failed: 7 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:52 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:52 +07:00: Error in registration process: PrismaClientValidationError: 
+2024-07-08 12:26:52 +07:00: Invalid `prisma.user.findUnique()` invocation in
+2024-07-08 12:26:52 +07:00: /Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:47:34
+2024-07-08 12:26:52 +07:00: 
+2024-07-08 12:26:52 +07:00:   44 await job.progress(10);
+2024-07-08 12:26:52 +07:00:   45 await refreshShiftCache();
+2024-07-08 12:26:52 +07:00:   46 
+2024-07-08 12:26:52 +07:00: → 47 let user = await prisma.user.findUnique({
+2024-07-08 12:26:52 +07:00:        where: {
+2024-07-08 12:26:52 +07:00:          lineUserId: undefined,
+2024-07-08 12:26:52 +07:00:      ?   id?: String,
+2024-07-08 12:26:52 +07:00:      ?   employeeId?: String,
+2024-07-08 12:26:52 +07:00:      ?   AND?: UserWhereInput | UserWhereInput[],
+2024-07-08 12:26:52 +07:00:      ?   OR?: UserWhereInput[],
+2024-07-08 12:26:52 +07:00:      ?   NOT?: UserWhereInput | UserWhereInput[],
+2024-07-08 12:26:52 +07:00:      ?   externalEmployeeId?: StringNullableFilter | String | Null,
+2024-07-08 12:26:52 +07:00:      ?   name?: StringFilter | String,
+2024-07-08 12:26:52 +07:00:      ?   nickname?: StringNullableFilter | String | Null,
+2024-07-08 12:26:52 +07:00:      ?   departmentId?: StringFilter | String,
+2024-07-08 12:26:52 +07:00:      ?   role?: StringFilter | String,
+2024-07-08 12:26:52 +07:00:      ?   profilePictureUrl?: StringNullableFilter | String | Null,
+2024-07-08 12:26:52 +07:00:      ?   profilePictureExternal?: StringNullableFilter | String | Null,
+2024-07-08 12:26:52 +07:00:      ?   shiftId?: StringFilter | String,
+2024-07-08 12:26:52 +07:00:      ?   overtimeHours?: FloatFilter | Float,
+2024-07-08 12:26:52 +07:00:      ?   createdAt?: DateTimeFilter | DateTime,
+2024-07-08 12:26:52 +07:00:      ?   updatedAt?: DateTimeFilter | DateTime,
+2024-07-08 12:26:52 +07:00:      ?   department?: DepartmentRelationFilter | DepartmentWhereInput,
+2024-07-08 12:26:52 +07:00:      ?   assignedShift?: ShiftRelationFilter | ShiftWhereInput,
+2024-07-08 12:26:52 +07:00:      ?   attendances?: AttendanceListRelationFilter,
+2024-07-08 12:26:52 +07:00:      ?   shiftAdjustmentRequests?: ShiftAdjustmentRequestListRelationFilter,
+2024-07-08 12:26:52 +07:00:      ?   leaveRequests?: LeaveRequestListRelationFilter,
+2024-07-08 12:26:52 +07:00:      ?   overtimeRequests?: OvertimeRequestListRelationFilter,
+2024-07-08 12:26:52 +07:00:      ?   checkPoints?: CheckPointListRelationFilter
+2024-07-08 12:26:52 +07:00:        }
+2024-07-08 12:26:52 +07:00:      })
+2024-07-08 12:26:52 +07:00: 
+2024-07-08 12:26:52 +07:00: Argument `where` of type UserWhereUniqueInput needs at least one of `id`, `employeeId` or `lineUserId` arguments. Available options are marked with ?.
+2024-07-08 12:26:52 +07:00:     at Sn (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:115:7526)
+2024-07-08 12:26:52 +07:00:     at _n.handleRequestError (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:122:6570)
+2024-07-08 12:26:52 +07:00:     at _n.handleAndLogRequestError (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:122:6235)
+2024-07-08 12:26:52 +07:00:     at _n.request (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:122:5919)
+2024-07-08 12:26:52 +07:00:     at async l (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:131:9116)
+2024-07-08 12:26:52 +07:00:     at async processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:47:16) {
+2024-07-08 12:26:52 +07:00:   clientVersion: '5.16.1'
+2024-07-08 12:26:52 +07:00: }
+2024-07-08 12:26:52 +07:00: Job failed: 8 Error: PrismaClientValidationError: 
+2024-07-08 12:26:52 +07:00: Invalid `prisma.user.findUnique()` invocation in
+2024-07-08 12:26:52 +07:00: /Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:47:34
+2024-07-08 12:26:52 +07:00: 
+2024-07-08 12:26:52 +07:00:   44 await job.progress(10);
+2024-07-08 12:26:52 +07:00:   45 await refreshShiftCache();
+2024-07-08 12:26:52 +07:00:   46 
+2024-07-08 12:26:52 +07:00: → 47 let user = await prisma.user.findUnique({
+2024-07-08 12:26:52 +07:00:        where: {
+2024-07-08 12:26:52 +07:00:          lineUserId: undefined,
+2024-07-08 12:26:52 +07:00:      ?   id?: String,
+2024-07-08 12:26:52 +07:00:      ?   employeeId?: String,
+2024-07-08 12:26:52 +07:00:      ?   AND?: UserWhereInput | UserWhereInput[],
+2024-07-08 12:26:52 +07:00:      ?   OR?: UserWhereInput[],
+2024-07-08 12:26:52 +07:00:      ?   NOT?: UserWhereInput | UserWhereInput[],
+2024-07-08 12:26:52 +07:00:      ?   externalEmployeeId?: StringNullableFilter | String | Null,
+2024-07-08 12:26:52 +07:00:      ?   name?: StringFilter | String,
+2024-07-08 12:26:52 +07:00:      ?   nickname?: StringNullableFilter | String | Null,
+2024-07-08 12:26:52 +07:00:      ?   departmentId?: StringFilter | String,
+2024-07-08 12:26:52 +07:00:      ?   role?: StringFilter | String,
+2024-07-08 12:26:52 +07:00:      ?   profilePictureUrl?: StringNullableFilter | String | Null,
+2024-07-08 12:26:52 +07:00:      ?   profilePictureExternal?: StringNullableFilter | String | Null,
+2024-07-08 12:26:52 +07:00:      ?   shiftId?: StringFilter | String,
+2024-07-08 12:26:52 +07:00:      ?   overtimeHours?: FloatFilter | Float,
+2024-07-08 12:26:52 +07:00:      ?   createdAt?: DateTimeFilter | DateTime,
+2024-07-08 12:26:52 +07:00:      ?   updatedAt?: DateTimeFilter | DateTime,
+2024-07-08 12:26:52 +07:00:      ?   department?: DepartmentRelationFilter | DepartmentWhereInput,
+2024-07-08 12:26:52 +07:00:      ?   assignedShift?: ShiftRelationFilter | ShiftWhereInput,
+2024-07-08 12:26:52 +07:00:      ?   attendances?: AttendanceListRelationFilter,
+2024-07-08 12:26:52 +07:00:      ?   shiftAdjustmentRequests?: ShiftAdjustmentRequestListRelationFilter,
+2024-07-08 12:26:52 +07:00:      ?   leaveRequests?: LeaveRequestListRelationFilter,
+2024-07-08 12:26:52 +07:00:      ?   overtimeRequests?: OvertimeRequestListRelationFilter,
+2024-07-08 12:26:52 +07:00:      ?   checkPoints?: CheckPointListRelationFilter
+2024-07-08 12:26:52 +07:00:        }
+2024-07-08 12:26:52 +07:00:      })
+2024-07-08 12:26:52 +07:00: 
+2024-07-08 12:26:52 +07:00: Argument `where` of type UserWhereUniqueInput needs at least one of `id`, `employeeId` or `lineUserId` arguments. Available options are marked with ?.
+2024-07-08 12:26:52 +07:00:     at Sn (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:115:7526)
+2024-07-08 12:26:52 +07:00:     at _n.handleRequestError (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:122:6570)
+2024-07-08 12:26:52 +07:00:     at _n.handleAndLogRequestError (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:122:6235)
+2024-07-08 12:26:52 +07:00:     at _n.request (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:122:5919)
+2024-07-08 12:26:52 +07:00:     at async l (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/@prisma/client/runtime/library.js:131:9116)
+2024-07-08 12:26:52 +07:00:     at async processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:47:16) {
+2024-07-08 12:26:52 +07:00:   clientVersion: '5.16.1'
+2024-07-08 12:26:52 +07:00: }
+2024-07-08 12:26:53 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:53 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:53 +07:00: Job failed: 9 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:53 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:53 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:53 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:53 +07:00: Job failed: 10 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:53 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:54 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:54 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:54 +07:00: Job failed: 11 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:54 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:55 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:55 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:55 +07:00: Job failed: 12 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:55 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:55 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:55 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:55 +07:00: Job failed: 20 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:55 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:57 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:57 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:26:57 +07:00: Job failed: 20 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:26:57 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:27:01 +07:00: Error in registration process: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:27:01 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
+2024-07-08 12:27:01 +07:00: Job failed: 20 Error: Error: Failed to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-08 12:27:01 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:87:13)
