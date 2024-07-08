@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getRegistrationQueue } from '../../lib/queue';
+import getRegistrationQueue from '../../lib/queue';
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,8 +23,8 @@ export default async function handler(
   }
 
   try {
-    const queue = getRegistrationQueue();
-    const job = await queue.add({
+    const registrationQueue = getRegistrationQueue();
+    const job = await registrationQueue.add({
       lineUserId,
       employeeId,
       name,

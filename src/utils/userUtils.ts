@@ -1,4 +1,4 @@
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../types/enum';
 
 export function determineRole(
   department: string,
