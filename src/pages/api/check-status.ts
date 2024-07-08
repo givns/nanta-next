@@ -22,8 +22,6 @@ export default async function handler(
   }
 
   try {
-    console.log(`Checking status for employee ID: ${employeeId}`);
-
     const attendanceStatus =
       await attendanceService.getLatestAttendanceStatus(employeeId);
     console.log(`Attendance status retrieved for ${employeeId}`);
@@ -38,10 +36,18 @@ export default async function handler(
       shiftAdjustment,
     );
 
-    res.status(200).json({
+    // Combine the information
+    const combinedStatus = {
       ...attendanceStatus,
-      shiftAdjustment,
-    });
+      shiftAdjustment: shiftAdjustment
+        ? {
+            ...shiftAdjustment,
+            requestedShift: shiftAdjustment.requestedShift,
+          }
+        : null,
+    };
+
+    res.status(200).json(combinedStatus);
   } catch (error: any) {
     console.error('Error checking status:', error);
     res.status(500).json({ message: error.message || 'Error checking status' });

@@ -56,10 +56,11 @@ export class ShiftManagementService {
     });
   }
 
+  // In ShiftManagementService.ts
   async getShiftAdjustmentForDate(
     userId: string,
     date: Date,
-  ): Promise<ShiftAdjustmentRequest | null> {
+  ): Promise<(ShiftAdjustmentRequest & { requestedShift: Shift }) | null> {
     const startOfDay = new Date(
       date.getFullYear(),
       date.getMonth(),
@@ -68,25 +69,29 @@ export class ShiftManagementService {
     const endOfDay = new Date(startOfDay);
     endOfDay.setDate(endOfDay.getDate() + 1);
 
-    try {
-      const adjustment = await prisma.shiftAdjustmentRequest.findFirst({
-        where: {
-          userId,
-          date: {
-            gte: startOfDay,
-            lt: endOfDay,
-          },
-          status: 'approved',
+    const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
+      where: {
+        userId,
+        date: {
+          gte: startOfDay,
+          lt: endOfDay,
         },
-        include: {
-          requestedShift: true,
-        },
+        status: 'approved',
+      },
+    });
+
+    if (shiftAdjustment) {
+      const requestedShift = await prisma.shift.findUnique({
+        where: { id: shiftAdjustment.requestedShiftId },
       });
-      return adjustment;
-    } catch (error) {
-      console.error('Error fetching shift adjustment request:', error);
-      return null;
+
+      return {
+        ...shiftAdjustment,
+        requestedShift: requestedShift!,
+      };
     }
+
+    return null;
   }
 
   async approveShiftAdjustment(id: string): Promise<ShiftAdjustmentRequest> {

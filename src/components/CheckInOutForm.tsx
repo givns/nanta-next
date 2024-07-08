@@ -35,6 +35,11 @@ const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatus | null>(null);
+  const [isWithinShift, setIsWithinShift] = useState(false);
+  const [isBeforeShift, setIsBeforeShift] = useState(false);
+  const [isAfterShift, setIsAfterShift] = useState(false);
+  const [minutesUntilShiftStart, setMinutesUntilShiftStart] = useState(0);
+  const [minutesUntilShiftEnd, setMinutesUntilShiftEnd] = useState(0);
   const [isLoadingCheckData, setIsLoadingCheckData] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(1);
@@ -68,6 +73,59 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     }
   }, [userData.employeeId]);
 
+  const fetchShiftDetails = async () => {
+    if (!attendanceStatus) return;
+
+    const now = new Date();
+    let shift = attendanceStatus.user.assignedShift;
+
+    if (attendanceStatus.shiftAdjustment) {
+      try {
+        const response = await axios.get(
+          `/api/shifts/${attendanceStatus.shiftAdjustment.requestedShiftId}`,
+        );
+        shift = response.data;
+      } catch (error) {
+        console.error('Error fetching requested shift:', error);
+      }
+    }
+
+    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+
+    const shiftStart = new Date(now);
+    shiftStart.setHours(startHour, startMinute, 0, 0);
+
+    const shiftEnd = new Date(now);
+    shiftEnd.setHours(endHour, endMinute, 0, 0);
+
+    // Handle shifts that cross midnight
+    if (
+      endHour < startHour ||
+      (endHour === startHour && endMinute < startMinute)
+    ) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
+
+    const isWithinShift = now >= shiftStart && now <= shiftEnd;
+    const isBeforeShift = now < shiftStart;
+    const isAfterShift = now > shiftEnd;
+
+    const minutesUntilShiftStart = isBeforeShift
+      ? Math.floor((shiftStart.getTime() - now.getTime()) / 60000)
+      : 0;
+
+    const minutesUntilShiftEnd = isWithinShift
+      ? Math.floor((shiftEnd.getTime() - now.getTime()) / 60000)
+      : 0;
+
+    setIsWithinShift(isWithinShift);
+    setIsBeforeShift(isBeforeShift);
+    setIsAfterShift(isAfterShift);
+    setMinutesUntilShiftStart(minutesUntilShiftStart);
+    setMinutesUntilShiftEnd(minutesUntilShiftEnd);
+  };
+
   const loadFaceDetectionModel = useCallback(async () => {
     await tf.ready();
     const loadedModel = await faceDetection.createDetector(
@@ -92,13 +150,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     fetchAttendanceStatus().catch((error) => {
       console.error('Error in fetchAttendanceStatus:', error);
     });
+    fetchShiftDetails().catch((error) => {
+      console.error('Error in fetchShiftDetails:', error);
+    });
     loadFaceDetectionModel().catch((error) => {
       console.error('Error in loadFaceDetectionModel:', error);
     });
     fetchApiKey().catch((error) => {
       console.error('Error in fetchApiKey:', error);
     });
-  }, [userData, fetchAttendanceStatus, loadFaceDetectionModel, fetchApiKey]);
+  }, [
+    userData,
+    fetchAttendanceStatus,
+    attendanceStatus,
+    loadFaceDetectionModel,
+    fetchApiKey,
+  ]);
 
   const calculateDistance = (
     lat1: number,
@@ -321,6 +388,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
       endHour,
       endMinute,
     );
+
+    // Handle shifts that cross midnight
+    if (
+      endHour < startHour ||
+      (endHour === startHour && endMinute < startMinute)
+    ) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
 
     // Allow check-in up to 30 minutes before shift start
     const earliestCheckIn = new Date(shiftStart.getTime() - 30 * 60000);

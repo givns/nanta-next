@@ -59,7 +59,7 @@ export interface AttendanceStatus {
   };
   latestAttendance: Attendance | null;
   isCheckingIn: boolean;
-  shiftAdjustment: ShiftAdjustmentRequest | null;
+  shiftAdjustment: (ShiftAdjustmentRequest & { requestedShift: Shift }) | null;
 }
 
 export interface ShiftData {
@@ -87,10 +87,14 @@ export interface OvertimeApproval {
 }
 
 export interface ShiftAdjustmentRequestData {
+  id: string;
   userId: string;
   requestedShiftId: string;
-  date: string;
+  date: Date;
   reason: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface LeaveRequestData {
