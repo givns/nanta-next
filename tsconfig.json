@@ -19,7 +19,8 @@
       "@/*": ["src/*"],
       "@prisma/client": ["./node_modules/@prisma/client"]
     },
-    "typeRoots": ["./node_modules/@types", "./types"]
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "types": ["node"]
   },
   "include": [
     "next-env.d.ts",
