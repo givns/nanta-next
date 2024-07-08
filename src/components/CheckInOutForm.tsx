@@ -342,6 +342,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
       if (response.data) {
         await fetchAttendanceStatus();
+        fetchShiftDetails();
         setStep(1);
         setShowCamera(false);
         setPhoto(null);

@@ -22,6 +22,8 @@ export default async function handler(
     reason,
     photo,
     deviceSerial,
+    isCheckIn,
+    isOvertime,
   } = req.body;
 
   if (
@@ -30,9 +32,13 @@ export default async function handler(
     !checkTime ||
     !location ||
     !address ||
-    !deviceSerial
+    !deviceSerial ||
+    typeof isCheckIn !== 'boolean' ||
+    typeof isOvertime !== 'boolean'
   ) {
-    return res.status(400).json({ message: 'Missing required fields' });
+    return res
+      .status(400)
+      .json({ message: 'Missing or invalid required fields' });
   }
 
   try {
@@ -45,15 +51,15 @@ export default async function handler(
       reason,
       photo,
       deviceSerial,
-      isCheckIn: true,
-      isOvertime: false,
+      isCheckIn,
+      isOvertime,
     });
     res.status(200).json(attendance);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Check-in/out failed:', error);
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       message: 'Check-in/out failed',
-      error: (error as Error).message,
+      error: error.message,
     });
   }
 }
