@@ -74,11 +74,11 @@ export default function UserDashboard() {
       </div>
       <div className="flex flex-col w-full space-y-2">
         <div className="flex justify-between">
-          <span>Employee Id</span>
+          <span>รหัสพนักงาน</span>
           <span>{user.employeeId}</span>
         </div>
         <div className="flex justify-between">
-          <span>Punch In</span>
+          <span>เวลาเข้างาน</span>
           <span>
             {latestAttendance?.checkInTime
               ? new Date(latestAttendance.checkInTime).toLocaleTimeString()
@@ -86,7 +86,7 @@ export default function UserDashboard() {
           </span>
         </div>
         <div className="flex justify-between">
-          <span>Punch Out</span>
+          <span>เวลาออกงาน</span>
           <span>
             {latestAttendance?.checkOutTime
               ? new Date(latestAttendance.checkOutTime).toLocaleTimeString()
@@ -95,12 +95,12 @@ export default function UserDashboard() {
         </div>
       </div>
       <div className="w-full">
-        <h2 className="font-bold">Calendar</h2>
+        <h2 className="font-bold">ประวัติการทำงาน</h2>
         <Calendar mode="single" className="border rounded-md" />
       </div>
       <div className="flex flex-col w-full space-y-2">
         <div className="flex justify-between">
-          <span>Total No Of Working Days</span>
+          <span>จำนวนวันทำงานทั้งหมด</span>
           <Input
             value={userData.totalWorkingDays.toString()}
             readOnly
@@ -108,7 +108,7 @@ export default function UserDashboard() {
           />
         </div>
         <div className="flex justify-between">
-          <span>Total No Of Present</span>
+          <span>จำนวนวันที่มาทำงาน</span>
           <Input
             value={userData.totalPresent.toString()}
             readOnly
@@ -116,7 +116,7 @@ export default function UserDashboard() {
           />
         </div>
         <div className="flex justify-between">
-          <span>Total No Of Absent</span>
+          <span>จำนวนวันที่ลา</span>
           <Input
             value={userData.totalAbsent.toString()}
             readOnly
@@ -124,7 +124,7 @@ export default function UserDashboard() {
           />
         </div>
         <div className="flex justify-between">
-          <span>Over Time</span>
+          <span>จำนวนชั่วโมงล่วงเวลา OT</span>
           <Input
             value={`${userData.overtimeHours} Hr`}
             readOnly
@@ -132,7 +132,7 @@ export default function UserDashboard() {
           />
         </div>
         <div className="flex justify-between">
-          <span>Balance Leave</span>
+          <span>วันลาคงเหลือ</span>
           <Input
             value={userData.balanceLeave.toString()}
             readOnly
