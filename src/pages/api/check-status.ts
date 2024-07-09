@@ -9,44 +9,40 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  console.log('Received request for check-status');
+  console.log('Query parameters:', req.query);
+
   if (req.method !== 'GET') {
+    console.log('Method not allowed:', req.method);
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   const { employeeId } = req.query;
 
   if (!employeeId || typeof employeeId !== 'string') {
+    console.log('Invalid employeeId:', employeeId);
     return res.status(400).json({ message: 'Valid Employee ID is required' });
   }
 
   try {
+    console.log('Fetching attendance status for employeeId:', employeeId);
     const attendanceStatus =
       await attendanceService.getLatestAttendanceStatus(employeeId);
     console.log(
-      `Attendance status retrieved for ${employeeId}:`,
-      JSON.stringify(attendanceStatus),
+      'Attendance status retrieved:',
+      JSON.stringify(attendanceStatus, null, 2),
     );
 
-    // Check if attendanceStatus is null or undefined
     if (!attendanceStatus) {
+      console.log('Attendance status not found');
       return res.status(404).json({ message: 'Attendance status not found' });
     }
 
-    // Ensure all required properties are present
-    if (
-      !attendanceStatus.user ||
-      !attendanceStatus.user.id ||
-      !attendanceStatus.user.employeeId
-    ) {
-      return res
-        .status(500)
-        .json({ message: 'Invalid attendance status data' });
-    }
-
-    res.status(200).json(attendanceStatus);
+    console.log('Sending successful response');
+    return res.status(200).json(attendanceStatus);
   } catch (error: any) {
-    console.error('Error checking status:', error);
-    res
+    console.error('Error in check-status handler:', error);
+    return res
       .status(error.statusCode || 500)
       .json({ message: error.message || 'Error checking status' });
   }

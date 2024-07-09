@@ -61,13 +61,27 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
   const fetchAttendanceStatus = useCallback(async () => {
     setIsLoadingCheckData(true);
     try {
+      console.log(
+        'Fetching attendance status for employeeId:',
+        userData.employeeId,
+      );
       const response = await axios.get<AttendanceStatus>('/api/check-status', {
         params: { employeeId: userData.employeeId },
       });
+      console.log('Attendance status response:', response.data);
       setAttendanceStatus(response.data);
     } catch (error) {
       console.error('Error fetching attendance status:', error);
-      setError('Failed to fetch attendance status');
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('Error response:', error.response.data);
+        setError(
+          `Failed to fetch attendance status: ${error.response.data.message || error.message}`,
+        );
+      } else {
+        setError(
+          'An unexpected error occurred while fetching attendance status.',
+        );
+      }
     } finally {
       setIsLoadingCheckData(false);
     }

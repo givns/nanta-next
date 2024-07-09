@@ -35,11 +35,25 @@ const CheckInRouter: React.FC = () => {
 
           if (userData && userData.user && userData.user.employeeId) {
             console.log('Employee ID found:', userData.user.employeeId);
-            const statusResponse = await axios.get('/api/check-status', {
-              params: { employeeId: userData.user.employeeId },
-            });
-            console.log('Attendance status response:', statusResponse.data);
-            setAttendanceStatus(statusResponse.data);
+            try {
+              const statusResponse = await axios.get('/api/check-status', {
+                params: { employeeId: userData.user.employeeId },
+              });
+              console.log('Attendance status response:', statusResponse.data);
+              setAttendanceStatus(statusResponse.data);
+            } catch (error) {
+              console.error('Error fetching attendance status:', error);
+              if (axios.isAxiosError(error) && error.response) {
+                console.error('Error response:', error.response.data);
+                setMessage(
+                  `Failed to load attendance status: ${error.response.data.message || error.message}`,
+                );
+              } else {
+                setMessage(
+                  'An unexpected error occurred while fetching attendance status.',
+                );
+              }
+            }
           } else {
             console.error('Employee ID not found in user data');
             setMessage('Employee ID not found. Please contact support.');
