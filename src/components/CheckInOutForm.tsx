@@ -11,6 +11,8 @@ import { getDepartmentNameById } from '../lib/shiftCache';
 
 interface CheckInOutFormProps {
   userData: UserData;
+  initiateIsCheckingIn: boolean;
+  onStatusChange: (isCheckingIn: boolean) => void;
 }
 
 interface Premise {
@@ -33,7 +35,12 @@ const PREMISES: Premise[] = [
 
 const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
-const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
+const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
+  userData,
+  initiateIsCheckingIn,
+  onStatusChange,
+}) => {
+  const [isCheckingIn, setIsCheckingIn] = useState(initiateIsCheckingIn);
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatus | null>(null);
   const [departmentName, setDepartmentName] = useState<string>('');
@@ -368,6 +375,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
       const response = await axios.post('/api/check-in-out', checkInOutData);
 
       console.log('Check-in/out response:', response.data);
+      const newStatus = !isCheckingIn;
+      setIsCheckingIn(newStatus);
+      onStatusChange(newStatus);
 
       if (response.data) {
         await fetchAttendanceStatus();

@@ -10,6 +10,7 @@ const CheckInRouter: React.FC = () => {
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
   );
+  const [isCheckingIn, setIsCheckingIn] = useState<boolean | null>(null);
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -29,10 +30,16 @@ const CheckInRouter: React.FC = () => {
           });
           console.log('User data response:', userResponse.data);
           const userData = userResponse.data;
-          setUserData(userData);
 
           if (userData && userData.user && userData.user.employeeId) {
             console.log('Employee ID found:', userData.user.employeeId);
+            setUserData(userData);
+
+            // Fetch initial check-in status
+            const statusResponse = await axios.get('/api/check-status', {
+              params: { employeeId: userData.user.employeeId },
+            });
+            setIsCheckingIn(statusResponse.data.isCheckingIn);
           } else {
             console.error('Employee ID not found in user data');
             setMessage('Employee ID not found. Please contact support.');
@@ -68,7 +75,7 @@ const CheckInRouter: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  if (!userData) {
+  if (!userData || isCheckingIn === null) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">กำลังเข้าสู่ระบบ...</h1>
@@ -81,7 +88,7 @@ const CheckInRouter: React.FC = () => {
     <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          ระบบบันทึกเวลา
+          {isCheckingIn ? 'ระบบบันทึกเวลาเข้างาน' : 'ระบบบันทึกเวลาออกงาน'}
         </h1>
         <div className="text-3xl font-bold text-center mb-8 text-black-950">
           {currentTime}
@@ -91,7 +98,13 @@ const CheckInRouter: React.FC = () => {
             {message}
           </div>
         )}
-        {userData && <CheckInOutForm userData={userData} />}
+        {userData && (
+          <CheckInOutForm
+            userData={userData}
+            initialIsCheckingIn={isCheckingIn}
+            onStatusChange={(newStatus) => setIsCheckingIn(newStatus)}
+          />
+        )}
       </div>
     </div>
   );
