@@ -11,7 +11,7 @@ import { getDepartmentNameById } from '../lib/shiftCache';
 
 interface CheckInOutFormProps {
   userData: UserData;
-  initialIsCheckingIn: boolean;
+  initialAttendanceStatus: AttendanceStatus;
   onStatusChange: (newStatus: boolean) => void;
 }
 
@@ -37,12 +37,12 @@ const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
-  initialIsCheckingIn,
+  initialAttendanceStatus,
   onStatusChange,
 }) => {
-  const [isCheckingIn, setIsCheckingIn] = useState(initialIsCheckingIn);
-  const [attendanceStatus, setAttendanceStatus] =
-    useState<AttendanceStatus | null>(null);
+  const [attendanceStatus, setAttendanceStatus] = useState(
+    initialAttendanceStatus,
+  );
   const [departmentName, setDepartmentName] = useState<string>('');
   const [isWithinShift, setIsWithinShift] = useState(false);
   const [isBeforeShift, setIsBeforeShift] = useState(false);
@@ -159,6 +159,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setMinutesUntilShiftEnd(minutesUntilShiftEnd);
   }, [attendanceStatus]);
 
+  const refreshAttendanceStatus = useCallback(async () => {
+    try {
+      const response = await axios.get<AttendanceStatus>('/api/check-status', {
+        params: { employeeId: userData.employeeId },
+      });
+      setAttendanceStatus(response.data);
+      onStatusChange(response.data.isCheckingIn);
+    } catch (error) {
+      console.error('Error fetching attendance status:', error);
+      // Handle error (e.g., show an error message to the user)
+    }
+  }, [userData.employeeId, onStatusChange]);
+
   const loadFaceDetectionModel = useCallback(async () => {
     await tf.ready();
     const loadedModel = await faceDetection.createDetector(
@@ -229,6 +242,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [
     fetchAttendanceStatus,
     fetchShiftDetails,
+    refreshAttendanceStatus,
     loadFaceDetectionModel,
     fetchApiKey,
     userData,
@@ -367,7 +381,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         reason: !inPremises ? reason : undefined,
         photo,
         deviceSerial: deviceSerial || 'WEBAPP001',
-        isCheckIn: attendanceStatus?.isCheckingIn,
+        isCheckIn: attendanceStatus.isCheckingIn,
         isOvertime: false,
       };
 
@@ -376,19 +390,28 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       const response = await axios.post('/api/check-in-out', checkInOutData);
 
       console.log('Check-in/out response:', response.data);
-      const newStatus = !isCheckingIn;
-      setIsCheckingIn(newStatus);
-      onStatusChange(newStatus);
 
-      if (response.data) {
-        await fetchAttendanceStatus();
+      if (response.data && response.data.success) {
+        // Update local state
+        const newStatus = !attendanceStatus.isCheckingIn;
+        setAttendanceStatus((prevStatus) => ({
+          ...prevStatus,
+          isCheckingIn: newStatus,
+          latestAttendance: response.data.attendance,
+        }));
+        onStatusChange(newStatus);
+
+        // Reset form state
         setStep(1);
         setShowCamera(false);
         setPhoto(null);
         setReason('');
         setDeviceSerial('');
+
+        // Show a success message
+        setError('Check-in/out successful!'); // Using setError for success message
       } else {
-        setError('เกิดข้อผิดพลาดในการลงเวลา กรุณาลองอีกครั้ง');
+        throw new Error('Invalid response from server');
       }
     } catch (error) {
       console.error('Error during check-in/out:', error);

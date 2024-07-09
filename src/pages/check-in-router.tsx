@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
-import { UserData } from '../types/user';
+import { UserData, AttendanceStatus } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
 
@@ -10,6 +10,8 @@ const CheckInRouter: React.FC = () => {
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
   );
+  const [attendanceStatus, setAttendanceStatus] =
+    useState<AttendanceStatus | null>(null);
   const [isCheckingIn, setIsCheckingIn] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -82,7 +84,7 @@ const CheckInRouter: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  if (!userData || isCheckingIn === null) {
+  if (!userData || !attendanceStatus) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">กำลังเข้าสู่ระบบ...</h1>
@@ -105,10 +107,10 @@ const CheckInRouter: React.FC = () => {
             {message}
           </div>
         )}
-        {userData && (
+        {userData && attendanceStatus && (
           <CheckInOutForm
             userData={userData}
-            initialIsCheckingIn={isCheckingIn}
+            initialAttendanceStatus={attendanceStatus}
             onStatusChange={(newStatus) => setIsCheckingIn(newStatus)}
           />
         )}
