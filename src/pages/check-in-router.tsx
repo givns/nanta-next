@@ -25,7 +25,6 @@ const CheckInRouter: React.FC = () => {
           const lineUserId = profile.userId;
           console.log('LINE User ID:', lineUserId);
 
-          // Fetch user data from your API
           console.log('Fetching user data...');
           const userResponse = await axios.get('/api/users', {
             params: { lineUserId },
@@ -36,7 +35,6 @@ const CheckInRouter: React.FC = () => {
 
           if (userData && userData.user && userData.user.employeeId) {
             console.log('Employee ID found:', userData.user.employeeId);
-            // Fetch attendance status
             const statusResponse = await axios.get('/api/check-status', {
               params: { employeeId: userData.user.employeeId },
             });
@@ -52,14 +50,14 @@ const CheckInRouter: React.FC = () => {
         }
       } catch (error: any) {
         console.error('Error initializing LIFF or fetching data:', error);
-        if (error.response) {
+        if (axios.isAxiosError(error) && error.response) {
           console.error('Error response:', error.response.data);
           setMessage(
-            error.response.data.error ||
+            error.response.data.message ||
               'Failed to load user data or attendance status',
           );
         } else {
-          setMessage('Failed to load user data or attendance status');
+          setMessage('An unexpected error occurred. Please try again later.');
         }
       }
     };

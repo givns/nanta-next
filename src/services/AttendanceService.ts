@@ -35,78 +35,57 @@ export class AttendanceService {
       throw new Error('Employee ID is required');
     }
 
-    const user = await prisma.user.findUnique({
-      where: { employeeId },
-      include: { assignedShift: true },
-    });
-
-    if (!user) {
-      console.error(`User not found for employee ID: ${employeeId}`);
-      throw new Error('User not found');
-    }
-
-    if (!user.assignedShift) {
-      console.error(`User has no assigned shift: ${employeeId}`);
-      throw new Error('User has no assigned shift');
-    }
-
-    console.log(
-      `User found: ${user.id}, Assigned shift: ${user.assignedShift.id}`,
-    );
-
-    let externalData: {
-      checkIn: ExternalCheckInData | null;
-      userInfo: any | null;
-    } | null = null;
-
     try {
-      externalData = await this.externalDbService.getLatestCheckIn(employeeId);
-      console.log('External data:', JSON.stringify(externalData, null, 2));
-    } catch (error) {
-      console.error('Error fetching external user data:', error);
-    }
-
-    let latestAttendance = await this.getLatestAttendanceRecord(user.id);
-    const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
-
-    if (latestAttendance) {
-      const startOfDay = new Date(latestAttendance.date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(startOfDay);
-      endOfDay.setDate(endOfDay.getDate() + 1);
-
-      const latestCheckInForDay = await prisma.attendance.findFirst({
-        where: {
-          userId: user.id,
-          date: {
-            gte: startOfDay,
-            lt: endOfDay,
-          },
-        },
-        orderBy: {
-          checkInTime: 'desc',
-        },
+      const user = await prisma.user.findUnique({
+        where: { employeeId },
+        include: { assignedShift: true },
       });
 
-      if (latestCheckInForDay) {
-        latestAttendance = latestCheckInForDay;
+      if (!user) {
+        console.error(`User not found for employee ID: ${employeeId}`);
+        throw new Error('User not found');
       }
+
+      if (!user.assignedShift) {
+        console.error(`User has no assigned shift: ${employeeId}`);
+        throw new Error('User has no assigned shift');
+      }
+
+      console.log(
+        `User found: ${user.id}, Assigned shift: ${user.assignedShift.id}`,
+      );
+
+      let externalData = null;
+      try {
+        externalData =
+          await this.externalDbService.getLatestCheckIn(employeeId);
+        console.log('External data:', JSON.stringify(externalData, null, 2));
+      } catch (error) {
+        console.error('Error fetching external user data:', error);
+        // Continue execution even if external data fetch fails
+      }
+
+      const latestAttendance = await this.getLatestAttendanceRecord(user.id);
+      const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
+
+      const result: AttendanceStatus = {
+        user: {
+          id: user.id,
+          employeeId: user.employeeId,
+          name: user.name,
+          assignedShift: user.assignedShift,
+        },
+        latestAttendance,
+        isCheckingIn,
+        shiftAdjustment: null, // You might want to fetch this separately if needed
+      };
+
+      console.log(`Returning attendance status: ${JSON.stringify(result)}`);
+      return result;
+    } catch (error) {
+      console.error('Error in getLatestAttendanceStatus:', error);
+      throw error;
     }
-
-    const result: AttendanceStatus = {
-      user: {
-        id: user.id,
-        employeeId: user.employeeId,
-        name: user.name,
-        assignedShift: user.assignedShift,
-      },
-      latestAttendance,
-      isCheckingIn,
-      shiftAdjustment: null,
-    };
-
-    console.log(`Returning attendance status: ${JSON.stringify(result)}`);
-    return result;
   }
 
   async processExternalCheckInOut(
@@ -118,14 +97,24 @@ export class AttendanceService {
       'Processing external check-in data:',
       JSON.stringify(externalCheckIn, null, 2),
     );
-    console.log('User info:', JSON.stringify(userInfo, null, 2));
+
+    const { user_serial, user_no, user_lname, user_dep, user_depname } =
+      userInfo;
+    console.log(
+      'User info:',
+      JSON.stringify(
+        { user_serial, user_no, user_lname, user_dep, user_depname },
+        null,
+        2,
+      ),
+    );
 
     const user = await prisma.user.findUnique({
-      where: { employeeId: userInfo.user_no.toString() },
+      where: { employeeId: user_no.toString() },
     });
 
     if (!user) {
-      console.error('User not found for employee ID:', userInfo.user_no);
+      console.error('User not found for employee ID:', user_no);
       throw new Error('User not found');
     }
 
