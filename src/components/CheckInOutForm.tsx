@@ -97,7 +97,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     }
   }, [userData.employeeId]);
 
-  const fetchShiftDetails = async () => {
+  const fetchShiftDetails = useCallback(async () => {
     if (!attendanceStatus) return;
 
     const now = new Date();
@@ -148,7 +148,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     setIsAfterShift(isAfterShift);
     setMinutesUntilShiftStart(minutesUntilShiftStart);
     setMinutesUntilShiftEnd(minutesUntilShiftEnd);
-  };
+  }, [attendanceStatus]);
 
   const loadFaceDetectionModel = useCallback(async () => {
     await tf.ready();
@@ -184,9 +184,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
       console.error('Error in fetchApiKey:', error);
     });
   }, [
-    userData,
     fetchAttendanceStatus,
-    attendanceStatus,
+    fetchShiftDetails,
     loadFaceDetectionModel,
     fetchApiKey,
   ]);
@@ -293,14 +292,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
     getCurrentLocation();
   }, [isWithinPremises]);
-
-  const convertToBangkokDate = (DateString: string) => {
-    return DateString.split('T')[0]; // Just return the date part
-  };
-
-  const convertToBangkokTime = (dateString: string) => {
-    return dateString.split('T')[1].substring(0, 5); // Return HH:MM
-  };
 
   const getDeviceType = (deviceSerial: string | null) => {
     if (!deviceSerial) return 'ไม่ทราบ';
@@ -447,14 +438,26 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     return (
       <div className="mb-4">
         <h3 className="text-lg font-semibold mb-2">Shift Information:</h3>
-        <p>Shift: {attendanceStatus.user.assignedShift.name}</p>
-        <p>Start Time: {attendanceStatus.user.assignedShift.startTime}</p>
-        <p>End Time: {attendanceStatus.user.assignedShift.endTime}</p>
+        <p>Shift: {shift.name}</p>
+        <p>Start Time: {shift.startTime}</p>
+        <p>End Time: {shift.endTime}</p>
         {shiftAdjustment && (
           <p className="text-blue-600">Shift adjusted for today</p>
         )}
       </div>
     );
+  };
+
+  const formatDate = (date: Date | null): string => {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleString('th-TH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
   };
 
   return (
@@ -474,16 +477,41 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
               ) : (
                 <>
                   {renderShiftInfo()}
-                  {attendanceStatus?.latestAttendance && (
+                  <h2>Current Shift Status</h2>
+                  {isWithinShift && <p>You are currently within your shift.</p>}
+                  {isBeforeShift && (
+                    <p>
+                      Your shift starts in {minutesUntilShiftStart} minutes.
+                    </p>
+                  )}
+                  {isAfterShift && <p>Your shift has ended.</p>}
+                  {isWithinShift && (
+                    <p>Your shift ends in {minutesUntilShiftEnd} minutes.</p>
+                  )}
+                  {attendanceStatus.latestAttendance && (
                     <div className="mb-4">
                       <h3 className="text-lg font-semibold mb-2">
                         สถานะการลงเวลาล่าสุดของคุณ:
                       </h3>
                       <div className="bg-gray-100 p-3 rounded-lg">
-                        วิธีการ:{' '}
-                        {getDeviceType(
-                          attendanceStatus.latestAttendance.checkInDeviceSerial,
-                        )}
+                        <p>
+                          Date:{' '}
+                          {formatDate(attendanceStatus.latestAttendance.date)}
+                        </p>
+                        <p>
+                          Check-in Time:{' '}
+                          {formatDate(
+                            attendanceStatus.latestAttendance.checkInTime,
+                          )}
+                        </p>
+                        <p>
+                          Check-out Time:{' '}
+                          {attendanceStatus.latestAttendance.checkOutTime
+                            ? formatDate(
+                                attendanceStatus.latestAttendance.checkOutTime,
+                              )
+                            : 'Not checked out yet'}
+                        </p>
                         <p>
                           วิธีการ:{' '}
                           {getDeviceType(
