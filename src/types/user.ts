@@ -48,6 +48,7 @@ export interface AttendanceStatus {
     id: string;
     employeeId: string;
     name: string;
+    departmentId: string;
     assignedShift: {
       id: string;
       shiftCode: string;

@@ -74,6 +74,7 @@ export class AttendanceService {
           employeeId: user.employeeId,
           name: user.name,
           assignedShift: user.assignedShift,
+          departmentId: user.departmentId,
         },
         latestAttendance,
         isCheckingIn,

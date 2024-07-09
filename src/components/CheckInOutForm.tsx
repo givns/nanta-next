@@ -7,6 +7,7 @@ import { AttendanceStatus, UserData } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 import Image from 'next/image';
+import { getDepartmentNameById } from '../lib/shiftCache';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -35,12 +36,15 @@ const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatus | null>(null);
+  const [departmentName, setDepartmentName] = useState<string>('');
   const [isWithinShift, setIsWithinShift] = useState(false);
   const [isBeforeShift, setIsBeforeShift] = useState(false);
   const [isAfterShift, setIsAfterShift] = useState(false);
   const [minutesUntilShiftStart, setMinutesUntilShiftStart] = useState(0);
   const [minutesUntilShiftEnd, setMinutesUntilShiftEnd] = useState(0);
+
   const [isLoadingCheckData, setIsLoadingCheckData] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [showCamera, setShowCamera] = useState(false);
@@ -59,7 +63,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
   const webcamRef = useRef<Webcam>(null);
 
   const fetchAttendanceStatus = useCallback(async () => {
-    setIsLoadingCheckData(true);
+    setIsLoading(true);
+    setError(null);
     try {
       console.log(
         'Fetching attendance status for employeeId:',
@@ -70,10 +75,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
       });
       console.log('Attendance status response:', response.data);
       setAttendanceStatus(response.data);
+      if (response.data.user.departmentId) {
+        const deptName = getDepartmentNameById(response.data.user.departmentId);
+        setDepartmentName(deptName || 'Unknown Department');
+      } else {
+        setDepartmentName('Department Not Assigned');
+      }
     } catch (error) {
       console.error('Error fetching attendance status:', error);
       if (axios.isAxiosError(error) && error.response) {
-        console.error('Error response:', error.response.data);
         setError(
           `Failed to fetch attendance status: ${error.response.data.message || error.message}`,
         );
@@ -83,7 +93,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
         );
       }
     } finally {
-      setIsLoadingCheckData(false);
+      setIsLoading(false);
     }
   }, [userData.employeeId]);
 
@@ -180,6 +190,17 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     loadFaceDetectionModel,
     fetchApiKey,
   ]);
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  if (!attendanceStatus) {
+    return <div>No attendance status available.</div>;
+  }
 
   const calculateDistance = (
     lat1: number,
@@ -426,9 +447,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     return (
       <div className="mb-4">
         <h3 className="text-lg font-semibold mb-2">Shift Information:</h3>
-        <p>Shift: {shift.name}</p>
-        <p>Start Time: {shift.startTime}</p>
-        <p>End Time: {shift.endTime}</p>
+        <p>Shift: {attendanceStatus.user.assignedShift.name}</p>
+        <p>Start Time: {attendanceStatus.user.assignedShift.startTime}</p>
+        <p>End Time: {attendanceStatus.user.assignedShift.endTime}</p>
         {shiftAdjustment && (
           <p className="text-blue-600">Shift adjusted for today</p>
         )}
@@ -440,7 +461,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     <div className="space-y-6">
       {step === 1 && (
         <div>
-          <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
+          <p className="text-lg mb-2">สวัสดี, {attendanceStatus.user.name}</p>
+          <p>Employee ID: {attendanceStatus.user.employeeId}</p>
+          <p>Department: {departmentName}</p>
 
           {!showCamera && (
             <>
@@ -457,29 +480,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
                         สถานะการลงเวลาล่าสุดของคุณ:
                       </h3>
                       <div className="bg-gray-100 p-3 rounded-lg">
-                        <p>
-                          วันที่:{' '}
-                          {attendanceStatus.latestAttendance.checkInTime
-                            ? convertToBangkokDate(
-                                attendanceStatus.latestAttendance.checkInTime.toString(),
-                              )
-                            : 'N/A'}
-                        </p>
-                        <p>
-                          เวลา:{' '}
-                          {attendanceStatus.latestAttendance.checkInTime
-                            ? convertToBangkokTime(
-                                attendanceStatus.latestAttendance.checkInTime.toString(),
-                              )
-                            : 'N/A'}
-                        </p>
-                        <p>
-                          วิธีการ:{' '}
-                          {getDeviceType(
-                            attendanceStatus.latestAttendance
-                              .checkInDeviceSerial,
-                          )}
-                        </p>
+                        วิธีการ:{' '}
+                        {getDeviceType(
+                          attendanceStatus.latestAttendance.checkInDeviceSerial,
+                        )}
                         <p>
                           วิธีการ:{' '}
                           {getDeviceType(

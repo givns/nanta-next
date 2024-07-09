@@ -5,6 +5,8 @@ import { AttendanceService } from '../../services/AttendanceService';
 
 const attendanceService = new AttendanceService();
 
+// pages/api/check-status.ts
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -17,9 +19,9 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { employeeId } = req.query;
+  const employeeId = req.query.employeeId as string;
 
-  if (!employeeId || typeof employeeId !== 'string') {
+  if (!employeeId) {
     console.log('Invalid employeeId:', employeeId);
     return res.status(400).json({ message: 'Valid Employee ID is required' });
   }

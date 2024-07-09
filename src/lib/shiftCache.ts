@@ -121,6 +121,16 @@ export const departmentIdNameMap: { [key: number]: string } = {
   10016: 'ฝ่ายรักษาความสะอาด',
   10020: 'ฝ่ายรักษาความปลอดภัย',
 };
+
+export function getDepartmentNameById(
+  departmentId: number | string,
+): string | undefined {
+  const id =
+    typeof departmentId === 'string'
+      ? parseInt(departmentId, 10)
+      : departmentId;
+  return departmentIdNameMap[id];
+}
 export function getDepartmentById(departmentId: number): string | null {
   return departmentIdNameMap[departmentId] || null;
 }
