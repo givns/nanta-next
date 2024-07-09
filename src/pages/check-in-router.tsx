@@ -13,12 +13,17 @@ const CheckInRouter: React.FC = () => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatus | null>(null);
   const [isCheckingIn, setIsCheckingIn] = useState<boolean | null>(null);
+  const [fetchedUserData, setFetchedUserData] = useState<UserData | null>(null);
+  const [statusResponse, setStatusResponse] = useState<AttendanceStatus | null>(
+    null,
+  );
 
   useEffect(() => {
     const initializeLiff = async () => {
       try {
         console.log('Initializing LIFF...');
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
+        console.log('LIFF initialized successfully');
 
         if (liff.isLoggedIn()) {
           console.log('User is logged in, fetching profile...');
@@ -27,28 +32,25 @@ const CheckInRouter: React.FC = () => {
           console.log('LINE User ID:', lineUserId);
 
           console.log('Fetching user data...');
-          const userResponse = await axios.get('/api/users', {
+          const userResponse = await axios.get<UserData>('/api/users', {
             params: { lineUserId },
           });
           console.log('User data response:', userResponse.data);
-          const userData = userResponse.data;
+          setUserData(userResponse.data);
 
-          if (userData && userData.user && userData.user.employeeId) {
-            console.log('Employee ID found:', userData.user.employeeId);
-            setUserData(userData);
+          if (userResponse.data && userResponse.data.employeeId) {
+            console.log('Employee ID found:', userResponse.data.employeeId);
 
-            // Fetch initial check-in status
-            try {
-              const statusResponse = await axios.get('/api/check-status', {
-                params: { employeeId: userData.user.employeeId },
-              });
-              setIsCheckingIn(statusResponse.data.isCheckingIn);
-            } catch (error) {
-              console.error('Error fetching attendance status:', error);
-              setMessage(
-                'Failed to fetch attendance status. Please try again.',
-              );
-            }
+            console.log('Fetching initial attendance status...');
+            const statusResponse = await axios.get<AttendanceStatus>(
+              '/api/check-status',
+              {
+                params: { employeeId: userResponse.data.employeeId },
+              },
+            );
+            console.log('Attendance status response:', statusResponse.data);
+            setAttendanceStatus(statusResponse.data);
+            setIsCheckingIn(statusResponse.data.isCheckingIn);
           } else {
             console.error('Employee ID not found in user data');
             setMessage('Employee ID not found. Please contact support.');
@@ -84,7 +86,22 @@ const CheckInRouter: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
+  useEffect(() => {
+    if (fetchedUserData && statusResponse) {
+      setUserData(fetchedUserData);
+      setAttendanceStatus(statusResponse);
+      setIsCheckingIn(statusResponse.isCheckingIn);
+      console.log('States updated');
+    }
+  }, [fetchedUserData, statusResponse]);
+
   if (!userData || !attendanceStatus) {
+    console.log(
+      'Still loading. userData:',
+      !!userData,
+      'attendanceStatus:',
+      !!attendanceStatus,
+    );
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">กำลังเข้าสู่ระบบ...</h1>
@@ -92,7 +109,6 @@ const CheckInRouter: React.FC = () => {
       </div>
     );
   }
-
   return (
     <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
@@ -108,11 +124,17 @@ const CheckInRouter: React.FC = () => {
           </div>
         )}
         {userData && attendanceStatus && (
-          <CheckInOutForm
-            userData={userData}
-            initialAttendanceStatus={attendanceStatus}
-            onStatusChange={(newStatus) => setIsCheckingIn(newStatus)}
-          />
+          <>
+            {console.log('Rendering CheckInOutForm with:', {
+              userData,
+              attendanceStatus,
+            })}
+            <CheckInOutForm
+              userData={userData}
+              initialAttendanceStatus={attendanceStatus}
+              onStatusChange={(newStatus) => setIsCheckingIn(newStatus)}
+            />
+          </>
         )}
       </div>
     </div>
