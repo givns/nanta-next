@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
-import { UserData, AttendanceStatus } from '../types/user';
+import { UserData } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [attendanceStatus, setAttendanceStatus] =
-    useState<AttendanceStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
@@ -70,7 +68,7 @@ const CheckInRouter: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  if (!userData || !attendanceStatus) {
+  if (!userData) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">กำลังเข้าสู่ระบบ...</h1>
@@ -83,9 +81,7 @@ const CheckInRouter: React.FC = () => {
     <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          {attendanceStatus?.isCheckingIn
-            ? 'ระบบบันทึกเวลาเข้างาน'
-            : 'ระบบบันทึกเวลาออกงาน'}
+          ระบบบันทึกเวลา
         </h1>
         <div className="text-3xl font-bold text-center mb-8 text-black-950">
           {currentTime}
@@ -95,7 +91,7 @@ const CheckInRouter: React.FC = () => {
             {message}
           </div>
         )}
-        {userData && attendanceStatus && <CheckInOutForm userData={userData} />}
+        {userData && <CheckInOutForm userData={userData} />}
       </div>
     </div>
   );
