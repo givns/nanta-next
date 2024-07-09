@@ -170,6 +170,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     }
   }, []);
 
+  const isWithinPremises = useCallback(
+    (lat: number, lng: number): Premise | null => {
+      for (const premise of PREMISES) {
+        const distance = calculateDistance(lat, lng, premise.lat, premise.lng);
+        if (distance <= premise.radius) {
+          return premise;
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
   const getAddressFromCoordinates = useCallback(
     async (lat: number, lng: number): Promise<string> => {
       try {
@@ -212,50 +225,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     fetchApiKey,
     userData,
   ]);
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
-
-  if (!attendanceStatus) {
-    return <div>No attendance status available.</div>;
-  }
-
-  const calculateDistance = (
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number,
-  ): number => {
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // Distance in meters
-  };
-
-  const isWithinPremises = useCallback(
-    (lat: number, lng: number): Premise | null => {
-      for (const premise of PREMISES) {
-        const distance = calculateDistance(lat, lng, premise.lat, premise.lng);
-        if (distance <= premise.radius) {
-          return premise;
-        }
-      }
-      return null;
-    },
-    [],
-  );
 
   useEffect(() => {
     const getCurrentLocation = async () => {
@@ -294,6 +263,38 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
 
     getCurrentLocation();
   }, [isWithinPremises, getAddressFromCoordinates]);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  if (!attendanceStatus) {
+    return <div>No attendance status available.</div>;
+  }
+
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
 
   const getDeviceType = (deviceSerial: string | null) => {
     if (!deviceSerial) return 'ไม่ทราบ';
