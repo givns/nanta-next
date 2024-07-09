@@ -19,10 +19,10 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const employeeId = req.query.employeeId as string;
+  const { employeeId } = req.query;
 
-  if (!employeeId) {
-    console.log('Invalid employeeId:', employeeId);
+  if (!employeeId || typeof employeeId !== 'string') {
+    console.error('Invalid or missing employeeId:', employeeId);
     return res.status(400).json({ message: 'Valid Employee ID is required' });
   }
 

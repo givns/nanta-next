@@ -82,6 +82,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       });
       console.log('Attendance status response:', response.data);
       setAttendanceStatus(response.data);
+
       if (response.data.user.departmentId) {
         const deptName = getDepartmentNameById(response.data.user.departmentId);
         setDepartmentName(deptName || 'Unknown Department');
