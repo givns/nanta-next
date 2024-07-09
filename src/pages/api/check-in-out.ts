@@ -60,11 +60,9 @@ export default async function handler(
     if (error.name === 'NetworkError') {
       res.status(503).json({ message: 'Network error. Please try again.' });
     } else if (error.name === 'DataConsistencyError') {
-      res
-        .status(409)
-        .json({
-          message: 'Data inconsistency detected. Please contact support.',
-        });
+      res.status(409).json({
+        message: 'Data inconsistency detected. Please contact support.',
+      });
     } else {
       res
         .status(500)
