@@ -234,26 +234,26 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     [],
   );
 
-  const getAddressFromCoordinates = async (
-    lat: number,
-    lng: number,
-  ): Promise<string> => {
-    try {
-      const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API}`,
-      );
+  const getAddressFromCoordinates = useCallback(
+    async (lat: number, lng: number): Promise<string> => {
+      try {
+        const response = await axios.get(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API}`,
+        );
 
-      if (response.data.results && response.data.results.length > 0) {
-        return response.data.results[0].formatted_address;
-      } else {
-        console.warn('No address found for the given coordinates');
-        return 'Address not found';
+        if (response.data.results && response.data.results.length > 0) {
+          return response.data.results[0].formatted_address;
+        } else {
+          console.warn('No address found for the given coordinates');
+          return 'Address not found';
+        }
+      } catch (error) {
+        console.error('Error fetching address:', error);
+        return 'Unable to fetch address';
       }
-    } catch (error) {
-      console.error('Error fetching address:', error);
-      return 'Unable to fetch address';
-    }
-  };
+    },
+    [],
+  );
 
   useEffect(() => {
     const getCurrentLocation = async () => {
@@ -291,7 +291,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({ userData }) => {
     };
 
     getCurrentLocation();
-  }, [isWithinPremises]);
+  }, [isWithinPremises, getAddressFromCoordinates]);
 
   const getDeviceType = (deviceSerial: string | null) => {
     if (!deviceSerial) return 'ไม่ทราบ';
