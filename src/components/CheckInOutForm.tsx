@@ -11,8 +11,8 @@ import { getDepartmentNameById } from '../lib/shiftCache';
 
 interface CheckInOutFormProps {
   userData: UserData;
-  initiateIsCheckingIn: boolean;
-  onStatusChange: (isCheckingIn: boolean) => void;
+  initialIsCheckingIn: boolean;
+  onStatusChange: (newStatus: boolean) => void;
 }
 
 interface Premise {
@@ -37,10 +37,10 @@ const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
-  initiateIsCheckingIn,
+  initialIsCheckingIn,
   onStatusChange,
 }) => {
-  const [isCheckingIn, setIsCheckingIn] = useState(initiateIsCheckingIn);
+  const [isCheckingIn, setIsCheckingIn] = useState(initialIsCheckingIn);
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatus | null>(null);
   const [departmentName, setDepartmentName] = useState<string>('');
