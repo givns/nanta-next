@@ -80,7 +80,11 @@ export class AttendanceService {
         shiftAdjustment: null, // You might want to fetch this separately if needed
       };
 
-      console.log(`Returning attendance status: ${JSON.stringify(result)}`);
+      console.log(
+        `Constructed AttendanceStatus:`,
+        JSON.stringify(result, null, 2),
+      );
+
       return result;
     } catch (error) {
       console.error('Error in getLatestAttendanceStatus:', error);

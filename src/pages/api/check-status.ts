@@ -1,3 +1,5 @@
+// pages/api/check-status.ts
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 
@@ -24,6 +26,23 @@ export default async function handler(
       `Attendance status retrieved for ${employeeId}:`,
       JSON.stringify(attendanceStatus),
     );
+
+    // Check if attendanceStatus is null or undefined
+    if (!attendanceStatus) {
+      return res.status(404).json({ message: 'Attendance status not found' });
+    }
+
+    // Ensure all required properties are present
+    if (
+      !attendanceStatus.user ||
+      !attendanceStatus.user.id ||
+      !attendanceStatus.user.employeeId
+    ) {
+      return res
+        .status(500)
+        .json({ message: 'Invalid attendance status data' });
+    }
+
     res.status(200).json(attendanceStatus);
   } catch (error: any) {
     console.error('Error checking status:', error);
