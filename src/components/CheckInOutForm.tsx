@@ -251,34 +251,25 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   useEffect(() => {
     const getCurrentLocation = async () => {
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            console.log('Current location:', { lat: latitude, lng: longitude });
-            setLocation({ lat: latitude, lng: longitude });
-
-            const premise = isWithinPremises(latitude, longitude);
-            if (premise) {
-              setInPremises(true);
-              setAddress(premise.name);
-            } else {
-              setInPremises(false);
-              const fetchedAddress = await getAddressFromCoordinates(
-                latitude,
-                longitude,
-              );
-              setAddress(fetchedAddress);
-            }
-          },
-          (error) => {
-            console.error('Error getting current location:', error);
-            setError('Unable to get current location. Please try again.');
-          },
-        );
+        try {
+          const position = await new Promise<GeolocationPosition>(
+            (resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject);
+            },
+          );
+          setLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        } catch (error) {
+          console.error('Error getting location:', error);
+          setLocation(null);
+          setError('Unable to get precise location. Using default location.');
+        }
       } else {
-        console.error('Geolocation is not supported by this browser.');
+        setLocation(null);
         setError(
-          'Geolocation is not supported by your browser. Please use a different device or browser.',
+          'Geolocation is not supported by this browser. Using default location.',
         );
       }
     };
@@ -353,360 +344,362 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             setError('ไม่พบใบหน้า กรุณาลองอีกครั้ง');
           }
         } catch (error) {
-          console.error('Error during face detection:', error);
-          setError('เกิดข้อผิดพลาดในการตรวจจับใบหน้า กรุณาลองอีกครั้ง');
+          console.error('Error capturing photo:', error);
+          setError(
+            'Unable to capture photo. Proceeding with check-in without photo.',
+          );
+          setStep((prevStep) => prevStep + 1);
         }
       } else {
-        console.error('Failed to capture photo: imageSrc is null');
-        setError('Failed to capture photo. Please try again.');
-      }
-    } else {
-      console.error('Webcam ref is null or model is not loaded');
-      setError(
-        'Camera is not initialized or face detection model is not loaded. Please refresh the page and try again.',
-      );
-    }
-  };
-
-  const handleCheckInOut = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const checkInOutData = {
-        userId: userData.id,
-        employeeId: userData.employeeId,
-        checkTime: new Date().toISOString(),
-        location: JSON.stringify(location),
-        address,
-        reason: !inPremises ? reason : undefined,
-        photo,
-        deviceSerial: deviceSerial || 'WEBAPP001',
-        isCheckIn: attendanceStatus.isCheckingIn,
-        isOvertime: false,
-      };
-
-      console.log('Submitting data:', checkInOutData);
-
-      const response = await axios.post('/api/check-in-out', checkInOutData);
-
-      console.log('Check-in/out response:', response.data);
-
-      if (response.data && response.data.success) {
-        // Update local state
-        const newStatus = !attendanceStatus.isCheckingIn;
-        setAttendanceStatus((prevStatus) => ({
-          ...prevStatus,
-          isCheckingIn: newStatus,
-          latestAttendance: response.data.attendance,
-        }));
-        onStatusChange(newStatus);
-
-        // Reset form state
-        setStep(1);
-        setShowCamera(false);
-        setPhoto(null);
-        setReason('');
-        setDeviceSerial('');
-
-        // Show a success message
-        setError('Check-in/out successful!'); // Using setError for success message
-      } else {
-        throw new Error('Invalid response from server');
-      }
-    } catch (error) {
-      console.error('Error during check-in/out:', error);
-      if (axios.isAxiosError(error) && error.response) {
         setError(
-          `เกิดข้อผิดพลาดในการลงเวลา: ${error.response.data.message || error.message}`,
+          'Camera not available. Proceeding with check-in without photo.',
         );
-      } else {
-        setError('เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ กรุณาลองอีกครั้ง');
+        setStep((prevStep) => prevStep + 1);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const isWithinShiftTime = () => {
-    if (!attendanceStatus) return false;
-
-    const now = new Date();
-    const shift =
-      attendanceStatus.shiftAdjustment?.requestedShift ||
-      attendanceStatus.user.assignedShift;
-    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
-    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
-
-    const shiftStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      startHour,
-      startMinute,
-    );
-    const shiftEnd = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      endHour,
-      endMinute,
-    );
-
-    // Handle shifts that cross midnight
-    if (
-      endHour < startHour ||
-      (endHour === startHour && endMinute < startMinute)
-    ) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
     }
 
-    // Allow check-in up to 30 minutes before shift start
-    const earliestCheckIn = new Date(shiftStart.getTime() - 30 * 60000);
+    const handleCheckInOut = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const checkInOutData = {
+          userId: userData.id,
+          employeeId: userData.employeeId,
+          checkTime: new Date().toISOString(),
+          location: JSON.stringify(location),
+          address,
+          reason: !inPremises ? reason : undefined,
+          photo,
+          deviceSerial: deviceSerial || 'WEBAPP001',
+          isCheckIn: attendanceStatus.isCheckingIn,
+          isOvertime: false,
+        };
 
-    return now >= earliestCheckIn && now <= shiftEnd;
-  };
+        console.log('Submitting data:', checkInOutData);
 
-  const renderShiftInfo = () => {
-    if (!attendanceStatus) return null;
+        const response = await axios.post('/api/check-in-out', checkInOutData);
 
-    const { user, shiftAdjustment } = attendanceStatus;
-    const shift = shiftAdjustment?.requestedShift || user.assignedShift;
+        console.log('Check-in/out response:', response.data);
+
+        if (response.data && response.data.success) {
+          // Update local state
+          const newStatus = !attendanceStatus.isCheckingIn;
+          setAttendanceStatus((prevStatus) => ({
+            ...prevStatus,
+            isCheckingIn: newStatus,
+            latestAttendance: response.data.attendance,
+          }));
+          onStatusChange(newStatus);
+
+          // Reset form state
+          setStep(1);
+          setShowCamera(false);
+          setPhoto(null);
+          setReason('');
+          setDeviceSerial('');
+
+          // Show a success message
+          setError('Check-in/out successful!'); // Using setError for success message
+        } else {
+          throw new Error('Invalid response from server');
+        }
+      } catch (error) {
+        console.error('Error during check-in/out:', error);
+        if (axios.isAxiosError(error) && error.response) {
+          setError(
+            `เกิดข้อผิดพลาดในการลงเวลา: ${error.response.data.message || error.message}`,
+          );
+        } else {
+          setError('เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ กรุณาลองอีกครั้ง');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const isWithinShiftTime = () => {
+      if (!attendanceStatus) return false;
+
+      const now = new Date();
+      const shift =
+        attendanceStatus.shiftAdjustment?.requestedShift ||
+        attendanceStatus.user.assignedShift;
+      const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+      const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+
+      const shiftStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        startHour,
+        startMinute,
+      );
+      const shiftEnd = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        endHour,
+        endMinute,
+      );
+
+      // Handle shifts that cross midnight
+      if (
+        endHour < startHour ||
+        (endHour === startHour && endMinute < startMinute)
+      ) {
+        shiftEnd.setDate(shiftEnd.getDate() + 1);
+      }
+
+      // Allow check-in up to 30 minutes before shift start
+      const earliestCheckIn = new Date(shiftStart.getTime() - 30 * 60000);
+
+      return now >= earliestCheckIn && now <= shiftEnd;
+    };
+
+    const renderShiftInfo = () => {
+      if (!attendanceStatus) return null;
+
+      const { user, shiftAdjustment } = attendanceStatus;
+      const shift = shiftAdjustment?.requestedShift || user.assignedShift;
+
+      return (
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold mb-2">Shift Information:</h3>
+          <p>Shift: {shift.name}</p>
+          <p>Start Time: {shift.startTime}</p>
+          <p>End Time: {shift.endTime}</p>
+          {shiftAdjustment && (
+            <p className="text-blue-600">Shift adjusted for today</p>
+          )}
+        </div>
+      );
+    };
+
+    const formatDate = (date: Date | null): string => {
+      if (!date) return 'N/A';
+      return new Date(date).toLocaleString('th-TH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+    };
 
     return (
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold mb-2">Shift Information:</h3>
-        <p>Shift: {shift.name}</p>
-        <p>Start Time: {shift.startTime}</p>
-        <p>End Time: {shift.endTime}</p>
-        {shiftAdjustment && (
-          <p className="text-blue-600">Shift adjusted for today</p>
+      <div className="space-y-6">
+        {step === 1 && (
+          <div>
+            <p className="text-lg mb-2">สวัสดี, {attendanceStatus.user.name}</p>
+            <p>Employee ID: {attendanceStatus.user.employeeId}</p>
+            <p>Department: {departmentName}</p>
+
+            {!showCamera && (
+              <>
+                {isLoadingCheckData ? (
+                  <div className="mb-4 text-center">
+                    <p>กำลังโหลดข้อมูลการลงเวลาล่าสุด กรุณารอสักครู่...</p>
+                  </div>
+                ) : (
+                  <>
+                    {renderShiftInfo()}
+                    <h2>Current Shift Status</h2>
+                    {isWithinShift && (
+                      <p>You are currently within your shift.</p>
+                    )}
+                    {isBeforeShift && (
+                      <p>
+                        Your shift starts in {minutesUntilShiftStart} minutes.
+                      </p>
+                    )}
+                    {isAfterShift && <p>Your shift has ended.</p>}
+                    {isWithinShift && (
+                      <p>Your shift ends in {minutesUntilShiftEnd} minutes.</p>
+                    )}
+                    {attendanceStatus.latestAttendance && (
+                      <div className="mb-4">
+                        <h3 className="text-lg font-semibold mb-2">
+                          สถานะการลงเวลาล่าสุดของคุณ:
+                        </h3>
+                        <div className="bg-gray-100 p-3 rounded-lg">
+                          <p>
+                            Date:{' '}
+                            {formatDate(attendanceStatus.latestAttendance.date)}
+                          </p>
+                          <p>
+                            Check-in Time:{' '}
+                            {formatDate(
+                              attendanceStatus.latestAttendance.checkInTime,
+                            )}
+                          </p>
+                          <p>
+                            Check-out Time:{' '}
+                            {attendanceStatus.latestAttendance.checkOutTime
+                              ? formatDate(
+                                  attendanceStatus.latestAttendance
+                                    .checkOutTime,
+                                )
+                              : 'Not checked out yet'}
+                          </p>
+                          <p>
+                            วิธีการ:{' '}
+                            {getDeviceType(
+                              attendanceStatus.latestAttendance
+                                .checkInDeviceSerial,
+                            )}
+                          </p>
+                          <p>
+                            สถานะ:{' '}
+                            {attendanceStatus.latestAttendance.checkOutTime
+                              ? 'ออกงาน'
+                              : 'เข้างาน'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {isWithinShiftTime() ? (
+                      <button
+                        onClick={handleOpenCamera}
+                        className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+                        aria-label={`เปิดกล้องเพื่อ${attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+                      >
+                        เปิดกล้องเพื่อ
+                        {attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+                      </button>
+                    ) : (
+                      <p className="text-red-500">
+                        ไม่สามารถลงเวลาได้ในขณะนี้
+                        กรุณาลองอีกครั้งในช่วงเวลาที่กำหนด
+                      </p>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
+            {showCamera && (
+              <div className="mt-4">
+                <Webcam
+                  audio={false}
+                  ref={webcamRef}
+                  screenshotFormat="image/jpeg"
+                  className="w-full rounded-lg mb-4"
+                  onUserMedia={() => console.log('Camera is ready')}
+                  onUserMediaError={(error) => {
+                    console.error('Camera error:', error);
+                    setError(
+                      'Failed to access camera. Please check your camera permissions and try again.',
+                    );
+                  }}
+                />
+                <button
+                  onClick={capturePhoto}
+                  className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+                  aria-label="ถ่ายรูป"
+                  disabled={!model}
+                >
+                  {model ? 'ถ่ายรูป' : 'กำลังเปิดกล้อง...'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {step === 2 && (
+          <div>
+            <h3 className="text-lg font-semibold mb-2">
+              ยืนยันการ{attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+            </h3>
+            {photo && (
+              <Image
+                src={photo}
+                alt="Captured"
+                width={500}
+                height={300}
+                layout="responsive"
+                className="w-full rounded-lg mb-4"
+              />
+            )}
+            <button
+              onClick={() => setStep(3)}
+              className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+            >
+              ถัดไป
+            </button>
+          </div>
+        )}
+        {step === 3 && (
+          <div>
+            <div className="mb-4">
+              <label
+                htmlFor="address-display"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                ที่อยู่ของคุณ
+              </label>
+              <div
+                id="address-display"
+                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
+                aria-live="polite"
+              >
+                {address || 'กำลังโหลดที่อยู่...'}
+              </div>
+            </div>
+            {apiKey && location && (
+              <div className="mb-4">
+                <InteractiveMap
+                  apiKey={apiKey}
+                  lat={location.lat}
+                  lng={location.lng}
+                />
+              </div>
+            )}
+            {!inPremises && (
+              <div className="mt-4">
+                <label
+                  htmlFor="reason-input"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  เหตุผลสำหรับการ
+                  {attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+                  นอกสถานที่
+                </label>
+                <input
+                  type="text"
+                  id="reason-input"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+                  required
+                />
+              </div>
+            )}
+            <div className="mt-6">
+              <button
+                onClick={handleCheckInOut}
+                disabled={loading || (!inPremises && !reason)}
+                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
+                aria-label={
+                  loading
+                    ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`
+                    : `ลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`
+                }
+              >
+                {loading
+                  ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
+                  : `ลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
+              </button>
+            </div>
+          </div>
+        )}
+        {error && (
+          <p className="text-red-500 mt-4" role="alert">
+            {error}
+          </p>
         )}
       </div>
     );
   };
-
-  const formatDate = (date: Date | null): string => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleString('th-TH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
-
-  return (
-    <div className="space-y-6">
-      {step === 1 && (
-        <div>
-          <p className="text-lg mb-2">สวัสดี, {attendanceStatus.user.name}</p>
-          <p>Employee ID: {attendanceStatus.user.employeeId}</p>
-          <p>Department: {departmentName}</p>
-
-          {!showCamera && (
-            <>
-              {isLoadingCheckData ? (
-                <div className="mb-4 text-center">
-                  <p>กำลังโหลดข้อมูลการลงเวลาล่าสุด กรุณารอสักครู่...</p>
-                </div>
-              ) : (
-                <>
-                  {renderShiftInfo()}
-                  <h2>Current Shift Status</h2>
-                  {isWithinShift && <p>You are currently within your shift.</p>}
-                  {isBeforeShift && (
-                    <p>
-                      Your shift starts in {minutesUntilShiftStart} minutes.
-                    </p>
-                  )}
-                  {isAfterShift && <p>Your shift has ended.</p>}
-                  {isWithinShift && (
-                    <p>Your shift ends in {minutesUntilShiftEnd} minutes.</p>
-                  )}
-                  {attendanceStatus.latestAttendance && (
-                    <div className="mb-4">
-                      <h3 className="text-lg font-semibold mb-2">
-                        สถานะการลงเวลาล่าสุดของคุณ:
-                      </h3>
-                      <div className="bg-gray-100 p-3 rounded-lg">
-                        <p>
-                          Date:{' '}
-                          {formatDate(attendanceStatus.latestAttendance.date)}
-                        </p>
-                        <p>
-                          Check-in Time:{' '}
-                          {formatDate(
-                            attendanceStatus.latestAttendance.checkInTime,
-                          )}
-                        </p>
-                        <p>
-                          Check-out Time:{' '}
-                          {attendanceStatus.latestAttendance.checkOutTime
-                            ? formatDate(
-                                attendanceStatus.latestAttendance.checkOutTime,
-                              )
-                            : 'Not checked out yet'}
-                        </p>
-                        <p>
-                          วิธีการ:{' '}
-                          {getDeviceType(
-                            attendanceStatus.latestAttendance
-                              .checkInDeviceSerial,
-                          )}
-                        </p>
-                        <p>
-                          สถานะ:{' '}
-                          {attendanceStatus.latestAttendance.checkOutTime
-                            ? 'ออกงาน'
-                            : 'เข้างาน'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {isWithinShiftTime() ? (
-                    <button
-                      onClick={handleOpenCamera}
-                      className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-                      aria-label={`เปิดกล้องเพื่อ${attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-                    >
-                      เปิดกล้องเพื่อ
-                      {attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-                    </button>
-                  ) : (
-                    <p className="text-red-500">
-                      ไม่สามารถลงเวลาได้ในขณะนี้
-                      กรุณาลองอีกครั้งในช่วงเวลาที่กำหนด
-                    </p>
-                  )}
-                </>
-              )}
-            </>
-          )}
-
-          {showCamera && (
-            <div className="mt-4">
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                className="w-full rounded-lg mb-4"
-                onUserMedia={() => console.log('Camera is ready')}
-                onUserMediaError={(error) => {
-                  console.error('Camera error:', error);
-                  setError(
-                    'Failed to access camera. Please check your camera permissions and try again.',
-                  );
-                }}
-              />
-              <button
-                onClick={capturePhoto}
-                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-                aria-label="ถ่ายรูป"
-                disabled={!model}
-              >
-                {model ? 'ถ่ายรูป' : 'กำลังเปิดกล้อง...'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      {step === 2 && (
-        <div>
-          <h3 className="text-lg font-semibold mb-2">
-            ยืนยันการ{attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-          </h3>
-          {photo && (
-            <Image
-              src={photo}
-              alt="Captured"
-              width={500}
-              height={300}
-              layout="responsive"
-              className="w-full rounded-lg mb-4"
-            />
-          )}
-          <button
-            onClick={() => setStep(3)}
-            className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-          >
-            ถัดไป
-          </button>
-        </div>
-      )}
-      {step === 3 && (
-        <div>
-          <div className="mb-4">
-            <label
-              htmlFor="address-display"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              ที่อยู่ของคุณ
-            </label>
-            <div
-              id="address-display"
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
-              aria-live="polite"
-            >
-              {address || 'กำลังโหลดที่อยู่...'}
-            </div>
-          </div>
-          {apiKey && location && (
-            <div className="mb-4">
-              <InteractiveMap
-                apiKey={apiKey}
-                lat={location.lat}
-                lng={location.lng}
-              />
-            </div>
-          )}
-          {!inPremises && (
-            <div className="mt-4">
-              <label
-                htmlFor="reason-input"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                เหตุผลสำหรับการ
-                {attendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-                นอกสถานที่
-              </label>
-              <input
-                type="text"
-                id="reason-input"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
-                required
-              />
-            </div>
-          )}
-          <div className="mt-6">
-            <button
-              onClick={handleCheckInOut}
-              disabled={loading || (!inPremises && !reason)}
-              className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
-              aria-label={
-                loading
-                  ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`
-                  : `ลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`
-              }
-            >
-              {loading
-                ? `กำลังลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
-                : `ลงเวลา${attendanceStatus?.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
-            </button>
-          </div>
-        </div>
-      )}
-      {error && (
-        <p className="text-red-500 mt-4" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
 };
-
 export default CheckInOutForm;

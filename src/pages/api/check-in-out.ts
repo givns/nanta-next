@@ -57,9 +57,18 @@ export default async function handler(
     res.status(200).json(attendance);
   } catch (error: any) {
     console.error('Check-in/out failed:', error);
-    res.status(error.statusCode || 500).json({
-      message: 'Check-in/out failed',
-      error: error.message,
-    });
+    if (error.name === 'NetworkError') {
+      res.status(503).json({ message: 'Network error. Please try again.' });
+    } else if (error.name === 'DataConsistencyError') {
+      res
+        .status(409)
+        .json({
+          message: 'Data inconsistency detected. Please contact support.',
+        });
+    } else {
+      res
+        .status(500)
+        .json({ message: 'An unexpected error occurred. Please try again.' });
+    }
   }
 }

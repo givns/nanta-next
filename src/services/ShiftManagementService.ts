@@ -1,10 +1,7 @@
-// services/ShiftManagementService.ts
-
 import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
 import {
-  getShiftByDepartmentId,
-  getDefaultShift,
   getDepartmentByNameFuzzy,
+  getDefaultShift,
   DepartmentId,
 } from '../lib/shiftCache';
 
@@ -56,11 +53,16 @@ export class ShiftManagementService {
     });
   }
 
-  // In ShiftManagementService.ts
-  async getShiftAdjustmentForDate(
-    userId: string,
-    date: Date,
-  ): Promise<(ShiftAdjustmentRequest & { requestedShift: Shift }) | null> {
+  async getEffectiveShift(userId: string, date: Date): Promise<Shift> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { assignedShift: true },
+    });
+
+    if (!user || !user.assignedShift) {
+      throw new Error('User or assigned shift not found');
+    }
+
     const startOfDay = new Date(
       date.getFullYear(),
       date.getMonth(),
@@ -78,20 +80,12 @@ export class ShiftManagementService {
         },
         status: 'approved',
       },
+      include: { requestedShift: true },
     });
 
-    if (shiftAdjustment) {
-      const requestedShift = await prisma.shift.findUnique({
-        where: { id: shiftAdjustment.requestedShiftId },
-      });
-
-      return {
-        ...shiftAdjustment,
-        requestedShift: requestedShift!,
-      };
-    }
-
-    return null;
+    return shiftAdjustment
+      ? shiftAdjustment.requestedShift
+      : user.assignedShift;
   }
 
   async approveShiftAdjustment(id: string): Promise<ShiftAdjustmentRequest> {
@@ -132,7 +126,7 @@ export class ShiftManagementService {
   async getShiftByDepartmentId(
     departmentId: DepartmentId,
   ): Promise<Shift | null> {
-    return getShiftByDepartmentId(departmentId);
+    return getDefaultShift(departmentId.toString());
   }
 
   async createDepartmentIfNotExists(departmentName: string): Promise<void> {
@@ -162,7 +156,7 @@ export class ShiftManagementService {
       const newDepartment = await prisma.department.create({
         data: {
           name: departmentName,
-          daysOff: { create: [] }, // Add this if you want to initialize with empty daysOff
+          daysOff: { create: [] },
         },
       });
       console.log(`Created new department with ID: ${newDepartment.id}`);
