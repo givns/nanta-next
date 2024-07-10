@@ -1,8 +1,11 @@
+// pages/check-in-router.ts
+
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { UserData, AttendanceStatus, UserResponse } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -12,7 +15,6 @@ const CheckInRouter: React.FC = () => {
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
   );
-  const [isCheckingIn, setIsCheckingIn] = useState<boolean | null>(null);
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -33,28 +35,21 @@ const CheckInRouter: React.FC = () => {
           });
           console.log('User data response:', response.data);
 
-          if (response.data && response.data.user) {
-            setUserData(response.data.user);
-            setAttendanceStatus(response.data.attendanceStatus);
-            setIsCheckingIn(response.data.attendanceStatus.isCheckingIn);
-          } else {
-            throw new Error('Invalid response structure');
-          }
+          setUserData(response.data.user);
+          setAttendanceStatus(response.data.attendanceStatus);
         } else {
           console.log('User is not logged in, initiating login...');
           liff.login();
         }
       } catch (error: any) {
         console.error('Error initializing LIFF or fetching data:', error);
-        if (axios.isAxiosError(error)) {
-          console.error('Axios error:', error.response?.data || error.message);
+        if (axios.isAxiosError(error) && error.response) {
+          console.error('Error response:', error.response.data);
           setMessage(
-            error.response?.data?.message ||
-              error.message ||
+            error.response.data.message ||
               'Failed to load user data or attendance status',
           );
         } else {
-          console.error('Unexpected error:', error);
           setMessage('An unexpected error occurred. Please try again later.');
         }
       }
@@ -89,26 +84,34 @@ const CheckInRouter: React.FC = () => {
   }
 
   return (
-    <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
-      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          {isCheckingIn ? 'ระบบบันทึกเวลาเข้างาน' : 'ระบบบันทึกเวลาออกงาน'}
-        </h1>
-        <div className="text-3xl font-bold text-center mb-8 text-black-950">
-          {currentTime}
-        </div>
-        {message && (
-          <div className="mb-4 p-2 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
-            {message}
+    <ErrorBoundary>
+      <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
+          <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
+            {attendanceStatus.isCheckingIn
+              ? 'ระบบบันทึกเวลาเข้างาน'
+              : 'ระบบบันทึกเวลาออกงาน'}
+          </h1>
+          <div className="text-3xl font-bold text-center mb-8 text-black-950">
+            {currentTime}
           </div>
-        )}
-        <CheckInOutForm
-          userData={userData}
-          initialAttendanceStatus={attendanceStatus}
-          onStatusChange={(newStatus) => setIsCheckingIn(newStatus)}
-        />
+          {message && (
+            <div className="mb-4 p-2 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
+              {message}
+            </div>
+          )}
+          <CheckInOutForm
+            userData={userData}
+            initialAttendanceStatus={attendanceStatus}
+            onStatusChange={(newStatus) =>
+              setAttendanceStatus((prev) =>
+                prev ? { ...prev, isCheckingIn: newStatus } : null,
+              )
+            }
+          />
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 

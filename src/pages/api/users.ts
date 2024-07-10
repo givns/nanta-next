@@ -13,12 +13,15 @@ export default async function handler(
   const { lineUserId } = req.query;
 
   if (!lineUserId || typeof lineUserId !== 'string') {
+    console.log('API: Invalid lineUserId');
     return res
       .status(400)
       .json({ error: 'Missing or invalid lineUserId parameter' });
   }
 
   try {
+    console.log('API: Fetching user data');
+
     const today = new Date();
     const startDate = new Date(today.getFullYear(), today.getMonth() - 1, 26);
     const endDate = new Date(today.getFullYear(), today.getMonth(), 25);
@@ -122,6 +125,8 @@ export default async function handler(
       overtimeHours,
       balanceLeave,
     };
+    console.log('API: User data fetched successfully');
+    console.log('API: Response data:', JSON.stringify(responseData, null, 2));
 
     res.status(200).json(responseData);
   } catch (error) {
