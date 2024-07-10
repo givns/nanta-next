@@ -1,12 +1,11 @@
 // pages/user-dashboard.tsx
 
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Calendar } from '../components/ui/calendar';
 import { Input } from '../components/ui/input';
-import { LiffContext } from './_app';
+import liff from '@line/liff';
 import { UserData, Attendance, ShiftData } from '@/types/user';
-import { getDepartmentById } from '@/lib/shiftCache';
 
 interface DashboardProps {
   user: UserData & { assignedShift: ShiftData };
@@ -20,30 +19,48 @@ interface DashboardProps {
 
 export default function UserDashboard() {
   const [userData, setUserData] = useState<DashboardProps | null>(null);
-  const liff = useContext(LiffContext);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUserData = async () => {
-      if (liff && liff.isLoggedIn()) {
-        try {
-          const profile = await liff.getProfile();
-          const response = await fetch(
-            `/api/users?lineUserId=${profile.userId}`,
-          );
-          if (!response.ok) throw new Error('Failed to fetch user data');
-          const data: DashboardProps = await response.json();
-          setUserData(data);
-        } catch (error) {
-          console.error('Error fetching user data:', error);
+      try {
+        if (!liff.isLoggedIn()) {
+          throw new Error('User is not logged in');
         }
+
+        const profile = await liff.getProfile();
+        const response = await fetch(`/api/users?lineUserId=${profile.userId}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch user data');
+        }
+
+        const data: DashboardProps = await response.json();
+        setUserData(data);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        setError(
+          error instanceof Error ? error.message : 'An unknown error occurred',
+        );
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchUserData();
-  }, [liff]);
+  }, []);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
 
   if (!userData) {
-    return <div>Loading...</div>;
+    return <div>No user data available.</div>;
   }
 
   const { user, recentAttendance } = userData;

@@ -1,5 +1,4 @@
 // check-in-router.tsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { UserData, AttendanceStatus } from '../types/user';
