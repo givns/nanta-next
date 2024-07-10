@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
-import {
-  UserData,
-  AttendanceStatus,
-  UserResponse,
-  ShiftData,
-  AttendanceRecord,
-} from '../types/user';
+import { UserData, AttendanceStatus, UserResponse } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -16,11 +10,13 @@ const CheckInRouter: React.FC = () => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
   );
 
   const fetchUserData = useCallback(async (lineUserId: string) => {
+    setIsLoading(true);
     try {
       console.log('Fetching user data...');
       const response = await axios.get<UserResponse>('/api/users', {
@@ -29,9 +25,9 @@ const CheckInRouter: React.FC = () => {
       console.log('User data response:', response.data);
 
       const { user, recentAttendance } = response.data;
+
       setUserData(user);
 
-      // Create AttendanceStatus based on the available data
       const newAttendanceStatus: AttendanceStatus = {
         user: {
           id: user.id,
@@ -42,29 +38,24 @@ const CheckInRouter: React.FC = () => {
         },
         latestAttendance:
           recentAttendance.length > 0 ? recentAttendance[0] : null,
-        isCheckingIn: determineIsCheckingIn(recentAttendance),
-        shiftAdjustment: null, // You might need to fetch this separately if needed
+        isCheckingIn:
+          recentAttendance.length === 0 || !!recentAttendance[0].checkOutTime,
+        shiftAdjustment: null, // Assume no shift adjustment for now
       };
 
       setAttendanceStatus(newAttendanceStatus);
-
       console.log('States updated:', {
         userData: user,
         attendanceStatus: newAttendanceStatus,
       });
+      setIsLoading(false);
+      setMessage(null);
     } catch (error) {
       console.error('Error fetching user data:', error);
       setMessage('Failed to load user data. Please try again.');
+      setIsLoading(false);
     }
   }, []);
-
-  const determineIsCheckingIn = (
-    recentAttendance: AttendanceRecord[],
-  ): boolean => {
-    if (recentAttendance.length === 0) return true;
-    const latestAttendance = recentAttendance[0];
-    return !!latestAttendance.checkOutTime; // If there's a check-out time, the next action is check-in
-  };
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -85,6 +76,7 @@ const CheckInRouter: React.FC = () => {
       } catch (error: any) {
         console.error('Error initializing LIFF:', error);
         setMessage('An unexpected error occurred. Please try again later.');
+        setIsLoading(false);
       }
     };
 
@@ -101,17 +93,32 @@ const CheckInRouter: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  if (!userData || !attendanceStatus) {
-    console.log(
-      'Still loading. userData:',
-      !!userData,
-      'attendanceStatus:',
-      !!attendanceStatus,
-    );
+  console.log('Render state:', {
+    isLoading,
+    userData,
+    attendanceStatus,
+    message,
+  });
+
+  if (isLoading) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">กำลังเข้าสู่ระบบ...</h1>
+      </div>
+    );
+  }
+
+  if (!userData || !attendanceStatus) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen">
+        <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
         {message && <p className="text-red-500">{message}</p>}
+        <button
+          onClick={() => liff.login()}
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
+        >
+          เข้าสู่ระบบอีกครั้ง
+        </button>
       </div>
     );
   }
