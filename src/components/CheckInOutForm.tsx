@@ -40,6 +40,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   initialAttendanceStatus,
   onStatusChange,
 }) => {
+  console.log('CheckInOutForm props:', { userData, initialAttendanceStatus });
   const [attendanceStatus, setAttendanceStatus] = useState(
     initialAttendanceStatus,
   );
@@ -492,8 +493,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       <div className="space-y-6">
         {step === 1 && (
           <div>
-            <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
-            <p>Employee ID: {userData.employeeId}</p>
+            <p className="text-lg mb-2">สวัสดี, {userData.name || 'N/A'}</p>
+            <p>Employee ID: {userData.employeeId || 'N/A'}</p>
             <p>Department: {departmentName}</p>
             <p>
               Current Status:{' '}

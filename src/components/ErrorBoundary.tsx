@@ -33,16 +33,16 @@ class ErrorBoundary extends React.Component<Props, State> {
         <div className="error-boundary p-4 bg-red-100 border border-red-400 text-red-700 rounded">
           <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
           <p className="mb-2">Please try refreshing the page.</p>
-          {process.env.NODE_ENV === 'development' && (
-            <details className="mt-4">
-              <summary className="cursor-pointer">Error Details</summary>
-              <pre className="mt-2 p-2 bg-red-50 rounded overflow-auto">
-                {this.state.error && this.state.error.toString()}
-                <br />
-                {this.state.errorInfo && this.state.errorInfo.componentStack}
-              </pre>
-            </details>
-          )}
+          <details className="mt-4">
+            <summary className="cursor-pointer">
+              Error Details (for debugging)
+            </summary>
+            <pre className="mt-2 p-2 bg-red-50 rounded overflow-auto">
+              {this.state.error && this.state.error.toString()}
+              <br />
+              {this.state.errorInfo && this.state.errorInfo.componentStack}
+            </pre>
+          </details>
         </div>
       );
     }
