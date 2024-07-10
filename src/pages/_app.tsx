@@ -7,10 +7,26 @@ import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
 import liff from '@line/liff';
+import { ErrorInfo } from 'react';
 
 function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const [isLiffInitialized, setIsLiffInitialized] = useState(false);
+
+  useEffect(() => {
+    const handleError = (error: Error, errorInfo: ErrorInfo) => {
+      console.error('Caught an error:', error, errorInfo);
+    };
+
+    window.addEventListener('error', (event) =>
+      handleError(event.error, { componentStack: '' }),
+    );
+    return () => {
+      window.removeEventListener('error', (event) =>
+        handleError(event.error, { componentStack: '' }),
+      );
+    };
+  }, []);
 
   useEffect(() => {
     const initializeLiff = async () => {

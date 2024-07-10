@@ -17,29 +17,39 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     const initializeLiffAndFetchData = async () => {
       try {
+        console.log('Starting LIFF initialization');
         const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
         if (!liffId) {
           throw new Error('LIFF ID is not defined');
         }
 
         await liff.init({ liffId });
+        console.log('LIFF initialized successfully');
 
         if (!liff.isLoggedIn()) {
+          console.log('User not logged in, redirecting to login');
           liff.login();
           return;
         }
 
+        console.log('Fetching user profile');
         const profile = await liff.getProfile();
+        console.log('User profile:', profile);
+
+        console.log('Fetching user data');
         const userResponse = await axios.get(
           `/api/users?lineUserId=${profile.userId}`,
         );
         const user = userResponse.data.user;
+        console.log('User data:', user);
         setUserData(user);
 
         if (user.employeeId) {
+          console.log('Fetching attendance status');
           const statusResponse = await axios.get(
             `/api/check-status?employeeId=${user.employeeId}`,
           );
+          console.log('Attendance status:', statusResponse.data);
           setAttendanceStatus(statusResponse.data);
         } else {
           setError('Employee ID not found');
@@ -57,6 +67,13 @@ const CheckInRouter: React.FC = () => {
     initializeLiffAndFetchData();
   }, []);
 
+  console.log('Rendering CheckInRouter', {
+    isLoading,
+    error,
+    userData,
+    attendanceStatus,
+  });
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -66,8 +83,11 @@ const CheckInRouter: React.FC = () => {
   }
 
   if (!userData || !attendanceStatus) {
+    console.log('Missing data', { userData, attendanceStatus });
     return <div>No user data or attendance status available.</div>;
   }
+
+  console.log('Rendering main content');
 
   return (
     <ErrorBoundary>

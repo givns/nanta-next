@@ -55,6 +55,10 @@ const nextConfig = {
 };
 
 module.exports = {
+  reactStrictMode: true,
+  devIndicators: {
+    autoPrerender: false,
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

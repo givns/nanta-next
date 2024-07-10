@@ -40,7 +40,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   initialAttendanceStatus,
   onStatusChange,
 }) => {
-  console.log('CheckInOutForm props:', { userData, initialAttendanceStatus });
+  console.log('Rendering CheckInOutForm', {
+    userData,
+    initialAttendanceStatus,
+  });
+
   const [attendanceStatus, setAttendanceStatus] = useState(
     initialAttendanceStatus,
   );
