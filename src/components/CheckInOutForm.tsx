@@ -542,13 +542,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                     {isWithinShift && (
                       <p>You are currently within your shift.</p>
                     )}
-                    {isBeforeShift && (
+                    {isBeforeShift && minutesUntilShiftStart > 0 && (
                       <p>
                         Your shift starts in {minutesUntilShiftStart} minutes.
                       </p>
                     )}
                     {isAfterShift && <p>Your shift has ended.</p>}
-                    {isWithinShift && (
+                    {isWithinShift && minutesUntilShiftEnd > 0 && (
                       <p>Your shift ends in {minutesUntilShiftEnd} minutes.</p>
                     )}
                     {attendanceStatus.latestAttendance && (
