@@ -68,6 +68,45 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const webcamRef = useRef<Webcam>(null);
 
+  const deptName = getDepartmentNameById(userData.departmentId);
+  setDepartmentName(deptName || 'Unknown Department');
+
+  // Fetch attendance status if initial data is missing
+  if (!attendanceStatus) {
+    const fetchAttendanceStatus = async () => {
+      try {
+        const response = await axios.get(
+          `/api/check-status?employeeId=${userData.employeeId}`,
+        );
+        setAttendanceStatus(response.data);
+        onStatusChange(response.data.isCheckingIn);
+      } catch (error) {
+        console.error('Error fetching attendance status:', error);
+        setError('Failed to fetch attendance status');
+      } finally {
+        setIsLoadingCheckData(false);
+      }
+    };
+    fetchAttendanceStatus();
+  } else {
+    setIsLoadingCheckData(false);
+  }
+
+  const loadFaceDetectionModel = async () => {
+    await tf.ready();
+    const loadedModel = await faceDetection.createDetector(
+      faceDetection.SupportedModels.MediaPipeFaceDetector,
+      {
+        runtime: 'tfjs',
+        modelType: 'short',
+      },
+    );
+    setModel(loadedModel);
+    console.log('Face detection model loaded.');
+  };
+
+  loadFaceDetectionModel();
+
   const fetchShiftDetails = useCallback(async () => {
     if (!attendanceStatus) return;
 
@@ -133,16 +172,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setMinutesUntilShiftEnd(minutesUntilShiftEnd);
   }, [attendanceStatus]);
 
-  const loadFaceDetectionModel = useCallback(async () => {
-    await tf.ready();
-    const loadedModel = await faceDetection.createDetector(
-      faceDetection.SupportedModels.MediaPipeFaceDetector,
-      { runtime: 'tfjs', modelType: 'short' },
-    );
-    setModel(loadedModel);
-    console.log('Face detection model loaded.');
-  }, []);
-
   const fetchApiKey = useCallback(async () => {
     try {
       const response = await axios.get('/api/getMapApiKey');
@@ -191,13 +220,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     fetchShiftDetails().catch((error) => {
       console.error('Error in fetchShiftDetails:', error);
     });
-    loadFaceDetectionModel().catch((error) => {
-      console.error('Error in loadFaceDetectionModel:', error);
-    });
     fetchApiKey().catch((error) => {
       console.error('Error in fetchApiKey:', error);
     });
-  }, [fetchShiftDetails, loadFaceDetectionModel, fetchApiKey, userData]);
+  }, [
+    fetchShiftDetails,
+    fetchApiKey,
+    userData,
+    attendanceStatus,
+    onStatusChange,
+  ]);
 
   useEffect(() => {
     const getCurrentLocation = async () => {
@@ -671,4 +703,5 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   };
 };
+
 export default CheckInOutForm;
