@@ -24,10 +24,11 @@ module.exports = {
     '@typescript-eslint/no-unused-vars': 'warn',
     'jsx-a11y/anchor-is-valid': 'warn',
     'import/no-unresolved': 'off',
-    'import/no-named-as-default-member': 'off', // Added this rule to resolve the axios warning
+    'import/no-named-as-default-member': 'off',
     'prefer-const': 'warn',
     'prettier/prettier': 'error',
     'react/prop-types': 'off',
+    'import/no-named-as-default': 'off',
   },
   overrides: [
     {

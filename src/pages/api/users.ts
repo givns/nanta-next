@@ -27,7 +27,7 @@ export default async function handler(
     const startDate = new Date(today.getFullYear(), today.getMonth() - 1, 26);
     const endDate = new Date(today.getFullYear(), today.getMonth(), 25);
 
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { lineUserId },
       include: {
         assignedShift: true,
@@ -40,11 +40,6 @@ export default async function handler(
     }
 
     const departmentName = getDepartmentNameById(user.departmentId);
-
-    const userDetails = {
-      ...user,
-      department: departmentName || 'Unknown Department',
-    };
 
     const [recentAttendance, holidays] = await Promise.all([
       prisma.attendance.findMany({
@@ -105,7 +100,7 @@ export default async function handler(
 
     const totalAbsent = totalWorkingDays - totalPresent;
     const overtimeHours = user.overtimeHours || 0;
-    const balanceLeave = await calculateLeaveBalance(user.id);
+    const balanceLeave = await calculateLeaveBalance();
 
     const userData: UserData & { assignedShift: ShiftData } = {
       id: user.id,
@@ -166,7 +161,7 @@ function calculateTotalWorkingDays(
   return totalWorkingDays - holidays;
 }
 
-async function calculateLeaveBalance(userId: string): Promise<number> {
+async function calculateLeaveBalance(): Promise<number> {
   // Implement leave balance calculation logic here
   // This could involve fetching the user's leave requests and calculating the remaining balance
   // For now, we'll return a placeholder value

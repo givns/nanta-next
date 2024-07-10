@@ -1,6 +1,5 @@
-// src/pages/_app.tsx
 import '../styles/globals.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext } from 'react';
 import { useRouter } from 'next/router';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
@@ -8,7 +7,6 @@ import store from '../store';
 import liff from '@line/liff';
 
 // Create a context to provide the initialized LIFF object
-import { createContext } from 'react';
 export const LiffContext = createContext<typeof liff | null>(null);
 
 function MyApp({ Component, pageProps }: AppProps) {
@@ -46,7 +44,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   }, [router]);
 
   if (loading) {
-    return <div>Loading...</div>; // Or your custom loading component
+    return <div>Loading...</div>;
   }
 
   return (
