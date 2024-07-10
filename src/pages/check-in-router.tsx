@@ -1,19 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
-import { UserData, AttendanceStatus } from '../types/user';
+import { UserData, AttendanceStatus, UserResponse } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
-
-interface UserResponse {
-  user: UserData;
-  attendanceStatus: AttendanceStatus;
-  recentAttendance: any[]; // You might want to define a more specific type for this
-  totalWorkingDays: number;
-  totalPresent: number;
-  totalAbsent: number;
-  overtimeHours: number;
-  balanceLeave: number;
-}
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -44,22 +33,28 @@ const CheckInRouter: React.FC = () => {
           });
           console.log('User data response:', response.data);
 
-          setUserData(response.data.user);
-          setAttendanceStatus(response.data.attendanceStatus);
-          setIsCheckingIn(response.data.attendanceStatus.isCheckingIn);
+          if (response.data && response.data.user) {
+            setUserData(response.data.user);
+            setAttendanceStatus(response.data.attendanceStatus);
+            setIsCheckingIn(response.data.attendanceStatus.isCheckingIn);
+          } else {
+            throw new Error('Invalid response structure');
+          }
         } else {
           console.log('User is not logged in, initiating login...');
           liff.login();
         }
       } catch (error: any) {
         console.error('Error initializing LIFF or fetching data:', error);
-        if (axios.isAxiosError(error) && error.response) {
-          console.error('Error response:', error.response.data);
+        if (axios.isAxiosError(error)) {
+          console.error('Axios error:', error.response?.data || error.message);
           setMessage(
-            error.response.data.message ||
+            error.response?.data?.message ||
+              error.message ||
               'Failed to load user data or attendance status',
           );
         } else {
+          console.error('Unexpected error:', error);
           setMessage('An unexpected error occurred. Please try again later.');
         }
       }
@@ -107,19 +102,11 @@ const CheckInRouter: React.FC = () => {
             {message}
           </div>
         )}
-        {userData && attendanceStatus && (
-          <>
-            {console.log('Rendering CheckInOutForm with:', {
-              userData,
-              attendanceStatus,
-            })}
-            <CheckInOutForm
-              userData={userData}
-              initialAttendanceStatus={attendanceStatus}
-              onStatusChange={(newStatus) => setIsCheckingIn(newStatus)}
-            />
-          </>
-        )}
+        <CheckInOutForm
+          userData={userData}
+          initialAttendanceStatus={attendanceStatus}
+          onStatusChange={(newStatus) => setIsCheckingIn(newStatus)}
+        />
       </div>
     </div>
   );
