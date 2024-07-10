@@ -1,11 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
-import { UserData, ShiftData } from '../../types/user';
-import { AttendanceService } from '../../services/AttendanceService';
+import { UserData, ShiftData, AttendanceRecord } from '../../types/user';
 import { HolidayService } from '../../services/HolidayService';
 import { UserRole } from '@/types/enum';
 
-const attendanceService = new AttendanceService();
 const holidayService = new HolidayService();
 
 export default async function handler(
@@ -21,7 +19,11 @@ export default async function handler(
   }
 
   try {
-    const user = await prisma.user.findUnique({
+    const today = new Date();
+    const startDate = new Date(today.getFullYear(), today.getMonth() - 1, 26);
+    const endDate = new Date(today.getFullYear(), today.getMonth(), 25);
+
+    let user = await prisma.user.findUnique({
       where: { lineUserId },
       include: {
         assignedShift: true,
@@ -33,27 +35,42 @@ export default async function handler(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const today = new Date();
-    const startDate = new Date(today.getFullYear(), today.getMonth() - 1, 26);
-    const endDate = new Date(today.getFullYear(), today.getMonth(), 25);
-
-    const attendanceStatus = await attendanceService.getLatestAttendanceStatus(
-      user.employeeId,
-    );
-
-    const recentAttendance = await prisma.attendance.findMany({
-      where: {
-        userId: user.id,
-        date: {
-          gte: startDate,
-          lte: endDate,
+    const [recentAttendance, holidays] = await Promise.all([
+      prisma.attendance.findMany({
+        where: {
+          userId: user.id,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
         },
-      },
-      orderBy: { date: 'desc' },
-      take: 5,
-    });
+        orderBy: { date: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          userId: true,
+          date: true,
+          checkInTime: true,
+          checkOutTime: true,
+          overtimeStartTime: true,
+          overtimeEndTime: true,
+          checkInLocation: true,
+          checkOutLocation: true,
+          checkInAddress: true,
+          checkOutAddress: true,
+          checkInReason: true,
+          checkOutReason: true,
+          checkInPhoto: true,
+          checkOutPhoto: true,
+          checkInDeviceSerial: true,
+          checkOutDeviceSerial: true,
+          status: true,
+          isManualEntry: true,
+        },
+      }),
+      holidayService.getHolidays(startDate, endDate),
+    ]);
 
-    const holidays = await holidayService.getHolidays(startDate, endDate);
     const totalDaysInPeriod = Math.ceil(
       (endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24),
     );
@@ -97,12 +114,8 @@ export default async function handler(
     };
 
     const responseData = {
-      user: {
-        ...user,
-        department: user.department.name,
-      },
-      attendanceStatus,
-      recentAttendance,
+      user: userData,
+      recentAttendance: recentAttendance as AttendanceRecord[],
       totalWorkingDays,
       totalPresent,
       totalAbsent,

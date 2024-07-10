@@ -68,7 +68,7 @@ export interface AttendanceRecord {
   checkOutTime: Date | null;
   overtimeStartTime: Date | null;
   overtimeEndTime: Date | null;
-  checkInLocation: Location;
+  checkInLocation: Location | null;
   checkOutLocation: Location | null;
   checkInAddress: string | null;
   checkOutAddress: string | null;
