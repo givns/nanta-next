@@ -1,7 +1,11 @@
-// pages/check-in-router.ts
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
-import { UserData, AttendanceStatus, UserResponse } from '../types/user';
+import {
+  UserData,
+  AttendanceStatus,
+  UserResponse,
+  ShiftData,
+} from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -15,6 +19,41 @@ const CheckInRouter: React.FC = () => {
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
   );
 
+  const fetchUserData = useCallback(async (lineUserId: string) => {
+    try {
+      console.log('Fetching user data...');
+      const response = await axios.get<UserResponse>('/api/users', {
+        params: { lineUserId },
+      });
+      console.log('User data response:', response.data);
+
+      const { user, attendanceStatus: fetchedAttendanceStatus } = response.data;
+      setUserData(user);
+
+      // Ensure the assignedShift is of type ShiftData | null
+      const safeAssignedShift: ShiftData | null = user.assignedShift || null;
+
+      // Create a new AttendanceStatus with the safe assignedShift
+      const newAttendanceStatus: AttendanceStatus = {
+        ...fetchedAttendanceStatus,
+        user: {
+          ...fetchedAttendanceStatus.user,
+          assignedShift: safeAssignedShift,
+        },
+      };
+
+      setAttendanceStatus(newAttendanceStatus);
+
+      console.log('States updated:', {
+        userData: user,
+        attendanceStatus: newAttendanceStatus,
+      });
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setMessage('Failed to load user data. Please try again.');
+    }
+  }, []);
+
   useEffect(() => {
     const initializeLiff = async () => {
       try {
@@ -25,57 +64,20 @@ const CheckInRouter: React.FC = () => {
         if (liff.isLoggedIn()) {
           console.log('User is logged in, fetching profile...');
           const profile = await liff.getProfile();
-          const lineUserId = profile.userId;
-          console.log('LINE User ID:', lineUserId);
-
-          console.log('Fetching user data...');
-          const response = await axios.get<UserResponse>('/api/users', {
-            params: { lineUserId },
-          });
-          console.log('User data response:', response.data);
-
-          const user = response.data.user;
-          setUserData(user);
-
-          // Create a default AttendanceStatus
-          const newAttendanceStatus: AttendanceStatus = {
-            user: {
-              id: user.id,
-              employeeId: user.employeeId,
-              name: user.name,
-              departmentId: user.departmentId,
-              assignedShift: user.assignedShift || null,
-            },
-            latestAttendance: null,
-            isCheckingIn: true, // Set a default value
-            shiftAdjustment: null,
-          };
-          setAttendanceStatus(newAttendanceStatus);
-
-          console.log('States updated:', {
-            userData: user,
-            attendanceStatus: newAttendanceStatus,
-          });
+          console.log('LINE User ID:', profile.userId);
+          await fetchUserData(profile.userId);
         } else {
           console.log('User is not logged in, initiating login...');
           liff.login();
         }
       } catch (error: any) {
-        console.error('Error initializing LIFF or fetching data:', error);
-        if (axios.isAxiosError(error) && error.response) {
-          console.error('Error response:', error.response.data);
-          setMessage(
-            error.response.data.message ||
-              'Failed to load user data or attendance status',
-          );
-        } else {
-          setMessage('An unexpected error occurred. Please try again later.');
-        }
+        console.error('Error initializing LIFF:', error);
+        setMessage('An unexpected error occurred. Please try again later.');
       }
     };
 
     initializeLiff();
-  }, []);
+  }, [fetchUserData]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -86,8 +88,6 @@ const CheckInRouter: React.FC = () => {
 
     return () => clearInterval(intervalId);
   }, []);
-
-  console.log('Current state:', { userData, attendanceStatus, message });
 
   if (!userData || !attendanceStatus) {
     console.log(
