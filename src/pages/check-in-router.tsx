@@ -38,9 +38,10 @@ const CheckInRouter: React.FC = () => {
           const userResponse = await axios.get(
             `/api/users?lineUserId=${profile.userId}`,
           );
-          setUserData(userResponse.data.user);
-          if (userResponse.data.user.employeeId) {
-            await fetchAttendanceStatus(userResponse.data.user.employeeId);
+          const user = userResponse.data.user;
+          setUserData(user);
+          if (user.employeeId) {
+            await fetchAttendanceStatus(user.employeeId);
           } else {
             setMessage('Employee ID not found');
             setIsLoading(false);
