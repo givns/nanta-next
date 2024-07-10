@@ -36,7 +36,23 @@ const CheckInRouter: React.FC = () => {
           console.log('User data response:', response.data);
 
           setUserData(response.data.user);
-          setAttendanceStatus(response.data.attendanceStatus);
+          // Create a default AttendanceStatus if it's not provided in the response
+          setAttendanceStatus({
+            user: response.data.user,
+            latestAttendance: null,
+            isCheckingIn: true, // Set a default value
+            shiftAdjustment: null,
+          });
+
+          console.log('States updated:', {
+            userData: response.data.user,
+            attendanceStatus: {
+              user: response.data.user,
+              latestAttendance: null,
+              isCheckingIn: true,
+              shiftAdjustment: null,
+            },
+          });
         } else {
           console.log('User is not logged in, initiating login...');
           liff.login();
@@ -67,6 +83,8 @@ const CheckInRouter: React.FC = () => {
 
     return () => clearInterval(intervalId);
   }, []);
+
+  console.log('Current state:', { userData, attendanceStatus, message });
 
   if (!userData || !attendanceStatus) {
     console.log(
