@@ -1,18 +1,14 @@
 // pages/user-dashboard.tsx
 
 import { useState, useEffect, useContext } from 'react';
-import { User, Shift, Attendance } from '@prisma/client';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Calendar } from '../components/ui/calendar';
 import { Input } from '../components/ui/input';
 import { LiffContext } from './_app';
-
-interface UserWithShift extends User {
-  assignedShift: Shift;
-}
+import { UserData, Attendance, ShiftData } from '@/types/user';
 
 interface DashboardProps {
-  user: UserWithShift;
+  user: UserData & { assignedShift: ShiftData };
   recentAttendance: Attendance[];
   totalWorkingDays: number;
   totalPresent: number;
@@ -34,7 +30,7 @@ export default function UserDashboard() {
             `/api/users?lineUserId=${profile.userId}`,
           );
           if (!response.ok) throw new Error('Failed to fetch user data');
-          const data = await response.json();
+          const data: DashboardProps = await response.json();
           setUserData(data);
         } catch (error) {
           console.error('Error fetching user data:', error);
@@ -69,7 +65,7 @@ export default function UserDashboard() {
         </Avatar>
         <div className="grid gap-0.5 text-sm">
           <div className="font-medium">{user.name}</div>
-          <div className="text-muted-foreground">{user.departmentId}</div>
+          <div className="text-muted-foreground">{user.department}</div>
         </div>
       </div>
       <div className="flex flex-col w-full space-y-2">

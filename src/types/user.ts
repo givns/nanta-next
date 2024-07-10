@@ -1,21 +1,25 @@
-import {
+import { User, Shift } from '@prisma/client';
+import { UserRole } from '@/types/enum';
+
+export type {
   User,
   Attendance,
   Shift,
   ShiftAdjustmentRequest,
 } from '@prisma/client';
-import { UserRole } from '@/types/enum';
 export interface UserData {
   id: string;
-  lineUserId: string;
+  lineUserId: string | null;
   name: string;
-  nickname: string;
+  nickname: string | null;
+  departmentId: string;
   department: string;
   employeeId: string;
   role: UserRole;
   shiftId: string;
   assignedShift?: Shift;
   profilePictureUrl: string | null;
+  profilePictureExternal: string | null;
   createdAt: Date;
   updatedAt: Date | null;
 }
@@ -49,25 +53,42 @@ export interface AttendanceStatus {
     employeeId: string;
     name: string;
     departmentId: string;
-    assignedShift: {
-      id: string;
-      shiftCode: string;
-      name: string;
-      startTime: string;
-      endTime: string;
-      workDays: number[];
-    };
+    assignedShift: ShiftData;
   };
-  latestAttendance: Attendance | null;
+  latestAttendance: AttendanceRecord | null;
   isCheckingIn: boolean;
-  shiftAdjustment: (ShiftAdjustmentRequest & { requestedShift: Shift }) | null;
+  shiftAdjustment: ShiftAdjustment | null;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  userId: string;
+  date: Date;
+  checkInTime: Date | null;
+  checkOutTime: Date | null;
+  overtimeStartTime: Date | null;
+  overtimeEndTime: Date | null;
+  checkInLocation: Location;
+  checkOutLocation: Location | null;
+  checkInAddress: string | null;
+  checkOutAddress: string | null;
+  checkInReason: string | null;
+  checkOutReason: string | null;
+  checkInPhoto: string;
+  checkOutPhoto: string | null;
+  checkInDeviceSerial: string | null;
+  checkOutDeviceSerial: string | null;
+  status: string;
+  isManualEntry: boolean;
 }
 
 export interface ShiftData {
   id: string;
+  shiftCode: string;
   name: string;
   startTime: string;
   endTime: string;
+  workDays: number[];
 }
 
 export interface ShiftAdjustment {
@@ -77,6 +98,9 @@ export interface ShiftAdjustment {
   date: Date;
   status: 'pending' | 'approved' | 'rejected';
   reason: string;
+  createdAt: Date;
+  updatedAt: Date;
+  requestedShift: Shift;
 }
 
 export interface OvertimeApproval {
@@ -96,6 +120,17 @@ export interface ShiftAdjustmentRequestData {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface UserResponse {
+  user: UserData;
+  attendanceStatus: AttendanceStatus;
+  recentAttendance: AttendanceRecord[];
+  totalWorkingDays: number;
+  totalPresent: number;
+  totalAbsent: number;
+  overtimeHours: number;
+  balanceLeave: number;
 }
 
 export interface LeaveRequestData {
@@ -203,4 +238,9 @@ export interface CheckOutData {
   reason?: string;
   photo: string;
   deviceSerial?: string;
+}
+
+export interface CheckOutFormData
+  extends Omit<CheckInFormData, 'userId' | 'employeeId'> {
+  checkInId: string;
 }

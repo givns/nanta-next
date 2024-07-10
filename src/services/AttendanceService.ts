@@ -1,8 +1,4 @@
-import {
-  PrismaClient,
-  Attendance,
-  ShiftAdjustmentRequest,
-} from '@prisma/client';
+import { PrismaClient, Attendance } from '@prisma/client';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { ExternalDbService } from './ExternalDbService';
 import { NotificationService } from './NotificationService';
@@ -10,6 +6,9 @@ import {
   ExternalCheckInData,
   AttendanceData,
   AttendanceStatus,
+  AttendanceRecord,
+  ShiftData,
+  ShiftAdjustment,
 } from '../types/user';
 
 const prisma = new PrismaClient();
@@ -38,7 +37,7 @@ export class AttendanceService {
     try {
       const user = await prisma.user.findUnique({
         where: { employeeId },
-        include: { assignedShift: true },
+        include: { assignedShift: true, department: true },
       });
 
       if (!user) {
@@ -67,18 +66,27 @@ export class AttendanceService {
 
       const latestAttendance = await this.getLatestAttendanceRecord(user.id);
       const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
+      const shiftAdjustment = await this.getLatestShiftAdjustment(user.id);
 
       const result: AttendanceStatus = {
         user: {
           id: user.id,
           employeeId: user.employeeId,
           name: user.name,
-          assignedShift: user.assignedShift,
           departmentId: user.departmentId,
+          assignedShift: user.assignedShift as ShiftData,
         },
-        latestAttendance,
+        latestAttendance: latestAttendance as AttendanceRecord | null,
         isCheckingIn,
-        shiftAdjustment: null, // You might want to fetch this separately if needed
+        shiftAdjustment: shiftAdjustment
+          ? {
+              ...shiftAdjustment,
+              status: shiftAdjustment.status as
+                | 'pending'
+                | 'approved'
+                | 'rejected',
+            }
+          : null,
       };
 
       console.log(
@@ -214,14 +222,39 @@ export class AttendanceService {
 
   private async getLatestAttendanceRecord(
     userId: string,
-  ): Promise<Attendance | null> {
-    return prisma.attendance.findFirst({
+  ): Promise<AttendanceRecord | null> {
+    const attendance = await prisma.attendance.findFirst({
       where: { userId },
       orderBy: { date: 'desc' },
     });
+    return attendance as AttendanceRecord | null;
   }
 
-  private determineIfCheckingIn(latestAttendance: Attendance | null): boolean {
+  private async getLatestShiftAdjustment(
+    userId: string,
+  ): Promise<ShiftAdjustment | null> {
+    const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
+      where: {
+        userId,
+        status: 'approved',
+        date: { gte: new Date() },
+      },
+      include: { requestedShift: true },
+      orderBy: { date: 'asc' },
+    });
+
+    return shiftAdjustment
+      ? {
+          ...shiftAdjustment,
+          status: shiftAdjustment.status as 'pending' | 'approved' | 'rejected',
+          requestedShift: shiftAdjustment.requestedShift as ShiftData,
+        }
+      : null;
+  }
+
+  private determineIfCheckingIn(
+    latestAttendance: AttendanceRecord | null,
+  ): boolean {
     if (!latestAttendance) return true;
 
     const now = new Date();

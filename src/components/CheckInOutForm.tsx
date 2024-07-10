@@ -3,7 +3,7 @@ import Webcam from 'react-webcam';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
-import { AttendanceStatus, UserData } from '../types/user';
+import { AttendanceStatus, UserData, UserResponse } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 import Image from 'next/image';
@@ -77,11 +77,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         'Fetching attendance status for employeeId:',
         userData.employeeId,
       );
-      const response = await axios.get<AttendanceStatus>('/api/check-status', {
-        params: { employeeId: userData.employeeId },
+      const response = await axios.get<UserResponse>('/api/users', {
+        params: { lineUserId: userData.lineUserId },
       });
-      console.log('Attendance status response:', response.data);
-      setAttendanceStatus(response.data);
+      console.log('User response:', response.data);
+      setAttendanceStatus(response.data.attendanceStatus);
 
       if (response.data.user.departmentId) {
         const deptName = getDepartmentNameById(response.data.user.departmentId);
@@ -104,7 +104,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setIsLoadingCheckData(false);
       setIsLoading(false);
     }
-  }, [userData.employeeId]);
+  }, [userData.lineUserId, userData.employeeId]);
 
   const fetchShiftDetails = useCallback(async () => {
     if (!attendanceStatus) return;

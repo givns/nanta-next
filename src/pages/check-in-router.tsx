@@ -4,19 +4,26 @@ import { UserData, AttendanceStatus } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
 
+interface UserResponse {
+  user: UserData;
+  attendanceStatus: AttendanceStatus;
+  recentAttendance: any[]; // You might want to define a more specific type for this
+  totalWorkingDays: number;
+  totalPresent: number;
+  totalAbsent: number;
+  overtimeHours: number;
+  balanceLeave: number;
+}
+
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [attendanceStatus, setAttendanceStatus] =
+    useState<AttendanceStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
   );
-  const [attendanceStatus, setAttendanceStatus] =
-    useState<AttendanceStatus | null>(null);
   const [isCheckingIn, setIsCheckingIn] = useState<boolean | null>(null);
-  const [fetchedUserData, setFetchedUserData] = useState<UserData | null>(null);
-  const [statusResponse, setStatusResponse] = useState<AttendanceStatus | null>(
-    null,
-  );
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -32,29 +39,14 @@ const CheckInRouter: React.FC = () => {
           console.log('LINE User ID:', lineUserId);
 
           console.log('Fetching user data...');
-          const userResponse = await axios.get<UserData>('/api/users', {
+          const response = await axios.get<UserResponse>('/api/users', {
             params: { lineUserId },
           });
-          console.log('User data response:', userResponse.data);
-          setUserData(userResponse.data);
+          console.log('User data response:', response.data);
 
-          if (userResponse.data && userResponse.data.employeeId) {
-            console.log('Employee ID found:', userResponse.data.employeeId);
-
-            console.log('Fetching initial attendance status...');
-            const statusResponse = await axios.get<AttendanceStatus>(
-              '/api/check-status',
-              {
-                params: { employeeId: userResponse.data.employeeId },
-              },
-            );
-            console.log('Attendance status response:', statusResponse.data);
-            setAttendanceStatus(statusResponse.data);
-            setIsCheckingIn(statusResponse.data.isCheckingIn);
-          } else {
-            console.error('Employee ID not found in user data');
-            setMessage('Employee ID not found. Please contact support.');
-          }
+          setUserData(response.data.user);
+          setAttendanceStatus(response.data.attendanceStatus);
+          setIsCheckingIn(response.data.attendanceStatus.isCheckingIn);
         } else {
           console.log('User is not logged in, initiating login...');
           liff.login();
@@ -86,15 +78,6 @@ const CheckInRouter: React.FC = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  useEffect(() => {
-    if (fetchedUserData && statusResponse) {
-      setUserData(fetchedUserData);
-      setAttendanceStatus(statusResponse);
-      setIsCheckingIn(statusResponse.isCheckingIn);
-      console.log('States updated');
-    }
-  }, [fetchedUserData, statusResponse]);
-
   if (!userData || !attendanceStatus) {
     console.log(
       'Still loading. userData:',
@@ -109,6 +92,7 @@ const CheckInRouter: React.FC = () => {
       </div>
     );
   }
+
   return (
     <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">

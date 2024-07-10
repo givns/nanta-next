@@ -1,7 +1,12 @@
-// src/pages/api/users.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
+import { UserData, ShiftData } from '../../types/user';
+import { AttendanceService } from '../../services/AttendanceService';
+import { HolidayService } from '../../services/HolidayService';
+import { UserRole } from '@/types/enum';
+
+const attendanceService = new AttendanceService();
+const holidayService = new HolidayService();
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,6 +25,7 @@ export default async function handler(
       where: { lineUserId },
       include: {
         assignedShift: true,
+        department: true,
       },
     });
 
@@ -28,50 +34,74 @@ export default async function handler(
     }
 
     const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const startDate = new Date(today.getFullYear(), today.getMonth() - 1, 26);
+    const endDate = new Date(today.getFullYear(), today.getMonth(), 25);
+
+    const attendanceStatus = await attendanceService.getLatestAttendanceStatus(
+      user.employeeId,
+    );
 
     const recentAttendance = await prisma.attendance.findMany({
       where: {
         userId: user.id,
         date: {
-          gte: startOfMonth,
-          lte: endOfMonth,
+          gte: startDate,
+          lte: endDate,
         },
       },
       orderBy: { date: 'desc' },
       take: 5,
     });
 
-    const totalWorkingDays = await prisma.attendance.count({
-      where: {
-        userId: user.id,
-        date: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
-      },
-    });
+    const holidays = await holidayService.getHolidays(startDate, endDate);
+    const totalDaysInPeriod = Math.ceil(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24),
+    );
+    const totalWorkingDays = calculateTotalWorkingDays(
+      totalDaysInPeriod,
+      user.assignedShift.workDays,
+      holidays.length,
+    );
 
     const totalPresent = await prisma.attendance.count({
       where: {
         userId: user.id,
         date: {
-          gte: startOfMonth,
-          lte: endOfMonth,
+          gte: startDate,
+          lte: endDate,
         },
-        checkInTime: {
-          not: null,
-        },
+        checkInTime: { not: null },
+        checkOutTime: { not: null },
       },
     });
 
     const totalAbsent = totalWorkingDays - totalPresent;
     const overtimeHours = user.overtimeHours || 0;
-    const balanceLeave = 10; // Placeholder value, replace with actual calculation
+    const balanceLeave = await calculateLeaveBalance(user.id);
+
+    const userData: UserData & { assignedShift: ShiftData } = {
+      id: user.id,
+      lineUserId: user.lineUserId,
+      name: user.name,
+      nickname: user.nickname || '',
+      departmentId: user.departmentId,
+      department: user.department.name,
+      employeeId: user.employeeId,
+      role: user.role as UserRole,
+      shiftId: user.shiftId,
+      assignedShift: user.assignedShift as ShiftData,
+      profilePictureUrl: user.profilePictureUrl,
+      profilePictureExternal: user.profilePictureExternal,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
 
     const responseData = {
-      user,
+      user: {
+        ...user,
+        department: user.department.name,
+      },
+      attendanceStatus,
       recentAttendance,
       totalWorkingDays,
       totalPresent,
@@ -85,4 +115,31 @@ export default async function handler(
     console.error('Error fetching user data:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+}
+
+function calculateTotalWorkingDays(
+  totalDays: number,
+  workDays: number[],
+  holidays: number,
+): number {
+  const workingDaysPerWeek = workDays.length;
+  const weeks = Math.floor(totalDays / 7);
+  const remainingDays = totalDays % 7;
+
+  let totalWorkingDays = weeks * workingDaysPerWeek;
+
+  for (let i = 0; i < remainingDays; i++) {
+    if (workDays.includes((i + 1) % 7)) {
+      totalWorkingDays++;
+    }
+  }
+
+  return totalWorkingDays - holidays;
+}
+
+async function calculateLeaveBalance(userId: string): Promise<number> {
+  // Implement leave balance calculation logic here
+  // This could involve fetching the user's leave requests and calculating the remaining balance
+  // For now, we'll return a placeholder value
+  return 10;
 }
