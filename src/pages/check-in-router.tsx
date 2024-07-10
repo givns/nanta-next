@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
-import { UserData, AttendanceStatus, UserResponse } from '../types/user';
+import { UserData, AttendanceStatus } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -9,50 +9,22 @@ const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatus | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
   );
 
-  const fetchUserData = useCallback(async (lineUserId: string) => {
-    setIsLoading(true);
+  const fetchAttendanceStatus = useCallback(async (employeeId: string) => {
     try {
-      console.log('Fetching user data...');
-      const response = await axios.get<UserResponse>('/api/users', {
-        params: { lineUserId },
-      });
-      console.log('User data response:', response.data);
-
-      const { user, recentAttendance } = response.data;
-
-      setUserData(user);
-
-      const newAttendanceStatus: AttendanceStatus = {
-        user: {
-          id: user.id,
-          employeeId: user.employeeId,
-          name: user.name,
-          departmentId: user.departmentId,
-          assignedShift: user.assignedShift || null,
-        },
-        latestAttendance:
-          recentAttendance.length > 0 ? recentAttendance[0] : null,
-        isCheckingIn:
-          recentAttendance.length === 0 || !!recentAttendance[0].checkOutTime,
-        shiftAdjustment: null, // Assume no shift adjustment for now
-      };
-
-      setAttendanceStatus(newAttendanceStatus);
-      console.log('States updated:', {
-        userData: user,
-        attendanceStatus: newAttendanceStatus,
-      });
+      const response = await axios.get(
+        `/api/check-status?employeeId=${employeeId}`,
+      );
+      setAttendanceStatus(response.data);
       setIsLoading(false);
-      setMessage(null);
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      setMessage('Failed to load user data. Please try again.');
+      console.error('Error fetching attendance status:', error);
+      setMessage('Failed to fetch attendance status');
       setIsLoading(false);
     }
   }, []);
@@ -60,28 +32,26 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     const initializeLiff = async () => {
       try {
-        console.log('Initializing LIFF...');
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
-        console.log('LIFF initialized successfully');
-
         if (liff.isLoggedIn()) {
-          console.log('User is logged in, fetching profile...');
           const profile = await liff.getProfile();
-          console.log('LINE User ID:', profile.userId);
-          await fetchUserData(profile.userId);
+          const userResponse = await axios.get(
+            `/api/users?lineUserId=${profile.userId}`,
+          );
+          setUserData(userResponse.data);
+          await fetchAttendanceStatus(userResponse.data.employeeId);
         } else {
-          console.log('User is not logged in, initiating login...');
           liff.login();
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error('Error initializing LIFF:', error);
-        setMessage('An unexpected error occurred. Please try again later.');
+        setMessage('Failed to initialize the application');
         setIsLoading(false);
       }
     };
 
     initializeLiff();
-  }, [fetchUserData]);
+  }, [fetchAttendanceStatus]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -92,13 +62,6 @@ const CheckInRouter: React.FC = () => {
 
     return () => clearInterval(intervalId);
   }, []);
-
-  console.log('Render state:', {
-    isLoading,
-    userData,
-    attendanceStatus,
-    message,
-  });
 
   if (isLoading) {
     return (

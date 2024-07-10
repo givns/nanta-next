@@ -54,17 +54,20 @@ export class AttendanceService {
         `User found: ${user.id}, Assigned shift: ${user.assignedShift.id}`,
       );
 
-      let externalData = null;
-      try {
-        externalData =
-          await this.externalDbService.getLatestCheckIn(employeeId);
-        console.log('External data:', JSON.stringify(externalData, null, 2));
-      } catch (error) {
-        console.error('Error fetching external user data:', error);
-        // Continue execution even if external data fetch fails
-      }
+      // Fetch both internal and external attendance data
+      const [internalAttendance, externalData] = await Promise.all([
+        this.getInternalAttendanceRecord(user.id),
+        this.externalDbService.getLatestCheckIn(employeeId),
+      ]);
 
-      const latestAttendance = await this.getLatestAttendanceRecord(user.id);
+      console.log('External data:', JSON.stringify(externalData, null, 2));
+
+      // Determine the latest attendance record
+      const latestAttendance = this.getLatestAttendanceRecord(
+        internalAttendance,
+        externalData?.checkIn || null,
+      );
+
       const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
       const shiftAdjustment = await this.getLatestShiftAdjustment(user.id);
 
@@ -76,7 +79,7 @@ export class AttendanceService {
           departmentId: user.departmentId,
           assignedShift: user.assignedShift as ShiftData,
         },
-        latestAttendance: latestAttendance as AttendanceRecord | null,
+        latestAttendance,
         isCheckingIn,
         shiftAdjustment: shiftAdjustment
           ? {
@@ -99,6 +102,89 @@ export class AttendanceService {
       console.error('Error in getLatestAttendanceStatus:', error);
       throw error;
     }
+  }
+
+  private async getInternalAttendanceRecord(
+    userId: string,
+  ): Promise<AttendanceRecord | null> {
+    const attendance = await prisma.attendance.findFirst({
+      where: { userId },
+      orderBy: { date: 'desc' },
+    });
+    return attendance as AttendanceRecord | null;
+  }
+
+  private getLatestAttendanceRecord(
+    internal: AttendanceRecord | null,
+    external: ExternalCheckInData | null,
+  ): AttendanceRecord | null {
+    if (!internal && !external) return null;
+    if (!internal) return this.convertExternalToAttendanceRecord(external!);
+    if (!external) return internal;
+
+    const internalDate = new Date(internal.date);
+    const externalDate = new Date(external.sj);
+
+    return internalDate > externalDate
+      ? internal
+      : this.convertExternalToAttendanceRecord(external);
+  }
+
+  private convertExternalToAttendanceRecord(
+    external: ExternalCheckInData,
+  ): AttendanceRecord {
+    // Create a new Date object from the external date string
+    const checkInDate = new Date(external.sj);
+
+    return {
+      id: external.iden || `external-${external.user_serial}-${external.date}`,
+      userId: external.user_serial.toString(),
+      date: new Date(external.date),
+      checkInTime: checkInDate,
+      checkOutTime: null, // Assume external data is for check-in only
+      overtimeStartTime: null,
+      overtimeEndTime: null,
+      checkInLocation: null,
+      checkOutLocation: null,
+      checkInAddress: null,
+      checkOutAddress: null,
+      checkInReason: null,
+      checkOutReason: null,
+      checkInPhoto: 'N/A', // Assuming external system doesn't capture photos
+      checkOutPhoto: null,
+      checkInDeviceSerial: external.dev_serial,
+      checkOutDeviceSerial: null,
+      status: this.determineStatus(checkInDate, external.fx),
+      isManualEntry: false,
+    };
+  }
+
+  private determineStatus(checkInTime: Date, checkType: number): string {
+    const now = new Date();
+    if (checkType === 1) return 'checked-in';
+    if (checkType === 2) return 'checked-out';
+    if (checkType === 3) return 'overtime-started';
+    if (checkType === 4) return 'overtime-ended';
+
+    // If it's an old record, assume it's completed
+    if (checkInTime.getDate() < now.getDate()) return 'completed';
+
+    // Default case
+    return 'checked-in';
+  }
+
+  private determineIfCheckingIn(
+    latestAttendance: AttendanceRecord | null,
+  ): boolean {
+    if (!latestAttendance) return true;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (new Date(latestAttendance.date) < today) return true;
+    if (latestAttendance.checkOutTime) return true;
+
+    return false;
   }
 
   async processExternalCheckInOut(
@@ -220,16 +306,6 @@ export class AttendanceService {
     }
   }
 
-  private async getLatestAttendanceRecord(
-    userId: string,
-  ): Promise<AttendanceRecord | null> {
-    const attendance = await prisma.attendance.findFirst({
-      where: { userId },
-      orderBy: { date: 'desc' },
-    });
-    return attendance as AttendanceRecord | null;
-  }
-
   private async getLatestShiftAdjustment(
     userId: string,
   ): Promise<ShiftAdjustment | null> {
@@ -250,20 +326,6 @@ export class AttendanceService {
           requestedShift: shiftAdjustment.requestedShift as ShiftData,
         }
       : null;
-  }
-
-  private determineIfCheckingIn(
-    latestAttendance: AttendanceRecord | null,
-  ): boolean {
-    if (!latestAttendance) return true;
-
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    if (latestAttendance.date < today) return true;
-    if (latestAttendance.checkOutTime) return true;
-
-    return false;
   }
 
   private async createAttendance(
