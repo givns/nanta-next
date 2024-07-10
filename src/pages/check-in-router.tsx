@@ -1,5 +1,4 @@
 // pages/check-in-router.ts
-
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { UserData, AttendanceStatus, UserResponse } from '../types/user';
@@ -35,23 +34,27 @@ const CheckInRouter: React.FC = () => {
           });
           console.log('User data response:', response.data);
 
-          setUserData(response.data.user);
-          // Create a default AttendanceStatus if it's not provided in the response
-          setAttendanceStatus({
-            user: response.data.user,
+          const user = response.data.user;
+          setUserData(user);
+
+          // Create a default AttendanceStatus
+          const newAttendanceStatus: AttendanceStatus = {
+            user: {
+              id: user.id,
+              employeeId: user.employeeId,
+              name: user.name,
+              departmentId: user.departmentId,
+              assignedShift: user.assignedShift || null,
+            },
             latestAttendance: null,
             isCheckingIn: true, // Set a default value
             shiftAdjustment: null,
-          });
+          };
+          setAttendanceStatus(newAttendanceStatus);
 
           console.log('States updated:', {
-            userData: response.data.user,
-            attendanceStatus: {
-              user: response.data.user,
-              latestAttendance: null,
-              isCheckingIn: true,
-              shiftAdjustment: null,
-            },
+            userData: user,
+            attendanceStatus: newAttendanceStatus,
           });
         } else {
           console.log('User is not logged in, initiating login...');

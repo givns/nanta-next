@@ -123,8 +123,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     }
 
-    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
-    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+    // If there's no shift data, we can't calculate shift details
+    if (!shift) {
+      console.log('No shift data available');
+      setIsWithinShift(false);
+      setIsBeforeShift(false);
+      setIsAfterShift(false);
+      setMinutesUntilShiftStart(0);
+      setMinutesUntilShiftEnd(0);
+      return;
+    }
+
+    // Provide default values if startTime or endTime are undefined
+    const [startHour, startMinute] = (shift.startTime || '00:00')
+      .split(':')
+      .map(Number);
+    const [endHour, endMinute] = (shift.endTime || '23:59')
+      .split(':')
+      .map(Number);
 
     const shiftStart = new Date(now);
     shiftStart.setHours(startHour, startMinute, 0, 0);
@@ -424,8 +440,17 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       const shift =
         attendanceStatus.shiftAdjustment?.requestedShift ||
         attendanceStatus.user.assignedShift;
-      const [startHour, startMinute] = shift.startTime.split(':').map(Number);
-      const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+
+      // If there's no shift assigned, we can't determine if it's within shift time
+      if (!shift) return false;
+
+      // Provide default values if startTime or endTime are undefined
+      const [startHour, startMinute] = (shift.startTime || '00:00')
+        .split(':')
+        .map(Number);
+      const [endHour, endMinute] = (shift.endTime || '23:59')
+        .split(':')
+        .map(Number);
 
       const shiftStart = new Date(
         now.getFullYear(),
@@ -462,12 +487,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       const { user, shiftAdjustment } = attendanceStatus;
       const shift = shiftAdjustment?.requestedShift || user.assignedShift;
 
+      if (!shift) {
+        return (
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold mb-2">Shift Information:</h3>
+            <p>No shift assigned</p>
+          </div>
+        );
+      }
+
       return (
         <div className="mb-4">
           <h3 className="text-lg font-semibold mb-2">Shift Information:</h3>
-          <p>Shift: {shift.name}</p>
-          <p>Start Time: {shift.startTime}</p>
-          <p>End Time: {shift.endTime}</p>
+          <p>Shift: {shift.name || 'N/A'}</p>
+          <p>Start Time: {shift.startTime || 'N/A'}</p>
+          <p>End Time: {shift.endTime || 'N/A'}</p>
           {shiftAdjustment && (
             <p className="text-blue-600">Shift adjusted for today</p>
           )}

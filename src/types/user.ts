@@ -17,7 +17,7 @@ export interface UserData {
   employeeId: string;
   role: UserRole;
   shiftId: string;
-  assignedShift?: Shift;
+  assignedShift?: Shift | null | undefined;
   profilePictureUrl: string | null;
   profilePictureExternal: string | null;
   createdAt: Date;
@@ -53,7 +53,7 @@ export interface AttendanceStatus {
     employeeId: string;
     name: string;
     departmentId: string;
-    assignedShift: ShiftData;
+    assignedShift: ShiftData | null;
   };
   latestAttendance: AttendanceRecord | null;
   isCheckingIn: boolean;
