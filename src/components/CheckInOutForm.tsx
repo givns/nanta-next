@@ -68,6 +68,38 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const webcamRef = useRef<Webcam>(null);
 
+  const fetchAttendanceStatus = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get<UserResponse>('/api/users', {
+        params: { lineUserId: userData.lineUserId },
+      });
+      setAttendanceStatus(response.data.attendanceStatus);
+
+      if (response.data.user.departmentId) {
+        const deptName = getDepartmentNameById(response.data.user.departmentId);
+        setDepartmentName(deptName || 'Unknown Department');
+      } else {
+        setDepartmentName('Department Not Assigned');
+      }
+    } catch (error) {
+      console.error('Error fetching attendance status:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        setError(
+          `Failed to fetch attendance status: ${error.response.data.message || error.message}`,
+        );
+      } else {
+        setError(
+          'An unexpected error occurred while fetching attendance status.',
+        );
+      }
+    } finally {
+      setIsLoadingCheckData(false);
+      setIsLoading(false);
+    }
+  }, [userData.lineUserId]);
+
   const fetchShiftDetails = useCallback(async () => {
     if (!attendanceStatus) return;
 
@@ -146,7 +178,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       onStatusChange(response.data.isCheckingIn);
     } catch (error) {
       console.error('Error fetching attendance status:', error);
-      // Handle error (e.g., show an error message to the user)
+      setError('Failed to fetch attendance status');
     }
   }, [userData.employeeId, onStatusChange]);
 
@@ -204,6 +236,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   useEffect(() => {
+    fetchAttendanceStatus().catch((error) => {
+      console.error('Error in fetchAttendanceStatus:', error);
+    });
     fetchShiftDetails().catch((error) => {
       console.error('Error in fetchShiftDetails:', error);
     });
@@ -213,7 +248,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     fetchApiKey().catch((error) => {
       console.error('Error in fetchApiKey:', error);
     });
-  }, [fetchShiftDetails, loadFaceDetectionModel, fetchApiKey]);
+  }, [
+    fetchAttendanceStatus,
+    refreshAttendanceStatus,
+    fetchShiftDetails,
+    loadFaceDetectionModel,
+    fetchApiKey,
+  ]);
 
   useEffect(() => {
     const getCurrentLocation = async () => {

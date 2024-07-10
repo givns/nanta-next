@@ -15,15 +15,14 @@ const CheckInRouter: React.FC = () => {
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
   );
 
-  const fetchAttendanceStatus = useCallback(async (employeeId: string) => {
+  const fetchUserData = useCallback(async (lineUserId: string) => {
     try {
-      const response = await axios.get(
-        `/api/check-status?employeeId=${employeeId}`,
-      );
-      setAttendanceStatus(response.data);
+      const response = await axios.get(`/api/users?lineUserId=${lineUserId}`);
+      setUserData(response.data.user);
+      setAttendanceStatus(response.data.attendanceStatus);
     } catch (error) {
-      console.error('Error fetching attendance status:', error);
-      setMessage('Failed to fetch attendance status');
+      console.error('Error fetching user data:', error);
+      setMessage('Failed to fetch user data');
     } finally {
       setIsLoading(false);
     }
@@ -35,17 +34,7 @@ const CheckInRouter: React.FC = () => {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
-          const userResponse = await axios.get(
-            `/api/users?lineUserId=${profile.userId}`,
-          );
-          const user = userResponse.data.user;
-          setUserData(user);
-          if (user.employeeId) {
-            await fetchAttendanceStatus(user.employeeId);
-          } else {
-            setMessage('Employee ID not found');
-            setIsLoading(false);
-          }
+          await fetchUserData(profile.userId);
         } else {
           liff.login();
         }
@@ -57,7 +46,7 @@ const CheckInRouter: React.FC = () => {
     };
 
     initializeLiff();
-  }, [fetchAttendanceStatus]);
+  }, [fetchUserData]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
