@@ -239,8 +239,3 @@ export interface CheckOutData {
   photo: string;
   deviceSerial?: string;
 }
-
-export interface CheckOutFormData
-  extends Omit<CheckInFormData, 'userId' | 'employeeId'> {
-  checkInId: string;
-}
