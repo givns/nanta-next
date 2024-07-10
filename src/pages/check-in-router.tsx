@@ -21,10 +21,10 @@ const CheckInRouter: React.FC = () => {
         `/api/check-status?employeeId=${employeeId}`,
       );
       setAttendanceStatus(response.data);
-      setIsLoading(false);
     } catch (error) {
       console.error('Error fetching attendance status:', error);
       setMessage('Failed to fetch attendance status');
+    } finally {
       setIsLoading(false);
     }
   }, []);
@@ -38,8 +38,13 @@ const CheckInRouter: React.FC = () => {
           const userResponse = await axios.get(
             `/api/users?lineUserId=${profile.userId}`,
           );
-          setUserData(userResponse.data);
-          await fetchAttendanceStatus(userResponse.data.employeeId);
+          setUserData(userResponse.data.user);
+          if (userResponse.data.user.employeeId) {
+            await fetchAttendanceStatus(userResponse.data.user.employeeId);
+          } else {
+            setMessage('Employee ID not found');
+            setIsLoading(false);
+          }
         } else {
           liff.login();
         }
