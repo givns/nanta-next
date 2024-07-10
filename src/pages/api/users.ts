@@ -3,6 +3,7 @@ import prisma from '../../lib/prisma';
 import { UserData, ShiftData, AttendanceRecord } from '../../types/user';
 import { HolidayService } from '../../services/HolidayService';
 import { UserRole } from '@/types/enum';
+import { getDepartmentNameById } from '../../lib/shiftCache';
 
 const holidayService = new HolidayService();
 
@@ -37,6 +38,13 @@ export default async function handler(
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    const departmentName = getDepartmentNameById(user.departmentId);
+
+    const userDetails = {
+      ...user,
+      department: departmentName || 'Unknown Department',
+    };
 
     const [recentAttendance, holidays] = await Promise.all([
       prisma.attendance.findMany({
@@ -111,7 +119,9 @@ export default async function handler(
       shiftId: user.shiftId,
       assignedShift: user.assignedShift as ShiftData,
       profilePictureUrl: user.profilePictureUrl,
-      profilePictureExternal: user.profilePictureExternal,
+      profilePictureExternal: user.profilePictureExternal
+        ? `https://profile-pictures/${user.profilePictureExternal}.jpg`
+        : null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -125,6 +135,7 @@ export default async function handler(
       overtimeHours,
       balanceLeave,
     };
+
     console.log('API: User data fetched successfully');
     console.log('API: Response data:', JSON.stringify(responseData, null, 2));
 

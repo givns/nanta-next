@@ -183,6 +183,7 @@ export interface ExternalCheckInData {
   user_no: string;
   user_fname?: string;
   user_lname?: string;
+  user_photo: string;
   department: string;
   user_depname: string;
   user_dep: string;

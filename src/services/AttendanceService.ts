@@ -14,6 +14,7 @@ import {
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
 const notificationService = new NotificationService();
+const profilePictureExternalBaseURL = 'https://profile-pictures/';
 
 export class AttendanceService {
   private externalDbService: ExternalDbService;
@@ -133,7 +134,6 @@ export class AttendanceService {
   private convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    // Create a new Date object from the external date string
     const checkInDate = new Date(external.sj);
 
     return {
@@ -141,7 +141,7 @@ export class AttendanceService {
       userId: external.user_serial.toString(),
       date: new Date(external.date),
       checkInTime: checkInDate,
-      checkOutTime: null, // Assume external data is for check-in only
+      checkOutTime: null,
       overtimeStartTime: null,
       overtimeEndTime: null,
       checkInLocation: null,
@@ -150,7 +150,7 @@ export class AttendanceService {
       checkOutAddress: null,
       checkInReason: null,
       checkOutReason: null,
-      checkInPhoto: 'N/A', // Assuming external system doesn't capture photos
+      checkInPhoto: `${profilePictureExternalBaseURL}${external.user_photo || 'default'}.jpg`,
       checkOutPhoto: null,
       checkInDeviceSerial: external.dev_serial,
       checkOutDeviceSerial: null,

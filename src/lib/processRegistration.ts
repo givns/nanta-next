@@ -1,4 +1,5 @@
-import { Job } from 'bull';
+// lib/processRegistration.ts
+
 import prisma from './prisma';
 import { Client } from '@line/bot-sdk';
 import { ExternalDbService } from '../services/ExternalDbService';
@@ -6,23 +7,17 @@ import { getDepartmentByNameFuzzy, refreshShiftCache } from './shiftCache';
 import { ShiftManagementService } from '../services/ShiftManagementService';
 import { ExternalCheckInData } from '../types/user';
 import { determineRole, determineRichMenuId } from '../utils/userUtils';
-
-const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-if (!channelAccessToken) {
-  throw new Error(
-    'LINE_CHANNEL_ACCESS_TOKEN is not set in the environment variables',
-  );
-}
+import { Job } from 'bull';
 
 const client = new Client({
-  channelAccessToken: channelAccessToken,
+  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
 const externalDbService = new ExternalDbService();
 const shiftManagementService = new ShiftManagementService();
 
 export async function processRegistration(
-  job: Job<any>,
+  job: Job,
 ): Promise<{ success: boolean; userId: string }> {
   console.log('Starting registration process for job:', job.id);
   const {
@@ -34,19 +29,11 @@ export async function processRegistration(
     profilePictureUrl,
   } = job.data;
 
-  if (job.data.testData) {
-    console.log('Processing test job:', job.data.testData);
-    console.log('Test job timestamp:', job.data.timestamp);
-    return { success: true, userId: 'Test job processed successfully' };
-  }
-
   try {
-    await job.progress(10);
     await refreshShiftCache();
 
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
-    await job.progress(20);
     let externalData: {
       checkIn: ExternalCheckInData | null;
       userInfo: any | null;
@@ -57,7 +44,6 @@ export async function processRegistration(
       console.error('Error finding external user:', error);
     }
 
-    await job.progress(30);
     let shift = null;
     if (externalData?.userInfo?.user_dep) {
       shift = await shiftManagementService.getShiftByDepartmentId(
@@ -71,7 +57,6 @@ export async function processRegistration(
       throw new Error(`No shift found for department: ${department}`);
     }
 
-    await job.progress(40);
     const matchedDepartment = getDepartmentByNameFuzzy(
       externalData?.userInfo?.user_depname || department,
     );
@@ -87,10 +72,13 @@ export async function processRegistration(
       throw new Error(`Failed to get department ID for: ${matchedDepartment}`);
     }
 
-    await job.progress(50);
     const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
     const role = determineRole(matchedDepartment, isFirstUser);
+
+    const profilePictureExternalUrl = getProfilePictureExternalUrl(
+      externalData?.userInfo?.user_photo,
+    );
 
     const userData = {
       lineUserId,
@@ -98,9 +86,7 @@ export async function processRegistration(
       nickname,
       departmentId,
       profilePictureUrl,
-      profilePictureExternal: externalData?.userInfo?.user_photo
-        ? externalData.userInfo.user_photo.toString()
-        : null,
+      profilePictureExternal: profilePictureExternalUrl,
       role: role.toString(),
       employeeId: externalData?.userInfo?.user_no || employeeId,
       externalEmployeeId: externalData?.userInfo?.user_serial?.toString(),
@@ -108,7 +94,6 @@ export async function processRegistration(
       shiftId: shift.id,
     };
 
-    await job.progress(70);
     if (!user) {
       user = await prisma.user.create({
         data: userData,
@@ -120,15 +105,18 @@ export async function processRegistration(
       });
     }
 
-    await job.progress(80);
     const richMenuId = determineRichMenuId(role);
     await client.linkRichMenuToUser(lineUserId, richMenuId);
 
-    await job.progress(100);
     console.log('Registration process completed successfully');
     return { success: true, userId: user.id };
   } catch (error) {
     console.error('Error in registration process:', error);
     throw error;
   }
+}
+
+function getProfilePictureExternalUrl(photo: number): string {
+  // Logic to convert photo number to URL
+  return `https://external-service-url.com/photos/${photo}`;
 }

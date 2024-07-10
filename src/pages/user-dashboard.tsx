@@ -6,6 +6,7 @@ import { Calendar } from '../components/ui/calendar';
 import { Input } from '../components/ui/input';
 import { LiffContext } from './_app';
 import { UserData, Attendance, ShiftData } from '@/types/user';
+import { getDepartmentById } from '@/lib/shiftCache';
 
 interface DashboardProps {
   user: UserData & { assignedShift: ShiftData };
