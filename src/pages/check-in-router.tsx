@@ -1,3 +1,5 @@
+// check-in-router.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { UserData, AttendanceStatus } from '../types/user';
@@ -10,7 +12,7 @@ const CheckInRouter: React.FC = () => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
   );
@@ -23,7 +25,7 @@ const CheckInRouter: React.FC = () => {
       setAttendanceStatus(response.data);
     } catch (error) {
       console.error('Error fetching attendance status:', error);
-      setMessage('Failed to fetch attendance status');
+      setError('Failed to fetch attendance status');
     } finally {
       setIsLoading(false);
     }
@@ -32,7 +34,10 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     const initializeLiff = async () => {
       try {
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
+        if (!process.env.NEXT_PUBLIC_LIFF_ID) {
+          throw new Error('LIFF ID is not set');
+        }
+        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID });
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           const userResponse = await axios.get(
@@ -42,7 +47,7 @@ const CheckInRouter: React.FC = () => {
           if (userResponse.data.user.employeeId) {
             await fetchAttendanceStatus(userResponse.data.user.employeeId);
           } else {
-            setMessage('Employee ID not found');
+            setError('Employee ID not found');
             setIsLoading(false);
           }
         } else {
@@ -50,7 +55,7 @@ const CheckInRouter: React.FC = () => {
         }
       } catch (error) {
         console.error('Error initializing LIFF:', error);
-        setMessage('Failed to initialize the application');
+        setError('Failed to initialize the application');
         setIsLoading(false);
       }
     };
@@ -76,11 +81,25 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen">
+        <h1 className="text-1xl mb-6 text-gray-800">เกิดข้อผิดพลาด</h1>
+        <p className="text-red-500">{error}</p>
+        <button
+          onClick={() => liff.login()}
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
+        >
+          เข้าสู่ระบบอีกครั้ง
+        </button>
+      </div>
+    );
+  }
+
   if (!userData || !attendanceStatus) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
-        {message && <p className="text-red-500">{message}</p>}
         <button
           onClick={() => liff.login()}
           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
@@ -103,11 +122,6 @@ const CheckInRouter: React.FC = () => {
           <div className="text-3xl font-bold text-center mb-8 text-black-950">
             {currentTime}
           </div>
-          {message && (
-            <div className="mb-4 p-2 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
-              {message}
-            </div>
-          )}
           <CheckInOutForm
             userData={userData}
             initialAttendanceStatus={attendanceStatus}

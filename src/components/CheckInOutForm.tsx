@@ -492,9 +492,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       <div className="space-y-6">
         {step === 1 && (
           <div>
-            <p className="text-lg mb-2">สวัสดี, {attendanceStatus.user.name}</p>
-            <p>Employee ID: {attendanceStatus.user.employeeId}</p>
+            <p className="text-lg mb-2">สวัสดี, {userData.name}</p>
+            <p>Employee ID: {userData.employeeId}</p>
             <p>Department: {departmentName}</p>
+            <p>
+              Current Status:{' '}
+              {initialAttendanceStatus.isCheckingIn
+                ? 'Checking In'
+                : 'Checking Out'}
+            </p>
 
             {!showCamera && (
               <>
