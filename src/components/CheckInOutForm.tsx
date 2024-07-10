@@ -72,9 +72,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setIsLoading(true);
     setError(null);
     try {
+      console.log(
+        'Fetching attendance status for employeeId:',
+        userData.employeeId,
+      );
       const response = await axios.get<UserResponse>('/api/users', {
         params: { lineUserId: userData.lineUserId },
       });
+      console.log('User response:', response.data);
       setAttendanceStatus(response.data.attendanceStatus);
 
       if (response.data.user.departmentId) {
@@ -98,7 +103,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setIsLoadingCheckData(false);
       setIsLoading(false);
     }
-  }, [userData.lineUserId]);
+  }, [userData.lineUserId, userData.employeeId]);
 
   const fetchShiftDetails = useCallback(async () => {
     if (!attendanceStatus) return;
