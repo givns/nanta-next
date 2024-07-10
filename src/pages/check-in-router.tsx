@@ -5,6 +5,7 @@ import {
   AttendanceStatus,
   UserResponse,
   ShiftData,
+  AttendanceRecord,
 } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
@@ -27,19 +28,22 @@ const CheckInRouter: React.FC = () => {
       });
       console.log('User data response:', response.data);
 
-      const { user, attendanceStatus: fetchedAttendanceStatus } = response.data;
+      const { user, recentAttendance } = response.data;
       setUserData(user);
 
-      // Ensure the assignedShift is of type ShiftData | null
-      const safeAssignedShift: ShiftData | null = user.assignedShift || null;
-
-      // Create a new AttendanceStatus with the safe assignedShift
+      // Create AttendanceStatus based on the available data
       const newAttendanceStatus: AttendanceStatus = {
-        ...fetchedAttendanceStatus,
         user: {
-          ...fetchedAttendanceStatus.user,
-          assignedShift: safeAssignedShift,
+          id: user.id,
+          employeeId: user.employeeId,
+          name: user.name,
+          departmentId: user.departmentId,
+          assignedShift: user.assignedShift || null,
         },
+        latestAttendance:
+          recentAttendance.length > 0 ? recentAttendance[0] : null,
+        isCheckingIn: determineIsCheckingIn(recentAttendance),
+        shiftAdjustment: null, // You might need to fetch this separately if needed
       };
 
       setAttendanceStatus(newAttendanceStatus);
@@ -53,6 +57,14 @@ const CheckInRouter: React.FC = () => {
       setMessage('Failed to load user data. Please try again.');
     }
   }, []);
+
+  const determineIsCheckingIn = (
+    recentAttendance: AttendanceRecord[],
+  ): boolean => {
+    if (recentAttendance.length === 0) return true;
+    const latestAttendance = recentAttendance[0];
+    return !!latestAttendance.checkOutTime; // If there's a check-out time, the next action is check-in
+  };
 
   useEffect(() => {
     const initializeLiff = async () => {
