@@ -174,19 +174,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setMinutesUntilShiftEnd(minutesUntilShiftEnd);
   }, [attendanceStatus]);
 
-  const refreshAttendanceStatus = useCallback(async () => {
-    try {
-      const response = await axios.get(
-        `/api/check-status?employeeId=${userData.employeeId}`,
-      );
-      setAttendanceStatus(response.data);
-      onStatusChange(response.data.isCheckingIn);
-    } catch (error) {
-      console.error('Error fetching attendance status:', error);
-      setError('Failed to fetch attendance status');
-    }
-  }, [userData.employeeId, onStatusChange]);
-
   const loadFaceDetectionModel = useCallback(async () => {
     await tf.ready();
     const loadedModel = await faceDetection.createDetector(
@@ -241,24 +228,17 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   useEffect(() => {
-    fetchAttendanceStatus().catch((error) => {
-      console.error('Error in fetchAttendanceStatus:', error);
-    });
-    fetchShiftDetails().catch((error) => {
-      console.error('Error in fetchShiftDetails:', error);
-    });
-    loadFaceDetectionModel().catch((error) => {
-      console.error('Error in loadFaceDetectionModel:', error);
-    });
-    fetchApiKey().catch((error) => {
-      console.error('Error in fetchApiKey:', error);
-    });
+    console.log('userData:', userData);
+    fetchAttendanceStatus();
+    fetchShiftDetails();
+    loadFaceDetectionModel();
+    fetchApiKey();
   }, [
     fetchAttendanceStatus,
-    refreshAttendanceStatus,
     fetchShiftDetails,
     loadFaceDetectionModel,
     fetchApiKey,
+    userData,
   ]);
 
   useEffect(() => {
