@@ -10,6 +10,7 @@ import {
   ShiftData,
   ShiftAdjustment,
 } from '../types/user';
+import { UserRole } from '@/types/enum';
 
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
@@ -38,7 +39,21 @@ export class AttendanceService {
     try {
       const user = await prisma.user.findUnique({
         where: { employeeId },
-        include: { assignedShift: true, department: true },
+        include: {
+          assignedShift: true,
+          department: true,
+          approvedOvertimes: {
+            where: {
+              date: {
+                gte: new Date(new Date().setHours(0, 0, 0, 0)),
+              },
+            },
+            orderBy: {
+              startTime: 'desc',
+            },
+            take: 1,
+          },
+        },
       });
 
       if (!user) {
@@ -75,20 +90,64 @@ export class AttendanceService {
       const result: AttendanceStatus = {
         user: {
           id: user.id,
-          employeeId: user.employeeId,
+          lineUserId: user.lineUserId,
           name: user.name,
+          nickname: user.nickname,
           departmentId: user.departmentId,
-          assignedShift: user.assignedShift as ShiftData,
+          department: user.department.name,
+          employeeId: user.employeeId,
+          role: user.role as UserRole,
+          shiftId: user.shiftId,
+          assignedShift: user.assignedShift
+            ? {
+                id: user.assignedShift.id,
+                shiftCode: user.assignedShift.shiftCode,
+                name: user.assignedShift.name,
+                startTime: user.assignedShift.startTime,
+                endTime: user.assignedShift.endTime,
+                workDays: user.assignedShift.workDays,
+              }
+            : null,
+          profilePictureUrl: user.profilePictureUrl,
+          profilePictureExternal: user.profilePictureExternal,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
         },
-        latestAttendance,
+        latestAttendance: latestAttendance
+          ? {
+              id: latestAttendance.id,
+              userId: latestAttendance.userId,
+              date: latestAttendance.date.toISOString(),
+              checkInTime: latestAttendance.checkInTime?.toISOString() ?? null,
+              checkOutTime:
+                latestAttendance.checkOutTime?.toISOString() ?? null,
+              checkInDeviceSerial: latestAttendance.checkInDeviceSerial ?? '',
+              checkOutDeviceSerial:
+                latestAttendance.checkOutDeviceSerial ?? null,
+              status: latestAttendance.status as 'checked-in' | 'checked-out',
+              isManualEntry: latestAttendance.isManualEntry,
+            }
+          : null,
         isCheckingIn,
         shiftAdjustment: shiftAdjustment
           ? {
-              ...shiftAdjustment,
-              status: shiftAdjustment.status as
-                | 'pending'
-                | 'approved'
-                | 'rejected',
+              requestedShiftId: shiftAdjustment.requestedShiftId,
+              requestedShift: {
+                id: shiftAdjustment.requestedShift.id,
+                shiftCode: shiftAdjustment.requestedShift.shiftCode,
+                name: shiftAdjustment.requestedShift.name,
+                startTime: shiftAdjustment.requestedShift.startTime,
+                endTime: shiftAdjustment.requestedShift.endTime,
+                workDays: shiftAdjustment.requestedShift.workDays,
+              },
+            }
+          : null,
+        approvedOvertime: user.approvedOvertimes[0]
+          ? {
+              startTime: user.approvedOvertimes[0].startTime.toISOString(),
+              endTime: user.approvedOvertimes[0].endTime.toISOString(),
+              approvedBy: user.approvedOvertimes[0].approvedBy,
+              approvedAt: user.approvedOvertimes[0].approvedAt.toISOString(),
             }
           : null,
       };

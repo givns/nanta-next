@@ -1,12 +1,12 @@
-import { User, Shift } from '@prisma/client';
-import { UserRole } from '@/types/enum';
-
-export type {
+import {
   User,
-  Attendance,
   Shift,
+  Attendance,
   ShiftAdjustmentRequest,
 } from '@prisma/client';
+import { UserRole } from '@/types/enum';
+
+export type { User, Attendance, Shift, ShiftAdjustmentRequest };
 export interface UserData {
   id: string;
   lineUserId: string | null;
@@ -47,17 +47,41 @@ export interface AttendanceData {
   isOvertime?: boolean;
 }
 
+export interface ApprovedOvertime {
+  startTime: string;
+  endTime: string;
+  approvedBy: string;
+  approvedAt: string;
+}
+
 export interface AttendanceStatus {
-  user: {
+  user: UserData;
+  latestAttendance: {
     id: string;
-    employeeId: string;
-    name: string;
-    departmentId: string;
-    assignedShift: ShiftData | null;
-  };
-  latestAttendance: AttendanceRecord | null;
+    userId: string;
+    date: string;
+    checkInTime: string | null;
+    checkOutTime: string | null;
+    checkInDeviceSerial: string;
+    checkOutDeviceSerial: string | null;
+    status: 'checked-in' | 'checked-out';
+    isManualEntry: boolean;
+  } | null;
   isCheckingIn: boolean;
-  shiftAdjustment: ShiftAdjustment | null;
+  shiftAdjustment: {
+    requestedShiftId: string;
+    requestedShift: ShiftData;
+  } | null;
+  approvedOvertime: ApprovedOvertime | null;
+}
+
+export interface ShiftData {
+  id: string;
+  shiftCode: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  workDays: number[];
 }
 
 export interface AttendanceRecord {
@@ -80,15 +104,6 @@ export interface AttendanceRecord {
   checkOutDeviceSerial: string | null;
   status: string;
   isManualEntry: boolean;
-}
-
-export interface ShiftData {
-  id: string;
-  shiftCode: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  workDays: number[];
 }
 
 export interface ShiftAdjustment {

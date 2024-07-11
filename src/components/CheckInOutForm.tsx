@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import '@tensorflow/tfjs-backend-webgl';
-import { AttendanceStatus, UserData } from '../types/user';
+import { AttendanceStatus, UserData, ShiftData } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
-import Image from 'next/image';
 import { useFaceDetection } from '../hooks/useFaceDetection';
 import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
@@ -67,14 +66,39 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setStep('confirm');
   }, []);
 
-  const {
-    webcamRef,
-    isModelLoading,
-    photo,
-    setPhoto,
-    message,
-    resetDetection,
-  } = useFaceDetection(5, handlePhotoCapture);
+  const { webcamRef, isModelLoading, photo, setPhoto, message } =
+    useFaceDetection(5, handlePhotoCapture);
+
+  const isOutsideShift = useCallback(() => {
+    const shift: ShiftData | null | undefined =
+      attendanceStatus.shiftAdjustment?.requestedShift ||
+      userData.assignedShift;
+
+    if (!shift) return false;
+
+    const now = new Date();
+    const shiftStart = new Date(now);
+    const shiftEnd = new Date(now);
+
+    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+
+    shiftStart.setHours(startHour, startMinute, 0, 0);
+    shiftEnd.setHours(endHour, endMinute, 0, 0);
+
+    // Handle overnight shifts
+    if (shiftEnd < shiftStart) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
+
+    return now < shiftStart || now > shiftEnd;
+  }, [attendanceStatus.shiftAdjustment, userData.assignedShift]);
+
+  const isCheckInOutAllowed = useCallback(() => {
+    if (attendanceStatus.approvedOvertime) return true;
+    if (isOutsideShift()) return false;
+    return true;
+  }, [attendanceStatus.approvedOvertime, isOutsideShift]);
 
   const handleError = (error: unknown, customMessage: string) => {
     console.error(customMessage, error);
@@ -300,13 +324,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               userData={userData}
               attendanceStatus={attendanceStatus}
               departmentName={userData.department}
+              isOutsideShift={isOutsideShift}
             />
             <button
               onClick={() => setStep('camera')}
-              className="mt-4 w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-              aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
+              disabled={!isCheckInOutAllowed()}
+              className={`mt-4 w-full ${
+                isCheckInOutAllowed()
+                  ? 'bg-blue-500 hover:bg-blue-600'
+                  : 'bg-gray-400 cursor-not-allowed'
+              } text-white py-3 px-4 rounded-lg transition duration-300`}
+              aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
             >
-              เปิดกล้องเพื่อ{attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน
+              {isCheckInOutAllowed()
+                ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+                : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
             </button>
           </div>
         )}
