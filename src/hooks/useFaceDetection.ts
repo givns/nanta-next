@@ -6,52 +6,77 @@ import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import Webcam from 'react-webcam';
 
-export const useFaceDetection = () => {
+export const useFaceDetection = (captureThreshold: number = 5) => {
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [message, setMessage] = useState<string>('');
   const webcamRef = useRef<Webcam>(null);
+  const faceDetectionCount = useRef(0);
 
+  // Load the face detection model
   useEffect(() => {
-    const loadFaceDetectionModel = async () => {
+    const loadModel = async () => {
       await tf.ready();
       const loadedModel = await faceDetection.createDetector(
         faceDetection.SupportedModels.MediaPipeFaceDetector,
-        {
-          runtime: 'tfjs',
-          modelType: 'short',
-        },
+        { runtime: 'tfjs', modelType: 'short' },
       );
       setModel(loadedModel);
       setIsModelLoading(false);
-      console.log('Face detection model loaded.');
     };
 
-    loadFaceDetectionModel();
+    loadModel();
   }, []);
 
-  const capturePhoto = useCallback(async () => {
+  // Detect face in the webcam feed
+  const detectFace = useCallback(async () => {
     if (webcamRef.current && model) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
-        const img = new window.Image();
+        const img = new Image();
         img.src = imageSrc;
         await new Promise((resolve) => {
           img.onload = resolve;
         });
-
-        const detections = await model.estimateFaces(img);
+        const detections = await model.estimateFaces(img, {
+          flipHorizontal: false,
+        });
 
         if (detections.length > 0) {
-          return imageSrc;
+          setFaceDetected(true);
+          faceDetectionCount.current += 1;
+          setMessage('Face detected. Please stay still...');
+
+          if (faceDetectionCount.current >= captureThreshold) {
+            setPhoto(imageSrc);
+            setMessage('Photo captured successfully!');
+          }
         } else {
-          throw new Error('No face detected');
+          setFaceDetected(false);
+          faceDetectionCount.current = 0;
+          setMessage(
+            'No face detected. Please position your face in the camera.',
+          );
         }
-      } else {
-        throw new Error('Camera not available');
       }
     }
-    throw new Error('Webcam or model not initialized');
-  }, [model]);
+  }, [model, captureThreshold]);
 
-  return { webcamRef, model, isModelLoading, capturePhoto };
+  // Run face detection at regular intervals
+  useEffect(() => {
+    if (!isModelLoading && !photo) {
+      const interval = setInterval(detectFace, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [detectFace, isModelLoading, photo]);
+
+  return {
+    webcamRef,
+    isModelLoading,
+    faceDetected,
+    photo,
+    message,
+  };
 };
