@@ -50,7 +50,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     initialAttendanceStatus,
   );
   const [departmentName, setDepartmentName] = useState<string>('');
-  const [isLoadingCheckData, setIsLoadingCheckData] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -244,13 +243,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       console.log('Check-in/out response:', response.data);
 
       if (response.data && response.data.success) {
-        const newStatus = !attendanceStatus.isCheckingIn;
         setAttendanceStatus((prevStatus) => ({
           ...prevStatus,
-          isCheckingIn: newStatus,
+          isCheckingIn: !prevStatus.isCheckingIn,
           latestAttendance: response.data.attendance,
         }));
-        onStatusChange(newStatus);
+        onStatusChange(!attendanceStatus.isCheckingIn);
 
         setStep(1);
         setPhoto(null);
@@ -312,83 +310,78 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     <div className="space-y-6">
       {step === 1 && (
         <div>
-          {isLoadingCheckData ? (
-            <SkeletonLoader />
-          ) : (
-            <>
-              <p className="text-lg mb-2">สวัสดี, {userData.name || 'N/A'}</p>
-              <p>Employee ID: {userData.employeeId || 'N/A'}</p>
-              <p>Department: {departmentName}</p>
-              <p>
-                Current Status:{' '}
-                {attendanceStatus.isCheckingIn ? 'Checking In' : 'Checking Out'}
-              </p>
+          <SkeletonLoader />
+          <>
+            <p className="text-lg mb-2">สวัสดี, {userData.name || 'N/A'}</p>
+            <p>Employee ID: {userData.employeeId || 'N/A'}</p>
+            <p>Department: {departmentName}</p>
+            <p>
+              Current Status:{' '}
+              {attendanceStatus.isCheckingIn ? 'Checking In' : 'Checking Out'}
+            </p>
 
-              {renderShiftInfo()}
-              <h2>Current Shift Status</h2>
-              {isWithinShift && <p>You are currently within your shift.</p>}
-              {isBeforeShift && minutesUntilShiftStart > 0 && (
-                <p>Your shift starts in {minutesUntilShiftStart} minutes.</p>
-              )}
-              {isAfterShift && <p>Your shift has ended.</p>}
-              {isWithinShift && minutesUntilShiftEnd > 0 && (
-                <p>Your shift ends in {minutesUntilShiftEnd} minutes.</p>
-              )}
-              {attendanceStatus.latestAttendance && (
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold mb-2">
-                    สถานะการลงเวลาล่าสุดของคุณ:
-                  </h3>
-                  <div className="bg-gray-100 p-3 rounded-lg">
-                    <p>
-                      Date: {formatDate(attendanceStatus.latestAttendance.date)}
-                    </p>
-                    <p>
-                      Check-in Time:{' '}
-                      {formatDate(
-                        attendanceStatus.latestAttendance.checkInTime,
-                      )}
-                    </p>
-                    <p>
-                      Check-out Time:{' '}
-                      {attendanceStatus.latestAttendance.checkOutTime
-                        ? formatDate(
-                            attendanceStatus.latestAttendance.checkOutTime,
-                          )
-                        : 'Not checked out yet'}
-                    </p>
-                    <p>
-                      วิธีการ:{' '}
-                      {getDeviceType(
-                        attendanceStatus.latestAttendance.checkInDeviceSerial,
-                      )}
-                    </p>
-                    <p>
-                      สถานะ:{' '}
-                      {attendanceStatus.latestAttendance.checkOutTime
-                        ? 'ออกงาน'
-                        : 'เข้างาน'}
-                    </p>
-                  </div>
+            {renderShiftInfo()}
+            <h2>Current Shift Status</h2>
+            {isWithinShift && <p>You are currently within your shift.</p>}
+            {isBeforeShift && minutesUntilShiftStart > 0 && (
+              <p>Your shift starts in {minutesUntilShiftStart} minutes.</p>
+            )}
+            {isAfterShift && <p>Your shift has ended.</p>}
+            {isWithinShift && minutesUntilShiftEnd > 0 && (
+              <p>Your shift ends in {minutesUntilShiftEnd} minutes.</p>
+            )}
+            {attendanceStatus.latestAttendance && (
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold mb-2">
+                  สถานะการลงเวลาล่าสุดของคุณ:
+                </h3>
+                <div className="bg-gray-100 p-3 rounded-lg">
+                  <p>
+                    Date: {formatDate(attendanceStatus.latestAttendance.date)}
+                  </p>
+                  <p>
+                    Check-in Time:{' '}
+                    {formatDate(attendanceStatus.latestAttendance.checkInTime)}
+                  </p>
+                  <p>
+                    Check-out Time:{' '}
+                    {attendanceStatus.latestAttendance.checkOutTime
+                      ? formatDate(
+                          attendanceStatus.latestAttendance.checkOutTime,
+                        )
+                      : 'Not checked out yet'}
+                  </p>
+                  <p>
+                    วิธีการ:{' '}
+                    {getDeviceType(
+                      attendanceStatus.latestAttendance.checkInDeviceSerial,
+                    )}
+                  </p>
+                  <p>
+                    สถานะ:{' '}
+                    {attendanceStatus.latestAttendance.checkOutTime
+                      ? 'ออกงาน'
+                      : 'เข้างาน'}
+                  </p>
                 </div>
-              )}
+              </div>
+            )}
 
-              {isWithinShift ? (
-                <button
-                  onClick={handleOpenCamera}
-                  className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-                  aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-                >
-                  เปิดกล้องเพื่อ
-                  {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-                </button>
-              ) : (
-                <p className="text-red-500">
-                  ไม่สามารถลงเวลาได้ในขณะนี้ กรุณาลองอีกครั้งในช่วงเวลาที่กำหนด
-                </p>
-              )}
-            </>
-          )}
+            {isWithinShift ? (
+              <button
+                onClick={handleOpenCamera}
+                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+                aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+              >
+                เปิดกล้องเพื่อ
+                {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+              </button>
+            ) : (
+              <p className="text-red-500">
+                ไม่สามารถลงเวลาได้ในขณะนี้ กรุณาลองอีกครั้งในช่วงเวลาที่กำหนด
+              </p>
+            )}
+          </>
         </div>
       )}
 
