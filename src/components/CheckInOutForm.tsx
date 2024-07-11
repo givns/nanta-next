@@ -60,8 +60,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [loading, setLoading] = useState(false);
   const [inPremises, setInPremises] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState<'info' | 'camera' | 'confirm'>('info');
   const [isShiftAdjustmentNeeded, setIsShiftAdjustmentNeeded] = useState(false);
+
+  const handlePhotoCapture = useCallback((capturedPhoto: string) => {
+    setPhoto(capturedPhoto);
+    setStep('confirm');
+  }, []);
 
   const {
     webcamRef,
@@ -70,20 +75,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setPhoto,
     message,
     resetDetection,
-  } = useFaceDetection(5);
-
-  const handleNextStep = (nextStep: number) => {
-    setStep(nextStep);
-    // Reset states for previous steps
-    if (nextStep === 2) {
-      resetDetection();
-    }
-    if (nextStep === 3) {
-      setAddress('');
-      setAddressError(null);
-      checkIfShiftAdjustmentNeeded();
-    }
-  };
+  } = useFaceDetection(5, handlePhotoCapture);
 
   const handleError = (error: unknown, customMessage: string) => {
     console.error(customMessage, error);
@@ -234,18 +226,23 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const handleCheckInOut = async () => {
     setLoading(true);
     setErrorMessage(null);
+    setSuccessMessage(null);
     try {
+      if (!photo) {
+        throw new Error('No photo captured. Please try again.');
+      }
+
       const checkInOutData = {
         userId: userData.id,
         employeeId: userData.employeeId,
         checkTime: new Date().toISOString(),
-        location: JSON.stringify(location),
+        location: location ? JSON.stringify(location) : null,
         address,
         reason: !inPremises ? reason : undefined,
         photo,
-        deviceSerial: deviceSerial || 'WEBAPP001',
+        deviceSerial: 'WEBAPP001', // Assuming this is the default for web app
         isCheckIn: attendanceStatus.isCheckingIn,
-        isOvertime: false,
+        isOvertime: false, // You might want to determine this based on shift times
         requiresShiftAdjustment: isShiftAdjustmentNeeded,
       };
 
@@ -256,171 +253,187 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       console.log('Check-in/out response:', response.data);
 
       if (response.data && response.data.success) {
+        const newStatus = !attendanceStatus.isCheckingIn;
         setAttendanceStatus((prevStatus) => ({
           ...prevStatus,
-          isCheckingIn: !prevStatus.isCheckingIn,
+          isCheckingIn: newStatus,
           latestAttendance: response.data.attendance,
         }));
-        onStatusChange(!attendanceStatus.isCheckingIn);
-        setPhoto(null);
+        onStatusChange(newStatus);
 
-        setStep(1);
+        setStep('info'); // Reset to initial step
         setPhoto(null);
         setReason('');
-        setDeviceSerial('');
 
-        setSuccessMessage(
-          isShiftAdjustmentNeeded
-            ? 'Check-in/out successful! Shift adjustment request sent for approval.'
-            : 'Check-in/out successful!',
-        );
+        let successMsg = `Successfully ${newStatus ? 'checked out' : 'checked in'}.`;
+        if (isShiftAdjustmentNeeded) {
+          successMsg +=
+            ' Shift adjustment request has been submitted for approval.';
+        }
+        setSuccessMessage(successMsg);
       } else {
-        throw new Error('Invalid response from server');
+        throw new Error(
+          response.data.message || 'Invalid response from server',
+        );
       }
     } catch (error) {
-      handleError(error, 'Error during check-in/out');
+      console.error('Error during check-in/out:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        setErrorMessage(
+          `Error: ${error.response.data.message || error.message}`,
+        );
+      } else if (error instanceof Error) {
+        setErrorMessage(`Error: ${error.message}`);
+      } else {
+        setErrorMessage('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {loading ? (
-        <SkeletonLoader />
-      ) : (
-        <>
-          <UserShiftInfo
-            userData={userData}
-            attendanceStatus={attendanceStatus}
-            departmentName={userData.department}
-          />
-
-          <button
-            onClick={() => handleNextStep(2)}
-            className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
-            aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
-          >
-            เปิดกล้องเพื่อ{attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน
-          </button>
-        </>
-      )}
-
-      {step === 2 && (
-        <div className="mt-4">
-          {isModelLoading ? (
-            <SkeletonLoader />
-          ) : (
-            <>
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                className="w-full rounded-lg mb-4"
-                onUserMedia={() => console.log('Camera is ready')}
-                onUserMediaError={(error) =>
-                  handleError(error, 'Failed to access camera')
-                }
-              />
-              <p className="text-center mb-2">{message}</p>
-            </>
-          )}
-        </div>
-      )}
-
-      {step === 3 && (
-        <div>
-          <h3 className="text-lg font-semibold mb-2">
-            ยืนยันการ{attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-          </h3>
-          {photo ? (
-            <Image
-              src={photo}
-              alt="Captured"
-              width={500}
-              height={300}
-              layout="responsive"
-              className="w-full rounded-lg mb-4"
+    <div className="h-screen flex flex-col">
+      <div className="flex-grow overflow-hidden flex flex-col justify-center">
+        {step === 'info' && (
+          <div className="h-full flex flex-col justify-between">
+            <UserShiftInfo
+              userData={userData}
+              attendanceStatus={attendanceStatus}
+              departmentName={userData.department}
             />
-          ) : (
-            <SkeletonLoader />
-          )}
-          <div className="mb-4">
-            <label
-              htmlFor="address-display"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              ที่อยู่ของคุณ
-            </label>
-            {addressError ? (
-              <p className="text-red-500">{addressError}</p>
-            ) : (
-              <div
-                id="address-display"
-                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
-                aria-live="polite"
-              >
-                {address || 'Loading address...'}
-              </div>
-            )}
-          </div>
-          {apiKey && location ? (
-            <div className="mb-4">
-              <InteractiveMap
-                apiKey={apiKey}
-                lat={location.lat}
-                lng={location.lng}
-              />
-            </div>
-          ) : (
-            <SkeletonLoader />
-          )}
-          {!inPremises && (
-            <div className="mt-4">
-              <label
-                htmlFor="reason-input"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                เหตุผลสำหรับการ
-                {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}นอกสถานที่
-              </label>
-              <input
-                type="text"
-                id="reason-input"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
-                required
-              />
-            </div>
-          )}
-          <div className="mt-6">
             <button
-              onClick={handleCheckInOut}
-              disabled={loading || (!inPremises && !reason)}
-              className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
-              aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+              onClick={() => setStep('camera')}
+              className="mt-4 w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+              aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
             >
-              {loading
-                ? `กำลังดำเนินการ...`
-                : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+              เปิดกล้องเพื่อ{attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {errorMessage && (
-        <p className="text-red-500 mt-4" role="alert">
-          {errorMessage}
-        </p>
-      )}
-      {successMessage && (
-        <p className="text-green-500 mt-4" role="status">
-          {successMessage}
-        </p>
+        {step === 'camera' && (
+          <div className="h-full flex flex-col justify-center">
+            {isModelLoading ? (
+              <SkeletonLoader />
+            ) : (
+              <>
+                <Webcam
+                  audio={false}
+                  ref={webcamRef}
+                  screenshotFormat="image/jpeg"
+                  className="w-full rounded-lg mb-4"
+                  onUserMedia={() => console.log('Camera is ready')}
+                  onUserMediaError={(error) =>
+                    handleError(error, 'Failed to access camera')
+                  }
+                />
+                <p className="text-center mb-2">{message}</p>
+              </>
+            )}
+          </div>
+        )}
+
+        {step === 'confirm' && (
+          <div className="h-full flex flex-col justify-between">
+            <div className="overflow-y-auto">
+              <h3 className="text-lg font-semibold mb-2">
+                ยืนยันการ{attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+              </h3>
+              {photo ? (
+                <Image
+                  src={photo}
+                  alt="Captured"
+                  width={500}
+                  height={300}
+                  layout="responsive"
+                  className="w-full rounded-lg mb-4"
+                />
+              ) : (
+                <SkeletonLoader />
+              )}
+              <div className="mb-4">
+                <label
+                  htmlFor="address-display"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  ที่อยู่ของคุณ
+                </label>
+                {addressError ? (
+                  <p className="text-red-500">{addressError}</p>
+                ) : (
+                  <div
+                    id="address-display"
+                    className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
+                    aria-live="polite"
+                  >
+                    {address || 'Loading address...'}
+                  </div>
+                )}
+              </div>
+              {apiKey && location ? (
+                <div className="mb-4">
+                  <InteractiveMap
+                    apiKey={apiKey}
+                    lat={location.lat}
+                    lng={location.lng}
+                  />
+                </div>
+              ) : (
+                <SkeletonLoader />
+              )}
+              {!inPremises && (
+                <div className="mt-4">
+                  <label
+                    htmlFor="reason-input"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    เหตุผลสำหรับการ
+                    {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+                    นอกสถานที่
+                  </label>
+                  <input
+                    type="text"
+                    id="reason-input"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+                    required
+                  />
+                </div>
+              )}
+            </div>
+            <div className="mt-6">
+              <button
+                onClick={handleCheckInOut}
+                disabled={loading || (!inPremises && !reason)}
+                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
+                aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+              >
+                {loading
+                  ? `กำลังดำเนินการ...`
+                  : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {(errorMessage || successMessage) && (
+        <div className="mt-4">
+          {errorMessage && (
+            <p className="text-red-500" role="alert">
+              {errorMessage}
+            </p>
+          )}
+          {successMessage && (
+            <p className="text-green-500" role="status">
+              {successMessage}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
 };
-
 export default CheckInOutForm;

@@ -6,7 +6,10 @@ import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import Webcam from 'react-webcam';
 
-export const useFaceDetection = (captureThreshold: number = 5) => {
+export const useFaceDetection = (
+  captureThreshold: number = 5,
+  onPhotoCapture: (photo: string) => void,
+) => {
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [faceDetected, setFaceDetected] = useState(false);
@@ -26,18 +29,20 @@ export const useFaceDetection = (captureThreshold: number = 5) => {
       setModel(loadedModel);
       setIsModelLoading(false);
     };
-
     loadModel();
   }, []);
 
   const capturePhoto = useCallback(() => {
     if (webcamRef.current) {
       const imageSrc = webcamRef.current.getScreenshot();
-      setPhoto(imageSrc);
-      return imageSrc;
+      if (imageSrc) {
+        setPhoto(imageSrc);
+        onPhotoCapture(imageSrc); // Call the callback with the captured photo
+        return imageSrc;
+      }
     }
     return null;
-  }, []);
+  }, [onPhotoCapture]);
 
   const detectFace = useCallback(async () => {
     if (webcamRef.current && model) {
