@@ -33,22 +33,18 @@ export const useFaceDetection = () => {
     if (webcamRef.current && model) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
-        try {
-          const img = new window.Image();
-          img.src = imageSrc;
-          await new Promise((resolve) => {
-            img.onload = resolve;
-          });
+        const img = new window.Image();
+        img.src = imageSrc;
+        await new Promise((resolve) => {
+          img.onload = resolve;
+        });
 
-          const detections = await model.estimateFaces(img);
+        const detections = await model.estimateFaces(img);
 
-          if (detections.length > 0) {
-            return imageSrc;
-          } else {
-            throw new Error('No face detected');
-          }
-        } catch (error) {
-          throw error;
+        if (detections.length > 0) {
+          return imageSrc;
+        } else {
+          throw new Error('No face detected');
         }
       } else {
         throw new Error('Camera not available');

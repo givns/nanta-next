@@ -1,7 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
-import * as tf from '@tensorflow/tfjs';
-import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import { AttendanceStatus, UserData } from '../types/user';
 import axios from 'axios';
@@ -74,27 +72,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     minutesUntilShiftStart,
     minutesUntilShiftEnd,
   } = useShiftDetails(attendanceStatus);
-  const { webcamRef, model, isModelLoading, capturePhoto } = useFaceDetection();
-
-  type FormStep = 'initial' | 'camera' | 'confirmation' | 'submission';
-  const [currentStep, setCurrentStep] = useState<FormStep>('initial');
-
-  const moveToNextStep = () => {
-    switch (currentStep) {
-      case 'initial':
-        setCurrentStep('camera');
-        break;
-      case 'camera':
-        setCurrentStep('confirmation');
-        break;
-      case 'confirmation':
-        setCurrentStep('submission');
-        break;
-      case 'submission':
-        setCurrentStep('initial');
-        break;
-    }
-  };
+  const { webcamRef, isModelLoading, capturePhoto } = useFaceDetection();
 
   const handleError = (error: unknown, customMessage: string) => {
     console.error(customMessage, error);
@@ -183,7 +161,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         return 'Unable to fetch address';
       }
     },
-    [GOOGLE_MAPS_API],
+    [],
   );
 
   useEffect(() => {
