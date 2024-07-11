@@ -92,6 +92,7 @@ export class AttendanceService {
         internalAttendance,
         externalCheckInData?.checkIn || null,
         externalCheckOutData?.checkOut || null,
+        user.assignedShift,
       );
 
       const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
@@ -188,6 +189,7 @@ export class AttendanceService {
     internalAttendance: AttendanceRecord | null,
     externalCheckIn: ExternalCheckInData | null,
     externalCheckOut: ExternalCheckInData | null,
+    shift: ShiftData,
   ): AttendanceRecord | null {
     if (!internalAttendance && !externalCheckIn && !externalCheckOut) {
       return null;
@@ -221,45 +223,108 @@ export class AttendanceService {
 
     if (externalCheckIn) {
       const externalCheckInTime = new Date(externalCheckIn.sj);
+      const status = this.determineStatus(
+        externalCheckInTime,
+        externalCheckIn.fx,
+        shift,
+      );
+
       if (
         !latestRecord.checkInTime ||
         externalCheckInTime > latestRecord.checkInTime
       ) {
         latestRecord.checkInTime = externalCheckInTime;
         latestRecord.checkInDeviceSerial = externalCheckIn.dev_serial;
+
+        if (status === 'checked-in') {
+          latestRecord.status = 'checked-in';
+        } else if (status === 'checked-out' && !latestRecord.checkOutTime) {
+          latestRecord.checkOutTime = externalCheckInTime;
+          latestRecord.checkOutDeviceSerial = externalCheckIn.dev_serial;
+          latestRecord.status = 'checked-out';
+        }
       }
     }
 
     if (externalCheckOut) {
       const externalCheckOutTime = new Date(externalCheckOut.sj);
+      const status = this.determineStatus(
+        externalCheckOutTime,
+        externalCheckOut.fx,
+        shift,
+      );
+
       if (
         !latestRecord.checkOutTime ||
         externalCheckOutTime > latestRecord.checkOutTime
       ) {
-        latestRecord.checkOutTime = externalCheckOutTime;
-        latestRecord.checkOutDeviceSerial = externalCheckOut.dev_serial;
+        if (status === 'checked-out') {
+          latestRecord.checkOutTime = externalCheckOutTime;
+          latestRecord.checkOutDeviceSerial = externalCheckOut.dev_serial;
+          latestRecord.status = 'checked-out';
+        } else if (
+          status === 'checked-in' &&
+          (!latestRecord.checkInTime ||
+            externalCheckOutTime > latestRecord.checkInTime)
+        ) {
+          latestRecord.checkInTime = externalCheckOutTime;
+          latestRecord.checkInDeviceSerial = externalCheckOut.dev_serial;
+          latestRecord.status = 'checked-in';
+        }
       }
     }
 
-    latestRecord.status = latestRecord.checkOutTime
-      ? 'checked-out'
-      : 'checked-in';
-
     return latestRecord;
   }
-
-  private determineStatus(checkInTime: Date, checkType: number): string {
+  private determineStatus(
+    checkTime: Date,
+    checkType: number,
+    shift: ShiftData,
+  ): string {
     const now = new Date();
+
+    if (checkType === 0) {
+      // For automatic or unspecified check types, we need to determine based on the time and shift
+      return this.determineAutoCheckStatus(checkTime, shift);
+    }
     if (checkType === 1) return 'checked-in';
     if (checkType === 2) return 'checked-out';
     if (checkType === 3) return 'overtime-started';
     if (checkType === 4) return 'overtime-ended';
 
     // If it's an old record, assume it's completed
-    if (checkInTime.getDate() < now.getDate()) return 'completed';
+    if (checkTime.getDate() < now.getDate()) return 'completed';
 
     // Default case
-    return 'checked-in';
+    return 'unknown';
+  }
+
+  private determineAutoCheckStatus(checkTime: Date, shift: ShiftData): string {
+    const shiftStart = this.getShiftDateTime(checkTime, shift.startTime);
+    const shiftEnd = this.getShiftDateTime(checkTime, shift.endTime);
+
+    // If the shift ends on the next day
+    if (shiftEnd < shiftStart) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
+
+    // Calculate the midpoint of the shift
+    const shiftMidpoint = new Date(
+      (shiftStart.getTime() + shiftEnd.getTime()) / 2,
+    );
+
+    if (checkTime < shiftMidpoint) {
+      return 'checked-in';
+    } else {
+      return 'checked-out';
+    }
+  }
+
+  private getShiftDateTime(date: Date, timeString: string): Date {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const shiftDateTime = new Date(date);
+    shiftDateTime.setHours(hours, minutes, 0, 0);
+    return shiftDateTime;
   }
 
   private determineIfCheckingIn(
