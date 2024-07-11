@@ -150,8 +150,3 @@ const CheckInRouter: React.FC = () => {
 };
 
 export default CheckInRouter;
-
-  
-
-
-  
