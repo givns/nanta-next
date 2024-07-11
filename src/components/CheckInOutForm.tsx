@@ -63,8 +63,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [step, setStep] = useState(1);
   const [isShiftAdjustmentNeeded, setIsShiftAdjustmentNeeded] = useState(false);
 
-  const { webcamRef, isModelLoading, photo, message, resetDetection } =
-    useFaceDetection(5);
+  const {
+    webcamRef,
+    isModelLoading,
+    photo,
+    setPhoto,
+    message,
+    resetDetection,
+  } = useFaceDetection(5);
 
   useEffect(() => {
     if (photo) {
@@ -257,8 +263,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           latestAttendance: response.data.attendance,
         }));
         onStatusChange(!attendanceStatus.isCheckingIn);
+        setPhoto(null);
 
         setStep(1);
+        setPhoto(null);
         setReason('');
         setDeviceSerial('');
 

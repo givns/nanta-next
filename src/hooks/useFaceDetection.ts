@@ -90,6 +90,7 @@ export const useFaceDetection = (captureThreshold: number = 5) => {
     isModelLoading,
     faceDetected,
     photo,
+    setPhoto,
     message,
     resetDetection,
   };
