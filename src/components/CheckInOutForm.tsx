@@ -65,8 +65,20 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [step, setStep] = useState(1);
   const [shiftAdjustmentNeeded, setShiftAdjustmentNeeded] = useState(false);
 
-  const { webcamRef, isModelLoading, faceDetected, photo, message } =
-    useFaceDetection(5);
+  const {
+    webcamRef,
+    isModelLoading,
+    faceDetected,
+    photo,
+    message,
+    resetDetection,
+  } = useFaceDetection(5);
+
+  useEffect(() => {
+    if (photo) {
+      setStep(3);
+    }
+  }, [photo]);
 
   const handleError = (error: unknown, customMessage: string) => {
     console.error(customMessage, error);
@@ -267,7 +279,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           />
 
           <button
-            onClick={handleOpenCamera}
+            onClick={() => setStep(2)}
             className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
             aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
           >

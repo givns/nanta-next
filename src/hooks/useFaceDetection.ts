@@ -30,7 +30,15 @@ export const useFaceDetection = (captureThreshold: number = 5) => {
     loadModel();
   }, []);
 
-  // Detect face in the webcam feed
+  const capturePhoto = useCallback(() => {
+    if (webcamRef.current) {
+      const imageSrc = webcamRef.current.getScreenshot();
+      setPhoto(imageSrc);
+      return imageSrc;
+    }
+    return null;
+  }, []);
+
   const detectFace = useCallback(async () => {
     if (webcamRef.current && model) {
       const imageSrc = webcamRef.current.getScreenshot();
@@ -50,7 +58,7 @@ export const useFaceDetection = (captureThreshold: number = 5) => {
           setMessage('Face detected. Please stay still...');
 
           if (faceDetectionCount.current >= captureThreshold) {
-            setPhoto(imageSrc);
+            capturePhoto();
             setMessage('Photo captured successfully!');
           }
         } else {
@@ -62,9 +70,8 @@ export const useFaceDetection = (captureThreshold: number = 5) => {
         }
       }
     }
-  }, [model, captureThreshold]);
+  }, [model, captureThreshold, capturePhoto]);
 
-  // Run face detection at regular intervals
   useEffect(() => {
     if (!isModelLoading && !photo) {
       const interval = setInterval(detectFace, 1000);
@@ -72,11 +79,18 @@ export const useFaceDetection = (captureThreshold: number = 5) => {
     }
   }, [detectFace, isModelLoading, photo]);
 
+  const resetDetection = useCallback(() => {
+    setPhoto(null);
+    setFaceDetected(false);
+    faceDetectionCount.current = 0;
+  }, []);
+
   return {
     webcamRef,
     isModelLoading,
     faceDetected,
     photo,
     message,
+    resetDetection,
   };
 };
