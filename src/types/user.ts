@@ -98,7 +98,7 @@ export interface AttendanceRecord {
   checkOutAddress: string | null;
   checkInReason: string | null;
   checkOutReason: string | null;
-  checkInPhoto: string;
+  checkInPhoto: string | null;
   checkOutPhoto: string | null;
   checkInDeviceSerial: string | null;
   checkOutDeviceSerial: string | null;

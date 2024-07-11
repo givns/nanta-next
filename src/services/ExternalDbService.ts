@@ -109,6 +109,34 @@ export class ExternalDbService {
       throw error;
     }
   }
+  async getLatestCheckOut(
+    employeeId: string,
+  ): Promise<{ checkOut: ExternalCheckInData | null }> {
+    console.log(`Searching for latest check-out for employeeId: ${employeeId}`);
 
-  // Add any other methods you need for external database operations
+    const checkOutQuery = `
+        SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
+        FROM kt_jl kj
+        JOIN dt_user du ON kj.user_serial = du.user_serial
+        LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
+        WHERE du.user_no = ? AND kj.fx = 1  -- Assuming fx = 1 for check-out
+        ORDER BY kj.sj DESC
+        LIMIT 1
+      `;
+
+    try {
+      const checkOutResult = await query<ExternalCheckInData[]>(checkOutQuery, [
+        employeeId,
+      ]);
+
+      console.log('Check-out result:', JSON.stringify(checkOutResult, null, 2));
+
+      return {
+        checkOut: checkOutResult.length > 0 ? checkOutResult[0] : null,
+      };
+    } catch (error) {
+      console.error('Error in getLatestCheckOut:', error);
+      return { checkOut: null };
+    }
+  }
 }

@@ -71,17 +71,27 @@ export class AttendanceService {
       );
 
       // Fetch both internal and external attendance data
-      const [internalAttendance, externalData] = await Promise.all([
-        this.getInternalAttendanceRecord(user.id),
-        this.externalDbService.getLatestCheckIn(employeeId),
-      ]);
+      const [internalAttendance, externalCheckInData, externalCheckOutData] =
+        await Promise.all([
+          this.getInternalAttendanceRecord(user.id),
+          this.externalDbService.getLatestCheckIn(employeeId),
+          this.externalDbService.getLatestCheckOut(employeeId),
+        ]);
 
-      console.log('External data:', JSON.stringify(externalData, null, 2));
+      console.log(
+        'External check-in data:',
+        JSON.stringify(externalCheckInData, null, 2),
+      );
+      console.log(
+        'External check-out data:',
+        JSON.stringify(externalCheckOutData, null, 2),
+      );
 
       // Determine the latest attendance record
       const latestAttendance = this.getLatestAttendanceRecord(
         internalAttendance,
-        externalData?.checkIn || null,
+        externalCheckInData?.checkIn || null,
+        externalCheckOutData?.checkOut || null,
       );
 
       const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
@@ -175,31 +185,19 @@ export class AttendanceService {
   }
 
   private getLatestAttendanceRecord(
-    internal: AttendanceRecord | null,
-    external: ExternalCheckInData | null,
+    internalAttendance: AttendanceRecord | null,
+    externalCheckIn: ExternalCheckInData | null,
+    externalCheckOut: ExternalCheckInData | null,
   ): AttendanceRecord | null {
-    if (!internal && !external) return null;
-    if (!internal) return this.convertExternalToAttendanceRecord(external!);
-    if (!external) return internal;
+    if (!internalAttendance && !externalCheckIn && !externalCheckOut) {
+      return null;
+    }
 
-    const internalDate = new Date(internal.date);
-    const externalDate = new Date(external.sj);
-
-    return internalDate > externalDate
-      ? internal
-      : this.convertExternalToAttendanceRecord(external);
-  }
-
-  private convertExternalToAttendanceRecord(
-    external: ExternalCheckInData,
-  ): AttendanceRecord {
-    const checkInDate = new Date(external.sj);
-
-    return {
-      id: external.iden || `external-${external.user_serial}-${external.date}`,
-      userId: external.user_serial.toString(),
-      date: new Date(external.date),
-      checkInTime: checkInDate,
+    let latestRecord: AttendanceRecord = {
+      id: '',
+      userId: '',
+      date: new Date(),
+      checkInTime: null,
       checkOutTime: null,
       overtimeStartTime: null,
       overtimeEndTime: null,
@@ -209,13 +207,45 @@ export class AttendanceService {
       checkOutAddress: null,
       checkInReason: null,
       checkOutReason: null,
-      checkInPhoto: `${profilePictureExternalBaseURL}${external.user_photo || 'default'}.jpg`,
+      checkInPhoto: null,
       checkOutPhoto: null,
-      checkInDeviceSerial: external.dev_serial,
+      checkInDeviceSerial: null,
       checkOutDeviceSerial: null,
-      status: this.determineStatus(checkInDate, external.fx),
+      status: 'checked-out',
       isManualEntry: false,
     };
+
+    if (internalAttendance) {
+      latestRecord = { ...internalAttendance };
+    }
+
+    if (externalCheckIn) {
+      const externalCheckInTime = new Date(externalCheckIn.sj);
+      if (
+        !latestRecord.checkInTime ||
+        externalCheckInTime > latestRecord.checkInTime
+      ) {
+        latestRecord.checkInTime = externalCheckInTime;
+        latestRecord.checkInDeviceSerial = externalCheckIn.dev_serial;
+      }
+    }
+
+    if (externalCheckOut) {
+      const externalCheckOutTime = new Date(externalCheckOut.sj);
+      if (
+        !latestRecord.checkOutTime ||
+        externalCheckOutTime > latestRecord.checkOutTime
+      ) {
+        latestRecord.checkOutTime = externalCheckOutTime;
+        latestRecord.checkOutDeviceSerial = externalCheckOut.dev_serial;
+      }
+    }
+
+    latestRecord.status = latestRecord.checkOutTime
+      ? 'checked-out'
+      : 'checked-in';
+
+    return latestRecord;
   }
 
   private determineStatus(checkInTime: Date, checkType: number): string {
@@ -235,14 +265,16 @@ export class AttendanceService {
   private determineIfCheckingIn(
     latestAttendance: AttendanceRecord | null,
   ): boolean {
-    if (!latestAttendance) return true;
+    if (!latestAttendance) {
+      return true; // If no attendance record, user needs to check in
+    }
 
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (latestAttendance.checkOutTime) {
+      // If there's a check-out time, user needs to check in for a new cycle
+      return true;
+    }
 
-    if (new Date(latestAttendance.date) < today) return true;
-    if (latestAttendance.checkOutTime) return true;
-
+    // If there's a check-in time but no check-out time, user needs to check out
     return false;
   }
 

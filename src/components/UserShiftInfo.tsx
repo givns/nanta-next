@@ -24,9 +24,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       return 'วันทำงานเสร็จสิ้น';
     }
     if (attendanceStatus.isCheckingIn) {
-      return 'ระบบบันทึกเวลาเข้างาน';
+      return 'ยังไม่มีการลงเวลาในวันนี้';
     }
-    return 'ระบบบันทึกเวลาออกงาน';
+    return 'ลงเวลาเข้างานแล้ว';
   };
 
   const getTitle = () => {
