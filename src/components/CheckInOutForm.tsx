@@ -5,7 +5,6 @@ import { AttendanceStatus, UserData } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 import Image from 'next/image';
-import { getDepartmentNameById } from '../lib/shiftCache';
 import { useFaceDetection } from '../hooks/useFaceDetection';
 import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
@@ -92,11 +91,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setErrorMessage(`${customMessage}. Please try again.`);
     }
   };
-
-  useEffect(() => {
-    const deptName = getDepartmentNameById(userData.departmentId);
-    setDepartmentName(deptName || 'Unknown Department');
-  }, [userData.departmentId]);
 
   const fetchApiKey = useCallback(async () => {
     try {
@@ -275,7 +269,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           <UserShiftInfo
             userData={userData}
             attendanceStatus={attendanceStatus}
-            departmentName={departmentName}
+            departmentName={userData.department}
           />
 
           <button
