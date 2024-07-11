@@ -48,7 +48,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [attendanceStatus, setAttendanceStatus] = useState(
     initialAttendanceStatus,
   );
-  const [departmentName, setDepartmentName] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [address, setAddress] = useState<string>('');
@@ -62,22 +61,29 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [inPremises, setInPremises] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [step, setStep] = useState(1);
-  const [shiftAdjustmentNeeded, setShiftAdjustmentNeeded] = useState(false);
+  const [isShiftAdjustmentNeeded, setIsShiftAdjustmentNeeded] = useState(false);
 
-  const {
-    webcamRef,
-    isModelLoading,
-    faceDetected,
-    photo,
-    message,
-    resetDetection,
-  } = useFaceDetection(5);
+  const { webcamRef, isModelLoading, photo, message, resetDetection } =
+    useFaceDetection(5);
 
   useEffect(() => {
     if (photo) {
       setStep(3);
     }
   }, [photo]);
+
+  const handleNextStep = (nextStep: number) => {
+    setStep(nextStep);
+    // Reset states for previous steps
+    if (nextStep === 2) {
+      resetDetection();
+    }
+    if (nextStep === 3) {
+      setAddress('');
+      setAddressError(null);
+      checkIfShiftAdjustmentNeeded();
+    }
+  };
 
   const handleError = (error: unknown, customMessage: string) => {
     console.error(customMessage, error);
@@ -105,14 +111,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     fetchApiKey();
   }, [fetchApiKey]);
 
-  const requestShiftAdjustment = async () => {
-    // Implement API call to request shift adjustment
-    // Send Line notification
-  };
+  const checkIfShiftAdjustmentNeeded = () => {
+    const shift =
+      attendanceStatus.shiftAdjustment?.requestedShift ||
+      userData.assignedShift;
 
-  const getDeviceType = (deviceSerial: string | null) => {
-    if (!deviceSerial) return 'ไม่ทราบ';
-    return deviceSerial === 'WEBAPP001' ? 'Nanta Next' : 'เครื่องสแกนใบหน้า';
+    // Add a null check or default assignment before accessing properties of 'shift'
+    if (shift) {
+      const checkInTime = new Date(
+        attendanceStatus.latestAttendance?.checkInTime || new Date(),
+      );
+      const shiftStartTime = new Date(checkInTime);
+      const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+      shiftStartTime.setHours(startHour, startMinute, 0, 0);
+
+      setIsShiftAdjustmentNeeded(checkInTime < shiftStartTime);
+    }
   };
 
   const isWithinPremises = useCallback(
@@ -162,10 +176,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       } catch (error) {
         console.error('Error fetching address:', error);
         setAddressError('Unable to fetch address. Using premise location.');
-        return null;
+        // Return the name of the nearest premise instead
+        const nearestPremise = isWithinPremises(lat, lng);
+        return nearestPremise ? nearestPremise.name : 'Unknown location';
       }
     },
-    [],
+    [GOOGLE_MAPS_API, isWithinPremises],
   );
 
   useEffect(() => {
@@ -210,10 +226,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     getCurrentLocation();
   }, [isWithinPremises, getAddressFromCoordinates]);
 
-  const handleOpenCamera = () => {
-    setStep(2);
-  };
-
   const handleCheckInOut = async () => {
     setLoading(true);
     setErrorMessage(null);
@@ -229,6 +241,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         deviceSerial: deviceSerial || 'WEBAPP001',
         isCheckIn: attendanceStatus.isCheckingIn,
         isOvertime: false,
+        requiresShiftAdjustment: isShiftAdjustmentNeeded,
       };
 
       console.log('Submitting data:', checkInOutData);
@@ -249,7 +262,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setReason('');
         setDeviceSerial('');
 
-        setSuccessMessage('Check-in/out successful!');
+        setSuccessMessage(
+          isShiftAdjustmentNeeded
+            ? 'Check-in/out successful! Shift adjustment request sent for approval.'
+            : 'Check-in/out successful!',
+        );
       } else {
         throw new Error('Invalid response from server');
       }
@@ -273,24 +290,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           />
 
           <button
-            onClick={() => setStep(2)}
+            onClick={() => handleNextStep(2)}
             className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
             aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
           >
             เปิดกล้องเพื่อ{attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน
           </button>
-
-          {shiftAdjustmentNeeded && (
-            <div className="mt-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
-              <p>Your recent check-in is outside your scheduled shift.</p>
-              <button
-                onClick={requestShiftAdjustment}
-                className="mt-2 bg-yellow-500 text-white py-2 px-4 rounded hover:bg-yellow-600 transition duration-300"
-              >
-                Request Shift Adjustment
-              </button>
-            </div>
-          )}
         </>
       )}
 
@@ -387,11 +392,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               onClick={handleCheckInOut}
               disabled={loading || (!inPremises && !reason)}
               className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
-              aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
+              aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
             >
               {loading
-                ? `กำลังลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน...`
-                : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน`}
+                ? `กำลังดำเนินการ...`
+                : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
             </button>
           </div>
         </div>
