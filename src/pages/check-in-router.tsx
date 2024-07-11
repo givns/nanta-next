@@ -1,5 +1,3 @@
-// pages/check-in-router.tsx
-
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { UserData, AttendanceStatus } from '../types/user';
@@ -13,6 +11,9 @@ const CheckInRouter: React.FC = () => {
     useState<AttendanceStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState<string>(
+    new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
+  );
 
   useEffect(() => {
     const initializeLiffAndFetchData = async () => {
@@ -74,17 +75,51 @@ const CheckInRouter: React.FC = () => {
     attendanceStatus,
   });
 
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCurrentTime(
+        new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
+      );
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen">
+        <h1 className="text-1xl mb-6 text-gray-800">กำลังเข้าสู่ระบบ...</h1>
+      </div>
+    );
   }
 
   if (error) {
-    return <div>Error: {error}</div>;
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen">
+        <h1 className="text-1xl mb-6 text-gray-800">เกิดข้อผิดพลาด</h1>
+        <p className="text-red-500">{error}</p>
+        <button
+          onClick={() => liff.login()}
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
+        >
+          เข้าสู่ระบบอีกครั้ง
+        </button>
+      </div>
+    );
   }
 
   if (!userData || !attendanceStatus) {
-    console.log('Missing data', { userData, attendanceStatus });
-    return <div>No user data or attendance status available.</div>;
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen">
+        <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
+        <button
+          onClick={() => liff.login()}
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
+        >
+          เข้าสู่ระบบอีกครั้ง
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -92,8 +127,13 @@ const CheckInRouter: React.FC = () => {
       <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
         <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
           <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-            {attendanceStatus.isCheckingIn ? 'Check In' : 'Check Out'}
+            {attendanceStatus.isCheckingIn
+              ? 'ระบบบันทึกเวลาเข้างาน'
+              : 'ระบบบันทึกเวลาออกงาน'}
           </h1>
+          <div className="text-3xl font-bold text-center mb-8 text-black-950">
+            {currentTime}
+          </div>
           <CheckInOutForm
             userData={userData}
             initialAttendanceStatus={attendanceStatus}
@@ -110,3 +150,8 @@ const CheckInRouter: React.FC = () => {
 };
 
 export default CheckInRouter;
+
+  
+
+
+  
