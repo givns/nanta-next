@@ -316,7 +316,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             <>
               <p className="text-lg mb-2">สวัสดี, {userData.name || 'N/A'}</p>
               <p>Employee ID: {userData.employeeId || 'N/A'}</p>
-              <p>Department: {departmentName}</p>
+              <p>
+                Department: [Fetch department name using ID:
+                668c2ccdbf715f50d292172c]
+              </p>
               <p>
                 Current Status:{' '}
                 {attendanceStatus.isCheckingIn
