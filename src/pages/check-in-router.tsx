@@ -87,8 +87,6 @@ const CheckInRouter: React.FC = () => {
     return <div>No user data or attendance status available.</div>;
   }
 
-  console.log('Rendering main content');
-
   return (
     <ErrorBoundary>
       <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
