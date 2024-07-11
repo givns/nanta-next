@@ -56,7 +56,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     null,
   );
   const [reason, setReason] = useState<string>('');
-  const [deviceSerial, setDeviceSerial] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [inPremises, setInPremises] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
@@ -340,18 +339,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               <h3 className="text-lg font-semibold mb-2">
                 ยืนยันการ{attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
               </h3>
-              {photo ? (
-                <Image
-                  src={photo}
-                  alt="Captured"
-                  width={500}
-                  height={300}
-                  layout="responsive"
-                  className="w-full rounded-lg mb-4"
-                />
-              ) : (
-                <SkeletonLoader />
-              )}
               <div className="mb-4">
                 <label
                   htmlFor="address-display"
