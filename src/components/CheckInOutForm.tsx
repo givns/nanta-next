@@ -164,6 +164,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const getAddressFromCoordinates = useCallback(
     async (lat: number, lng: number) => {
+      const premise = isWithinPremises(lat, lng);
+      if (premise) {
+        return premise.name; // If within a premise, return the premise name
+      }
       try {
         const response = await axios.get(
           `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API}`,
@@ -207,14 +211,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         setLocation(newLocation);
 
-        const premise = isWithinPremises(newLocation.lat, newLocation.lng);
-        setInPremises(!!premise);
-
         const fetchedAddress = await getAddressFromCoordinates(
           newLocation.lat,
           newLocation.lng,
         );
-        setAddress(fetchedAddress || '');
+        setAddress(fetchedAddress);
+
+        // Check if the location is within premises to set inPremises state
+        const premise = isWithinPremises(newLocation.lat, newLocation.lng);
+        setInPremises(!!premise);
       } catch (error) {
         handleError(
           error,
@@ -224,7 +229,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
 
     getCurrentLocation();
-  }, [isWithinPremises, getAddressFromCoordinates]);
+  }, [getAddressFromCoordinates, isWithinPremises]);
 
   const handleCheckInOut = async () => {
     setLoading(true);
