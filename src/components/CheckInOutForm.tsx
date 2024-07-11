@@ -72,12 +72,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     resetDetection,
   } = useFaceDetection(5);
 
-  useEffect(() => {
-    if (photo) {
-      setStep(3);
-    }
-  }, [photo]);
-
   const handleNextStep = (nextStep: number) => {
     setStep(nextStep);
     // Reset states for previous steps
