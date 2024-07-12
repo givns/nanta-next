@@ -35,11 +35,12 @@ export async function processRegistration(
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
     let externalData: {
-      checkIn: ExternalCheckInData | null;
+      records: ExternalCheckInData[];
       userInfo: any | null;
     } | null = null;
     try {
-      externalData = await externalDbService.getLatestCheckIn(employeeId);
+      externalData =
+        await externalDbService.getDailyAttendanceRecords(employeeId);
     } catch (error) {
       console.error('Error finding external user:', error);
     }
