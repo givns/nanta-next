@@ -243,6 +243,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                         'ลากิจ',
                         'ลาป่วย',
                         'ลาพักร้อน',
+                        'ลาโดยใช้ชั่วโมง OT',
                         'ลาโดยไม่ได้รับค่าจ้าง',
                       ].map((type) => (
                         <button
