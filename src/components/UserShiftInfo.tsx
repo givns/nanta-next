@@ -31,18 +31,19 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   const getTitle = () => {
     if (attendanceStatus.approvedOvertime) {
-      return 'ระบบบันทึกเวลาทำงานล่วงเวลา';
+      return 'ทำงานล่วงเวลา';
     }
-    return 'ระบบบันทึกเวลา';
+    return '';
   };
 
   return (
     <div>
-      <h1 className="text-xl font-bold mb-2">{getTitle()}</h1>
-      <p>
+      <p className="text-2xl font-bold">
         {userData.name} (ID: {userData.employeeId})
       </p>
       <p className="mb-4">แผนก: {departmentName}</p>
+
+      {getTitle() && <p className="text-blue-600 mb-2">{getTitle()}</p>}
 
       <div className="bg-gray-100 p-4 rounded-lg mb-4">
         <h2 className="text-lg font-semibold mb-2">
@@ -96,7 +97,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         {isOutsideShift() && !attendanceStatus.approvedOvertime && (
           <p className="text-red-500 mt-2">
             การลงเวลาของคุณอยู่นอกเวลากะที่กำหนด กะของคุณเริ่มเวลา{' '}
-            {shift?.startTime}
+            {shift?.startTime} {''}
             การลงเวลาจะถูกดำเนินการพร้อมคำขอปรับเปลี่ยนกะ
           </p>
         )}
