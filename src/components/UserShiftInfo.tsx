@@ -38,9 +38,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   return (
     <div>
-      <p className="text-2xl font-bold">
-        {userData.name} (ID: {userData.employeeId})
-      </p>
+      <p className="text-2xl font-bold">{userData.name}</p>
+      <p className="text-2xl font-bold">(รหัสพนักงาน: {userData.employeeId})</p>
       <p className="mb-4">แผนก: {departmentName}</p>
 
       {getTitle() && <p className="text-blue-600 mb-2">{getTitle()}</p>}
