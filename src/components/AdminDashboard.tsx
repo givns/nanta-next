@@ -6,7 +6,7 @@ interface LeaveRequest {
   details: string;
 }
 
-const AdminDashboard: React.FC = () => {
+const AdminsDashboard: React.FC = () => {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
 
   useEffect(() => {
@@ -46,4 +46,4 @@ const AdminDashboard: React.FC = () => {
   );
 };
 
-export default AdminDashboard;
+export default AdminsDashboard;
