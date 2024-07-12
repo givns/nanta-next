@@ -2,15 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import AdminShiftAdjustmentForm from '../components/AdminShiftAdjustmentForm';
-import UserShiftInfo from '../components/UserShiftInfo';
 import axios from 'axios';
 import liff from '@line/liff';
-import { UserData, AttendanceStatus } from '../types/user';
-import ErrorBoundary from '../components/ErrorBoundary'; // Make sure you have this component
 
 interface UserDetails {
-  user: UserData;
-  attendanceStatus: AttendanceStatus;
+  user: {
+    lineUserId: string;
+  };
   departments: { id: string; name: string }[];
   shifts: { id: string; name: string }[];
 }
@@ -61,49 +59,27 @@ const AdminDashboard: React.FC = () => {
     initializeLiffAndFetchData();
   }, []);
 
-  const renderContent = () => {
-    if (isLoading) {
-      return <div>Loading...</div>;
-    }
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
-    if (error) {
-      return <div>Error: {error}</div>;
-    }
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
 
-    if (!userDetails) {
-      return <div>No user data available</div>;
-    }
-
-    return (
-      <>
-        <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-          <UserShiftInfo
-            userData={userDetails.user}
-            attendanceStatus={userDetails.attendanceStatus}
-            departmentName={userDetails.user.department}
-            isOutsideShift={() => false} // You may need to implement this function properly
-          />
-        </div>
-
-        <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-          <h2 className="text-xl font-semibold mb-4">Shift Adjustment</h2>
-          <AdminShiftAdjustmentForm
-            lineUserId={userDetails.user.lineUserId}
-            departments={userDetails.departments || []}
-            shifts={userDetails.shifts || []}
-          />
-        </div>
-      </>
-    );
-  };
+  if (!userDetails) {
+    return <div>No user data available</div>;
+  }
 
   return (
-    <ErrorBoundary>
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
-        {renderContent()}
-      </div>
-    </ErrorBoundary>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-4">Shift Adjustment</h1>
+      <AdminShiftAdjustmentForm
+        lineUserId={userDetails.user.lineUserId}
+        departments={userDetails.departments || []}
+        shifts={userDetails.shifts || []}
+      />
+    </div>
   );
 };
 
