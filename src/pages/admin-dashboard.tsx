@@ -6,6 +6,7 @@ import UserShiftInfo from '../components/UserShiftInfo';
 import axios from 'axios';
 import liff from '@line/liff';
 import { UserData, AttendanceStatus } from '../types/user';
+import ErrorBoundary from '../components/ErrorBoundary'; // Make sure you have this component
 
 interface UserDetails {
   user: UserData;
@@ -45,6 +46,7 @@ const AdminDashboard: React.FC = () => {
         const response = await axios.get(
           `/api/users?lineUserId=${profile.userId}`,
         );
+        console.log('User data response:', response.data);
         setUserDetails(response.data);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
@@ -59,40 +61,49 @@ const AdminDashboard: React.FC = () => {
     initializeLiffAndFetchData();
   }, []);
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
+  const renderContent = () => {
+    if (isLoading) {
+      return <div>Loading...</div>;
+    }
 
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
+    if (error) {
+      return <div>Error: {error}</div>;
+    }
 
-  if (!userDetails) {
-    return <div>No user data available</div>;
-  }
+    if (!userDetails) {
+      return <div>No user data available</div>;
+    }
+
+    return (
+      <>
+        <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+          <UserShiftInfo
+            userData={userDetails.user}
+            attendanceStatus={userDetails.attendanceStatus}
+            departmentName={userDetails.user.department}
+            isOutsideShift={() => false} // You may need to implement this function properly
+          />
+        </div>
+
+        <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+          <h2 className="text-xl font-semibold mb-4">Shift Adjustment</h2>
+          <AdminShiftAdjustmentForm
+            lineUserId={userDetails.user.lineUserId}
+            departments={userDetails.departments}
+            shifts={userDetails.shifts}
+          />
+        </div>
+      </>
+    );
+  };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
-
-      <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-        <UserShiftInfo
-          userData={userDetails.user}
-          attendanceStatus={userDetails.attendanceStatus}
-          departmentName={userDetails.user.department}
-          isOutsideShift={() => false} // You may need to implement this function properly
-        />
+    <ErrorBoundary>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
+        {renderContent()}
       </div>
-
-      <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-        <h2 className="text-xl font-semibold mb-4">Shift Adjustment</h2>
-        <AdminShiftAdjustmentForm
-          lineUserId={userDetails.user.lineUserId}
-          departments={userDetails.departments}
-          shifts={userDetails.shifts}
-        />
-      </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 
