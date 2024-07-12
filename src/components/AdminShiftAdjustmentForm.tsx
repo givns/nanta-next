@@ -3,14 +3,14 @@ import axios from 'axios';
 
 interface AdminShiftAdjustmentFormProps {
   lineUserId?: string | null;
-  departments: { id: string; name: string }[];
-  shifts: { id: string; name: string }[];
+  departments?: { id: string; name: string }[];
+  shifts?: { id: string; name: string }[];
 }
 
 const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   lineUserId,
-  departments,
-  shifts,
+  departments = [], // Provide default empty array
+  shifts = [], // Provide default empty array
 }) => {
   const [targetType, setTargetType] = useState<'department' | 'individual'>(
     'department',
