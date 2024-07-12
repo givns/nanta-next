@@ -10,6 +10,13 @@ export async function getShifts(): Promise<Shift[]> {
     if (shifts.length === 0) {
       const shiftData = [
         {
+          shiftCode: 'SHIFT100',
+          name: 'กะตี 5',
+          startTime: '05:00',
+          endTime: '14:00',
+          workDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
+        },
+        {
           shiftCode: 'SHIFT101',
           name: 'กะเช้า 6 โมง',
           startTime: '06:00',

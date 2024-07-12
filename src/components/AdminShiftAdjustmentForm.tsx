@@ -1,26 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { departmentShiftMap } from '../lib/shiftCache';
 
 interface AdminShiftAdjustmentFormProps {
   lineUserId?: string | null;
-  departments?: { id: string; name: string }[];
-  shifts?: { id: string; name: string }[];
+}
+interface DepartmentShift {
+  department: string;
+  shiftId: string;
 }
 
 const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   lineUserId,
-  departments = [], // Provide default empty array
-  shifts = [], // Provide default empty array
 }) => {
   const [targetType, setTargetType] = useState<'department' | 'individual'>(
     'department',
   );
-  const [targetId, setTargetId] = useState('');
-  const [newShiftId, setNewShiftId] = useState('');
+  const [numberOfDepartments, setNumberOfDepartments] = useState(1);
+  const [departmentShifts, setDepartmentShifts] = useState<DepartmentShift[]>([
+    { department: '', shiftId: '' },
+  ]);
+  const [individualEmployeeId, setIndividualEmployeeId] = useState('');
+  const [individualShiftId, setIndividualShiftId] = useState('');
   const [date, setDate] = useState('');
   const [reason, setReason] = useState('');
+  const [shifts, setShifts] = useState<{ id: string; name: string }[]>([]);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // Fetch shifts from your API
+    const fetchShifts = async () => {
+      try {
+        const response = await axios.get('/api/shifts');
+        setShifts(response.data);
+      } catch (error) {
+        console.error('Error fetching shifts:', error);
+      }
+    };
+
+    fetchShifts();
+  }, []);
+
+  useEffect(() => {
+    setDepartmentShifts(
+      Array(numberOfDepartments).fill({ department: '', shiftId: '' }),
+    );
+  }, [numberOfDepartments]);
+
+  const handleDepartmentShiftChange = (
+    index: number,
+    field: 'department' | 'shiftId',
+    value: string,
+  ) => {
+    const newDepartmentShifts = [...departmentShifts];
+    newDepartmentShifts[index] = {
+      ...newDepartmentShifts[index],
+      [field]: value,
+    };
+    setDepartmentShifts(newDepartmentShifts);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,11 +73,15 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
     }
 
     try {
-      await axios.post('/api/adjust-shift', {
+      const adjustments =
+        targetType === 'department'
+          ? departmentShifts
+          : [{ employeeId: individualEmployeeId, shiftId: individualShiftId }];
+
+      const response = await axios.post('/api/adjust-shift', {
         lineUserId,
         targetType,
-        targetId,
-        newShiftId,
+        adjustments,
         date,
         reason,
       });
@@ -75,67 +118,125 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
       </div>
 
       {targetType === 'department' ? (
-        <div>
-          <label
-            htmlFor="department"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Department
-          </label>
-          <select
-            id="department"
-            value={targetId}
-            onChange={(e) => setTargetId(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-          >
-            <option value="">Select a department</option>
-            {departments.map((dept) => (
-              <option key={dept.id} value={dept.id}>
-                {dept.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <div>
-          <label
-            htmlFor="employeeId"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Employee ID
-          </label>
-          <input
-            id="employeeId"
-            type="text"
-            value={targetId}
-            onChange={(e) => setTargetId(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            placeholder="Enter employee ID"
-          />
-        </div>
-      )}
-
-      <div>
-        <label
-          htmlFor="newShift"
-          className="block text-sm font-medium text-gray-700"
-        >
-          New Shift
-        </label>
-        <select
-          id="newShift"
-          value={newShiftId}
-          onChange={(e) => setNewShiftId(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-        >
-          <option value="">Select a shift</option>
-          {shifts.map((shift) => (
-            <option key={shift.id} value={shift.id}>
-              {shift.name}
-            </option>
+        <>
+          <div>
+            <label
+              htmlFor="numberOfDepartments"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Number of Departments
+            </label>
+            <input
+              type="number"
+              id="numberOfDepartments"
+              value={numberOfDepartments}
+              onChange={(e) =>
+                setNumberOfDepartments(Math.max(1, parseInt(e.target.value)))
+              }
+              min="1"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+            />
+          </div>
+          {departmentShifts.map((depShift, index) => (
+            <div key={index} className="bg-gray-100 p-4 rounded-lg mb-4">
+              <div>
+                <label
+                  htmlFor={`department-${index}`}
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Department
+                </label>
+                <select
+                  id={`department-${index}`}
+                  value={depShift.department}
+                  onChange={(e) =>
+                    handleDepartmentShiftChange(
+                      index,
+                      'department',
+                      e.target.value,
+                    )
+                  }
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                >
+                  <option value="">Select a department</option>
+                  {Object.keys(departmentShiftMap).map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  htmlFor={`shift-${index}`}
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  New Shift
+                </label>
+                <select
+                  id={`shift-${index}`}
+                  value={depShift.shiftId}
+                  onChange={(e) =>
+                    handleDepartmentShiftChange(
+                      index,
+                      'shiftId',
+                      e.target.value,
+                    )
+                  }
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                >
+                  <option value="">Select a shift</option>
+                  {shifts.map((shift) => (
+                    <option key={shift.id} value={shift.id}>
+                      {shift.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           ))}
-        </select>
-      </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <label
+              htmlFor="employeeId"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Employee ID
+            </label>
+            <input
+              id="employeeId"
+              type="text"
+              value={individualEmployeeId}
+              onChange={(e) => setIndividualEmployeeId(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              placeholder="Enter employee ID"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="individualShift"
+              className="block text-sm font-medium text-gray-700"
+            >
+              New Shift
+            </label>
+            <select
+              id="individualShift"
+              value={individualShiftId}
+              onChange={(e) => setIndividualShiftId(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+            >
+              <option value="">Select a shift</option>
+              {shifts.map((shift) => (
+                <option key={shift.id} value={shift.id}>
+                  {shift.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
 
       <div>
         <label

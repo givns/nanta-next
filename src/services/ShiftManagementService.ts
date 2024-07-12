@@ -1,11 +1,6 @@
 // services/ShiftManagementService.ts
 
-import {
-  PrismaClient,
-  Shift,
-  ShiftAdjustmentRequest,
-  User,
-} from '@prisma/client';
+import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
 import { NotificationService } from './NotificationService';
 import {
   getDepartmentByNameFuzzy,
