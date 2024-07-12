@@ -1,4 +1,12 @@
-import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
+// services/ShiftManagementService.ts
+
+import {
+  PrismaClient,
+  Shift,
+  ShiftAdjustmentRequest,
+  User,
+} from '@prisma/client';
+import { NotificationService } from './NotificationService';
 import {
   getDepartmentByNameFuzzy,
   getDefaultShift,
@@ -6,6 +14,7 @@ import {
 } from '../lib/shiftCache';
 
 const prisma = new PrismaClient();
+const notificationService = new NotificationService();
 
 export class ShiftManagementService {
   async getDefaultShift(department: string): Promise<Shift | null> {
@@ -42,15 +51,70 @@ export class ShiftManagementService {
     date: Date,
     reason: string,
   ): Promise<ShiftAdjustmentRequest> {
-    return prisma.shiftAdjustmentRequest.create({
+    const adjustment = await prisma.shiftAdjustmentRequest.create({
       data: {
         userId,
         requestedShiftId,
         date,
         reason,
-        status: 'pending',
+        status: 'approved', // Automatically approve the request
       },
     });
+
+    await notificationService.sendNotification(
+      userId,
+      `Your shift for ${date.toDateString()} has been adjusted.`,
+    );
+
+    return adjustment;
+  }
+
+  async adminCreateShiftAdjustment(
+    adminId: string,
+    targetType: 'department' | 'individual',
+    targetId: string,
+    requestedShiftId: string,
+    date: Date,
+    reason: string,
+  ): Promise<ShiftAdjustmentRequest[]> {
+    const adjustments: ShiftAdjustmentRequest[] = [];
+
+    if (targetType === 'department') {
+      const users = await prisma.user.findMany({
+        where: { departmentId: targetId },
+      });
+
+      for (const user of users) {
+        const adjustment = await this.requestShiftAdjustment(
+          user.id,
+          requestedShiftId,
+          date,
+          reason,
+        );
+        adjustments.push(adjustment);
+      }
+    } else {
+      const adjustment = await this.requestShiftAdjustment(
+        targetId,
+        requestedShiftId,
+        date,
+        reason,
+      );
+      adjustments.push(adjustment);
+    }
+
+    // Notify super admins (except the admin who made the adjustment)
+    const superAdmins = await prisma.user.findMany({
+      where: { role: 'SUPER_ADMIN', NOT: { id: adminId } },
+    });
+    for (const superAdmin of superAdmins) {
+      await notificationService.sendNotification(
+        superAdmin.id,
+        `Admin ${adminId} has adjusted shifts for ${targetType} ${targetId} on ${date.toDateString()}.`,
+      );
+    }
+
+    return adjustments;
   }
 
   async getEffectiveShift(userId: string, date: Date): Promise<Shift> {
@@ -88,20 +152,6 @@ export class ShiftManagementService {
       : user.assignedShift;
   }
 
-  async approveShiftAdjustment(id: string): Promise<ShiftAdjustmentRequest> {
-    return prisma.shiftAdjustmentRequest.update({
-      where: { id },
-      data: { status: 'approved' },
-    });
-  }
-
-  async rejectShiftAdjustment(id: string): Promise<ShiftAdjustmentRequest> {
-    return prisma.shiftAdjustmentRequest.update({
-      where: { id },
-      data: { status: 'rejected' },
-    });
-  }
-
   async getUserShift(userId: string): Promise<Shift | null> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -112,7 +162,7 @@ export class ShiftManagementService {
   }
 
   async getShiftAdjustmentRequests(
-    status?: 'pending' | 'approved' | 'rejected',
+    status?: 'approved',
   ): Promise<ShiftAdjustmentRequest[]> {
     return prisma.shiftAdjustmentRequest.findMany({
       where: status ? { status } : undefined,

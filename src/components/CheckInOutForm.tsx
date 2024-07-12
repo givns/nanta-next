@@ -91,6 +91,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       shiftEnd.setDate(shiftEnd.getDate() + 1);
     }
 
+    // Add flexible time ranges (30 minutes before and after shift)
+    const flexibleStart = new Date(shiftStart.getTime() - 30 * 60000);
+    const flexibleEnd = new Date(shiftEnd.getTime() + 30 * 60000);
+
+    // Add grace periods (5 minutes at start and end of shift)
+    const graceStart = new Date(shiftStart.getTime() + 5 * 60000);
+    const graceEnd = new Date(shiftEnd.getTime() - 5 * 60000);
+
     return now < shiftStart || now > shiftEnd;
   }, [attendanceStatus.shiftAdjustment, userData.assignedShift]);
 

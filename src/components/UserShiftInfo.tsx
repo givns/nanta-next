@@ -97,7 +97,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
           <p className="text-red-500 mt-2">
             การลงเวลาของคุณอยู่นอกเวลากะที่กำหนด กะของคุณเริ่มเวลา{' '}
             {shift?.startTime} {''}
-            การลงเวลาจะถูกดำเนินการพร้อมคำขอปรับเปลี่ยนกะ
           </p>
         )}
       </div>
