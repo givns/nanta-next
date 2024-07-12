@@ -7,12 +7,15 @@ import axios from 'axios';
 import liff from '@line/liff';
 import { UserData, AttendanceStatus } from '../types/user';
 
+interface UserDetails {
+  user: UserData;
+  attendanceStatus: AttendanceStatus;
+  departments: { id: string; name: string }[];
+  shifts: { id: string; name: string }[];
+}
+
 const AdminDashboard: React.FC = () => {
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [attendanceStatus, setAttendanceStatus] =
-    useState<AttendanceStatus | null>(null);
-  const [departments, setDepartments] = useState([]);
-  const [shifts, setShifts] = useState([]);
+  const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,28 +42,10 @@ const AdminDashboard: React.FC = () => {
         console.log('User profile:', profile);
 
         console.log('Fetching user data');
-        const userResponse = await axios.get(
+        const response = await axios.get(
           `/api/users?lineUserId=${profile.userId}`,
         );
-        const user = userResponse.data.user;
-        console.log('User data:', user);
-        setUserData(user);
-
-        if (user.employeeId) {
-          console.log('Fetching attendance status');
-          const statusResponse = await axios.get(
-            `/api/check-status?employeeId=${user.employeeId}`,
-          );
-          console.log('Attendance status:', statusResponse.data);
-          setAttendanceStatus(statusResponse.data);
-        }
-
-        const [depResponse, shiftResponse] = await Promise.all([
-          axios.get('/api/departments'),
-          axios.get('/api/shifts'),
-        ]);
-        setDepartments(depResponse.data);
-        setShifts(shiftResponse.data);
+        setUserDetails(response.data);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
         setError(
@@ -82,7 +67,7 @@ const AdminDashboard: React.FC = () => {
     return <div>Error: {error}</div>;
   }
 
-  if (!userData || !attendanceStatus) {
+  if (!userDetails) {
     return <div>No user data available</div>;
   }
 
@@ -92,19 +77,19 @@ const AdminDashboard: React.FC = () => {
 
       <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
         <UserShiftInfo
-          userData={userData}
-          attendanceStatus={attendanceStatus}
-          departmentName={userData.department}
-          isOutsideShift={() => false}
+          userData={userDetails.user}
+          attendanceStatus={userDetails.attendanceStatus}
+          departmentName={userDetails.user.department}
+          isOutsideShift={() => false} // You may need to implement this function properly
         />
       </div>
 
       <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
         <h2 className="text-xl font-semibold mb-4">Shift Adjustment</h2>
         <AdminShiftAdjustmentForm
-          lineUserId={userData.lineUserId}
-          departments={departments}
-          shifts={shifts}
+          lineUserId={userDetails.user.lineUserId}
+          departments={userDetails.departments}
+          shifts={userDetails.shifts}
         />
       </div>
     </div>
