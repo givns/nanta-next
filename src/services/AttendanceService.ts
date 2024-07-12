@@ -71,30 +71,22 @@ export class AttendanceService {
       );
 
       // Fetch both internal and external attendance data
-      const [internalAttendance, externalCheckInData, externalCheckOutData] =
-        await Promise.all([
-          this.getInternalAttendanceRecord(user.id),
-          this.externalDbService.getLatestCheckIn(employeeId),
-          this.externalDbService.getLatestCheckOut(employeeId),
-        ]);
+      const [internalAttendance, externalAttendanceData] = await Promise.all([
+        this.getInternalAttendanceRecord(user.id),
+        this.externalDbService.getDailyAttendanceRecords(employeeId),
+      ]);
 
       console.log(
-        'External check-in data:',
-        JSON.stringify(externalCheckInData, null, 2),
-      );
-      console.log(
-        'External check-out data:',
-        JSON.stringify(externalCheckOutData, null, 2),
+        'External attendance data:',
+        JSON.stringify(externalAttendanceData, null, 2),
       );
 
       // Determine the latest attendance record
       const latestAttendance = this.getLatestAttendanceRecord(
         internalAttendance,
-        externalCheckInData?.checkIn || null,
-        externalCheckOutData?.checkOut || null,
-        user.assignedShift,
+        externalAttendanceData.records,
+        user.assignedShift as ShiftData,
       );
-
       const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
       const shiftAdjustment = await this.getLatestShiftAdjustment(user.id);
 
@@ -109,16 +101,14 @@ export class AttendanceService {
           employeeId: user.employeeId,
           role: user.role as UserRole,
           shiftId: user.shiftId,
-          assignedShift: user.assignedShift
-            ? {
-                id: user.assignedShift.id,
-                shiftCode: user.assignedShift.shiftCode,
-                name: user.assignedShift.name,
-                startTime: user.assignedShift.startTime,
-                endTime: user.assignedShift.endTime,
-                workDays: user.assignedShift.workDays,
-              }
-            : null,
+          assignedShift: {
+            id: user.assignedShift.id,
+            shiftCode: user.assignedShift.shiftCode,
+            name: user.assignedShift.name,
+            startTime: user.assignedShift.startTime,
+            endTime: user.assignedShift.endTime,
+            workDays: user.assignedShift.workDays,
+          },
           profilePictureUrl: user.profilePictureUrl,
           profilePictureExternal: user.profilePictureExternal,
           createdAt: user.createdAt,
@@ -139,7 +129,7 @@ export class AttendanceService {
               isManualEntry: latestAttendance.isManualEntry,
             }
           : null,
-        isCheckingIn,
+        isCheckingIn: !latestAttendance?.checkOutTime,
         shiftAdjustment: shiftAdjustment
           ? {
               requestedShiftId: shiftAdjustment.requestedShiftId,
@@ -187,11 +177,10 @@ export class AttendanceService {
 
   private getLatestAttendanceRecord(
     internalAttendance: AttendanceRecord | null,
-    externalCheckIn: ExternalCheckInData | null,
-    externalCheckOut: ExternalCheckInData | null,
+    externalRecords: ExternalCheckInData[],
     shift: ShiftData,
   ): AttendanceRecord | null {
-    if (!internalAttendance && !externalCheckIn && !externalCheckOut) {
+    if (!internalAttendance && externalRecords.length === 0) {
       return null;
     }
 
@@ -213,7 +202,7 @@ export class AttendanceService {
       checkOutPhoto: null,
       checkInDeviceSerial: null,
       checkOutDeviceSerial: null,
-      status: 'checked-out',
+      status: 'unknown',
       isManualEntry: false,
     };
 
@@ -221,79 +210,106 @@ export class AttendanceService {
       latestRecord = { ...internalAttendance };
     }
 
-    if (externalCheckIn) {
-      const externalCheckInTime = new Date(externalCheckIn.sj);
-      const status = this.determineStatus(
-        externalCheckInTime,
-        externalCheckIn.fx,
-        shift,
-      );
+    if (externalRecords.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      if (
-        !latestRecord.checkInTime ||
-        externalCheckInTime > latestRecord.checkInTime
-      ) {
-        latestRecord.checkInTime = externalCheckInTime;
-        latestRecord.checkInDeviceSerial = externalCheckIn.dev_serial;
+      const shiftStart = this.getShiftDateTime(today, shift.startTime);
+      const shiftEnd = this.getShiftDateTime(today, shift.endTime);
 
-        if (status === 'checked-in') {
-          latestRecord.status = 'checked-in';
-        } else if (status === 'checked-out' && !latestRecord.checkOutTime) {
-          latestRecord.checkOutTime = externalCheckInTime;
-          latestRecord.checkOutDeviceSerial = externalCheckIn.dev_serial;
-          latestRecord.status = 'checked-out';
+      // If shift ends next day
+      if (shiftEnd <= shiftStart) {
+        shiftEnd.setDate(shiftEnd.getDate() + 1);
+      }
+
+      let earliestCheckIn: Date | null = null;
+      let latestCheckOut: Date | null = null;
+
+      for (const record of externalRecords) {
+        const checkTime = new Date(record.sj);
+        const status = this.determineStatus(checkTime, record.fx, shift);
+
+        // Check-in logic
+        if (status === 'checked-in' || checkTime <= shiftEnd) {
+          if (!earliestCheckIn || checkTime < earliestCheckIn) {
+            earliestCheckIn = checkTime;
+            latestRecord.checkInTime = checkTime;
+            latestRecord.checkInDeviceSerial = record.dev_serial;
+          }
+        }
+
+        // Check-out logic
+        if (status === 'checked-out' || checkTime >= shiftStart) {
+          if (!latestCheckOut || checkTime > latestCheckOut) {
+            latestCheckOut = checkTime;
+            latestRecord.checkOutTime = checkTime;
+            latestRecord.checkOutDeviceSerial = record.dev_serial;
+          }
+        }
+
+        // Overtime logic
+        if (status === 'overtime-started') {
+          latestRecord.overtimeStartTime = checkTime;
+        } else if (status === 'overtime-ended') {
+          latestRecord.overtimeEndTime = checkTime;
         }
       }
-    }
 
-    if (externalCheckOut) {
-      const externalCheckOutTime = new Date(externalCheckOut.sj);
-      const status = this.determineStatus(
-        externalCheckOutTime,
-        externalCheckOut.fx,
-        shift,
-      );
-
-      if (
-        !latestRecord.checkOutTime ||
-        externalCheckOutTime > latestRecord.checkOutTime
-      ) {
-        if (status === 'checked-out') {
-          latestRecord.checkOutTime = externalCheckOutTime;
-          latestRecord.checkOutDeviceSerial = externalCheckOut.dev_serial;
-          latestRecord.status = 'checked-out';
-        } else if (
-          status === 'checked-in' &&
-          (!latestRecord.checkInTime ||
-            externalCheckOutTime > latestRecord.checkInTime)
-        ) {
-          latestRecord.checkInTime = externalCheckOutTime;
-          latestRecord.checkInDeviceSerial = externalCheckOut.dev_serial;
-          latestRecord.status = 'checked-in';
-        }
+      // Determine final status
+      if (latestRecord.checkInTime && latestRecord.checkOutTime) {
+        latestRecord.status = 'checked-out';
+      } else if (latestRecord.checkInTime) {
+        latestRecord.status = 'checked-in';
+      } else {
+        latestRecord.status = 'unknown';
       }
+
+      latestRecord.date = new Date(externalRecords[0].date);
+      latestRecord.userId = externalRecords[0].user_serial.toString();
+      latestRecord.id = externalRecords[0].bh.toString();
     }
 
     return latestRecord;
   }
+
+  private getShiftDateTime(date: Date, timeString: string): Date {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const shiftDateTime = new Date(date);
+    shiftDateTime.setHours(hours, minutes, 0, 0);
+    return shiftDateTime;
+  }
+
   private determineStatus(
     checkTime: Date,
     checkType: number,
     shift: ShiftData,
   ): string {
-    const now = new Date();
+    const shiftStart = this.getShiftDateTime(checkTime, shift.startTime);
+    const shiftEnd = this.getShiftDateTime(checkTime, shift.endTime);
+
+    // If shift ends next day
+    if (shiftEnd <= shiftStart) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
 
     if (checkType === 0) {
-      // For automatic or unspecified check types, we need to determine based on the time and shift
-      return this.determineAutoCheckStatus(checkTime, shift);
+      // For automatic or unspecified check types, determine based on the time and shift
+      if (checkTime < shiftStart) {
+        return 'checked-in'; // Early check-in
+      } else if (checkTime > shiftEnd) {
+        return 'checked-out'; // Late check-out
+      } else {
+        // Within shift, use midpoint to determine
+        const shiftMidpoint = new Date(
+          (shiftStart.getTime() + shiftEnd.getTime()) / 2,
+        );
+        return checkTime < shiftMidpoint ? 'checked-in' : 'checked-out';
+      }
     }
     if (checkType === 1) return 'checked-in';
     if (checkType === 2) return 'checked-out';
     if (checkType === 3) return 'overtime-started';
     if (checkType === 4) return 'overtime-ended';
-
-    // If it's an old record, assume it's completed
-    if (checkTime.getDate() < now.getDate()) return 'completed';
 
     // Default case
     return 'unknown';
@@ -318,13 +334,6 @@ export class AttendanceService {
     } else {
       return 'checked-out';
     }
-  }
-
-  private getShiftDateTime(date: Date, timeString: string): Date {
-    const [hours, minutes] = timeString.split(':').map(Number);
-    const shiftDateTime = new Date(date);
-    shiftDateTime.setHours(hours, minutes, 0, 0);
-    return shiftDateTime;
   }
 
   private determineIfCheckingIn(
