@@ -26,10 +26,9 @@ export default async function handler(
       await externalDbService.createCheckIn(data);
     }
 
-    // Fetch user info and latest check-in
-    const { userInfo, checkIn } = await externalDbService.getLatestCheckIn(
-      data.employeeId,
-    );
+    // Fetch user info and daily attendance records
+    const { userInfo, records } =
+      await externalDbService.getDailyAttendanceRecords(data.employeeId);
 
     if (!userInfo) {
       throw new Error('User not found in external database');
@@ -45,13 +44,16 @@ export default async function handler(
       throw new Error('User not found in our database');
     }
 
-    if (!checkIn) {
-      throw new Error('No check-in data found');
+    if (records.length === 0) {
+      throw new Error('No attendance records found for today');
     }
+
+    // Get the latest check-in (which should be the one we just created)
+    const latestCheckIn = records[records.length - 1];
 
     // Process the check-in/out
     const attendance = await attendanceService.processExternalCheckInOut(
-      checkIn,
+      latestCheckIn,
       userInfo,
       user.assignedShift,
     );

@@ -1,13 +1,12 @@
 // _app.tsx
 
 import '../styles/globals.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ErrorInfo } from 'react';
 import { useRouter } from 'next/router';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
 import liff from '@line/liff';
-import { ErrorInfo } from 'react';
 
 function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
