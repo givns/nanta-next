@@ -21,7 +21,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   const getStatusMessage = () => {
     if (attendanceStatus.latestAttendance?.checkOutTime) {
-      return 'วันทำงานเสร็จสิ้น';
+      return 'ทำงานเสร็จสิ้นแล้ว';
     }
     if (attendanceStatus.isCheckingIn) {
       return 'ยังไม่มีการลงเวลาในวันนี้';

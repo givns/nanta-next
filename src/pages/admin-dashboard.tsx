@@ -89,8 +89,8 @@ const AdminDashboard: React.FC = () => {
           <h2 className="text-xl font-semibold mb-4">Shift Adjustment</h2>
           <AdminShiftAdjustmentForm
             lineUserId={userDetails.user.lineUserId}
-            departments={userDetails.departments}
-            shifts={userDetails.shifts}
+            departments={userDetails.departments || []}
+            shifts={userDetails.shifts || []}
           />
         </div>
       </>
