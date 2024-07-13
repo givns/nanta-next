@@ -129,7 +129,7 @@ export class AttendanceService {
               isManualEntry: latestAttendance.isManualEntry,
             }
           : null,
-        isCheckingIn: !latestAttendance?.checkOutTime,
+        isCheckingIn: isCheckingIn,
         shiftAdjustment: shiftAdjustment
           ? {
               requestedShiftId: shiftAdjustment.requestedShiftId,
@@ -315,32 +315,22 @@ export class AttendanceService {
     return 'unknown';
   }
 
-  private determineAutoCheckStatus(checkTime: Date, shift: ShiftData): string {
-    const shiftStart = this.getShiftDateTime(checkTime, shift.startTime);
-    const shiftEnd = this.getShiftDateTime(checkTime, shift.endTime);
-
-    // If the shift ends on the next day
-    if (shiftEnd < shiftStart) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
-    }
-
-    // Calculate the midpoint of the shift
-    const shiftMidpoint = new Date(
-      (shiftStart.getTime() + shiftEnd.getTime()) / 2,
+  private isAttendanceFromToday(attendance: AttendanceRecord | null): boolean {
+    if (!attendance) return false;
+    const today = new Date();
+    const attendanceDate = new Date(attendance.date);
+    return (
+      attendanceDate.getDate() === today.getDate() &&
+      attendanceDate.getMonth() === today.getMonth() &&
+      attendanceDate.getFullYear() === today.getFullYear()
     );
-
-    if (checkTime < shiftMidpoint) {
-      return 'checked-in';
-    } else {
-      return 'checked-out';
-    }
   }
 
   private determineIfCheckingIn(
     latestAttendance: AttendanceRecord | null,
   ): boolean {
-    if (!latestAttendance) {
-      return true; // If no attendance record, user needs to check in
+    if (!latestAttendance || !this.isAttendanceFromToday(latestAttendance)) {
+      return true; // If no attendance record or not from today, user needs to check in
     }
 
     if (latestAttendance.checkOutTime) {

@@ -20,52 +20,68 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     attendanceStatus.shiftAdjustment?.requestedShift || userData.assignedShift;
 
   const getStatusMessage = () => {
-    if (attendanceStatus.latestAttendance?.checkOutTime) {
-      return 'ทำงานเสร็จสิ้นแล้ว';
-    }
-    if (attendanceStatus.isCheckingIn) {
+    if (!attendanceStatus.latestAttendance) {
       return 'ยังไม่มีการลงเวลาในวันนี้';
     }
-    return 'ลงเวลาเข้างานแล้ว';
+    if (attendanceStatus.latestAttendance.checkOutTime) {
+      return 'ทำงานเสร็จสิ้นแล้ว';
+    }
+    if (attendanceStatus.latestAttendance.checkInTime) {
+      return 'ลงเวลาเข้างานแล้ว';
+    }
+    return 'ยังไม่มีการลงเวลาในวันนี้';
   };
 
   const getTitle = () => {
     if (attendanceStatus.approvedOvertime) {
       return 'ทำงานล่วงเวลา';
     }
-    return '';
+    return attendanceStatus.shiftAdjustment ? 'กะการทำงานถูกปรับเปลี่ยน' : '';
   };
 
   return (
-    <div>
+    <div className="bg-white p-4 rounded-lg shadow-md">
       <p className="text-2xl font-bold">{userData.name}</p>
-      <p className="text-2xl font-bold">(รหัสพนักงาน: {userData.employeeId})</p>
-      <p className="mb-4">แผนก: {departmentName}</p>
+      <p className="text-xl">(รหัสพนักงาน: {userData.employeeId})</p>
+      <p className="mb-4 text-gray-600">แผนก: {departmentName}</p>
 
-      {getTitle() && <p className="text-blue-600 mb-2">{getTitle()}</p>}
+      {getTitle() && (
+        <p className="text-blue-600 font-semibold mb-2">{getTitle()}</p>
+      )}
 
       <div className="bg-gray-100 p-4 rounded-lg mb-4">
         <h2 className="text-lg font-semibold mb-2">
-          สถานะปัจจุบัน: {getStatusMessage()}
+          สถานะปัจจุบัน:{' '}
+          <span className="text-green-600">{getStatusMessage()}</span>
         </h2>
         {attendanceStatus.latestAttendance && (
           <>
-            <p>
-              เวลาเข้างาน:{' '}
-              {formatTime(attendanceStatus.latestAttendance.checkInTime)}
-            </p>
+            {attendanceStatus.latestAttendance.checkInTime && (
+              <p>
+                เวลาเข้างาน:{' '}
+                <span className="font-medium">
+                  {formatTime(attendanceStatus.latestAttendance.checkInTime)}
+                </span>
+              </p>
+            )}
             {attendanceStatus.latestAttendance.checkOutTime && (
               <p>
                 เวลาออกงาน:{' '}
-                {formatTime(attendanceStatus.latestAttendance.checkOutTime)}
+                <span className="font-medium">
+                  {formatTime(attendanceStatus.latestAttendance.checkOutTime)}
+                </span>
               </p>
             )}
-            <p>
-              วิธีการ:{' '}
-              {getDeviceType(
-                attendanceStatus.latestAttendance.checkInDeviceSerial,
-              )}
-            </p>
+            {attendanceStatus.latestAttendance.checkInDeviceSerial && (
+              <p>
+                วิธีการ:{' '}
+                <span className="font-medium">
+                  {getDeviceType(
+                    attendanceStatus.latestAttendance.checkInDeviceSerial,
+                  )}
+                </span>
+              </p>
+            )}
           </>
         )}
 
@@ -75,8 +91,16 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               รายละเอียดการทำงานล่วงเวลาที่ได้รับอนุมัติ:
             </h3>
             <p>
-              เวลาเริ่ม: {attendanceStatus.approvedOvertime.startTime}
-              เวลาสิ้นสุด: {attendanceStatus.approvedOvertime.endTime}
+              เวลาเริ่ม:{' '}
+              <span className="font-medium">
+                {formatTime(attendanceStatus.approvedOvertime.startTime)}
+              </span>
+            </p>
+            <p>
+              เวลาสิ้นสุด:{' '}
+              <span className="font-medium">
+                {formatTime(attendanceStatus.approvedOvertime.endTime)}
+              </span>
             </p>
           </>
         ) : shift ? (
@@ -85,18 +109,21 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               กะการทำงานของคุณวันนี้:
             </h3>
             <p>
-              {shift.name} ({shift.startTime} - {shift.endTime})
+              <span className="font-medium">{shift.name}</span> (
+              {shift.startTime} - {shift.endTime})
             </p>
             {attendanceStatus.shiftAdjustment && (
-              <p className="text-blue-600">* มีการปรับเปลี่ยนกะสำหรับวันนี้</p>
+              <p className="text-blue-600 mt-1">
+                * กะการทำงานนี้ได้รับการปรับเปลี่ยนสำหรับวันนี้
+              </p>
             )}
           </>
         ) : null}
 
-        {isOutsideShift() && !attendanceStatus.approvedOvertime && (
+        {isOutsideShift() && !attendanceStatus.approvedOvertime && shift && (
           <p className="text-red-500 mt-2">
             การลงเวลาของคุณอยู่นอกเวลากะที่กำหนด กะของคุณเริ่มเวลา{' '}
-            {shift?.startTime} {''}
+            {shift.startTime}
           </p>
         )}
       </div>

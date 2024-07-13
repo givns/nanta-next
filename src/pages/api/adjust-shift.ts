@@ -123,15 +123,13 @@ export default async function handler(
       if (userLineId) {
         await notificationService.sendNotification(
           userId,
-          `แจ้งเตือน: การปรับเปลี่ยนกะการทำงาน
+          `แจ้งเตือน: เปลี่ยนแปลงเวลาการทำงาน
 
 วันที่: ${formattedDate}
 กะใหม่: ${shift.name}
 เวลา: ${shift.startTime} - ${shift.endTime}
 
-เหตุผล: ${reason}
-
-หากมีข้อสงสัย กรุณาติดต่อฝ่ายบุคคล`,
+เหตุผล: ${reason}`,
           userLineId,
         );
       }
@@ -152,15 +150,13 @@ export default async function handler(
       if (admin.lineUserId) {
         await notificationService.sendNotification(
           admin.id,
-          `แจ้งเตือน: มีการปรับเปลี่ยนกะการทำงาน
+          `แจ้งเตือน: มีการเปลี่ยนแปลงเวลาการทำงาน
 
 ผู้ดำเนินการ: ${requestingUser.name}
 วันที่: ${formattedDate}
-จำนวนผู้ได้รับผลกระทบ: ${affectedUsers.size} คน
+จำนวนผู้ได้รับการปรับเวลาการทำงาน: ${affectedUsers.size} คน
 
-เหตุผล: ${reason}
-
-กรุณาตรวจสอบรายละเอียดในระบบ`,
+เหตุผล: ${reason}`,
           admin.lineUserId,
         );
       }
