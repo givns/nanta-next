@@ -1,63 +1,21 @@
-import { PrismaClient, Shift } from '@prisma/client';
+// lib/shiftCache.ts
 
-const prisma = new PrismaClient();
+import axios from 'axios';
+import { Shift, ShiftData } from '../types/user';
 
-let shifts: Shift[] | null = null;
+let cachedShifts: Shift[] | null = null;
 
 export async function getShifts(): Promise<Shift[]> {
-  if (shifts === null) {
-    shifts = await prisma.shift.findMany();
-    if (shifts.length === 0) {
-      const shiftData = [
-        {
-          shiftCode: 'SHIFT100',
-          name: 'กะตี 5',
-          startTime: '05:00',
-          endTime: '14:00',
-          workDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
-        },
-        {
-          shiftCode: 'SHIFT101',
-          name: 'กะเช้า 6 โมง',
-          startTime: '06:00',
-          endTime: '15:00',
-          workDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
-        },
-        {
-          shiftCode: 'SHIFT102',
-          name: 'กะเช้า 7 โมง',
-          startTime: '07:00',
-          endTime: '16:00',
-          workDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
-        },
-        {
-          shiftCode: 'SHIFT103',
-          name: 'ช่วงเวลาปกติ',
-          startTime: '08:00',
-          endTime: '17:00',
-          workDays: [1, 2, 3, 4, 5, 6], // Monday to Saturday
-        },
-        {
-          shiftCode: 'SHIFT104',
-          name: 'กะบ่าย 2 โมง',
-          startTime: '14:00',
-          endTime: '23:00',
-          workDays: [0, 1, 2, 3, 4, 5], // Sunday to Friday
-        },
-      ];
-
-      shifts = await Promise.all(
-        shiftData.map((shift) =>
-          prisma.shift.upsert({
-            where: { shiftCode: shift.shiftCode },
-            update: shift,
-            create: shift,
-          }),
-        ),
-      );
+  if (cachedShifts === null) {
+    try {
+      const response = await axios.get<Shift[]>('/api/shifts/shifts');
+      cachedShifts = response.data;
+    } catch (error) {
+      console.error('Error fetching shifts:', error);
+      cachedShifts = []; // Set to empty array instead of null
     }
   }
-  return shifts;
+  return cachedShifts;
 }
 
 export async function getShiftByCode(shiftCode: string): Promise<Shift | null> {
@@ -71,7 +29,7 @@ export async function getShiftById(shiftId: string): Promise<Shift | null> {
 }
 
 export async function refreshShiftCache(): Promise<void> {
-  shifts = null;
+  cachedShifts = null;
   await getShifts();
 }
 
@@ -96,6 +54,7 @@ export const departmentShiftMap: { [key: string]: string } = {
 export function getDefaultShiftCode(department: string): string {
   return departmentShiftMap[department] || 'SHIFT103';
 }
+
 export type DepartmentId =
   | 10012
   | 10038
@@ -128,6 +87,7 @@ export const departmentIdNameMap: { [key: number]: string } = {
   10016: 'ฝ่ายรักษาความสะอาด',
   10020: 'ฝ่ายรักษาความปลอดภัย',
 };
+
 export function getDepartmentById(departmentId: number): string | null {
   return departmentIdNameMap[departmentId] || null;
 }
@@ -147,20 +107,12 @@ export async function getShiftByDepartmentId(
     return getShiftByCode('SHIFT103'); // Default shift if no mapping found
   }
 
-  try {
-    const shift = await getShiftByCode(shiftCode);
-    if (!shift) {
-      console.warn(`No shift found for code: ${shiftCode}`);
-      return getShiftByCode('SHIFT103'); // Default shift if shift not found
-    }
-    return shift;
-  } catch (error) {
-    console.error(
-      `Error getting shift for department ID ${departmentId}:`,
-      error,
-    );
-    return getShiftByCode('SHIFT103');
+  const shift = await getShiftByCode(shiftCode);
+  if (!shift) {
+    console.warn(`No shift found for code: ${shiftCode}`);
+    return getShiftByCode('SHIFT103'); // Default shift if shift not found
   }
+  return shift;
 }
 
 function fuzzyMatch(str1: string, str2: string): number {

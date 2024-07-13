@@ -3840,3 +3840,585 @@
 2024-07-13 09:59:34 +07:00:   code: 'ECONNRESET',
 2024-07-13 09:59:34 +07:00:   syscall: 'read'
 2024-07-13 09:59:34 +07:00: }
+2024-07-13 10:45:25 +07:00: Error fetching shifts: AxiosError [AggregateError]
+2024-07-13 10:45:25 +07:00:     at Function.AxiosError.from (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/axios/lib/core/AxiosError.js:89:14)
+2024-07-13 10:45:25 +07:00:     at RedirectableRequest.handleRequestError (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/axios/lib/adapters/http.js:610:25)
+2024-07-13 10:45:25 +07:00:     at RedirectableRequest.emit (node:events:520:28)
+2024-07-13 10:45:25 +07:00:     at RedirectableRequest.emit (node:domain:488:12)
+2024-07-13 10:45:25 +07:00:     at ClientRequest.eventHandlers.<computed> (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/follow-redirects/index.js:38:24)
+2024-07-13 10:45:25 +07:00:     at ClientRequest.emit (node:events:520:28)
+2024-07-13 10:45:25 +07:00:     at ClientRequest.emit (node:domain:488:12)
+2024-07-13 10:45:25 +07:00:     at Socket.socketErrorListener (node:_http_client:502:9)
+2024-07-13 10:45:25 +07:00:     at Socket.emit (node:events:520:28)
+2024-07-13 10:45:25 +07:00:     at Socket.emit (node:domain:488:12)
+2024-07-13 10:45:25 +07:00:     at Axios.request (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/axios/lib/core/Axios.js:45:41)
+2024-07-13 10:45:25 +07:00:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2024-07-13 10:45:25 +07:00:     at async getShifts (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/shiftCache.ts:11:24)
+2024-07-13 10:45:25 +07:00:     at async refreshShiftCache (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/shiftCache.ts:33:3)
+2024-07-13 10:45:25 +07:00:     at async processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:33:5) {
+2024-07-13 10:45:25 +07:00:   code: 'ECONNREFUSED',
+2024-07-13 10:45:25 +07:00:   errors: [
+2024-07-13 10:45:25 +07:00:     Error: connect ECONNREFUSED 127.0.0.1:80
+2024-07-13 10:45:25 +07:00:         at createConnectionError (node:net:1647:14)
+2024-07-13 10:45:25 +07:00:         at afterConnectMultiple (node:net:1677:16) {
+2024-07-13 10:45:25 +07:00:       errno: -61,
+2024-07-13 10:45:25 +07:00:       code: 'ECONNREFUSED',
+2024-07-13 10:45:25 +07:00:       syscall: 'connect',
+2024-07-13 10:45:25 +07:00:       address: '127.0.0.1',
+2024-07-13 10:45:25 +07:00:       port: 80
+2024-07-13 10:45:25 +07:00:     },
+2024-07-13 10:45:25 +07:00:     Error: connect ECONNREFUSED ::1:80
+2024-07-13 10:45:25 +07:00:         at createConnectionError (node:net:1647:14)
+2024-07-13 10:45:25 +07:00:         at afterConnectMultiple (node:net:1677:16) {
+2024-07-13 10:45:25 +07:00:       errno: -61,
+2024-07-13 10:45:25 +07:00:       code: 'ECONNREFUSED',
+2024-07-13 10:45:25 +07:00:       syscall: 'connect',
+2024-07-13 10:45:25 +07:00:       address: '::1',
+2024-07-13 10:45:25 +07:00:       port: 80
+2024-07-13 10:45:25 +07:00:     }
+2024-07-13 10:45:25 +07:00:   ],
+2024-07-13 10:45:25 +07:00:   config: {
+2024-07-13 10:45:25 +07:00:     transitional: {
+2024-07-13 10:45:25 +07:00:       silentJSONParsing: true,
+2024-07-13 10:45:25 +07:00:       forcedJSONParsing: true,
+2024-07-13 10:45:25 +07:00:       clarifyTimeoutError: false
+2024-07-13 10:45:25 +07:00:     },
+2024-07-13 10:45:25 +07:00:     adapter: [ 'xhr', 'http', 'fetch' ],
+2024-07-13 10:45:25 +07:00:     transformRequest: [ [Function: transformRequest] ],
+2024-07-13 10:45:25 +07:00:     transformResponse: [ [Function: transformResponse] ],
+2024-07-13 10:45:25 +07:00:     timeout: 0,
+2024-07-13 10:45:25 +07:00:     xsrfCookieName: 'XSRF-TOKEN',
+2024-07-13 10:45:25 +07:00:     xsrfHeaderName: 'X-XSRF-TOKEN',
+2024-07-13 10:45:25 +07:00:     maxContentLength: -1,
+2024-07-13 10:45:25 +07:00:     maxBodyLength: -1,
+2024-07-13 10:45:25 +07:00:     env: { FormData: [Function], Blob: [class Blob] },
+2024-07-13 10:45:25 +07:00:     validateStatus: [Function: validateStatus],
+2024-07-13 10:45:25 +07:00:     headers: Object [AxiosHeaders] {
+2024-07-13 10:45:25 +07:00:       Accept: 'application/json, text/plain, */*',
+2024-07-13 10:45:25 +07:00:       'Content-Type': undefined,
+2024-07-13 10:45:25 +07:00:       'User-Agent': 'axios/1.7.2',
+2024-07-13 10:45:25 +07:00:       'Accept-Encoding': 'gzip, compress, deflate, br'
+2024-07-13 10:45:25 +07:00:     },
+2024-07-13 10:45:25 +07:00:     method: 'get',
+2024-07-13 10:45:25 +07:00:     url: '/api/shifts/shifts',
+2024-07-13 10:45:25 +07:00:     data: undefined
+2024-07-13 10:45:25 +07:00:   },
+2024-07-13 10:45:25 +07:00:   request: <ref *1> Writable {
+2024-07-13 10:45:25 +07:00:     _events: {
+2024-07-13 10:45:25 +07:00:       close: undefined,
+2024-07-13 10:45:25 +07:00:       error: [Function: handleRequestError],
+2024-07-13 10:45:25 +07:00:       prefinish: undefined,
+2024-07-13 10:45:25 +07:00:       finish: undefined,
+2024-07-13 10:45:25 +07:00:       drain: undefined,
+2024-07-13 10:45:25 +07:00:       response: [Function: handleResponse],
+2024-07-13 10:45:25 +07:00:       socket: [Function: handleRequestSocket]
+2024-07-13 10:45:25 +07:00:     },
+2024-07-13 10:45:25 +07:00:     _writableState: WritableState {
+2024-07-13 10:45:25 +07:00:       highWaterMark: 65536,
+2024-07-13 10:45:25 +07:00:       length: 0,
+2024-07-13 10:45:25 +07:00:       corked: 0,
+2024-07-13 10:45:25 +07:00:       onwrite: [Function: bound onwrite],
+2024-07-13 10:45:25 +07:00:       writelen: 0,
+2024-07-13 10:45:25 +07:00:       bufferedIndex: 0,
+2024-07-13 10:45:25 +07:00:       pendingcb: 0,
+2024-07-13 10:45:25 +07:00:       [Symbol(kState)]: 17580812,
+2024-07-13 10:45:25 +07:00:       [Symbol(kBufferedValue)]: null
+2024-07-13 10:45:25 +07:00:     },
+2024-07-13 10:45:25 +07:00:     _maxListeners: undefined,
+2024-07-13 10:45:25 +07:00:     _options: {
+2024-07-13 10:45:25 +07:00:       maxRedirects: 21,
+2024-07-13 10:45:25 +07:00:       maxBodyLength: Infinity,
+2024-07-13 10:45:25 +07:00:       protocol: 'http:',
+2024-07-13 10:45:25 +07:00:       path: '/api/shifts/shifts',
+2024-07-13 10:45:25 +07:00:       method: 'GET',
+2024-07-13 10:45:25 +07:00:       headers: [Object: null prototype],
+2024-07-13 10:45:25 +07:00:       agents: [Object],
+2024-07-13 10:45:25 +07:00:       auth: undefined,
+2024-07-13 10:45:25 +07:00:       family: undefined,
+2024-07-13 10:45:25 +07:00:       beforeRedirect: [Function: dispatchBeforeRedirect],
+2024-07-13 10:45:25 +07:00:       beforeRedirects: [Object],
+2024-07-13 10:45:25 +07:00:       hostname: 'localhost',
+2024-07-13 10:45:25 +07:00:       port: '',
+2024-07-13 10:45:25 +07:00:       agent: undefined,
+2024-07-13 10:45:25 +07:00:       nativeProtocols: [Object],
+2024-07-13 10:45:25 +07:00:       pathname: '/api/shifts/shifts'
+2024-07-13 10:45:25 +07:00:     },
+2024-07-13 10:45:25 +07:00:     _ended: true,
+2024-07-13 10:45:25 +07:00:     _ending: true,
+2024-07-13 10:45:25 +07:00:     _redirectCount: 0,
+2024-07-13 10:45:25 +07:00:     _redirects: [],
+2024-07-13 10:45:25 +07:00:     _requestBodyLength: 0,
+2024-07-13 10:45:25 +07:00:     _requestBodyBuffers: [],
+2024-07-13 10:45:25 +07:00:     _eventsCount: 3,
+2024-07-13 10:45:25 +07:00:     _onNativeResponse: [Function (anonymous)],
+2024-07-13 10:45:25 +07:00:     _currentRequest: ClientRequest {
+2024-07-13 10:45:25 +07:00:       _events: [Object: null prototype],
+2024-07-13 10:45:25 +07:00:       _eventsCount: 7,
+2024-07-13 10:45:25 +07:00:       _maxListeners: undefined,
+2024-07-13 10:45:25 +07:00:       outputData: [],
+2024-07-13 10:45:25 +07:00:       outputSize: 0,
+2024-07-13 10:45:25 +07:00:       writable: true,
+2024-07-13 10:45:25 +07:00:       destroyed: false,
+2024-07-13 10:45:25 +07:00:       _last: true,
+2024-07-13 10:45:25 +07:00:       chunkedEncoding: false,
+2024-07-13 10:45:25 +07:00:       shouldKeepAlive: true,
+2024-07-13 10:45:25 +07:00:       maxRequestsOnConnectionReached: false,
+2024-07-13 10:45:25 +07:00:       _defaultKeepAlive: true,
+2024-07-13 10:45:25 +07:00:       useChunkedEncodingByDefault: false,
+2024-07-13 10:45:25 +07:00:       sendDate: false,
+2024-07-13 10:45:25 +07:00:       _removedConnection: false,
+2024-07-13 10:45:25 +07:00:       _removedContLen: false,
+2024-07-13 10:45:25 +07:00:       _removedTE: false,
+2024-07-13 10:45:25 +07:00:       strictContentLength: false,
+2024-07-13 10:45:25 +07:00:       _contentLength: 0,
+2024-07-13 10:45:25 +07:00:       _hasBody: true,
+2024-07-13 10:45:25 +07:00:       _trailer: '',
+2024-07-13 10:45:25 +07:00:       finished: true,
+2024-07-13 10:45:25 +07:00:       _headerSent: true,
+2024-07-13 10:45:25 +07:00:       _closed: false,
+2024-07-13 10:45:25 +07:00:       _header: 'GET /api/shifts/shifts HTTP/1.1\r\n' +
+2024-07-13 10:45:25 +07:00:         'Accept: application/json, text/plain, */*\r\n' +
+2024-07-13 10:45:25 +07:00:         'User-Agent: axios/1.7.2\r\n' +
+2024-07-13 10:45:25 +07:00:         'Accept-Encoding: gzip, compress, deflate, br\r\n' +
+2024-07-13 10:45:25 +07:00:         'Host: localhost\r\n' +
+2024-07-13 10:45:25 +07:00:         'Connection: keep-alive\r\n' +
+2024-07-13 10:45:25 +07:00:         '\r\n',
+2024-07-13 10:45:25 +07:00:       _keepAliveTimeout: 0,
+2024-07-13 10:45:25 +07:00:       _onPendingData: [Function: nop],
+2024-07-13 10:45:25 +07:00:       agent: [Agent],
+2024-07-13 10:45:25 +07:00:       socketPath: undefined,
+2024-07-13 10:45:25 +07:00:       method: 'GET',
+2024-07-13 10:45:25 +07:00:       maxHeaderSize: undefined,
+2024-07-13 10:45:25 +07:00:       insecureHTTPParser: undefined,
+2024-07-13 10:45:25 +07:00:       joinDuplicateHeaders: undefined,
+2024-07-13 10:45:25 +07:00:       path: '/api/shifts/shifts',
+2024-07-13 10:45:25 +07:00:       _ended: false,
+2024-07-13 10:45:25 +07:00:       res: null,
+2024-07-13 10:45:25 +07:00:       aborted: false,
+2024-07-13 10:45:25 +07:00:       timeoutCb: [Function: emitRequestTimeout],
+2024-07-13 10:45:25 +07:00:       upgradeOrConnect: false,
+2024-07-13 10:45:25 +07:00:       parser: null,
+2024-07-13 10:45:25 +07:00:       maxHeadersCount: null,
+2024-07-13 10:45:25 +07:00:       reusedSocket: false,
+2024-07-13 10:45:25 +07:00:       host: 'localhost',
+2024-07-13 10:45:25 +07:00:       protocol: 'http:',
+2024-07-13 10:45:25 +07:00:       _redirectable: [Circular *1],
+2024-07-13 10:45:25 +07:00:       [Symbol(shapeMode)]: false,
+2024-07-13 10:45:25 +07:00:       [Symbol(kCapture)]: false,
+2024-07-13 10:45:25 +07:00:       [Symbol(kBytesWritten)]: 0,
+2024-07-13 10:45:25 +07:00:       [Symbol(kNeedDrain)]: false,
+2024-07-13 10:45:25 +07:00:       [Symbol(corked)]: 0,
+2024-07-13 10:45:25 +07:00:       [Symbol(kChunkedBuffer)]: [],
+2024-07-13 10:45:25 +07:00:       [Symbol(kChunkedLength)]: 0,
+2024-07-13 10:45:25 +07:00:       [Symbol(kSocket)]: [Socket],
+2024-07-13 10:45:25 +07:00:       [Symbol(kOutHeaders)]: [Object: null prototype],
+2024-07-13 10:45:25 +07:00:       [Symbol(errored)]: null,
+2024-07-13 10:45:25 +07:00:       [Symbol(kHighWaterMark)]: 65536,
+2024-07-13 10:45:25 +07:00:       [Symbol(kRejectNonStandardBodyWrites)]: false,
+2024-07-13 10:45:25 +07:00:       [Symbol(kUniqueHeaders)]: null
+2024-07-13 10:45:25 +07:00:     },
+2024-07-13 10:45:25 +07:00:     _currentUrl: 'http://localhost/api/shifts/shifts',
+2024-07-13 10:45:25 +07:00:     [Symbol(shapeMode)]: true,
+2024-07-13 10:45:25 +07:00:     [Symbol(kCapture)]: false
+2024-07-13 10:45:25 +07:00:   },
+2024-07-13 10:45:25 +07:00:   cause: AggregateError
+2024-07-13 10:45:25 +07:00:       at internalConnectMultiple (node:net:1117:18)
+2024-07-13 10:45:25 +07:00:       at afterConnectMultiple (node:net:1684:7) {
+2024-07-13 10:45:25 +07:00:     code: 'ECONNREFUSED',
+2024-07-13 10:45:25 +07:00:     [errors]: [ [Error], [Error] ]
+2024-07-13 10:45:25 +07:00:   }
+2024-07-13 10:45:25 +07:00: }
+2024-07-13 10:45:26 +07:00: Error in registration process: Error: No shift found for department: ฝ่ายคลังสินค้าและแพ็คกิ้ง
+2024-07-13 10:45:26 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:58:13)
+2024-07-13 10:45:26 +07:00:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2024-07-13 10:45:26 +07:00: Job failed: 29 Error: Error: No shift found for department: ฝ่ายคลังสินค้าและแพ็คกิ้ง
+2024-07-13 10:45:26 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:58:13)
+2024-07-13 10:45:26 +07:00:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2024-07-13 10:45:27 +07:00: Error fetching shifts: AxiosError [AggregateError]
+2024-07-13 10:45:27 +07:00:     at Function.AxiosError.from (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/axios/lib/core/AxiosError.js:89:14)
+2024-07-13 10:45:27 +07:00:     at RedirectableRequest.handleRequestError (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/axios/lib/adapters/http.js:610:25)
+2024-07-13 10:45:27 +07:00:     at RedirectableRequest.emit (node:events:520:28)
+2024-07-13 10:45:27 +07:00:     at RedirectableRequest.emit (node:domain:488:12)
+2024-07-13 10:45:27 +07:00:     at ClientRequest.eventHandlers.<computed> (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/follow-redirects/index.js:38:24)
+2024-07-13 10:45:27 +07:00:     at ClientRequest.emit (node:events:520:28)
+2024-07-13 10:45:27 +07:00:     at ClientRequest.emit (node:domain:488:12)
+2024-07-13 10:45:27 +07:00:     at Socket.socketErrorListener (node:_http_client:502:9)
+2024-07-13 10:45:27 +07:00:     at Socket.emit (node:events:520:28)
+2024-07-13 10:45:27 +07:00:     at Socket.emit (node:domain:488:12)
+2024-07-13 10:45:27 +07:00:     at Axios.request (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/axios/lib/core/Axios.js:45:41)
+2024-07-13 10:45:27 +07:00:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2024-07-13 10:45:27 +07:00:     at async getShifts (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/shiftCache.ts:11:24)
+2024-07-13 10:45:27 +07:00:     at async refreshShiftCache (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/shiftCache.ts:33:3)
+2024-07-13 10:45:27 +07:00:     at async processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:33:5) {
+2024-07-13 10:45:27 +07:00:   code: 'ECONNREFUSED',
+2024-07-13 10:45:27 +07:00:   errors: [
+2024-07-13 10:45:27 +07:00:     Error: connect ECONNREFUSED 127.0.0.1:80
+2024-07-13 10:45:27 +07:00:         at createConnectionError (node:net:1647:14)
+2024-07-13 10:45:27 +07:00:         at afterConnectMultiple (node:net:1677:16) {
+2024-07-13 10:45:27 +07:00:       errno: -61,
+2024-07-13 10:45:27 +07:00:       code: 'ECONNREFUSED',
+2024-07-13 10:45:27 +07:00:       syscall: 'connect',
+2024-07-13 10:45:27 +07:00:       address: '127.0.0.1',
+2024-07-13 10:45:27 +07:00:       port: 80
+2024-07-13 10:45:27 +07:00:     },
+2024-07-13 10:45:27 +07:00:     Error: connect ECONNREFUSED ::1:80
+2024-07-13 10:45:27 +07:00:         at createConnectionError (node:net:1647:14)
+2024-07-13 10:45:27 +07:00:         at afterConnectMultiple (node:net:1677:16) {
+2024-07-13 10:45:27 +07:00:       errno: -61,
+2024-07-13 10:45:27 +07:00:       code: 'ECONNREFUSED',
+2024-07-13 10:45:27 +07:00:       syscall: 'connect',
+2024-07-13 10:45:27 +07:00:       address: '::1',
+2024-07-13 10:45:27 +07:00:       port: 80
+2024-07-13 10:45:27 +07:00:     }
+2024-07-13 10:45:27 +07:00:   ],
+2024-07-13 10:45:27 +07:00:   config: {
+2024-07-13 10:45:27 +07:00:     transitional: {
+2024-07-13 10:45:27 +07:00:       silentJSONParsing: true,
+2024-07-13 10:45:27 +07:00:       forcedJSONParsing: true,
+2024-07-13 10:45:27 +07:00:       clarifyTimeoutError: false
+2024-07-13 10:45:27 +07:00:     },
+2024-07-13 10:45:27 +07:00:     adapter: [ 'xhr', 'http', 'fetch' ],
+2024-07-13 10:45:27 +07:00:     transformRequest: [ [Function: transformRequest] ],
+2024-07-13 10:45:27 +07:00:     transformResponse: [ [Function: transformResponse] ],
+2024-07-13 10:45:27 +07:00:     timeout: 0,
+2024-07-13 10:45:27 +07:00:     xsrfCookieName: 'XSRF-TOKEN',
+2024-07-13 10:45:27 +07:00:     xsrfHeaderName: 'X-XSRF-TOKEN',
+2024-07-13 10:45:27 +07:00:     maxContentLength: -1,
+2024-07-13 10:45:27 +07:00:     maxBodyLength: -1,
+2024-07-13 10:45:27 +07:00:     env: { FormData: [Function], Blob: [class Blob] },
+2024-07-13 10:45:27 +07:00:     validateStatus: [Function: validateStatus],
+2024-07-13 10:45:27 +07:00:     headers: Object [AxiosHeaders] {
+2024-07-13 10:45:27 +07:00:       Accept: 'application/json, text/plain, */*',
+2024-07-13 10:45:27 +07:00:       'Content-Type': undefined,
+2024-07-13 10:45:27 +07:00:       'User-Agent': 'axios/1.7.2',
+2024-07-13 10:45:27 +07:00:       'Accept-Encoding': 'gzip, compress, deflate, br'
+2024-07-13 10:45:27 +07:00:     },
+2024-07-13 10:45:27 +07:00:     method: 'get',
+2024-07-13 10:45:27 +07:00:     url: '/api/shifts/shifts',
+2024-07-13 10:45:27 +07:00:     data: undefined
+2024-07-13 10:45:27 +07:00:   },
+2024-07-13 10:45:27 +07:00:   request: <ref *1> Writable {
+2024-07-13 10:45:27 +07:00:     _events: {
+2024-07-13 10:45:27 +07:00:       close: undefined,
+2024-07-13 10:45:27 +07:00:       error: [Function: handleRequestError],
+2024-07-13 10:45:27 +07:00:       prefinish: undefined,
+2024-07-13 10:45:27 +07:00:       finish: undefined,
+2024-07-13 10:45:27 +07:00:       drain: undefined,
+2024-07-13 10:45:27 +07:00:       response: [Function: handleResponse],
+2024-07-13 10:45:27 +07:00:       socket: [Function: handleRequestSocket]
+2024-07-13 10:45:27 +07:00:     },
+2024-07-13 10:45:27 +07:00:     _writableState: WritableState {
+2024-07-13 10:45:27 +07:00:       highWaterMark: 65536,
+2024-07-13 10:45:27 +07:00:       length: 0,
+2024-07-13 10:45:27 +07:00:       corked: 0,
+2024-07-13 10:45:27 +07:00:       onwrite: [Function: bound onwrite],
+2024-07-13 10:45:27 +07:00:       writelen: 0,
+2024-07-13 10:45:27 +07:00:       bufferedIndex: 0,
+2024-07-13 10:45:27 +07:00:       pendingcb: 0,
+2024-07-13 10:45:27 +07:00:       [Symbol(kState)]: 17580812,
+2024-07-13 10:45:27 +07:00:       [Symbol(kBufferedValue)]: null
+2024-07-13 10:45:27 +07:00:     },
+2024-07-13 10:45:27 +07:00:     _maxListeners: undefined,
+2024-07-13 10:45:27 +07:00:     _options: {
+2024-07-13 10:45:27 +07:00:       maxRedirects: 21,
+2024-07-13 10:45:27 +07:00:       maxBodyLength: Infinity,
+2024-07-13 10:45:27 +07:00:       protocol: 'http:',
+2024-07-13 10:45:27 +07:00:       path: '/api/shifts/shifts',
+2024-07-13 10:45:27 +07:00:       method: 'GET',
+2024-07-13 10:45:27 +07:00:       headers: [Object: null prototype],
+2024-07-13 10:45:27 +07:00:       agents: [Object],
+2024-07-13 10:45:27 +07:00:       auth: undefined,
+2024-07-13 10:45:27 +07:00:       family: undefined,
+2024-07-13 10:45:27 +07:00:       beforeRedirect: [Function: dispatchBeforeRedirect],
+2024-07-13 10:45:27 +07:00:       beforeRedirects: [Object],
+2024-07-13 10:45:27 +07:00:       hostname: 'localhost',
+2024-07-13 10:45:27 +07:00:       port: '',
+2024-07-13 10:45:27 +07:00:       agent: undefined,
+2024-07-13 10:45:27 +07:00:       nativeProtocols: [Object],
+2024-07-13 10:45:27 +07:00:       pathname: '/api/shifts/shifts'
+2024-07-13 10:45:27 +07:00:     },
+2024-07-13 10:45:27 +07:00:     _ended: true,
+2024-07-13 10:45:27 +07:00:     _ending: true,
+2024-07-13 10:45:27 +07:00:     _redirectCount: 0,
+2024-07-13 10:45:27 +07:00:     _redirects: [],
+2024-07-13 10:45:27 +07:00:     _requestBodyLength: 0,
+2024-07-13 10:45:27 +07:00:     _requestBodyBuffers: [],
+2024-07-13 10:45:27 +07:00:     _eventsCount: 3,
+2024-07-13 10:45:27 +07:00:     _onNativeResponse: [Function (anonymous)],
+2024-07-13 10:45:27 +07:00:     _currentRequest: ClientRequest {
+2024-07-13 10:45:27 +07:00:       _events: [Object: null prototype],
+2024-07-13 10:45:27 +07:00:       _eventsCount: 7,
+2024-07-13 10:45:27 +07:00:       _maxListeners: undefined,
+2024-07-13 10:45:27 +07:00:       outputData: [],
+2024-07-13 10:45:27 +07:00:       outputSize: 0,
+2024-07-13 10:45:27 +07:00:       writable: true,
+2024-07-13 10:45:27 +07:00:       destroyed: false,
+2024-07-13 10:45:27 +07:00:       _last: true,
+2024-07-13 10:45:27 +07:00:       chunkedEncoding: false,
+2024-07-13 10:45:27 +07:00:       shouldKeepAlive: true,
+2024-07-13 10:45:27 +07:00:       maxRequestsOnConnectionReached: false,
+2024-07-13 10:45:27 +07:00:       _defaultKeepAlive: true,
+2024-07-13 10:45:27 +07:00:       useChunkedEncodingByDefault: false,
+2024-07-13 10:45:27 +07:00:       sendDate: false,
+2024-07-13 10:45:27 +07:00:       _removedConnection: false,
+2024-07-13 10:45:27 +07:00:       _removedContLen: false,
+2024-07-13 10:45:27 +07:00:       _removedTE: false,
+2024-07-13 10:45:27 +07:00:       strictContentLength: false,
+2024-07-13 10:45:27 +07:00:       _contentLength: 0,
+2024-07-13 10:45:27 +07:00:       _hasBody: true,
+2024-07-13 10:45:27 +07:00:       _trailer: '',
+2024-07-13 10:45:27 +07:00:       finished: true,
+2024-07-13 10:45:27 +07:00:       _headerSent: true,
+2024-07-13 10:45:27 +07:00:       _closed: false,
+2024-07-13 10:45:27 +07:00:       _header: 'GET /api/shifts/shifts HTTP/1.1\r\n' +
+2024-07-13 10:45:27 +07:00:         'Accept: application/json, text/plain, */*\r\n' +
+2024-07-13 10:45:27 +07:00:         'User-Agent: axios/1.7.2\r\n' +
+2024-07-13 10:45:27 +07:00:         'Accept-Encoding: gzip, compress, deflate, br\r\n' +
+2024-07-13 10:45:27 +07:00:         'Host: localhost\r\n' +
+2024-07-13 10:45:27 +07:00:         'Connection: keep-alive\r\n' +
+2024-07-13 10:45:27 +07:00:         '\r\n',
+2024-07-13 10:45:27 +07:00:       _keepAliveTimeout: 0,
+2024-07-13 10:45:27 +07:00:       _onPendingData: [Function: nop],
+2024-07-13 10:45:27 +07:00:       agent: [Agent],
+2024-07-13 10:45:27 +07:00:       socketPath: undefined,
+2024-07-13 10:45:27 +07:00:       method: 'GET',
+2024-07-13 10:45:27 +07:00:       maxHeaderSize: undefined,
+2024-07-13 10:45:27 +07:00:       insecureHTTPParser: undefined,
+2024-07-13 10:45:27 +07:00:       joinDuplicateHeaders: undefined,
+2024-07-13 10:45:27 +07:00:       path: '/api/shifts/shifts',
+2024-07-13 10:45:27 +07:00:       _ended: false,
+2024-07-13 10:45:27 +07:00:       res: null,
+2024-07-13 10:45:27 +07:00:       aborted: false,
+2024-07-13 10:45:27 +07:00:       timeoutCb: [Function: emitRequestTimeout],
+2024-07-13 10:45:27 +07:00:       upgradeOrConnect: false,
+2024-07-13 10:45:27 +07:00:       parser: null,
+2024-07-13 10:45:27 +07:00:       maxHeadersCount: null,
+2024-07-13 10:45:27 +07:00:       reusedSocket: false,
+2024-07-13 10:45:27 +07:00:       host: 'localhost',
+2024-07-13 10:45:27 +07:00:       protocol: 'http:',
+2024-07-13 10:45:27 +07:00:       _redirectable: [Circular *1],
+2024-07-13 10:45:27 +07:00:       [Symbol(shapeMode)]: false,
+2024-07-13 10:45:27 +07:00:       [Symbol(kCapture)]: false,
+2024-07-13 10:45:27 +07:00:       [Symbol(kBytesWritten)]: 0,
+2024-07-13 10:45:27 +07:00:       [Symbol(kNeedDrain)]: false,
+2024-07-13 10:45:27 +07:00:       [Symbol(corked)]: 0,
+2024-07-13 10:45:27 +07:00:       [Symbol(kChunkedBuffer)]: [],
+2024-07-13 10:45:27 +07:00:       [Symbol(kChunkedLength)]: 0,
+2024-07-13 10:45:27 +07:00:       [Symbol(kSocket)]: [Socket],
+2024-07-13 10:45:27 +07:00:       [Symbol(kOutHeaders)]: [Object: null prototype],
+2024-07-13 10:45:27 +07:00:       [Symbol(errored)]: null,
+2024-07-13 10:45:27 +07:00:       [Symbol(kHighWaterMark)]: 65536,
+2024-07-13 10:45:27 +07:00:       [Symbol(kRejectNonStandardBodyWrites)]: false,
+2024-07-13 10:45:27 +07:00:       [Symbol(kUniqueHeaders)]: null
+2024-07-13 10:45:27 +07:00:     },
+2024-07-13 10:45:27 +07:00:     _currentUrl: 'http://localhost/api/shifts/shifts',
+2024-07-13 10:45:27 +07:00:     [Symbol(shapeMode)]: true,
+2024-07-13 10:45:27 +07:00:     [Symbol(kCapture)]: false
+2024-07-13 10:45:27 +07:00:   },
+2024-07-13 10:45:27 +07:00:   cause: AggregateError
+2024-07-13 10:45:27 +07:00:       at internalConnectMultiple (node:net:1117:18)
+2024-07-13 10:45:27 +07:00:       at afterConnectMultiple (node:net:1684:7) {
+2024-07-13 10:45:27 +07:00:     code: 'ECONNREFUSED',
+2024-07-13 10:45:27 +07:00:     [errors]: [ [Error], [Error] ]
+2024-07-13 10:45:27 +07:00:   }
+2024-07-13 10:45:27 +07:00: }
+2024-07-13 10:45:27 +07:00: Error in registration process: Error: No shift found for department: ฝ่ายคลังสินค้าและแพ็คกิ้ง
+2024-07-13 10:45:27 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:58:13)
+2024-07-13 10:45:27 +07:00:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2024-07-13 10:45:27 +07:00: Job failed: 29 Error: Error: No shift found for department: ฝ่ายคลังสินค้าและแพ็คกิ้ง
+2024-07-13 10:45:27 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:58:13)
+2024-07-13 10:45:27 +07:00:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2024-07-13 10:45:30 +07:00: Error fetching shifts: AxiosError [AggregateError]
+2024-07-13 10:45:30 +07:00:     at Function.AxiosError.from (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/axios/lib/core/AxiosError.js:89:14)
+2024-07-13 10:45:30 +07:00:     at RedirectableRequest.handleRequestError (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/axios/lib/adapters/http.js:610:25)
+2024-07-13 10:45:30 +07:00:     at RedirectableRequest.emit (node:events:520:28)
+2024-07-13 10:45:30 +07:00:     at RedirectableRequest.emit (node:domain:488:12)
+2024-07-13 10:45:30 +07:00:     at ClientRequest.eventHandlers.<computed> (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/follow-redirects/index.js:38:24)
+2024-07-13 10:45:30 +07:00:     at ClientRequest.emit (node:events:520:28)
+2024-07-13 10:45:30 +07:00:     at ClientRequest.emit (node:domain:488:12)
+2024-07-13 10:45:30 +07:00:     at Socket.socketErrorListener (node:_http_client:502:9)
+2024-07-13 10:45:30 +07:00:     at Socket.emit (node:events:520:28)
+2024-07-13 10:45:30 +07:00:     at Socket.emit (node:domain:488:12)
+2024-07-13 10:45:30 +07:00:     at Axios.request (/Users/parunpatpatchaichaiyakorn/nanta-next/node_modules/axios/lib/core/Axios.js:45:41)
+2024-07-13 10:45:30 +07:00:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2024-07-13 10:45:30 +07:00:     at async getShifts (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/shiftCache.ts:11:24)
+2024-07-13 10:45:30 +07:00:     at async refreshShiftCache (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/shiftCache.ts:33:3)
+2024-07-13 10:45:30 +07:00:     at async processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:33:5) {
+2024-07-13 10:45:30 +07:00:   code: 'ECONNREFUSED',
+2024-07-13 10:45:30 +07:00:   errors: [
+2024-07-13 10:45:30 +07:00:     Error: connect ECONNREFUSED 127.0.0.1:80
+2024-07-13 10:45:30 +07:00:         at createConnectionError (node:net:1647:14)
+2024-07-13 10:45:30 +07:00:         at afterConnectMultiple (node:net:1677:16) {
+2024-07-13 10:45:30 +07:00:       errno: -61,
+2024-07-13 10:45:30 +07:00:       code: 'ECONNREFUSED',
+2024-07-13 10:45:30 +07:00:       syscall: 'connect',
+2024-07-13 10:45:30 +07:00:       address: '127.0.0.1',
+2024-07-13 10:45:30 +07:00:       port: 80
+2024-07-13 10:45:30 +07:00:     },
+2024-07-13 10:45:30 +07:00:     Error: connect ECONNREFUSED ::1:80
+2024-07-13 10:45:30 +07:00:         at createConnectionError (node:net:1647:14)
+2024-07-13 10:45:30 +07:00:         at afterConnectMultiple (node:net:1677:16) {
+2024-07-13 10:45:30 +07:00:       errno: -61,
+2024-07-13 10:45:30 +07:00:       code: 'ECONNREFUSED',
+2024-07-13 10:45:30 +07:00:       syscall: 'connect',
+2024-07-13 10:45:30 +07:00:       address: '::1',
+2024-07-13 10:45:30 +07:00:       port: 80
+2024-07-13 10:45:30 +07:00:     }
+2024-07-13 10:45:30 +07:00:   ],
+2024-07-13 10:45:30 +07:00:   config: {
+2024-07-13 10:45:30 +07:00:     transitional: {
+2024-07-13 10:45:30 +07:00:       silentJSONParsing: true,
+2024-07-13 10:45:30 +07:00:       forcedJSONParsing: true,
+2024-07-13 10:45:30 +07:00:       clarifyTimeoutError: false
+2024-07-13 10:45:30 +07:00:     },
+2024-07-13 10:45:30 +07:00:     adapter: [ 'xhr', 'http', 'fetch' ],
+2024-07-13 10:45:30 +07:00:     transformRequest: [ [Function: transformRequest] ],
+2024-07-13 10:45:30 +07:00:     transformResponse: [ [Function: transformResponse] ],
+2024-07-13 10:45:30 +07:00:     timeout: 0,
+2024-07-13 10:45:30 +07:00:     xsrfCookieName: 'XSRF-TOKEN',
+2024-07-13 10:45:30 +07:00:     xsrfHeaderName: 'X-XSRF-TOKEN',
+2024-07-13 10:45:30 +07:00:     maxContentLength: -1,
+2024-07-13 10:45:30 +07:00:     maxBodyLength: -1,
+2024-07-13 10:45:30 +07:00:     env: { FormData: [Function], Blob: [class Blob] },
+2024-07-13 10:45:30 +07:00:     validateStatus: [Function: validateStatus],
+2024-07-13 10:45:30 +07:00:     headers: Object [AxiosHeaders] {
+2024-07-13 10:45:30 +07:00:       Accept: 'application/json, text/plain, */*',
+2024-07-13 10:45:30 +07:00:       'Content-Type': undefined,
+2024-07-13 10:45:30 +07:00:       'User-Agent': 'axios/1.7.2',
+2024-07-13 10:45:30 +07:00:       'Accept-Encoding': 'gzip, compress, deflate, br'
+2024-07-13 10:45:30 +07:00:     },
+2024-07-13 10:45:30 +07:00:     method: 'get',
+2024-07-13 10:45:30 +07:00:     url: '/api/shifts/shifts',
+2024-07-13 10:45:30 +07:00:     data: undefined
+2024-07-13 10:45:30 +07:00:   },
+2024-07-13 10:45:30 +07:00:   request: <ref *1> Writable {
+2024-07-13 10:45:30 +07:00:     _events: {
+2024-07-13 10:45:30 +07:00:       close: undefined,
+2024-07-13 10:45:30 +07:00:       error: [Function: handleRequestError],
+2024-07-13 10:45:30 +07:00:       prefinish: undefined,
+2024-07-13 10:45:30 +07:00:       finish: undefined,
+2024-07-13 10:45:30 +07:00:       drain: undefined,
+2024-07-13 10:45:30 +07:00:       response: [Function: handleResponse],
+2024-07-13 10:45:30 +07:00:       socket: [Function: handleRequestSocket]
+2024-07-13 10:45:30 +07:00:     },
+2024-07-13 10:45:30 +07:00:     _writableState: WritableState {
+2024-07-13 10:45:30 +07:00:       highWaterMark: 65536,
+2024-07-13 10:45:30 +07:00:       length: 0,
+2024-07-13 10:45:30 +07:00:       corked: 0,
+2024-07-13 10:45:30 +07:00:       onwrite: [Function: bound onwrite],
+2024-07-13 10:45:30 +07:00:       writelen: 0,
+2024-07-13 10:45:30 +07:00:       bufferedIndex: 0,
+2024-07-13 10:45:30 +07:00:       pendingcb: 0,
+2024-07-13 10:45:30 +07:00:       [Symbol(kState)]: 17580812,
+2024-07-13 10:45:30 +07:00:       [Symbol(kBufferedValue)]: null
+2024-07-13 10:45:30 +07:00:     },
+2024-07-13 10:45:30 +07:00:     _maxListeners: undefined,
+2024-07-13 10:45:30 +07:00:     _options: {
+2024-07-13 10:45:30 +07:00:       maxRedirects: 21,
+2024-07-13 10:45:30 +07:00:       maxBodyLength: Infinity,
+2024-07-13 10:45:30 +07:00:       protocol: 'http:',
+2024-07-13 10:45:30 +07:00:       path: '/api/shifts/shifts',
+2024-07-13 10:45:30 +07:00:       method: 'GET',
+2024-07-13 10:45:30 +07:00:       headers: [Object: null prototype],
+2024-07-13 10:45:30 +07:00:       agents: [Object],
+2024-07-13 10:45:30 +07:00:       auth: undefined,
+2024-07-13 10:45:30 +07:00:       family: undefined,
+2024-07-13 10:45:30 +07:00:       beforeRedirect: [Function: dispatchBeforeRedirect],
+2024-07-13 10:45:30 +07:00:       beforeRedirects: [Object],
+2024-07-13 10:45:30 +07:00:       hostname: 'localhost',
+2024-07-13 10:45:30 +07:00:       port: '',
+2024-07-13 10:45:30 +07:00:       agent: undefined,
+2024-07-13 10:45:30 +07:00:       nativeProtocols: [Object],
+2024-07-13 10:45:30 +07:00:       pathname: '/api/shifts/shifts'
+2024-07-13 10:45:30 +07:00:     },
+2024-07-13 10:45:30 +07:00:     _ended: true,
+2024-07-13 10:45:30 +07:00:     _ending: true,
+2024-07-13 10:45:30 +07:00:     _redirectCount: 0,
+2024-07-13 10:45:30 +07:00:     _redirects: [],
+2024-07-13 10:45:30 +07:00:     _requestBodyLength: 0,
+2024-07-13 10:45:30 +07:00:     _requestBodyBuffers: [],
+2024-07-13 10:45:30 +07:00:     _eventsCount: 3,
+2024-07-13 10:45:30 +07:00:     _onNativeResponse: [Function (anonymous)],
+2024-07-13 10:45:30 +07:00:     _currentRequest: ClientRequest {
+2024-07-13 10:45:30 +07:00:       _events: [Object: null prototype],
+2024-07-13 10:45:30 +07:00:       _eventsCount: 7,
+2024-07-13 10:45:30 +07:00:       _maxListeners: undefined,
+2024-07-13 10:45:30 +07:00:       outputData: [],
+2024-07-13 10:45:30 +07:00:       outputSize: 0,
+2024-07-13 10:45:30 +07:00:       writable: true,
+2024-07-13 10:45:30 +07:00:       destroyed: false,
+2024-07-13 10:45:30 +07:00:       _last: true,
+2024-07-13 10:45:30 +07:00:       chunkedEncoding: false,
+2024-07-13 10:45:30 +07:00:       shouldKeepAlive: true,
+2024-07-13 10:45:30 +07:00:       maxRequestsOnConnectionReached: false,
+2024-07-13 10:45:30 +07:00:       _defaultKeepAlive: true,
+2024-07-13 10:45:30 +07:00:       useChunkedEncodingByDefault: false,
+2024-07-13 10:45:30 +07:00:       sendDate: false,
+2024-07-13 10:45:30 +07:00:       _removedConnection: false,
+2024-07-13 10:45:30 +07:00:       _removedContLen: false,
+2024-07-13 10:45:30 +07:00:       _removedTE: false,
+2024-07-13 10:45:30 +07:00:       strictContentLength: false,
+2024-07-13 10:45:30 +07:00:       _contentLength: 0,
+2024-07-13 10:45:30 +07:00:       _hasBody: true,
+2024-07-13 10:45:30 +07:00:       _trailer: '',
+2024-07-13 10:45:30 +07:00:       finished: true,
+2024-07-13 10:45:30 +07:00:       _headerSent: true,
+2024-07-13 10:45:30 +07:00:       _closed: false,
+2024-07-13 10:45:30 +07:00:       _header: 'GET /api/shifts/shifts HTTP/1.1\r\n' +
+2024-07-13 10:45:30 +07:00:         'Accept: application/json, text/plain, */*\r\n' +
+2024-07-13 10:45:30 +07:00:         'User-Agent: axios/1.7.2\r\n' +
+2024-07-13 10:45:30 +07:00:         'Accept-Encoding: gzip, compress, deflate, br\r\n' +
+2024-07-13 10:45:30 +07:00:         'Host: localhost\r\n' +
+2024-07-13 10:45:30 +07:00:         'Connection: keep-alive\r\n' +
+2024-07-13 10:45:30 +07:00:         '\r\n',
+2024-07-13 10:45:30 +07:00:       _keepAliveTimeout: 0,
+2024-07-13 10:45:30 +07:00:       _onPendingData: [Function: nop],
+2024-07-13 10:45:30 +07:00:       agent: [Agent],
+2024-07-13 10:45:30 +07:00:       socketPath: undefined,
+2024-07-13 10:45:30 +07:00:       method: 'GET',
+2024-07-13 10:45:30 +07:00:       maxHeaderSize: undefined,
+2024-07-13 10:45:30 +07:00:       insecureHTTPParser: undefined,
+2024-07-13 10:45:30 +07:00:       joinDuplicateHeaders: undefined,
+2024-07-13 10:45:30 +07:00:       path: '/api/shifts/shifts',
+2024-07-13 10:45:30 +07:00:       _ended: false,
+2024-07-13 10:45:30 +07:00:       res: null,
+2024-07-13 10:45:30 +07:00:       aborted: false,
+2024-07-13 10:45:30 +07:00:       timeoutCb: [Function: emitRequestTimeout],
+2024-07-13 10:45:30 +07:00:       upgradeOrConnect: false,
+2024-07-13 10:45:30 +07:00:       parser: null,
+2024-07-13 10:45:30 +07:00:       maxHeadersCount: null,
+2024-07-13 10:45:30 +07:00:       reusedSocket: false,
+2024-07-13 10:45:30 +07:00:       host: 'localhost',
+2024-07-13 10:45:30 +07:00:       protocol: 'http:',
+2024-07-13 10:45:30 +07:00:       _redirectable: [Circular *1],
+2024-07-13 10:45:30 +07:00:       [Symbol(shapeMode)]: false,
+2024-07-13 10:45:30 +07:00:       [Symbol(kCapture)]: false,
+2024-07-13 10:45:30 +07:00:       [Symbol(kBytesWritten)]: 0,
+2024-07-13 10:45:30 +07:00:       [Symbol(kNeedDrain)]: false,
+2024-07-13 10:45:30 +07:00:       [Symbol(corked)]: 0,
+2024-07-13 10:45:30 +07:00:       [Symbol(kChunkedBuffer)]: [],
+2024-07-13 10:45:30 +07:00:       [Symbol(kChunkedLength)]: 0,
+2024-07-13 10:45:30 +07:00:       [Symbol(kSocket)]: [Socket],
+2024-07-13 10:45:30 +07:00:       [Symbol(kOutHeaders)]: [Object: null prototype],
+2024-07-13 10:45:30 +07:00:       [Symbol(errored)]: null,
+2024-07-13 10:45:30 +07:00:       [Symbol(kHighWaterMark)]: 65536,
+2024-07-13 10:45:30 +07:00:       [Symbol(kRejectNonStandardBodyWrites)]: false,
+2024-07-13 10:45:30 +07:00:       [Symbol(kUniqueHeaders)]: null
+2024-07-13 10:45:30 +07:00:     },
+2024-07-13 10:45:30 +07:00:     _currentUrl: 'http://localhost/api/shifts/shifts',
+2024-07-13 10:45:30 +07:00:     [Symbol(shapeMode)]: true,
+2024-07-13 10:45:30 +07:00:     [Symbol(kCapture)]: false
+2024-07-13 10:45:30 +07:00:   },
+2024-07-13 10:45:30 +07:00:   cause: AggregateError
+2024-07-13 10:45:30 +07:00:       at internalConnectMultiple (node:net:1117:18)
+2024-07-13 10:45:30 +07:00:       at afterConnectMultiple (node:net:1684:7) {
+2024-07-13 10:45:30 +07:00:     code: 'ECONNREFUSED',
+2024-07-13 10:45:30 +07:00:     [errors]: [ [Error], [Error] ]
+2024-07-13 10:45:30 +07:00:   }
+2024-07-13 10:45:30 +07:00: }
+2024-07-13 10:45:30 +07:00: Error in registration process: Error: No shift found for department: ฝ่ายคลังสินค้าและแพ็คกิ้ง
+2024-07-13 10:45:30 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:58:13)
+2024-07-13 10:45:30 +07:00:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2024-07-13 10:45:30 +07:00: Job failed: 29 Error: Error: No shift found for department: ฝ่ายคลังสินค้าและแพ็คกิ้ง
+2024-07-13 10:45:30 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:58:13)
+2024-07-13 10:45:30 +07:00:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
