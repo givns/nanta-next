@@ -45,11 +45,9 @@ export default async function handler(
       .json({ message: 'Shift adjustment(s) applied successfully' });
   } catch (error: any) {
     console.error('Error applying shift adjustment(s):', error);
-    res
-      .status(500)
-      .json({
-        message: 'Error applying shift adjustment(s)',
-        error: error.message,
-      });
+    res.status(500).json({
+      message: 'Error applying shift adjustment(s)',
+      error: error.message,
+    });
   }
 }
