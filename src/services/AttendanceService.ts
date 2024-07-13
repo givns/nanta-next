@@ -315,8 +315,7 @@ export class AttendanceService {
     return 'unknown';
   }
 
-  private isAttendanceFromToday(attendance: AttendanceRecord | null): boolean {
-    if (!attendance) return false;
+  private isAttendanceFromToday(attendance: AttendanceRecord): boolean {
     const today = new Date();
     const attendanceDate = new Date(attendance.date);
     return (
@@ -329,17 +328,19 @@ export class AttendanceService {
   private determineIfCheckingIn(
     latestAttendance: AttendanceRecord | null,
   ): boolean {
-    if (!latestAttendance || !this.isAttendanceFromToday(latestAttendance)) {
-      return true; // If no attendance record or not from today, user needs to check in
+    if (!latestAttendance) {
+      return true; // If no attendance record, user needs to check in
+    }
+
+    if (!this.isAttendanceFromToday(latestAttendance)) {
+      return true; // If the latest attendance is not from today, user needs to check in
     }
 
     if (latestAttendance.checkOutTime) {
-      // If there's a check-out time, user needs to check in for a new cycle
-      return true;
+      return true; // If there's a check-out time for today, user needs to check in for a new cycle
     }
 
-    // If there's a check-in time but no check-out time, user needs to check out
-    return false;
+    return false; // User has checked in but not out, so they need to check out
   }
 
   async processExternalCheckInOut(

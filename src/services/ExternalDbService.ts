@@ -9,12 +9,17 @@ import {
 import { retry } from '../utils/retry';
 
 export class ExternalDbService {
-  async getDailyAttendanceRecords(employeeId: string): Promise<{ records: ExternalCheckInData[]; userInfo: any | null }> {
-    return retry(async () => {
-      console.log(`Searching for external user with employeeId: ${employeeId}`);
+  async getDailyAttendanceRecords(
+    employeeId: string,
+  ): Promise<{ records: ExternalCheckInData[]; userInfo: any | null }> {
+    return retry(
+      async () => {
+        console.log(
+          `Searching for external user with employeeId: ${employeeId}`,
+        );
 
-      const userInfoQuery = 'SELECT * FROM dt_user WHERE user_no = ?';
-      const attendanceQuery = `
+        const userInfoQuery = 'SELECT * FROM dt_user WHERE user_no = ?';
+        const attendanceQuery = `
         SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
         FROM kt_jl kj
         JOIN dt_user du ON kj.user_serial = du.user_serial
@@ -23,21 +28,30 @@ export class ExternalDbService {
         ORDER BY kj.sj ASC
       `;
 
-      const [userInfoResult, attendanceResult] = await Promise.all([
-        query<any[]>(userInfoQuery, [employeeId]),
-        query<ExternalCheckInData[]>(attendanceQuery, [employeeId]),
-      ]);
+        const [userInfoResult, attendanceResult] = await Promise.all([
+          query<any[]>(userInfoQuery, [employeeId]),
+          query<ExternalCheckInData[]>(attendanceQuery, [employeeId]),
+        ]);
 
-      console.log('User info result:', JSON.stringify(userInfoResult, null, 2));
-      console.log('Attendance records:', JSON.stringify(attendanceResult, null, 2));
+        console.log(
+          'User info result:',
+          JSON.stringify(userInfoResult, null, 2),
+        );
+        console.log(
+          'Attendance records:',
+          JSON.stringify(attendanceResult, null, 2),
+        );
 
-      return {
-        userInfo: userInfoResult.length > 0 ? userInfoResult[0] : null,
-        records: attendanceResult,
-      };
-    }, 3, 1000); // Retry 3 times with 1 second delay between attempts
+        return {
+          userInfo: userInfoResult.length > 0 ? userInfoResult[0] : null,
+          records: attendanceResult,
+        };
+      },
+      3,
+      1000,
+    ); // Retry 3 times with 1 second delay between attempts
   }
-  
+
   async createCheckIn(data: ExternalCheckInInputData) {
     const sqlQuery =
       'INSERT INTO kt_jl (user_serial, sj, fx, dev_serial, date, time) VALUES (?, ?, ?, ?, ?, ?)';
