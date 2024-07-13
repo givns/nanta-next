@@ -135,17 +135,20 @@ export function getDepartmentById(departmentId: number): string | null {
 export async function getShiftByDepartmentId(
   departmentId: DepartmentId,
 ): Promise<Shift | null> {
+  console.log(`Getting shift for department ID: ${departmentId}`);
   const departmentName = departmentIdNameMap[departmentId];
   if (!departmentName) {
     console.warn(`No department name found for ID: ${departmentId}`);
     return getShiftByCode('SHIFT103'); // Default shift if department not found
   }
+  console.log(`Department name: ${departmentName}`);
 
   const shiftCode = departmentShiftMap[departmentName];
   if (!shiftCode) {
     console.warn(`No shift code found for department: ${departmentName}`);
     return getShiftByCode('SHIFT103'); // Default shift if no mapping found
   }
+  console.log(`Shift code for department: ${shiftCode}`);
 
   try {
     const shift = await getShiftByCode(shiftCode);
@@ -153,6 +156,7 @@ export async function getShiftByDepartmentId(
       console.warn(`No shift found for code: ${shiftCode}`);
       return getShiftByCode('SHIFT103'); // Default shift if shift not found
     }
+    console.log(`Found shift: ${JSON.stringify(shift)}`);
     return shift;
   } catch (error) {
     console.error(

@@ -12853,3 +12853,191 @@
 2024-07-13 20:16:16 +07:00: Worker started, connecting to queue...
 2024-07-13 20:16:16 +07:00: Worker setup complete, waiting for jobs...
 2024-07-13 20:17:16 +07:00: Worker still running...
+2024-07-13 20:18:16 +07:00: Worker still running...
+2024-07-13 20:19:05 +07:00: 
+2024-07-13 20:19:05 +07:00: > nanta-next@1.0.0 start:worker
+2024-07-13 20:19:05 +07:00: > ts-node -r dotenv/config --project tsconfig.ts-node.json src/workers/worker.ts dotenv_config_path=.env.local
+2024-07-13 20:19:05 +07:00: 
+2024-07-13 20:19:06 +07:00: Current working directory: /Users/parunpatpatchaichaiyakorn/nanta-next
+2024-07-13 20:19:06 +07:00: __dirname: /Users/parunpatpatchaichaiyakorn/nanta-next/src/workers
+2024-07-13 20:19:06 +07:00: Environment variables loaded
+2024-07-13 20:19:06 +07:00: LINE_CHANNEL_ACCESS_TOKEN: Set
+2024-07-13 20:19:06 +07:00: REDIS_URL: Set
+2024-07-13 20:19:06 +07:00: Registration queue initialized
+2024-07-13 20:19:06 +07:00: Worker started, connecting to queue...
+2024-07-13 20:19:06 +07:00: Worker setup complete, waiting for jobs...
+2024-07-13 20:19:10 +07:00: 
+2024-07-13 20:19:10 +07:00: > nanta-next@1.0.0 start:worker
+2024-07-13 20:19:10 +07:00: > ts-node -r dotenv/config --project tsconfig.ts-node.json src/workers/worker.ts dotenv_config_path=.env.local
+2024-07-13 20:19:10 +07:00: 
+2024-07-13 20:19:10 +07:00: Current working directory: /Users/parunpatpatchaichaiyakorn/nanta-next
+2024-07-13 20:19:10 +07:00: __dirname: /Users/parunpatpatchaichaiyakorn/nanta-next/src/workers
+2024-07-13 20:19:10 +07:00: Environment variables loaded
+2024-07-13 20:19:10 +07:00: LINE_CHANNEL_ACCESS_TOKEN: Set
+2024-07-13 20:19:10 +07:00: REDIS_URL: Set
+2024-07-13 20:19:10 +07:00: Registration queue initialized
+2024-07-13 20:19:10 +07:00: Worker started, connecting to queue...
+2024-07-13 20:19:10 +07:00: Worker setup complete, waiting for jobs...
+2024-07-13 20:19:31 +07:00: 
+2024-07-13 20:19:31 +07:00: > nanta-next@1.0.0 start:worker
+2024-07-13 20:19:31 +07:00: > ts-node -r dotenv/config --project tsconfig.ts-node.json src/workers/worker.ts dotenv_config_path=.env.local
+2024-07-13 20:19:31 +07:00: 
+2024-07-13 20:19:32 +07:00: Current working directory: /Users/parunpatpatchaichaiyakorn/nanta-next
+2024-07-13 20:19:32 +07:00: __dirname: /Users/parunpatpatchaichaiyakorn/nanta-next/src/workers
+2024-07-13 20:19:32 +07:00: Environment variables loaded
+2024-07-13 20:19:32 +07:00: LINE_CHANNEL_ACCESS_TOKEN: Set
+2024-07-13 20:19:32 +07:00: REDIS_URL: Set
+2024-07-13 20:19:32 +07:00: Registration queue initialized
+2024-07-13 20:19:32 +07:00: Worker started, connecting to queue...
+2024-07-13 20:19:32 +07:00: Worker setup complete, waiting for jobs...
+2024-07-13 20:19:37 +07:00: 
+2024-07-13 20:19:37 +07:00: > nanta-next@1.0.0 start:worker
+2024-07-13 20:19:37 +07:00: > ts-node -r dotenv/config --project tsconfig.ts-node.json src/workers/worker.ts dotenv_config_path=.env.local
+2024-07-13 20:19:37 +07:00: 
+2024-07-13 20:19:38 +07:00: Current working directory: /Users/parunpatpatchaichaiyakorn/nanta-next
+2024-07-13 20:19:38 +07:00: __dirname: /Users/parunpatpatchaichaiyakorn/nanta-next/src/workers
+2024-07-13 20:19:38 +07:00: Environment variables loaded
+2024-07-13 20:19:38 +07:00: LINE_CHANNEL_ACCESS_TOKEN: Set
+2024-07-13 20:19:38 +07:00: REDIS_URL: Set
+2024-07-13 20:19:38 +07:00: Registration queue initialized
+2024-07-13 20:19:38 +07:00: Worker started, connecting to queue...
+2024-07-13 20:19:38 +07:00: Worker setup complete, waiting for jobs...
+2024-07-13 20:19:40 +07:00: 
+2024-07-13 20:19:40 +07:00: > nanta-next@1.0.0 start:worker
+2024-07-13 20:19:40 +07:00: > ts-node -r dotenv/config --project tsconfig.ts-node.json src/workers/worker.ts dotenv_config_path=.env.local
+2024-07-13 20:19:40 +07:00: 
+2024-07-13 20:19:41 +07:00: Current working directory: /Users/parunpatpatchaichaiyakorn/nanta-next
+2024-07-13 20:19:41 +07:00: __dirname: /Users/parunpatpatchaichaiyakorn/nanta-next/src/workers
+2024-07-13 20:19:41 +07:00: Environment variables loaded
+2024-07-13 20:19:41 +07:00: LINE_CHANNEL_ACCESS_TOKEN: Set
+2024-07-13 20:19:41 +07:00: REDIS_URL: Set
+2024-07-13 20:19:41 +07:00: Registration queue initialized
+2024-07-13 20:19:41 +07:00: Worker started, connecting to queue...
+2024-07-13 20:19:41 +07:00: Worker setup complete, waiting for jobs...
+2024-07-13 20:19:55 +07:00: 
+2024-07-13 20:19:55 +07:00: > nanta-next@1.0.0 start:worker
+2024-07-13 20:19:55 +07:00: > ts-node -r dotenv/config --project tsconfig.ts-node.json src/workers/worker.ts dotenv_config_path=.env.local
+2024-07-13 20:19:55 +07:00: 
+2024-07-13 20:19:56 +07:00: Current working directory: /Users/parunpatpatchaichaiyakorn/nanta-next
+2024-07-13 20:19:56 +07:00: __dirname: /Users/parunpatpatchaichaiyakorn/nanta-next/src/workers
+2024-07-13 20:19:56 +07:00: Environment variables loaded
+2024-07-13 20:19:56 +07:00: LINE_CHANNEL_ACCESS_TOKEN: Set
+2024-07-13 20:19:56 +07:00: REDIS_URL: Set
+2024-07-13 20:19:56 +07:00: Registration queue initialized
+2024-07-13 20:19:56 +07:00: Worker started, connecting to queue...
+2024-07-13 20:19:56 +07:00: Worker setup complete, waiting for jobs...
+2024-07-13 20:20:47 +07:00: Processing job: 34
+2024-07-13 20:20:47 +07:00: Starting registration process for job: 34
+2024-07-13 20:20:47 +07:00: Job starting to be processed: 34
+2024-07-13 20:20:48 +07:00: Searching for external user with employeeId: 1001
+2024-07-13 20:20:49 +07:00: User info result: [
+2024-07-13 20:20:49 +07:00:   {
+2024-07-13 20:20:49 +07:00:     "user_serial": 100018,
+2024-07-13 20:20:49 +07:00:     "user_no": "1001",
+2024-07-13 20:20:49 +07:00:     "user_lname": "นายประเสริฐ ผาด่านสกุล",
+2024-07-13 20:20:49 +07:00:     "user_fname": "",
+2024-07-13 20:20:49 +07:00:     "dep_no": "0010100",
+2024-07-13 20:20:49 +07:00:     "user_dep": 10030,
+2024-07-13 20:20:49 +07:00:     "user_depname": "ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)",
+2024-07-13 20:20:49 +07:00:     "user_workday": null,
+2024-07-13 20:20:49 +07:00:     "user_duty": "",
+2024-07-13 20:20:49 +07:00:     "user_card": "",
+2024-07-13 20:20:49 +07:00:     "user_finger": "0000001000",
+2024-07-13 20:20:49 +07:00:     "user_password": "",
+2024-07-13 20:20:49 +07:00:     "pwd_begin": null,
+2024-07-13 20:20:49 +07:00:     "pwd_end": "2000-12-31T17:00:00.000Z",
+2024-07-13 20:20:49 +07:00:     "user_type": 0,
+2024-07-13 20:20:49 +07:00:     "pact_begin": null,
+2024-07-13 20:20:49 +07:00:     "pact_end": null,
+2024-07-13 20:20:49 +07:00:     "user_level": 0,
+2024-07-13 20:20:49 +07:00:     "user_photo": 1,
+2024-07-13 20:20:49 +07:00:     "user_sex": "ชาย",
+2024-07-13 20:20:49 +07:00:     "user_nation": "ไทย",
+2024-07-13 20:20:49 +07:00:     "user_xueli": "",
+2024-07-13 20:20:49 +07:00:     "user_native": "",
+2024-07-13 20:20:49 +07:00:     "user_birthday": null,
+2024-07-13 20:20:49 +07:00:     "user_id": "",
+2024-07-13 20:20:49 +07:00:     "user_post": "",
+2024-07-13 20:20:49 +07:00:     "user_linkman": "",
+2024-07-13 20:20:49 +07:00:     "user_telephone": "",
+2024-07-13 20:20:49 +07:00:     "user_address": "",
+2024-07-13 20:20:49 +07:00:     "user_email": "",
+2024-07-13 20:20:49 +07:00:     "user_1": "",
+2024-07-13 20:20:49 +07:00:     "user_2": "",
+2024-07-13 20:20:49 +07:00:     "user_bz": "",
+2024-07-13 20:20:49 +07:00:     "kq_rule": "",
+2024-07-13 20:20:49 +07:00:     "kq_taoban": "",
+2024-07-13 20:20:49 +07:00:     "kq_tiaoxiu": 0,
+2024-07-13 20:20:49 +07:00:     "xf_time": null,
+2024-07-13 20:20:49 +07:00:     "xf_jiange": 0,
+2024-07-13 20:20:49 +07:00:     "xf_je": 0,
+2024-07-13 20:20:49 +07:00:     "user_sj": "2024-07-06T05:24:30.000Z",
+2024-07-13 20:20:49 +07:00:     "user_face": 2
+2024-07-13 20:20:49 +07:00:   }
+2024-07-13 20:20:49 +07:00: ]
+2024-07-13 20:20:49 +07:00: Attendance records: []
+2024-07-13 20:20:49 +07:00: External data: {
+2024-07-13 20:20:49 +07:00:   "userInfo": {
+2024-07-13 20:20:49 +07:00:     "user_serial": 100018,
+2024-07-13 20:20:49 +07:00:     "user_no": "1001",
+2024-07-13 20:20:49 +07:00:     "user_lname": "นายประเสริฐ ผาด่านสกุล",
+2024-07-13 20:20:49 +07:00:     "user_fname": "",
+2024-07-13 20:20:49 +07:00:     "dep_no": "0010100",
+2024-07-13 20:20:49 +07:00:     "user_dep": 10030,
+2024-07-13 20:20:49 +07:00:     "user_depname": "ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)",
+2024-07-13 20:20:49 +07:00:     "user_workday": null,
+2024-07-13 20:20:49 +07:00:     "user_duty": "",
+2024-07-13 20:20:49 +07:00:     "user_card": "",
+2024-07-13 20:20:49 +07:00:     "user_finger": "0000001000",
+2024-07-13 20:20:49 +07:00:     "user_password": "",
+2024-07-13 20:20:49 +07:00:     "pwd_begin": null,
+2024-07-13 20:20:49 +07:00:     "pwd_end": "2000-12-31T17:00:00.000Z",
+2024-07-13 20:20:49 +07:00:     "user_type": 0,
+2024-07-13 20:20:49 +07:00:     "pact_begin": null,
+2024-07-13 20:20:49 +07:00:     "pact_end": null,
+2024-07-13 20:20:49 +07:00:     "user_level": 0,
+2024-07-13 20:20:49 +07:00:     "user_photo": 1,
+2024-07-13 20:20:49 +07:00:     "user_sex": "ชาย",
+2024-07-13 20:20:49 +07:00:     "user_nation": "ไทย",
+2024-07-13 20:20:49 +07:00:     "user_xueli": "",
+2024-07-13 20:20:49 +07:00:     "user_native": "",
+2024-07-13 20:20:49 +07:00:     "user_birthday": null,
+2024-07-13 20:20:49 +07:00:     "user_id": "",
+2024-07-13 20:20:49 +07:00:     "user_post": "",
+2024-07-13 20:20:49 +07:00:     "user_linkman": "",
+2024-07-13 20:20:49 +07:00:     "user_telephone": "",
+2024-07-13 20:20:49 +07:00:     "user_address": "",
+2024-07-13 20:20:49 +07:00:     "user_email": "",
+2024-07-13 20:20:49 +07:00:     "user_1": "",
+2024-07-13 20:20:49 +07:00:     "user_2": "",
+2024-07-13 20:20:49 +07:00:     "user_bz": "",
+2024-07-13 20:20:49 +07:00:     "kq_rule": "",
+2024-07-13 20:20:49 +07:00:     "kq_taoban": "",
+2024-07-13 20:20:49 +07:00:     "kq_tiaoxiu": 0,
+2024-07-13 20:20:49 +07:00:     "xf_time": null,
+2024-07-13 20:20:49 +07:00:     "xf_jiange": 0,
+2024-07-13 20:20:49 +07:00:     "xf_je": 0,
+2024-07-13 20:20:49 +07:00:     "user_sj": "2024-07-06T05:24:30.000Z",
+2024-07-13 20:20:49 +07:00:     "user_face": 2
+2024-07-13 20:20:49 +07:00:   },
+2024-07-13 20:20:49 +07:00:   "records": []
+2024-07-13 20:20:49 +07:00: }
+2024-07-13 20:20:49 +07:00: Attempting to get shift for department ID: 10030
+2024-07-13 20:20:49 +07:00: Shift from department ID: {
+2024-07-13 20:20:49 +07:00:   "id": "668639216f14ad8f7cfc5be3",
+2024-07-13 20:20:49 +07:00:   "shiftCode": "SHIFT103",
+2024-07-13 20:20:49 +07:00:   "name": "ช่วงเวลาปกติ",
+2024-07-13 20:20:49 +07:00:   "startTime": "08:00",
+2024-07-13 20:20:49 +07:00:   "endTime": "17:00",
+2024-07-13 20:20:49 +07:00:   "workDays": []
+2024-07-13 20:20:49 +07:00: }
+2024-07-13 20:20:49 +07:00: Attempting to get department ID for: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-13 20:20:49 +07:00: Department not found, attempting to create: ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)
+2024-07-13 20:20:49 +07:00: Created new department with ID: 66927f3117df9d66857718bc
+2024-07-13 20:20:50 +07:00: Registration process completed successfully
+2024-07-13 20:20:50 +07:00: Job completed: 34 Result: { success: true, userId: '66927f3117df9d66857718bd' }
+2024-07-13 20:20:56 +07:00: Worker still running...
+2024-07-13 20:21:56 +07:00: Worker still running...
+2024-07-13 20:22:56 +07:00: Worker still running...
+2024-07-13 20:23:56 +07:00: Worker still running...
+2024-07-13 20:24:56 +07:00: Worker still running...
