@@ -1,14 +1,16 @@
 // services/ShiftManagementService.ts
 
-import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
+import {
+  PrismaClient,
+  Shift,
+  ShiftAdjustmentRequest,
+  User,
+} from '@prisma/client';
 import { NotificationService } from './NotificationService';
 import {
   getDepartmentByNameFuzzy,
   getDefaultShift,
   DepartmentId,
-  getShifts,
-  departmentIdNameMap,
-  departmentShiftMap,
 } from '../lib/shiftCache';
 
 const prisma = new PrismaClient();
@@ -17,21 +19,9 @@ const notificationService = new NotificationService();
 export class ShiftManagementService {
   async getDefaultShift(department: string): Promise<Shift | null> {
     console.log(`Getting default shift for department: ${department}`);
-    try {
-      const shift = await getDefaultShift(department);
-      console.log(`Default shift result: ${JSON.stringify(shift)}`);
-      return shift;
-    } catch (error) {
-      console.error(
-        `Error getting default shift for department ${department}:`,
-        error,
-      );
-      return null;
-    }
-  }
-
-  async getAllShifts(): Promise<Shift[]> {
-    return getShifts();
+    const shift = await getDefaultShift(department);
+    console.log(`Default shift result: ${JSON.stringify(shift)}`);
+    return shift;
   }
 
   async assignShift(userId: string, department: string) {
@@ -42,17 +32,9 @@ export class ShiftManagementService {
 
     const shift = await this.getDefaultShift(matchedDepartment);
     if (!shift) {
-      console.warn(
-        `No default shift found for department: ${matchedDepartment}. Using a fallback shift.`,
+      throw new Error(
+        `No default shift found for department: ${matchedDepartment}`,
       );
-      const fallbackShift = await getShifts().then((shifts) => shifts[0]);
-      if (!fallbackShift) {
-        throw new Error('No shifts available in the system');
-      }
-      return prisma.user.update({
-        where: { id: userId },
-        data: { shiftId: fallbackShift.id },
-      });
     }
 
     await this.createDepartmentIfNotExists(matchedDepartment);
@@ -194,14 +176,7 @@ export class ShiftManagementService {
   async getShiftByDepartmentId(
     departmentId: DepartmentId,
   ): Promise<Shift | null> {
-    const shifts = await getShifts();
-    const departmentName = departmentIdNameMap[departmentId];
-    if (!departmentName) {
-      console.warn(`No department name found for ID: ${departmentId}`);
-      return null;
-    }
-    const shiftCode = departmentShiftMap[departmentName] || 'SHIFT103'; // Default to SHIFT103 if not found
-    return shifts.find((shift) => shift.shiftCode === shiftCode) || null;
+    return getDefaultShift(departmentId.toString());
   }
 
   async createDepartmentIfNotExists(departmentName: string): Promise<void> {
