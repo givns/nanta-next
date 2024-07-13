@@ -179,16 +179,32 @@ export class ShiftManagementService {
     return getDefaultShift(departmentId.toString());
   }
 
-  async createDepartmentIfNotExists(departmentName: string): Promise<void> {
-    const department = await prisma.department.findFirst({
-      where: { name: { contains: departmentName, mode: 'insensitive' } },
+  async createDepartmentIfNotExists(departmentName: string): Promise<string> {
+    console.log(`Checking if department exists: ${departmentName}`);
+  
+    let department = await prisma.department.findFirst({
+      where: { 
+        name: { 
+          equals: departmentName,
+          mode: 'insensitive' 
+        } 
+      },
     });
-
+  
     if (!department) {
-      await prisma.department.create({
-        data: { name: departmentName },
+      console.log(`Department not found, creating: ${departmentName}`);
+      department = await prisma.department.create({
+        data: { 
+          name: departmentName,
+          // Add any other necessary fields here
+        },
       });
+      console.log(`Created new department with ID: ${department.id}`);
+    } else {
+      console.log(`Found existing department with ID: ${department.id}`);
     }
+  
+    return department.id;
   }
 
   async getDepartmentId(departmentName: string): Promise<string | null> {
