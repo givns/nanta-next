@@ -101,7 +101,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
           htmlFor="adjustFor"
           className="block text-sm font-medium text-gray-700"
         >
-          Adjust for
+          ปรับกะการทำงานสำหรับ
         </label>
         <select
           id="adjustFor"
@@ -111,18 +111,18 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
           }
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
         >
-          <option value="department">Department</option>
-          <option value="individual">Individual</option>
+          <option value="รายแผนก">Department</option>
+          <option value="รายบุคคล">Individual</option>
         </select>
       </div>
 
       {targetType === 'department' && (
         <div className="flex items-center space-x-2">
           <label
-            htmlFor="numberOfDepartments"
+            htmlFor="จำนวนแผนกที่ต้องการปรับเปลี่ยนกะการทำงาน"
             className="block text-sm font-medium text-gray-700"
           >
-            Number of Departments
+            จำนวนแผนกที่ต้องการปรับเปลี่ยนกะการทำงาน
           </label>
           <input
             type="text"
@@ -149,7 +149,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                   htmlFor={`department-${index}`}
                   className="block text-sm font-medium text-gray-700"
                 >
-                  Department
+                  แผนก
                 </label>
                 <select
                   id={`department-${index}`}
@@ -163,7 +163,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                   }
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                 >
-                  <option value="">Select a department</option>
+                  <option value="">เลือกแผนก</option>
                   {Object.keys(departmentShiftMap).map((dept) => (
                     <option key={dept} value={dept}>
                       {dept}
@@ -176,7 +176,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                   htmlFor={`shift-${index}`}
                   className="block text-sm font-medium text-gray-700"
                 >
-                  New Shift
+                  กะการทำงานใหม่
                 </label>
                 <select
                   id={`shift-${index}`}
@@ -190,7 +190,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                   }
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                 >
-                  <option value="">Select a shift</option>
+                  <option value="">เลือกกะใหม่</option>
                   {shifts.map((shift) => (
                     <option key={shift.id} value={shift.id}>
                       {shift.name} ({shift.startTime} - {shift.endTime})
@@ -208,7 +208,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
               htmlFor="employeeId"
               className="block text-sm font-medium text-gray-700"
             >
-              Employee ID
+              รหัสพนักงาน
             </label>
             <input
               id="employeeId"
@@ -216,7 +216,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
               value={individualEmployeeId}
               onChange={(e) => setIndividualEmployeeId(e.target.value)}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              placeholder="Enter employee ID"
+              placeholder="กรุณาใส่รหัสพนักงาน"
             />
           </div>
           <div>
@@ -224,7 +224,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
               htmlFor="individualShift"
               className="block text-sm font-medium text-gray-700"
             >
-              New Shift
+              กะการทำงานใหม่
             </label>
             <select
               id="individualShift"
@@ -248,7 +248,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
           htmlFor="date"
           className="block text-sm font-medium text-gray-700"
         >
-          Date
+          วันที่
         </label>
         <input
           id="date"
@@ -264,7 +264,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
           htmlFor="reason"
           className="block text-sm font-medium text-gray-700"
         >
-          Reason
+          โปรดระบุสาเหตุ
         </label>
         <textarea
           id="reason"
@@ -280,7 +280,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
         disabled={isLoading || !lineUserId}
         className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
       >
-        {isLoading ? 'Applying...' : 'Apply Shift Adjustment'}
+        {isLoading ? 'กำลังส่งคำขอ...' : 'ยื่นคำขอปรับกะการทำงาน'}
       </button>
 
       {!lineUserId && (
