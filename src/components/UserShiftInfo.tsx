@@ -112,19 +112,16 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               <span className="font-medium">{shift.name}</span> (
               {shift.startTime} - {shift.endTime})
             </p>
-            {attendanceStatus.shiftAdjustment && (
+            {attendanceStatus.shiftAdjustment ? (
               <p className="text-blue-600 mt-1">
                 * กะการทำงานนี้ได้รับการปรับเปลี่ยนสำหรับวันนี้
               </p>
+            ) : (
+              <p className="text-gray-600 mt-1">(กะการทำงานปกติ)</p>
             )}
           </>
-        ) : null}
-
-        {isOutsideShift() && !attendanceStatus.approvedOvertime && shift && (
-          <p className="text-red-500 mt-2">
-            การลงเวลาของคุณอยู่นอกเวลากะที่กำหนด กะของคุณเริ่มเวลา{' '}
-            {shift.startTime}
-          </p>
+        ) : (
+          <p className="text-red-600 mt-4">ไม่พบข้อมูลกะการทำงาน</p>
         )}
       </div>
     </div>

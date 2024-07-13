@@ -123,7 +123,7 @@ export default async function handler(
       if (userLineId) {
         await notificationService.sendNotification(
           userId,
-          `แจ้งเตือน: เปลี่ยนแปลงเวลาการทำงาน
+          `แจ้งเตือน: การเปลี่ยนแปลงเวลาทำงาน
 
 วันที่: ${formattedDate}
 กะใหม่: ${shift.name}
@@ -150,7 +150,7 @@ export default async function handler(
       if (admin.lineUserId) {
         await notificationService.sendNotification(
           admin.id,
-          `แจ้งเตือน: มีการเปลี่ยนแปลงเวลาการทำงาน
+          `แจ้งเตือน: มีการเปลี่ยนแปลงเวลาทำงาน
 
 ผู้ดำเนินการ: ${requestingUser.name}
 วันที่: ${formattedDate}
