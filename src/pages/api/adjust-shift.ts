@@ -2,6 +2,9 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
+import { NotificationService } from '../../services/NotificationService';
+
+const notificationService = new NotificationService();
 
 export default async function handler(
   req: NextApiRequest,
@@ -37,17 +40,16 @@ export default async function handler(
     }
 
     const shiftAdjustments = [];
+    const affectedUsers = new Map();
 
     if (targetType === 'department') {
       for (const adjustment of adjustments) {
         const { department, shiftId } = adjustment;
 
-        // Find all users in the department
         const users = await prisma.user.findMany({
           where: { departmentId: department },
         });
 
-        // Create shift adjustment for each user
         for (const user of users) {
           const shiftAdjustment = await prisma.shiftAdjustmentRequest.create({
             data: {
@@ -55,17 +57,20 @@ export default async function handler(
               requestedShiftId: shiftId,
               date: new Date(date),
               reason: reason,
-              status: 'approved', // Auto-approve for admins
+              status: 'approved',
+            },
+            include: {
+              requestedShift: true,
             },
           });
           shiftAdjustments.push(shiftAdjustment);
+          affectedUsers.set(user.id.toString(), shiftAdjustment.requestedShift);
         }
       }
     } else if (targetType === 'individual') {
       for (const adjustment of adjustments) {
         const { employeeId, shiftId } = adjustment;
 
-        // Find the user by employeeId
         const user = await prisma.user.findUnique({
           where: { employeeId: employeeId },
         });
@@ -76,31 +81,78 @@ export default async function handler(
             .json({ message: `User with employee ID ${employeeId} not found` });
         }
 
-        // Create shift adjustment for the user
         const shiftAdjustment = await prisma.shiftAdjustmentRequest.create({
           data: {
             userId: user.id,
             requestedShiftId: shiftId,
             date: new Date(date),
             reason: reason,
-            status: 'approved', // Auto-approve for admins
+            status: 'approved',
+          },
+          include: {
+            requestedShift: true,
           },
         });
         shiftAdjustments.push(shiftAdjustment);
+        affectedUsers.set(user.id.toString(), shiftAdjustment.requestedShift);
       }
     } else {
       return res.status(400).json({ message: 'Invalid target type' });
     }
 
-    res.status(200).json({
-      message: 'Shift adjustments created successfully',
-      adjustments: shiftAdjustments,
+    // Send notifications
+    const formattedDate = new Date(date).toLocaleDateString();
+
+    for (const [userId, shift] of affectedUsers) {
+      await notificationService.sendNotification(
+        userId,
+        `แจ้งเตือน: การปรับเปลี่ยนกะการทำงาน
+    
+    วันที่: ${formattedDate}
+    กะใหม่: ${shift.name}
+    เวลา: ${shift.startTime} - ${shift.endTime}
+    
+    สาเหตุ: ${reason}`,
+      );
+    }
+
+    // Notify SuperAdmins (excluding the requester)
+    const superAdmins = await prisma.user.findMany({
+      where: {
+        role: 'SuperAdmin',
+        NOT: {
+          id: requestingUser.id,
+        },
+      },
     });
+
+    for (const admin of superAdmins) {
+      await notificationService.sendNotification(
+        admin.id.toString(),
+        `แจ้งเตือน: มีการปรับเปลี่ยนกะการทำงาน
+    
+    ผู้ดำเนินการ: ${requestingUser.name}
+    วันที่: ${formattedDate}
+    จำนวนผู้ได้รับการปรับกะ: ${affectedUsers.size} คน
+    
+    สาเหตุ: ${reason}`,
+      );
+    }
+
+    res
+      .status(200)
+      .json({
+        message:
+          'Shift adjustments created and notifications sent successfully',
+        adjustments: shiftAdjustments,
+      });
   } catch (error: any) {
-    console.error('Error creating shift adjustments:', error);
-    res.status(500).json({
-      message: 'Error creating shift adjustments',
-      error: error.message,
-    });
+    console.error('Error processing shift adjustments:', error);
+    res
+      .status(500)
+      .json({
+        message: 'Error processing shift adjustments',
+        error: error.message,
+      });
   }
 }
