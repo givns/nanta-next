@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { AdminShiftService } from '../services/AdminShiftService';
+import axios from 'axios';
 import { Shift } from '../types/user';
 import { departmentShiftMap } from '../lib/shiftCache';
-
-const adminShiftService = new AdminShiftService();
 
 interface AdminShiftAdjustmentFormProps {
   lineUserId?: string;
@@ -15,7 +13,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   const [targetType, setTargetType] = useState<'department' | 'individual'>(
     'department',
   );
-  const [numberOfDepartments, setNumberOfDepartments] = useState(1);
+  const [numberOfDepartments, setNumberOfDepartments] = useState<string>('1');
   const [departmentShifts, setDepartmentShifts] = useState<
     { department: string; shiftId: string }[]
   >([{ department: '', shiftId: '' }]);
@@ -30,8 +28,8 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   useEffect(() => {
     const fetchShifts = async () => {
       try {
-        const fetchedShifts = await adminShiftService.getAllShifts();
-        setShifts(fetchedShifts);
+        const response = await axios.get('/api/shifts/shifts');
+        setShifts(response.data);
       } catch (error) {
         console.error('Error fetching shifts:', error);
         setMessage('Error fetching shifts. Please try again.');
@@ -42,9 +40,8 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   }, []);
 
   useEffect(() => {
-    setDepartmentShifts(
-      Array(numberOfDepartments).fill({ department: '', shiftId: '' }),
-    );
+    const num = parseInt(numberOfDepartments) || 1;
+    setDepartmentShifts(Array(num).fill({ department: '', shiftId: '' }));
   }, [numberOfDepartments]);
 
   const handleDepartmentShiftChange = (
@@ -72,23 +69,21 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
     }
 
     try {
-      if (targetType === 'department') {
-        for (const depShift of departmentShifts) {
-          await adminShiftService.createShiftAdjustment(
-            depShift.department,
-            depShift.shiftId,
-            new Date(date),
-            reason,
-          );
-        }
-      } else {
-        await adminShiftService.createShiftAdjustment(
-          individualEmployeeId,
-          individualShiftId,
-          new Date(date),
-          reason,
-        );
-      }
+      const adjustments =
+        targetType === 'department'
+          ? departmentShifts.map((ds) => ({
+              department: ds.department,
+              shiftId: ds.shiftId,
+            }))
+          : [{ employeeId: individualEmployeeId, shiftId: individualShiftId }];
+
+      await axios.post('/api/adjust-shift', {
+        lineUserId,
+        targetType,
+        adjustments,
+        date,
+        reason,
+      });
 
       setMessage('Shift adjustment(s) applied successfully.');
     } catch (error) {
@@ -130,16 +125,17 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
             Number of Departments
           </label>
           <input
-            type="number"
+            type="text"
             id="numberOfDepartments"
             value={numberOfDepartments}
-            onChange={(e) =>
-              setNumberOfDepartments(Math.max(1, parseInt(e.target.value) || 1))
-            }
-            min="1"
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^0-9]/g, '');
+              setNumberOfDepartments(
+                value === '' ? '' : String(Math.max(1, parseInt(value) || 1)),
+              );
+            }}
             className="mt-1 block w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
             inputMode="numeric"
-            pattern="[0-9]*"
           />
         </div>
       )}
