@@ -1,3 +1,6 @@
+const { buffer } = require('stream/consumers');
+const { stream } = require('undici');
+
 const ContentSecurityPolicy = `
 default-src 'self' https://nanta-next.vercel.app;
  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://static.line-scdn.net https://tfhub.dev;
@@ -66,6 +69,8 @@ module.exports = {
         fs: false,
         net: false,
         tls: false,
+        stream: false,
+        buffer: false,
       };
     }
     return config;
