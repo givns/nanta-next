@@ -30,8 +30,8 @@ export default async function handler(
 
     // Check if the user has permission to make adjustments
     if (
-      requestingUser.role !== 'ADMIN' &&
-      requestingUser.role !== 'SUPER_ADMIN'
+      requestingUser.role.toUpperCase() !== 'ADMIN' &&
+      requestingUser.role.toUpperCase() !== 'SUPERADMIN'
     ) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
