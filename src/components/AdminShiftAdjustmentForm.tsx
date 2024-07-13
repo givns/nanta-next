@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { departmentShiftMap, getShifts } from '../lib/shiftCache';
 import { ShiftManagementService } from '../services/ShiftManagementService';
 
@@ -10,14 +9,6 @@ interface AdminShiftAdjustmentFormProps {
 interface DepartmentShift {
   department: string;
   shiftId: string;
-}
-
-interface Shift {
-  id: string;
-  name: string;
-  shiftCode: string;
-  startTime: string;
-  endTime: string;
 }
 
 const shiftManagementService = new ShiftManagementService();
@@ -36,7 +27,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   const [individualShiftId, setIndividualShiftId] = useState('');
   const [date, setDate] = useState('');
   const [reason, setReason] = useState('');
-  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [shifts, setShifts] = useState<any[]>([]);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -44,7 +35,6 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
     const fetchShifts = async () => {
       try {
         const fetchedShifts = await getShifts();
-        console.log('Fetched shifts:', fetchedShifts);
         setShifts(fetchedShifts);
       } catch (error) {
         console.error('Error fetching shifts:', error);
@@ -91,7 +81,6 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
           ? departmentShifts
           : [{ employeeId: individualEmployeeId, shiftId: individualShiftId }];
 
-      // Use ShiftManagementService to apply adjustments
       for (const adjustment of adjustments) {
         if ('department' in adjustment) {
           await shiftManagementService.adminCreateShiftAdjustment(
