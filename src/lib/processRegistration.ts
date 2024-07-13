@@ -41,18 +41,29 @@ export async function processRegistration(
     try {
       externalData =
         await externalDbService.getDailyAttendanceRecords(employeeId);
+      console.log('External data:', JSON.stringify(externalData, null, 2));
     } catch (error) {
       console.error('Error finding external user:', error);
     }
 
     let shift = null;
     if (externalData?.userInfo?.user_dep) {
+      console.log(
+        `Attempting to get shift for department ID: ${externalData.userInfo.user_dep}`,
+      );
       shift = await shiftManagementService.getShiftByDepartmentId(
         externalData.userInfo.user_dep,
       );
+      console.log(
+        `Shift from department ID: ${JSON.stringify(shift, null, 2)}`,
+      );
     }
     if (!shift) {
+      console.log(
+        `No shift found by department ID, trying to get default shift for: ${department}`,
+      );
       shift = await shiftManagementService.getDefaultShift(department);
+      console.log(`Default shift: ${JSON.stringify(shift, null, 2)}`);
     }
     if (!shift) {
       throw new Error(`No shift found for department: ${department}`);
@@ -107,7 +118,10 @@ export async function processRegistration(
     }
 
     const richMenuId = determineRichMenuId(role);
-    await client.linkRichMenuToUser(lineUserId, richMenuId);
+    await retry(
+      async () => await client.linkRichMenuToUser(lineUserId, richMenuId),
+      3,
+    );
 
     console.log('Registration process completed successfully');
     return { success: true, userId: user.id };
@@ -120,4 +134,20 @@ export async function processRegistration(
 function getProfilePictureExternalUrl(photo: number): string {
   // Logic to convert photo number to URL
   return `https://external-service-url.com/photos/${photo}`;
+}
+
+async function retry<T>(fn: () => Promise<T>, retries: number): Promise<T> {
+  let attempt = 0;
+  while (attempt < retries) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+      if (attempt >= retries) {
+        throw error;
+      }
+      console.warn(`Retrying... (${attempt}/${retries})`);
+    }
+  }
+  throw new Error('Max retries reached');
 }
