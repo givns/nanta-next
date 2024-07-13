@@ -92,19 +92,15 @@ export default async function handler(
       return res.status(400).json({ message: 'Invalid target type' });
     }
 
-    res
-      .status(200)
-      .json({
-        message: 'Shift adjustments created successfully',
-        adjustments: shiftAdjustments,
-      });
+    res.status(200).json({
+      message: 'Shift adjustments created successfully',
+      adjustments: shiftAdjustments,
+    });
   } catch (error: any) {
     console.error('Error creating shift adjustments:', error);
-    res
-      .status(500)
-      .json({
-        message: 'Error creating shift adjustments',
-        error: error.message,
-      });
+    res.status(500).json({
+      message: 'Error creating shift adjustments',
+      error: error.message,
+    });
   }
 }
