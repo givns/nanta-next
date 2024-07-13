@@ -1,14 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { departmentShiftMap } from '../lib/shiftCache';
+import { departmentShiftMap, getShifts } from '../lib/shiftCache';
+import { ShiftManagementService } from '../services/ShiftManagementService';
 
 interface AdminShiftAdjustmentFormProps {
-  lineUserId?: string | null;
+  lineUserId?: string;
 }
+
 interface DepartmentShift {
   department: string;
   shiftId: string;
 }
+
+interface Shift {
+  id: string;
+  name: string;
+  shiftCode: string;
+  startTime: string;
+  endTime: string;
+}
+
+const shiftManagementService = new ShiftManagementService();
 
 const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   lineUserId,
@@ -24,18 +36,19 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   const [individualShiftId, setIndividualShiftId] = useState('');
   const [date, setDate] = useState('');
   const [reason, setReason] = useState('');
-  const [shifts, setShifts] = useState<{ id: string; name: string }[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Fetch shifts from your API
     const fetchShifts = async () => {
       try {
-        const response = await axios.get('/api/shifts');
-        setShifts(response.data);
+        const fetchedShifts = await getShifts();
+        console.log('Fetched shifts:', fetchedShifts);
+        setShifts(fetchedShifts);
       } catch (error) {
         console.error('Error fetching shifts:', error);
+        setMessage('Error fetching shifts. Please try again.');
       }
     };
 
@@ -78,13 +91,28 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
           ? departmentShifts
           : [{ employeeId: individualEmployeeId, shiftId: individualShiftId }];
 
-      const response = await axios.post('/api/adjust-shift', {
-        lineUserId,
-        targetType,
-        adjustments,
-        date,
-        reason,
-      });
+      // Use ShiftManagementService to apply adjustments
+      for (const adjustment of adjustments) {
+        if ('department' in adjustment) {
+          await shiftManagementService.adminCreateShiftAdjustment(
+            lineUserId,
+            'department',
+            adjustment.department,
+            adjustment.shiftId,
+            new Date(date),
+            reason,
+          );
+        } else {
+          await shiftManagementService.adminCreateShiftAdjustment(
+            lineUserId,
+            'individual',
+            adjustment.employeeId,
+            adjustment.shiftId,
+            new Date(date),
+            reason,
+          );
+        }
+      }
 
       setMessage('Shift adjustment(s) applied successfully.');
     } catch (error) {
@@ -117,26 +145,29 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
         </select>
       </div>
 
+      {targetType === 'department' && (
+        <div className="flex items-center space-x-2">
+          <label
+            htmlFor="numberOfDepartments"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Number of Departments
+          </label>
+          <input
+            type="number"
+            id="numberOfDepartments"
+            value={numberOfDepartments}
+            onChange={(e) =>
+              setNumberOfDepartments(Math.max(1, parseInt(e.target.value)))
+            }
+            min="1"
+            className="mt-1 block w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+          />
+        </div>
+      )}
+
       {targetType === 'department' ? (
         <>
-          <div>
-            <label
-              htmlFor="numberOfDepartments"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Number of Departments
-            </label>
-            <input
-              type="number"
-              id="numberOfDepartments"
-              value={numberOfDepartments}
-              onChange={(e) =>
-                setNumberOfDepartments(Math.max(1, parseInt(e.target.value)))
-              }
-              min="1"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            />
-          </div>
           {departmentShifts.map((depShift, index) => (
             <div key={index} className="bg-gray-100 p-4 rounded-lg mb-4">
               <div>
@@ -188,7 +219,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                   <option value="">Select a shift</option>
                   {shifts.map((shift) => (
                     <option key={shift.id} value={shift.id}>
-                      {shift.name}
+                      {shift.name} ({shift.startTime} - {shift.endTime})
                     </option>
                   ))}
                 </select>
@@ -230,7 +261,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
               <option value="">Select a shift</option>
               {shifts.map((shift) => (
                 <option key={shift.id} value={shift.id}>
-                  {shift.name}
+                  {shift.name} ({shift.startTime} - {shift.endTime})
                 </option>
               ))}
             </select>
