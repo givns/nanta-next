@@ -139,20 +139,15 @@ export default async function handler(
       );
     }
 
-    res
-      .status(200)
-      .json({
-        message:
-          'Shift adjustments created and notifications sent successfully',
-        adjustments: shiftAdjustments,
-      });
+    res.status(200).json({
+      message: 'Shift adjustments created and notifications sent successfully',
+      adjustments: shiftAdjustments,
+    });
   } catch (error: any) {
     console.error('Error processing shift adjustments:', error);
-    res
-      .status(500)
-      .json({
-        message: 'Error processing shift adjustments',
-        error: error.message,
-      });
+    res.status(500).json({
+      message: 'Error processing shift adjustments',
+      error: error.message,
+    });
   }
 }
