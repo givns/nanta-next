@@ -99,21 +99,42 @@ export default async function handler(
     } else {
       return res.status(400).json({ message: 'Invalid target type' });
     }
+    // Fetch LINE user IDs for affected users
+    const userIds = Array.from(affectedUsers.keys());
+    const usersWithLineIds = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, lineUserId: true },
+    });
+
+    const lineUserIdMap = new Map(
+      usersWithLineIds.map((u) => [u.id, u.lineUserId]),
+    );
 
     // Send notifications
-    const formattedDate = new Date(date).toLocaleDateString();
+    const formattedDate = new Date(date).toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
 
+    // Notify affected users
     for (const [userId, shift] of affectedUsers) {
-      await notificationService.sendNotification(
-        userId,
-        `แจ้งเตือน: การปรับเปลี่ยนกะการทำงาน
-    
-    วันที่: ${formattedDate}
-    กะใหม่: ${shift.name}
-    เวลา: ${shift.startTime} - ${shift.endTime}
-    
-    สาเหตุ: ${reason}`,
-      );
+      const userLineId = lineUserIdMap.get(userId);
+      if (userLineId) {
+        await notificationService.sendNotification(
+          userId,
+          `แจ้งเตือน: การปรับเปลี่ยนกะการทำงาน
+
+วันที่: ${formattedDate}
+กะใหม่: ${shift.name}
+เวลา: ${shift.startTime} - ${shift.endTime}
+
+เหตุผล: ${reason}
+
+หากมีข้อสงสัย กรุณาติดต่อฝ่ายบุคคล`,
+          userLineId,
+        );
+      }
     }
 
     // Notify SuperAdmins (excluding the requester)
@@ -124,19 +145,25 @@ export default async function handler(
           id: requestingUser.id,
         },
       },
+      select: { id: true, lineUserId: true, name: true },
     });
 
     for (const admin of superAdmins) {
-      await notificationService.sendNotification(
-        admin.id.toString(),
-        `แจ้งเตือน: มีการปรับเปลี่ยนกะการทำงาน
-    
-    ผู้ดำเนินการ: ${requestingUser.name}
-    วันที่: ${formattedDate}
-    จำนวนผู้ได้รับการปรับกะ: ${affectedUsers.size} คน
-    
-    สาเหตุ: ${reason}`,
-      );
+      if (admin.lineUserId) {
+        await notificationService.sendNotification(
+          admin.id,
+          `แจ้งเตือน: มีการปรับเปลี่ยนกะการทำงาน
+
+ผู้ดำเนินการ: ${requestingUser.name}
+วันที่: ${formattedDate}
+จำนวนผู้ได้รับผลกระทบ: ${affectedUsers.size} คน
+
+เหตุผล: ${reason}
+
+กรุณาตรวจสอบรายละเอียดในระบบ`,
+          admin.lineUserId,
+        );
+      }
     }
 
     res.status(200).json({

@@ -11,7 +11,11 @@ export class NotificationService {
     });
   }
 
-  async sendNotification(lineUserId: string, message: string): Promise<void> {
+  async sendNotification(
+    userId: string,
+    message: string,
+    lineUserId?: string,
+  ): Promise<void> {
     if (!lineUserId) {
       console.warn('No LINE user ID provided for notification');
       return;
