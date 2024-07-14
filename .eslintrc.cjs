@@ -23,6 +23,8 @@ module.exports = {
     'react/react-in-jsx-scope': 'off',
     '@typescript-eslint/no-unused-vars': 'warn',
     'jsx-a11y/anchor-is-valid': 'warn',
+    'react-hooks/exhaustive-deps': 'warn',
+    'jsx-a11y/label-has-associated-control': 'off',
     'import/no-unresolved': 'off',
     'import/no-named-as-default-member': 'off',
     'prefer-const': 'warn',

@@ -1,3 +1,4 @@
+// pages/api/shifts/shifts.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../lib/prisma';
 
@@ -6,7 +7,7 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method === 'GET') {
-    const { action, shiftId, userId, date } = req.query;
+    const { action, shiftId, lineUserId, date } = req.query;
 
     try {
       switch (action) {
@@ -31,12 +32,12 @@ export default async function handler(
           break;
         }
         case 'user': {
-          if (!userId) {
-            res.status(400).json({ message: 'User ID is required' });
+          if (!lineUserId) {
+            res.status(400).json({ message: 'LINE User ID is required' });
             return;
           }
           const user = await prisma.user.findUnique({
-            where: { id: userId as string },
+            where: { lineUserId: lineUserId as string },
             include: { assignedShift: true },
           });
           if (!user) {
@@ -47,13 +48,22 @@ export default async function handler(
           break;
         }
         case 'adjustment': {
-          if (!userId || !date) {
-            res.status(400).json({ message: 'User ID and date are required' });
+          if (!lineUserId || !date) {
+            res
+              .status(400)
+              .json({ message: 'LINE User ID and date are required' });
+            return;
+          }
+          const user = await prisma.user.findUnique({
+            where: { lineUserId: lineUserId as string },
+          });
+          if (!user) {
+            res.status(404).json({ message: 'User not found' });
             return;
           }
           const adjustment = await prisma.shiftAdjustmentRequest.findFirst({
             where: {
-              userId: userId as string,
+              userId: user.id,
               date: new Date(date as string),
               status: 'approved',
             },
