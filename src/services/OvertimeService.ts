@@ -10,6 +10,7 @@ export class OvertimeService {
     date: Date,
     startTime: string,
     endTime: string,
+    reason: string,
   ): Promise<OvertimeRequest> {
     return prisma.overtimeRequest.create({
       data: {
@@ -17,6 +18,7 @@ export class OvertimeService {
         date,
         startTime,
         endTime,
+        reason,
         status: 'pending',
       },
     });

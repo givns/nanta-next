@@ -23,9 +23,9 @@ export default async function handler(
     photo,
     deviceSerial,
     isCheckIn,
-    isOvertime,
   } = req.body;
 
+  // Validate required fields
   if (
     !userId ||
     !employeeId ||
@@ -33,8 +33,7 @@ export default async function handler(
     !location ||
     !address ||
     !deviceSerial ||
-    typeof isCheckIn !== 'boolean' ||
-    typeof isOvertime !== 'boolean'
+    typeof isCheckIn !== 'boolean'
   ) {
     return res
       .status(400)
@@ -52,8 +51,9 @@ export default async function handler(
       photo,
       deviceSerial,
       isCheckIn,
-      isOvertime,
+      isOvertime: false, // We'll handle overtime separately in the future
     });
+
     res.status(200).json(attendance);
   } catch (error: any) {
     console.error('Check-in/out failed:', error);
