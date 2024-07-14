@@ -16,6 +16,7 @@
     "managed-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/managedRichMenu.ts",
     "list-rich-menu": "ts-node --project tsconfig.ts-node.json scripts/listRichMenu.ts",
     "generate-signature": "ts-node --project tsconfig.ts-node.json scripts/generateSignature.ts",
+    "update-shift": "ts-node --project tsconfig.ts-node.json scripts/updateShift.ts",
     "postinstall": "prisma generate",
     "prettier": "prettier --write .",
     "start:worker": "ts-node -r dotenv/config --project tsconfig.ts-node.json src/workers/worker.ts dotenv_config_path=.env.local"
