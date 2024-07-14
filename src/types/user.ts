@@ -72,6 +72,7 @@ export interface AttendanceStatus {
     requestedShiftId: string;
     requestedShift: ShiftData;
   } | null;
+  futureShiftAdjustments?: FutureShiftAdjustment[];
   approvedOvertime: ApprovedOvertime | null;
 }
 
@@ -116,6 +117,11 @@ export interface ShiftAdjustment {
   createdAt: Date;
   updatedAt: Date;
   requestedShift: Shift;
+}
+
+export interface FutureShiftAdjustment {
+  date: string;
+  shift: ShiftData;
 }
 
 export interface OvertimeApproval {

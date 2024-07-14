@@ -19,6 +19,33 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const shift: ShiftData | null | undefined =
     attendanceStatus.shiftAdjustment?.requestedShift || userData.assignedShift;
 
+  const renderFutureShiftAdjustments = () => {
+    if (
+      !attendanceStatus.futureShiftAdjustments ||
+      attendanceStatus.futureShiftAdjustments.length === 0
+    ) {
+      return null;
+    }
+    return (
+      <div className="bg-yellow-100 p-4 rounded-lg mt-4">
+        <h3 className="text-md font-semibold mb-2">
+          แจ้งเตือนการปรับเปลี่ยนกะในอนาคต:
+        </h3>
+        {attendanceStatus.futureShiftAdjustments.map((adjustment, index) => (
+          <div key={index} className="mb-2">
+            <p>
+              วันที่: {new Date(adjustment.date).toLocaleDateString('th-TH')}
+            </p>
+            <p>
+              กะใหม่: {adjustment.shift.name} ({adjustment.shift.startTime} -{' '}
+              {adjustment.shift.endTime})
+            </p>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const getStatusMessage = () => {
     if (!attendanceStatus.latestAttendance) {
       return 'ยังไม่มีการลงเวลาในวันนี้';
@@ -36,7 +63,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     if (attendanceStatus.approvedOvertime) {
       return 'ทำงานล่วงเวลา';
     }
-    return attendanceStatus.shiftAdjustment ? 'กะการทำงานถูกปรับเปลี่ยน' : '';
+    return attendanceStatus.shiftAdjustment
+      ? 'กะการทำงานถูกปรับเปลี่ยนสำหรับวันนี้'
+      : '';
   };
 
   return (
@@ -112,18 +141,22 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               <span className="font-medium">{shift.name}</span> (
               {shift.startTime} - {shift.endTime})
             </p>
-            {attendanceStatus.shiftAdjustment ? (
+            {attendanceStatus.shiftAdjustment && (
               <p className="text-blue-600 mt-1">
                 * กะการทำงานนี้ได้รับการปรับเปลี่ยนสำหรับวันนี้
               </p>
-            ) : (
-              <p className="text-gray-600 mt-1">(กะการทำงานปกติ)</p>
             )}
           </>
         ) : (
           <p className="text-red-600 mt-4">ไม่พบข้อมูลกะการทำงาน</p>
         )}
+
+        {isOutsideShift() && !attendanceStatus.approvedOvertime && (
+          <p className="text-red-500 mt-2">คุณกำลังลงเวลานอกช่วงเวลากะของคุณ</p>
+        )}
       </div>
+
+      {renderFutureShiftAdjustments()}
     </div>
   );
 };

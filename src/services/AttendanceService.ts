@@ -9,6 +9,7 @@ import {
   AttendanceRecord,
   ShiftData,
   ShiftAdjustment,
+  FutureShiftAdjustment,
 } from '../types/user';
 import { UserRole } from '@/types/enum';
 
@@ -89,6 +90,9 @@ export class AttendanceService {
       );
       const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
       const shiftAdjustment = await this.getLatestShiftAdjustment(user.id);
+      const futureShiftAdjustments = await this.getFutureShiftAdjustments(
+        user.id,
+      );
 
       const result: AttendanceStatus = {
         user: {
@@ -143,6 +147,7 @@ export class AttendanceService {
               },
             }
           : null,
+        futureShiftAdjustments,
         approvedOvertime: user.approvedOvertimes[0]
           ? {
               startTime: user.approvedOvertimes[0].startTime.toISOString(),
@@ -482,6 +487,29 @@ export class AttendanceService {
           requestedShift: shiftAdjustment.requestedShift as ShiftData,
         }
       : null;
+  }
+
+  private async getFutureShiftAdjustments(
+    userId: string,
+  ): Promise<FutureShiftAdjustment[]> {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    const adjustments = await prisma.shiftAdjustmentRequest.findMany({
+      where: {
+        userId,
+        date: { gte: tomorrow },
+        status: 'approved',
+      },
+      include: { requestedShift: true },
+      orderBy: { date: 'asc' },
+    });
+
+    return adjustments.map((adj) => ({
+      date: adj.date.toISOString(),
+      shift: adj.requestedShift,
+    }));
   }
 
   private async createAttendance(
