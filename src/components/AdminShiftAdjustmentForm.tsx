@@ -139,8 +139,8 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
           }
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
         >
-          <option value="department">Department</option>
-          <option value="individual">Individual</option>
+          <option value="department">รายแผนก</option>
+          <option value="individual">รายบุคคล</option>
         </select>
       </div>
 
@@ -306,7 +306,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
       <button
         type="submit"
         disabled={isLoading || !lineUserId}
-        className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
+        className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
       >
         {isLoading ? 'Applying...' : 'Apply Shift Adjustment'}
       </button>
