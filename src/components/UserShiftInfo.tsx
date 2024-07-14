@@ -70,7 +70,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     if (attendanceStatus.approvedOvertime) {
       return 'ทำงานล่วงเวลา';
     }
-    return todayShiftAdjustment ? 'กะการทำงานถูกปรับเปลี่ยนสำหรับวันนี้' : '';
   };
 
   return (
