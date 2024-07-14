@@ -36,7 +36,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return (
       <div className="bg-yellow-100 p-4 rounded-lg mt-4">
         <h3 className="text-md font-semibold mb-2">
-          แจ้งเตือนการปรับเปลี่ยนกะในอนาคต:
+          แจ้งเตือนการปรับเวลาทำงาน:
         </h3>
         {futureShiftAdjustments.map((adjustment, index) => (
           <div key={index} className="mb-2">
@@ -44,8 +44,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               วันที่: {new Date(adjustment.date).toLocaleDateString('th-TH')}
             </p>
             <p>
-              กะใหม่: {adjustment.shift.name} ({adjustment.shift.startTime} -{' '}
-              {adjustment.shift.endTime})
+              เวลาทำงานใหม่: {adjustment.shift.name} (
+              {adjustment.shift.startTime} - {adjustment.shift.endTime})
             </p>
           </div>
         ))}
@@ -147,7 +147,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             </p>
             {todayShiftAdjustment && (
               <p className="text-blue-600 mt-1">
-                * กะการทำงานนี้ได้รับการปรับเปลี่ยนสำหรับวันนี้
+                * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
               </p>
             )}
           </>
