@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
@@ -21,11 +21,7 @@ const OvertimeRequestForm: React.FC = () => {
   const [message, setMessage] = useState('');
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    initializeLiff();
-  }, []);
-
-  const initializeLiff = async () => {
+  const initializeLiff = useCallback(async () => {
     try {
       await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
       if (liff.isLoggedIn()) {
@@ -39,7 +35,11 @@ const OvertimeRequestForm: React.FC = () => {
       console.error('LIFF initialization failed', error);
       setMessage('ไม่สามารถเชื่อมต่อกับ LINE ได้');
     }
-  };
+  }, []); // Empty dependency array as it doesn't depend on any props or state
+
+  useEffect(() => {
+    initializeLiff();
+  }, [initializeLiff]);
 
   const fetchUserAndShiftDetails = async (userId: string) => {
     try {
@@ -145,24 +145,30 @@ const OvertimeRequestForm: React.FC = () => {
                   ประเภทการทำงานล่วงเวลา
                 </legend>
                 <div className="mt-2 space-x-4">
-                  <label className="inline-flex items-center">
+                  <div className="inline-flex items-center">
                     <Field
                       type="radio"
+                      id="overtimeType-beforeShift"
                       name="overtimeType"
                       value="beforeShift"
                       className="form-radio"
                     />
-                    <span className="ml-2">ก่อนกะ</span>
-                  </label>
-                  <label className="inline-flex items-center">
+                    <label htmlFor="overtimeType-beforeShift" className="ml-2">
+                      ก่อนกะ
+                    </label>
+                  </div>
+                  <div className="inline-flex items-center">
                     <Field
                       type="radio"
+                      id="overtimeType-afterShift"
                       name="overtimeType"
                       value="afterShift"
                       className="form-radio"
                     />
-                    <span className="ml-2">หลังกะ</span>
-                  </label>
+                    <label htmlFor="overtimeType-afterShift" className="ml-2">
+                      หลังกะ
+                    </label>
+                  </div>
                 </div>
               </fieldset>
               <ErrorMessage
