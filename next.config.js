@@ -69,6 +69,8 @@ module.exports = {
         fs: false,
         net: false,
         tls: false,
+        stream: false,
+        buffer: false,
       };
     }
     return config;
