@@ -73,4 +73,18 @@ module.exports = {
     }
     return config;
   },
+  apps: [
+    {
+      name: 'registration-worker',
+      script: 'dist/workers/worker.js',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '1G',
+      env: {
+        NODE_ENV: 'production',
+        WORKER_PROCESS: 'true',
+      },
+    },
+  ],
 };

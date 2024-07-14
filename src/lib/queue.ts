@@ -17,6 +17,14 @@ export function getRegistrationQueue(): Queue.Queue {
           delay: 1000,
         },
       },
+      redis: {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+        retryStrategy: (times: number) => {
+          const delay = Math.min(times * 50, 2000);
+          return delay;
+        },
+      },
     });
     registrationQueue.on('error', (error) => {
       console.error('Queue error:', error);
@@ -24,13 +32,6 @@ export function getRegistrationQueue(): Queue.Queue {
     console.log('Registration queue initialized');
   }
   return registrationQueue;
-}
-
-// Process jobs in a separate file/service, not in the API route
-if (process.env.WORKER_PROCESS === 'true') {
-  const queue = getRegistrationQueue();
-  queue.process(processRegistration);
-  console.log('Worker started, processing jobs...');
 }
 
 export default getRegistrationQueue;

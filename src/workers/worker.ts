@@ -42,10 +42,30 @@ queue.on('failed', (job, err) => {
 
 queue.process(async (job) => {
   console.log('Processing job:', job.id);
-  return processRegistration(job);
+  try {
+    return await processRegistration(job);
+  } catch (error) {
+    console.error('Error processing job:', job.id, 'Error:', error);
+    throw error; // Rethrow to let Bull handle retries
+  }
 });
 
 console.log('Worker setup complete, waiting for jobs...');
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, closing queue...');
+  await queue.close();
+  console.log('Queue closed');
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, closing queue...');
+  await queue.close();
+  console.log('Queue closed');
+  process.exit(0);
+});
 
 // Keep the process alive
 setInterval(() => {
