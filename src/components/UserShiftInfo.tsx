@@ -86,7 +86,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       <div className="bg-gray-100 p-4 rounded-lg mb-4">
         <h2 className="text-lg font-semibold mb-2">
           สถานะปัจจุบัน:{' '}
-          <span className="text-green-600">{getStatusMessage()}</span>
+          <span className="text-black-600">{getStatusMessage()}</span>
         </h2>
         {attendanceStatus.latestAttendance && (
           <>
