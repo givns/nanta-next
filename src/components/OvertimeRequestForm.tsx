@@ -20,6 +20,7 @@ const OvertimeRequestForm: React.FC = () => {
   const [shift, setShift] = useState<ShiftData | null>(null);
   const [message, setMessage] = useState('');
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     initializeLiff();
   }, []);
@@ -139,29 +140,31 @@ const OvertimeRequestForm: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                ประเภทการทำงานล่วงเวลา
-              </label>
-              <div className="mt-2 space-x-4">
-                <label className="inline-flex items-center">
-                  <Field
-                    type="radio"
-                    name="overtimeType"
-                    value="beforeShift"
-                    className="form-radio"
-                  />
-                  <span className="ml-2">ก่อนกะ</span>
-                </label>
-                <label className="inline-flex items-center">
-                  <Field
-                    type="radio"
-                    name="overtimeType"
-                    value="afterShift"
-                    className="form-radio"
-                  />
-                  <span className="ml-2">หลังกะ</span>
-                </label>
-              </div>
+              <fieldset>
+                <legend className="block text-sm font-medium text-gray-700">
+                  ประเภทการทำงานล่วงเวลา
+                </legend>
+                <div className="mt-2 space-x-4">
+                  <label className="inline-flex items-center">
+                    <Field
+                      type="radio"
+                      name="overtimeType"
+                      value="beforeShift"
+                      className="form-radio"
+                    />
+                    <span className="ml-2">ก่อนกะ</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <Field
+                      type="radio"
+                      name="overtimeType"
+                      value="afterShift"
+                      className="form-radio"
+                    />
+                    <span className="ml-2">หลังกะ</span>
+                  </label>
+                </div>
+              </fieldset>
               <ErrorMessage
                 name="overtimeType"
                 component="div"
