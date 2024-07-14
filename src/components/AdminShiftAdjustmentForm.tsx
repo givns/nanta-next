@@ -57,6 +57,20 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
     setDepartmentShifts(newDepartmentShifts);
   };
 
+  const isDateValid = (selectedDate: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(selectedDate) >= today;
+  };
+
+  const isFormValid = () => {
+    if (targetType === 'department') {
+      return departmentShifts.every((ds) => ds.department && ds.shiftId);
+    } else {
+      return individualEmployeeId && individualShiftId;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage('');
@@ -65,6 +79,20 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
     if (!lineUserId) {
       setMessage('Error: User ID is not available');
       setIsLoading(false);
+      return;
+    }
+    if (!isDateValid(date)) {
+      setMessage('Error: Selected date must not be in the past');
+      setIsLoading(false);
+      return;
+    }
+    if (!isFormValid()) {
+      setMessage('Error: Please fill in all required fields');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!confirm('Are you sure you want to apply these shift adjustments?')) {
       return;
     }
 

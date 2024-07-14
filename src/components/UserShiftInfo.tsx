@@ -16,14 +16,21 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   departmentName,
   isOutsideShift,
 }) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
+
   const shift: ShiftData | null | undefined =
-    attendanceStatus.shiftAdjustment?.requestedShift || userData.assignedShift;
+    todayShiftAdjustment?.requestedShift || userData.assignedShift;
+
+  const futureShiftAdjustments =
+    attendanceStatus.futureShiftAdjustments?.filter(
+      (adj) => new Date(adj.date).getTime() > today.getTime(),
+    ) || [];
 
   const renderFutureShiftAdjustments = () => {
-    if (
-      !attendanceStatus.futureShiftAdjustments ||
-      attendanceStatus.futureShiftAdjustments.length === 0
-    ) {
+    if (futureShiftAdjustments.length === 0) {
       return null;
     }
     return (
@@ -31,7 +38,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         <h3 className="text-md font-semibold mb-2">
           แจ้งเตือนการปรับเปลี่ยนกะในอนาคต:
         </h3>
-        {attendanceStatus.futureShiftAdjustments.map((adjustment, index) => (
+        {futureShiftAdjustments.map((adjustment, index) => (
           <div key={index} className="mb-2">
             <p>
               วันที่: {new Date(adjustment.date).toLocaleDateString('th-TH')}
@@ -63,9 +70,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     if (attendanceStatus.approvedOvertime) {
       return 'ทำงานล่วงเวลา';
     }
-    return attendanceStatus.shiftAdjustment
-      ? 'กะการทำงานถูกปรับเปลี่ยนสำหรับวันนี้'
-      : '';
+    return todayShiftAdjustment ? 'กะการทำงานถูกปรับเปลี่ยนสำหรับวันนี้' : '';
   };
 
   return (
@@ -141,7 +146,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               <span className="font-medium">{shift.name}</span> (
               {shift.startTime} - {shift.endTime})
             </p>
-            {attendanceStatus.shiftAdjustment && (
+            {todayShiftAdjustment && (
               <p className="text-blue-600 mt-1">
                 * กะการทำงานนี้ได้รับการปรับเปลี่ยนสำหรับวันนี้
               </p>

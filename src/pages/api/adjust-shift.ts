@@ -22,6 +22,9 @@ export default async function handler(
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
+    const adjustmentDate = new Date(date);
+    adjustmentDate.setHours(0, 0, 0, 0);
+
     // Find the user making the request
     const requestingUser = await prisma.user.findUnique({
       where: { lineUserId: lineUserId },
@@ -85,7 +88,7 @@ export default async function handler(
           data: {
             userId: user.id,
             requestedShiftId: shiftId,
-            date: new Date(date),
+            date: adjustmentDate,
             reason: reason,
             status: 'approved',
           },

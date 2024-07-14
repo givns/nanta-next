@@ -69,10 +69,14 @@ export interface AttendanceStatus {
   } | null;
   isCheckingIn: boolean;
   shiftAdjustment: {
+    date: string;
     requestedShiftId: string;
     requestedShift: ShiftData;
   } | null;
-  futureShiftAdjustments?: FutureShiftAdjustment[];
+  futureShiftAdjustments: Array<{
+    date: string;
+    shift: ShiftData;
+  }>;
   approvedOvertime: ApprovedOvertime | null;
 }
 

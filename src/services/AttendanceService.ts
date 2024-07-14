@@ -136,6 +136,7 @@ export class AttendanceService {
         isCheckingIn: isCheckingIn,
         shiftAdjustment: shiftAdjustment
           ? {
+              date: shiftAdjustment.date.toISOString(),
               requestedShiftId: shiftAdjustment.requestedShiftId,
               requestedShift: {
                 id: shiftAdjustment.requestedShift.id,
@@ -470,14 +471,21 @@ export class AttendanceService {
   private async getLatestShiftAdjustment(
     userId: string,
   ): Promise<ShiftAdjustment | null> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
     const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
       where: {
         userId,
         status: 'approved',
-        date: { gte: new Date() },
+        date: {
+          gte: today,
+          lt: tomorrow,
+        },
       },
       include: { requestedShift: true },
-      orderBy: { date: 'asc' },
     });
 
     return shiftAdjustment
