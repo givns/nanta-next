@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
-import { UserData, ShiftData } from '../types/user';
-import { formatTime } from '../utils/dateUtils';
 import liff from '@line/liff';
+import { formatTime } from '../utils/dateUtils';
 
-const OvertimeRequestSchema = Yup.object().shape({
+const DateSchema = Yup.object().shape({
   date: Yup.date().required('กรุณาเลือกวันที่'),
+});
+
+const OvertimeSchema = Yup.object().shape({
   overtimeType: Yup.string().required('กรุณาเลือกประเภทการทำงานล่วงเวลา'),
   startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
   endTime: Yup.string().required('กรุณาระบุเวลาสิ้นสุด'),
@@ -15,19 +17,18 @@ const OvertimeRequestSchema = Yup.object().shape({
 });
 
 const OvertimeRequestForm: React.FC = () => {
+  const [step, setStep] = useState(1);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [shift, setShift] = useState<ShiftData | null>(null);
+  const [shiftInfo, setShiftInfo] = useState<any>(null);
+  const [selectedDate, setSelectedDate] = useState<string>('');
   const [message, setMessage] = useState('');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const initializeLiff = useCallback(async () => {
     try {
       await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
       if (liff.isLoggedIn()) {
         const profile = await liff.getProfile();
         setLineUserId(profile.userId);
-        fetchUserAndShiftDetails(profile.userId);
       } else {
         liff.login();
       }
@@ -35,90 +36,57 @@ const OvertimeRequestForm: React.FC = () => {
       console.error('LIFF initialization failed', error);
       setMessage('ไม่สามารถเชื่อมต่อกับ LINE ได้');
     }
-  }, []); // Empty dependency array as it doesn't depend on any props or state
+  }, []);
 
   useEffect(() => {
     initializeLiff();
   }, [initializeLiff]);
 
-  const fetchUserAndShiftDetails = async (userId: string) => {
+  const fetchShiftInfo = async (date: string) => {
     try {
-      const [userResponse, shiftResponse] = await Promise.all([
-        axios.get(`/api/users?lineUserId=${userId}`),
-        axios.get(`/api/shifts/shifts?action=user&lineUserId=${userId}`),
-      ]);
-      setUserData(userResponse.data);
-      setShift(shiftResponse.data);
+      const response = await axios.get(
+        `/api/overtime/shift-info?lineUserId=${lineUserId}&date=${date}`,
+      );
+      setShiftInfo(response.data);
+      setStep(2);
     } catch (error) {
-      console.error('Error fetching user and shift details:', error);
-      setMessage('ไม่สามารถดึงข้อมูลผู้ใช้และกะการทำงานได้');
+      console.error('Error fetching shift info:', error);
+      setMessage('ไม่สามารถดึงข้อมูลกะการทำงานได้');
     }
   };
 
-  const handleSubmit = async (
-    values: any,
-    { setSubmitting, resetForm }: any,
-  ) => {
-    setMessage('');
-    try {
-      const adjustmentResponse = await axios.get(
-        `/api/shifts/shifts?action=adjustment&lineUserId=${lineUserId}&date=${values.date}`,
-      );
-      const adjustedShift = adjustmentResponse.data;
+  const handleDateSubmit = (values: { date: string }) => {
+    setSelectedDate(values.date);
+    fetchShiftInfo(values.date);
+  };
 
+  const handleOvertimeSubmit = async (values: any) => {
+    try {
       await axios.post('/api/overtime/request', {
         lineUserId,
+        date: selectedDate,
         ...values,
-        shiftId: adjustedShift ? adjustedShift.id : shift?.id,
       });
       setMessage('คำขอทำงานล่วงเวลาถูกส่งเรียบร้อยแล้ว');
-      resetForm();
+      setStep(1);
     } catch (error) {
       console.error('Error submitting overtime request:', error);
       setMessage('ไม่สามารถส่งคำขอทำงานล่วงเวลาได้');
-    } finally {
-      setSubmitting(false);
     }
   };
 
-  const calculateHours = (startTime: string, endTime: string) => {
-    const start = new Date(`2000-01-01T${startTime}`);
-    const end = new Date(`2000-01-01T${endTime}`);
-    if (end < start) end.setDate(end.getDate() + 1);
-    const diff = (end.getTime() - start.getTime()) / 3600000;
-    return diff.toFixed(2);
-  };
-
-  if (!lineUserId || !userData || !shift) {
+  if (!lineUserId) {
     return <div>กำลังโหลด...</div>;
   }
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-md">
-      <p className="text-2xl font-bold">{userData.name}</p>
-      <p className="text-xl">(รหัสพนักงาน: {userData.employeeId})</p>
-      <p className="mb-4 text-gray-600">แผนก: {userData.department}</p>
-
-      <div className="bg-gray-100 p-4 rounded-lg mb-4">
-        <h2 className="text-lg font-semibold mb-2">ข้อมูลกะการทำงาน</h2>
-        <p>
-          <span className="font-medium">{shift.name}</span> (
-          {formatTime(shift.startTime)} - {formatTime(shift.endTime)})
-        </p>
-      </div>
-
-      <Formik
-        initialValues={{
-          date: '',
-          overtimeType: '',
-          startTime: '',
-          endTime: '',
-          reason: '',
-        }}
-        validationSchema={OvertimeRequestSchema}
-        onSubmit={handleSubmit}
-      >
-        {({ isSubmitting, values }) => (
+      {step === 1 && (
+        <Formik
+          initialValues={{ date: '' }}
+          validationSchema={DateSchema}
+          onSubmit={handleDateSubmit}
+        >
           <Form className="space-y-4">
             <div>
               <label
@@ -139,38 +107,74 @@ const OvertimeRequestForm: React.FC = () => {
                 className="text-red-500 text-sm"
               />
             </div>
+            <button
+              type="submit"
+              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              ถัดไป
+            </button>
+          </Form>
+        </Formik>
+      )}
+
+      {step === 2 && shiftInfo && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold">ข้อมูลพนักงานและกะการทำงาน</h2>
+          <p>
+            ชื่อ (ชื่อเล่น): {shiftInfo.name} ({shiftInfo.nickname})
+          </p>
+          <p>รหัสพนักงาน: {shiftInfo.employeeId}</p>
+          <p>แผนก: {shiftInfo.department}</p>
+          <p>
+            กะการทำงาน: {shiftInfo.shift.name} (
+            {formatTime(shiftInfo.shift.startTime)} -{' '}
+            {formatTime(shiftInfo.shift.endTime)})
+          </p>
+          <button
+            onClick={() => setStep(3)}
+            className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            ยืนยันและดำเนินการต่อ
+          </button>
+        </div>
+      )}
+
+      {step === 3 && (
+        <Formik
+          initialValues={{
+            overtimeType: '',
+            startTime: '',
+            endTime: '',
+            reason: '',
+          }}
+          validationSchema={OvertimeSchema}
+          onSubmit={handleOvertimeSubmit}
+        >
+          <Form className="space-y-4">
             <div>
-              <fieldset>
-                <legend className="block text-sm font-medium text-gray-700">
-                  ประเภทการทำงานล่วงเวลา
-                </legend>
-                <div className="mt-2 space-x-4">
-                  <div className="inline-flex items-center">
-                    <Field
-                      type="radio"
-                      id="overtimeType-beforeShift"
-                      name="overtimeType"
-                      value="beforeShift"
-                      className="form-radio"
-                    />
-                    <label htmlFor="overtimeType-beforeShift" className="ml-2">
-                      ก่อนกะ
-                    </label>
-                  </div>
-                  <div className="inline-flex items-center">
-                    <Field
-                      type="radio"
-                      id="overtimeType-afterShift"
-                      name="overtimeType"
-                      value="afterShift"
-                      className="form-radio"
-                    />
-                    <label htmlFor="overtimeType-afterShift" className="ml-2">
-                      หลังกะ
-                    </label>
-                  </div>
-                </div>
-              </fieldset>
+              <label className="block text-sm font-medium text-gray-700">
+                ประเภทการทำงานล่วงเวลา
+              </label>
+              <div className="mt-2 space-x-4">
+                <label className="inline-flex items-center">
+                  <Field
+                    type="radio"
+                    name="overtimeType"
+                    value="beforeShift"
+                    className="form-radio"
+                  />
+                  <span className="ml-2">ก่อนกะ</span>
+                </label>
+                <label className="inline-flex items-center">
+                  <Field
+                    type="radio"
+                    name="overtimeType"
+                    value="afterShift"
+                    className="form-radio"
+                  />
+                  <span className="ml-2">หลังกะ</span>
+                </label>
+              </div>
               <ErrorMessage
                 name="overtimeType"
                 component="div"
@@ -215,14 +219,6 @@ const OvertimeRequestForm: React.FC = () => {
                 className="text-red-500 text-sm"
               />
             </div>
-            {values.startTime && values.endTime && (
-              <div>
-                <p>
-                  จำนวนชั่วโมงทำงานล่วงเวลา:{' '}
-                  {calculateHours(values.startTime, values.endTime)} ชั่วโมง
-                </p>
-              </div>
-            )}
             <div>
               <label
                 htmlFor="reason"
@@ -244,14 +240,13 @@ const OvertimeRequestForm: React.FC = () => {
             </div>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
+              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               ส่งคำขอทำงานล่วงเวลา
             </button>
           </Form>
-        )}
-      </Formik>
+        </Formik>
+      )}
 
       {message && (
         <p className="mt-4 text-sm text-center text-gray-600">{message}</p>
