@@ -182,29 +182,51 @@ export class ShiftManagementService {
   async createDepartmentIfNotExists(departmentName: string): Promise<string> {
     console.log(`Checking if department exists: ${departmentName}`);
 
-    let department = await prisma.department.findFirst({
-      where: {
-        name: {
-          equals: departmentName,
-          mode: 'insensitive',
-        },
-      },
-    });
-
-    if (!department) {
-      console.log(`Department not found, creating: ${departmentName}`);
-      department = await prisma.department.create({
-        data: {
-          name: departmentName,
-          // Add any other necessary fields here
+    // Use a transaction to ensure atomicity
+    return await prisma.$transaction(async (tx) => {
+      let department = await tx.department.findFirst({
+        where: {
+          name: {
+            equals: departmentName,
+            mode: 'insensitive',
+          },
         },
       });
-      console.log(`Created new department with ID: ${department.id}`);
-    } else {
-      console.log(`Found existing department with ID: ${department.id}`);
-    }
 
-    return department.id;
+      if (!department) {
+        console.log(`Department not found, creating: ${departmentName}`);
+        try {
+          department = await tx.department.create({
+            data: {
+              name: departmentName,
+              // Add any other necessary fields here
+            },
+          });
+          console.log(`Created new department with ID: ${department.id}`);
+        } catch (error: any) {
+          // Check if the error is due to a unique constraint violation
+          if (error.code === 'P2002') {
+            console.log(
+              `Department was created concurrently, fetching existing one`,
+            );
+            department = await tx.department.findFirst({
+              where: {
+                name: {
+                  equals: departmentName,
+                  mode: 'insensitive',
+                },
+              },
+            });
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        console.log(`Found existing department with ID: ${department.id}`);
+      }
+
+      return department.id;
+    });
   }
 
   async getDepartmentId(departmentName: string): Promise<string | null> {
