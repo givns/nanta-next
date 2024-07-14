@@ -62,11 +62,9 @@ export default async function handler(
 
         case 'adjustment': {
           if ((!userId && !lineUserId) || !date) {
-            res
-              .status(400)
-              .json({
-                message: 'User ID or LINE User ID, and date are required',
-              });
+            res.status(400).json({
+              message: 'User ID or LINE User ID, and date are required',
+            });
             return;
           }
           let adjustmentUser;
