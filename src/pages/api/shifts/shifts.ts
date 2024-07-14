@@ -11,12 +11,13 @@ export default async function handler(
 
     try {
       switch (action) {
-        case 'all':
+        case 'all': {
           const shifts = await prisma.shift.findMany();
           res.status(200).json(shifts);
           break;
+        }
 
-        case 'single':
+        case 'single': {
           if (!shiftId) {
             res.status(400).json({ message: 'Shift ID is required' });
             return;
@@ -30,8 +31,9 @@ export default async function handler(
           }
           res.status(200).json(shift);
           break;
+        }
 
-        case 'user':
+        case 'user': {
           if (!userId && !lineUserId) {
             res
               .status(400)
@@ -56,8 +58,9 @@ export default async function handler(
           }
           res.status(200).json(user.assignedShift);
           break;
+        }
 
-        case 'adjustment':
+        case 'adjustment': {
           if ((!userId && !lineUserId) || !date) {
             res
               .status(400)
@@ -90,9 +93,11 @@ export default async function handler(
           });
           res.status(200).json(adjustment ? adjustment.requestedShift : null);
           break;
+        }
 
-        default:
+        default: {
           res.status(400).json({ message: 'Invalid action' });
+        }
       }
     } catch (error) {
       console.error('Error processing shift request:', error);
