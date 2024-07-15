@@ -1,16 +1,12 @@
 // services/ShiftManagementService.ts
 
-import {
-  PrismaClient,
-  Shift,
-  ShiftAdjustmentRequest,
-  User,
-} from '@prisma/client';
+import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
 import { NotificationService } from './NotificationService';
 import {
   getDepartmentByNameFuzzy,
   getDefaultShift,
   DepartmentId,
+  getShiftByDepartmentId as getShiftByDepartmentIdFromCache,
 } from '../lib/shiftCache';
 
 const prisma = new PrismaClient();
@@ -176,7 +172,10 @@ export class ShiftManagementService {
   async getShiftByDepartmentId(
     departmentId: DepartmentId,
   ): Promise<Shift | null> {
-    return getDefaultShift(departmentId.toString());
+    console.log(
+      `ShiftManagementService: Getting shift for department ID: ${departmentId}`,
+    );
+    return getShiftByDepartmentIdFromCache(departmentId);
   }
 
   async createDepartmentIfNotExists(departmentName: string): Promise<string> {

@@ -3,7 +3,11 @@
 import prisma from './prisma';
 import { Client } from '@line/bot-sdk';
 import { ExternalDbService } from '../services/ExternalDbService';
-import { getDepartmentByNameFuzzy, refreshShiftCache } from './shiftCache';
+import {
+  getDepartmentByNameFuzzy,
+  refreshShiftCache,
+  DepartmentId,
+} from './shiftCache';
 import { ShiftManagementService } from '../services/ShiftManagementService';
 import { ExternalCheckInData } from '../types/user';
 import { determineRole, determineRichMenuId } from '../utils/userUtils';
@@ -48,16 +52,28 @@ export async function processRegistration(
 
     let shift = null;
     if (externalData?.userInfo?.user_dep) {
-      console.log(
-        `Attempting to get shift for department ID: ${externalData.userInfo.user_dep}`,
-      );
-      shift = await shiftManagementService.getShiftByDepartmentId(
-        externalData.userInfo.user_dep,
-      );
-      console.log(
-        `Shift from department ID: ${JSON.stringify(shift, null, 2)}`,
-      );
+      const departmentId = externalData.userInfo.user_dep;
+      if (isDepartmentId(departmentId)) {
+        console.log(
+          `Attempting to get shift for department ID: ${departmentId}`,
+        );
+        shift =
+          await shiftManagementService.getShiftByDepartmentId(departmentId);
+        console.log(
+          `Shift from department ID: ${JSON.stringify(shift, null, 2)}`,
+        );
+      } else {
+        console.warn(`Invalid department ID: ${departmentId}`);
+      }
     }
+
+    function isDepartmentId(id: number): id is DepartmentId {
+      return [
+        10012, 10038, 10030, 10031, 10032, 10049, 10053, 10022, 10010, 10011,
+        10037, 10013, 10016, 10020,
+      ].includes(id);
+    }
+
     if (!shift) {
       console.log(
         `No shift found by department ID, trying to get default shift for: ${department}`,
@@ -65,6 +81,7 @@ export async function processRegistration(
       shift = await shiftManagementService.getDefaultShift(department);
       console.log(`Default shift: ${JSON.stringify(shift, null, 2)}`);
     }
+
     if (!shift) {
       throw new Error(`No shift found for department: ${department}`);
     }
