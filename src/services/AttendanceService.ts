@@ -16,7 +16,6 @@ import { UserRole } from '@/types/enum';
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
 const notificationService = new NotificationService();
-const profilePictureExternalBaseURL = 'https://profile-pictures/';
 
 export class AttendanceService {
   private externalDbService: ExternalDbService;

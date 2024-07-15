@@ -1,11 +1,6 @@
 // requestHandlers.ts
 
-import {
-  PrismaClient,
-  LeaveRequest,
-  OvertimeRequest,
-  User,
-} from '@prisma/client';
+import { PrismaClient, LeaveRequest, OvertimeRequest } from '@prisma/client';
 import { Client } from '@line/bot-sdk';
 import {
   sendApproveNotification,
