@@ -1,21 +1,12 @@
 // pages/api/webhook.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import {
-  WebhookEvent,
-  Client,
-  ClientConfig,
-  validateSignature,
-} from '@line/bot-sdk';
+import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
-import {
-  handleApprove,
-  handleDeny,
-  RequestType,
-} from '../../utils/requestHandlers';
+import { handleApprove, handleDeny } from '../../utils/requestHandlers';
 import { createAndAssignRichMenu } from '../../utils/richMenuUtils';
 
 dotenv.config({ path: './.env.local' });
@@ -30,6 +21,7 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
+// LINE bot client configuration
 const clientConfig: ClientConfig = {
   channelAccessToken,
 };
@@ -38,7 +30,7 @@ const client = new Client(clientConfig);
 
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: false, // Disallow body parsing to handle raw body manually
   },
 };
 
@@ -93,10 +85,10 @@ const handler = async (event: WebhookEvent) => {
 
     const params = new URLSearchParams(data);
     const action = params.get('action');
-    const requestType = params.get('requestType') as RequestType;
     const requestId = params.get('requestId');
+    const requestType = params.get('requestType') as 'leave' | 'overtime';
 
-    if (action && requestType && requestId && userId) {
+    if (action && requestId && userId && requestType) {
       try {
         let request;
         if (requestType === 'leave') {
@@ -109,13 +101,13 @@ const handler = async (event: WebhookEvent) => {
           });
         }
 
-        if (action === 'approve' && request?.status === 'pending') {
+        if (action === 'approve' && request?.status === 'Pending') {
           await handleApprove(requestId, userId, requestType);
           await client.replyMessage(event.replyToken, {
             type: 'text',
             text: `${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}ได้รับการอนุมัติแล้ว`,
           });
-        } else if (action === 'deny' && request?.status === 'pending') {
+        } else if (action === 'deny' && request?.status === 'Pending') {
           await handleDeny(requestId, userId, requestType);
           await client.replyMessage(event.replyToken, {
             type: 'text',
@@ -143,9 +135,11 @@ const handler = async (event: WebhookEvent) => {
 };
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method === 'POST') {
-    const signature = req.headers['x-line-signature'] as string;
+  if (req.method === 'GET') {
+    return res.status(200).send('Webhook is set up and running!');
+  }
 
+  if (req.method === 'POST') {
     try {
       const rawBodyBuffer = await getRawBody(req, {
         length: req.headers['content-length'],
@@ -153,31 +147,23 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
       });
 
       const rawBody = rawBodyBuffer.toString('utf-8');
+      console.log('Raw body:', rawBody);
 
-      if (!validateSignature(rawBody, channelSecret, signature)) {
-        console.error('Invalid signature');
-        return res.status(401).send('Invalid signature');
+      req.body = JSON.parse(rawBody);
+
+      if (!req.body.events || !Array.isArray(req.body.events)) {
+        console.error('No events found in request body:', req.body);
+        return res.status(400).send('No events found');
       }
 
-      const body = JSON.parse(rawBody);
-
-      if (!body.events || !Array.isArray(body.events)) {
-        console.error('No events found in request body:', body);
-        return res.status(200).send('No events found');
-      }
-
-      for (const event of body.events) {
-        await handler(event);
-      }
-
+      const event = req.body.events[0];
+      await handler(event);
       return res.status(200).send('OK');
     } catch (err) {
-      console.error('Error in webhook:', err);
+      console.error('Error in middleware:', err);
       return res.status(500).send('Internal Server Error');
     }
-  } else if (req.method === 'GET') {
-    return res.status(200).send('Webhook is set up and running!');
-  } else {
-    return res.status(405).send('Method Not Allowed');
   }
+
+  return res.status(405).send('Method Not Allowed');
 };

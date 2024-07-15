@@ -24,7 +24,7 @@ const getRequestModel = (type: RequestType): RequestModel => {
 export const handleApprove = async (
   requestId: string,
   lineUserId: string,
-  requestType: RequestType,
+  requestType: 'leave' | 'overtime',
 ) => {
   try {
     const model = getRequestModel(requestType);
@@ -67,7 +67,7 @@ export const handleApprove = async (
 export const handleDeny = async (
   requestId: string,
   lineUserId: string,
-  requestType: RequestType,
+  requestType: 'leave' | 'overtime',
 ) => {
   try {
     const model = getRequestModel(requestType);
