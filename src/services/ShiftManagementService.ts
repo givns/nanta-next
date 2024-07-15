@@ -182,7 +182,6 @@ export class ShiftManagementService {
   async createDepartmentIfNotExists(departmentName: string): Promise<string> {
     console.log(`Checking if department exists: ${departmentName}`);
 
-    // Use a transaction to ensure atomicity
     return await prisma.$transaction(async (tx) => {
       let department = await tx.department.findFirst({
         where: {
@@ -204,7 +203,6 @@ export class ShiftManagementService {
           });
           console.log(`Created new department with ID: ${department.id}`);
         } catch (error: any) {
-          // Check if the error is due to a unique constraint violation
           if (error.code === 'P2002') {
             console.log(
               `Department was created concurrently, fetching existing one`,
@@ -223,6 +221,13 @@ export class ShiftManagementService {
         }
       } else {
         console.log(`Found existing department with ID: ${department.id}`);
+      }
+
+      // Add this null check
+      if (!department) {
+        throw new Error(
+          `Failed to create or find department: ${departmentName}`,
+        );
       }
 
       return department.id;
