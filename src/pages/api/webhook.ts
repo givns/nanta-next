@@ -1,7 +1,12 @@
 // pages/api/webhook.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
+import {
+  WebhookEvent,
+  Client,
+  ClientConfig,
+  validateSignature,
+} from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
@@ -34,7 +39,7 @@ export const config = {
   },
 };
 
-const handler = async (event: WebhookEvent) => {
+const handleEvent = async (event: WebhookEvent) => {
   if (!event) {
     console.error('Event is undefined');
     return;
@@ -135,35 +140,35 @@ const handler = async (event: WebhookEvent) => {
 };
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method === 'GET') {
-    return res.status(200).send('Webhook is set up and running!');
-  }
-
   if (req.method === 'POST') {
+    const signature = req.headers['x-line-signature'] as string;
+
     try {
-      const rawBodyBuffer = await getRawBody(req, {
-        length: req.headers['content-length'],
-        limit: '1mb',
-      });
-
+      const rawBodyBuffer = await getRawBody(req);
       const rawBody = rawBodyBuffer.toString('utf-8');
-      console.log('Raw body:', rawBody);
 
-      req.body = JSON.parse(rawBody);
-
-      if (!req.body.events || !Array.isArray(req.body.events)) {
-        console.error('No events found in request body:', req.body);
-        return res.status(400).send('No events found');
+      if (!validateSignature(rawBody, channelSecret, signature)) {
+        console.error('Invalid signature');
+        return res.status(401).send('Invalid signature');
       }
 
-      const event = req.body.events[0];
-      await handler(event);
+      const body = JSON.parse(rawBody);
+
+      if (!body.events || !Array.isArray(body.events)) {
+        console.log('No events found in request body');
+        return res.status(200).send('OK');
+      }
+
+      await Promise.all(body.events.map(handleEvent));
+
       return res.status(200).send('OK');
     } catch (err) {
-      console.error('Error in middleware:', err);
-      return res.status(500).send('Internal Server Error');
+      console.error('Error in webhook:', err);
+      return res.status(200).send('OK');
     }
+  } else if (req.method === 'GET') {
+    return res.status(200).send('Webhook is set up and running!');
+  } else {
+    return res.status(405).send('Method Not Allowed');
   }
-
-  return res.status(405).send('Method Not Allowed');
 };
