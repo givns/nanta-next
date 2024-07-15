@@ -1,11 +1,10 @@
-// pages/api/webhook.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import {
   WebhookEvent,
   Client,
   ClientConfig,
   validateSignature,
+  middleware,
 } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
@@ -26,26 +25,21 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
-// LINE bot client configuration
 const clientConfig: ClientConfig = {
   channelAccessToken,
+  channelSecret,
 };
 
 const client = new Client(clientConfig);
 
 export const config = {
   api: {
-    bodyParser: false, // Disallow body parsing to handle raw body manually
+    bodyParser: false,
   },
 };
 
-const handleEvent = async (event: WebhookEvent) => {
-  if (!event) {
-    console.error('Event is undefined');
-    return;
-  }
-
-  console.log('Event received:', event);
+const handler = async (event: WebhookEvent) => {
+  console.log('Event received:', JSON.stringify(event));
 
   if (event.type === 'follow') {
     const userId = event.source.userId;
@@ -139,50 +133,34 @@ const handleEvent = async (event: WebhookEvent) => {
   }
 };
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  console.log('Webhook called with method:', req.method);
-
+export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'POST') {
     const signature = req.headers['x-line-signature'] as string;
-    console.log('Received signature:', signature);
 
     try {
-      const rawBody = await getRawBody(req);
+      const rawBody = await getRawBody(req, {
+        length: req.headers['content-length'],
+        limit: '1mb',
+      });
+
       const strBody = rawBody.toString();
-      console.log('Received body:', strBody);
 
-      const isValid = validateSignature(strBody, channelSecret, signature);
-      console.log('Signature validation result:', isValid);
-
-      if (!isValid) {
+      if (!validateSignature(strBody, channelSecret, signature)) {
         console.error('Invalid signature');
-        // Log the first few characters of the channel secret for debugging
-        // (remove this in production)
-        console.log(
-          'Channel Secret (first 4 chars):',
-          channelSecret.substring(0, 4),
-        );
-        return res.status(200).end();
+        return res.status(401).json({ error: 'Invalid signature' });
       }
 
-      console.log('Signature validated successfully');
+      const events: WebhookEvent[] = JSON.parse(strBody).events;
 
-      const body = JSON.parse(strBody);
-      if (body.events && Array.isArray(body.events)) {
-        await Promise.all(body.events.map(handleEvent));
-      } else {
-        console.log('No events in the request body');
-      }
+      await Promise.all(events.map(handler));
+
+      res.status(200).end();
     } catch (err) {
-      console.error('Error processing webhook:', err);
+      console.error('Error in webhook:', err);
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    return res.status(200).end();
+  } else {
+    res.setHeader('Allow', ['POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
-
-  res.setHeader('Allow', ['POST']);
-  res.status(405).end(`Method ${req.method} Not Allowed`);
-}
+};
