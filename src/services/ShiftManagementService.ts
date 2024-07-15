@@ -194,66 +194,23 @@ export class ShiftManagementService {
 
       if (!department) {
         console.log(`Department not found, creating: ${departmentName}`);
-        try {
-          department = await tx.department.create({
-            data: {
-              name: departmentName,
-              // Add any other necessary fields here
-            },
-          });
-          console.log(`Created new department with ID: ${department.id}`);
-        } catch (error: any) {
-          if (error.code === 'P2002') {
-            console.log(
-              `Department was created concurrently, fetching existing one`,
-            );
-            department = await tx.department.findFirst({
-              where: {
-                name: {
-                  equals: departmentName,
-                  mode: 'insensitive',
-                },
-              },
-            });
-          } else {
-            throw error;
-          }
-        }
+        department = await tx.department.create({
+          data: {
+            name: departmentName,
+          },
+        });
+        console.log(`Created new department with ID: ${department.id}`);
       } else {
         console.log(`Found existing department with ID: ${department.id}`);
-      }
-
-      // Add this null check
-      if (!department) {
-        throw new Error(
-          `Failed to create or find department: ${departmentName}`,
-        );
       }
 
       return department.id;
     });
   }
 
-  async getDepartmentId(departmentName: string): Promise<string | null> {
-    console.log(`Attempting to get department ID for: ${departmentName}`);
-    const department = await prisma.department.findFirst({
-      where: { name: { equals: departmentName, mode: 'insensitive' } },
-    });
-    if (department) {
-      console.log(`Found department ID: ${department.id}`);
-      return department.id;
-    } else {
-      console.log(
-        `Department not found, attempting to create: ${departmentName}`,
-      );
-      const newDepartment = await prisma.department.create({
-        data: {
-          name: departmentName,
-          daysOff: { create: [] },
-        },
-      });
-      console.log(`Created new department with ID: ${newDepartment.id}`);
-      return newDepartment.id;
-    }
+  async getDepartmentId(departmentName: string): Promise<string> {
+    console.log(`Getting department ID for: ${departmentName}`);
+    const departmentId = await this.createDepartmentIfNotExists(departmentName);
+    return departmentId;
   }
 }
