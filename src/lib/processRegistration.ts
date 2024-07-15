@@ -77,12 +77,8 @@ export async function processRegistration(
         `No matching department found: ${externalData?.userInfo?.user_depname || department}`,
       );
     }
-    await shiftManagementService.createDepartmentIfNotExists(matchedDepartment);
     const departmentId =
       await shiftManagementService.getDepartmentId(matchedDepartment);
-    if (!departmentId) {
-      throw new Error(`Failed to get department ID for: ${matchedDepartment}`);
-    }
 
     const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
