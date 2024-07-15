@@ -49,7 +49,7 @@ export default async function handler(
     }
 
     // Ensure startTime and endTime are in HH:MM format
-    const formatTime = (time: string) => {
+    const formatTimeToHHMM = (time: string) => {
       const [hours, minutes] = time.split(':');
       return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
     };
@@ -61,8 +61,8 @@ export default async function handler(
       department: user.department.name,
       shift: {
         name: effectiveShift.name,
-        startTime: formatTime(effectiveShift.startTime),
-        endTime: formatTime(effectiveShift.endTime),
+        startTime: formatTimeToHHMM(effectiveShift.startTime),
+        endTime: formatTimeToHHMM(effectiveShift.endTime),
       },
     });
   } catch (error) {
