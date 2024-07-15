@@ -4,7 +4,11 @@ import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
-import { handleApprove, handleDeny } from '../../utils/requestHandlers';
+import {
+  RequestType,
+  handleApprove,
+  handleDeny,
+} from '../../utils/requestHandlers';
 
 dotenv.config({ path: './.env.local' });
 
@@ -30,9 +34,6 @@ export const config = {
     bodyParser: false, // Disallow body parsing to handle raw body manually
   },
 };
-
-// Define the RequestType type
-type RequestType = 'leave' | 'overtime';
 
 const handler = async (event: WebhookEvent) => {
   if (!event) {

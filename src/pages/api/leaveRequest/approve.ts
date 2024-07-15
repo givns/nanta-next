@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { finalizeDenial } from '../../../utils/requestHandlers';
-import { RequestType } from '../../../utils/requestHandlers';
+import { finalizeDenial, RequestType } from '../../../utils/requestHandlers';
 import { sendDenyNotification } from '../../../utils/sendNotifications';
 
 const prisma = new PrismaClient();

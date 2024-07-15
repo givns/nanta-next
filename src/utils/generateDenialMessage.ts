@@ -1,4 +1,4 @@
-import { FlexMessage, FlexComponent, FlexBox, FlexText } from '@line/bot-sdk';
+import { FlexMessage, FlexComponent, FlexText } from '@line/bot-sdk';
 import { User, LeaveRequest, OvertimeRequest } from '@prisma/client';
 
 export const generateDenialMessage = (

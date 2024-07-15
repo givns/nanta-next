@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { finalizeDenial } from '../../../utils/requestHandlers';
-import { RequestType } from '../../../utils/requestHandlers';
+import { finalizeDenial, RequestType } from '../../../utils/requestHandlers';
 
 export default async function handler(
   req: NextApiRequest,
