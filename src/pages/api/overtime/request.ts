@@ -40,13 +40,11 @@ export default async function handler(
     });
 
     res.status(201).json(overtimeRequest);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating overtime request:', error);
-    res
-      .status(500)
-      .json({
-        message: 'Error creating overtime request',
-        error: error.message,
-      });
+    res.status(500).json({
+      message: 'Error creating overtime request',
+      error: error.message,
+    });
   }
 }
