@@ -33,8 +33,23 @@ export const config = {
 };
 
 const handler = async (event: WebhookEvent) => {
-  console.log('Event received:', JSON.stringify(event));
+  console.log('Handler received event:', JSON.stringify(event, null, 2));
+  if (!event) {
+    console.error('Event is undefined');
+    return;
+  }
 
+  if (typeof event !== 'object') {
+    console.error('Event is not an object:', event);
+    return;
+  }
+
+  if (!('type' in event)) {
+    console.error('Event does not have a type property:', event);
+    return;
+  }
+
+  console.log('Event type:', event.type);
   if (event.type === 'follow') {
     const userId = event.source.userId;
     console.log('Follow event for user ID:', userId);
@@ -142,14 +157,22 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
       const rawBody = rawBodyBuffer.toString('utf-8');
       console.log('Raw body:', rawBody);
 
-      req.body = JSON.parse(rawBody);
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch (parseError) {
+        console.error('Error parsing raw body:', parseError);
+        return res.status(400).send('Invalid JSON');
+      }
 
-      if (!req.body.events || !Array.isArray(req.body.events)) {
-        console.error('No events found in request body:', req.body);
+      console.log('Parsed body:', JSON.stringify(parsedBody, null, 2));
+
+      if (!parsedBody.events || !Array.isArray(parsedBody.events)) {
+        console.error('No events found in request body:', parsedBody);
         return res.status(400).send('No events found');
       }
 
-      const event = req.body.events[0];
+      const event = parsedBody.events[0];
       await handler(event);
       return res.status(200).send('OK');
     } catch (err) {
