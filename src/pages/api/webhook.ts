@@ -163,11 +163,13 @@ const createAndAssignRichMenu = async (
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
+    console.log('Received GET request');
     return res.status(200).send('Webhook is set up and running!');
   }
 
   if (req.method === 'POST') {
     try {
+      console.log('Received POST request');
       const rawBodyBuffer = await getRawBody(req, {
         length: req.headers['content-length'],
         limit: '1mb',
@@ -192,5 +194,6 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
-  return res.status(405).send('Method Not Allowed');
+  console.error(`Method ${req.method} not allowed`);
+  return res.status(405).send(`Method ${req.method} Not Allowed`);
 };
