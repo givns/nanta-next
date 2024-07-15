@@ -5,6 +5,7 @@ import {
   ClientConfig,
   validateSignature,
 } from '@line/bot-sdk';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
@@ -126,6 +127,14 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
+// Function to calculate signature for debugging
+const calculateSignature = (body: string, channelSecret: string): string => {
+  return crypto
+    .createHmac('SHA256', channelSecret)
+    .update(body)
+    .digest('base64');
+};
+
 export default async function webhookHandler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -139,8 +148,18 @@ export default async function webhookHandler(
 
       console.log('Received signature:', signature);
       console.log('Received body:', bodyStr);
+      console.log(
+        'Channel Secret (first 4 chars):',
+        channelSecret.substring(0, 4),
+      );
 
-      if (!validateSignature(bodyStr, channelSecret, signature)) {
+      const calculatedSignature = calculateSignature(bodyStr, channelSecret);
+      console.log('Calculated signature:', calculatedSignature);
+
+      const isValid = validateSignature(bodyStr, channelSecret, signature);
+      console.log('Signature validation result:', isValid);
+
+      if (!isValid) {
         console.error('Invalid signature');
         return res.status(401).json({ error: 'Invalid signature' });
       }
