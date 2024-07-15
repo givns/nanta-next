@@ -130,13 +130,19 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
+type MiddlewareFunction = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  next: (result: unknown) => void,
+) => void;
+
 const runMiddleware = (
   req: NextApiRequest,
   res: NextApiResponse,
-  fn: Function,
+  fn: MiddlewareFunction,
 ) => {
   return new Promise((resolve, reject) => {
-    fn(req, res, (result: any) => {
+    fn(req, res, (result: unknown) => {
       if (result instanceof Error) {
         return reject(result);
       }
