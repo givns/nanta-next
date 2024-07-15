@@ -10199,3 +10199,39 @@
 2024-07-15 13:33:37 +07:00:   code: 'ECONNRESET',
 2024-07-15 13:33:37 +07:00:   syscall: 'read'
 2024-07-15 13:33:37 +07:00: }
+2024-07-15 14:38:01 +07:00: Queue error: Error: read ECONNRESET
+2024-07-15 14:38:01 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-15 14:38:01 +07:00:   errno: -54,
+2024-07-15 14:38:01 +07:00:   code: 'ECONNRESET',
+2024-07-15 14:38:01 +07:00:   syscall: 'read'
+2024-07-15 14:38:01 +07:00: }
+2024-07-15 14:38:01 +07:00: Queue error: Error: read ECONNRESET
+2024-07-15 14:38:01 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-15 14:38:01 +07:00:   errno: -54,
+2024-07-15 14:38:01 +07:00:   code: 'ECONNRESET',
+2024-07-15 14:38:01 +07:00:   syscall: 'read'
+2024-07-15 14:38:01 +07:00: }
+2024-07-15 14:55:38 +07:00: Queue error: Error: read ECONNRESET
+2024-07-15 14:55:38 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-15 14:55:38 +07:00:   errno: -54,
+2024-07-15 14:55:38 +07:00:   code: 'ECONNRESET',
+2024-07-15 14:55:38 +07:00:   syscall: 'read'
+2024-07-15 14:55:38 +07:00: }
+2024-07-15 14:55:38 +07:00: Queue error: Error: read ECONNRESET
+2024-07-15 14:55:38 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-15 14:55:38 +07:00:   errno: -54,
+2024-07-15 14:55:38 +07:00:   code: 'ECONNRESET',
+2024-07-15 14:55:38 +07:00:   syscall: 'read'
+2024-07-15 14:55:38 +07:00: }
+2024-07-15 15:08:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-15 15:08:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-15 15:08:41 +07:00:   errno: -54,
+2024-07-15 15:08:41 +07:00:   code: 'ECONNRESET',
+2024-07-15 15:08:41 +07:00:   syscall: 'read'
+2024-07-15 15:08:41 +07:00: }
+2024-07-15 15:08:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-15 15:08:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-15 15:08:41 +07:00:   errno: -54,
+2024-07-15 15:08:41 +07:00:   code: 'ECONNRESET',
+2024-07-15 15:08:41 +07:00:   syscall: 'read'
+2024-07-15 15:08:41 +07:00: }
