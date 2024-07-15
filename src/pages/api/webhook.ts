@@ -1,11 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import {
-  WebhookEvent,
-  Client,
-  ClientConfig,
-  validateSignature,
-} from '@line/bot-sdk';
-import crypto from 'crypto';
+import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
@@ -25,12 +19,18 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
+// LINE bot client configuration
 const clientConfig: ClientConfig = {
   channelAccessToken,
-  channelSecret,
 };
 
 const client = new Client(clientConfig);
+
+export const config = {
+  api: {
+    bodyParser: false, // Disallow body parsing to handle raw body manually
+  },
+};
 
 const handler = async (event: WebhookEvent) => {
   console.log('Event received:', JSON.stringify(event));
@@ -127,68 +127,36 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
-const calculateSignature = (body: string, channelSecret: string): string => {
-  return crypto
-    .createHmac('SHA256', channelSecret)
-    .update(Buffer.from(body))
-    .digest('base64');
-};
+export default async (req: NextApiRequest, res: NextApiResponse) => {
+  if (req.method === 'GET') {
+    return res.status(200).send('Webhook is set up and running!');
+  }
 
-export default async function webhookHandler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
   if (req.method === 'POST') {
-    const signature = req.headers['x-line-signature'] as string;
-    console.log('Received signature:', signature);
-    console.log(
-      'Channel Secret (first 4 chars):',
-      channelSecret.substring(0, 4),
-    );
-    console.log('Request headers:', JSON.stringify(req.headers, null, 2));
-    console.log('Request method:', req.method);
-    console.log('Request URL:', req.url);
-
     try {
-      const rawBody = await getRawBody(req, {
+      const rawBodyBuffer = await getRawBody(req, {
         length: req.headers['content-length'],
         limit: '1mb',
-        encoding: true, // This will return a string instead of a Buffer
       });
-      console.log('Received body:', rawBody);
 
-      const calculatedSignature = calculateSignature(rawBody, channelSecret);
-      console.log('Calculated signature:', calculatedSignature);
+      const rawBody = rawBodyBuffer.toString('utf-8');
+      console.log('Raw body:', rawBody);
 
-      const isValidSignature = validateSignature(
-        rawBody,
-        channelSecret,
-        signature,
-      );
-      console.log('Is valid signature:', isValidSignature);
+      req.body = JSON.parse(rawBody);
 
-      // Temporarily bypass signature validation
-      // if (!isValidSignature) {
-      //   console.error('Invalid signature');
-      //   return res.status(401).json({ error: 'Invalid signature' });
-      // }
+      if (!req.body.events || !Array.isArray(req.body.events)) {
+        console.error('No events found in request body:', req.body);
+        return res.status(400).send('No events found');
+      }
 
-      const events: WebhookEvent[] = JSON.parse(rawBody).events;
-      await Promise.all(events.map(handler));
-
-      res.status(200).end();
+      const event = req.body.events[0];
+      await handler(event);
+      return res.status(200).send('OK');
     } catch (err) {
-      console.error('Error in webhook:', err);
-      res.status(500).json({ error: 'Internal server error' });
+      console.error('Error in middleware:', err);
+      return res.status(500).send('Internal Server Error');
     }
-  } else {
-    res.setHeader('Allow', ['POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
-}
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
+  return res.status(405).send('Method Not Allowed');
 };
