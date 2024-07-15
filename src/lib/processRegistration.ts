@@ -20,6 +20,13 @@ const client = new Client({
 const externalDbService = new ExternalDbService();
 const shiftManagementService = new ShiftManagementService();
 
+function isDepartmentId(id: number): id is DepartmentId {
+  return [
+    10012, 10038, 10030, 10031, 10032, 10049, 10053, 10022, 10010, 10011, 10037,
+    10013, 10016, 10020,
+  ].includes(id);
+}
+
 export async function processRegistration(
   job: Job,
 ): Promise<{ success: boolean; userId: string }> {
@@ -65,13 +72,6 @@ export async function processRegistration(
       } else {
         console.warn(`Invalid department ID: ${departmentId}`);
       }
-    }
-
-    function isDepartmentId(id: number): id is DepartmentId {
-      return [
-        10012, 10038, 10030, 10031, 10032, 10049, 10053, 10022, 10010, 10011,
-        10037, 10013, 10016, 10020,
-      ].includes(id);
     }
 
     if (!shift) {
