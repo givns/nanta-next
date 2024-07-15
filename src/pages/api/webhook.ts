@@ -3,7 +3,8 @@ import {
   WebhookEvent,
   Client,
   ClientConfig,
-  validateSignature,
+  middleware,
+  MiddlewareConfig,
 } from '@line/bot-sdk';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
@@ -27,6 +28,10 @@ if (!channelSecret || !channelAccessToken) {
 
 const clientConfig: ClientConfig = {
   channelAccessToken,
+  channelSecret,
+};
+
+const middlewareConfig: MiddlewareConfig = {
   channelSecret,
 };
 
@@ -138,49 +143,26 @@ function validateSignatureManually(
     .digest('base64');
   return hash === signature;
 }
+const runMiddleware = (req: NextApiRequest, res: NextApiResponse, fn: any) => {
+  return new Promise((resolve, reject) => {
+    fn(req, res, (result: any) => {
+      if (result instanceof Error) {
+        return reject(result);
+      }
+      return resolve(result);
+    });
+  });
+};
 
 export default async function webhookHandler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    const signature = req.headers['x-line-signature'] as string;
-
     try {
-      // For Vercel, we need to parse the body ourselves
-      const body = await new Promise<string>((resolve) => {
-        let data = '';
-        req.on('data', (chunk) => {
-          data += chunk;
-        });
-        req.on('end', () => {
-          resolve(data);
-        });
-      });
+      await runMiddleware(req, res, middleware(middlewareConfig));
 
-      console.log('Received signature:', signature);
-      console.log('Received body:', body);
-      console.log(
-        'Channel Secret (first 4 chars):',
-        channelSecret.substring(0, 4),
-      );
-
-      const sdkValidation = validateSignature(body, channelSecret, signature);
-      const manualValidation = validateSignatureManually(
-        body,
-        channelSecret,
-        signature,
-      );
-
-      console.log('SDK Signature validation result:', sdkValidation);
-      console.log('Manual Signature validation result:', manualValidation);
-
-      //if (!sdkValidation && !manualValidation) {
-      //  console.error('Invalid signature');
-      //  return res.status(401).json({ error: 'Invalid signature' });
-      //}
-
-      const events: WebhookEvent[] = JSON.parse(body).events;
+      const events: WebhookEvent[] = req.body.events;
       await Promise.all(events.map(handler));
 
       res.status(200).end();
