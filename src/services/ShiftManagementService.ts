@@ -207,10 +207,4 @@ export class ShiftManagementService {
       return department.id;
     });
   }
-
-  async getDepartmentId(departmentName: string): Promise<string> {
-    console.log(`Getting department ID for: ${departmentName}`);
-    const departmentId = await this.createDepartmentIfNotExists(departmentName);
-    return departmentId;
-  }
 }

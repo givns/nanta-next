@@ -78,7 +78,9 @@ export async function processRegistration(
       );
     }
     const departmentId =
-      await shiftManagementService.getDepartmentId(matchedDepartment);
+      await shiftManagementService.createDepartmentIfNotExists(
+        matchedDepartment,
+      );
 
     const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
