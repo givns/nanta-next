@@ -75,8 +75,14 @@ export async function getShifts(): Promise<Shift[]> {
 }
 
 export async function getShiftByCode(shiftCode: string): Promise<Shift | null> {
+  console.log(`Getting shift by code: ${shiftCode}`);
   const allShifts = await getShifts();
-  return allShifts.find((shift) => shift.shiftCode === shiftCode) || null;
+  const shift = allShifts.find((s) => s.shiftCode === shiftCode);
+  console.log(
+    `Shift found for code ${shiftCode}:`,
+    shift ? JSON.stringify(shift) : 'null',
+  );
+  return shift || null;
 }
 
 export async function getShiftById(shiftId: string): Promise<Shift | null> {
@@ -150,26 +156,35 @@ export async function getShiftByDepartmentId(
   departmentId: DepartmentId,
 ): Promise<Shift | null> {
   console.log(`Getting shift for department ID: ${departmentId}`);
+
   const departmentName = departmentIdNameMap[departmentId];
+  console.log(`Department name from map: ${departmentName}`);
+
   if (!departmentName) {
     console.warn(`No department name found for ID: ${departmentId}`);
-    return getShiftByCode('SHIFT103'); // Default shift if department not found
+    console.log('Falling back to default shift SHIFT103');
+    return getShiftByCode('SHIFT103');
   }
-  console.log(`Department name: ${departmentName}`);
 
   const shiftCode = departmentShiftMap[departmentName];
+  console.log(`Shift code from map: ${shiftCode}`);
+
   if (!shiftCode) {
     console.warn(`No shift code found for department: ${departmentName}`);
-    return getShiftByCode('SHIFT103'); // Default shift if no mapping found
+    console.log('Falling back to default shift SHIFT103');
+    return getShiftByCode('SHIFT103');
   }
-  console.log(`Shift code for department: ${shiftCode}`);
 
   try {
+    console.log(`Attempting to get shift by code: ${shiftCode}`);
     const shift = await getShiftByCode(shiftCode);
+
     if (!shift) {
       console.warn(`No shift found for code: ${shiftCode}`);
-      return getShiftByCode('SHIFT103'); // Default shift if shift not found
+      console.log('Falling back to default shift SHIFT103');
+      return getShiftByCode('SHIFT103');
     }
+
     console.log(`Found shift: ${JSON.stringify(shift)}`);
     return shift;
   } catch (error) {
@@ -177,6 +192,7 @@ export async function getShiftByDepartmentId(
       `Error getting shift for department ID ${departmentId}:`,
       error,
     );
+    console.log('Falling back to default shift SHIFT103 due to error');
     return getShiftByCode('SHIFT103');
   }
 }
