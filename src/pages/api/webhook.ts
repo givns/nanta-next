@@ -3,14 +3,14 @@ import {
   WebhookEvent,
   Client,
   ClientConfig,
-  middleware,
-  MiddlewareConfig,
+  validateSignature,
 } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
 import { handleApprove, handleDeny } from '../../utils/requestHandlers';
 import { createAndAssignRichMenu } from '../../utils/richMenuUtils';
+import getRawBody from 'raw-body';
 
 dotenv.config({ path: './.env.local' });
 
@@ -26,10 +26,6 @@ if (!channelSecret || !channelAccessToken) {
 
 const clientConfig: ClientConfig = {
   channelAccessToken,
-  channelSecret,
-};
-
-const middlewareConfig: MiddlewareConfig = {
   channelSecret,
 };
 
@@ -130,36 +126,26 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
-type MiddlewareFunction = (
-  req: NextApiRequest,
-  res: NextApiResponse,
-  next: (result: unknown) => void,
-) => void;
-
-const runMiddleware = (
-  req: NextApiRequest,
-  res: NextApiResponse,
-  fn: MiddlewareFunction,
-) => {
-  return new Promise((resolve, reject) => {
-    fn(req, res, (result: unknown) => {
-      if (result instanceof Error) {
-        return reject(result);
-      }
-      return resolve(result);
-    });
-  });
-};
-
 export default async function webhookHandler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    try {
-      await runMiddleware(req, res, middleware(middlewareConfig));
+    const signature = req.headers['x-line-signature'] as string;
 
-      const events: WebhookEvent[] = req.body.events;
+    try {
+      const rawBody = await getRawBody(req);
+      const bodyStr = rawBody.toString();
+
+      console.log('Received signature:', signature);
+      console.log('Received body:', bodyStr);
+
+      if (!validateSignature(bodyStr, channelSecret, signature)) {
+        console.error('Invalid signature');
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+
+      const events: WebhookEvent[] = JSON.parse(bodyStr).events;
       await Promise.all(events.map(handler));
 
       res.status(200).end();
