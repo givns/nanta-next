@@ -147,32 +147,42 @@ export default async function handler(
 
   if (req.method === 'POST') {
     const signature = req.headers['x-line-signature'] as string;
-    console.log('Signature:', signature);
+    console.log('Received signature:', signature);
 
     try {
       const rawBody = await getRawBody(req);
       const strBody = rawBody.toString();
       console.log('Received body:', strBody);
 
-      if (!validateSignature(strBody, channelSecret, signature)) {
+      const isValid = validateSignature(strBody, channelSecret, signature);
+      console.log('Signature validation result:', isValid);
+
+      if (!isValid) {
         console.error('Invalid signature');
+        // Log the first few characters of the channel secret for debugging
+        // (remove this in production)
+        console.log(
+          'Channel Secret (first 4 chars):',
+          channelSecret.substring(0, 4),
+        );
         return res.status(200).end();
       }
 
-      const body = JSON.parse(strBody);
-      console.log('Parsed body:', JSON.stringify(body));
+      console.log('Signature validated successfully');
 
+      const body = JSON.parse(strBody);
       if (body.events && Array.isArray(body.events)) {
         await Promise.all(body.events.map(handleEvent));
       } else {
-        res.setHeader('Allow', ['POST']);
-        res.status(405).end(`Method ${req.method} Not Allowed`);
+        console.log('No events in the request body');
       }
     } catch (err) {
       console.error('Error processing webhook:', err);
-      // Log the full error object
-      console.error(JSON.stringify(err, Object.getOwnPropertyNames(err)));
-      return res.status(200).end();
     }
+
+    return res.status(200).end();
   }
+
+  res.setHeader('Allow', ['POST']);
+  res.status(405).end(`Method ${req.method} Not Allowed`);
 }
