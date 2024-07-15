@@ -1,10 +1,17 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+// pages/api/webhook.ts
+
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
-import { handleApprove, handleDeny } from '../../utils/requestHandlers';
+import {
+  handleApprove,
+  handleDeny,
+  RequestType,
+} from '../../utils/requestHandlers';
+import { createAndAssignRichMenu } from '../../utils/richMenuUtils';
 
 dotenv.config({ path: './.env.local' });
 
@@ -18,7 +25,6 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
-// LINE bot client configuration
 const clientConfig: ClientConfig = {
   channelAccessToken,
 };
@@ -27,11 +33,9 @@ const client = new Client(clientConfig);
 
 export const config = {
   api: {
-    bodyParser: false, // Disallow body parsing to handle raw body manually
+    bodyParser: false,
   },
 };
-
-type RequestType = 'leave' | 'overtime';
 
 const handler = async (event: WebhookEvent) => {
   if (!event) {
@@ -84,33 +88,39 @@ const handler = async (event: WebhookEvent) => {
 
     const params = new URLSearchParams(data);
     const action = params.get('action');
-    const requestId = params.get('requestId');
     const requestType = params.get('requestType') as RequestType;
+    const requestId = params.get('requestId');
 
-    if (action && requestId && userId && requestType) {
+    if (action && requestType && requestId && userId) {
       try {
-        if (requestType === 'leave' || requestType === 'overtime') {
-          const existingRequest =
-            requestType === 'leave'
-              ? await prisma.leaveRequest.findUnique({
-                  where: { id: requestId },
-                })
-              : await prisma.overtimeRequest.findUnique({
-                  where: { id: requestId },
-                });
+        let request;
+        if (requestType === 'leave') {
+          request = await prisma.leaveRequest.findUnique({
+            where: { id: requestId },
+          });
+        } else if (requestType === 'overtime') {
+          request = await prisma.overtimeRequest.findUnique({
+            where: { id: requestId },
+          });
+        }
 
-          if (existingRequest?.status === 'Pending') {
-            if (action === 'approve') {
-              await handleApprove(requestId, userId, requestType);
-            } else if (action === 'deny') {
-              await handleDeny(requestId, userId, requestType);
-            }
-          } else {
-            await client.replyMessage(event.replyToken, {
-              type: 'text',
-              text: 'คำขอนี้ได้รับการดำเนินการแล้ว',
-            });
-          }
+        if (action === 'approve' && request?.status === 'pending') {
+          await handleApprove(requestId, userId, requestType);
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: `${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}ได้รับการอนุมัติแล้ว`,
+          });
+        } else if (action === 'deny' && request?.status === 'pending') {
+          await handleDeny(requestId, userId, requestType);
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: `${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}ถูกปฏิเสธ กรุณาระบุเหตุผลในการปฏิเสธ`,
+          });
+        } else {
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: `${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}นี้ได้รับการดำเนินการแล้ว`,
+          });
         }
       } catch (error) {
         console.error('Error processing postback action:', error);
@@ -119,12 +129,6 @@ const handler = async (event: WebhookEvent) => {
           text: 'เกิดข้อผิดพลาดในการดำเนินการ โปรดลองอีกครั้งในภายหลัง',
         });
       }
-    } else {
-      console.error('Missing required parameters in postback data:', {
-        action,
-        requestId,
-        requestType,
-      });
     }
   } else if (event.type === 'unfollow') {
     console.log('Unfollow event for user ID:', event.source.userId);
@@ -133,43 +137,13 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
-const createAndAssignRichMenu = async (
-  department: string,
-  userId: string,
-  role: UserRole,
-) => {
-  let richMenuId;
-  switch (role) {
-    case UserRole.SUPERADMIN:
-      richMenuId = 'richmenu-5e2677dc4e68d4fde747ff413a88264f'; // Super Admin Rich Menu
-      break;
-    case UserRole.ADMIN:
-      richMenuId = 'richmenu-deec36bf2265338a9f48acd024ce1cde'; // Admin Rich Menu
-      break;
-    case UserRole.DRIVER:
-      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // Placeholder for Route Rich Menu
-      break;
-    case UserRole.OPERATION:
-      richMenuId = 'richmenu-834c002dbe1ccfbedb54a76b6c78bdde'; // Special User Rich Menu
-      break;
-    case UserRole.GENERAL:
-    default:
-      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // General User Rich Menu
-  }
-
-  await client.linkRichMenuToUser(userId, richMenuId);
-  return richMenuId;
-};
-
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
-    console.log('Received GET request');
     return res.status(200).send('Webhook is set up and running!');
   }
 
   if (req.method === 'POST') {
     try {
-      console.log('Received POST request');
       const rawBodyBuffer = await getRawBody(req, {
         length: req.headers['content-length'],
         limit: '1mb',
@@ -194,6 +168,5 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     }
   }
 
-  console.error(`Method ${req.method} not allowed`);
-  return res.status(405).send(`Method ${req.method} Not Allowed`);
+  return res.status(405).send('Method Not Allowed');
 };
