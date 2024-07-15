@@ -139,36 +139,33 @@ const handleEvent = async (event: WebhookEvent) => {
   }
 };
 
-export default async (req: NextApiRequest, res: NextApiResponse) => {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method === 'POST') {
     const signature = req.headers['x-line-signature'] as string;
 
     try {
-      const rawBodyBuffer = await getRawBody(req);
-      const rawBody = rawBodyBuffer.toString('utf-8');
+      const rawBody = await getRawBody(req);
+      const strBody = rawBody.toString();
 
-      if (!validateSignature(rawBody, channelSecret, signature)) {
+      if (!validateSignature(strBody, channelSecret, signature)) {
         console.error('Invalid signature');
-        return res.status(401).send('Invalid signature');
+        return res.status(200).end();
       }
 
-      const body = JSON.parse(rawBody);
-
-      if (!body.events || !Array.isArray(body.events)) {
-        console.log('No events found in request body');
-        return res.status(200).send('OK');
-      }
-
+      const body = JSON.parse(strBody);
       await Promise.all(body.events.map(handleEvent));
-
-      return res.status(200).send('OK');
     } catch (err) {
-      console.error('Error in webhook:', err);
-      return res.status(200).send('OK');
+      console.error('Error processing webhook:', err);
     }
-  } else if (req.method === 'GET') {
-    return res.status(200).send('Webhook is set up and running!');
-  } else {
-    return res.status(405).send('Method Not Allowed');
+
+    // Always return 200 OK for POST requests
+    return res.status(200).end();
   }
-};
+
+  // For any other HTTP method
+  res.setHeader('Allow', ['POST']);
+  res.status(405).end(`Method ${req.method} Not Allowed`);
+}
