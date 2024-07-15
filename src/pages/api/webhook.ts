@@ -173,7 +173,7 @@ export default async function webhookHandler(
       //   return res.status(401).json({ error: 'Invalid signature' });
       // }
 
-      const events: WebhookEvent[] = JSON.parse(bodyStr).events;
+      const events: WebhookEvent[] = JSON.parse(rawBody).events;
       await Promise.all(events.map(handler));
 
       res.status(200).end();
