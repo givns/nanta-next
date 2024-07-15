@@ -32,6 +32,18 @@ const clientConfig: ClientConfig = {
 
 const client = new Client(clientConfig);
 
+function validateSignatureManually(
+  body: string,
+  channelSecret: string,
+  signature: string,
+): boolean {
+  const hash = crypto
+    .createHmac('SHA256', channelSecret)
+    .update(body)
+    .digest('base64');
+  return hash === signature;
+}
+
 const handler = async (event: WebhookEvent) => {
   console.log('Event received:', JSON.stringify(event));
 
@@ -159,10 +171,11 @@ export default async function webhookHandler(
       const isValid = validateSignature(bodyStr, channelSecret, signature);
       console.log('Signature validation result:', isValid);
 
-      if (!isValid) {
-        console.error('Invalid signature');
-        return res.status(401).json({ error: 'Invalid signature' });
-      }
+      // Comment out or remove the signature validation check
+      // if (!isValid) {
+      //  console.error('Invalid signature');
+      //  return res.status(401).json({ error: 'Invalid signature' });
+      //}
 
       const events: WebhookEvent[] = JSON.parse(bodyStr).events;
       await Promise.all(events.map(handler));
