@@ -3,13 +3,13 @@ const { stream } = require('undici');
 
 const ContentSecurityPolicy = `
 default-src 'self' https://nanta-next.vercel.app;
- script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://static.line-scdn.net https://tfhub.dev;
- style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
- img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com;
- font-src 'self' https://fonts.gstatic.com;
- connect-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.line-scdn.net https://*.line.me https://tfhub.dev https://www.kaggle.com https://nanta-next.vercel.app;
- frame-src 'self' https://www.google.com;
- object-src 'none';
+script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://static.line-scdn.net https://tfhub.dev;
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com;
+font-src 'self' https://fonts.gstatic.com;
+connect-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.line-scdn.net https://*.line.me https://tfhub.dev https://www.kaggle.com https://nanta-next.vercel.app;
+frame-src 'self' https://www.google.com;
+object-src 'none';
 `;
 
 const securityHeaders = [
@@ -55,13 +55,6 @@ const nextConfig = {
       },
     ];
   },
-};
-
-module.exports = {
-  reactStrictMode: true,
-  devIndicators: {
-    autoPrerender: false,
-  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -73,18 +66,6 @@ module.exports = {
     }
     return config;
   },
-  apps: [
-    {
-      name: 'registration-worker',
-      script: 'dist/workers/worker.js',
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '1G',
-      env: {
-        NODE_ENV: 'production',
-        WORKER_PROCESS: 'true',
-      },
-    },
-  ],
 };
+
+module.exports = nextConfig;

@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
-import { PrismaClient, LeaveRequest, OvertimeRequest } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
 import {
   RequestType,

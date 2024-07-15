@@ -36,11 +36,9 @@ export default async function handler(
           `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request has already been processed:`,
           existingRequest,
         );
-        return res
-          .status(400)
-          .json({
-            error: `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request has already been processed.`,
-          });
+        return res.status(400).json({
+          error: `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request has already been processed.`,
+        });
       }
 
       const deniedRequest = await finalizeDenial(
