@@ -4,11 +4,7 @@ import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
-import {
-  RequestType,
-  handleApprove,
-  handleDeny,
-} from '../../utils/requestHandlers';
+import { handleApprove, handleDeny } from '../../utils/requestHandlers';
 
 dotenv.config({ path: './.env.local' });
 
@@ -34,6 +30,8 @@ export const config = {
     bodyParser: false, // Disallow body parsing to handle raw body manually
   },
 };
+
+type RequestType = 'leave' | 'overtime';
 
 const handler = async (event: WebhookEvent) => {
   if (!event) {
@@ -91,10 +89,15 @@ const handler = async (event: WebhookEvent) => {
 
     if (action && requestId && userId && requestType) {
       try {
-        if (requestType === 'leave') {
-          const existingRequest = await prisma.leaveRequest.findUnique({
-            where: { id: requestId },
-          });
+        if (requestType === 'leave' || requestType === 'overtime') {
+          const existingRequest =
+            requestType === 'leave'
+              ? await prisma.leaveRequest.findUnique({
+                  where: { id: requestId },
+                })
+              : await prisma.overtimeRequest.findUnique({
+                  where: { id: requestId },
+                });
 
           if (existingRequest?.status === 'Pending') {
             if (action === 'approve') {
@@ -105,24 +108,7 @@ const handler = async (event: WebhookEvent) => {
           } else {
             await client.replyMessage(event.replyToken, {
               type: 'text',
-              text: 'คำขอลานี้ได้รับการดำเนินการแล้ว',
-            });
-          }
-        } else if (requestType === 'overtime') {
-          const existingRequest = await prisma.overtimeRequest.findUnique({
-            where: { id: requestId },
-          });
-
-          if (existingRequest?.status === 'Pending') {
-            if (action === 'approve') {
-              await handleApprove(requestId, userId, requestType);
-            } else if (action === 'deny') {
-              await handleDeny(requestId, userId, requestType);
-            }
-          } else {
-            await client.replyMessage(event.replyToken, {
-              type: 'text',
-              text: 'คำขอล่วงเวลานี้ได้รับการดำเนินการแล้ว',
+              text: 'คำขอนี้ได้รับการดำเนินการแล้ว',
             });
           }
         }
