@@ -3,11 +3,10 @@ import {
   WebhookEvent,
   Client,
   ClientConfig,
-  validateSignature,
   middleware,
+  MiddlewareConfig,
 } from '@line/bot-sdk';
 import dotenv from 'dotenv';
-import getRawBody from 'raw-body';
 import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
 import { handleApprove, handleDeny } from '../../utils/requestHandlers';
@@ -30,13 +29,11 @@ const clientConfig: ClientConfig = {
   channelSecret,
 };
 
-const client = new Client(clientConfig);
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
+const middlewareConfig: MiddlewareConfig = {
+  channelSecret,
 };
+
+const client = new Client(clientConfig);
 
 const handler = async (event: WebhookEvent) => {
   console.log('Event received:', JSON.stringify(event));
@@ -133,25 +130,30 @@ const handler = async (event: WebhookEvent) => {
   }
 };
 
-export default async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method === 'POST') {
-    const signature = req.headers['x-line-signature'] as string;
-
-    try {
-      const rawBody = await getRawBody(req, {
-        length: req.headers['content-length'],
-        limit: '1mb',
-      });
-
-      const strBody = rawBody.toString();
-
-      if (!validateSignature(strBody, channelSecret, signature)) {
-        console.error('Invalid signature');
-        return res.status(401).json({ error: 'Invalid signature' });
+const runMiddleware = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  fn: Function,
+) => {
+  return new Promise((resolve, reject) => {
+    fn(req, res, (result: any) => {
+      if (result instanceof Error) {
+        return reject(result);
       }
+      return resolve(result);
+    });
+  });
+};
 
-      const events: WebhookEvent[] = JSON.parse(strBody).events;
+export default async function webhookHandler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method === 'POST') {
+    try {
+      await runMiddleware(req, res, middleware(middlewareConfig));
 
+      const events: WebhookEvent[] = req.body.events;
       await Promise.all(events.map(handler));
 
       res.status(200).end();
@@ -163,4 +165,10 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     res.setHeader('Allow', ['POST']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
+}
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
 };
