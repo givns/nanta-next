@@ -32,33 +32,6 @@ export const config = {
 };
 
 type RequestType = 'leave' | 'overtime';
-const createAndAssignRichMenu = async (
-  department: string,
-  userId: string,
-  role: UserRole,
-) => {
-  let richMenuId;
-  switch (role) {
-    case UserRole.SUPERADMIN:
-      richMenuId = 'richmenu-5e2677dc4e68d4fde747ff413a88264f'; // Super Admin Rich Menu
-      break;
-    case UserRole.ADMIN:
-      richMenuId = 'richmenu-deec36bf2265338a9f48acd024ce1cde'; // Admin Rich Menu
-      break;
-    case UserRole.DRIVER:
-      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // Placeholder for Route Rich Menu
-      break;
-    case UserRole.OPERATION:
-      richMenuId = 'richmenu-834c002dbe1ccfbedb54a76b6c78bdde'; // Special User Rich Menu
-      break;
-    case UserRole.GENERAL:
-    default:
-      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // General User Rich Menu
-  }
-
-  await client.linkRichMenuToUser(userId, richMenuId);
-  return richMenuId;
-};
 
 const handler = async (event: WebhookEvent) => {
   if (!event) {
@@ -158,6 +131,34 @@ const handler = async (event: WebhookEvent) => {
   } else {
     console.error('Unhandled event type:', event.type);
   }
+};
+
+const createAndAssignRichMenu = async (
+  department: string,
+  userId: string,
+  role: UserRole,
+) => {
+  let richMenuId;
+  switch (role) {
+    case UserRole.SUPERADMIN:
+      richMenuId = 'richmenu-5e2677dc4e68d4fde747ff413a88264f'; // Super Admin Rich Menu
+      break;
+    case UserRole.ADMIN:
+      richMenuId = 'richmenu-deec36bf2265338a9f48acd024ce1cde'; // Admin Rich Menu
+      break;
+    case UserRole.DRIVER:
+      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // Placeholder for Route Rich Menu
+      break;
+    case UserRole.OPERATION:
+      richMenuId = 'richmenu-834c002dbe1ccfbedb54a76b6c78bdde'; // Special User Rich Menu
+      break;
+    case UserRole.GENERAL:
+    default:
+      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // General User Rich Menu
+  }
+
+  await client.linkRichMenuToUser(userId, richMenuId);
+  return richMenuId;
 };
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
