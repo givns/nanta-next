@@ -1,5 +1,12 @@
+// sendNotifications.ts
+
 import { Client, Message } from '@line/bot-sdk';
-import { PrismaClient, User, LeaveRequest } from '@prisma/client';
+import {
+  PrismaClient,
+  User,
+  LeaveRequest,
+  OvertimeRequest,
+} from '@prisma/client';
 import {
   generateApprovalMessage,
   generateApprovalMessageForAdmins,
@@ -14,14 +21,17 @@ const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
+type RequestType = 'leave' | 'overtime';
+
 export const sendApproveNotification = async (
   user: User,
-  leaveRequest: LeaveRequest,
+  request: LeaveRequest | OvertimeRequest,
   approver: User,
+  requestType: RequestType,
 ) => {
   try {
     // Send approval message to the user
-    const userMessage = generateApprovalMessage(user, leaveRequest);
+    const userMessage = generateApprovalMessage(user, request, requestType);
     if (user.lineUserId) {
       await client.pushMessage(user.lineUserId, userMessage);
     }
@@ -29,8 +39,9 @@ export const sendApproveNotification = async (
     // Send approval notification to all admins and super admins, including the approver
     const adminMessage = generateApprovalMessageForAdmins(
       user,
-      leaveRequest,
+      request,
       approver,
+      requestType,
     );
     const adminsAndSuperAdmins = await prisma.user.findMany({
       where: {
@@ -39,8 +50,8 @@ export const sendApproveNotification = async (
     });
 
     for (const admin of adminsAndSuperAdmins) {
-      if (user.lineUserId) {
-        await client.pushMessage(user.lineUserId, adminMessage);
+      if (admin.lineUserId) {
+        await client.pushMessage(admin.lineUserId, adminMessage);
       }
       console.log(`Sent approval message to ${admin.role}:`, admin.lineUserId);
     }
@@ -51,13 +62,19 @@ export const sendApproveNotification = async (
 
 export const sendDenyNotification = async (
   user: User,
-  leaveRequest: LeaveRequest,
+  request: LeaveRequest | OvertimeRequest,
   denier: User,
   denialReason: string,
+  requestType: RequestType,
 ) => {
   try {
     // Send denial message to the user
-    const userMessage = generateDenialMessage(user, leaveRequest, denialReason);
+    const userMessage = generateDenialMessage(
+      user,
+      request,
+      denialReason,
+      requestType,
+    );
     if (user.lineUserId) {
       await client.pushMessage(user.lineUserId, userMessage);
     }
@@ -66,9 +83,10 @@ export const sendDenyNotification = async (
     // Send denial notification to all admins and super admins, including the denier
     const adminMessage = generateDenialMessageForAdmins(
       user,
-      leaveRequest,
+      request,
       denier,
       denialReason,
+      requestType,
     );
     const adminsAndSuperAdmins = await prisma.user.findMany({
       where: {
@@ -86,19 +104,29 @@ export const sendDenyNotification = async (
   }
 };
 
-export const sendDenyReasonPrompt = async (admin: User, requestId: string) => {
+export const sendDenyReasonPrompt = async (
+  admin: User,
+  requestId: string,
+  requestType: RequestType,
+) => {
   try {
-    const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}`;
+    const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&requestType=${requestType}`;
     const message: Message = {
       type: 'text',
-      text: `Please provide a reason for denying this leave request: ${liffUrl}`,
+      text: `Please provide a reason for denying this ${requestType} request: ${liffUrl}`,
     };
     if (admin.lineUserId) {
       await client.pushMessage(admin.lineUserId, message);
     }
-    console.log('Sent deny reason prompt to admin:', admin.lineUserId);
+    console.log(
+      `Sent deny reason prompt to admin for ${requestType} request:`,
+      admin.lineUserId,
+    );
   } catch (error) {
-    console.error('Error sending deny reason prompt:', error);
+    console.error(
+      `Error sending deny reason prompt for ${requestType} request:`,
+      error,
+    );
     throw error;
   }
 };

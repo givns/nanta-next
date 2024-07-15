@@ -1,10 +1,10 @@
 // services/AttendanceProcessingService.ts
 import { PrismaClient, Attendance, User, Shift } from '@prisma/client';
 import { NotificationService } from './NotificationService';
-import { OvertimeService } from './OvertimeService';
+import { OvertimeServiceServer } from './OvertimeServiceServer';
 
 const prisma = new PrismaClient();
-const overtimeService = new OvertimeService();
+const overtimeService = new OvertimeServiceServer();
 const notificationService = new NotificationService();
 
 export class AttendanceProcessingService {
@@ -116,7 +116,7 @@ export class AttendanceProcessingService {
   ): Promise<User & { assignedShift: Shift }> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { assignedShift: true }, // Changed from 'shift' to 'assignedShift'
+      include: { assignedShift: true },
     });
 
     if (!user) throw new Error('User not found');

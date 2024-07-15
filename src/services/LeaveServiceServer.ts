@@ -6,16 +6,16 @@ import {
   sendApproveNotification,
   sendDenyNotification,
 } from '../utils/sendNotifications';
-import { sendLeaveRequestNotification } from '../utils/sendLeaveRequestNotification';
+import { sendRequestNotification } from '../utils/sendRequestNotification';
 import { UserRole } from '@/types/enum';
-import { ILeaveService } from '@/types/LeaveService';
+import { ILeaveServiceServer } from '@/types/LeaveService';
 
 const prisma = new PrismaClient();
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
-export class LeaveServiceServer implements ILeaveService {
+export class LeaveServiceServer implements ILeaveServiceServer {
   async createLeaveRequest(
     lineUserId: string,
     leaveType: string,
@@ -79,7 +79,12 @@ export class LeaveServiceServer implements ILeaveService {
     const admin = await prisma.user.findUnique({ where: { lineUserId } });
 
     if (leaveRequest.user && admin) {
-      await sendApproveNotification(leaveRequest.user, leaveRequest, admin);
+      await sendApproveNotification(
+        leaveRequest.user,
+        leaveRequest,
+        admin,
+        'leave',
+      );
     }
 
     return leaveRequest;
@@ -127,6 +132,7 @@ export class LeaveServiceServer implements ILeaveService {
         leaveRequest,
         admin,
         denialReason,
+        'leave',
       );
     }
 
@@ -187,7 +193,7 @@ export class LeaveServiceServer implements ILeaveService {
     });
 
     for (const admin of admins) {
-      await sendLeaveRequestNotification(admin, leaveRequest);
+      await sendRequestNotification(admin, leaveRequest, 'leave');
     }
   }
 }

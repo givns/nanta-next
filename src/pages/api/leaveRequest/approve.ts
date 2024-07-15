@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { sendApproveNotification } from '../../../utils/sendNotifications';
+import { finalizeDenial } from '../../../utils/requestHandlers';
+import { RequestType } from '../../../utils/requestHandlers';
+import { sendDenyNotification } from '../../../utils/sendNotifications';
 
 const prisma = new PrismaClient();
 
@@ -9,36 +11,51 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    const { requestId, lineUserId } = req.body;
+    const { requestId, lineUserId, denialReason, requestType } = req.body;
+
+    if (!requestType || !['leave', 'overtime'].includes(requestType)) {
+      res.status(400).json({ success: false, error: 'Invalid request type' });
+      return;
+    }
 
     try {
       console.log(
-        `Approving leave request: ${requestId} by user: ${lineUserId}`,
+        `Denying ${requestType} request: ${requestId} by user: ${lineUserId}`,
       );
 
       // Check if the request has already been approved or denied
-      const existingRequest = await prisma.leaveRequest.findUnique({
-        where: { id: requestId },
-      });
+      const existingRequest =
+        requestType === 'leave'
+          ? await prisma.leaveRequest.findUnique({ where: { id: requestId } })
+          : await prisma.overtimeRequest.findUnique({
+              where: { id: requestId },
+            });
 
       if (!existingRequest || existingRequest.status !== 'Pending') {
         console.log(
-          'Leave request has already been processed:',
+          `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request has already been processed:`,
           existingRequest,
         );
         return res
           .status(400)
-          .json({ error: 'Leave request has already been processed.' });
+          .json({
+            error: `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request has already been processed.`,
+          });
       }
 
-      const leaveRequest = await prisma.leaveRequest.update({
-        where: { id: requestId },
-        data: { status: 'Approved', approverId: lineUserId },
-      });
-      console.log('Leave request approved:', leaveRequest);
+      const deniedRequest = await finalizeDenial(
+        requestId,
+        lineUserId,
+        denialReason,
+        requestType as RequestType,
+      );
+      console.log(
+        `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request denied:`,
+        deniedRequest,
+      );
 
       const user = await prisma.user.findUnique({
-        where: { id: leaveRequest.userId },
+        where: { id: deniedRequest.userId },
       });
 
       const admin = await prisma.user.findUnique({
@@ -46,17 +63,23 @@ export default async function handler(
       });
 
       if (user && admin) {
-        console.log('Sending approval notifications to user and admins');
-        await sendApproveNotification(user, leaveRequest, admin);
-        console.log('Approval notifications sent successfully');
+        console.log('Sending denial notifications to user and admins');
+        await sendDenyNotification(
+          user,
+          deniedRequest,
+          admin,
+          denialReason,
+          requestType,
+        );
+        console.log('Denial notifications sent successfully');
       } else {
         console.error('User or admin not found:', { user, admin });
         return res.status(404).json({ error: 'User or admin not found.' });
       }
 
-      res.status(200).json({ success: true, data: leaveRequest });
+      res.status(200).json({ success: true, data: deniedRequest });
     } catch (error: any) {
-      console.error('Error approving leave request:', error.message);
+      console.error(`Error denying ${requestType} request:`, error.message);
       res.status(500).json({ error: 'Internal Server Error' });
     } finally {
       await prisma.$disconnect();

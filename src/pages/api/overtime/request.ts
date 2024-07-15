@@ -1,7 +1,7 @@
-// pages/api/overtime/request.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../lib/prisma';
+import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
+
+const overtimeService = new OvertimeServiceServer();
 
 export default async function handler(
   req: NextApiRequest,
@@ -11,40 +11,44 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { lineUserId, date, startTime, endTime, reason } = req.body;
+  const {
+    lineUserId,
+    date,
+    startTime,
+    endTime,
+    reason,
+    resubmitted,
+    originalRequestId,
+  } = req.body;
 
   if (!lineUserId || !date || !startTime || !endTime || !reason) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
   try {
-    // First, find the user by lineUserId
-    const user = await prisma.user.findUnique({
-      where: { lineUserId: lineUserId },
+    const newOvertimeRequest = await overtimeService.createOvertimeRequest(
+      lineUserId,
+      date,
+      startTime,
+      endTime,
+      reason,
+      resubmitted,
+      originalRequestId,
+    );
+
+    res.status(201).json({
+      success: true,
+      message: resubmitted
+        ? 'Overtime request resubmitted successfully'
+        : 'Overtime request created successfully',
+      data: newOvertimeRequest,
     });
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Create the overtime request
-    const overtimeRequest = await prisma.overtimeRequest.create({
-      data: {
-        user: { connect: { id: user.id } }, // Connect the user to the overtime request
-        date: new Date(date),
-        startTime,
-        endTime,
-        reason,
-        status: 'pending',
-      },
-    });
-
-    res.status(201).json(overtimeRequest);
   } catch (error: any) {
-    console.error('Error creating overtime request:', error);
+    console.error('Error creating/resubmitting overtime request:', error);
     res.status(500).json({
-      message: 'Error creating overtime request',
-      error: error.message,
+      success: false,
+      error: 'Internal server error',
+      message: error.message,
     });
   }
 }

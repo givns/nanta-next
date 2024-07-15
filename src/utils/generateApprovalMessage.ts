@@ -1,13 +1,93 @@
-import { FlexMessage } from '@line/bot-sdk';
-import { User, LeaveRequest } from '@prisma/client';
+import { FlexMessage, FlexComponent, FlexText } from '@line/bot-sdk';
+import { User, LeaveRequest, OvertimeRequest } from '@prisma/client';
 
 export const generateApprovalMessage = (
   user: User,
-  leaveRequest: LeaveRequest,
+  request: LeaveRequest | OvertimeRequest,
+  requestType: 'leave' | 'overtime',
 ): FlexMessage => {
+  const isLeaveRequest = requestType === 'leave';
+  const requestTypeText = isLeaveRequest ? 'Leave' : 'Overtime';
+
+  const contentComponents: FlexComponent[] = [
+    {
+      type: 'text',
+      text: `${user.name} (${user.nickname})`,
+      weight: 'bold',
+      size: 'sm',
+      wrap: true,
+    },
+    ...(isLeaveRequest
+      ? [
+          {
+            type: 'text',
+            text: `ประเภทการลา: ${(request as LeaveRequest).leaveType}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+          {
+            type: 'text',
+            text: `วันที่: ${new Date(
+              (request as LeaveRequest).startDate,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })} - ${new Date(
+              (request as LeaveRequest).endDate,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })} (${(request as LeaveRequest).fullDayCount} วัน)`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+        ]
+      : [
+          {
+            type: 'text',
+            text: `วันที่: ${new Date(
+              (request as OvertimeRequest).date,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+          {
+            type: 'text',
+            text: `เวลา: ${(request as OvertimeRequest).startTime} - ${(request as OvertimeRequest).endTime}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+        ]),
+    {
+      type: 'text',
+      text: `สาเหตุ: ${request.reason}`,
+      size: 'sm',
+      wrap: true,
+    } as FlexText,
+    {
+      type: 'text',
+      text: `วันที่ยื่น: ${new Date(request.createdAt).toLocaleDateString(
+        'th-TH',
+        {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        },
+      )}`,
+      size: 'sm',
+      color: '#4682B4',
+    } as FlexText,
+  ];
+
   return {
     type: 'flex',
-    altText: 'Leave Request Approved',
+    altText: `${requestTypeText} Request Approved`,
     contents: {
       type: 'bubble',
       size: 'giga',
@@ -17,7 +97,7 @@ export const generateApprovalMessage = (
         contents: [
           {
             type: 'text',
-            text: 'Leave Request Approved',
+            text: `${requestTypeText} Request Approved`,
             color: '#000000',
             align: 'start',
             size: 'xl',
@@ -52,58 +132,7 @@ export const generateApprovalMessage = (
               {
                 type: 'box',
                 layout: 'vertical',
-                contents: [
-                  {
-                    type: 'text',
-                    text: `${user.name} (${user.nickname})`,
-                    weight: 'bold',
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `ประเภทการลา: ${leaveRequest.leaveType}`,
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `วันที่: ${new Date(
-                      leaveRequest.startDate,
-                    ).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })} - ${new Date(leaveRequest.endDate).toLocaleDateString(
-                      'th-TH',
-                      {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      },
-                    )} (${leaveRequest.fullDayCount} วัน)`,
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `สาเหตุ: ${leaveRequest.reason}`,
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `วันที่ยื่น: ${new Date(
-                      leaveRequest.createdAt,
-                    ).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })}`,
-                    size: 'sm',
-                    color: '#4682B4',
-                  },
-                ],
+                contents: contentComponents,
               },
             ],
             spacing: 'xl',
@@ -123,12 +152,84 @@ export const generateApprovalMessage = (
 
 export const generateApprovalMessageForAdmins = (
   user: User,
-  leaveRequest: LeaveRequest,
+  request: LeaveRequest | OvertimeRequest,
   admin: User,
+  requestType: 'leave' | 'overtime',
 ): FlexMessage => {
+  const isLeaveRequest = requestType === 'leave';
+  const requestTypeText = isLeaveRequest ? 'Leave' : 'Overtime';
+
+  const bodyContents: FlexComponent[] = [
+    {
+      type: 'text',
+      text: `อนุมัติโดย: ${admin.name} (${admin.nickname})`,
+      size: 'sm',
+      wrap: true,
+    },
+    {
+      type: 'text',
+      text: `ผู้ขอ${isLeaveRequest ? 'ลา' : 'ทำงานล่วงเวลา'}: ${user.name} (${user.nickname})`,
+      size: 'sm',
+      wrap: true,
+    },
+    ...(isLeaveRequest
+      ? [
+          {
+            type: 'text',
+            text: `ประเภทการลา: ${(request as LeaveRequest).leaveType}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+          {
+            type: 'text',
+            text: `วันที่: ${new Date(
+              (request as LeaveRequest).startDate,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })} - ${new Date(
+              (request as LeaveRequest).endDate,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })} (${(request as LeaveRequest).fullDayCount} วัน)`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+        ]
+      : [
+          {
+            type: 'text',
+            text: `วันที่: ${new Date(
+              (request as OvertimeRequest).date,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+          {
+            type: 'text',
+            text: `เวลา: ${(request as OvertimeRequest).startTime} - ${(request as OvertimeRequest).endTime}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+        ]),
+    {
+      type: 'text',
+      text: `สาเหตุ: ${request.reason}`,
+      size: 'sm',
+      wrap: true,
+    } as FlexText,
+  ];
+
   return {
     type: 'flex',
-    altText: 'Leave Request Approved Notification',
+    altText: `${requestTypeText} Request Approved Notification`,
     contents: {
       type: 'bubble',
       size: 'mega',
@@ -142,7 +243,9 @@ export const generateApprovalMessageForAdmins = (
             contents: [
               {
                 type: 'text',
-                text: 'ใบลาถูกอนุมัติ',
+                text: isLeaveRequest
+                  ? 'ใบลาถูกอนุมัติ'
+                  : 'คำขอทำงานล่วงเวลาถูกอนุมัติ',
                 color: '#000000',
                 size: 'xl',
                 flex: 4,
@@ -162,48 +265,7 @@ export const generateApprovalMessageForAdmins = (
       body: {
         type: 'box',
         layout: 'vertical',
-        contents: [
-          {
-            type: 'text',
-            text: `อนุมัติโดย: ${admin.name} (${admin.nickname})`,
-            size: 'sm',
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: `ผู้ขอลา: ${user.name} (${user.nickname})`,
-            size: 'sm',
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: `ประเภทการลา: ${leaveRequest.leaveType}`,
-            size: 'sm',
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: `วันที่: ${new Date(
-              leaveRequest.startDate,
-            ).toLocaleDateString('th-TH', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            })} - ${new Date(leaveRequest.endDate).toLocaleDateString('th-TH', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            })} (${leaveRequest.fullDayCount} วัน)`,
-            size: 'sm',
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: `สาเหตุ: ${leaveRequest.reason}`,
-            size: 'sm',
-            wrap: true,
-          },
-        ],
+        contents: bodyContents,
         spacing: 'md',
         paddingAll: '20px',
       },

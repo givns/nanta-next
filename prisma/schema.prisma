@@ -18,7 +18,7 @@ enum UserRole {
 model User {
   id                      String                   @id @default(auto()) @map("_id") @db.ObjectId
   employeeId              String                   @unique
-  externalEmployeeId  String?
+  externalEmployeeId      String?
   name                    String
   lineUserId              String?                  @unique
   nickname                String?
@@ -27,13 +27,14 @@ model User {
   role                    String
   profilePictureUrl       String?
   profilePictureExternal  String?
-  shiftId              String    @db.ObjectId
-  assignedShift        Shift     @relation("UserAssignedShift", fields: [shiftId], references: [id])
-  overtimeHours        Float     @default(0)
+  shiftId                 String    @db.ObjectId
+  assignedShift           Shift     @relation("UserAssignedShift", fields: [shiftId], references: [id])
+  overtimeHours           Float     @default(0)
   attendances             Attendance[]
   shiftAdjustmentRequests ShiftAdjustmentRequest[]
   leaveRequests           LeaveRequest[]
   overtimeRequests        OvertimeRequest[]
+  approvedOvertimeRequests OvertimeRequest[] @relation("OvertimeApprover")
   approvedOvertimes       ApprovedOvertime[]
   checkPoints             CheckPoint[]
   createdAt               DateTime                 @default(now())
@@ -41,13 +42,13 @@ model User {
 }
 
 model Shift {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
-  shiftCode String @unique
-  name      String
-  startTime String
-  endTime   String
-  workDays  Int[]
-  assignedUsers        User[]    @relation("UserAssignedShift")
+  id                      String                   @id @default(auto()) @map("_id") @db.ObjectId
+  shiftCode               String                   @unique
+  name                    String
+  startTime               String
+  endTime                 String
+  workDays                Int[]
+  assignedUsers           User[]                   @relation("UserAssignedShift")
   shiftAdjustmentRequests ShiftAdjustmentRequest[] @relation("RequestedShift")
 }
 
@@ -85,28 +86,34 @@ model LeaveRequest {
 }
 
 model OvertimeRequest {
-  id        String   @id @default(uuid()) @map("_id")
-  userId    String   @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id])
-  date      DateTime
-  startTime String // Store as HH:mm
-  endTime   String // Store as HH:mm
-  status    String // 'pending', 'approved', 'rejected'
-   reason        String?  // Add this line
-  denialReason  String?  // Add this line
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String   @id @default(uuid()) @map("_id")
+  userId              String   @db.ObjectId
+  user                User     @relation(fields: [userId], references: [id])
+  date                DateTime
+  startTime           String // Store as HH:mm
+  endTime             String // Store as HH:mm
+  status              String // 'pending', 'approved', 'rejected'
+  reason              String?
+  denialReason        String?
+  approverId          String?
+  approver            User?    @relation("OvertimeApprover", fields: [approverId], references: [id])
+  resubmitted         Boolean  @default(false)
+  originalRequestId   String?
+  originalRequest     OvertimeRequest? @relation("ResubmittedOvertimeRequest", fields: [originalRequestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resubmittedRequests OvertimeRequest[] @relation("ResubmittedOvertimeRequest")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model ApprovedOvertime {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String   @db.ObjectId
-  startTime DateTime
-  endTime   DateTime
+  userId     String   @db.ObjectId
+  user       User     @relation(fields: [userId], references: [id])
+  startTime  DateTime
+  endTime    DateTime
   approvedBy String
   approvedAt DateTime
-  date      DateTime
+  date       DateTime
 }
 
 model Attendance {
@@ -167,7 +174,7 @@ model Holiday {
   launchYear  Int?
   types       String[]
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now())
   @@unique([date, name], name: "date_date")
 }
 
@@ -187,5 +194,5 @@ model Department {
   daysOff   DepartmentDayOff[]
   users     User[]
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 }

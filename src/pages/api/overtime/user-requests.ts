@@ -1,9 +1,9 @@
 // pages/api/overtime/user-requests.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { OvertimeService } from '../../../services/OvertimeService';
+import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
 
-const overtimeService = new OvertimeService();
+const overtimeService = new OvertimeServiceServer();
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,8 +20,7 @@ export default async function handler(
   }
 
   try {
-    const overtimeRequests =
-      await overtimeService.getUserOvertimeRequests(userId);
+    const overtimeRequests = await overtimeService.getOvertimeRequests(userId);
     res.status(200).json(overtimeRequests);
   } catch (error) {
     console.error('Error fetching user overtime requests:', error);

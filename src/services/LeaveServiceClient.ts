@@ -1,11 +1,11 @@
 // services/LeaveServiceClient.ts
 
 import { PrismaClient, LeaveRequest } from '@prisma/client';
-import { ILeaveService } from '@/types/LeaveService';
+import { ILeaveServiceClient } from '@/types/LeaveService';
 
 const prisma = new PrismaClient();
 
-export class LeaveServiceClient implements ILeaveService {
+export class LeaveServiceClient implements ILeaveServiceClient {
   async createLeaveRequest(
     lineUserId: string,
     leaveType: string,
@@ -102,28 +102,5 @@ export class LeaveServiceClient implements ILeaveService {
 
   private async notifyAdmins(leaveRequest: LeaveRequest): Promise<void> {
     // Notify admins
-  }
-
-  // Methods below are not relevant for client-side operations
-  async approveLeaveRequest(
-    requestId: string,
-    lineUserId: string,
-  ): Promise<LeaveRequest> {
-    throw new Error('Method not implemented.');
-  }
-
-  async initiateDenial(
-    requestId: string,
-    lineUserId: string,
-  ): Promise<LeaveRequest> {
-    throw new Error('Method not implemented.');
-  }
-
-  async finalizeDenial(
-    requestId: string,
-    lineUserId: string,
-    denialReason: string,
-  ): Promise<LeaveRequest> {
-    throw new Error('Method not implemented.');
   }
 }

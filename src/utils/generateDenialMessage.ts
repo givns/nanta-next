@@ -1,14 +1,101 @@
-import { FlexMessage } from '@line/bot-sdk';
-import { User, LeaveRequest } from '@prisma/client';
+import { FlexMessage, FlexComponent, FlexBox, FlexText } from '@line/bot-sdk';
+import { User, LeaveRequest, OvertimeRequest } from '@prisma/client';
 
 export const generateDenialMessage = (
   user: User,
-  leaveRequest: LeaveRequest,
+  request: LeaveRequest | OvertimeRequest,
   denialReason: string,
+  requestType: 'leave' | 'overtime',
 ): FlexMessage => {
+  const isLeaveRequest = requestType === 'leave';
+  const requestTypeText = isLeaveRequest ? 'Leave' : 'Overtime';
+
+  const contentComponents: FlexComponent[] = [
+    {
+      type: 'text',
+      text: `${user.name} (${user.nickname})`,
+      weight: 'bold',
+      size: 'sm',
+      wrap: true,
+    } as FlexText,
+    ...(isLeaveRequest
+      ? [
+          {
+            type: 'text',
+            text: `ประเภทการลา: ${(request as LeaveRequest).leaveType}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+          {
+            type: 'text',
+            text: `วันที่: ${new Date(
+              (request as LeaveRequest).startDate,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })} - ${new Date(
+              (request as LeaveRequest).endDate,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })} (${(request as LeaveRequest).fullDayCount} วัน)`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+        ]
+      : [
+          {
+            type: 'text',
+            text: `วันที่: ${new Date(
+              (request as OvertimeRequest).date,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+          {
+            type: 'text',
+            text: `เวลา: ${(request as OvertimeRequest).startTime} - ${(request as OvertimeRequest).endTime}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+        ]),
+    {
+      type: 'text',
+      text: `สาเหตุ: ${request.reason}`,
+      size: 'sm',
+      wrap: true,
+    } as FlexText,
+    {
+      type: 'text',
+      text: `เหตุผลที่ถูกปฏิเสธ: ${denialReason}`,
+      size: 'sm',
+      wrap: true,
+      color: '#FF0000',
+    } as FlexText,
+    {
+      type: 'text',
+      text: `วันที่ยื่น: ${new Date(request.createdAt).toLocaleDateString(
+        'th-TH',
+        {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        },
+      )}`,
+      size: 'sm',
+      color: '#4682B4',
+    } as FlexText,
+  ];
+
   return {
     type: 'flex',
-    altText: 'Leave Request Denied',
+    altText: `${requestTypeText} Request Denied`,
     contents: {
       type: 'bubble',
       size: 'giga',
@@ -18,7 +105,7 @@ export const generateDenialMessage = (
         contents: [
           {
             type: 'text',
-            text: 'Leave Request Denied',
+            text: `${requestTypeText} Request Denied`,
             color: '#000000',
             align: 'start',
             size: 'xl',
@@ -53,65 +140,7 @@ export const generateDenialMessage = (
               {
                 type: 'box',
                 layout: 'vertical',
-                contents: [
-                  {
-                    type: 'text',
-                    text: `${user.name} (${user.nickname})`,
-                    weight: 'bold',
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `ประเภทการลา: ${leaveRequest.leaveType}`,
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `วันที่: ${new Date(
-                      leaveRequest.startDate,
-                    ).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })} - ${new Date(leaveRequest.endDate).toLocaleDateString(
-                      'th-TH',
-                      {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      },
-                    )} (${leaveRequest.fullDayCount} วัน)`,
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `สาเหตุ: ${leaveRequest.reason}`,
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `เหตุผลที่ถูกปฏิเสธ: ${denialReason}`,
-                    size: 'sm',
-                    wrap: true,
-                    color: '#FF0000',
-                  },
-                  {
-                    type: 'text',
-                    text: `วันที่ยื่น: ${new Date(
-                      leaveRequest.createdAt,
-                    ).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })}`,
-                    size: 'sm',
-                    color: '#4682B4',
-                  },
-                ],
+                contents: contentComponents,
               },
             ],
             spacing: 'xl',
@@ -132,9 +161,9 @@ export const generateDenialMessage = (
             action: {
               type: 'uri',
               label: 'ส่งคำขอใหม่',
-              uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/leave-request?resubmit=true&originalId=${leaveRequest.id}`,
+              uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/${requestType}-request?resubmit=true&originalId=${request.id}`,
             },
-            color: '#0662FF', // Set the button color to #0662FF
+            color: '#0662FF',
           },
         ],
       },
@@ -149,13 +178,92 @@ export const generateDenialMessage = (
 
 export const generateDenialMessageForAdmins = (
   user: User,
-  leaveRequest: LeaveRequest,
+  request: LeaveRequest | OvertimeRequest,
   admin: User,
   denialReason: string,
+  requestType: 'leave' | 'overtime',
 ): FlexMessage => {
+  const isLeaveRequest = requestType === 'leave';
+  const requestTypeText = isLeaveRequest ? 'Leave' : 'Overtime';
+
+  const bodyContents: FlexComponent[] = [
+    {
+      type: 'text',
+      text: `ปฏิเสธโดย: ${admin.name} (${admin.nickname})`,
+      size: 'sm',
+      wrap: true,
+    } as FlexText,
+    {
+      type: 'text',
+      text: `ผู้ขอ${isLeaveRequest ? 'ลา' : 'ทำงานล่วงเวลา'}: ${user.name} (${user.nickname})`,
+      size: 'sm',
+      wrap: true,
+    } as FlexText,
+    ...(isLeaveRequest
+      ? [
+          {
+            type: 'text',
+            text: `ประเภทการลา: ${(request as LeaveRequest).leaveType}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+          {
+            type: 'text',
+            text: `วันที่: ${new Date(
+              (request as LeaveRequest).startDate,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })} - ${new Date(
+              (request as LeaveRequest).endDate,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })} (${(request as LeaveRequest).fullDayCount} วัน)`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+        ]
+      : [
+          {
+            type: 'text',
+            text: `วันที่: ${new Date(
+              (request as OvertimeRequest).date,
+            ).toLocaleDateString('th-TH', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+          {
+            type: 'text',
+            text: `เวลา: ${(request as OvertimeRequest).startTime} - ${(request as OvertimeRequest).endTime}`,
+            size: 'sm',
+            wrap: true,
+          } as FlexText,
+        ]),
+    {
+      type: 'text',
+      text: `สาเหตุ: ${request.reason}`,
+      size: 'sm',
+      wrap: true,
+    } as FlexText,
+    {
+      type: 'text',
+      text: `เหตุผลที่ปฏิเสธ: ${denialReason}`,
+      size: 'sm',
+      wrap: true,
+      color: '#FF0000',
+    } as FlexText,
+  ];
+
   return {
     type: 'flex',
-    altText: 'Leave Request Denied Notification',
+    altText: `${requestTypeText} Request Denied Notification`,
     contents: {
       type: 'bubble',
       size: 'mega',
@@ -169,7 +277,9 @@ export const generateDenialMessageForAdmins = (
             contents: [
               {
                 type: 'text',
-                text: 'ใบลาถูกปฏิเสธ',
+                text: isLeaveRequest
+                  ? 'ใบลาถูกปฏิเสธ'
+                  : 'คำขอทำงานล่วงเวลาถูกปฏิเสธ',
                 color: '#000000',
                 size: 'xl',
                 flex: 4,
@@ -189,55 +299,7 @@ export const generateDenialMessageForAdmins = (
       body: {
         type: 'box',
         layout: 'vertical',
-        contents: [
-          {
-            type: 'text',
-            text: `ปฏิเสธโดย: ${admin.name} (${admin.nickname})`,
-            size: 'sm',
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: `ผู้ขอลา: ${user.name} (${user.nickname})`,
-            size: 'sm',
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: `ประเภทการลา: ${leaveRequest.leaveType}`,
-            size: 'sm',
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: `วันที่: ${new Date(
-              leaveRequest.startDate,
-            ).toLocaleDateString('th-TH', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            })} - ${new Date(leaveRequest.endDate).toLocaleDateString('th-TH', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            })} (${leaveRequest.fullDayCount} วัน)`,
-            size: 'sm',
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: `สาเหตุ: ${leaveRequest.reason}`,
-            size: 'sm',
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: `เหตุผลที่ปฏิเสธ: ${denialReason}`,
-            size: 'sm',
-            wrap: true,
-            color: '#FF0000',
-          },
-        ],
+        contents: bodyContents,
         spacing: 'md',
         paddingAll: '20px',
       },

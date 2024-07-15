@@ -1,6 +1,8 @@
+// @/types/LeaveService.ts
+
 import { LeaveRequest } from '@prisma/client';
 
-export interface ILeaveService {
+export interface ILeaveServiceBase {
   createLeaveRequest(
     lineUserId: string,
     leaveType: string,
@@ -13,7 +15,15 @@ export interface ILeaveService {
     resubmitted?: boolean,
     originalRequestId?: string,
   ): Promise<LeaveRequest>;
+  getLeaveRequests(userId: string): Promise<LeaveRequest[]>;
+  getAllLeaveRequests(): Promise<LeaveRequest[]>;
+  getOriginalLeaveRequest(requestId: string): Promise<LeaveRequest>;
+  checkLeaveBalance(userId: string): Promise<number>;
+}
 
+export interface ILeaveServiceClient extends ILeaveServiceBase {}
+
+export interface ILeaveServiceServer extends ILeaveServiceBase {
   approveLeaveRequest(
     requestId: string,
     lineUserId: string,
@@ -24,8 +34,4 @@ export interface ILeaveService {
     lineUserId: string,
     denialReason: string,
   ): Promise<LeaveRequest>;
-  getOriginalLeaveRequest(requestId: string): Promise<LeaveRequest>;
-  checkLeaveBalance(userId: string): Promise<number>;
-  getLeaveRequests(userId: string): Promise<LeaveRequest[]>;
-  getAllLeaveRequests(): Promise<LeaveRequest[]>;
 }

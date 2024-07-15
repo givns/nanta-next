@@ -1,5 +1,5 @@
 import { Client, FlexMessage, FlexComponent } from '@line/bot-sdk';
-import { LeaveRequest, User } from '@prisma/client';
+import { LeaveRequest, OvertimeRequest, User } from '@prisma/client';
 import { UserRole } from '@/types/enum';
 import prisma from '../lib/prisma';
 
@@ -7,7 +7,7 @@ const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
-const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
+const getRequestCountForAdmin = async (adminId: string): Promise<number> => {
   const admin = await prisma.user.findUnique({
     where: {
       id: adminId,
@@ -36,24 +36,28 @@ const getLeaveCountForAdmin = async (adminId: string): Promise<number> => {
   return leaveRequests.length;
 };
 
-export const sendLeaveRequestNotification = async (
+export const sendRequestNotification = async (
   admin: User,
-  leaveRequest: LeaveRequest,
+  request: LeaveRequest | OvertimeRequest,
+  requestType: 'leave' | 'overtime',
 ) => {
-  const requestCount = await getLeaveCountForAdmin(admin.id);
+  const requestCount = await getRequestCountForAdmin(admin.id);
   const user = await prisma.user.findUnique({
-    where: { id: leaveRequest.userId },
+    where: { id: request.userId },
   });
 
   if (!user) {
-    throw new Error(`User with ID ${leaveRequest.userId} not found`);
+    throw new Error(`User with ID ${request.userId} not found`);
   }
 
-  const resubmissionText = leaveRequest.resubmitted ? ' (ส่งใหม่)' : '';
+  const isLeaveRequest = requestType === 'leave';
+  const requestTypeText = isLeaveRequest ? 'Leave' : 'Overtime';
+  const resubmissionText =
+    'resubmitted' in request && request.resubmitted ? ' (ส่งใหม่)' : '';
 
   const message: FlexMessage = {
     type: 'flex',
-    altText: `Leave Request Notification${resubmissionText}`,
+    altText: `${requestTypeText} Request Notification${resubmissionText}`,
     contents: {
       type: 'bubble',
       size: 'giga',
@@ -67,7 +71,7 @@ export const sendLeaveRequestNotification = async (
             contents: [
               {
                 type: 'text',
-                text: `Leave Request${resubmissionText}`,
+                text: `${requestTypeText} Request${resubmissionText}`,
                 color: '#000000',
                 size: 'xl',
                 flex: 4,
@@ -111,35 +115,10 @@ export const sendLeaveRequestNotification = async (
         paddingTop: '22px',
         height: '100px',
       },
-      hero: {
-        type: 'box',
-        layout: 'vertical',
-        contents: [],
-        margin: 'none',
-        spacing: 'none',
-        cornerRadius: 'none',
-        justifyContent: 'space-around',
-        offsetTop: 'none',
-        offsetBottom: 'none',
-        alignItems: 'center',
-        backgroundColor: '#F0F0F0',
-      },
       body: {
         type: 'box',
         layout: 'vertical',
         contents: [
-          {
-            type: 'box',
-            layout: 'horizontal',
-            contents: [
-              {
-                type: 'box',
-                layout: 'vertical',
-                contents: [],
-                flex: 1,
-              },
-            ],
-          },
           {
             type: 'box',
             layout: 'horizontal',
@@ -170,41 +149,63 @@ export const sendLeaveRequestNotification = async (
                     size: 'sm',
                     wrap: true,
                   },
+                  ...(isLeaveRequest
+                    ? [
+                        {
+                          type: 'text',
+                          text: `ประเภทการลา: ${(request as LeaveRequest).leaveType}${resubmissionText}`,
+                          size: 'sm',
+                          wrap: true,
+                        },
+                        {
+                          type: 'text',
+                          text: `วันที่: ${new Date(
+                            (request as LeaveRequest).startDate,
+                          ).toLocaleDateString('th-TH', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })} - ${new Date(
+                            (request as LeaveRequest).endDate,
+                          ).toLocaleDateString('th-TH', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })} (${(request as LeaveRequest).fullDayCount} วัน)`,
+                          size: 'sm',
+                          wrap: true,
+                        },
+                      ]
+                    : [
+                        {
+                          type: 'text',
+                          text: `วันที่: ${new Date(
+                            (request as OvertimeRequest).date,
+                          ).toLocaleDateString('th-TH', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}`,
+                          size: 'sm',
+                          wrap: true,
+                        },
+                        {
+                          type: 'text',
+                          text: `เวลา: ${(request as OvertimeRequest).startTime} - ${(request as OvertimeRequest).endTime}`,
+                          size: 'sm',
+                          wrap: true,
+                        },
+                      ]),
                   {
                     type: 'text',
-                    text: `ประเภทการลา: ${leaveRequest.leaveType}${resubmissionText}`,
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `วันที่: ${new Date(
-                      leaveRequest.startDate,
-                    ).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })} - ${new Date(leaveRequest.endDate).toLocaleDateString(
-                      'th-TH',
-                      {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      },
-                    )} (${leaveRequest.fullDayCount} วัน)`,
-                    size: 'sm',
-                    wrap: true,
-                  },
-                  {
-                    type: 'text',
-                    text: `สาเหตุ: ${leaveRequest.reason}`,
+                    text: `สาเหตุ: ${request.reason}`,
                     size: 'sm',
                     wrap: true,
                   },
                   {
                     type: 'text',
                     text: `วันที่ยื่น: ${new Date(
-                      leaveRequest.createdAt,
+                      request.createdAt,
                     ).toLocaleDateString('th-TH', {
                       year: 'numeric',
                       month: 'short',
@@ -213,11 +214,13 @@ export const sendLeaveRequestNotification = async (
                     size: 'sm',
                     color: '#4682B4',
                   },
-                  ...(leaveRequest.resubmitted && leaveRequest.originalRequestId
+                  ...('resubmitted' in request &&
+                  request.resubmitted &&
+                  request.originalRequestId
                     ? [
                         {
                           type: 'text',
-                          text: `คำขอเดิม: ${leaveRequest.originalRequestId}`,
+                          text: `คำขอเดิม: ${request.originalRequestId}`,
                           size: 'sm',
                           color: '#4682B4',
                         },
@@ -241,7 +244,7 @@ export const sendLeaveRequestNotification = async (
             action: {
               type: 'postback',
               label: 'อนุมัติ',
-              data: `action=approve&requestId=${leaveRequest.id}&approverId=${admin.id}`,
+              data: `action=approve&requestType=${requestType}&requestId=${request.id}&approverId=${admin.id}`,
             },
             color: '#0662FF',
             style: 'primary',
@@ -252,7 +255,7 @@ export const sendLeaveRequestNotification = async (
             action: {
               type: 'postback',
               label: 'ไม่อนุมัติ',
-              data: `action=deny&requestId=${leaveRequest.id}&approverId=${admin.id}`,
+              data: `action=deny&requestType=${requestType}&requestId=${request.id}&approverId=${admin.id}`,
             },
             color: '#F0F0F0',
             style: 'secondary',
@@ -261,18 +264,18 @@ export const sendLeaveRequestNotification = async (
           },
         ],
       },
-      styles: {
-        hero: {
-          backgroundColor: '#FFFFFF',
-        },
-      },
     },
   };
+
   if (admin.lineUserId) {
     await client.pushMessage(admin.lineUserId, message);
   }
 };
-export const notifyAdmins = async (leaveRequest: LeaveRequest) => {
+
+export const notifyAdmins = async (
+  request: LeaveRequest | OvertimeRequest,
+  requestType: 'leave' | 'overtime',
+) => {
   const admins = await prisma.user.findMany({
     where: {
       OR: [
@@ -283,6 +286,6 @@ export const notifyAdmins = async (leaveRequest: LeaveRequest) => {
   });
 
   for (const admin of admins) {
-    await sendLeaveRequestNotification(admin, leaveRequest);
+    await sendRequestNotification(admin, request, requestType);
   }
 };

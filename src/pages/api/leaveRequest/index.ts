@@ -2,9 +2,9 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { LeaveServiceServer } from '../../../services/LeaveServiceServer';
-import { ILeaveService } from '../../../types/LeaveService';
+import { ILeaveServiceBase } from '../../../types/LeaveService';
 
-const leaveService: ILeaveService = new LeaveServiceServer();
+const leaveService: ILeaveServiceBase = new LeaveServiceServer();
 
 export default async function handler(
   req: NextApiRequest,

@@ -2,9 +2,13 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import getRawBody from 'raw-body';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, LeaveRequest, OvertimeRequest } from '@prisma/client';
 import { UserRole } from '../../types/enum';
-import { handleApprove, handleDeny } from '../../utils/leaveRequestHandlers';
+import {
+  RequestType,
+  handleApprove,
+  handleDeny,
+} from '../../utils/requestHandlers';
 
 dotenv.config({ path: './.env.local' });
 
@@ -83,22 +87,44 @@ const handler = async (event: WebhookEvent) => {
     const params = new URLSearchParams(data);
     const action = params.get('action');
     const requestId = params.get('requestId');
+    const requestType = params.get('requestType') as RequestType;
 
-    if (action && requestId && userId) {
+    if (action && requestId && userId && requestType) {
       try {
-        const leaveRequest = await prisma.leaveRequest.findUnique({
-          where: { id: requestId },
-        });
-
-        if (action === 'approve' && leaveRequest?.status === 'Pending') {
-          await handleApprove(requestId, userId);
-        } else if (action === 'deny' && leaveRequest?.status === 'Pending') {
-          await handleDeny(requestId, userId);
-        } else {
-          await client.replyMessage(event.replyToken, {
-            type: 'text',
-            text: 'คำขอลานี้ได้รับการดำเนินการแล้ว',
+        if (requestType === 'leave') {
+          const existingRequest = await prisma.leaveRequest.findUnique({
+            where: { id: requestId },
           });
+
+          if (existingRequest?.status === 'Pending') {
+            if (action === 'approve') {
+              await handleApprove(requestId, userId, requestType);
+            } else if (action === 'deny') {
+              await handleDeny(requestId, userId, requestType);
+            }
+          } else {
+            await client.replyMessage(event.replyToken, {
+              type: 'text',
+              text: 'คำขอลานี้ได้รับการดำเนินการแล้ว',
+            });
+          }
+        } else if (requestType === 'overtime') {
+          const existingRequest = await prisma.overtimeRequest.findUnique({
+            where: { id: requestId },
+          });
+
+          if (existingRequest?.status === 'Pending') {
+            if (action === 'approve') {
+              await handleApprove(requestId, userId, requestType);
+            } else if (action === 'deny') {
+              await handleDeny(requestId, userId, requestType);
+            }
+          } else {
+            await client.replyMessage(event.replyToken, {
+              type: 'text',
+              text: 'คำขอล่วงเวลานี้ได้รับการดำเนินการแล้ว',
+            });
+          }
         }
       } catch (error) {
         console.error('Error processing postback action:', error);
@@ -107,6 +133,12 @@ const handler = async (event: WebhookEvent) => {
           text: 'เกิดข้อผิดพลาดในการดำเนินการ โปรดลองอีกครั้งในภายหลัง',
         });
       }
+    } else {
+      console.error('Missing required parameters in postback data:', {
+        action,
+        requestId,
+        requestType,
+      });
     }
   } else if (event.type === 'unfollow') {
     console.log('Unfollow event for user ID:', event.source.userId);

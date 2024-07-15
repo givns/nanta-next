@@ -11,7 +11,7 @@ import { useRouter } from 'next/router';
 import 'dayjs/locale/th';
 import liff from '@line/liff';
 import Head from 'next/head';
-import { ILeaveService } from '@/types/LeaveService';
+import { ILeaveServiceBase } from '@/types/LeaveService';
 import { LeaveServiceClient } from '@/services/LeaveServiceClient';
 
 export interface FormValues {
@@ -49,7 +49,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const endDateRef = useRef<HTMLInputElement>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [leaveBalance, setLeaveBalance] = useState<number | null>(null);
-  const leaveService: ILeaveService = useMemo(
+  const leaveService: ILeaveServiceBase = useMemo(
     () => new LeaveServiceClient(),
     [],
   );
