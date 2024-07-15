@@ -1,9 +1,5 @@
 import { format } from 'date-fns';
 
-// utils/dateUtils.ts
-
-// utils/dateUtils.ts
-
 export const formatTime = (date: Date | string | null | undefined): string => {
   if (!date) return 'N/A';
   const dateObject = typeof date === 'string' ? new Date(date) : date;
