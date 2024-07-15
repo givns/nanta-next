@@ -4,7 +4,6 @@ import {
   Client,
   ClientConfig,
   validateSignature,
-  MiddlewareConfig,
 } from '@line/bot-sdk';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
@@ -28,10 +27,6 @@ if (!channelSecret || !channelAccessToken) {
 
 const clientConfig: ClientConfig = {
   channelAccessToken,
-  channelSecret,
-};
-
-const middlewareConfig: MiddlewareConfig = {
   channelSecret,
 };
 
@@ -135,7 +130,7 @@ const handler = async (event: WebhookEvent) => {
 const calculateSignature = (body: string, channelSecret: string): string => {
   return crypto
     .createHmac('SHA256', channelSecret)
-    .update(body)
+    .update(Buffer.from(body))
     .digest('base64');
 };
 
@@ -150,17 +145,23 @@ export default async function webhookHandler(
       'Channel Secret (first 4 chars):',
       channelSecret.substring(0, 4),
     );
+    console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Request method:', req.method);
+    console.log('Request URL:', req.url);
 
     try {
-      const rawBody = await getRawBody(req);
-      const bodyStr = rawBody.toString();
-      console.log('Received body:', bodyStr);
+      const rawBody = await getRawBody(req, {
+        length: req.headers['content-length'],
+        limit: '1mb',
+        encoding: true, // This will return a string instead of a Buffer
+      });
+      console.log('Received body:', rawBody);
 
-      const calculatedSignature = calculateSignature(bodyStr, channelSecret);
+      const calculatedSignature = calculateSignature(rawBody, channelSecret);
       console.log('Calculated signature:', calculatedSignature);
 
       const isValidSignature = validateSignature(
-        bodyStr,
+        rawBody,
         channelSecret,
         signature,
       );
