@@ -4,17 +4,21 @@ import { Client, FlexMessage } from '@line/bot-sdk';
 import { OvertimeRequest, User } from '@prisma/client';
 import prisma from '../lib/prisma';
 
-const client = new Client({
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-});
-
 export class OvertimeNotificationService {
+  private client: Client;
+
+  constructor() {
+    this.client = new Client({
+      channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+    });
+  }
+
   async sendOvertimeDigest(
     managerId: string,
     pendingRequests: OvertimeRequest[],
   ): Promise<void> {
     const message = this.createDigestMessage(pendingRequests);
-    await client.pushMessage(managerId, message);
+    await this.client.pushMessage(managerId, message);
   }
 
   async sendBatchApprovalNotification(
@@ -23,7 +27,7 @@ export class OvertimeNotificationService {
   ): Promise<void> {
     const message = this.createBatchApprovalMessage(approvedRequests);
     if (admin.lineUserId) {
-      await client.pushMessage(admin.lineUserId, message);
+      await this.client.pushMessage(admin.lineUserId, message);
     }
   }
 
@@ -39,8 +43,43 @@ export class OvertimeNotificationService {
     for (const admin of admins) {
       const message = this.createOvertimeRequestMessage(request);
       if (admin.lineUserId) {
-        await client.pushMessage(admin.lineUserId, message);
+        await this.client.pushMessage(admin.lineUserId, message);
       }
+    }
+  }
+
+  async sendOvertimeAutoApprovalNotification(
+    overtimeRequest: OvertimeRequest & { user: User },
+  ): Promise<void> {
+    if (!overtimeRequest.user.lineUserId) {
+      console.warn(
+        'No LINE user ID provided for overtime auto-approval notification',
+      );
+      return;
+    }
+
+    const message = `Your overtime request for ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) has been automatically approved as it's less than or equal to 2 hours.`;
+
+    await this.sendNotification(
+      overtimeRequest.userId,
+      message,
+      overtimeRequest.user.lineUserId,
+    );
+  }
+
+  private async sendNotification(
+    userId: string,
+    message: string,
+    lineUserId: string,
+  ): Promise<void> {
+    try {
+      await this.client.pushMessage(lineUserId, {
+        type: 'text',
+        text: message,
+      });
+    } catch (error) {
+      console.error('Error sending LINE notification:', error);
+      // Don't throw the error, just log it
     }
   }
 

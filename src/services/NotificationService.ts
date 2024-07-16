@@ -52,4 +52,22 @@ export class NotificationService {
       overtimeRequest.user.lineUserId,
     );
   }
+  async sendOvertimeAutoApprovalNotification(
+    overtimeRequest: OvertimeRequest & { user: User },
+  ): Promise<void> {
+    if (!overtimeRequest.user.lineUserId) {
+      console.warn(
+        'No LINE user ID provided for overtime auto-approval notification',
+      );
+      return;
+    }
+
+    const message = `Your overtime request for ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) has been automatically approved as it's less than or equal to 2 hours.`;
+
+    await this.sendNotification(
+      overtimeRequest.userId,
+      message,
+      overtimeRequest.user.lineUserId,
+    );
+  }
 }

@@ -1,18 +1,19 @@
 // services/OvertimeServiceServer.ts
-
 import { PrismaClient, OvertimeRequest, Prisma } from '@prisma/client';
 import { IOvertimeServiceServer } from '@/types/OvertimeService';
-import { notifyAdmins } from '@/utils/sendRequestNotification';
-import { ApprovedOvertime } from '@/types/user';
 import { OvertimeNotificationService } from './OvertimeNotificationService';
+import { TimeEntryService } from './TimeEntryService';
+import { ApprovedOvertime } from '@/types/user';
 
 const prisma = new PrismaClient();
 
 export class OvertimeServiceServer implements IOvertimeServiceServer {
   private overtimeNotificationService: OvertimeNotificationService;
+  private timeEntryService: TimeEntryService;
 
   constructor() {
     this.overtimeNotificationService = new OvertimeNotificationService();
+    this.timeEntryService = new TimeEntryService();
   }
 
   async createOvertimeRequest(
@@ -45,11 +46,41 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       include: { user: true },
     });
 
-    await this.overtimeNotificationService.sendOvertimeRequestNotification(
-      newOvertimeRequest,
-    );
+    // Check if the request is less than 2 hours and auto-approve if it is
+    const durationInHours = this.calculateOvertimeHours(startTime, endTime);
+    if (durationInHours <= 2) {
+      await this.autoApproveOvertimeRequest(newOvertimeRequest.id);
+    } else {
+      await this.overtimeNotificationService.sendOvertimeRequestNotification(
+        newOvertimeRequest,
+      );
+    }
 
     return newOvertimeRequest;
+  }
+
+  private async autoApproveOvertimeRequest(
+    requestId: string,
+  ): Promise<OvertimeRequest> {
+    const approvedRequest = await prisma.overtimeRequest.update({
+      where: { id: requestId },
+      data: { status: 'approved' },
+      include: { user: true },
+    });
+
+    await this.timeEntryService.createPendingOvertimeEntry(approvedRequest);
+    await this.overtimeNotificationService.sendOvertimeAutoApprovalNotification(
+      approvedRequest,
+    );
+
+    return approvedRequest;
+  }
+
+  private calculateOvertimeHours(startTime: string, endTime: string): number {
+    const start = new Date(`1970-01-01T${startTime}`);
+    const end = new Date(`1970-01-01T${endTime}`);
+    const diff = end.getTime() - start.getTime();
+    return diff / (1000 * 60 * 60); // Convert milliseconds to hours
   }
 
   async batchApproveOvertimeRequests(
