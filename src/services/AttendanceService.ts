@@ -404,7 +404,7 @@ export class AttendanceService {
     const endOfDay = new Date(startOfDay);
     endOfDay.setDate(endOfDay.getDate() + 1);
 
-    let attendanceRecord = await prisma.attendance.findFirst({
+    const attendanceRecord = await prisma.attendance.findFirst({
       where: {
         userId: user.id,
         date: {

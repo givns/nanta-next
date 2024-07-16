@@ -27,7 +27,10 @@
     "**/*.ts",
     "**/*.tsx",
     "scripts/validatePrismaClient.ts",
-    "types/**/*.d.ts"
+    "types/**/*.d.ts",
+    "src/**/*",
+    "ecosystem.config.js",
+    "next.config.js"
   ],
   "exclude": ["node_modules", "dist"]
 }

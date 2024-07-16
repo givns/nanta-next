@@ -32,7 +32,7 @@ export class WorkdayCalculationService {
     });
 
     let workingDays = 0;
-    let currentDate = new Date(startDate);
+    const currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
       if (
