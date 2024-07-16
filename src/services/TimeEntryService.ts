@@ -1,3 +1,5 @@
+// services/TimeEntryService.ts
+
 import {
   PrismaClient,
   TimeEntry,
@@ -16,9 +18,11 @@ export class TimeEntryService {
         userId: overtimeRequest.userId,
         date: overtimeRequest.date,
         startTime: new Date(
-          `${overtimeRequest.date}T${overtimeRequest.startTime}`,
+          `${overtimeRequest.date.toISOString().split('T')[0]}T${overtimeRequest.startTime}`,
         ),
-        endTime: new Date(`${overtimeRequest.date}T${overtimeRequest.endTime}`),
+        endTime: new Date(
+          `${overtimeRequest.date.toISOString().split('T')[0]}T${overtimeRequest.endTime}`,
+        ),
         status: 'PENDING',
         regularHours: 0,
         overtimeHours: 0,
@@ -40,16 +44,18 @@ export class TimeEntryService {
   }
 
   private async createTimeEntry(attendance: Attendance): Promise<TimeEntry> {
-    // Implement logic to create a new time entry
+    const startTime = attendance.checkInTime || attendance.date; // Use date as fallback
+    const endTime = attendance.checkOutTime || new Date();
+
     return prisma.timeEntry.create({
       data: {
         userId: attendance.userId,
         date: attendance.date,
-        startTime: attendance.checkInTime,
-        endTime: attendance.checkOutTime || new Date(),
+        startTime: startTime,
+        endTime: endTime,
         status: 'COMPLETED',
-        regularHours: 0, // Calculate this based on your business logic
-        overtimeHours: 0, // Calculate this based on your business logic
+        regularHours: 1, // Calculate this based on your business logic
+        overtimeHours: 1.5, // Calculate this based on your business logic
         attendanceId: attendance.id,
       },
     });
@@ -59,11 +65,12 @@ export class TimeEntryService {
     timeEntryId: string,
     attendance: Attendance,
   ): Promise<TimeEntry> {
-    // Implement logic to update an existing time entry
+    const endTime = attendance.checkOutTime || new Date();
+
     return prisma.timeEntry.update({
       where: { id: timeEntryId },
       data: {
-        endTime: attendance.checkOutTime || new Date(),
+        endTime: endTime,
         status: 'COMPLETED',
         // Update regularHours and overtimeHours based on your business logic
       },
