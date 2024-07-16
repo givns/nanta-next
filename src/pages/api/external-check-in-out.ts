@@ -2,11 +2,11 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { ExternalDbService } from '../../services/ExternalDbService';
-import { AttendanceService } from '../../services/AttendanceService';
+import { AttendanceSyncService } from '../../services/AttendanceSyncService';
 import prisma from '../../lib/prisma';
 
 const externalDbService = new ExternalDbService();
-const attendanceService = new AttendanceService();
+const attendanceSyncService = new AttendanceSyncService();
 
 export default async function handler(
   req: NextApiRequest,
@@ -26,15 +26,7 @@ export default async function handler(
       await externalDbService.createCheckIn(data);
     }
 
-    // Fetch user info and daily attendance records
-    const { userInfo, records } =
-      await externalDbService.getDailyAttendanceRecords(data.employeeId);
-
-    if (!userInfo) {
-      throw new Error('User not found in external database');
-    }
-
-    // Fetch user from our database
+    // Sync attendance data for the user
     const user = await prisma.user.findUnique({
       where: { employeeId: data.employeeId },
       include: { assignedShift: true },
@@ -44,23 +36,11 @@ export default async function handler(
       throw new Error('User not found in our database');
     }
 
-    if (records.length === 0) {
-      throw new Error('No attendance records found for today');
-    }
-
-    // Get the latest check-in (which should be the one we just created)
-    const latestCheckIn = records[records.length - 1];
-
-    // Process the check-in/out
-    const attendance = await attendanceService.processExternalCheckInOut(
-      latestCheckIn,
-      userInfo,
-      user.assignedShift,
-    );
+    await attendanceSyncService.syncUserAttendance(user);
 
     res
       .status(200)
-      .json({ message: 'Check-in/out processed successfully', attendance });
+      .json({ message: 'Check-in/out processed and synced successfully' });
   } catch (error: any) {
     console.error('Error processing check-in/out:', error);
     res

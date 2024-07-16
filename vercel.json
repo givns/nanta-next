@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/send-overtime-digests",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/sync-attendance",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
