@@ -17,7 +17,12 @@ module.exports = {
     'prettier',
     'plugin:prettier/recommended',
   ],
-  ignorePatterns: ['dist/', 'node_modules/'],
+  ignorePatterns: [
+    'dist/',
+    'node_modules/',
+    'ecosystem.config.js',
+    'next.config.js',
+  ],
   rules: {
     '@typescript-eslint/no-explicit-any': 'off',
     'react/react-in-jsx-scope': 'off',

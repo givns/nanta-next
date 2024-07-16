@@ -431,3 +431,7 @@ flex message for leave request JSON
 ],
 "width": "12px"
 },
+
+
+ "path": "/api/cron/sync-attendance",
+      "schedule": "*/15 * * * *"
