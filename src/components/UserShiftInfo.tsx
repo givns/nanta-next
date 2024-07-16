@@ -135,6 +135,12 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
                 {formatTime(attendanceStatus.approvedOvertime.endTime)}
               </span>
             </p>
+            <p>
+              เวลาที่อนุมัติ:{' '}
+              <span className="font-medium">
+                {formatTime(attendanceStatus.approvedOvertime.approvedAt)}
+              </span>
+            </p>
           </>
         ) : shift ? (
           <>
@@ -156,7 +162,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         )}
 
         {isOutsideShift() && !attendanceStatus.approvedOvertime && (
-          <p className="text-red-500 mt-2">คุณกำลังลงเวลานอกช่วงเวลากะของคุณ</p>
+          <p className="text-red-500 mt-2">
+            คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
+          </p>
         )}
       </div>
 

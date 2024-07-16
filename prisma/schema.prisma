@@ -122,6 +122,7 @@ model Attendance {
   date                 DateTime
   checkInTime          DateTime?
   checkOutTime         DateTime? 
+  isOvertime           Boolean @default(false)
   overtimeStartTime    DateTime?
   overtimeEndTime      DateTime?
   checkInLocation      Json
@@ -130,7 +131,7 @@ model Attendance {
   checkOutAddress      String?
   checkInReason        String?
   checkOutReason       String?
-  checkInPhoto         String
+  checkInPhoto         String?
   checkOutPhoto        String?
   checkInDeviceSerial  String?
   checkOutDeviceSerial String?

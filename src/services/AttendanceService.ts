@@ -444,17 +444,48 @@ export class AttendanceService {
     const checkTime = new Date(data.checkTime);
 
     try {
+      let attendanceType:
+        | 'regular'
+        | 'flexible-start'
+        | 'flexible-end'
+        | 'grace-period'
+        | 'overtime' = 'regular';
+
+      if (data.isOvertime) {
+        attendanceType = 'overtime';
+      } else if (data.isFlexibleStart) {
+        attendanceType = 'flexible-start';
+      } else if (data.isFlexibleEnd) {
+        attendanceType = 'flexible-end';
+      } else if (data.isWithinGracePeriod) {
+        attendanceType = 'grace-period';
+      }
+
       if (data.isCheckIn) {
         return await processingService.processCheckIn(
           user.id,
           checkTime,
-          data.isOvertime || false,
+          attendanceType,
+          {
+            location: data.location,
+            address: data.address,
+            reason: data.reason,
+            photo: data.photo,
+            deviceSerial: data.deviceSerial,
+          },
         );
       } else {
         return await processingService.processCheckOut(
           user.id,
           checkTime,
-          data.isOvertime || false,
+          attendanceType,
+          {
+            location: data.location,
+            address: data.address,
+            reason: data.reason,
+            photo: data.photo,
+            deviceSerial: data.deviceSerial,
+          },
         );
       }
     } catch (error: any) {

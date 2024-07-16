@@ -1,6 +1,7 @@
 // @/types/OvertimeService.ts
 
 import { OvertimeRequest } from '@prisma/client';
+import { ApprovedOvertime } from './user'; // Make sure to import ApprovedOvertime
 
 export interface IOvertimeServiceBase {
   createOvertimeRequest(
@@ -38,6 +39,6 @@ export interface IOvertimeServiceServer extends IOvertimeServiceBase {
   getApprovedOvertimeRequest(
     userId: string,
     date: Date,
-  ): Promise<OvertimeRequest | null>;
+  ): Promise<ApprovedOvertime | null>; // Changed return type to ApprovedOvertime
   getPendingOvertimeRequests(): Promise<OvertimeRequest[]>;
 }

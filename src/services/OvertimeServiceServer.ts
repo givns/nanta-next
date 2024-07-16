@@ -3,6 +3,7 @@
 import { PrismaClient, OvertimeRequest, Prisma } from '@prisma/client';
 import { IOvertimeServiceServer } from '@/types/OvertimeService';
 import { notifyAdmins } from '@/utils/sendRequestNotification';
+import { ApprovedOvertime } from '@/types/user';
 
 const prisma = new PrismaClient();
 
@@ -132,14 +133,31 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   async getApprovedOvertimeRequest(
     userId: string,
     date: Date,
-  ): Promise<OvertimeRequest | null> {
-    return prisma.overtimeRequest.findFirst({
+  ): Promise<ApprovedOvertime | null> {
+    const overtimeRequest = await prisma.overtimeRequest.findFirst({
       where: {
         userId,
-        date,
+        date: {
+          equals: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+        },
         status: 'approved',
       },
     });
+
+    if (!overtimeRequest) {
+      return null;
+    }
+
+    return {
+      id: overtimeRequest.id,
+      userId: overtimeRequest.userId,
+      date: overtimeRequest.date,
+      startTime: new Date(overtimeRequest.startTime),
+      endTime: new Date(overtimeRequest.endTime),
+      status: overtimeRequest.status,
+      approvedBy: overtimeRequest.approverId || '',
+      approvedAt: overtimeRequest.updatedAt,
+    };
   }
 
   async getPendingOvertimeRequests(): Promise<OvertimeRequest[]> {

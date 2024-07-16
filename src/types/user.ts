@@ -45,13 +45,20 @@ export interface AttendanceData {
   deviceSerial: string;
   isCheckIn: boolean;
   isOvertime?: boolean;
+  isFlexibleStart?: boolean;
+  isFlexibleEnd?: boolean;
+  isWithinGracePeriod?: boolean;
 }
 
 export interface ApprovedOvertime {
-  startTime: string;
-  endTime: string;
+  id: string;
+  userId: string;
+  date: Date;
+  startTime: Date;
+  endTime: Date;
+  status: string;
   approvedBy: string;
-  approvedAt: string;
+  approvedAt: Date;
 }
 
 export interface AttendanceStatus {
@@ -77,7 +84,12 @@ export interface AttendanceStatus {
     date: string;
     shift: ShiftData;
   }>;
-  approvedOvertime: ApprovedOvertime | null;
+  approvedOvertime: {
+    startTime: string;
+    endTime: string;
+    approvedBy: string;
+    approvedAt: string;
+  } | null;
 }
 
 export interface ShiftData {

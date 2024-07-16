@@ -1,7 +1,9 @@
-// services/AttendanceProcessingService.ts
+// AttendanceProcessingService.ts
+
 import { PrismaClient, Attendance, User, Shift } from '@prisma/client';
 import { NotificationService } from './NotificationService';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
+import { ApprovedOvertime } from '../types/user';
 
 const prisma = new PrismaClient();
 const overtimeService = new OvertimeServiceServer();
@@ -11,18 +13,50 @@ export class AttendanceProcessingService {
   async processCheckIn(
     userId: string,
     checkInTime: Date,
-    isOvertime: boolean,
+    attendanceType:
+      | 'regular'
+      | 'flexible-start'
+      | 'flexible-end'
+      | 'grace-period'
+      | 'overtime',
+    additionalData: {
+      location: string;
+      address: string;
+      reason?: string;
+      photo?: string;
+      deviceSerial: string;
+    },
   ): Promise<Attendance> {
     const user = await this.getUserWithShift(userId);
     if (!user) throw new Error('User not found');
 
-    const { shift, shiftStart } = await this.getEffectiveShift(
+    const { shift, shiftStart, shiftEnd } = await this.getEffectiveShift(
       user,
       checkInTime,
     );
     console.log(`Shift: ${shift.name}`);
 
-    if (!isOvertime && checkInTime < shiftStart) {
+    let status: string;
+    let isOvertime = false;
+    switch (attendanceType) {
+      case 'overtime':
+        status = 'overtime-started';
+        isOvertime = true;
+        break;
+      case 'flexible-start':
+        status = 'flexible-start';
+        break;
+      case 'flexible-end':
+        status = 'flexible-end';
+        break;
+      case 'grace-period':
+        status = 'grace-period';
+        break;
+      default:
+        status = 'checked-in';
+    }
+
+    if (attendanceType === 'regular' && checkInTime < shiftStart) {
       const overtimeRequest = await this.getApprovedOvertimeRequest(
         userId,
         checkInTime,
@@ -34,6 +68,7 @@ export class AttendanceProcessingService {
         );
         throw new Error('Early check-in not allowed');
       }
+      isOvertime = true;
     }
 
     const attendance = await prisma.attendance.create({
@@ -45,15 +80,19 @@ export class AttendanceProcessingService {
           checkInTime.getDate(),
         ),
         checkInTime,
-        status: isOvertime ? 'overtime-started' : 'checked-in',
-        checkInLocation: '',
-        checkInPhoto: 'path/to/photo.jpg',
+        status,
+        checkInLocation: additionalData.location,
+        checkInAddress: additionalData.address,
+        checkInReason: additionalData.reason || null,
+        checkInPhoto: additionalData.photo || null,
+        checkInDeviceSerial: additionalData.deviceSerial,
+        isOvertime,
       },
     });
 
     await notificationService.sendNotification(
       userId,
-      `Check-in recorded at ${checkInTime.toLocaleTimeString()}`,
+      `Check-in recorded at ${checkInTime.toLocaleTimeString()} (${status})`,
     );
 
     return attendance;
@@ -62,7 +101,19 @@ export class AttendanceProcessingService {
   async processCheckOut(
     userId: string,
     checkOutTime: Date,
-    isOvertime: boolean,
+    attendanceType:
+      | 'regular'
+      | 'flexible-start'
+      | 'flexible-end'
+      | 'grace-period'
+      | 'overtime',
+    additionalData: {
+      location: string;
+      address: string;
+      reason?: string;
+      photo?: string;
+      deviceSerial: string;
+    },
   ): Promise<Attendance> {
     const user = await this.getUserWithShift(userId);
     if (!user) throw new Error('User not found');
@@ -76,13 +127,33 @@ export class AttendanceProcessingService {
       throw new Error('No active check-in found');
     }
 
-    const { shift, shiftEnd } = await this.getEffectiveShift(
+    const { shift, shiftStart, shiftEnd } = await this.getEffectiveShift(
       user,
       checkOutTime,
     );
     console.log(shift);
 
-    if (!isOvertime && checkOutTime > shiftEnd) {
+    let status: string;
+    let isOvertime = latestAttendance.isOvertime;
+    switch (attendanceType) {
+      case 'overtime':
+        status = 'overtime-ended';
+        isOvertime = true;
+        break;
+      case 'flexible-start':
+        status = 'flexible-start-ended';
+        break;
+      case 'flexible-end':
+        status = 'flexible-end-ended';
+        break;
+      case 'grace-period':
+        status = 'grace-period-ended';
+        break;
+      default:
+        status = 'checked-out';
+    }
+
+    if (attendanceType === 'regular' && checkOutTime > shiftEnd) {
       const overtimeRequest = await this.getApprovedOvertimeRequest(
         userId,
         checkOutTime,
@@ -92,6 +163,8 @@ export class AttendanceProcessingService {
           userId,
           'Late check-out detected. Please submit an overtime request if needed.',
         );
+      } else {
+        isOvertime = true;
       }
     }
 
@@ -99,13 +172,19 @@ export class AttendanceProcessingService {
       where: { id: latestAttendance.id },
       data: {
         checkOutTime,
-        status: isOvertime ? 'overtime-ended' : 'checked-out',
+        status,
+        checkOutLocation: additionalData.location,
+        checkOutAddress: additionalData.address,
+        checkOutReason: additionalData.reason || null,
+        checkOutPhoto: additionalData.photo || null,
+        checkOutDeviceSerial: additionalData.deviceSerial,
+        isOvertime,
       },
     });
 
     await notificationService.sendNotification(
       userId,
-      `Check-out recorded at ${checkOutTime.toLocaleTimeString()}`,
+      `Check-out recorded at ${checkOutTime.toLocaleTimeString()} (${status})`,
     );
 
     return updatedAttendance;
@@ -152,17 +231,18 @@ export class AttendanceProcessingService {
     const shiftEnd = new Date(date);
     shiftEnd.setHours(endHour, endMinute, 0, 0);
 
+    // Handle overnight shifts
+    if (shiftEnd <= shiftStart) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
+
     return { shift: effectiveShift, shiftStart, shiftEnd };
   }
 
   private async getApprovedOvertimeRequest(
     userId: string,
     date: Date,
-  ): Promise<boolean> {
-    const overtimeRequest = await overtimeService.getApprovedOvertimeRequest(
-      userId,
-      date,
-    );
-    return !!overtimeRequest;
+  ): Promise<ApprovedOvertime | null> {
+    return overtimeService.getApprovedOvertimeRequest(userId, date);
   }
 }
