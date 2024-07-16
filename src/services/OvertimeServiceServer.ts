@@ -4,10 +4,17 @@ import { PrismaClient, OvertimeRequest, Prisma } from '@prisma/client';
 import { IOvertimeServiceServer } from '@/types/OvertimeService';
 import { notifyAdmins } from '@/utils/sendRequestNotification';
 import { ApprovedOvertime } from '@/types/user';
+import { OvertimeNotificationService } from './OvertimeNotificationService';
 
 const prisma = new PrismaClient();
 
 export class OvertimeServiceServer implements IOvertimeServiceServer {
+  private overtimeNotificationService: OvertimeNotificationService;
+
+  constructor() {
+    this.overtimeNotificationService = new OvertimeNotificationService();
+  }
+
   async createOvertimeRequest(
     lineUserId: string,
     date: string,
@@ -38,11 +45,37 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       include: { user: true },
     });
 
-    await notifyAdmins(newOvertimeRequest, 'overtime');
+    await this.overtimeNotificationService.sendOvertimeRequestNotification(
+      newOvertimeRequest,
+    );
 
     return newOvertimeRequest;
   }
 
+  async batchApproveOvertimeRequests(
+    requestIds: string[],
+    approverId: string,
+  ): Promise<OvertimeRequest[]> {
+    const approvedRequests = await prisma.$transaction(
+      requestIds.map((id) =>
+        prisma.overtimeRequest.update({
+          where: { id },
+          data: { status: 'approved', approverId },
+          include: { user: true },
+        }),
+      ),
+    );
+
+    const admin = await prisma.user.findUnique({ where: { id: approverId } });
+    if (admin) {
+      await this.overtimeNotificationService.sendBatchApprovalNotification(
+        admin,
+        approvedRequests,
+      );
+    }
+
+    return approvedRequests;
+  }
   async approveOvertimeRequest(
     requestId: string,
     lineUserId: string,

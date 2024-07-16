@@ -1,6 +1,7 @@
 // services/NotificationService.ts
 
 import { Client } from '@line/bot-sdk';
+import { OvertimeRequest, User } from '@prisma/client';
 
 export class NotificationService {
   private client: Client;
@@ -30,5 +31,25 @@ export class NotificationService {
       console.error('Error sending LINE notification:', error);
       // Don't throw the error, just log it
     }
+  }
+
+  async sendOvertimeApprovalNotification(
+    overtimeRequest: OvertimeRequest & { user: User },
+    approver: User,
+  ): Promise<void> {
+    if (!overtimeRequest.user.lineUserId) {
+      console.warn(
+        'No LINE user ID provided for overtime approval notification',
+      );
+      return;
+    }
+
+    const message = `Your overtime request for ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) has been approved by ${approver.name}.`;
+
+    await this.sendNotification(
+      overtimeRequest.userId,
+      message,
+      overtimeRequest.user.lineUserId,
+    );
   }
 }

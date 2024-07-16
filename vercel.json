@@ -13,5 +13,11 @@
       "source": "/(.*)",
       "destination": "/$1"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/send-overtime-digests",
+      "schedule": "0 9 * * *"
+    }
   ]
 }

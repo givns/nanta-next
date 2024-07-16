@@ -37,6 +37,7 @@ model User {
   approvedOvertimeRequests OvertimeRequest[] @relation("OvertimeApprover")
   approvedOvertimes       ApprovedOvertime[]
   checkPoints             CheckPoint[]
+  timeEntries             TimeEntry[]
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 }
@@ -101,6 +102,7 @@ model OvertimeRequest {
   originalRequestId   String?
   originalRequest     OvertimeRequest? @relation("ResubmittedOvertimeRequest", fields: [originalRequestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   resubmittedRequests OvertimeRequest[] @relation("ResubmittedOvertimeRequest")
+  timeEntries         TimeEntry[]
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -137,10 +139,29 @@ model Attendance {
   checkOutDeviceSerial String?
   status               String // e.g., "checked-in", "checked-out", "incomplete"
   isManualEntry        Boolean   @default(false)
+  timeEntries           TimeEntry[]
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id])
+}
+
+model TimeEntry {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String    @db.ObjectId
+  user              User      @relation(fields: [userId], references: [id])
+  date              DateTime
+  startTime         DateTime
+  endTime           DateTime
+  regularHours      Float
+  overtimeHours     Float
+  status            String
+  attendanceId      String?   @db.ObjectId
+  attendance        Attendance? @relation(fields: [attendanceId], references: [id])
+  overtimeRequestId String?   @db.ObjectId
+  overtimeRequest   OvertimeRequest? @relation(fields: [overtimeRequestId], references: [id])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 model CheckPoint {
