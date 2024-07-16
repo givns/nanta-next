@@ -36,12 +36,18 @@ export default async function handler(
       originalRequestId,
     );
 
+    // Check if the request was auto-approved
+    const isAutoApproved = newOvertimeRequest.status === 'approved';
+
     res.status(201).json({
       success: true,
-      message: resubmitted
-        ? 'Overtime request resubmitted successfully'
-        : 'Overtime request created successfully',
+      message: isAutoApproved
+        ? 'Overtime request auto-approved successfully'
+        : resubmitted
+          ? 'Overtime request resubmitted successfully'
+          : 'Overtime request created successfully',
       data: newOvertimeRequest,
+      isAutoApproved,
     });
   } catch (error: any) {
     console.error('Error creating/resubmitting overtime request:', error);
