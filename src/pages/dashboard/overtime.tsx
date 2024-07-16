@@ -64,7 +64,13 @@ const OvertimePage: React.FC<OvertimePageProps> = ({ liffId }) => {
     return <div>You are not authorized to view this page.</div>;
   }
 
-  return <OvertimeDashboard userId={userData.id} />;
+  return (
+    <OvertimeDashboard
+      userId={userData.id}
+      userRole={userData.role}
+      userDepartmentId={userData.departmentId}
+    />
+  );
 };
 
 export const getServerSideProps: GetServerSideProps = async () => {

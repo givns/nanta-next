@@ -6,39 +6,44 @@ import { OvertimeRequest, User } from '@prisma/client';
 
 interface OvertimeDashboardProps {
   userId: string;
+  userRole: string;
+  userDepartmentId: string;
 }
 
-const OvertimeDashboard: React.FC<OvertimeDashboardProps> = ({ userId }) => {
-  const [pendingRequests, setPendingRequests] = useState<OvertimeRequest[]>([]);
+const OvertimeDashboard: React.FC<OvertimeDashboardProps> = ({
+  userId,
+  userRole,
+  userDepartmentId,
+}) => {
+  const [pendingRequests, setPendingRequests] = useState<
+    (OvertimeRequest & { user: User })[]
+  >([]);
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
-  const [page, setPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [totalRequests, setTotalRequests] = useState(0);
-  const [sortField, setSortField] = useState<keyof OvertimeRequest>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [filterDate, setFilterDate] = useState('');
 
   useEffect(() => {
     fetchPendingRequests();
-  }, [page, pageSize, sortField, sortOrder, filterDate]);
+  }, [currentPage, pageSize]);
 
   const fetchPendingRequests = async () => {
     try {
       const response = await axios.get('/api/overtime/pending', {
         params: {
-          page,
-          pageSize,
-          sortField,
-          sortOrder,
-          filterDate,
+          userRole,
+          departmentId: userDepartmentId,
+          page: currentPage,
+          pageSize: pageSize,
         },
       });
       setPendingRequests(response.data.requests);
-      setTotalRequests(response.data.total);
+      setTotalPages(response.data.totalPages);
     } catch (error) {
       console.error('Error fetching pending requests:', error);
     }
   };
+
   const handleBatchApproval = async () => {
     if (selectedRequests.length === 0) return;
     try {
@@ -61,36 +66,37 @@ const OvertimeDashboard: React.FC<OvertimeDashboardProps> = ({ userId }) => {
     );
   };
 
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+  const handlePageSizeChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    setPageSize(Number(event.target.value));
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
   return (
     <div className="container mx-auto px-4">
       <h1 className="text-2xl font-bold mb-4">Overtime Approval Dashboard</h1>
-      {/* Add filter and sort controls */}
+
       <div className="mb-4">
-        <input
-          type="date"
-          value={filterDate}
-          onChange={(e) => setFilterDate(e.target.value)}
-          className="mr-2"
-        />
+        <label htmlFor="pageSize" className="mr-2">
+          Items per page:
+        </label>
         <select
-          value={sortField}
-          onChange={(e) =>
-            setSortField(e.target.value as keyof OvertimeRequest)
-          }
-          className="mr-2"
+          id="pageSize"
+          value={pageSize}
+          onChange={handlePageSizeChange}
+          className="border rounded p-1"
         >
-          <option value="date">Date</option>
-          <option value="startTime">Start Time</option>
-          <option value="endTime">End Time</option>
-        </select>
-        <select
-          value={sortOrder}
-          onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-        >
-          <option value="asc">Ascending</option>
-          <option value="desc">Descending</option>
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
         </select>
       </div>
+
       <table className="min-w-full bg-white">
         <thead>
           <tr>
@@ -121,32 +127,35 @@ const OvertimeDashboard: React.FC<OvertimeDashboardProps> = ({ userId }) => {
           ))}
         </tbody>
       </table>
-      <button
-        onClick={handleBatchApproval}
-        className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
-        disabled={selectedRequests.length === 0}
-      >
-        Approve Selected
-      </button>
-      {/* Add pagination controls */}
-      <div className="mt-4">
+
+      <div className="mt-4 flex justify-between items-center">
         <button
-          onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-          disabled={page === 1}
-          className="mr-2"
+          onClick={handleBatchApproval}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+          disabled={selectedRequests.length === 0}
         >
-          Previous
+          Approve Selected
         </button>
-        <span>
-          Page {page} of {Math.ceil(totalRequests / pageSize)}
-        </span>
-        <button
-          onClick={() => setPage((prev) => prev + 1)}
-          disabled={page >= Math.ceil(totalRequests / pageSize)}
-          className="ml-2"
-        >
-          Next
-        </button>
+
+        <div>
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="mr-2 px-2 py-1 border rounded"
+          >
+            Previous
+          </button>
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="ml-2 px-2 py-1 border rounded"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );
