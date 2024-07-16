@@ -11471,3 +11471,813 @@
 2024-07-16 23:35:45 +07:00:   code: 'ECONNRESET',
 2024-07-16 23:35:45 +07:00:   syscall: 'read'
 2024-07-16 23:35:45 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: read ETIMEDOUT
+2024-07-17 02:28:15 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-17 02:28:15 +07:00:   errno: -60,
+2024-07-17 02:28:15 +07:00:   code: 'ETIMEDOUT',
+2024-07-17 02:28:15 +07:00:   syscall: 'read'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: read ETIMEDOUT
+2024-07-17 02:28:15 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-17 02:28:15 +07:00:   errno: -60,
+2024-07-17 02:28:15 +07:00:   code: 'ETIMEDOUT',
+2024-07-17 02:28:15 +07:00:   syscall: 'read'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:15 +07:00:   errno: -3008,
+2024-07-17 02:28:15 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:15 +07:00:   errno: -3008,
+2024-07-17 02:28:15 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:15 +07:00:   errno: -3008,
+2024-07-17 02:28:15 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:15 +07:00:   errno: -3008,
+2024-07-17 02:28:15 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:15 +07:00:   errno: -3008,
+2024-07-17 02:28:15 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:15 +07:00:   errno: -3008,
+2024-07-17 02:28:15 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:15 +07:00:   errno: -3008,
+2024-07-17 02:28:15 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:15 +07:00:   errno: -3008,
+2024-07-17 02:28:15 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:15 +07:00: }
+2024-07-17 02:28:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:16 +07:00:   errno: -3008,
+2024-07-17 02:28:16 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:16 +07:00: }
+2024-07-17 02:28:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:16 +07:00:   errno: -3008,
+2024-07-17 02:28:16 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:16 +07:00: }
+2024-07-17 02:28:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:16 +07:00:   errno: -3008,
+2024-07-17 02:28:16 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:16 +07:00: }
+2024-07-17 02:28:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:16 +07:00:   errno: -3008,
+2024-07-17 02:28:16 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:16 +07:00: }
+2024-07-17 02:28:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:16 +07:00:   errno: -3008,
+2024-07-17 02:28:16 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:16 +07:00: }
+2024-07-17 02:28:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:16 +07:00:   errno: -3008,
+2024-07-17 02:28:16 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:16 +07:00: }
+2024-07-17 02:28:17 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:17 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:17 +07:00:   errno: -3008,
+2024-07-17 02:28:17 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:17 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:17 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:17 +07:00: }
+2024-07-17 02:28:17 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:17 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:17 +07:00:   errno: -3008,
+2024-07-17 02:28:17 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:17 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:17 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:17 +07:00: }
+2024-07-17 02:28:17 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:17 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:17 +07:00:   errno: -3008,
+2024-07-17 02:28:17 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:17 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:17 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:17 +07:00: }
+2024-07-17 02:28:17 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:17 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:17 +07:00:   errno: -3008,
+2024-07-17 02:28:17 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:17 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:17 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:17 +07:00: }
+2024-07-17 02:28:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:18 +07:00:   errno: -3008,
+2024-07-17 02:28:18 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:18 +07:00: }
+2024-07-17 02:28:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:18 +07:00:   errno: -3008,
+2024-07-17 02:28:18 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:18 +07:00: }
+2024-07-17 02:28:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:18 +07:00:   errno: -3008,
+2024-07-17 02:28:18 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:18 +07:00: }
+2024-07-17 02:28:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:18 +07:00:   errno: -3008,
+2024-07-17 02:28:18 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:18 +07:00: }
+2024-07-17 02:28:19 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:19 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:19 +07:00:   errno: -3008,
+2024-07-17 02:28:19 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:19 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:19 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:19 +07:00: }
+2024-07-17 02:28:19 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:19 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:19 +07:00:   errno: -3008,
+2024-07-17 02:28:19 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:19 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:19 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:19 +07:00: }
+2024-07-17 02:28:19 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:19 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:19 +07:00:   errno: -3008,
+2024-07-17 02:28:19 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:19 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:19 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:19 +07:00: }
+2024-07-17 02:28:19 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:19 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:19 +07:00:   errno: -3008,
+2024-07-17 02:28:19 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:19 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:19 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:19 +07:00: }
+2024-07-17 02:28:20 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:20 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:20 +07:00:   errno: -3008,
+2024-07-17 02:28:20 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:20 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:20 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:20 +07:00: }
+2024-07-17 02:28:20 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:20 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:20 +07:00:   errno: -3008,
+2024-07-17 02:28:20 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:20 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:20 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:20 +07:00: }
+2024-07-17 02:28:21 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:21 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:21 +07:00:   errno: -3008,
+2024-07-17 02:28:21 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:21 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:21 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:21 +07:00: }
+2024-07-17 02:28:21 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:21 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:21 +07:00:   errno: -3008,
+2024-07-17 02:28:21 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:21 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:21 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:21 +07:00: }
+2024-07-17 02:28:22 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:22 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:22 +07:00:   errno: -3008,
+2024-07-17 02:28:22 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:22 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:22 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:22 +07:00: }
+2024-07-17 02:28:22 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:22 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:22 +07:00:   errno: -3008,
+2024-07-17 02:28:22 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:22 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:22 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:22 +07:00: }
+2024-07-17 02:28:22 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:22 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:22 +07:00:   errno: -3008,
+2024-07-17 02:28:22 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:22 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:22 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:22 +07:00: }
+2024-07-17 02:28:22 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:22 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:22 +07:00:   errno: -3008,
+2024-07-17 02:28:22 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:22 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:22 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:22 +07:00: }
+2024-07-17 02:28:23 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:23 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:23 +07:00:   errno: -3008,
+2024-07-17 02:28:23 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:23 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:23 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:23 +07:00: }
+2024-07-17 02:28:23 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:23 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:23 +07:00:   errno: -3008,
+2024-07-17 02:28:23 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:23 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:23 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:23 +07:00: }
+2024-07-17 02:28:24 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:24 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:24 +07:00:   errno: -3008,
+2024-07-17 02:28:24 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:24 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:24 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:24 +07:00: }
+2024-07-17 02:28:24 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:24 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:24 +07:00:   errno: -3008,
+2024-07-17 02:28:24 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:24 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:24 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:24 +07:00: }
+2024-07-17 02:28:25 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:25 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:25 +07:00:   errno: -3008,
+2024-07-17 02:28:25 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:25 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:25 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:25 +07:00: }
+2024-07-17 02:28:25 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:25 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:25 +07:00:   errno: -3008,
+2024-07-17 02:28:25 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:25 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:25 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:25 +07:00: }
+2024-07-17 02:28:26 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:26 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:26 +07:00:   errno: -3008,
+2024-07-17 02:28:26 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:26 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:26 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:26 +07:00: }
+2024-07-17 02:28:26 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:26 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:26 +07:00:   errno: -3008,
+2024-07-17 02:28:26 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:26 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:26 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:26 +07:00: }
+2024-07-17 02:28:27 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:27 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:27 +07:00:   errno: -3008,
+2024-07-17 02:28:27 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:27 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:27 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:27 +07:00: }
+2024-07-17 02:28:27 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:27 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:27 +07:00:   errno: -3008,
+2024-07-17 02:28:27 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:27 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:27 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:27 +07:00: }
+2024-07-17 02:28:29 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:29 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:29 +07:00:   errno: -3008,
+2024-07-17 02:28:29 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:29 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:29 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:29 +07:00: }
+2024-07-17 02:28:29 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:29 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:29 +07:00:   errno: -3008,
+2024-07-17 02:28:29 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:29 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:29 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:29 +07:00: }
+2024-07-17 02:28:30 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:30 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:30 +07:00:   errno: -3008,
+2024-07-17 02:28:30 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:30 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:30 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:30 +07:00: }
+2024-07-17 02:28:30 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:30 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:30 +07:00:   errno: -3008,
+2024-07-17 02:28:30 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:30 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:30 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:30 +07:00: }
+2024-07-17 02:28:31 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:31 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:31 +07:00:   errno: -3008,
+2024-07-17 02:28:31 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:31 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:31 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:31 +07:00: }
+2024-07-17 02:28:31 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:31 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:31 +07:00:   errno: -3008,
+2024-07-17 02:28:31 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:31 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:31 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:31 +07:00: }
+2024-07-17 02:28:32 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:32 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:32 +07:00:   errno: -3008,
+2024-07-17 02:28:32 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:32 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:32 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:32 +07:00: }
+2024-07-17 02:28:32 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:32 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:32 +07:00:   errno: -3008,
+2024-07-17 02:28:32 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:32 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:32 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:32 +07:00: }
+2024-07-17 02:28:34 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:34 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:34 +07:00:   errno: -3008,
+2024-07-17 02:28:34 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:34 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:34 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:34 +07:00: }
+2024-07-17 02:28:34 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:34 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:34 +07:00:   errno: -3008,
+2024-07-17 02:28:34 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:34 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:34 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:34 +07:00: }
+2024-07-17 02:28:35 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:35 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:35 +07:00:   errno: -3008,
+2024-07-17 02:28:35 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:35 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:35 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:35 +07:00: }
+2024-07-17 02:28:35 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:35 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:35 +07:00:   errno: -3008,
+2024-07-17 02:28:35 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:35 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:35 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:35 +07:00: }
+2024-07-17 02:28:37 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:37 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:37 +07:00:   errno: -3008,
+2024-07-17 02:28:37 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:37 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:37 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:37 +07:00: }
+2024-07-17 02:28:37 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:37 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:37 +07:00:   errno: -3008,
+2024-07-17 02:28:37 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:37 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:37 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:37 +07:00: }
+2024-07-17 02:28:38 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:38 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:38 +07:00:   errno: -3008,
+2024-07-17 02:28:38 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:38 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:38 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:38 +07:00: }
+2024-07-17 02:28:38 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:38 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:38 +07:00:   errno: -3008,
+2024-07-17 02:28:38 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:38 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:38 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:38 +07:00: }
+2024-07-17 02:28:40 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:40 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:40 +07:00:   errno: -3008,
+2024-07-17 02:28:40 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:40 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:40 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:40 +07:00: }
+2024-07-17 02:28:40 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:40 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:40 +07:00:   errno: -3008,
+2024-07-17 02:28:40 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:40 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:40 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:40 +07:00: }
+2024-07-17 02:28:41 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:41 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:41 +07:00:   errno: -3008,
+2024-07-17 02:28:41 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:41 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:41 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:41 +07:00: }
+2024-07-17 02:28:41 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:41 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:41 +07:00:   errno: -3008,
+2024-07-17 02:28:41 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:41 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:41 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:41 +07:00: }
+2024-07-17 02:28:43 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:43 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:43 +07:00:   errno: -3008,
+2024-07-17 02:28:43 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:43 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:43 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:43 +07:00: }
+2024-07-17 02:28:43 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:43 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:43 +07:00:   errno: -3008,
+2024-07-17 02:28:43 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:43 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:43 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:43 +07:00: }
+2024-07-17 02:28:45 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:45 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:45 +07:00:   errno: -3008,
+2024-07-17 02:28:45 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:45 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:45 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:45 +07:00: }
+2024-07-17 02:28:45 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:45 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:45 +07:00:   errno: -3008,
+2024-07-17 02:28:45 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:45 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:45 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:45 +07:00: }
+2024-07-17 02:28:46 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:46 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:46 +07:00:   errno: -3008,
+2024-07-17 02:28:46 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:46 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:46 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:46 +07:00: }
+2024-07-17 02:28:46 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:46 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:46 +07:00:   errno: -3008,
+2024-07-17 02:28:46 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:46 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:46 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:46 +07:00: }
+2024-07-17 02:28:48 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:48 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:48 +07:00:   errno: -3008,
+2024-07-17 02:28:48 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:48 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:48 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:48 +07:00: }
+2024-07-17 02:28:48 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:48 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:48 +07:00:   errno: -3008,
+2024-07-17 02:28:48 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:48 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:48 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:48 +07:00: }
+2024-07-17 02:28:50 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:50 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:50 +07:00:   errno: -3008,
+2024-07-17 02:28:50 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:50 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:50 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:50 +07:00: }
+2024-07-17 02:28:50 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:50 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:50 +07:00:   errno: -3008,
+2024-07-17 02:28:50 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:50 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:50 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:50 +07:00: }
+2024-07-17 02:28:52 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:52 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:52 +07:00:   errno: -3008,
+2024-07-17 02:28:52 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:52 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:52 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:52 +07:00: }
+2024-07-17 02:28:52 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:52 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:52 +07:00:   errno: -3008,
+2024-07-17 02:28:52 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:52 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:52 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:52 +07:00: }
+2024-07-17 02:28:54 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:54 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:54 +07:00:   errno: -3008,
+2024-07-17 02:28:54 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:54 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:54 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:54 +07:00: }
+2024-07-17 02:28:54 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:54 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:54 +07:00:   errno: -3008,
+2024-07-17 02:28:54 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:54 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:54 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:54 +07:00: }
+2024-07-17 02:28:56 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:56 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:56 +07:00:   errno: -3008,
+2024-07-17 02:28:56 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:56 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:56 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:56 +07:00: }
+2024-07-17 02:28:56 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:56 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:56 +07:00:   errno: -3008,
+2024-07-17 02:28:56 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:56 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:56 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:56 +07:00: }
+2024-07-17 02:28:58 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:58 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:58 +07:00:   errno: -3008,
+2024-07-17 02:28:58 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:58 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:58 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:58 +07:00: }
+2024-07-17 02:28:58 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:28:58 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:28:58 +07:00:   errno: -3008,
+2024-07-17 02:28:58 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:28:58 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:28:58 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:28:58 +07:00: }
+2024-07-17 02:29:00 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:00 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:00 +07:00:   errno: -3008,
+2024-07-17 02:29:00 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:00 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:00 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:00 +07:00: }
+2024-07-17 02:29:00 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:00 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:00 +07:00:   errno: -3008,
+2024-07-17 02:29:00 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:00 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:00 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:00 +07:00: }
+2024-07-17 02:29:02 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:02 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:02 +07:00:   errno: -3008,
+2024-07-17 02:29:02 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:02 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:02 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:02 +07:00: }
+2024-07-17 02:29:02 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:02 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:02 +07:00:   errno: -3008,
+2024-07-17 02:29:02 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:02 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:02 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:02 +07:00: }
+2024-07-17 02:29:04 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:04 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:04 +07:00:   errno: -3008,
+2024-07-17 02:29:04 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:04 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:04 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:04 +07:00: }
+2024-07-17 02:29:04 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:04 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:04 +07:00:   errno: -3008,
+2024-07-17 02:29:04 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:04 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:04 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:04 +07:00: }
+2024-07-17 02:29:06 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:06 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:06 +07:00:   errno: -3008,
+2024-07-17 02:29:06 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:06 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:06 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:06 +07:00: }
+2024-07-17 02:29:06 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:06 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:06 +07:00:   errno: -3008,
+2024-07-17 02:29:06 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:06 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:06 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:06 +07:00: }
+2024-07-17 02:29:08 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:08 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:08 +07:00:   errno: -3008,
+2024-07-17 02:29:08 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:08 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:08 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:08 +07:00: }
+2024-07-17 02:29:08 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:08 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:08 +07:00:   errno: -3008,
+2024-07-17 02:29:08 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:08 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:08 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:08 +07:00: }
+2024-07-17 02:29:10 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:10 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:10 +07:00:   errno: -3008,
+2024-07-17 02:29:10 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:10 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:10 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:10 +07:00: }
+2024-07-17 02:29:10 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:10 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:10 +07:00:   errno: -3008,
+2024-07-17 02:29:10 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:10 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:10 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:10 +07:00: }
+2024-07-17 02:29:12 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:12 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:12 +07:00:   errno: -3008,
+2024-07-17 02:29:12 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:12 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:12 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:12 +07:00: }
+2024-07-17 02:29:12 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:12 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:12 +07:00:   errno: -3008,
+2024-07-17 02:29:12 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:12 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:12 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:12 +07:00: }
+2024-07-17 02:29:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:14 +07:00:   errno: -3008,
+2024-07-17 02:29:14 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:14 +07:00: }
+2024-07-17 02:29:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:14 +07:00:   errno: -3008,
+2024-07-17 02:29:14 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:14 +07:00: }
+2024-07-17 02:29:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:16 +07:00:   errno: -3008,
+2024-07-17 02:29:16 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:16 +07:00: }
+2024-07-17 02:29:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:16 +07:00:   errno: -3008,
+2024-07-17 02:29:16 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:16 +07:00: }
+2024-07-17 02:29:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:18 +07:00:   errno: -3008,
+2024-07-17 02:29:18 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:18 +07:00: }
+2024-07-17 02:29:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:18 +07:00:   errno: -3008,
+2024-07-17 02:29:18 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:18 +07:00: }
+2024-07-17 02:29:20 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:20 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:20 +07:00:   errno: -3008,
+2024-07-17 02:29:20 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:20 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:20 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:20 +07:00: }
+2024-07-17 02:29:20 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:20 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:20 +07:00:   errno: -3008,
+2024-07-17 02:29:20 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:20 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:20 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:20 +07:00: }
+2024-07-17 02:29:22 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:22 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:22 +07:00:   errno: -3008,
+2024-07-17 02:29:22 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:22 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:22 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:22 +07:00: }
+2024-07-17 02:29:22 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:22 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:22 +07:00:   errno: -3008,
+2024-07-17 02:29:22 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:22 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:22 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:22 +07:00: }
+2024-07-17 02:29:24 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:24 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:24 +07:00:   errno: -3008,
+2024-07-17 02:29:24 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:24 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:24 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:24 +07:00: }
+2024-07-17 02:29:24 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:24 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:24 +07:00:   errno: -3008,
+2024-07-17 02:29:24 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:24 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:24 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:24 +07:00: }
+2024-07-17 02:29:26 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:26 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:26 +07:00:   errno: -3008,
+2024-07-17 02:29:26 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:26 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:26 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:26 +07:00: }
+2024-07-17 02:29:26 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:26 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:26 +07:00:   errno: -3008,
+2024-07-17 02:29:26 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:26 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:26 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:26 +07:00: }
+2024-07-17 02:29:28 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:28 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:28 +07:00:   errno: -3008,
+2024-07-17 02:29:28 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:28 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:28 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:28 +07:00: }
+2024-07-17 02:29:28 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:28 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:28 +07:00:   errno: -3008,
+2024-07-17 02:29:28 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:28 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:28 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:28 +07:00: }
+2024-07-17 02:29:30 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:30 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:30 +07:00:   errno: -3008,
+2024-07-17 02:29:30 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:30 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:30 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:30 +07:00: }
+2024-07-17 02:29:30 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-17 02:29:30 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-17 02:29:30 +07:00:   errno: -3008,
+2024-07-17 02:29:30 +07:00:   code: 'ENOTFOUND',
+2024-07-17 02:29:30 +07:00:   syscall: 'getaddrinfo',
+2024-07-17 02:29:30 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-17 02:29:30 +07:00: }
