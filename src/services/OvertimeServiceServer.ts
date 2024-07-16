@@ -4,6 +4,7 @@ import { IOvertimeServiceServer } from '@/types/OvertimeService';
 import { OvertimeNotificationService } from './OvertimeNotificationService';
 import { TimeEntryService } from './TimeEntryService';
 import { ApprovedOvertime } from '@/types/user';
+import moment from 'moment-timezone';
 
 const prisma = new PrismaClient();
 
@@ -28,6 +29,10 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     const user = await prisma.user.findUnique({ where: { lineUserId } });
     if (!user) throw new Error('User not found');
 
+    // Convert the date to Bangkok time
+    const bangkokDate = moment.tz(date, 'YYYY-MM-DD', 'Asia/Bangkok');
+    const utcDate = bangkokDate.utc().toDate();
+
     const overtimeRequestData: Prisma.OvertimeRequestCreateInput = {
       user: { connect: { id: user.id } },
       date: new Date(date),
@@ -48,7 +53,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     // Check if the request is less than 2 hours and auto-approve if it is
     const durationInHours = this.calculateOvertimeHours(startTime, endTime);
-    if (durationInHours <= 2) {
+    if (durationInHours <= 1) {
       await this.autoApproveOvertimeRequest(newOvertimeRequest.id);
     } else {
       await this.overtimeNotificationService.sendOvertimeRequestNotification(

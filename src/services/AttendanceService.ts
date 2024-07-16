@@ -12,6 +12,7 @@ import {
   FutureShiftAdjustment,
 } from '../types/user';
 import { UserRole } from '@/types/enum';
+import moment from 'moment-timezone';
 
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
@@ -92,6 +93,22 @@ export class AttendanceService {
       const futureShiftAdjustments = await this.getFutureShiftAdjustments(
         user.id,
       );
+
+      const today = moment().tz('Asia/Bangkok').startOf('day');
+      const tomorrow = moment(today).add(1, 'day');
+      const approvedOvertime = await prisma.overtimeRequest.findFirst({
+        where: {
+          userId: user.id,
+          date: {
+            gte: today.toDate(),
+            lt: tomorrow.toDate(),
+          },
+          status: 'approved',
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
 
       const result: AttendanceStatus = {
         user: {
