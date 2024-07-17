@@ -10,6 +10,7 @@ import {
   ShiftData,
   ShiftAdjustment,
   FutureShiftAdjustment,
+  ApprovedOvertime,
 } from '../types/user';
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
@@ -110,6 +111,28 @@ export class AttendanceService {
         },
       });
 
+      let formattedApprovedOvertime: ApprovedOvertime | null = null;
+
+      if (approvedOvertime) {
+        formattedApprovedOvertime = {
+          id: approvedOvertime.id,
+          userId: approvedOvertime.userId,
+          date: approvedOvertime.date,
+          startTime: moment(approvedOvertime.startTime, 'HH:mm')
+            .tz('Asia/Bangkok')
+            .format('HH:mm'),
+          endTime: moment(approvedOvertime.endTime, 'HH:mm')
+            .tz('Asia/Bangkok')
+            .format('HH:mm'),
+          status: approvedOvertime.status,
+          reason: approvedOvertime.reason,
+          approvedBy: approvedOvertime.approverId || '',
+          approvedAt: moment(approvedOvertime.updatedAt)
+            .tz('Asia/Bangkok')
+            .toDate(),
+        };
+      }
+
       const result: AttendanceStatus = {
         user: {
           id: user.id,
@@ -165,14 +188,7 @@ export class AttendanceService {
             }
           : null,
         futureShiftAdjustments,
-        approvedOvertime: user.approvedOvertimes[0]
-          ? {
-              startTime: user.approvedOvertimes[0].startTime.toISOString(),
-              endTime: user.approvedOvertimes[0].endTime.toISOString(),
-              approvedBy: user.approvedOvertimes[0].approvedBy,
-              approvedAt: user.approvedOvertimes[0].approvedAt.toISOString(),
-            }
-          : null,
+        approvedOvertime: formattedApprovedOvertime,
       };
 
       console.log(

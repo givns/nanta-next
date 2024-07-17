@@ -203,11 +203,14 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     userId: string,
     date: Date,
   ): Promise<ApprovedOvertime | null> {
+    const bangkokDate = moment(date).tz('Asia/Bangkok').startOf('day');
+
     const overtimeRequest = await prisma.overtimeRequest.findFirst({
       where: {
         userId,
         date: {
-          equals: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+          gte: bangkokDate.toDate(),
+          lt: bangkokDate.clone().add(1, 'day').toDate(),
         },
         status: 'approved',
       },
@@ -221,11 +224,16 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       id: overtimeRequest.id,
       userId: overtimeRequest.userId,
       date: overtimeRequest.date,
-      startTime: new Date(overtimeRequest.startTime),
-      endTime: new Date(overtimeRequest.endTime),
+      startTime: moment(overtimeRequest.startTime, 'HH:mm')
+        .tz('Asia/Bangkok')
+        .format('HH:mm'),
+      endTime: moment(overtimeRequest.endTime, 'HH:mm')
+        .tz('Asia/Bangkok')
+        .format('HH:mm'),
       status: overtimeRequest.status,
+      reason: overtimeRequest.reason || null,
       approvedBy: overtimeRequest.approverId || '',
-      approvedAt: overtimeRequest.updatedAt,
+      approvedAt: moment(overtimeRequest.updatedAt).tz('Asia/Bangkok').toDate(),
     };
   }
 

@@ -54,9 +54,10 @@ export interface ApprovedOvertime {
   id: string;
   userId: string;
   date: Date;
-  startTime: Date;
-  endTime: Date;
+  startTime: string;
+  endTime: string;
   status: string;
+  reason: string | null;
   approvedBy: string;
   approvedAt: Date;
 }
@@ -84,12 +85,7 @@ export interface AttendanceStatus {
     date: string;
     shift: ShiftData;
   }>;
-  approvedOvertime: {
-    startTime: string;
-    endTime: string;
-    approvedBy: string;
-    approvedAt: string;
-  } | null;
+  approvedOvertime: ApprovedOvertime | null;
 }
 
 export interface ShiftData {

@@ -2,6 +2,7 @@ import React from 'react';
 import { UserData, AttendanceStatus, ShiftData } from '../types/user';
 import { formatTime } from '../utils/dateUtils';
 import { getDeviceType } from '../utils/deviceUtils';
+import moment from 'moment-timezone';
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -16,8 +17,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   departmentName,
   isOutsideShift,
 }) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = moment().tz('Asia/Bangkok').startOf('day');
 
   const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
 
@@ -25,8 +25,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     todayShiftAdjustment?.requestedShift || userData.assignedShift;
 
   const futureShiftAdjustments =
-    attendanceStatus.futureShiftAdjustments?.filter(
-      (adj) => new Date(adj.date).getTime() > today.getTime(),
+    attendanceStatus.futureShiftAdjustments?.filter((adj) =>
+      moment(adj.date).tz('Asia/Bangkok').startOf('day').isAfter(today),
     ) || [];
 
   const renderFutureShiftAdjustments = () => {
@@ -70,6 +70,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     if (attendanceStatus.approvedOvertime) {
       return 'ทำงานล่วงเวลา';
     }
+  };
+
+  const isOvertimeForToday = (overtime: any) => {
+    const overtimeDate = moment(overtime.date)
+      .tz('Asia/Bangkok')
+      .startOf('day');
+    return overtimeDate.isSame(today);
   };
 
   return (
@@ -118,7 +125,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
           </>
         )}
 
-        {attendanceStatus.approvedOvertime ? (
+        {attendanceStatus.approvedOvertime &&
+        isOvertimeForToday(attendanceStatus.approvedOvertime) ? (
           <>
             <h3 className="text-md font-semibold mt-4 mb-1">
               รายละเอียดการทำงานล่วงเวลาที่ได้รับอนุมัติ:
