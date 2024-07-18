@@ -123,7 +123,7 @@ export interface ShiftAdjustment {
   id: string;
   userId: string;
   requestedShiftId: string;
-  date: String;
+  date: string;
   status: 'pending' | 'approved' | 'rejected';
   reason: string;
   createdAt: Date;
