@@ -19,7 +19,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 }) => {
   const formatOvertimeTime = (time: string) => {
     // Assuming the time is in 'HH:mm' format
-    return moment.utc(time, 'HH:mm').tz('Asia/Bangkok').format('HH:mm');
+    return time;
   };
 
   const today = moment().tz('Asia/Bangkok').startOf('day');

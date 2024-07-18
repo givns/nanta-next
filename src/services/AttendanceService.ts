@@ -118,18 +118,12 @@ export class AttendanceService {
           id: approvedOvertime.id,
           userId: approvedOvertime.userId,
           date: approvedOvertime.date,
-          startTime: moment(approvedOvertime.startTime, 'HH:mm')
-            .tz('Asia/Bangkok')
-            .format('HH:mm'),
-          endTime: moment(approvedOvertime.endTime, 'HH:mm')
-            .tz('Asia/Bangkok')
-            .format('HH:mm'),
+          startTime: approvedOvertime.startTime,
+          endTime: approvedOvertime.endTime,
           status: approvedOvertime.status,
           reason: approvedOvertime.reason,
           approvedBy: approvedOvertime.approverId || '',
-          approvedAt: moment(approvedOvertime.updatedAt)
-            .tz('Asia/Bangkok')
-            .toDate(),
+          approvedAt: approvedOvertime.updatedAt,
         };
       }
 
