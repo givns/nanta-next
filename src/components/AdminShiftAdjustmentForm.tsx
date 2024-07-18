@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Shift } from '../types/user';
-import { departmentShiftMap } from '../lib/shiftCache';
+import { departmentIdNameMap } from '../lib/shiftCache';
 
 interface AdminShiftAdjustmentFormProps {
   lineUserId?: string;
@@ -15,8 +15,8 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   );
   const [numberOfDepartments, setNumberOfDepartments] = useState<string>('1');
   const [departmentShifts, setDepartmentShifts] = useState<
-    { department: string; shiftId: string }[]
-  >([{ department: '', shiftId: '' }]);
+    { departmentId: number; shiftId: string }[]
+  >([{ departmentId: 0, shiftId: '' }]);
   const [individualEmployeeId, setIndividualEmployeeId] = useState('');
   const [individualShiftId, setIndividualShiftId] = useState('');
   const [date, setDate] = useState('');
@@ -46,13 +46,13 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
 
   const handleDepartmentShiftChange = (
     index: number,
-    field: 'department' | 'shiftId',
+    field: 'departmentId' | 'shiftId',
     value: string,
   ) => {
     const newDepartmentShifts = [...departmentShifts];
     newDepartmentShifts[index] = {
       ...newDepartmentShifts[index],
-      [field]: value,
+      [field]: field === 'departmentId' ? parseInt(value, 10) : value,
     };
     setDepartmentShifts(newDepartmentShifts);
   };
@@ -61,14 +61,6 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return new Date(selectedDate) >= today;
-  };
-
-  const isFormValid = () => {
-    if (targetType === 'department') {
-      return departmentShifts.every((ds) => ds.department && ds.shiftId);
-    } else {
-      return individualEmployeeId && individualShiftId;
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -86,11 +78,6 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
       setIsLoading(false);
       return;
     }
-    if (!isFormValid()) {
-      setMessage('Error: Please fill in all required fields');
-      setIsLoading(false);
-      return;
-    }
 
     if (!confirm('Are you sure you want to apply these shift adjustments?')) {
       return;
@@ -100,7 +87,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
       const adjustments =
         targetType === 'department'
           ? departmentShifts.map((ds) => ({
-              department: ds.department,
+              department: ds.departmentId,
               shiftId: ds.shiftId,
             }))
           : [{ employeeId: individualEmployeeId, shiftId: individualShiftId }];
@@ -181,20 +168,20 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                 </label>
                 <select
                   id={`department-${index}`}
-                  value={depShift.department}
+                  value={depShift.departmentId.toString()}
                   onChange={(e) =>
                     handleDepartmentShiftChange(
                       index,
-                      'department',
+                      'departmentId',
                       e.target.value,
                     )
                   }
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                 >
                   <option value="">Select a department</option>
-                  {Object.keys(departmentShiftMap).map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
+                  {Object.entries(departmentIdNameMap).map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
                     </option>
                   ))}
                 </select>
