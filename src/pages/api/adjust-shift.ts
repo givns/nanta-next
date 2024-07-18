@@ -23,10 +23,11 @@ export default async function handler(
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    const adjustmentDate = moment
-      .tz(date, 'Asia/Bangkok')
-      .startOf('day')
-      .toDate();
+    // Create a moment object in Bangkok time, set to the start of the day
+    const adjustmentDate = moment.tz(date, 'Asia/Bangkok').startOf('day');
+
+    // Convert to UTC for storage, but keep it as the same calendar date
+    const utcAdjustmentDate = adjustmentDate.utc().toDate();
 
     // Find the user making the request
     const requestingUser = await prisma.user.findUnique({
@@ -80,7 +81,7 @@ export default async function handler(
               data: {
                 userId: user.id,
                 requestedShiftId: shiftId,
-                date: adjustmentDate,
+                date: utcAdjustmentDate, // Use the UTC date here
                 reason: reason,
                 status: 'approved',
               },
@@ -111,7 +112,7 @@ export default async function handler(
             data: {
               userId: user.id,
               requestedShiftId: shiftId,
-              date: adjustmentDate,
+              date: utcAdjustmentDate, // Use the UTC date here
               reason: reason,
               status: 'approved',
             },
@@ -138,8 +139,8 @@ export default async function handler(
       usersWithLineIds.map((u) => [u.id, u.lineUserId]),
     );
 
-    // Send notifications
-    const formattedDate = moment(adjustmentDate).format('LL');
+    // For notifications, use the Bangkok time
+    const formattedDate = adjustmentDate.format('LL');
 
     // Notify affected users
     for (const [userId, shift] of affectedUsers) {
