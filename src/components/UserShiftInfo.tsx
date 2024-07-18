@@ -3,6 +3,8 @@ import { UserData, AttendanceStatus, ShiftData } from '../types/user';
 import { formatTime } from '../utils/dateUtils';
 import { getDeviceType } from '../utils/deviceUtils';
 import moment from 'moment-timezone';
+import 'moment/locale/th';
+moment.locale('th');
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -45,9 +47,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         </h3>
         {futureShiftAdjustments.map((adjustment, index) => (
           <div key={index} className="mb-2">
-            <p>
-              วันที่: {new Date(adjustment.date).toLocaleDateString('th-TH')}
-            </p>
+            <p>วันที่: {moment(adjustment.date).format('LL')}</p>
             <p>
               เวลาทำงานใหม่: {adjustment.shift.name} (
               {adjustment.shift.startTime} - {adjustment.shift.endTime})

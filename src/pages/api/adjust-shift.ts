@@ -4,24 +4,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
 import { NotificationService } from '../../services/NotificationService';
 import moment from 'moment-timezone';
-import { Prisma } from '@prisma/client';
 
 const notificationService = new NotificationService();
-
-interface Adjustment {
-  department?: string;
-  employeeId?: string;
-  shiftId: string;
-}
-
-function isValidAdjustment(adj: any): adj is Adjustment {
-  return (
-    typeof adj === 'object' &&
-    adj !== null &&
-    typeof adj.shiftId === 'string' &&
-    (typeof adj.department === 'string' || typeof adj.employeeId === 'string')
-  );
-}
 
 export default async function handler(
   req: NextApiRequest,
@@ -34,27 +18,9 @@ export default async function handler(
   try {
     const { lineUserId, targetType, adjustments, date, reason } = req.body;
 
-    // Input validation
-    if (!lineUserId) {
-      return res.status(400).json({ message: 'LINE User ID is required' });
-    }
-    if (!targetType) {
-      return res.status(400).json({ message: 'Target type is required' });
-    }
-    if (
-      !Array.isArray(adjustments) ||
-      adjustments.length === 0 ||
-      !adjustments.every(isValidAdjustment)
-    ) {
-      return res
-        .status(400)
-        .json({ message: 'Valid adjustments array is required' });
-    }
-    if (!date) {
-      return res.status(400).json({ message: 'Date is required' });
-    }
-    if (!reason) {
-      return res.status(400).json({ message: 'Reason is required' });
+    // Validate input
+    if (!lineUserId || !targetType || !adjustments || !date || !reason) {
+      return res.status(400).json({ message: 'Missing required fields' });
     }
 
     const adjustmentDate = moment
@@ -62,6 +28,7 @@ export default async function handler(
       .startOf('day')
       .toDate();
 
+    // Find the user making the request
     const requestingUser = await prisma.user.findUnique({
       where: { lineUserId: lineUserId },
     });
@@ -70,6 +37,7 @@ export default async function handler(
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Check if the user has permission to make adjustments
     if (
       requestingUser.role.toUpperCase() !== 'ADMIN' &&
       requestingUser.role.toUpperCase() !== 'SUPERADMIN'
@@ -171,7 +139,7 @@ export default async function handler(
     );
 
     // Send notifications
-    const formattedDate = moment(date).tz('Asia/Bangkok').format('LL');
+    const formattedDate = moment(adjustmentDate).format('LL');
 
     // Notify affected users
     for (const [userId, shift] of affectedUsers) {
@@ -181,10 +149,11 @@ export default async function handler(
           userId,
           `แจ้งเตือน: การเปลี่ยนแปลงเวลาทำงาน
 
-          วันที่: ${formattedDate}
-          กะใหม่: ${shift.name}
-          เวลา: ${shift.startTime} - ${shift.endTime}
-          เหตุผล: ${reason}`,
+วันที่: ${formattedDate}
+กะใหม่: ${shift.name}
+เวลา: ${shift.startTime} - ${shift.endTime}
+
+เหตุผล: ${reason}`,
           userLineId,
         );
       }
@@ -223,15 +192,7 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('Error processing shift adjustments:', error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        return res.status(400).json({
-          message:
-            'There is a unique constraint violation, a new shift adjustment cannot be created with this date/user combination',
-        });
-      }
-    }
-    return res.status(500).json({
+    res.status(500).json({
       message: 'Error processing shift adjustments',
       error: error.message,
     });

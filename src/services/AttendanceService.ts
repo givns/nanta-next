@@ -169,7 +169,7 @@ export class AttendanceService {
         isCheckingIn: isCheckingIn,
         shiftAdjustment: shiftAdjustment
           ? {
-              date: shiftAdjustment.date.toISOString(),
+              date: shiftAdjustment.date.toString(),
               requestedShiftId: shiftAdjustment.requestedShiftId,
               requestedShift: {
                 id: shiftAdjustment.requestedShift.id,
@@ -528,30 +528,45 @@ export class AttendanceService {
   private async getLatestShiftAdjustment(
     userId: string,
   ): Promise<ShiftAdjustment | null> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const today = moment().tz('Asia/Bangkok').startOf('day');
+    const tomorrow = moment(today).add(1, 'day');
 
     const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
       where: {
         userId,
         status: 'approved',
         date: {
-          gte: today,
-          lt: tomorrow,
+          gte: today.toDate(),
+          lt: tomorrow.toDate(),
         },
       },
       include: { requestedShift: true },
     });
 
-    return shiftAdjustment
-      ? {
-          ...shiftAdjustment,
-          status: shiftAdjustment.status as 'pending' | 'approved' | 'rejected',
-          requestedShift: shiftAdjustment.requestedShift as ShiftData,
-        }
-      : null;
+    if (shiftAdjustment) {
+      return {
+        id: shiftAdjustment.id,
+        userId: shiftAdjustment.userId,
+        date: moment(shiftAdjustment.date)
+          .tz('Asia/Bangkok')
+          .format('YYYY-MM-DD'),
+        status: shiftAdjustment.status as 'pending' | 'approved' | 'rejected',
+        reason: shiftAdjustment.reason,
+        requestedShiftId: shiftAdjustment.requestedShiftId,
+        requestedShift: {
+          id: shiftAdjustment.requestedShift.id,
+          shiftCode: shiftAdjustment.requestedShift.shiftCode,
+          name: shiftAdjustment.requestedShift.name,
+          startTime: shiftAdjustment.requestedShift.startTime,
+          endTime: shiftAdjustment.requestedShift.endTime,
+          workDays: shiftAdjustment.requestedShift.workDays,
+        } as ShiftData,
+        createdAt: shiftAdjustment.createdAt,
+        updatedAt: shiftAdjustment.updatedAt,
+      };
+    }
+
+    return null;
   }
 
   private async getFutureShiftAdjustments(
