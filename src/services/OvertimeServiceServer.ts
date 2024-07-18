@@ -224,16 +224,12 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       id: overtimeRequest.id,
       userId: overtimeRequest.userId,
       date: overtimeRequest.date,
-      startTime: moment(overtimeRequest.startTime, 'HH:mm')
-        .tz('Asia/Bangkok')
-        .format('HH:mm'),
-      endTime: moment(overtimeRequest.endTime, 'HH:mm')
-        .tz('Asia/Bangkok')
-        .format('HH:mm'),
+      startTime: overtimeRequest.startTime, // Don't convert, it's already in the correct format
+      endTime: overtimeRequest.endTime, // Don't convert, it's already in the correct format
       status: overtimeRequest.status,
       reason: overtimeRequest.reason || null,
       approvedBy: overtimeRequest.approverId || '',
-      approvedAt: moment(overtimeRequest.updatedAt).tz('Asia/Bangkok').toDate(),
+      approvedAt: overtimeRequest.updatedAt, // Keep as is, it's already in UTC
     };
   }
 

@@ -17,6 +17,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   departmentName,
   isOutsideShift,
 }) => {
+  const formatOvertimeTime = (time: string) => {
+    // Assuming the time is in 'HH:mm' format
+    return moment.utc(time, 'HH:mm').tz('Asia/Bangkok').format('HH:mm');
+  };
+
   const today = moment().tz('Asia/Bangkok').startOf('day');
 
   const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
@@ -134,19 +139,23 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             <p>
               เวลาเริ่ม:{' '}
               <span className="font-medium">
-                {formatTime(attendanceStatus.approvedOvertime.startTime)}
+                {formatOvertimeTime(
+                  attendanceStatus.approvedOvertime.startTime,
+                )}
               </span>
             </p>
             <p>
               เวลาสิ้นสุด:{' '}
               <span className="font-medium">
-                {formatTime(attendanceStatus.approvedOvertime.endTime)}
+                {formatOvertimeTime(attendanceStatus.approvedOvertime.endTime)}
               </span>
             </p>
             <p>
               เวลาที่อนุมัติ:{' '}
               <span className="font-medium">
-                {formatTime(attendanceStatus.approvedOvertime.approvedAt)}
+                {moment(attendanceStatus.approvedOvertime.approvedAt)
+                  .tz('Asia/Bangkok')
+                  .format('YYYY-MM-DD HH:mm:ss')}
               </span>
             </p>
           </>
