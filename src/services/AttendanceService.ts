@@ -528,17 +528,18 @@ export class AttendanceService {
   private async getLatestShiftAdjustment(
     userId: string,
   ): Promise<ShiftAdjustment | null> {
-    const now = moment().tz('Asia/Bangkok');
-    const today = now.clone().startOf('day');
-    const tomorrow = today.clone().add(1, 'day');
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
     const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
       where: {
         userId,
         status: 'approved',
         date: {
-          gte: today.utc().toDate(),
-          lt: tomorrow.utc().toDate(),
+          gte: today,
+          lt: tomorrow,
         },
       },
       include: { requestedShift: true },
@@ -547,10 +548,7 @@ export class AttendanceService {
     if (shiftAdjustment) {
       return {
         ...shiftAdjustment,
-        date: moment
-          .utc(shiftAdjustment.date)
-          .tz('Asia/Bangkok')
-          .format('YYYY-MM-DD'),
+        date: shiftAdjustment.date.toISOString().split('T')[0], // Convert to YYYY-MM-DD string
         status: shiftAdjustment.status as 'pending' | 'approved' | 'rejected',
         requestedShift: shiftAdjustment.requestedShift as ShiftData,
       };
