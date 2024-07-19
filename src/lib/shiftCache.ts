@@ -164,8 +164,7 @@ export async function getShiftByDepartmentId(
     console.warn(
       `ShiftCache: No department name found for ID: ${departmentId}`,
     );
-    console.log('ShiftCache: Falling back to default shift SHIFT103');
-    return getShiftByCode('SHIFT103');
+    return null;
   }
 
   const shiftCode = departmentShiftMap[departmentName];
@@ -175,32 +174,10 @@ export async function getShiftByDepartmentId(
     console.warn(
       `ShiftCache: No shift code found for department: ${departmentName}`,
     );
-    console.log('ShiftCache: Falling back to default shift SHIFT103');
-    return getShiftByCode('SHIFT103');
+    return null;
   }
 
-  try {
-    console.log(`ShiftCache: Attempting to get shift by code: ${shiftCode}`);
-    const shift = await getShiftByCode(shiftCode);
-
-    if (!shift) {
-      console.warn(`ShiftCache: No shift found for code: ${shiftCode}`);
-      console.log('ShiftCache: Falling back to default shift SHIFT103');
-      return getShiftByCode('SHIFT103');
-    }
-
-    console.log(`ShiftCache: Found shift: ${JSON.stringify(shift)}`);
-    return shift;
-  } catch (error) {
-    console.error(
-      `ShiftCache: Error getting shift for department ID ${departmentId}:`,
-      error,
-    );
-    console.log(
-      'ShiftCache: Falling back to default shift SHIFT103 due to error',
-    );
-    return getShiftByCode('SHIFT103');
-  }
+  return getShiftByCode(shiftCode);
 }
 
 export function getDepartmentIdByName(

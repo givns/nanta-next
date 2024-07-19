@@ -66,7 +66,7 @@ export async function processRegistration(
       const externalDeptId = parseInt(externalData.userInfo.user_dep, 10);
       console.log(`External department ID: ${externalDeptId}`);
 
-      // Use the external department ID to get the shift
+      // Use the external department ID to get the shift directly from shiftCache
       shift = await getShiftByDepartmentId(externalDeptId as DepartmentId);
       console.log(
         `Shift found for external department ID ${externalDeptId}:`,
