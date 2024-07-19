@@ -15356,3 +15356,30 @@
 2024-07-20 05:54:25 +07:00: Job failed: 61 Error: Error: No shift found for department ID: 6699f958412b02aae0a8a231
 2024-07-20 05:54:25 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
 2024-07-20 05:54:25 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 06:00:19 +07:00: Error in registration process: Error: No shift found for department ID: 6699f958412b02aae0a8a231
+2024-07-20 06:00:19 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
+2024-07-20 06:00:19 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 06:00:19 +07:00: Error processing job: 62 Error: Error: No shift found for department ID: 6699f958412b02aae0a8a231
+2024-07-20 06:00:19 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
+2024-07-20 06:00:19 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 06:00:19 +07:00: Job failed: 62 Error: Error: No shift found for department ID: 6699f958412b02aae0a8a231
+2024-07-20 06:00:19 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
+2024-07-20 06:00:19 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 06:00:22 +07:00: Error in registration process: Error: No shift found for department ID: 6699f958412b02aae0a8a231
+2024-07-20 06:00:22 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
+2024-07-20 06:00:22 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 06:00:22 +07:00: Error processing job: 62 Error: Error: No shift found for department ID: 6699f958412b02aae0a8a231
+2024-07-20 06:00:22 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
+2024-07-20 06:00:22 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 06:00:22 +07:00: Job failed: 62 Error: Error: No shift found for department ID: 6699f958412b02aae0a8a231
+2024-07-20 06:00:22 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
+2024-07-20 06:00:22 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 06:00:27 +07:00: Error in registration process: Error: No shift found for department ID: 6699f958412b02aae0a8a231
+2024-07-20 06:00:27 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
+2024-07-20 06:00:27 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 06:00:27 +07:00: Error processing job: 62 Error: Error: No shift found for department ID: 6699f958412b02aae0a8a231
+2024-07-20 06:00:27 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
+2024-07-20 06:00:27 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 06:00:27 +07:00: Job failed: 62 Error: Error: No shift found for department ID: 6699f958412b02aae0a8a231
+2024-07-20 06:00:27 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
+2024-07-20 06:00:27 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)

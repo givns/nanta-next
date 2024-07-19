@@ -4,6 +4,8 @@ const prisma = new PrismaClient();
 
 let shifts: Shift[] | null = null;
 
+export type DepartmentId = number | string;
+
 export async function getShifts(): Promise<Shift[]> {
   if (shifts === null) {
     shifts = await prisma.shift.findMany();
@@ -116,40 +118,26 @@ export const departmentShiftMap: { [key: string]: string } = {
 export function getDefaultShiftCode(department: string): string {
   return departmentShiftMap[department] || 'SHIFT103';
 }
-export type DepartmentId =
-  | 10012
-  | 10038
-  | 10030
-  | 10031
-  | 10032
-  | 10049
-  | 10053
-  | 10022
-  | 10010
-  | 10011
-  | 10037
-  | 10013
-  | 10016
-  | 10020;
 
-export const departmentIdNameMap: { [key: number]: string } = {
-  10012: 'ฝ่ายจัดส่งสินค้า',
-  10038: 'ฝ่ายปฏิบัติการ',
-  10030: 'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)',
-  10031: 'ฝ่ายผลิต-กระบวนการที่ 2 (เช้า)',
-  10032: 'ฝ่ายผลิต-คัดคุณภาพและบรรจุ',
-  10049: 'ฝ่ายผลิต-ข้าวเกรียบ-ข้าวตัง',
-  10053: 'ฝ่ายผลิต-วิจัยและพัฒนาคุณภาพผลิตภัณฑ์',
-  10022: 'ฝ่ายประกันคุณภาพ',
-  10010: 'ฝ่ายคลังสินค้าและแพ็คกิ้ง',
-  10011: 'ฝ่ายจัดซื้อและประสานงานขาย',
-  10037: 'ฝ่ายบัญชีและการเงิน',
-  10013: 'ฝ่ายทรัพยากรบุคคล',
-  10016: 'ฝ่ายรักษาความสะอาด',
-  10020: 'ฝ่ายรักษาความปลอดภัย',
+export const departmentIdNameMap: { [key: string]: string } = {
+  '10012': 'ฝ่ายจัดส่งสินค้า',
+  '10038': 'ฝ่ายปฏิบัติการ',
+  '10030': 'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)',
+  '10031': 'ฝ่ายผลิต-กระบวนการที่ 2 (เช้า)',
+  '10032': 'ฝ่ายผลิต-คัดคุณภาพและบรรจุ',
+  '10049': 'ฝ่ายผลิต-ข้าวเกรียบ-ข้าวตัง',
+  '10053': 'ฝ่ายผลิต-วิจัยและพัฒนาคุณภาพผลิตภัณฑ์',
+  '10022': 'ฝ่ายประกันคุณภาพ',
+  '10010': 'ฝ่ายคลังสินค้าและแพ็คกิ้ง',
+  '10011': 'ฝ่ายจัดซื้อและประสานงานขาย',
+  '10037': 'ฝ่ายบัญชีและการเงิน',
+  '10013': 'ฝ่ายทรัพยากรบุคคล',
+  '10016': 'ฝ่ายรักษาความสะอาด',
+  '10020': 'ฝ่ายรักษาความปลอดภัย',
 };
-export function getDepartmentById(departmentId: number): string | null {
-  return departmentIdNameMap[departmentId] || null;
+
+export function getDepartmentById(departmentId: DepartmentId): string | null {
+  return departmentIdNameMap[departmentId.toString()] || null;
 }
 
 export async function getShiftByDepartmentId(
@@ -157,14 +145,15 @@ export async function getShiftByDepartmentId(
 ): Promise<Shift | null> {
   console.log(`ShiftCache: Getting shift for department ID: ${departmentId}`);
 
-  const departmentName = departmentIdNameMap[departmentId];
+  const departmentName = getDepartmentById(departmentId);
   console.log(`ShiftCache: Department name from map: ${departmentName}`);
 
   if (!departmentName) {
     console.warn(
       `ShiftCache: No department name found for ID: ${departmentId}`,
     );
-    return null;
+    console.log('ShiftCache: Falling back to default shift SHIFT103');
+    return getShiftByCode('SHIFT103');
   }
 
   const shiftCode = departmentShiftMap[departmentName];
@@ -174,10 +163,18 @@ export async function getShiftByDepartmentId(
     console.warn(
       `ShiftCache: No shift code found for department: ${departmentName}`,
     );
-    return null;
+    console.log('ShiftCache: Falling back to default shift SHIFT103');
+    return getShiftByCode('SHIFT103');
   }
 
-  return getShiftByCode(shiftCode);
+  const shift = await getShiftByCode(shiftCode);
+  if (!shift) {
+    console.warn(`ShiftCache: No shift found for code: ${shiftCode}`);
+    console.log('ShiftCache: Falling back to default shift SHIFT103');
+    return getShiftByCode('SHIFT103');
+  }
+
+  return shift;
 }
 
 export function getDepartmentIdByName(
@@ -185,7 +182,7 @@ export function getDepartmentIdByName(
 ): DepartmentId | null {
   for (const [id, name] of Object.entries(departmentIdNameMap)) {
     if (name === departmentName) {
-      return Number(id) as DepartmentId;
+      return id;
     }
   }
   return null;

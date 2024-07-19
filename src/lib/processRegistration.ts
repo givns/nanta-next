@@ -15,17 +15,6 @@ import {
 import { Shift, User } from '@prisma/client';
 import { UserRole } from '@/types/enum';
 
-interface ExternalUserInfo {
-  user_serial: number | string;
-  user_no: string;
-  user_fname?: string;
-  user_lname?: string;
-  user_photo: string;
-  department: string;
-  user_depname: string;
-  user_dep: string;
-}
-
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
@@ -47,15 +36,19 @@ export async function processRegistration(
 
   try {
     let user = await prisma.user.findUnique({ where: { lineUserId } });
+    console.log('Existing user:', user);
 
     const externalData =
       await externalDbService.getDailyAttendanceRecords(employeeId);
     console.log('External data:', JSON.stringify(externalData, null, 2));
 
+    console.log('Getting department and shift...');
     const { departmentId, shift } = await getDepartmentAndShift(
       externalData,
       department,
     );
+    console.log('Department ID:', departmentId);
+    console.log('Shift:', shift);
 
     const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
@@ -79,7 +72,9 @@ export async function processRegistration(
       shiftId: shift.id,
     };
 
+    console.log('Upserting user with data:', userData);
     user = await upsertUser(user, userData);
+    console.log('Upserted user:', user);
 
     await linkRichMenu(lineUserId, role);
 
