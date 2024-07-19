@@ -66,29 +66,34 @@ export async function processRegistration(
       const externalDeptId = parseInt(externalData.userInfo.user_dep, 10);
       console.log(`External department ID: ${externalDeptId}`);
 
-      // Use the departmentIdNameMap to get the department name
+      // Use the external department ID to get the shift
+      shift = await getShiftByDepartmentId(externalDeptId as DepartmentId);
+      console.log(
+        `Shift found for external department ID ${externalDeptId}:`,
+        shift,
+      );
+
+      // Get the department name from the mapping
       const departmentName =
         departmentIdNameMap[externalDeptId as DepartmentId];
-
       if (!departmentName) {
         throw new Error(
           `No matching department found for external ID: ${externalDeptId}`,
         );
       }
 
-      // Find the internal department
-      const matchedDepartment = await prisma.department.findFirst({
+      // Find or create the internal department
+      let internalDepartment = await prisma.department.findFirst({
         where: { name: departmentName },
       });
 
-      if (!matchedDepartment) {
-        throw new Error(
-          `No matching internal department found for: ${departmentName}`,
-        );
+      if (!internalDepartment) {
+        internalDepartment = await prisma.department.create({
+          data: { name: departmentName, externalId: externalDeptId },
+        });
       }
 
-      departmentId = matchedDepartment.id;
-      shift = await getShiftByDepartmentId(externalDeptId as DepartmentId);
+      departmentId = internalDepartment.id;
     } else {
       // If we don't have an external department ID, use the provided department name
       const matchedDepartment = await prisma.department.findFirst({
