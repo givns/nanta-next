@@ -73,13 +73,10 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
       setIsLoading(false);
       return;
     }
+
     if (!isDateValid(date)) {
       setMessage('Error: Selected date must not be in the past');
       setIsLoading(false);
-      return;
-    }
-
-    if (!confirm('Are you sure you want to apply these shift adjustments?')) {
       return;
     }
 
@@ -92,7 +89,16 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
             }))
           : [{ employeeId: individualEmployeeId, shiftId: individualShiftId }];
 
-      await axios.post('/api/adjust-shift', {
+      // Log the data being sent to the API
+      console.log('Sending data to API:', {
+        lineUserId,
+        targetType,
+        adjustments,
+        date,
+        reason,
+      });
+
+      const response = await axios.post('/api/adjust-shift', {
         lineUserId,
         targetType,
         adjustments,

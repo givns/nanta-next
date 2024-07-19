@@ -18,11 +18,18 @@ export default async function handler(
   try {
     const { lineUserId, targetType, adjustments, date, reason } = req.body;
 
+    console.log('Received data:', {
+      lineUserId,
+      targetType,
+      adjustments,
+      date,
+      reason,
+    });
+
     // Validate input
     if (!lineUserId || !targetType || !adjustments || !date || !reason) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
-
     // Parse the date string to a Date object without any timezone conversion
     const adjustmentDate = new Date(date);
 
@@ -72,6 +79,10 @@ export default async function handler(
           const users = await prisma.user.findMany({
             where: { departmentId: department },
           });
+
+          console.log(
+            `Found ${users.length} users for department ${department}`,
+          );
 
           for (const user of users) {
             const shiftAdjustment = await prisma.shiftAdjustmentRequest.create({
