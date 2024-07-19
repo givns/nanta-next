@@ -4,7 +4,6 @@ import { Job } from 'bull';
 import prisma from './prisma';
 import { Client } from '@line/bot-sdk';
 import { ExternalDbService } from '../services/ExternalDbService';
-import { ShiftManagementService } from '../services/ShiftManagementService';
 import { determineRole, determineRichMenuId } from '../utils/userUtils';
 import {
   getShiftByDepartmentId,
@@ -31,7 +30,6 @@ const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
-const shiftManagementService = new ShiftManagementService();
 const externalDbService = new ExternalDbService();
 
 export async function processRegistration(
@@ -48,8 +46,6 @@ export async function processRegistration(
   } = job.data;
 
   try {
-    await shiftManagementService.initialize();
-
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
     const externalData =
