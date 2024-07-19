@@ -16,6 +16,7 @@ module.exports = {
     'plugin:@next/next/recommended',
     'prettier',
     'plugin:prettier/recommended',
+    'next/core-web-vitals',
   ],
   ignorePatterns: [
     'dist/',
@@ -36,6 +37,7 @@ module.exports = {
     'prettier/prettier': 'error',
     'react/prop-types': 'off',
     'import/no-named-as-default': 'off',
+    'no-undef': 'off',
   },
   overrides: [
     {

@@ -1,3 +1,3 @@
 import { Buffer } from 'buffer';
-global.Buffer = Buffer;
-global.process = require('process');
+window.Buffer = Buffer;
+window.process = require('process');
