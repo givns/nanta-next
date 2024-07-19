@@ -1,17 +1,7 @@
-// services/NotificationService.ts
-
-import { Client } from '@line/bot-sdk';
+import axios from 'axios';
 import { OvertimeRequest, User } from '@prisma/client';
 
 export class NotificationService {
-  private client: Client;
-
-  constructor() {
-    this.client = new Client({
-      channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-    });
-  }
-
   async sendNotification(
     userId: string,
     message: string,
@@ -23,13 +13,9 @@ export class NotificationService {
     }
 
     try {
-      await this.client.pushMessage(lineUserId, {
-        type: 'text',
-        text: message,
-      });
+      await axios.post('/api/line-notification', { lineUserId, message });
     } catch (error) {
       console.error('Error sending LINE notification:', error);
-      // Don't throw the error, just log it
     }
   }
 
@@ -52,6 +38,7 @@ export class NotificationService {
       overtimeRequest.user.lineUserId,
     );
   }
+
   async sendOvertimeAutoApprovalNotification(
     overtimeRequest: OvertimeRequest & { user: User },
   ): Promise<void> {

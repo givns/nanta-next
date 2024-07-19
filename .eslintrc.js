@@ -13,10 +13,9 @@ module.exports = {
     'plugin:jsx-a11y/recommended',
     'plugin:import/recommended',
     'plugin:import/typescript',
-    'plugin:@next/next/recommended',
     'prettier',
     'plugin:prettier/recommended',
-    'next/core-web-vitals',
+    'next/core-web-vitals', // This includes Next.js specific rules
   ],
   ignorePatterns: [
     'dist/',
@@ -37,7 +36,6 @@ module.exports = {
     'prettier/prettier': 'error',
     'react/prop-types': 'off',
     'import/no-named-as-default': 'off',
-    'no-undef': 'off',
   },
   overrides: [
     {
