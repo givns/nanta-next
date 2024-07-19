@@ -7,6 +7,7 @@ import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
 import liff from '@line/liff';
+import '../global';
 
 function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();

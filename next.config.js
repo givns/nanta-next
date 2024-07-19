@@ -30,6 +30,7 @@ const securityHeaders = [
 ];
 
 /** @type {import('next').NextConfig} */
+const webpack = require('webpack');
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
@@ -64,6 +65,13 @@ const nextConfig = {
         crypto: require.resolve('crypto-browserify'),
         stream: require.resolve('stream-browserify'),
       };
+
+      config.plugins.push(
+        new webpack.ProvidePlugin({
+          Buffer: ['buffer', 'Buffer'],
+          process: 'process/browser',
+        }),
+      );
     }
     return config;
   },
