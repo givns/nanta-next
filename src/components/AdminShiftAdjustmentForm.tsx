@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Shift } from '../types/user';
 import { departmentIdNameMap } from '../lib/shiftCache';
+import moment from 'moment';
 
 interface AdminShiftAdjustmentFormProps {
   lineUserId?: string;
@@ -15,8 +16,8 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   );
   const [numberOfDepartments, setNumberOfDepartments] = useState<string>('1');
   const [departmentShifts, setDepartmentShifts] = useState<
-    { departmentId: number; shiftId: string }[]
-  >([{ departmentId: 0, shiftId: '' }]);
+    { departmentId: string; shiftId: string }[]
+  >([{ departmentId: '', shiftId: '' }]);
   const [individualEmployeeId, setIndividualEmployeeId] = useState('');
   const [individualShiftId, setIndividualShiftId] = useState('');
   const [date, setDate] = useState('');
@@ -58,9 +59,20 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   };
 
   const isDateValid = (selectedDate: string) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return new Date(selectedDate) >= today;
+    const today = moment().startOf('day');
+    return moment(selectedDate).isSameOrAfter(today);
+  };
+
+  const isFormValid = () => {
+    if (targetType === 'department') {
+      return (
+        departmentShifts.every((ds) => ds.departmentId && ds.shiftId) &&
+        date &&
+        reason
+      );
+    } else {
+      return individualEmployeeId && individualShiftId && date && reason;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,6 +88,12 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
 
     if (!isDateValid(date)) {
       setMessage('Error: Selected date must not be in the past');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!isFormValid()) {
+      setMessage('Error: Please fill in all required fields');
       setIsLoading(false);
       return;
     }
