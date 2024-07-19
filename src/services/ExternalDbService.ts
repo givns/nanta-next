@@ -8,10 +8,38 @@ import {
 } from '../types/user';
 import { retry } from '../utils/retry';
 
+interface ExternalUserInfo {
+  user_serial: number | string;
+  user_no: string;
+  user_fname?: string;
+  user_lname?: string;
+  user_photo: string;
+  department: string;
+  user_depname: string;
+  user_dep: string;
+  bh: number;
+  fx: number;
+  iden: string | null;
+  dev_serial: string;
+  dev_state: number;
+  jlzp_serial: number | null;
+  gly_no: string | null;
+  lx: number;
+  shenhe: number;
+  yich: number;
+  deal_state: number;
+  dev_logic_bh: number | null;
+  healthstatus: number | null;
+  body_temp: string | null;
+  temp_error: string | null;
+  passport_no: string | null;
+}
+
 export class ExternalDbService {
-  async getDailyAttendanceRecords(
-    employeeId: string,
-  ): Promise<{ records: ExternalCheckInData[]; userInfo: any | null }> {
+  async getDailyAttendanceRecords(employeeId: string): Promise<{
+    records: ExternalCheckInData[];
+    userInfo: ExternalUserInfo | null;
+  }> {
     return retry(
       async () => {
         console.log(

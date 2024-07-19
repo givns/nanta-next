@@ -86,6 +86,11 @@ export interface AttendanceStatus {
     shift: ShiftData;
   }>;
   approvedOvertime: ApprovedOvertime | null;
+  futureApprovedOvertimes?: {
+    date: string;
+    startTime: string;
+    endTime: string;
+  }[];
 }
 
 export interface ShiftData {
@@ -208,6 +213,14 @@ export interface CheckInFormData {
 export interface CheckOutFormData
   extends Omit<CheckInFormData, 'userId' | 'employeeId'> {
   checkInId: string;
+}
+
+export interface ExternalUserInfo {
+  user_serial: number | string;
+  user_no: string;
+  user_fname?: string;
+  user_lname?: string;
+  user_photo: string;
 }
 
 export interface ExternalCheckInData {

@@ -19,6 +19,7 @@
     "update-shift": "ts-node --project tsconfig.ts-node.json scripts/updateShift.ts",
     "postinstall": "prisma generate",
     "prettier": "prettier --write .",
+    "preload-departments": "ts-node --project tsconfig.ts-node.json scripts/preloadDepartments.ts",
     "start:worker": "ts-node -r dotenv/config --project tsconfig.ts-node.json src/workers/worker.ts dotenv_config_path=.env.local"
   },
   "dependencies": {

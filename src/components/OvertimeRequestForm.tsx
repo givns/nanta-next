@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Formik, Form, Field, ErrorMessage } from 'formik';
+import { Formik, Form, Field, ErrorMessage, FieldProps } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import liff from '@line/liff';
 import { formatTime } from '../utils/dateUtils';
+import TimePickerField from './TimePickerField';
 
 const DateSchema = Yup.object().shape({
   date: Yup.date().required('กรุณาเลือกวันที่'),
@@ -313,9 +314,8 @@ const OvertimeRequestForm: React.FC = () => {
                   เวลาเริ่มต้น
                 </label>
                 <Field
-                  type="time"
-                  id="startTime"
                   name="startTime"
+                  component={TimePickerField}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                 />
                 <ErrorMessage
@@ -332,9 +332,8 @@ const OvertimeRequestForm: React.FC = () => {
                   เวลาสิ้นสุด
                 </label>
                 <Field
-                  type="time"
-                  id="endTime"
                   name="endTime"
+                  component={TimePickerField}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                 />
                 <ErrorMessage

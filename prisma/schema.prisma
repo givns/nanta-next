@@ -49,6 +49,7 @@ model Shift {
   startTime               String
   endTime                 String
   workDays                Int[]
+  departments             Department []
   assignedUsers           User[]                   @relation("UserAssignedShift")
   shiftAdjustmentRequests ShiftAdjustmentRequest[] @relation("RequestedShift")
 }
@@ -212,7 +213,10 @@ model DepartmentDayOff {
 
 model Department {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  externalId   Int   @unique
   name      String   @unique
+  defaultShiftId String? @db.ObjectId
+  defaultShift  Shift?  @relation(fields: [defaultShiftId], references: [id])
   daysOff   DepartmentDayOff[]
   users     User[]
   createdAt DateTime @default(now())

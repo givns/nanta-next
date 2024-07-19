@@ -2,42 +2,39 @@
 
 import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
 import { NotificationService } from './NotificationService';
-import {
-  getDepartmentByNameFuzzy,
-  getDefaultShift,
-  DepartmentId,
-  getShiftByDepartmentId as getShiftByDepartmentIdFromCache,
-} from '../lib/shiftCache';
+import { DepartmentMappingService } from './DepartmentMappingService';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
+const departmentMappingService = new DepartmentMappingService();
 
 export class ShiftManagementService {
-  async getDefaultShift(department: string): Promise<Shift | null> {
-    console.log(`Getting default shift for department: ${department}`);
-    const shift = await getDefaultShift(department);
-    console.log(`Default shift result: ${JSON.stringify(shift)}`);
-    return shift;
+  async initialize() {
+    await departmentMappingService.initialize();
   }
 
-  async assignShift(userId: string, department: string) {
-    const matchedDepartment = getDepartmentByNameFuzzy(department);
-    if (!matchedDepartment) {
-      throw new Error(`No matching department found for: ${department}`);
-    }
+  async getDefaultShift(departmentId: string): Promise<Shift | null> {
+    console.log(`Getting default shift for department ID: ${departmentId}`);
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+      include: { defaultShift: true },
+    });
+    const shift = department?.defaultShift;
+    console.log(`Default shift result: ${JSON.stringify(shift)}`);
+    return shift || null;
+  }
 
-    const shift = await this.getDefaultShift(matchedDepartment);
+  async assignShift(userId: string, departmentId: string) {
+    const shift = await this.getDefaultShift(departmentId);
     if (!shift) {
       throw new Error(
-        `No default shift found for department: ${matchedDepartment}`,
+        `No default shift found for department ID: ${departmentId}`,
       );
     }
 
-    await this.createDepartmentIfNotExists(matchedDepartment);
-
     return prisma.user.update({
       where: { id: userId },
-      data: { shiftId: shift.id },
+      data: { shiftId: shift.id, departmentId },
     });
   }
 
@@ -169,41 +166,16 @@ export class ShiftManagementService {
     });
   }
 
-  async getShiftByDepartmentId(
-    departmentId: DepartmentId,
-  ): Promise<Shift | null> {
+  async getShiftByDepartmentId(departmentId: string): Promise<Shift | null> {
     console.log(
       `ShiftManagementService: Getting shift for department ID: ${departmentId}`,
     );
-    return getShiftByDepartmentIdFromCache(departmentId);
+    return this.getDefaultShift(departmentId);
   }
 
-  async createDepartmentIfNotExists(departmentName: string): Promise<string> {
-    console.log(`Checking if department exists: ${departmentName}`);
-
-    const existingDepartment = await prisma.department.findFirst({
-      where: {
-        name: {
-          equals: departmentName,
-          mode: 'insensitive',
-        },
-      },
-    });
-
-    if (existingDepartment) {
-      console.log(
-        `Found existing department with ID: ${existingDepartment.id}`,
-      );
-      return existingDepartment.id;
-    }
-
-    console.log(`Department not found, creating: ${departmentName}`);
-    const newDepartment = await prisma.department.create({
-      data: {
-        name: departmentName,
-      },
-    });
-    console.log(`Created new department with ID: ${newDepartment.id}`);
-    return newDepartment.id;
+  async getDepartmentId(
+    externalDepartmentId: number,
+  ): Promise<string | undefined> {
+    return departmentMappingService.getInternalId(externalDepartmentId);
   }
 }

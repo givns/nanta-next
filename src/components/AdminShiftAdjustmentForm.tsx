@@ -5,8 +5,10 @@ import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import { Shift } from '../types/user';
-import { departmentIdNameMap } from '../lib/shiftCache';
+import { ShiftManagementService } from '../services/ShiftManagementService';
 import moment from 'moment';
+
+const shiftManagementService = new ShiftManagementService();
 
 interface AdminShiftAdjustmentFormProps {
   lineUserId?: string;
@@ -25,7 +27,21 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   lineUserId,
 }) => {
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [departments, setDepartments] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const initialize = async () => {
+      await shiftManagementService.initialize();
+      const fetchedShifts = await axios.get('/api/shifts/shifts');
+      setShifts(fetchedShifts.data);
+      const fetchedDepartments = await axios.get('/api/departments');
+      setDepartments(fetchedDepartments.data);
+    };
+    initialize();
+  }, []);
 
   useEffect(() => {
     const fetchShifts = async () => {
@@ -144,8 +160,6 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
       initialValues={initialValues}
       validationSchema={validationSchema}
       onSubmit={handleSubmit}
-      validateOnChange={false}
-      validateOnBlur={false}
     >
       {({ values, isSubmitting, setFieldValue }) => (
         <Form className="space-y-4">
@@ -194,13 +208,11 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                         >
                           <option value="">Select a department</option>
-                          {Object.entries(departmentIdNameMap).map(
-                            ([id, name]) => (
-                              <option key={id} value={id}>
-                                {name}
-                              </option>
-                            ),
-                          )}
+                          {departments.map((dept) => (
+                            <option key={dept.id} value={dept.id}>
+                              {dept.name}
+                            </option>
+                          ))}
                         </Field>
                         <ErrorMessage
                           name={`departmentShifts.${index}.departmentId`}
