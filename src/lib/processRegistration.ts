@@ -13,7 +13,8 @@ import {
   getDepartmentIdByName,
   departmentIdNameMap,
 } from './shiftCache';
-import { Shift } from '@prisma/client';
+import { Shift, User } from '@prisma/client';
+import { UserRole } from '@/types/enum';
 
 interface ExternalUserInfo {
   user_serial: number | string;
@@ -31,6 +32,7 @@ const client = new Client({
 });
 
 const shiftManagementService = new ShiftManagementService();
+const externalDbService = new ExternalDbService();
 
 export async function processRegistration(
   job: Job,
@@ -46,84 +48,19 @@ export async function processRegistration(
   } = job.data;
 
   try {
-    // Initialize services
     await shiftManagementService.initialize();
 
-    // Find existing user or prepare for new user creation
     let user = await prisma.user.findUnique({ where: { lineUserId } });
 
-    // Fetch external data
-    const externalDbService = new ExternalDbService();
     const externalData =
       await externalDbService.getDailyAttendanceRecords(employeeId);
     console.log('External data:', JSON.stringify(externalData, null, 2));
 
-    // Determine department and shift
-    let departmentId: string;
-    let shift: Shift | null = null;
+    const { departmentId, shift } = await getDepartmentAndShift(
+      externalData,
+      department,
+    );
 
-    if (externalData?.userInfo?.user_dep) {
-      const externalDeptId = parseInt(externalData.userInfo.user_dep, 10);
-      console.log(`External department ID: ${externalDeptId}`);
-
-      // Use the external department ID to get the shift directly from shiftCache
-      shift = await getShiftByDepartmentId(externalDeptId as DepartmentId);
-      console.log(
-        `Shift found for external department ID ${externalDeptId}:`,
-        shift,
-      );
-
-      // Get the department name from the mapping
-      const departmentName =
-        departmentIdNameMap[externalDeptId as DepartmentId];
-      if (!departmentName) {
-        throw new Error(
-          `No matching department found for external ID: ${externalDeptId}`,
-        );
-      }
-
-      // Find or create the internal department
-      let internalDepartment = await prisma.department.findFirst({
-        where: { name: departmentName },
-      });
-
-      if (!internalDepartment) {
-        internalDepartment = await prisma.department.create({
-          data: { name: departmentName, externalId: externalDeptId },
-        });
-      }
-
-      departmentId = internalDepartment.id;
-    } else {
-      // If we don't have an external department ID, use the provided department name
-      const matchedDepartment = await prisma.department.findFirst({
-        where: { name: department },
-      });
-
-      if (!matchedDepartment) {
-        throw new Error(`No matching department found: ${department}`);
-      }
-
-      departmentId = matchedDepartment.id;
-      const deptId = getDepartmentIdByName(department);
-
-      if (!deptId) {
-        throw new Error(`No department ID found for department: ${department}`);
-      }
-
-      shift = await getShiftByDepartmentId(deptId);
-    }
-
-    // After this block, add a fallback for shift if it's still null
-    if (!shift) {
-      console.warn(`No shift found, using default shift`);
-      shift = await getShiftByCode('SHIFT103'); // Use your default shift code
-    }
-
-    if (!shift) {
-      throw new Error(`No shift found and default shift not available`);
-    }
-    // Determine user role
     const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
     const role = determineRole(department, isFirstUser);
@@ -132,7 +69,6 @@ export async function processRegistration(
       ? `https://external-service-url.com/photos/${externalData.userInfo.user_photo}`
       : null;
 
-    // Prepare user data
     const userData = {
       lineUserId,
       name: externalData?.userInfo?.user_lname || name,
@@ -147,22 +83,9 @@ export async function processRegistration(
       shiftId: shift.id,
     };
 
-    // Create or update user
-    if (!user) {
-      user = await prisma.user.create({ data: userData });
-    } else {
-      user = await prisma.user.update({
-        where: { lineUserId },
-        data: userData,
-      });
-    }
+    user = await upsertUser(user, userData);
 
-    // Link rich menu
-    const richMenuId = determineRichMenuId(role);
-    await retry(
-      async () => await client.linkRichMenuToUser(lineUserId, richMenuId),
-      3,
-    );
+    await linkRichMenu(lineUserId, role);
 
     console.log('Registration process completed successfully');
     return { success: true, userId: user.id };
@@ -170,6 +93,87 @@ export async function processRegistration(
     console.error('Error in registration process:', error);
     throw error;
   }
+}
+
+async function getDepartmentAndShift(
+  externalData: any,
+  department: string,
+): Promise<{ departmentId: string; shift: Shift }> {
+  let departmentId: string;
+  let shift: Shift | null = null;
+
+  if (externalData?.userInfo?.user_dep) {
+    const externalDeptId = parseInt(externalData.userInfo.user_dep, 10);
+    console.log(`External department ID: ${externalDeptId}`);
+
+    shift = await getShiftByDepartmentId(externalDeptId as DepartmentId);
+    console.log(
+      `Shift found for external department ID ${externalDeptId}:`,
+      shift,
+    );
+
+    const departmentName = departmentIdNameMap[externalDeptId as DepartmentId];
+    if (!departmentName) {
+      throw new Error(
+        `No matching department found for external ID: ${externalDeptId}`,
+      );
+    }
+
+    const internalDepartment = await prisma.department.upsert({
+      where: { name: departmentName },
+      update: {},
+      create: { name: departmentName, externalId: externalDeptId },
+    });
+
+    departmentId = internalDepartment.id;
+  } else {
+    const matchedDepartment = await prisma.department.findFirst({
+      where: { name: department },
+    });
+
+    if (!matchedDepartment) {
+      throw new Error(`No matching department found: ${department}`);
+    }
+
+    departmentId = matchedDepartment.id;
+    const deptId = getDepartmentIdByName(department);
+
+    if (!deptId) {
+      throw new Error(`No department ID found for department: ${department}`);
+    }
+
+    shift = await getShiftByDepartmentId(deptId);
+  }
+
+  if (!shift) {
+    console.warn(`No shift found, using default shift`);
+    shift = await getShiftByCode('SHIFT103');
+  }
+
+  if (!shift) {
+    throw new Error(`No shift found and default shift not available`);
+  }
+
+  return { departmentId, shift };
+}
+
+async function upsertUser(user: User | null, userData: any): Promise<User> {
+  if (!user) {
+    return await prisma.user.create({ data: userData });
+  } else {
+    return await prisma.user.update({
+      where: { lineUserId: userData.lineUserId },
+      data: userData,
+    });
+  }
+}
+
+async function linkRichMenu(lineUserId: string, role: UserRole): Promise<void> {
+  const richMenuId = determineRichMenuId(role);
+  await retry(
+    async () => await client.linkRichMenuToUser(lineUserId, richMenuId),
+    3,
+  );
 }
 
 async function retry<T>(fn: () => Promise<T>, retries: number): Promise<T> {
