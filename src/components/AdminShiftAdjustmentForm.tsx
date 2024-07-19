@@ -1,29 +1,31 @@
+// components/AdminShiftAdjustmentForm.tsx
+
 import React, { useState, useEffect } from 'react';
+import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
+import * as Yup from 'yup';
 import axios from 'axios';
 import { Shift } from '../types/user';
-import { departmentShiftMap } from '../lib/shiftCache';
+import { departmentIdNameMap } from '../lib/shiftCache';
+import moment from 'moment';
 
 interface AdminShiftAdjustmentFormProps {
   lineUserId?: string;
 }
 
+interface FormValues {
+  targetType: 'department' | 'individual';
+  departmentShifts: { departmentId: string; shiftId: string }[];
+  individualEmployeeId: string;
+  individualShiftId: string;
+  date: string;
+  reason: string;
+}
+
 const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   lineUserId,
 }) => {
-  const [targetType, setTargetType] = useState<'department' | 'individual'>(
-    'department',
-  );
-  const [numberOfDepartments, setNumberOfDepartments] = useState<string>('1');
-  const [departmentShifts, setDepartmentShifts] = useState<
-    { department: string; shiftId: string }[]
-  >([{ department: '', shiftId: '' }]);
-  const [individualEmployeeId, setIndividualEmployeeId] = useState('');
-  const [individualShiftId, setIndividualShiftId] = useState('');
-  const [date, setDate] = useState('');
-  const [reason, setReason] = useState('');
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [message, setMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const fetchShifts = async () => {
@@ -39,183 +41,253 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
     fetchShifts();
   }, []);
 
-  useEffect(() => {
-    const num = parseInt(numberOfDepartments) || 1;
-    setDepartmentShifts(Array(num).fill({ department: '', shiftId: '' }));
-  }, [numberOfDepartments]);
+  const validationSchema = Yup.object().shape({
+    targetType: Yup.string()
+      .oneOf(['department', 'individual'])
+      .required('Target type is required'),
+    departmentShifts: Yup.array().of(
+      Yup.object().shape({
+        departmentId: Yup.string().when('$targetType', {
+          is: 'department',
+          then: () => Yup.string().required('Department is required'),
+          otherwise: () => Yup.string(),
+        }),
+        shiftId: Yup.string().when('$targetType', {
+          is: 'department',
+          then: () => Yup.string().required('Shift is required'),
+          otherwise: () => Yup.string(),
+        }),
+      }),
+    ),
+    individualEmployeeId: Yup.string().when('targetType', {
+      is: 'individual',
+      then: () => Yup.string().required('Employee ID is required'),
+      otherwise: () => Yup.string(),
+    }),
+    individualShiftId: Yup.string().when('targetType', {
+      is: 'individual',
+      then: () => Yup.string().required('Shift is required'),
+      otherwise: () => Yup.string(),
+    }),
+    date: Yup.date()
+      .required('Date is required')
+      .min(moment().startOf('day'), 'Date must not be in the past'),
+    reason: Yup.string().required('Reason is required'),
+  });
 
-  const handleDepartmentShiftChange = (
-    index: number,
-    field: 'department' | 'shiftId',
-    value: string,
+  const initialValues: FormValues = {
+    targetType: 'department',
+    departmentShifts: [{ departmentId: '', shiftId: '' }],
+    individualEmployeeId: '',
+    individualShiftId: '',
+    date: '',
+    reason: '',
+  };
+
+  const handleSubmit = async (
+    values: FormValues,
+    { setSubmitting, resetForm }: any,
   ) => {
-    const newDepartmentShifts = [...departmentShifts];
-    newDepartmentShifts[index] = {
-      ...newDepartmentShifts[index],
-      [field]: value,
-    };
-    setDepartmentShifts(newDepartmentShifts);
-  };
-
-  const isDateValid = (selectedDate: string) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return new Date(selectedDate) >= today;
-  };
-
-  const isFormValid = () => {
-    if (targetType === 'department') {
-      return departmentShifts.every((ds) => ds.department && ds.shiftId);
-    } else {
-      return individualEmployeeId && individualShiftId;
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage('');
-    setIsLoading(true);
-
     if (!lineUserId) {
       setMessage('Error: User ID is not available');
-      setIsLoading(false);
-      return;
-    }
-    if (!isDateValid(date)) {
-      setMessage('Error: Selected date must not be in the past');
-      setIsLoading(false);
-      return;
-    }
-    if (!isFormValid()) {
-      setMessage('Error: Please fill in all required fields');
-      setIsLoading(false);
-      return;
-    }
-
-    if (!confirm('Are you sure you want to apply these shift adjustments?')) {
+      setSubmitting(false);
       return;
     }
 
     try {
       const adjustments =
-        targetType === 'department'
-          ? departmentShifts.map((ds) => ({
-              department: ds.department,
+        values.targetType === 'department'
+          ? values.departmentShifts.map((ds) => ({
+              department: ds.departmentId,
               shiftId: ds.shiftId,
             }))
-          : [{ employeeId: individualEmployeeId, shiftId: individualShiftId }];
+          : [
+              {
+                employeeId: values.individualEmployeeId,
+                shiftId: values.individualShiftId,
+              },
+            ];
 
-      await axios.post('/api/adjust-shift', {
+      console.log('Sending data to API:', {
         lineUserId,
-        targetType,
+        targetType: values.targetType,
         adjustments,
-        date,
-        reason,
+        date: values.date,
+        reason: values.reason,
       });
 
+      const response = await axios.post('/api/adjust-shift', {
+        lineUserId,
+        targetType: values.targetType,
+        adjustments,
+        date: values.date,
+        reason: values.reason,
+      });
+
+      console.log('API Response:', response.data);
       setMessage('Shift adjustment(s) applied successfully.');
-    } catch (error) {
-      setMessage('Error applying shift adjustment(s). Please try again.');
+      resetForm();
+    } catch (error: any) {
       console.error('Shift adjustment error:', error);
+      setMessage(
+        `Error applying shift adjustment(s): ${
+          error.response?.data?.message || error.message
+        }`,
+      );
     } finally {
-      setIsLoading(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label
-          htmlFor="adjustFor"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Adjust for
-        </label>
-        <select
-          id="adjustFor"
-          value={targetType}
-          onChange={(e) =>
-            setTargetType(e.target.value as 'department' | 'individual')
-          }
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-        >
-          <option value="department">รายแผนก</option>
-          <option value="individual">รายบุคคล</option>
-        </select>
-      </div>
+    <Formik
+      initialValues={initialValues}
+      validationSchema={validationSchema}
+      onSubmit={handleSubmit}
+      validateOnChange={false}
+      validateOnBlur={false}
+    >
+      {({ values, isSubmitting, setFieldValue }) => (
+        <Form className="space-y-4">
+          <div>
+            <label
+              htmlFor="targetType"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Adjust for
+            </label>
+            <Field
+              as="select"
+              id="targetType"
+              name="targetType"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+            >
+              <option value="department">รายแผนก</option>
+              <option value="individual">รายบุคคล</option>
+            </Field>
+            <ErrorMessage
+              name="targetType"
+              component="div"
+              className="text-red-500 text-sm"
+            />
+          </div>
 
-      {targetType === 'department' && (
-        <div className="flex items-center space-x-2">
-          <label
-            htmlFor="numberOfDepartments"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Number of Departments
-          </label>
-          <input
-            type="text"
-            id="numberOfDepartments"
-            value={numberOfDepartments}
-            onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9]/g, '');
-              setNumberOfDepartments(
-                value === '' ? '' : String(Math.max(1, parseInt(value) || 1)),
-              );
-            }}
-            className="mt-1 block w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            inputMode="numeric"
-          />
-        </div>
-      )}
+          {values.targetType === 'department' && (
+            <FieldArray name="departmentShifts">
+              {({ remove, push }) => (
+                <div>
+                  {values.departmentShifts.map((_, index) => (
+                    <div
+                      key={index}
+                      className="bg-gray-100 p-4 rounded-lg mb-4"
+                    >
+                      <div>
+                        <label
+                          htmlFor={`departmentShifts.${index}.departmentId`}
+                          className="block text-sm font-medium text-gray-700"
+                        >
+                          Department
+                        </label>
+                        <Field
+                          as="select"
+                          name={`departmentShifts.${index}.departmentId`}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                        >
+                          <option value="">Select a department</option>
+                          {Object.entries(departmentIdNameMap).map(
+                            ([id, name]) => (
+                              <option key={id} value={id}>
+                                {name}
+                              </option>
+                            ),
+                          )}
+                        </Field>
+                        <ErrorMessage
+                          name={`departmentShifts.${index}.departmentId`}
+                          component="div"
+                          className="text-red-500 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor={`departmentShifts.${index}.shiftId`}
+                          className="block text-sm font-medium text-gray-700"
+                        >
+                          New Shift
+                        </label>
+                        <Field
+                          as="select"
+                          name={`departmentShifts.${index}.shiftId`}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                        >
+                          <option value="">Select a shift</option>
+                          {shifts.map((shift) => (
+                            <option key={shift.id} value={shift.id}>
+                              {shift.name} ({shift.startTime} - {shift.endTime})
+                            </option>
+                          ))}
+                        </Field>
+                        <ErrorMessage
+                          name={`departmentShifts.${index}.shiftId`}
+                          component="div"
+                          className="text-red-500 text-sm"
+                        />
+                      </div>
+                      {index > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          className="mt-2 text-red-600"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => push({ departmentId: '', shiftId: '' })}
+                    className="mt-2 text-blue-600"
+                  >
+                    Add Department
+                  </button>
+                </div>
+              )}
+            </FieldArray>
+          )}
 
-      {targetType === 'department' ? (
-        <>
-          {departmentShifts.map((depShift, index) => (
-            <div key={index} className="bg-gray-100 p-4 rounded-lg mb-4">
+          {values.targetType === 'individual' && (
+            <>
               <div>
                 <label
-                  htmlFor={`department-${index}`}
+                  htmlFor="individualEmployeeId"
                   className="block text-sm font-medium text-gray-700"
                 >
-                  Department
+                  Employee ID
                 </label>
-                <select
-                  id={`department-${index}`}
-                  value={depShift.department}
-                  onChange={(e) =>
-                    handleDepartmentShiftChange(
-                      index,
-                      'department',
-                      e.target.value,
-                    )
-                  }
+                <Field
+                  type="text"
+                  id="individualEmployeeId"
+                  name="individualEmployeeId"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                >
-                  <option value="">Select a department</option>
-                  {Object.keys(departmentShiftMap).map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </select>
+                />
+                <ErrorMessage
+                  name="individualEmployeeId"
+                  component="div"
+                  className="text-red-500 text-sm"
+                />
               </div>
               <div>
                 <label
-                  htmlFor={`shift-${index}`}
+                  htmlFor="individualShiftId"
                   className="block text-sm font-medium text-gray-700"
                 >
                   New Shift
                 </label>
-                <select
-                  id={`shift-${index}`}
-                  value={depShift.shiftId}
-                  onChange={(e) =>
-                    handleDepartmentShiftChange(
-                      index,
-                      'shiftId',
-                      e.target.value,
-                    )
-                  }
+                <Field
+                  as="select"
+                  id="individualShiftId"
+                  name="individualShiftId"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                 >
                   <option value="">Select a shift</option>
@@ -224,103 +296,77 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                       {shift.name} ({shift.startTime} - {shift.endTime})
                     </option>
                   ))}
-                </select>
+                </Field>
+                <ErrorMessage
+                  name="individualShiftId"
+                  component="div"
+                  className="text-red-500 text-sm"
+                />
               </div>
-            </div>
-          ))}
-        </>
-      ) : (
-        <>
+            </>
+          )}
+
           <div>
             <label
-              htmlFor="employeeId"
+              htmlFor="date"
               className="block text-sm font-medium text-gray-700"
             >
-              Employee ID
+              Date
             </label>
-            <input
-              id="employeeId"
-              type="text"
-              value={individualEmployeeId}
-              onChange={(e) => setIndividualEmployeeId(e.target.value)}
+            <Field
+              type="date"
+              id="date"
+              name="date"
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              placeholder="Enter employee ID"
+            />
+            <ErrorMessage
+              name="date"
+              component="div"
+              className="text-red-500 text-sm"
             />
           </div>
+
           <div>
             <label
-              htmlFor="individualShift"
+              htmlFor="reason"
               className="block text-sm font-medium text-gray-700"
             >
-              New Shift
+              Reason
             </label>
-            <select
-              id="individualShift"
-              value={individualShiftId}
-              onChange={(e) => setIndividualShiftId(e.target.value)}
+            <Field
+              as="textarea"
+              id="reason"
+              name="reason"
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            >
-              <option value="">Select a shift</option>
-              {shifts.map((shift) => (
-                <option key={shift.id} value={shift.id}>
-                  {shift.name} ({shift.startTime} - {shift.endTime})
-                </option>
-              ))}
-            </select>
+              rows={3}
+            />
+            <ErrorMessage
+              name="reason"
+              component="div"
+              className="text-red-500 text-sm"
+            />
           </div>
-        </>
+
+          <button
+            type="submit"
+            disabled={isSubmitting || !lineUserId}
+            className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
+          >
+            {isSubmitting ? 'Applying...' : 'Apply Shift Adjustment'}
+          </button>
+
+          {!lineUserId && (
+            <p className="mt-2 text-sm text-center text-red-600">
+              User ID is not available. Shift adjustment is disabled.
+            </p>
+          )}
+
+          {message && (
+            <p className="mt-2 text-sm text-center text-gray-600">{message}</p>
+          )}
+        </Form>
       )}
-
-      <div>
-        <label
-          htmlFor="date"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Date
-        </label>
-        <input
-          id="date"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-        />
-      </div>
-
-      <div>
-        <label
-          htmlFor="reason"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Reason
-        </label>
-        <textarea
-          id="reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-          rows={3}
-        ></textarea>
-      </div>
-
-      <button
-        type="submit"
-        disabled={isLoading || !lineUserId}
-        className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
-      >
-        {isLoading ? 'Applying...' : 'Apply Shift Adjustment'}
-      </button>
-
-      {!lineUserId && (
-        <p className="mt-2 text-sm text-center text-red-600">
-          User ID is not available. Shift adjustment is disabled.
-        </p>
-      )}
-
-      {message && (
-        <p className="mt-2 text-sm text-center text-gray-600">{message}</p>
-      )}
-    </form>
+    </Formik>
   );
 };
 
