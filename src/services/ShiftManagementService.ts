@@ -170,7 +170,14 @@ export class ShiftManagementService {
     console.log(
       `ShiftManagementService: Getting shift for department ID: ${departmentId}`,
     );
-    return this.getDefaultShift(departmentId);
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+      include: { defaultShift: true },
+    });
+    console.log(`Department found: ${JSON.stringify(department, null, 2)}`);
+    const shift = department?.defaultShift;
+    console.log(`Default shift result: ${JSON.stringify(shift)}`);
+    return shift || null;
   }
 
   async getDepartmentId(

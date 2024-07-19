@@ -13,10 +13,18 @@ export class DepartmentMappingService {
       this.departmentMap.set(dept.externalId, dept.id),
     );
     console.log('Department mapping initialized');
+    console.log(
+      'Department map:',
+      JSON.stringify(Array.from(this.departmentMap.entries())),
+    );
   }
 
   getInternalId(externalId: number): string | undefined {
-    return this.departmentMap.get(externalId);
+    const internalId = this.departmentMap.get(externalId);
+    console.log(
+      `Mapping external ID ${externalId} to internal ID: ${internalId || 'Not found'}`,
+    );
+    return internalId;
   }
 
   getExternalId(internalId: string): number | undefined {

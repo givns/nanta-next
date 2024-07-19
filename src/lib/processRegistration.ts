@@ -6,6 +6,7 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { ExternalCheckInData } from '../types/user';
 import { ShiftManagementService } from '../services/ShiftManagementService';
 import { determineRole, determineRichMenuId } from '../utils/userUtils';
+import { departmentMappingService } from '../services/DepartmentMappingService';
 import { Job } from 'bull';
 import { Shift } from '@prisma/client';
 
@@ -56,17 +57,26 @@ export async function processRegistration(
     console.log('External data:', JSON.stringify(externalData, null, 2));
 
     // Determine department
-    let departmentId: string;
+    let departmentId: string | undefined;
     if (externalData?.userInfo?.user_dep) {
       const externalDeptId = parseInt(externalData.userInfo.user_dep, 10);
-      const internalDeptId =
-        await shiftManagementService.getDepartmentId(externalDeptId);
-      if (!internalDeptId) {
-        throw new Error(
-          `No matching department found for external ID: ${externalDeptId}`,
+      console.log(`External department ID: ${externalDeptId}`);
+      departmentId = departmentMappingService.getInternalId(externalDeptId);
+      if (!departmentId) {
+        console.log(
+          `No internal department found for external ID: ${externalDeptId}`,
         );
+        console.log(`Falling back to department name matching: ${department}`);
+        const matchedDepartment = await prisma.department.findFirst({
+          where: { name: department },
+        });
+        if (!matchedDepartment) {
+          throw new Error(
+            `No matching department found for name: ${department} or external ID: ${externalDeptId}`,
+          );
+        }
+        departmentId = matchedDepartment.id;
       }
-      departmentId = internalDeptId;
     } else {
       const matchedDepartment = await prisma.department.findFirst({
         where: { name: department },
