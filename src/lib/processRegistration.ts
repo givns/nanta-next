@@ -1,13 +1,18 @@
 // lib/processRegistration.ts
 
+import { Job } from 'bull';
 import prisma from './prisma';
 import { Client } from '@line/bot-sdk';
 import { ExternalDbService } from '../services/ExternalDbService';
-import { ExternalCheckInData } from '../types/user';
 import { ShiftManagementService } from '../services/ShiftManagementService';
 import { determineRole, determineRichMenuId } from '../utils/userUtils';
-import { departmentMappingService } from '../services/DepartmentMappingService';
-import { Job } from 'bull';
+import {
+  getShiftByDepartmentId,
+  DepartmentId,
+  getShiftByCode,
+  getDepartmentIdByName,
+  departmentIdNameMap,
+} from './shiftCache';
 import { Shift } from '@prisma/client';
 
 interface ExternalUserInfo {
@@ -25,7 +30,6 @@ const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
-const externalDbService = new ExternalDbService();
 const shiftManagementService = new ShiftManagementService();
 
 export async function processRegistration(
@@ -50,57 +54,70 @@ export async function processRegistration(
 
     // Fetch external data
     const externalDbService = new ExternalDbService();
-    const externalData: {
-      records: ExternalCheckInData[];
-      userInfo: ExternalUserInfo | null;
-    } = await externalDbService.getDailyAttendanceRecords(employeeId);
+    const externalData =
+      await externalDbService.getDailyAttendanceRecords(employeeId);
     console.log('External data:', JSON.stringify(externalData, null, 2));
 
-    // Determine department
-    let departmentId: string | undefined;
+    // Determine department and shift
+    let departmentId: string;
+    let shift: Shift | null = null;
+
     if (externalData?.userInfo?.user_dep) {
       const externalDeptId = parseInt(externalData.userInfo.user_dep, 10);
       console.log(`External department ID: ${externalDeptId}`);
-      departmentId = departmentMappingService.getInternalId(externalDeptId);
-      if (!departmentId) {
-        console.log(
-          `No internal department found for external ID: ${externalDeptId}`,
+
+      // Use the departmentIdNameMap to get the department name
+      const departmentName =
+        departmentIdNameMap[externalDeptId as DepartmentId];
+
+      if (!departmentName) {
+        throw new Error(
+          `No matching department found for external ID: ${externalDeptId}`,
         );
-        console.log(`Falling back to department name matching: ${department}`);
-        const matchedDepartment = await prisma.department.findFirst({
-          where: { name: department },
-        });
-        if (!matchedDepartment) {
-          throw new Error(
-            `No matching department found for name: ${department} or external ID: ${externalDeptId}`,
-          );
-        }
-        departmentId = matchedDepartment.id;
       }
+
+      // Find the internal department
+      const matchedDepartment = await prisma.department.findFirst({
+        where: { name: departmentName },
+      });
+
+      if (!matchedDepartment) {
+        throw new Error(
+          `No matching internal department found for: ${departmentName}`,
+        );
+      }
+
+      departmentId = matchedDepartment.id;
+      shift = await getShiftByDepartmentId(externalDeptId as DepartmentId);
     } else {
+      // If we don't have an external department ID, use the provided department name
       const matchedDepartment = await prisma.department.findFirst({
         where: { name: department },
       });
+
       if (!matchedDepartment) {
         throw new Error(`No matching department found: ${department}`);
       }
+
       departmentId = matchedDepartment.id;
+      const deptId = getDepartmentIdByName(department);
+
+      if (!deptId) {
+        throw new Error(`No department ID found for department: ${department}`);
+      }
+
+      shift = await getShiftByDepartmentId(deptId);
     }
 
-    // Determine shift
-    let shift: Shift | null =
-      await shiftManagementService.getShiftByDepartmentId(departmentId);
+    // After this block, add a fallback for shift if it's still null
     if (!shift) {
-      console.log(
-        `No shift found, using default shift for department ID: ${departmentId}`,
-      );
-      shift = await shiftManagementService.getDefaultShift(departmentId);
+      console.warn(`No shift found, using default shift`);
+      shift = await getShiftByCode('SHIFT103'); // Use your default shift code
     }
 
     if (!shift) {
-      throw new Error(`No shift found for department ID: ${departmentId}`);
+      throw new Error(`No shift found and default shift not available`);
     }
-
     // Determine user role
     const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
