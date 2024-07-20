@@ -196,11 +196,19 @@ export default async function handler(
         }
 
         if (message) {
-          await notificationService.sendNotification(
-            userId,
-            message,
-            userInfo.lineUserId,
-          );
+          try {
+            await notificationService.sendNotification(
+              userId,
+              message,
+              userInfo.lineUserId,
+            );
+            console.log(`Notification sent successfully to user ${userId}`);
+          } catch (error) {
+            console.error(
+              `Failed to send notification to user ${userId}:`,
+              error,
+            );
+          }
         }
       }
     }

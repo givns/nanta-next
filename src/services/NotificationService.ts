@@ -2,6 +2,12 @@ import axios from 'axios';
 import { OvertimeRequest, User } from '@prisma/client';
 
 export class NotificationService {
+  private lineApiUrl = 'https://api.line.me/v2/bot/message/push';
+  private headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
+  };
+
   async sendNotification(
     userId: string,
     message: string,
@@ -13,7 +19,14 @@ export class NotificationService {
     }
 
     try {
-      await axios.post('/api/line-notification', { lineUserId, message });
+      await axios.post(
+        this.lineApiUrl,
+        {
+          to: lineUserId,
+          messages: [{ type: 'text', text: message }],
+        },
+        { headers: this.headers },
+      );
     } catch (error) {
       console.error('Error sending LINE notification:', error);
     }
