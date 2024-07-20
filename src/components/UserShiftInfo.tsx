@@ -127,14 +127,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
                 {formatOvertimeTime(attendanceStatus.approvedOvertime.endTime)}
               </span>
             </p>
-            <p>
-              เวลาที่อนุมัติ:{' '}
-              <span className="font-medium">
-                {moment(attendanceStatus.approvedOvertime.approvedAt)
-                  .tz('Asia/Bangkok')
-                  .format('YYYY-MM-DD HH:mm:ss')}
-              </span>
-            </p>
           </>
         )}
 
@@ -172,13 +164,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
     return (
       <div className="bg-yellow-100 p-4 rounded-lg mt-4">
-        <h3 className="text-md font-semibold mb-2">ข้อมูลการทำงานในอนาคต:</h3>
+        <h3 className="text-md font-semibold mb-2">แจ้งเตือน:</h3>
         {futureShiftAdjustments.map((adjustment, index) => (
           <div key={`shift-${index}`} className="mb-2">
             <p>วันที่: {moment(adjustment.date).format('LL')}</p>
             <p>
-              เวลาทำงานใหม่: {adjustment.shift.name} (
-              {adjustment.shift.startTime} - {adjustment.shift.endTime})
+              เวลาทำงาน: {adjustment.shift.name} ({adjustment.shift.startTime} -{' '}
+              {adjustment.shift.endTime})
             </p>
           </div>
         ))}
@@ -188,16 +180,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             <p>
               เวลาทำงานล่วงเวลา: {overtime.startTime} - {overtime.endTime}
             </p>
-            <p>เหตุผล: {overtime.reason}</p>
+            <p>สาเหตุ: {overtime.reason}</p>
             <p>สถานะ: {overtime.status}</p>
-            {overtime.approvedAt && (
-              <p>
-                เวลาที่อนุมัติ:{' '}
-                {moment(overtime.approvedAt)
-                  .tz('Asia/Bangkok')
-                  .format('YYYY-MM-DD HH:mm:ss')}
-              </p>
-            )}
           </div>
         ))}
       </div>

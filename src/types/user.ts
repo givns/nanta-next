@@ -125,7 +125,7 @@ export interface ShiftAdjustment {
   userId: string;
   requestedShiftId: string;
   date: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'รออนุมัติ' | 'ได้รับการอนุมัติแล้ว' | 'ไม่ได้รับการอนุมัติ';
   reason: string;
   createdAt: Date;
   updatedAt: Date;
@@ -141,7 +141,7 @@ export interface OvertimeApproval {
   id: string;
   userId: string;
   date: Date;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'รออนุมัติ' | 'ได้รับการอนุมัติแล้ว' | 'ไม่ได้รับการอนุมัติ';
   reason: string;
 }
 

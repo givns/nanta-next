@@ -540,7 +540,7 @@ export class AttendanceService {
         date: {
           gte: tomorrow.toDate(),
         },
-        status: 'approved',
+        status: 'ได้รับการอนุมัติแล้ว',
       },
       orderBy: {
         date: 'asc',
@@ -571,7 +571,7 @@ export class AttendanceService {
     const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
       where: {
         userId,
-        status: 'approved',
+        status: 'ได้รับการอนุมัติแล้ว',
         date: {
           gte: today,
           lt: tomorrow,
@@ -584,7 +584,10 @@ export class AttendanceService {
       return {
         ...shiftAdjustment,
         date: shiftAdjustment.date.toISOString().split('T')[0], // Convert to YYYY-MM-DD string
-        status: shiftAdjustment.status as 'pending' | 'approved' | 'rejected',
+        status: shiftAdjustment.status as
+          | 'รออนุมัติ'
+          | 'ได้รับการอนุมัติแล้ว'
+          | 'ไม่ได้รับการอนุมัติ',
         requestedShift: shiftAdjustment.requestedShift as ShiftData,
       };
     }
@@ -603,7 +606,7 @@ export class AttendanceService {
       where: {
         userId,
         date: { gte: tomorrow },
-        status: 'approved',
+        status: 'ได้รับการอนุมัติแล้ว',
       },
       include: { requestedShift: true },
       orderBy: { date: 'asc' },
