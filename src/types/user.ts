@@ -86,7 +86,6 @@ export interface AttendanceStatus {
     shift: ShiftData;
   }>;
   approvedOvertime: ApprovedOvertime | null;
-  pendingOvertime: ApprovedOvertime | null;
   futureApprovedOvertimes?: {
     date: string;
     startTime: string;

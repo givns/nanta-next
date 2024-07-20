@@ -138,40 +138,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
           </>
         )}
 
-      {attendanceStatus.pendingOvertime &&
-        isOvertimeForToday(attendanceStatus.pendingOvertime) && (
-          <>
-            <h3 className="text-md font-semibold mt-4 mb-1">
-              คำขอทำงานล่วงเวลาสำหรับวันนี้ (สถานะ: รอการอนุมัติ):
-            </h3>
-            <p>
-              เวลาเริ่ม:{' '}
-              <span className="font-medium">
-                {formatOvertimeTime(attendanceStatus.pendingOvertime.startTime)}
-              </span>
-            </p>
-            <p>
-              เวลาสิ้นสุด:{' '}
-              <span className="font-medium">
-                {formatOvertimeTime(attendanceStatus.pendingOvertime.endTime)}
-              </span>
-            </p>
-            <p>
-              เหตุผล:{' '}
-              <span className="font-medium">
-                {attendanceStatus.pendingOvertime.reason}
-              </span>
-            </p>
-          </>
-        )}
-
-      {isOutsideShift() &&
-        !attendanceStatus.approvedOvertime &&
-        !attendanceStatus.pendingOvertime && (
-          <p className="text-red-500 mt-2">
-            คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
-          </p>
-        )}
+      {isOutsideShift() && !attendanceStatus.approvedOvertime && (
+        <p className="text-red-500 mt-2">
+          คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
+        </p>
+      )}
     </div>
   );
 

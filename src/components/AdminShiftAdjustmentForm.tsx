@@ -31,30 +31,24 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
     { id: string; name: string }[]
   >([]);
   const [message, setMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const initialize = async () => {
-      await shiftManagementService.initialize();
-      const fetchedShifts = await axios.get('/api/shifts/shifts');
-      setShifts(fetchedShifts.data);
-      const fetchedDepartments = await axios.get('/api/departments');
-      setDepartments(fetchedDepartments.data);
-    };
-    initialize();
-  }, []);
-
-  useEffect(() => {
-    const fetchShifts = async () => {
       try {
-        const response = await axios.get('/api/shifts/shifts');
-        setShifts(response.data);
+        const fetchedShifts = await axios.get('/api/shifts/shifts');
+        setShifts(fetchedShifts.data);
+
+        const fetchedDepartments = await axios.get('/api/departments');
+        console.log('Fetched departments:', fetchedDepartments.data);
+        setDepartments(fetchedDepartments.data);
       } catch (error) {
-        console.error('Error fetching shifts:', error);
-        setMessage('Error fetching shifts. Please try again.');
+        console.error('Error initializing form:', error);
+        setMessage('Error initializing form. Please try again.');
       }
     };
-
-    fetchShifts();
+    initialize();
+    setIsLoading(false);
   }, []);
 
   const validationSchema = Yup.object().shape({
@@ -207,12 +201,18 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                           name={`departmentShifts.${index}.departmentId`}
                           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                         >
-                          <option value="">Select a department</option>
-                          {departments.map((dept) => (
-                            <option key={dept.id} value={dept.id}>
-                              {dept.name}
-                            </option>
-                          ))}
+                          {isLoading ? (
+                            <option>Loading departments...</option>
+                          ) : (
+                            <>
+                              <option value="">Select a department</option>
+                              {departments.map((dept) => (
+                                <option key={dept.id} value={dept.id}>
+                                  {dept.name}
+                                </option>
+                              ))}
+                            </>
+                          )}
                         </Field>
                         <ErrorMessage
                           name={`departmentShifts.${index}.departmentId`}
