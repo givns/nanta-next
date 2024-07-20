@@ -94,6 +94,9 @@ export class AttendanceService {
       const futureShiftAdjustments = await this.getFutureShiftAdjustments(
         user.id,
       );
+      const futureApprovedOvertimes = await this.getFutureApprovedOvertimes(
+        user.id,
+      );
 
       const today = moment().tz('Asia/Bangkok').startOf('day');
       const tomorrow = moment(today).add(1, 'day');
@@ -183,6 +186,7 @@ export class AttendanceService {
           : null,
         futureShiftAdjustments,
         approvedOvertime: formattedApprovedOvertime,
+        futureApprovedOvertimes,
       };
 
       console.log(
@@ -523,6 +527,37 @@ export class AttendanceService {
       );
       throw error;
     }
+  }
+
+  private async getFutureApprovedOvertimes(
+    userId: string,
+  ): Promise<ApprovedOvertime[]> {
+    const tomorrow = moment().tz('Asia/Bangkok').startOf('day').add(1, 'day');
+
+    const futureOvertimes = await prisma.overtimeRequest.findMany({
+      where: {
+        userId: userId,
+        date: {
+          gte: tomorrow.toDate(),
+        },
+        status: 'approved',
+      },
+      orderBy: {
+        date: 'asc',
+      },
+    });
+
+    return futureOvertimes.map((overtime) => ({
+      id: overtime.id,
+      userId: overtime.userId,
+      date: overtime.date,
+      startTime: overtime.startTime,
+      endTime: overtime.endTime,
+      status: overtime.status,
+      reason: overtime.reason,
+      approvedBy: overtime.approverId || '',
+      approvedAt: overtime.updatedAt,
+    }));
   }
 
   private async getLatestShiftAdjustment(

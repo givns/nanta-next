@@ -153,7 +153,20 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         ? [attendanceStatus.approvedOvertime]
         : [];
 
-    if (futureShiftAdjustments.length === 0 && futureOvertime.length === 0) {
+    // Check for additional future overtime requests
+    const additionalFutureOvertimes =
+      attendanceStatus.futureApprovedOvertimes || [];
+
+    // Combine all future overtimes
+    const allFutureOvertimes = [
+      ...futureOvertime,
+      ...additionalFutureOvertimes,
+    ];
+
+    if (
+      futureShiftAdjustments.length === 0 &&
+      allFutureOvertimes.length === 0
+    ) {
       return null;
     }
 
@@ -169,18 +182,22 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             </p>
           </div>
         ))}
-        {futureOvertime.map((overtime, index) => (
+        {allFutureOvertimes.map((overtime, index) => (
           <div key={`overtime-${index}`} className="mb-2">
             <p>วันที่: {moment(overtime.date).format('LL')}</p>
             <p>
               เวลาทำงานล่วงเวลา: {overtime.startTime} - {overtime.endTime}
             </p>
-            <p>
-              เวลาที่อนุมัติ:{' '}
-              {moment(overtime.approvedAt)
-                .tz('Asia/Bangkok')
-                .format('YYYY-MM-DD HH:mm:ss')}
-            </p>
+            <p>เหตุผล: {overtime.reason}</p>
+            <p>สถานะ: {overtime.status}</p>
+            {overtime.approvedAt && (
+              <p>
+                เวลาที่อนุมัติ:{' '}
+                {moment(overtime.approvedAt)
+                  .tz('Asia/Bangkok')
+                  .format('YYYY-MM-DD HH:mm:ss')}
+              </p>
+            )}
           </div>
         ))}
       </div>
@@ -189,11 +206,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-md">
-      <p className="text-2xl font-bold">
-        {userData.name}
-        {''}
-        {userData.nickname}
-      </p>
+      <p className="text-2xl font-bold">{userData.name}</p>
       <p className="text-xl">(รหัสพนักงาน: {userData.employeeId})</p>
       <p className="mb-4 text-gray-600">แผนก: {departmentName}</p>
 
