@@ -317,30 +317,34 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   return (
     <div className="h-screen flex flex-col">
-      <div className="flex-grow overflow-hidden flex flex-col justify-center">
+      <div className="flex-grow overflow-hidden flex flex-col">
         {step === 'info' && (
-          <div className="h-full flex flex-col justify-between">
-            <UserShiftInfo
-              userData={userData}
-              attendanceStatus={attendanceStatus}
-              departmentName={userData.department}
-              isOutsideShift={isOutsideShift}
-            />
-            <button
-              onClick={() => setStep('camera')}
-              disabled={!isCheckInOutAllowed()}
-              className={`mt-4 w-full ${
-                isCheckInOutAllowed()
-                  ? 'bg-blue-500 hover:bg-blue-600'
-                  : 'bg-gray-400 cursor-not-allowed'
-              } text-white py-3 px-4 rounded-lg transition duration-300`}
-              aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-            >
-              {isCheckInOutAllowed()
-                ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-                : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
-            </button>
-          </div>
+          <>
+            <div className="flex-grow overflow-hidden">
+              <UserShiftInfo
+                userData={userData}
+                attendanceStatus={attendanceStatus}
+                departmentName={userData.department}
+                isOutsideShift={isOutsideShift}
+              />
+            </div>
+            <div className="flex-shrink-0 mt-4">
+              <button
+                onClick={() => setStep('camera')}
+                disabled={!isCheckInOutAllowed()}
+                className={`w-full ${
+                  isCheckInOutAllowed()
+                    ? 'bg-blue-500 hover:bg-blue-600'
+                    : 'bg-gray-400 cursor-not-allowed'
+                } text-white py-3 px-4 rounded-lg transition duration-300`}
+                aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+              >
+                {isCheckInOutAllowed()
+                  ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+                  : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+              </button>
+            </div>
+          </>
         )}
 
         {step === 'camera' && (
