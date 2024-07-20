@@ -205,13 +205,17 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-md">
-      <p className="text-2xl font-bold">{userData.name}</p>
-      <p className="text-xl">(รหัสพนักงาน: {userData.employeeId})</p>
-      <p className="mb-4 text-gray-600">แผนก: {departmentName}</p>
+    <div className="bg-white p-4 rounded-lg shadow-md flex flex-col h-full">
+      <div className="mb-4">
+        <p className="text-2xl font-bold">{userData.name}</p>
+        <p className="text-xl">(รหัสพนักงาน: {userData.employeeId})</p>
+        <p className="mb-4 text-gray-600">แผนก: {departmentName}</p>
+      </div>
 
-      {renderTodayInfo()}
-      {renderFutureInfo()}
+      <div className="flex-grow overflow-y-auto mb-4">
+        {renderTodayInfo()}
+        {renderFutureInfo()}
+      </div>
     </div>
   );
 };
