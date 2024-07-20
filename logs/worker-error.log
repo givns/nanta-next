@@ -15410,3 +15410,99 @@
 2024-07-20 06:13:07 +07:00: Job failed: 63 Error: Error: No shift found for department ID: 6699f958412b02aae0a8a231
 2024-07-20 06:13:07 +07:00:     at processRegistration (/Users/parunpatpatchaichaiyakorn/nanta-next/src/lib/processRegistration.ts:91:13)
 2024-07-20 06:13:07 +07:00:     at async Queue.<anonymous> (/Users/parunpatpatchaichaiyakorn/nanta-next/src/workers/worker.ts:46:12)
+2024-07-20 08:21:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 08:21:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 08:21:41 +07:00:   errno: -54,
+2024-07-20 08:21:41 +07:00:   code: 'ECONNRESET',
+2024-07-20 08:21:41 +07:00:   syscall: 'read'
+2024-07-20 08:21:41 +07:00: }
+2024-07-20 08:21:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 08:21:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 08:21:41 +07:00:   errno: -54,
+2024-07-20 08:21:41 +07:00:   code: 'ECONNRESET',
+2024-07-20 08:21:41 +07:00:   syscall: 'read'
+2024-07-20 08:21:41 +07:00: }
+2024-07-20 08:37:27 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 08:37:27 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 08:37:27 +07:00:   errno: -54,
+2024-07-20 08:37:27 +07:00:   code: 'ECONNRESET',
+2024-07-20 08:37:27 +07:00:   syscall: 'read'
+2024-07-20 08:37:27 +07:00: }
+2024-07-20 08:37:27 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 08:37:27 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 08:37:27 +07:00:   errno: -54,
+2024-07-20 08:37:27 +07:00:   code: 'ECONNRESET',
+2024-07-20 08:37:27 +07:00:   syscall: 'read'
+2024-07-20 08:37:27 +07:00: }
+2024-07-20 08:53:18 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 08:53:18 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 08:53:18 +07:00:   errno: -54,
+2024-07-20 08:53:18 +07:00:   code: 'ECONNRESET',
+2024-07-20 08:53:18 +07:00:   syscall: 'read'
+2024-07-20 08:53:18 +07:00: }
+2024-07-20 08:53:18 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 08:53:18 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 08:53:18 +07:00:   errno: -54,
+2024-07-20 08:53:18 +07:00:   code: 'ECONNRESET',
+2024-07-20 08:53:18 +07:00:   syscall: 'read'
+2024-07-20 08:53:18 +07:00: }
+2024-07-20 09:09:03 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 09:09:03 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 09:09:03 +07:00:   errno: -54,
+2024-07-20 09:09:03 +07:00:   code: 'ECONNRESET',
+2024-07-20 09:09:03 +07:00:   syscall: 'read'
+2024-07-20 09:09:03 +07:00: }
+2024-07-20 09:09:03 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 09:09:03 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 09:09:03 +07:00:   errno: -54,
+2024-07-20 09:09:03 +07:00:   code: 'ECONNRESET',
+2024-07-20 09:09:03 +07:00:   syscall: 'read'
+2024-07-20 09:09:03 +07:00: }
+2024-07-20 09:26:55 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 09:26:55 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 09:26:55 +07:00:   errno: -54,
+2024-07-20 09:26:55 +07:00:   code: 'ECONNRESET',
+2024-07-20 09:26:55 +07:00:   syscall: 'read'
+2024-07-20 09:26:55 +07:00: }
+2024-07-20 09:26:55 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 09:26:55 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 09:26:55 +07:00:   errno: -54,
+2024-07-20 09:26:55 +07:00:   code: 'ECONNRESET',
+2024-07-20 09:26:55 +07:00:   syscall: 'read'
+2024-07-20 09:26:55 +07:00: }
+2024-07-20 09:44:52 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 09:44:52 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 09:44:52 +07:00:   errno: -54,
+2024-07-20 09:44:52 +07:00:   code: 'ECONNRESET',
+2024-07-20 09:44:52 +07:00:   syscall: 'read'
+2024-07-20 09:44:52 +07:00: }
+2024-07-20 09:44:52 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 09:44:52 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 09:44:52 +07:00:   errno: -54,
+2024-07-20 09:44:52 +07:00:   code: 'ECONNRESET',
+2024-07-20 09:44:52 +07:00:   syscall: 'read'
+2024-07-20 09:44:52 +07:00: }
+2024-07-20 10:01:38 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 10:01:38 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 10:01:38 +07:00:   errno: -54,
+2024-07-20 10:01:38 +07:00:   code: 'ECONNRESET',
+2024-07-20 10:01:38 +07:00:   syscall: 'read'
+2024-07-20 10:01:38 +07:00: }
+2024-07-20 10:01:38 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 10:01:38 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 10:01:38 +07:00:   errno: -54,
+2024-07-20 10:01:38 +07:00:   code: 'ECONNRESET',
+2024-07-20 10:01:38 +07:00:   syscall: 'read'
+2024-07-20 10:01:38 +07:00: }
+2024-07-20 10:03:36 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 10:03:36 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 10:03:36 +07:00:   errno: -54,
+2024-07-20 10:03:36 +07:00:   code: 'ECONNRESET',
+2024-07-20 10:03:36 +07:00:   syscall: 'read'
+2024-07-20 10:03:36 +07:00: }
+2024-07-20 10:03:36 +07:00: Queue error: Error: read ECONNRESET
+2024-07-20 10:03:36 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-20 10:03:36 +07:00:   errno: -54,
+2024-07-20 10:03:36 +07:00:   code: 'ECONNRESET',
+2024-07-20 10:03:36 +07:00:   syscall: 'read'
+2024-07-20 10:03:36 +07:00: }
