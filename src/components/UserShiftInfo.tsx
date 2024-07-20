@@ -147,13 +147,16 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   );
 
   const renderFutureInfo = () => {
-    if (
-      futureShiftAdjustments.length === 0 &&
-      (!attendanceStatus.futureApprovedOvertimes ||
-        attendanceStatus.futureApprovedOvertimes.length === 0)
-    ) {
+    const futureOvertime =
+      attendanceStatus.approvedOvertime &&
+      !isOvertimeForToday(attendanceStatus.approvedOvertime)
+        ? [attendanceStatus.approvedOvertime]
+        : [];
+
+    if (futureShiftAdjustments.length === 0 && futureOvertime.length === 0) {
       return null;
     }
+
     return (
       <div className="bg-yellow-100 p-4 rounded-lg mt-4">
         <h3 className="text-md font-semibold mb-2">ข้อมูลการทำงานในอนาคต:</h3>
@@ -166,11 +169,17 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             </p>
           </div>
         ))}
-        {attendanceStatus.futureApprovedOvertimes?.map((overtime, index) => (
+        {futureOvertime.map((overtime, index) => (
           <div key={`overtime-${index}`} className="mb-2">
             <p>วันที่: {moment(overtime.date).format('LL')}</p>
             <p>
               เวลาทำงานล่วงเวลา: {overtime.startTime} - {overtime.endTime}
+            </p>
+            <p>
+              เวลาที่อนุมัติ:{' '}
+              {moment(overtime.approvedAt)
+                .tz('Asia/Bangkok')
+                .format('YYYY-MM-DD HH:mm:ss')}
             </p>
           </div>
         ))}
@@ -180,7 +189,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-md">
-      <p className="text-2xl font-bold">{userData.name}</p>
+      <p className="text-2xl font-bold">
+        {userData.name}
+        {''}
+        {userData.nickname}
+      </p>
       <p className="text-xl">(รหัสพนักงาน: {userData.employeeId})</p>
       <p className="mb-4 text-gray-600">แผนก: {departmentName}</p>
 
