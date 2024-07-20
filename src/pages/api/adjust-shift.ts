@@ -136,10 +136,39 @@ export default async function handler(
       }
     });
 
-    // Create a set of all users who need to be notified
-    const usersToNotify = new Set(affectedUsers.keys());
+    // Fetch LINE user IDs for affected users
+    const userIds = Array.from(affectedUsers.keys());
+    const usersWithLineIds = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, lineUserId: true },
+    });
 
-    // Fetch LINE user IDs for affected users and SuperAdmins
+    const lineUserIdMap = new Map(
+      usersWithLineIds.map((u) => [u.id, u.lineUserId]),
+    );
+
+    // For notifications, use the Bangkok time
+    const formattedDate = moment(adjustmentDate).format('LL');
+
+    // Notify affected users
+    for (const [userId, shift] of affectedUsers) {
+      const userLineId = lineUserIdMap.get(userId);
+      if (userLineId) {
+        await notificationService.sendNotification(
+          userId,
+          `แจ้งเตือน: การเปลี่ยนแปลงเวลาทำงาน
+
+วันที่: ${formattedDate}
+กะใหม่: ${shift.name}
+เวลา: ${shift.startTime} - ${shift.endTime}
+
+เหตุผล: ${reason}`,
+          userLineId,
+        );
+      }
+    }
+
+    // Notify SuperAdmins (excluding the requester)
     const superAdmins = await prisma.user.findMany({
       where: {
         role: 'SuperAdmin',
@@ -149,61 +178,6 @@ export default async function handler(
       },
       select: { id: true, lineUserId: true, name: true },
     });
-
-    for (const admin of superAdmins) {
-      usersToNotify.add(admin.id);
-    }
-
-    const usersWithLineIds = await prisma.user.findMany({
-      where: { id: { in: Array.from(usersToNotify) } },
-      select: { id: true, lineUserId: true, role: true },
-    });
-
-    const lineUserIdMap = new Map(
-      usersWithLineIds.map((u) => [
-        u.id,
-        { lineUserId: u.lineUserId, role: u.role },
-      ]),
-    );
-
-    // For notifications, use the Bangkok time
-    const formattedDate = moment(adjustmentDate).format('LL');
-
-    // Notify users
-    for (const userId of usersToNotify) {
-      const userInfo = lineUserIdMap.get(userId);
-      if (userInfo && userInfo.lineUserId) {
-        let message;
-        if (affectedUsers.has(userId)) {
-          const shift = affectedUsers.get(userId);
-          message = `แจ้งเตือน: การเปลี่ยนแปลงเวลาทำงาน
-
-วันที่: ${formattedDate}
-กะใหม่: ${shift.name}
-เวลา: ${shift.startTime} - ${shift.endTime}
-
-เหตุผล: ${reason}`;
-        }
-
-        if (userInfo.role === 'SuperAdmin' && userId !== requestingUser.id) {
-          message = `แจ้งเตือน: มีการเปลี่ยนแปลงเวลาทำงาน
-
-ผู้ดำเนินการ: ${requestingUser.name}
-วันที่: ${formattedDate}
-จำนวนผู้ได้รับการปรับเวลาการทำงาน: ${affectedUsers.size} คน
-
-เหตุผล: ${reason}`;
-        }
-
-        if (message) {
-          await notificationService.sendNotification(
-            userId,
-            message,
-            userInfo.lineUserId,
-          );
-        }
-      }
-    }
 
     for (const admin of superAdmins) {
       if (admin.lineUserId) {
