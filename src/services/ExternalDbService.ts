@@ -7,6 +7,9 @@ import {
   ExternalManualEntryInputData,
 } from '../types/user';
 import { retry } from '../utils/retry';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('ExternalDbService');
 
 interface ExternalUserInfo {
   user_serial: number | string;
@@ -68,6 +71,9 @@ export class ExternalDbService {
         console.log(
           'Attendance records:',
           JSON.stringify(attendanceResult, null, 2),
+        );
+        logger.info(
+          `Found ${attendanceResult.length} attendance records for employeeId: ${employeeId}`,
         );
 
         return {

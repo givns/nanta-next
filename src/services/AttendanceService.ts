@@ -11,6 +11,7 @@ import {
   ShiftAdjustment,
   FutureShiftAdjustment,
   ApprovedOvertime,
+  potentialOvertime,
 } from '../types/user';
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
@@ -90,6 +91,10 @@ export class AttendanceService {
         user.assignedShift as ShiftData,
       );
       const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
+      const today = moment().tz('Asia/Bangkok').startOf('day');
+      const tomorrow = moment(today).add(1, 'day');
+      const shift = user.assignedShift;
+      const isWorkDay = shift.workDays.includes(today.day());
       const shiftAdjustment = await this.getLatestShiftAdjustment(user.id);
       const futureShiftAdjustments = await this.getFutureShiftAdjustments(
         user.id,
@@ -97,9 +102,6 @@ export class AttendanceService {
       const futureApprovedOvertimes = await this.getFutureApprovedOvertimes(
         user.id,
       );
-
-      const today = moment().tz('Asia/Bangkok').startOf('day');
-      const tomorrow = moment(today).add(1, 'day');
       const approvedOvertime = await prisma.overtimeRequest.findFirst({
         where: {
           userId: user.id,
@@ -170,6 +172,7 @@ export class AttendanceService {
             }
           : null,
         isCheckingIn: isCheckingIn,
+        isDayOff: !isWorkDay,
         shiftAdjustment: shiftAdjustment
           ? {
               date: shiftAdjustment.date.toString(),
@@ -187,6 +190,10 @@ export class AttendanceService {
         futureShiftAdjustments,
         approvedOvertime: formattedApprovedOvertime,
         futureApprovedOvertimes,
+        potentialOvertime: this.calculatePotentialOvertime(
+          externalAttendanceData.records,
+          user.assignedShift,
+        ),
       };
 
       console.log(
@@ -306,6 +313,28 @@ export class AttendanceService {
     }
 
     return latestRecord;
+  }
+
+  private calculatePotentialOvertime(
+    records: any[],
+    assignedShift: ShiftData,
+  ): { start: string; end: string } | null {
+    if (records.length < 2) return null;
+
+    const firstRecord = moment(records[0].sj);
+    const lastRecord = moment(records[records.length - 1].sj);
+
+    const shiftStart = moment(assignedShift.startTime, 'HH:mm');
+    const shiftEnd = moment(assignedShift.endTime, 'HH:mm');
+
+    if (firstRecord.isBefore(shiftStart) || lastRecord.isAfter(shiftEnd)) {
+      return {
+        start: firstRecord.format('HH:mm'),
+        end: lastRecord.format('HH:mm'),
+      };
+    }
+
+    return null;
   }
 
   private getShiftDateTime(date: Date, timeString: string): Date {

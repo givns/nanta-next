@@ -57,8 +57,19 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     <div className="bg-gray-100 p-4 rounded-lg mb-4">
       <h2 className="text-lg font-semibold mb-2">
         สถานะวันนี้:{' '}
-        <span className="text-black-600">{getStatusMessage()}</span>
+        <span className="text-black-600">
+          {attendanceStatus.isDayOff ? 'วันหยุด' : getStatusMessage()}
+        </span>
       </h2>
+      {attendanceStatus.isDayOff && attendanceStatus.potentialOvertime && (
+        <div className="mt-2 text-yellow-600">
+          <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
+          <p>
+            {attendanceStatus.potentialOvertime.start} -{' '}
+            {attendanceStatus.potentialOvertime.end}
+          </p>
+        </div>
+      )}
       {attendanceStatus.latestAttendance && (
         <>
           {attendanceStatus.latestAttendance.checkInTime && (

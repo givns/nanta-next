@@ -76,6 +76,11 @@ export interface AttendanceStatus {
     isManualEntry: boolean;
   } | null;
   isCheckingIn: boolean;
+  isDayOff: Boolean;
+  potentialOvertime: {
+    start: string;
+    end: string;
+  } | null;
   shiftAdjustment: {
     date: string;
     requestedShiftId: string;
@@ -87,6 +92,11 @@ export interface AttendanceStatus {
   }>;
   approvedOvertime: ApprovedOvertime | null;
   futureApprovedOvertimes: ApprovedOvertime[];
+}
+
+export interface potentialOvertime {
+  start: string;
+  end: string;
 }
 
 export interface ShiftData {
