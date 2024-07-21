@@ -7,7 +7,6 @@ import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
 import liff from '@line/liff';
-import { UserProvider } from '../context/UserContext';
 
 function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -62,9 +61,9 @@ function MyApp({ Component, pageProps }: AppProps) {
   }
 
   return (
-    <UserProvider>
+    <Provider store={store}>
       <Component {...pageProps} />
-    </UserProvider>
+    </Provider>
   );
 }
 

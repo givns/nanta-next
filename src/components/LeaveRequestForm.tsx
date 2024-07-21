@@ -14,6 +14,7 @@ import Head from 'next/head';
 import { ILeaveServiceBase } from '@/types/LeaveService';
 import { LeaveServiceClient } from '@/services/LeaveServiceClient';
 import LeaveBalanceComponent from '../components/LeaveBalanceComponent';
+import { UserData } from '@/types/user';
 
 export interface FormValues {
   leaveType: string;
@@ -33,13 +34,13 @@ interface LeaveBalanceData {
 interface LeaveRequestFormProps {
   initialData?: FormValues;
   isResubmission?: boolean;
-  lineUserId: string | null;
-  userId: string;
+  userData: UserData;
 }
 
 const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   initialData,
   isResubmission = false,
+  userData,
 }) => {
   const [step, setStep] = useState(1);
   const router = useRouter();

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import LeaveRequestForm, { FormValues } from '../components/LeaveRequestForm';
 import liff from '@line/liff';
-import { useUser } from '../context/UserContext';
+import { UserData } from '@/types/user';
 
 const LeaveRequestPage: React.FC = () => {
   const router = useRouter();
@@ -12,31 +12,57 @@ const LeaveRequestPage: React.FC = () => {
   const [originalLeaveData, setOriginalLeaveData] = useState<FormValues | null>(
     null,
   );
-  const { user, loading, error, login } = useUser();
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (liffId) {
-      liff
-        .init({ liffId })
-        .then(() => {
-          if (liff.isLoggedIn()) {
-            liff.getProfile().then((profile) => {
-              login(profile.userId);
-            });
-          } else {
-            liff.login();
-          }
-        })
-        .catch((err) => console.error('Error initializing LIFF:', err));
-    }
-  }, [login]);
+    const initializeLiff = async () => {
+      try {
+        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          const profile = await liff.getProfile();
+          fetchUserData(profile.userId);
+        }
+      } catch (err) {
+        console.error('LIFF initialization failed', err);
+        setError('Failed to initialize LIFF');
+        setIsLoading(false);
+      }
+    };
 
-  useEffect(() => {
-    if (resubmit === 'true' && originalId) {
-      fetchOriginalLeaveRequest(originalId as string);
+    initializeLiff();
+  }, []);
+
+  const fetchUserData = async (lineUserId: string) => {
+    try {
+      const response = await fetch('/api/user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ lineUserId }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+      const data: UserData = await response.json();
+      setUserData(data);
+
+      if (resubmit === 'true' && originalId) {
+        fetchOriginalLeaveRequest(originalId as string);
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError(
+        error instanceof Error ? error.message : 'An unknown error occurred',
+      );
+    } finally {
+      setIsLoading(false);
     }
-  }, [resubmit, originalId]);
+  };
 
   const fetchOriginalLeaveRequest = async (id: string) => {
     try {
@@ -50,16 +76,23 @@ const LeaveRequestPage: React.FC = () => {
     }
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
-  if (!user) return <div>Please log in</div>;
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  if (!userData) {
+    return <div>No user data available.</div>;
+  }
 
   return (
     <LeaveRequestForm
       initialData={originalLeaveData || undefined}
       isResubmission={resubmit === 'true'}
-      lineUserId={user.lineUserId}
-      userId={user.id}
+      userData={userData}
     />
   );
 };
