@@ -38,7 +38,7 @@ const LeaveRequestPage: React.FC = () => {
 
   const fetchUserData = async (lineUserId: string) => {
     try {
-      const response = await fetch('/api/user', {
+      const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

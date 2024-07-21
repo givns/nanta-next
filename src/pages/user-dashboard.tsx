@@ -3,7 +3,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Calendar } from '../components/ui/calendar';
 import { Input } from '../components/ui/input';
 import liff from '@line/liff';
-import { UserData, Attendance, ShiftData } from '@/types/user';
+import { UserData, Attendance } from '@/types/user';
 import moment from 'moment-timezone';
 
 interface DashboardData {
@@ -16,21 +16,10 @@ interface DashboardData {
   balanceLeave: number;
 }
 
-interface DashboardProps {
-  user: UserData & { assignedShift: ShiftData };
-  recentAttendance: Attendance[];
-  totalWorkingDays: number;
-  totalPresent: number;
-  totalAbsent: number;
-  overtimeHours: number;
-  balanceLeave: number;
-}
-
 export default function UserDashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
     null,
   );
-  const [userData, setUserData] = useState<DashboardProps | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,16 +31,14 @@ export default function UserDashboard() {
         }
 
         const profile = await liff.getProfile();
-        const response = await fetch(
-          `/api/dashboard?lineUserId=${profile.userId}`,
-        );
+        const response = await fetch(`/api/users?lineUserId=${profile.userId}`);
 
         if (!response.ok) {
           throw new Error('Failed to fetch user data');
         }
 
-        const data: DashboardProps = await response.json();
-        setUserData(data);
+        const data: DashboardData = await response.json();
+        setDashboardData(data);
       } catch (error) {
         console.error('Error fetching user data:', error);
         setError(
@@ -63,28 +50,6 @@ export default function UserDashboard() {
     };
 
     fetchUserData();
-  }, []);
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const response = await fetch('/api/dashboard');
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
-        }
-        const data: DashboardData = await response.json();
-        setDashboardData(data);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setError(
-          error instanceof Error ? error.message : 'An unknown error occurred',
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDashboardData();
   }, []);
 
   if (isLoading) {
