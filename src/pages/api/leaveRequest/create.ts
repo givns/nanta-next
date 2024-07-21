@@ -1,17 +1,13 @@
-// pages/api/leaveRequest/create.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
-import { LeaveServiceServer } from '../../../services/LeaveServiceServer';
-
-const leaveService = new LeaveServiceServer();
+import prisma from '../../../lib/prisma';
+import { LeaveRequest } from '@prisma/client';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const {
@@ -28,32 +24,48 @@ export default async function handler(
   } = req.body;
 
   try {
-    const newLeaveRequest = await leaveService.createLeaveRequest(
-      lineUserId,
+    const user = await prisma.user.findUnique({ where: { lineUserId } });
+    if (!user) throw new Error('User not found');
+
+    let leaveRequestData: any = {
+      userId: user.id,
       leaveType,
       leaveFormat,
       reason,
-      startDate,
-      endDate,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      status: 'Pending',
       fullDayCount,
       useOvertimeHours,
       resubmitted,
-      originalRequestId,
-    );
+    };
 
-    res.status(201).json({
-      success: true,
-      message: resubmitted
-        ? 'Leave request resubmitted successfully'
-        : 'Leave request created successfully',
-      data: newLeaveRequest,
+    if (resubmitted && originalRequestId) {
+      const originalRequest = await prisma.leaveRequest.findUnique({
+        where: { id: originalRequestId },
+      });
+      if (originalRequest) {
+        leaveRequestData = {
+          ...originalRequest,
+          ...leaveRequestData,
+          originalRequestId,
+          id: undefined,
+          createdAt: undefined,
+          updatedAt: undefined,
+        };
+      }
+    }
+
+    const newLeaveRequest = await prisma.leaveRequest.create({
+      data: leaveRequestData,
     });
-  } catch (error: any) {
-    console.error('Error creating/resubmitting leave request:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message,
-    });
+
+    // Optionally: Notify admins
+    // await notifyAdmins(newLeaveRequest);
+
+    return res.status(201).json(newLeaveRequest);
+  } catch (error) {
+    console.error('Error creating leave request:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
