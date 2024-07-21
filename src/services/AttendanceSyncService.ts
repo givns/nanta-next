@@ -1,9 +1,16 @@
 // services/AttendanceSyncService.ts
 
-import { PrismaClient, User } from '@prisma/client';
+import {
+  PrismaClient,
+  User,
+  Shift,
+  ShiftAdjustmentRequest,
+  OvertimeRequest,
+} from '@prisma/client';
 import { ExternalDbService } from './ExternalDbService';
 import { AttendanceService } from './AttendanceService';
 import { NotificationService } from './NotificationService';
+import moment from 'moment-timezone';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -11,18 +18,23 @@ const attendanceService = new AttendanceService();
 const notificationService = new NotificationService();
 
 export class AttendanceSyncService {
-  async syncAttendanceData() {
+  async syncAttendanceData(syncType: string = 'regular') {
+    console.log(`Starting ${syncType} attendance sync`);
     const users = await prisma.user.findMany({
       where: { employeeId: { not: '' } },
       include: { assignedShift: true },
     });
 
     for (const user of users) {
-      await this.syncUserAttendance(user);
+      await this.syncUserAttendance(user, syncType);
     }
+    console.log(`${syncType} attendance sync completed`);
   }
 
-  async syncUserAttendance(user: User & { assignedShift: any }) {
+  async syncUserAttendance(
+    user: User & { assignedShift: Shift },
+    syncType: string,
+  ) {
     try {
       const { records, userInfo } =
         await externalDbService.getDailyAttendanceRecords(user.employeeId);
@@ -35,16 +47,10 @@ export class AttendanceSyncService {
       }
 
       for (const record of records) {
-        const existingAttendance = await prisma.attendance.findFirst({
-          where: {
-            userId: user.id,
-            date: new Date(record.date),
-            OR: [
-              { checkInTime: new Date(record.sj) },
-              { checkOutTime: new Date(record.sj) },
-            ],
-          },
-        });
+        const existingAttendance = await this.findExistingAttendance(
+          user.id,
+          new Date(record.sj),
+        );
 
         if (!existingAttendance) {
           const attendance = await attendanceService.processExternalCheckInOut(
@@ -75,6 +81,19 @@ export class AttendanceSyncService {
     }
   }
 
+  private async findExistingAttendance(userId: string, date: Date) {
+    return prisma.attendance.findFirst({
+      where: {
+        userId,
+        date: {
+          gte: moment(date).startOf('day').toDate(),
+          lt: moment(date).endOf('day').toDate(),
+        },
+        OR: [{ checkInTime: date }, { checkOutTime: date }],
+      },
+    });
+  }
+
   private createNotificationMessage(record: any, attendance: any): string {
     const time = new Date(record.sj).toLocaleTimeString('th-TH', {
       hour: '2-digit',
@@ -84,9 +103,12 @@ export class AttendanceSyncService {
 
     switch (record.fx) {
       case 0:
-        action = 'เข้างาน';
+        action = 'บันทึกเวลา';
         break;
       case 1:
+        action = 'เข้างาน';
+        break;
+      case 2:
         action = 'ออกงาน';
         break;
       case 3:

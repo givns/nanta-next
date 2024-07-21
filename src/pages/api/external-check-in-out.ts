@@ -36,7 +36,18 @@ export default async function handler(
       throw new Error('User not found in our database');
     }
 
-    await attendanceSyncService.syncUserAttendance(user);
+    // Determine the sync type based on the current time
+    const currentHour = new Date().getHours();
+    let syncType = 'regular';
+    if (currentHour >= 5 && currentHour < 9) {
+      syncType = 'early';
+    } else if (currentHour >= 17 && currentHour < 24) {
+      syncType = 'evening';
+    } else if (currentHour >= 0 && currentHour < 5) {
+      syncType = 'off-hours';
+    }
+
+    await attendanceSyncService.syncUserAttendance(user, syncType);
 
     res
       .status(200)

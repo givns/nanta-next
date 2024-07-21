@@ -11,7 +11,6 @@ import {
   ShiftAdjustment,
   FutureShiftAdjustment,
   ApprovedOvertime,
-  potentialOvertime,
 } from '../types/user';
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
