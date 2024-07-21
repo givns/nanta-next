@@ -17,33 +17,27 @@
   "crons": [
     {
       "path": "/api/cron/send-overtime-digests",
-      "schedule": "0 9 * * *",
-      "httpMethod": "GET"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "*/10 5-8 * * *",
-      "httpMethod": "GET"
+      "schedule": "*/10 5-8 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "*/15 9-17 * * *",
-      "httpMethod": "GET"
+      "schedule": "*/15 9-17 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "*/10 17-23 * * *",
-      "httpMethod": "GET"
+      "schedule": "*/10 17-23 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "0 0-4 * * *",
-      "httpMethod": "GET"
+      "schedule": "0 0-4 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "30 23 * * *",
-      "httpMethod": "GET"
+      "schedule": "30 23 * * *"
     }
   ]
 }
