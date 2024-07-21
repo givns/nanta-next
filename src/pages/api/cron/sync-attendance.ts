@@ -11,11 +11,15 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  console.log(`Received ${req.method} request for attendance sync`);
+  console.log('Received request for attendance sync');
+  console.log('Method:', req.method);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
 
   // Check for API key
   if (req.headers['x-api-key'] !== API_KEY) {
     console.error('Unauthorized attempt to access attendance sync');
+    console.error('Expected API Key:', API_KEY);
+    console.error('Received API Key:', req.headers['x-api-key']);
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
