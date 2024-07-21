@@ -76,7 +76,7 @@ export interface AttendanceStatus {
     isManualEntry: boolean;
   } | null;
   isCheckingIn: boolean;
-  isDayOff: Boolean;
+  isDayOff: boolean;
   potentialOvertime: {
     start: string;
     end: string;
