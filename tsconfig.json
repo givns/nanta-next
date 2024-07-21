@@ -44,7 +44,6 @@
     "src/**/*",
     "ecosystem.config.js",
     "next.config.js",
-    "lambda"
   ],
   "exclude": [
     "node_modules",
