@@ -1,5 +1,3 @@
-// pages/leave-request.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import LeaveRequestForm, { FormValues } from '../components/LeaveRequestForm';
@@ -38,13 +36,7 @@ const LeaveRequestPage: React.FC = () => {
 
   const fetchUserData = async (lineUserId: string) => {
     try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ lineUserId }),
-      });
+      const response = await fetch(`/api/users?lineUserId=${lineUserId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch user data');
       }
