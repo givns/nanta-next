@@ -46,7 +46,7 @@ export default async function handler(
     // Get the user's shift and attendance status
     const shift = await shiftService.getUserShift(userId);
     const attendanceStatus =
-      await attendanceService.getLatestAttendanceStatus(userId);
+      await attendanceService.getLatestAttendanceStatus(employeeId);
 
     if (!shift) {
       return res.status(400).json({ message: 'User shift not found' });
