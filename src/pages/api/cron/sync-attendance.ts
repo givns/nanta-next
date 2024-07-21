@@ -6,6 +6,7 @@ import { AttendanceSyncService } from '../../../services/AttendanceSyncService';
 const attendanceSyncService = new AttendanceSyncService();
 
 const API_KEY = process.env.CRON_API_KEY;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 export default async function handler(
   req: NextApiRequest,
@@ -15,16 +16,15 @@ export default async function handler(
   console.log('Method:', req.method);
   console.log('Headers:', JSON.stringify(req.headers, null, 2));
 
-  // Check for API key
-  if (req.headers['x-api-key'] !== API_KEY) {
+  const isVercelCron = req.headers['user-agent'] === 'vercel-cron/1.0';
+  const hasValidApiKey = req.headers['x-api-key'] === API_KEY;
+
+  if (IS_PRODUCTION && !isVercelCron && !hasValidApiKey) {
     console.error('Unauthorized attempt to access attendance sync');
-    console.error('Expected API Key:', API_KEY);
-    console.error('Received API Key:', req.headers['x-api-key']);
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
-  // Allow both POST and GET methods
-  if (req.method === 'POST' || req.method === 'GET') {
+  if (req.method === 'GET' || req.method === 'POST') {
     try {
       console.log('Starting attendance sync');
       await attendanceSyncService.syncAttendanceData();
