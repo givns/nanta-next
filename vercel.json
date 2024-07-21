@@ -11,61 +11,33 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/$1",
-      "httpMethod": "POST",
-      "headers": {
-        "x-api-key": "${CRON_API_KEY}"
-      }
+      "destination": "/$1"
     }
   ],
   "crons": [
     {
       "path": "/api/cron/send-overtime-digests",
-      "schedule": "0 9 * * *",
-      "httpMethod": "POST",
-      "headers": {
-        "x-api-key": "${CRON_API_KEY}"
-      }
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "*/10 5-8 * * *",
-      "httpsethod": "POST",
-      "headers": {
-        "x-api-key": "${CRON_API_KEY}"
-      }
+      "schedule": "*/10 5-8 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "*/15 9-17 * * *",
-      "httpMethod": "POST",
-      "headers": {
-        "x-api-key": "${CRON_API_KEY}"
-      }
+      "schedule": "*/15 9-17 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "*/10 17-23 * * *",
-      "httpMethod": "POST",
-      "headers": {
-        "x-api-key": "${CRON_API_KEY}"
-      }
+      "schedule": "*/10 17-23 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "0 0-4 * * *",
-      "httpMethod": "POST",
-      "headers": {
-        "x-api-key": "${CRON_API_KEY}"
-      }
+      "schedule": "0 0-4 * * *"
     },
     {
       "path": "/api/cron/sync-attendance",
-      "schedule": "30 23 * * *",
-      "httpMethod": "POST",
-      "headers": {
-        "x-api-key": "${CRON_API_KEY}"
-      }
+      "schedule": "30 23 * * *"
     }
   ]
 }
