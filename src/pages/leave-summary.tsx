@@ -76,7 +76,7 @@ const LeaveSummaryPage: React.FC = () => {
 
   return (
     <div className="main-container flex justify-center items-center h-screen">
-      <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
+      <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p8 dark:bg-gray-800 dark:border-gray-700">
         <h1 className="text-2xl font-bold mb-4">รายละเอียดการลา</h1>
         <div className="mb-4">
           <p className="mb-2">
