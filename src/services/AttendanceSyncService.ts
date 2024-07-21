@@ -1,12 +1,6 @@
 // services/AttendanceSyncService.ts
 
-import {
-  PrismaClient,
-  User,
-  Shift,
-  ShiftAdjustmentRequest,
-  OvertimeRequest,
-} from '@prisma/client';
+import { PrismaClient, User, Shift } from '@prisma/client';
 import { ExternalDbService } from './ExternalDbService';
 import { AttendanceService } from './AttendanceService';
 import { NotificationService } from './NotificationService';
@@ -77,6 +71,40 @@ export class AttendanceSyncService {
       console.error(
         `Error syncing attendance for user ${user.employeeId}:`,
         error,
+      );
+    }
+  }
+
+  async checkUnclosedOvertimeSessions(): Promise<void> {
+    const currentTime = new Date();
+    const fifteenMinutesAgo = new Date(currentTime.getTime() - 15 * 60000);
+
+    const unclosedSessions = await prisma.overtimeRequest.findMany({
+      where: {
+        status: 'APPROVED',
+        endTime: {
+          gte: fifteenMinutesAgo.toISOString(),
+          lte: currentTime.toISOString(),
+        },
+        user: {
+          attendances: {
+            none: {
+              checkOutTime: { not: null },
+              date: {
+                gte: fifteenMinutesAgo,
+                lte: currentTime,
+              },
+            },
+          },
+        },
+      },
+      include: { user: true },
+    });
+
+    for (const session of unclosedSessions) {
+      await notificationService.sendNotification(
+        session.userId,
+        `Your overtime session is ending soon. Please remember to check out.`,
       );
     }
   }

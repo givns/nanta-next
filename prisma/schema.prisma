@@ -33,6 +33,10 @@ model User {
   attendances             Attendance[]
   shiftAdjustmentRequests ShiftAdjustmentRequest[]
   leaveRequests           LeaveRequest[]
+  sickLeaveBalance Int @default(30)
+  businessLeaveBalance Int @default(3)
+  annualLeaveBalance Int @default(6)
+  overtimeLeaveBalance Int @default(0)
   overtimeRequests        OvertimeRequest[]
   approvedOvertimeRequests OvertimeRequest[] @relation("OvertimeApprover")
   approvedOvertimes       ApprovedOvertime[]

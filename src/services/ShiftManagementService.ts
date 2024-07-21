@@ -110,7 +110,10 @@ export class ShiftManagementService {
     return adjustments;
   }
 
-  async getEffectiveShift(userId: string, date: Date): Promise<Shift> {
+  async getEffectiveShift(
+    userId: string,
+    date: Date,
+  ): Promise<{ shift: Shift; shiftStart: Date; shiftEnd: Date }> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { assignedShift: true },
@@ -140,9 +143,27 @@ export class ShiftManagementService {
       include: { requestedShift: true },
     });
 
-    return shiftAdjustment
+    const effectiveShift = shiftAdjustment
       ? shiftAdjustment.requestedShift
       : user.assignedShift;
+
+    const shiftStart = new Date(date);
+    const shiftEnd = new Date(date);
+
+    const [startHour, startMinute] = effectiveShift.startTime
+      .split(':')
+      .map(Number);
+    const [endHour, endMinute] = effectiveShift.endTime.split(':').map(Number);
+
+    shiftStart.setHours(startHour, startMinute, 0, 0);
+    shiftEnd.setHours(endHour, endMinute, 0, 0);
+
+    // Handle overnight shifts
+    if (shiftEnd <= shiftStart) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
+
+    return { shift: effectiveShift, shiftStart, shiftEnd };
   }
 
   async getUserShift(userId: string): Promise<Shift | null> {

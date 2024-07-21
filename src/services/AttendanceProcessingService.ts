@@ -4,6 +4,7 @@ import { PrismaClient, Attendance, User, Shift } from '@prisma/client';
 import { NotificationService } from './NotificationService';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { ApprovedOvertime } from '../types/user';
+import { getDeviceType } from '../utils/deviceUtils';
 
 const prisma = new PrismaClient();
 const overtimeService = new OvertimeServiceServer();
@@ -38,6 +39,19 @@ export class AttendanceProcessingService {
 
     let status: string;
     let isOvertime = false;
+
+    const twoHoursBeforeShift = new Date(
+      shiftStart.getTime() - 2 * 60 * 60 * 1000,
+    );
+
+    if (checkInTime < twoHoursBeforeShift) {
+      await notificationService.sendNotification(
+        userId,
+        `Your check-in for ${checkInTime.toDateString()} at ${checkInTime.toTimeString()} is more than 2 hours before your shift starts. This may not be counted as a valid attendance. Please check your schedule.`,
+      );
+      throw new Error('Check-in too early');
+    }
+
     switch (attendanceType) {
       case 'overtime':
         status = 'overtime-started';
@@ -92,7 +106,7 @@ export class AttendanceProcessingService {
 
     await notificationService.sendNotification(
       userId,
-      `Check-in recorded at ${checkInTime.toLocaleTimeString()} (${status})`,
+      `Check-in recorded for ${checkInTime.toDateString()} at ${checkInTime.toTimeString()} using ${getDeviceType(additionalData.deviceSerial)} (${status}).`,
     );
 
     return attendance;

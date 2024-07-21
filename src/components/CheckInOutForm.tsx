@@ -7,6 +7,7 @@ import InteractiveMap from './InteractiveMap';
 import { useFaceDetection } from '../hooks/useFaceDetection';
 import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
+import { ShiftManagementService } from '@/services/ShiftManagementService';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -33,6 +34,7 @@ const PREMISES: Premise[] = [
 ];
 
 const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
+const shiftManagementService = new ShiftManagementService();
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
@@ -60,6 +62,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [step, setStep] = useState<'info' | 'camera' | 'confirm'>('info');
   const [isShiftAdjustmentNeeded, setIsShiftAdjustmentNeeded] = useState(false);
+  const [disabledReason, setDisabledReason] = useState<string | null>(null);
 
   const handlePhotoCapture = useCallback((capturedPhoto: string) => {
     setPhoto(capturedPhoto);
@@ -94,11 +97,57 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     return now < shiftStart || now > shiftEnd;
   }, [attendanceStatus.shiftAdjustment, userData.assignedShift]);
 
-  const isCheckInOutAllowed = useCallback(() => {
-    if (attendanceStatus.approvedOvertime) return true;
-    if (isOutsideShift()) return false;
-    return true;
-  }, [attendanceStatus.approvedOvertime, isOutsideShift]);
+  const isCheckInOutAllowed = useCallback(async () => {
+    if (attendanceStatus.approvedOvertime)
+      return { allowed: true, reason: null };
+
+    const now = new Date();
+    try {
+      const { shift, shiftStart, shiftEnd } =
+        await shiftManagementService.getEffectiveShift(userData.id, now);
+      const twoHoursBeforeShift = new Date(
+        shiftStart.getTime() - 2 * 60 * 60 * 1000,
+      );
+
+      if (now < twoHoursBeforeShift) {
+        return {
+          allowed: false,
+          reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
+        };
+      }
+
+      if (now < shiftStart || now > shiftEnd) {
+        if (now > shiftEnd) {
+          return {
+            allowed: false,
+            reason: 'เลยเวลาเข้างานแล้ว หากต้องการลงเวลา กรุณาติดต่อ HR',
+          };
+        } else {
+          return {
+            allowed: false,
+            reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
+          };
+        }
+      }
+
+      return { allowed: true, reason: null };
+    } catch (error) {
+      console.error('Error getting effective shift:', error);
+      return {
+        allowed: false,
+        reason:
+          'เกิดข้อผิดพลาดในการตรวจสอบกะงาน กรุณาลองใหม่อีกครั้งหรือติดต่อ HR',
+      };
+    }
+  }, [attendanceStatus.approvedOvertime, userData.id]);
+
+  useEffect(() => {
+    const checkAllowance = async () => {
+      const { allowed, reason } = await isCheckInOutAllowed();
+      setDisabledReason(reason);
+    };
+    checkAllowance();
+  }, [isCheckInOutAllowed]);
 
   const handleError = (error: unknown, customMessage: string) => {
     console.error(customMessage, error);
@@ -330,19 +379,27 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             </div>
             <div className="flex-shrink-0 mt-4">
               <button
-                onClick={() => setStep('camera')}
-                disabled={!isCheckInOutAllowed()}
+                onClick={async () => {
+                  const { allowed } = await isCheckInOutAllowed();
+                  if (allowed) {
+                    setStep('camera');
+                  }
+                }}
+                disabled={!!disabledReason}
                 className={`w-full ${
-                  isCheckInOutAllowed()
+                  !disabledReason
                     ? 'bg-blue-500 hover:bg-blue-600'
                     : 'bg-gray-400 cursor-not-allowed'
                 } text-white py-3 px-4 rounded-lg transition duration-300`}
                 aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
               >
-                {isCheckInOutAllowed()
+                {!disabledReason
                   ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
                   : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
               </button>
+              {disabledReason && (
+                <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
+              )}
             </div>
           </>
         )}
