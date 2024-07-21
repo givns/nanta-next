@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -16,11 +20,20 @@
     "incremental": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@prisma/client": ["./node_modules/@prisma/client"]
+      "@/*": [
+        "src/*"
+      ],
+      "@prisma/client": [
+        "./node_modules/@prisma/client"
+      ]
     },
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "types": ["node"]
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ],
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "next-env.d.ts",
@@ -30,7 +43,11 @@
     "types/**/*.d.ts",
     "src/**/*",
     "ecosystem.config.js",
-    "next.config.js"
+    "next.config.js",
+    "lambda"
   ],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

@@ -1,6 +1,6 @@
 // jobs/syncExternalAttendance.ts
 
-import { AttendanceSyncService } from '../services/AttendanceSyncService';
+import { AttendanceSyncService } from './src/services/AttendanceSyncService';
 
 const syncService = new AttendanceSyncService();
 
