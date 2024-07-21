@@ -1,6 +1,6 @@
 // services/LeaveServiceServer.ts
 
-import { PrismaClient, LeaveRequest } from '@prisma/client';
+import { PrismaClient, LeaveRequest, User } from '@prisma/client';
 import { Client } from '@line/bot-sdk';
 import {
   sendApproveNotification,
@@ -8,7 +8,7 @@ import {
 } from '../utils/sendNotifications';
 import { sendRequestNotification } from '../utils/sendRequestNotification';
 import { UserRole } from '@/types/enum';
-import { ILeaveServiceServer } from '@/types/LeaveService';
+import { ILeaveServiceServer, LeaveBalanceData } from '@/types/LeaveService';
 
 const prisma = new PrismaClient();
 const client = new Client({
@@ -16,6 +16,67 @@ const client = new Client({
 });
 
 export class LeaveServiceServer implements ILeaveServiceServer {
+  async checkLeaveBalance(userId: string): Promise<LeaveBalanceData> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { leaveRequests: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    return this.calculateLeaveBalance(user);
+  }
+
+  private calculateLeaveBalance(
+    user: User & { leaveRequests: LeaveRequest[] },
+  ): LeaveBalanceData {
+    const approvedRequests = user.leaveRequests.filter(
+      (request) => request.status === 'Approved',
+    );
+
+    const usedLeave = {
+      sickLeave: 0,
+      businessLeave: 0,
+      annualLeave: 0,
+      overtimeLeave: 0,
+    };
+
+    approvedRequests.forEach((request) => {
+      switch (request.leaveType) {
+        case 'ลาป่วย':
+          usedLeave.sickLeave += request.fullDayCount;
+          break;
+        case 'ลากิจ':
+          usedLeave.businessLeave += request.fullDayCount;
+          break;
+        case 'ลาพักร้อน':
+          usedLeave.annualLeave += request.fullDayCount;
+          break;
+        case 'ลาโดยใช้ชั่วโมง OT':
+          usedLeave.overtimeLeave += request.fullDayCount;
+          break;
+      }
+    });
+
+    const balance = {
+      sickLeave: user.sickLeaveBalance - usedLeave.sickLeave,
+      businessLeave: user.businessLeaveBalance - usedLeave.businessLeave,
+      annualLeave: user.annualLeaveBalance - usedLeave.annualLeave,
+      overtimeLeave: user.overtimeLeaveBalance - usedLeave.overtimeLeave,
+      totalLeaveDays: 0,
+    };
+
+    balance.totalLeaveDays =
+      balance.sickLeave +
+      balance.businessLeave +
+      balance.annualLeave +
+      balance.overtimeLeave;
+
+    return balance;
+  }
+
   async createLeaveRequest(
     lineUserId: string,
     leaveType: string,
@@ -28,8 +89,36 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     resubmitted: boolean = false,
     originalRequestId?: string,
   ): Promise<LeaveRequest> {
-    const user = await prisma.user.findUnique({ where: { lineUserId } });
+    const user = await prisma.user.findUnique({
+      where: { lineUserId },
+      include: { leaveRequests: true },
+    });
     if (!user) throw new Error('User not found');
+
+    const leaveBalance = this.calculateLeaveBalance(user);
+
+    // Check if user has enough leave balance
+    let availableDays: number;
+    switch (leaveType) {
+      case 'ลาป่วย':
+        availableDays = leaveBalance.sickLeave;
+        break;
+      case 'ลากิจ':
+        availableDays = leaveBalance.businessLeave;
+        break;
+      case 'ลาพักร้อน':
+        availableDays = leaveBalance.annualLeave;
+        break;
+      case 'ลาโดยใช้ชั่วโมง OT':
+        availableDays = leaveBalance.overtimeLeave;
+        break;
+      default:
+        throw new Error('Invalid leave type');
+    }
+
+    if (fullDayCount > availableDays) {
+      throw new Error(`ไม่มีวันลา${leaveType}เพียงพอ`);
+    }
 
     let leaveRequestData: any = {
       userId: user.id,
@@ -149,24 +238,6 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     }
 
     return leaveRequest;
-  }
-
-  async checkLeaveBalance(userId: string): Promise<number> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { leaveRequests: true },
-    });
-
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const usedLeave = user.leaveRequests
-      .filter((request) => request.status === 'Approved')
-      .reduce((total, request) => total + request.fullDayCount, 0);
-
-    const totalLeaveDays = 6;
-    return totalLeaveDays - usedLeave;
   }
 
   async getLeaveRequests(userId: string): Promise<LeaveRequest[]> {

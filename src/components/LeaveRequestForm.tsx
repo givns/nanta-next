@@ -13,6 +13,7 @@ import liff from '@line/liff';
 import Head from 'next/head';
 import { ILeaveServiceBase } from '@/types/LeaveService';
 import { LeaveServiceClient } from '@/services/LeaveServiceClient';
+import LeaveBalanceComponent from '../components/LeaveBalanceComponent';
 
 export interface FormValues {
   leaveType: string;
@@ -22,22 +23,19 @@ export interface FormValues {
   endDate: string;
 }
 
+interface LeaveBalanceData {
+  sickLeave: number;
+  businessLeave: number;
+  annualLeave: number;
+  overtimeLeave: number;
+}
+
 interface LeaveRequestFormProps {
   initialData?: FormValues;
   isResubmission?: boolean;
   lineUserId: string | null;
+  userId: string;
 }
-
-const leaveRequestSchema = Yup.object().shape({
-  leaveType: Yup.string().required('กรุณาเลือกประเภทการลา'),
-  leaveFormat: Yup.string().required('กรุณาเลือกลักษณะการลา'),
-  reason: Yup.string().required('กรุณาระบุเหตุผล'),
-  startDate: Yup.date().required('กรุณาเลือกวันที่เริ่มลา'),
-  endDate: Yup.date().when('leaveFormat', {
-    is: 'ลาเต็มวัน',
-    then: (schema) => schema.required('กรุณาเลือกวันที่สิ้นสุด'),
-  }),
-});
 
 const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   initialData,
@@ -48,7 +46,9 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [leaveBalance, setLeaveBalance] = useState<number | null>(null);
+  const [leaveBalance, setLeaveBalance] = useState<LeaveBalanceData | null>(
+    null,
+  );
   const leaveService: ILeaveServiceBase = useMemo(
     () => new LeaveServiceClient(),
     [],
@@ -129,6 +129,25 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     };
   }, []);
 
+  const leaveRequestSchema = Yup.object().shape({
+    leaveType: Yup.string().required('กรุณาเลือกประเภทการลา'),
+    leaveFormat: Yup.string().required('กรุณาเลือกลักษณะการลา'),
+    reason: Yup.string().required('กรุณาระบุเหตุผล'),
+    startDate: Yup.date().required('กรุณาเลือกวันที่เริ่มลา'),
+    endDate: Yup.date().when('leaveFormat', {
+      is: 'ลาเต็มวัน',
+      then: (schema) => schema.required('กรุณาเลือกวันที่สิ้นสุด'),
+    }),
+  });
+
+  const calculateLeaveDays = (startDate: string, endDate: string) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays + 1; // Including both start and end date
+  };
+
   const handleNextStep = () => {
     setStep(step + 1);
   };
@@ -146,6 +165,33 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         throw new Error('User ID not available');
       }
 
+      const leaveDays = calculateLeaveDays(values.startDate, values.endDate);
+
+      // Check if the user has enough leave balance
+      if (leaveBalance) {
+        let availableDays: number;
+        switch (values.leaveType) {
+          case 'ลาป่วย':
+            availableDays = leaveBalance.sickLeave;
+            break;
+          case 'ลากิจ':
+            availableDays = leaveBalance.businessLeave;
+            break;
+          case 'ลาพักร้อน':
+            availableDays = leaveBalance.annualLeave;
+            break;
+          case 'ลาโดยใช้ชั่วโมง OT':
+            availableDays = leaveBalance.overtimeLeave;
+            break;
+          default:
+            throw new Error('Invalid leave type');
+        }
+
+        if (leaveDays > availableDays) {
+          throw new Error(`ไม่มีวันลา${values.leaveType}เพียงพอ`);
+        }
+      }
+
       const leaveRequest = await leaveService.createLeaveRequest(
         lineUserId,
         values.leaveType,
@@ -153,12 +199,11 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         values.startDate,
         values.endDate,
         values.reason,
-        calculateFullDayCount(values.startDate, values.endDate),
+        leaveDays,
         false, // Assuming useOvertimeHours is false by default
       );
       console.log('Leave request submitted:', leaveRequest);
 
-      // Store the submission data in session storage
       const submissionData = {
         ...values,
         lineUserId,
@@ -169,7 +214,11 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);
-      alert('Error submitting leave request');
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Error submitting leave request',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -214,10 +263,14 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
             {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
           </h5>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            วันลาคงเหลือ:{' '}
-            {leaveBalance !== null ? leaveBalance : 'กำลังโหลด...'} วัน
-          </p>
+          {leaveBalance && (
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              <p>วันลาป่วยคงเหลือ: {leaveBalance.sickLeave} วัน</p>
+              <p>วันลากิจคงเหลือ: {leaveBalance.businessLeave} วัน</p>
+              <p>วันลาพักร้อนคงเหลือ: {leaveBalance.annualLeave} วัน</p>
+              <p>ชั่วโมง OT คงเหลือ: {leaveBalance.overtimeLeave} ชั่วโมง</p>
+            </div>
+          )}
           <Formik
             initialValues={
               initialData || {

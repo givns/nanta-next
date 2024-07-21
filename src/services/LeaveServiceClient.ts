@@ -5,6 +5,14 @@ import { ILeaveServiceClient } from '@/types/LeaveService';
 
 const prisma = new PrismaClient();
 
+interface LeaveBalanceData {
+  sickLeave: number;
+  businessLeave: number;
+  annualLeave: number;
+  overtimeLeave: number;
+  totalLeaveDays: number;
+}
+
 export class LeaveServiceClient implements ILeaveServiceClient {
   async createLeaveRequest(
     lineUserId: string,
@@ -56,7 +64,7 @@ export class LeaveServiceClient implements ILeaveServiceClient {
     return newLeaveRequest;
   }
 
-  async checkLeaveBalance(userId: string): Promise<number> {
+  async checkLeaveBalance(userId: string): Promise<LeaveBalanceData> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { leaveRequests: true },
@@ -66,12 +74,49 @@ export class LeaveServiceClient implements ILeaveServiceClient {
       throw new Error('User not found');
     }
 
-    const usedLeave = user.leaveRequests
-      .filter((request) => request.status === 'Approved')
-      .reduce((total, request) => total + request.fullDayCount, 0);
+    const approvedRequests = user.leaveRequests.filter(
+      (request) => request.status === 'Approved',
+    );
 
-    const totalLeaveDays = 6;
-    return totalLeaveDays - usedLeave;
+    const usedLeave = {
+      sickLeave: 0,
+      businessLeave: 0,
+      annualLeave: 0,
+      overtimeLeave: 0,
+    };
+
+    approvedRequests.forEach((request) => {
+      switch (request.leaveType) {
+        case 'ลาป่วย':
+          usedLeave.sickLeave += request.fullDayCount;
+          break;
+        case 'ลากิจ':
+          usedLeave.businessLeave += request.fullDayCount;
+          break;
+        case 'ลาพักร้อน':
+          usedLeave.annualLeave += request.fullDayCount;
+          break;
+        case 'ลาโดยใช้ชั่วโมง OT':
+          usedLeave.overtimeLeave += request.fullDayCount;
+          break;
+      }
+    });
+
+    const balance = {
+      sickLeave: user.sickLeaveBalance - usedLeave.sickLeave,
+      businessLeave: user.businessLeaveBalance - usedLeave.businessLeave,
+      annualLeave: user.annualLeaveBalance - usedLeave.annualLeave,
+      overtimeLeave: user.overtimeLeaveBalance - usedLeave.overtimeLeave,
+      totalLeaveDays: 0,
+    };
+
+    balance.totalLeaveDays =
+      balance.sickLeave +
+      balance.businessLeave +
+      balance.annualLeave +
+      balance.overtimeLeave;
+
+    return balance;
   }
 
   async getLeaveRequests(userId: string): Promise<LeaveRequest[]> {

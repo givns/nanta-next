@@ -2,6 +2,13 @@
 
 import { LeaveRequest } from '@prisma/client';
 
+export interface LeaveBalanceData {
+  sickLeave: number;
+  businessLeave: number;
+  annualLeave: number;
+  overtimeLeave: number;
+}
+
 export interface ILeaveServiceBase {
   createLeaveRequest(
     lineUserId: string,
@@ -18,7 +25,7 @@ export interface ILeaveServiceBase {
   getLeaveRequests(userId: string): Promise<LeaveRequest[]>;
   getAllLeaveRequests(): Promise<LeaveRequest[]>;
   getOriginalLeaveRequest(requestId: string): Promise<LeaveRequest>;
-  checkLeaveBalance(userId: string): Promise<number>;
+  checkLeaveBalance(userId: string): Promise<LeaveBalanceData>;
 }
 
 export interface ILeaveServiceClient extends ILeaveServiceBase {}

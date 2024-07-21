@@ -1,7 +1,10 @@
+// pages/leave-request.tsx
+
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import LeaveRequestForm, { FormValues } from '../components/LeaveRequestForm';
 import liff from '@line/liff';
+import { useUser } from '../context/UserContext';
 
 const LeaveRequestPage: React.FC = () => {
   const router = useRouter();
@@ -9,7 +12,7 @@ const LeaveRequestPage: React.FC = () => {
   const [originalLeaveData, setOriginalLeaveData] = useState<FormValues | null>(
     null,
   );
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const { user, loading, error, login } = useUser();
 
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
@@ -19,7 +22,7 @@ const LeaveRequestPage: React.FC = () => {
         .then(() => {
           if (liff.isLoggedIn()) {
             liff.getProfile().then((profile) => {
-              setLineUserId(profile.userId);
+              login(profile.userId);
             });
           } else {
             liff.login();
@@ -27,7 +30,7 @@ const LeaveRequestPage: React.FC = () => {
         })
         .catch((err) => console.error('Error initializing LIFF:', err));
     }
-  }, []);
+  }, [login]);
 
   useEffect(() => {
     if (resubmit === 'true' && originalId) {
@@ -47,11 +50,16 @@ const LeaveRequestPage: React.FC = () => {
     }
   };
 
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+  if (!user) return <div>Please log in</div>;
+
   return (
     <LeaveRequestForm
       initialData={originalLeaveData || undefined}
       isResubmission={resubmit === 'true'}
-      lineUserId={lineUserId}
+      lineUserId={user.lineUserId}
+      userId={user.id}
     />
   );
 };
