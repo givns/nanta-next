@@ -13,28 +13,30 @@ export default async function handler(
 ) {
   console.log(`Received ${req.method} request for attendance sync`);
 
+  // Check for API key
   if (req.headers['x-api-key'] !== API_KEY) {
     console.error('Unauthorized attempt to access attendance sync');
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
-  if (req.method !== 'POST' && req.method !== 'GET') {
-    console.error(`Method ${req.method} not allowed for attendance sync`);
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
-  try {
-    console.log('Starting attendance sync');
-    await attendanceSyncService.syncAttendanceData();
-    console.log('Attendance sync completed successfully');
-    res.status(200).json({ message: 'Attendance sync completed successfully' });
-  } catch (error) {
-    console.error('Error syncing attendance:', error);
-    res
-      .status(500)
-      .json({
+  // Allow both POST and GET methods
+  if (req.method === 'POST' || req.method === 'GET') {
+    try {
+      console.log('Starting attendance sync');
+      await attendanceSyncService.syncAttendanceData();
+      console.log('Attendance sync completed successfully');
+      return res
+        .status(200)
+        .json({ message: 'Attendance sync completed successfully' });
+    } catch (error) {
+      console.error('Error syncing attendance:', error);
+      return res.status(500).json({
         message: 'Error syncing attendance',
         error: error instanceof Error ? error.message : 'Unknown error',
       });
+    }
+  } else {
+    console.error(`Method ${req.method} not allowed for attendance sync`);
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 }
