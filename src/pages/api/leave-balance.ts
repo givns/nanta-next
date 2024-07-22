@@ -44,6 +44,7 @@ export default async function handler(
     return res.status(500).json({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error',
+      userId: userId, // Include the userId in the error response for debugging
     });
   }
 }

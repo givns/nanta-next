@@ -1,11 +1,9 @@
-// pages/leave-request.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import LeaveRequestForm, { FormValues } from '../components/LeaveRequestForm';
 import liff from '@line/liff';
-import { UserData } from '@/types/user';
 import axios from 'axios';
+import { UserData } from '@/types/user';
 
 const LeaveRequestPage: React.FC = () => {
   const router = useRouter();

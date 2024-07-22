@@ -1,8 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import liff from '@line/liff';
 import axios from 'axios';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
@@ -36,49 +35,16 @@ const leaveRequestSchema = Yup.object().shape({
 const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   initialData,
   isResubmission = false,
+  userData,
 }) => {
   const [step, setStep] = useState(1);
   const router = useRouter();
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [userData, setUserData] = useState<UserData | null>(null);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalanceData | null>(
     null,
   );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const initializeLiff = useCallback(async () => {
-    try {
-      await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
-      if (liff.isLoggedIn()) {
-        const profile = await liff.getProfile();
-        setLineUserId(profile.userId);
-        fetchUserData(profile.userId);
-      } else {
-        liff.login();
-      }
-    } catch (err) {
-      console.error('LIFF initialization failed', err);
-      setError('Failed to initialize LIFF');
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    initializeLiff();
-  }, [initializeLiff]);
-
-  const fetchUserData = async (lineUserId: string) => {
-    try {
-      const response = await axios.get(`/api/users?lineUserId=${lineUserId}`);
-      setUserData(response.data);
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      setError('Failed to fetch user data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleBalanceLoaded = (balance: LeaveBalanceData) => {
     setLeaveBalance(balance);
