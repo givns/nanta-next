@@ -21,6 +21,10 @@ export default async function handler(
     originalRequestId,
   } = req.body;
 
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
+
   try {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');

@@ -102,7 +102,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
   const handleSubmit = async (values: FormValues) => {
     try {
-      if (!lineUserId || !userData) {
+      if (!userData || !userData.id) {
         throw new Error('User data not available');
       }
 
@@ -135,7 +135,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
       const submissionData = {
         ...values,
-        lineUserId,
         userId: userData.id,
         fullDayCount: leaveDays,
         resubmitted: isResubmission,
