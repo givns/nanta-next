@@ -41,12 +41,10 @@ export default async function handler(
     return res.status(200).json(leaveBalance);
   } catch (error) {
     console.error('Error fetching leave balance:', error);
-    return res
-      .status(500)
-      .json({
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      });
+    return res.status(500).json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 }
 
