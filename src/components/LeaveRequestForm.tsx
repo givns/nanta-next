@@ -1,20 +1,12 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import { useRouter } from 'next/router';
-import 'dayjs/locale/th';
 import liff from '@line/liff';
-import Head from 'next/head';
-import { ILeaveServiceBase } from '@/types/LeaveService';
-import { LeaveServiceClient } from '@/services/LeaveServiceClient';
-import LeaveBalanceComponent from '../components/LeaveBalanceComponent';
+import axios from 'axios';
 import { UserData } from '@/types/user';
+import { LeaveBalanceData } from '@/types/LeaveService';
+import LeaveBalanceComponent from './LeaveBalanceComponent';
 
 export interface FormValues {
   leaveType: string;
@@ -24,122 +16,73 @@ export interface FormValues {
   endDate: string;
 }
 
-interface LeaveBalanceData {
-  sickLeave: number;
-  businessLeave: number;
-  annualLeave: number;
-  overtimeLeave: number;
-}
-
 interface LeaveRequestFormProps {
   initialData?: FormValues;
   isResubmission?: boolean;
   userData: UserData;
 }
 
+const leaveRequestSchema = Yup.object().shape({
+  leaveType: Yup.string().required('กรุณาเลือกประเภทการลา'),
+  leaveFormat: Yup.string().required('กรุณาเลือกลักษณะการลา'),
+  reason: Yup.string().required('กรุณาระบุเหตุผล'),
+  startDate: Yup.date().required('กรุณาเลือกวันที่เริ่มลา'),
+  endDate: Yup.date().when('leaveFormat', {
+    is: 'ลาเต็มวัน',
+    then: (schema) => schema.required('กรุณาเลือกวันที่สิ้นสุด'),
+  }),
+});
+
 const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   initialData,
   isResubmission = false,
-  userData,
 }) => {
   const [step, setStep] = useState(1);
   const router = useRouter();
-  const startDateRef = useRef<HTMLInputElement>(null);
-  const endDateRef = useRef<HTMLInputElement>(null);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalanceData | null>(
     null,
   );
-  const leaveService: ILeaveServiceBase = useMemo(
-    () => new LeaveServiceClient(),
-    [],
-  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (liffId) {
-      liff
-        .init({ liffId })
-        .then(() => {
-          if (liff.isLoggedIn()) {
-            liff
-              .getProfile()
-              .then((profile) => {
-                setLineUserId(profile.userId);
-              })
-              .catch((err) => {
-                console.error('Error getting profile:', err);
-              });
-          } else {
-            liff.login();
-          }
-        })
-        .catch((err) => {
-          console.error('Error initializing LIFF:', err);
-        });
+  const initializeLiff = useCallback(async () => {
+    try {
+      await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
+      if (liff.isLoggedIn()) {
+        const profile = await liff.getProfile();
+        setLineUserId(profile.userId);
+        fetchUserData(profile.userId);
+      } else {
+        liff.login();
+      }
+    } catch (err) {
+      console.error('LIFF initialization failed', err);
+      setError('Failed to initialize LIFF');
+      setIsLoading(false);
     }
   }, []);
 
-  const fetchLeaveBalance = useCallback(
-    async (userId: string) => {
-      try {
-        const balance = await leaveService.checkLeaveBalance(userId);
-        setLeaveBalance(balance);
-      } catch (error) {
-        console.error('Error fetching leave balance:', error);
-      }
-    },
-    [leaveService],
-  );
-
   useEffect(() => {
-    if (lineUserId) {
-      fetchLeaveBalance(lineUserId);
+    initializeLiff();
+  }, [initializeLiff]);
+
+  const fetchUserData = async (lineUserId: string) => {
+    try {
+      const response = await axios.get(`/api/users?lineUserId=${lineUserId}`);
+      setUserData(response.data);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError('Failed to fetch user data');
+    } finally {
+      setIsLoading(false);
     }
-  }, [lineUserId, fetchLeaveBalance]);
+  };
 
-  useEffect(() => {
-    const startInput = startDateRef.current;
-    const endInput = endDateRef.current;
-
-    const handleStartDateChange = (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      const startDate = target.value;
-      if (endInput) {
-        endInput.min = startDate;
-      }
-    };
-
-    const handleEndDateChange = (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      const endDate = target.value;
-      if (startInput) {
-        startInput.max = endDate;
-      }
-    };
-
-    if (startInput && endInput) {
-      startInput.addEventListener('change', handleStartDateChange);
-      endInput.addEventListener('change', handleEndDateChange);
-    }
-
-    return () => {
-      if (startInput)
-        startInput.removeEventListener('change', handleStartDateChange);
-      if (endInput) endInput.removeEventListener('change', handleEndDateChange);
-    };
-  }, []);
-
-  const leaveRequestSchema = Yup.object().shape({
-    leaveType: Yup.string().required('กรุณาเลือกประเภทการลา'),
-    leaveFormat: Yup.string().required('กรุณาเลือกลักษณะการลา'),
-    reason: Yup.string().required('กรุณาระบุเหตุผล'),
-    startDate: Yup.date().required('กรุณาเลือกวันที่เริ่มลา'),
-    endDate: Yup.date().when('leaveFormat', {
-      is: 'ลาเต็มวัน',
-      then: (schema) => schema.required('กรุณาเลือกวันที่สิ้นสุด'),
-    }),
-  });
+  const handleBalanceLoaded = (balance: LeaveBalanceData) => {
+    setLeaveBalance(balance);
+  };
 
   const calculateLeaveDays = (startDate: string, endDate: string) => {
     const start = new Date(startDate);
@@ -157,13 +100,10 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     setStep(step - 1);
   };
 
-  const handleSubmit = async (
-    values: FormValues,
-    { setSubmitting }: { setSubmitting: (isSubmitting: boolean) => void },
-  ) => {
+  const handleSubmit = async (values: FormValues) => {
     try {
-      if (!lineUserId) {
-        throw new Error('User ID not available');
+      if (!lineUserId || !userData) {
+        throw new Error('User data not available');
       }
 
       const leaveDays = calculateLeaveDays(values.startDate, values.endDate);
@@ -193,275 +133,229 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         }
       }
 
-      const leaveRequest = await leaveService.createLeaveRequest(
-        lineUserId,
-        values.leaveType,
-        values.leaveFormat,
-        values.startDate,
-        values.endDate,
-        values.reason,
-        leaveDays,
-        false, // Assuming useOvertimeHours is false by default
-      );
-      console.log('Leave request submitted:', leaveRequest);
-
       const submissionData = {
         ...values,
         lineUserId,
+        userId: userData.id,
+        fullDayCount: leaveDays,
         resubmitted: isResubmission,
       };
-      sessionStorage.setItem('leaveSummary', JSON.stringify(submissionData));
 
+      sessionStorage.setItem('leaveSummary', JSON.stringify(submissionData));
       router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : 'Error submitting leave request',
+      setError(
+        error instanceof Error ? error.message : 'An unknown error occurred',
       );
-    } finally {
-      setSubmitting(false);
     }
   };
 
-  const calculateFullDayCount = (
-    startDate: string,
-    endDate: string,
-  ): number => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays + 1; // Including both start and end date
-  };
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  if (!userData) {
+    return <div>No user data available.</div>;
+  }
 
   return (
-    <>
-      <Head>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1.0, user-scalable=no"
-        />
-        <style>
-          {`
-            input,
-            textarea,
-            select {
-              font-size: 16px;
-            }
-          `}
-        </style>
-      </Head>
-      <div className="main-container flex justify-center items-center h-screen">
-        <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mb-4">
-            <div
-              className="bg-blue-600 h-2.5 rounded-full"
-              style={{ width: `${(step / 3) * 100}%` }}
-            ></div>
-          </div>
-          <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
-            {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
-          </h5>
-          {leaveBalance && (
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              <p>วันลาป่วยคงเหลือ: {leaveBalance.sickLeave} วัน</p>
-              <p>วันลากิจคงเหลือ: {leaveBalance.businessLeave} วัน</p>
-              <p>วันลาพักร้อนคงเหลือ: {leaveBalance.annualLeave} วัน</p>
-              <p>ชั่วโมง OT คงเหลือ: {leaveBalance.overtimeLeave} ชั่วโมง</p>
-            </div>
-          )}
-          <Formik
-            initialValues={
-              initialData || {
-                leaveType: '',
-                leaveFormat: '',
-                reason: '',
-                startDate: '',
-                endDate: '',
-              }
-            }
-            validationSchema={leaveRequestSchema}
-            onSubmit={handleSubmit}
-          >
-            {({ values, setFieldValue, isSubmitting }) => (
-              <Form id="leaveRequestForm" className="space-y-6">
-                {step === 1 && (
-                  <div>
-                    <h5 className="text-xl font-medium text-gray-900 dark:text-white">
-                      เลือกประเภทการลา
-                    </h5>
-                    <div className="space-y-4">
-                      {[
-                        'ลากิจ',
-                        'ลาป่วย',
-                        'ลาพักร้อน',
-                        'ลาโดยใช้ชั่วโมง OT',
-                        'ลาโดยไม่ได้รับค่าจ้าง',
-                      ].map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          className={`block w-full p-2.5 text-center border rounded-lg ${
-                            values.leaveType === type
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-50 text-gray-900'
-                          }`}
-                          onClick={() => setFieldValue('leaveType', type)}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="button-container flex justify-end mt-4">
-                      <button
-                        type="button"
-                        className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
-                        onClick={handleNextStep}
-                        disabled={!values.leaveType}
-                      >
-                        ถัดไป
-                      </button>
-                    </div>
-                  </div>
-                )}
+    <div className="main-container flex justify-center items-center min-h-screen bg-gray-100 p-4">
+      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
+        <h1 className="text-2xl font-bold text-center mb-6">
+          {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
+        </h1>
 
-                {step === 2 && (
+        <LeaveBalanceComponent
+          userId={userData.id}
+          onBalanceLoaded={handleBalanceLoaded}
+        />
+
+        <Formik
+          initialValues={
+            initialData || {
+              leaveType: '',
+              leaveFormat: '',
+              reason: '',
+              startDate: '',
+              endDate: '',
+            }
+          }
+          validationSchema={leaveRequestSchema}
+          onSubmit={handleSubmit}
+        >
+          {({ values, errors, touched }) => (
+            <Form className="space-y-4">
+              {step === 1 && (
+                <div>
+                  <h5 className="text-xl font-medium text-gray-900 dark:text-white">
+                    เลือกประเภทการลา
+                  </h5>
+                  <div className="space-y-4">
+                    {[
+                      'ลากิจ',
+                      'ลาป่วย',
+                      'ลาพักร้อน',
+                      'ลาโดยใช้ชั่วโมง OT',
+                      'ลาโดยไม่ได้รับค่าจ้าง',
+                    ].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        className={`block w-full p-2.5 text-center border rounded-lg ${
+                          values.leaveType === type
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-50 text-gray-900'
+                        }`}
+                        onClick={() => {
+                          values.leaveType = type;
+                          handleNextStep();
+                        }}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div>
+                  <h5 className="text-xl font-medium text-gray-900 dark:text-white">
+                    เลือกลักษณะการลา
+                  </h5>
+                  <div className="space-y-4">
+                    {['ลาเต็มวัน', 'ลาครึ่งวัน'].map((format) => (
+                      <button
+                        key={format}
+                        type="button"
+                        className={`block w-full p-2.5 text-center border rounded-lg ${
+                          values.leaveFormat === format
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-50 text-gray-900'
+                        }`}
+                        onClick={() => {
+                          values.leaveFormat = format;
+                          handleNextStep();
+                        }}
+                      >
+                        {format}
+                      </button>
+                    ))}
+                  </div>
                   <div>
-                    <h5 className="text-xl font-medium text-gray-900 dark:text-white">
-                      เลือกลักษณะการลา
-                    </h5>
-                    <div className="space-y-4">
-                      {['ลาเต็มวัน', 'ลาครึ่งวัน'].map((format) => (
-                        <button
-                          key={format}
-                          type="button"
-                          className={`block w-full p-2.5 text-center border rounded-lg ${
-                            values.leaveFormat === format
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-50 text-gray-900'
-                          }`}
-                          onClick={() => setFieldValue('leaveFormat', format)}
-                        >
-                          {format}
-                        </button>
-                      ))}
-                    </div>
+                    <label
+                      htmlFor="startDate"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    >
+                      วันที่เริ่มลา
+                    </label>
+                    <Field
+                      type="date"
+                      id="startDate"
+                      name="startDate"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                    />
+                    <ErrorMessage
+                      name="startDate"
+                      component="div"
+                      className="text-danger"
+                    />
+                  </div>
+                  {values.leaveFormat === 'ลาเต็มวัน' && (
                     <div>
                       <label
-                        htmlFor="startDate"
+                        htmlFor="endDate"
                         className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                       >
-                        วันที่เริ่มลา
+                        วันที่สิ้นสุด
                       </label>
                       <Field
                         type="date"
-                        id="startDate"
-                        name="startDate"
+                        id="endDate"
+                        name="endDate"
                         className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                        innerRef={startDateRef}
                       />
                       <ErrorMessage
-                        name="startDate"
+                        name="endDate"
                         component="div"
                         className="text-danger"
                       />
                     </div>
-                    {values.leaveFormat === 'ลาเต็มวัน' && (
-                      <div>
-                        <label
-                          htmlFor="endDate"
-                          className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                        >
-                          วันที่สิ้นสุด
-                        </label>
-                        <Field
-                          type="date"
-                          id="endDate"
-                          name="endDate"
-                          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                          innerRef={endDateRef}
-                        />
-                        <ErrorMessage
-                          name="endDate"
-                          component="div"
-                          className="text-danger"
-                        />
-                      </div>
-                    )}
-                    <div className="button-container flex justify-between mt-4">
-                      <button
-                        type="button"
-                        className="py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
-                        onClick={handlePreviousStep}
-                      >
-                        ย้อนกลับ
-                      </button>
-                      <button
-                        type="button"
-                        className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
-                        onClick={handleNextStep}
-                        disabled={
-                          !values.startDate ||
-                          (values.leaveFormat === 'ลาเต็มวัน' &&
-                            !values.endDate)
-                        }
-                      >
-                        ถัดไป
-                      </button>
-                    </div>
+                  )}
+                  <div className="button-container flex justify-between mt-4">
+                    <button
+                      type="button"
+                      className="py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
+                      onClick={handlePreviousStep}
+                    >
+                      ย้อนกลับ
+                    </button>
+                    <button
+                      type="button"
+                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
+                      onClick={handleNextStep}
+                      disabled={
+                        !values.startDate ||
+                        (values.leaveFormat === 'ลาเต็มวัน' && !values.endDate)
+                      }
+                    >
+                      ถัดไป
+                    </button>
                   </div>
-                )}
+                </div>
+              )}
 
-                {step === 3 && (
-                  <div>
-                    <h5 className="text-xl font-medium text-gray-900 dark:text-white">
-                      สาเหตุการลา
-                    </h5>
-                    <div className="space-y-4">
-                      <label
-                        htmlFor="reason"
-                        className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >
-                        ระบุเหตุผล
-                      </label>
-                      <Field
-                        as="textarea"
-                        id="reason"
-                        name="reason"
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                      />
-                      <ErrorMessage
-                        name="reason"
-                        component="div"
-                        className="text-danger"
-                      />
-                    </div>
-                    <div className="button-container flex justify-between mt-4">
-                      <button
-                        type="button"
-                        className="py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
-                        onClick={handlePreviousStep}
-                      >
-                        ย้อนกลับ
-                      </button>
-                      <button
-                        type="submit"
-                        className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
-                        disabled={isSubmitting}
-                      >
-                        ยืนยัน
-                      </button>
-                    </div>
+              {step === 3 && (
+                <div>
+                  <h5 className="text-xl font-medium text-gray-900 dark:text-white">
+                    สาเหตุการลา
+                  </h5>
+                  <div className="space-y-4">
+                    <label
+                      htmlFor="reason"
+                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                    >
+                      ระบุเหตุผล
+                    </label>
+                    <Field
+                      as="textarea"
+                      id="reason"
+                      name="reason"
+                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                    />
+                    <ErrorMessage
+                      name="reason"
+                      component="div"
+                      className="text-danger"
+                    />
                   </div>
-                )}
-              </Form>
-            )}
-          </Formik>
-        </div>
+                  <div className="button-container flex justify-between mt-4">
+                    <button
+                      type="button"
+                      className="py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
+                      onClick={handlePreviousStep}
+                    >
+                      ย้อนกลับ
+                    </button>
+                    <button
+                      type="submit"
+                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
+                    >
+                      ยืนยัน
+                    </button>
+                  </div>
+                </div>
+              )}
+            </Form>
+          )}
+        </Formik>
       </div>
-    </>
+    </div>
   );
 };
 

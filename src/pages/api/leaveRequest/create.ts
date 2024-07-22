@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../lib/prisma';
-import { LeaveRequest } from '@prisma/client';
 
 export default async function handler(
   req: NextApiRequest,
@@ -11,24 +10,23 @@ export default async function handler(
   }
 
   const {
-    lineUserId,
+    userId,
     leaveType,
     leaveFormat,
     reason,
     startDate,
     endDate,
     fullDayCount,
-    useOvertimeHours,
     resubmitted,
     originalRequestId,
   } = req.body;
 
   try {
-    const user = await prisma.user.findUnique({ where: { lineUserId } });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
 
     let leaveRequestData: any = {
-      userId: user.id,
+      userId,
       leaveType,
       leaveFormat,
       reason,
@@ -36,7 +34,6 @@ export default async function handler(
       endDate: new Date(endDate),
       status: 'Pending',
       fullDayCount,
-      useOvertimeHours,
       resubmitted,
     };
 
@@ -59,9 +56,6 @@ export default async function handler(
     const newLeaveRequest = await prisma.leaveRequest.create({
       data: leaveRequestData,
     });
-
-    // Optionally: Notify admins
-    // await notifyAdmins(newLeaveRequest);
 
     return res.status(201).json(newLeaveRequest);
   } catch (error) {

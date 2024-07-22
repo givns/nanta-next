@@ -1,8 +1,11 @@
+// pages/leave-request.tsx
+
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import LeaveRequestForm, { FormValues } from '../components/LeaveRequestForm';
 import liff from '@line/liff';
 import { UserData } from '@/types/user';
+import axios from 'axios';
 
 const LeaveRequestPage: React.FC = () => {
   const router = useRouter();
@@ -36,12 +39,11 @@ const LeaveRequestPage: React.FC = () => {
 
   const fetchUserData = async (lineUserId: string) => {
     try {
-      const response = await fetch(`/api/users?lineUserId=${lineUserId}`);
-      if (!response.ok) {
+      const response = await axios.get(`/api/users?lineUserId=${lineUserId}`);
+      if (!response.data) {
         throw new Error('Failed to fetch user data');
       }
-      const data: UserData = await response.json();
-      setUserData(data);
+      setUserData(response.data);
 
       if (resubmit === 'true' && originalId) {
         fetchOriginalLeaveRequest(originalId as string);
@@ -58,10 +60,9 @@ const LeaveRequestPage: React.FC = () => {
 
   const fetchOriginalLeaveRequest = async (id: string) => {
     try {
-      const response = await fetch(`/api/leaveRequest/${id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setOriginalLeaveData(data);
+      const response = await axios.get(`/api/leaveRequest/${id}`);
+      if (response.data) {
+        setOriginalLeaveData(response.data);
       }
     } catch (error) {
       console.error('Error fetching original leave request:', error);

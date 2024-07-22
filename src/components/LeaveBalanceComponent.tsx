@@ -27,13 +27,13 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
     const fetchLeaveBalance = async () => {
       try {
         const response = await axios.get<LeaveBalanceData>(
-          `/api/checkLeaveBalance?userId=${userId}`,
+          `/api/leave-balance?userId=${userId}`,
         );
         setLeaveBalance(response.data);
         onBalanceLoaded(response.data);
       } catch (error) {
         setError('Error fetching leave balance');
-        console.error(error);
+        console.error('Error fetching leave balance:', error);
       }
     };
 
@@ -41,23 +41,32 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
   }, [userId, onBalanceLoaded]);
 
   if (error) {
-    return <div>{error}</div>;
+    return <div className="text-red-500">{error}</div>;
+  }
+
+  if (!leaveBalance) {
+    return <div>Loading leave balance...</div>;
   }
 
   return (
-    <div>
-      <h2>Leave Balance</h2>
-      {leaveBalance ? (
-        <>
-          <p>Sick Leave: {leaveBalance.sickLeave}</p>
-          <p>Business Leave: {leaveBalance.businessLeave}</p>
-          <p>Annual Leave: {leaveBalance.annualLeave}</p>
-          <p>Overtime Leave: {leaveBalance.overtimeLeave}</p>
-          <p>Total Leave Days: {leaveBalance.totalLeaveDays}</p>
-        </>
-      ) : (
-        <p>Loading...</p>
-      )}
+    <div className="bg-white p-4 rounded-lg shadow">
+      <h2 className="text-xl font-bold mb-4">Leave Balance</h2>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p>Sick Leave:</p>
+          <p>Business Leave:</p>
+          <p>Annual Leave:</p>
+          <p>Overtime Leave:</p>
+          <p className="font-bold">Total Leave Days:</p>
+        </div>
+        <div>
+          <p>{leaveBalance.sickLeave}</p>
+          <p>{leaveBalance.businessLeave}</p>
+          <p>{leaveBalance.annualLeave}</p>
+          <p>{leaveBalance.overtimeLeave}</p>
+          <p className="font-bold">{leaveBalance.totalLeaveDays}</p>
+        </div>
+      </div>
     </div>
   );
 };
