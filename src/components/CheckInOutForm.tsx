@@ -417,50 +417,41 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       !attendanceStatus.latestAttendance.checkOutTime;
 
     return (
-      <div className="flex flex-col h-full">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold mb-2">
-            ระบบบันทึกเวลา{attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน
-          </h1>
-          <p className="text-3xl font-bold">{now.format('HH:mm:ss')}</p>
-        </div>
+      <div className="flex-grow overflow-y-auto space-y-6">
+        <UserShiftInfo
+          userData={userData}
+          attendanceStatus={attendanceStatus}
+          departmentName={userData.department}
+          isOutsideShift={isOutsideShiftTime}
+        />
 
-        <div className="flex-grow overflow-y-auto space-y-6">
-          <UserShiftInfo
-            userData={userData}
-            attendanceStatus={attendanceStatus}
-            departmentName={userData.department}
-            isOutsideShift={isOutsideShiftTime}
-          />
-
-          <div className="bg-white p-4 rounded-lg">
-            {isOutsideShiftTime && !attendanceStatus.approvedOvertime && (
-              <p className="text-red-500 mb-4">
-                คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
-              </p>
-            )}
-            {(isCheckedIn ||
-              !isOutsideShiftTime ||
-              attendanceStatus.approvedOvertime) && (
-              <button
-                onClick={() => setStep('camera')}
-                disabled={!!disabledReason}
-                className={`w-full ${
-                  !disabledReason
-                    ? 'bg-red-500 hover:bg-red-600'
-                    : 'bg-gray-400 cursor-not-allowed'
-                } text-white py-3 px-4 rounded-lg transition duration-300`}
-                aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-              >
-                {!disabledReason
-                  ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-                  : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
-              </button>
-            )}
-            {disabledReason && (
-              <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
-            )}
-          </div>
+        <div className="bg-white p-4 rounded-lg">
+          {isOutsideShiftTime && !attendanceStatus.approvedOvertime && (
+            <p className="text-red-500 mb-4">
+              คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
+            </p>
+          )}
+          {(isCheckedIn ||
+            !isOutsideShiftTime ||
+            attendanceStatus.approvedOvertime) && (
+            <button
+              onClick={() => setStep('camera')}
+              disabled={!!disabledReason}
+              className={`w-full ${
+                !disabledReason
+                  ? 'bg-red-500 hover:bg-red-600'
+                  : 'bg-gray-400 cursor-not-allowed'
+              } text-white py-3 px-4 rounded-lg transition duration-300`}
+              aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+            >
+              {!disabledReason
+                ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+                : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+            </button>
+          )}
+          {disabledReason && (
+            <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
+          )}
         </div>
       </div>
     );
