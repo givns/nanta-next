@@ -10,7 +10,7 @@ interface UserShiftInfoProps {
   userData: UserData;
   attendanceStatus: AttendanceStatus;
   departmentName: string;
-  isOutsideShift: () => boolean;
+  isOutsideShift: boolean;
 }
 
 const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
@@ -176,7 +176,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             </>
           )}
 
-        {isOutsideShift() && !attendanceStatus.approvedOvertime && (
+        {isOutsideShift && !attendanceStatus.approvedOvertime && (
           <p className="text-red-500 mt-2">
             คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
           </p>
@@ -253,17 +253,10 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold mb-2">ระบบบันทึกเวลาเข้างาน</h1>
-        <p className="text-3xl font-bold">{currentTime}</p>
-      </div>
-
-      <div className="flex-grow overflow-y-auto space-y-6">
-        {renderUserInfo()}
-        {renderTodayInfo()}
-        {renderFutureInfo()}
-      </div>
+    <div className="flex-grow overflow-y-auto space-y-6">
+      {renderUserInfo()}
+      {renderTodayInfo()}
+      {renderFutureInfo()}
     </div>
   );
 };
