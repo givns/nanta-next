@@ -176,10 +176,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return (
       <>
         {futureShiftAdjustments.map((adjustment, index) => (
-          <div
-            key={`shift-${index}`}
-            className="bg-yellow-100 p-4 rounded-lg mb-4"
-          >
+          <div key={`shift-${index}`} className="rounded-box bg-amber-300 mb-4">
             <div className="flex justify-between">
               <p>{moment(adjustment.date).format('DD/MM/YYYY')}</p>
               <p>เวลาทำงาน</p>
@@ -193,7 +190,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         {allFutureOvertimes.map((overtime, index) => (
           <div
             key={`overtime-${index}`}
-            className="bg-yellow-100 p-4 rounded-lg mb-4"
+            className="rounded-box bg-amber-300 mb-4"
           >
             <div className="flex justify-between">
               <p>{moment(overtime.date).format('DD/MM/YYYY')}</p>
