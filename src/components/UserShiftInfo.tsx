@@ -59,11 +59,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const renderTodayInfo = () => (
     <div className="bg-gray-100 p-4 rounded-lg mb-4">
       <h2 className="text-lg font-semibold mb-2">
-        สถานะวันนี้:{today.format('DD/MM/YYY')}
+        สถานะวันนี้ ({today.format('DD/MM/YYYY')}):{' '}
+        <span className="text-black-600">
+          {attendanceStatus.isDayOff ? 'วันหยุด' : getStatusMessage()}
+        </span>
       </h2>
-      <span className="text-black-600">
-        {attendanceStatus.isDayOff ? 'วันหยุด' : getStatusMessage()}
-      </span>
       {attendanceStatus.isDayOff && attendanceStatus.potentialOvertime && (
         <div className="mt-2 text-yellow-600">
           <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
@@ -73,36 +73,37 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
           </p>
         </div>
       )}
-      {attendanceStatus.latestAttendance && (
-        <>
-          {attendanceStatus.latestAttendance.checkInTime && (
-            <p>
-              เวลาเข้างาน:{' '}
-              <span className="font-medium">
-                {formatTime(attendanceStatus.latestAttendance.checkInTime)}
-              </span>
-            </p>
-          )}
-          {attendanceStatus.latestAttendance.checkOutTime && (
-            <p>
-              เวลาออกงาน:{' '}
-              <span className="font-medium">
-                {formatTime(attendanceStatus.latestAttendance.checkOutTime)}
-              </span>
-            </p>
-          )}
-          {attendanceStatus.latestAttendance.checkInDeviceSerial && (
-            <p>
-              วิธีการ:{' '}
-              <span className="font-medium">
-                {getDeviceType(
-                  attendanceStatus.latestAttendance.checkInDeviceSerial,
-                )}
-              </span>
-            </p>
-          )}
-        </>
-      )}
+      {attendanceStatus.latestAttendance &&
+        moment(attendanceStatus.latestAttendance.date).isSame(today, 'day') && (
+          <>
+            {attendanceStatus.latestAttendance.checkInTime && (
+              <p>
+                เวลาเข้างาน:{' '}
+                <span className="font-medium">
+                  {formatTime(attendanceStatus.latestAttendance.checkInTime)}
+                </span>
+              </p>
+            )}
+            {attendanceStatus.latestAttendance.checkOutTime && (
+              <p>
+                เวลาออกงาน:{' '}
+                <span className="font-medium">
+                  {formatTime(attendanceStatus.latestAttendance.checkOutTime)}
+                </span>
+              </p>
+            )}
+            {attendanceStatus.latestAttendance.checkInDeviceSerial && (
+              <p>
+                วิธีการ:{' '}
+                <span className="font-medium">
+                  {getDeviceType(
+                    attendanceStatus.latestAttendance.checkInDeviceSerial,
+                  )}
+                </span>
+              </p>
+            )}
+          </>
+        )}
 
       {shift && (
         <>
