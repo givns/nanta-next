@@ -20,6 +20,10 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   isOutsideShift,
 }) => {
   const today = moment().tz('Asia/Bangkok').startOf('day');
+  // Find today's shift adjustment if it exists in futureShiftAdjustments
+  const todayShiftAdjustment = attendanceStatus.futureShiftAdjustments.find(
+    (adjustment) => moment(adjustment.date).isSame(today, 'day'),
+  );
 
   const getStatusMessage = () => {
     if (attendanceStatus.isDayOff) return { message: 'วันหยุด', color: 'blue' };
@@ -40,12 +44,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   const renderTodayInfo = () => {
     const { message, color } = getStatusMessage();
-    const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
     const effectiveShift =
-      todayShiftAdjustment?.requestedShift || userData.assignedShift;
+      todayShiftAdjustment?.shift || userData.assignedShift;
 
     return (
-      <div className="bg-white p-4 rounded-lg mb-4">
+      <div className="bg-white p-4 rounded-box mb-4">
         <div className="flex justify-between items-center mb-2">
           <span className="font-semibold">สถานะวันนี้</span>
           <div className="flex items-center">
@@ -163,9 +166,10 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       ...additionalFutureOvertimes,
     ];
 
-    const futureShiftAdjustments = (
-      attendanceStatus.futureShiftAdjustments || []
-    ).filter((adjustment) => !moment(adjustment.date).isSame(today, 'day'));
+    const futureShiftAdjustments =
+      attendanceStatus.futureShiftAdjustments.filter(
+        (adjustment) => !moment(adjustment.date).isSame(today, 'day'),
+      );
 
     if (
       futureShiftAdjustments.length === 0 &&
@@ -228,7 +232,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   return (
     <div className="flex flex-col">
-      <div className="bg-white p-4 rounded-lg mb-4 text-center">
+      <div className="bg-white p-4 rounded-box mb-4 text-center">
         <p className="text-2xl font-bold">{userData.name}</p>
         <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
         <p className="text-gray-600">แผนก: {departmentName}</p>
