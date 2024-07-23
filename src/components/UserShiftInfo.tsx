@@ -181,7 +181,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             key={`shift-${index}`}
             className="bg-yellow-300 p-4 rounded-box mb-4"
           >
-            <div className="flex justify-between">
+            <div className="flex font-semibold justify-between">
               <p>{moment(adjustment.date).format('DD/MM/YYYY')}</p>
               <p>เวลาทำงาน</p>
             </div>
@@ -196,7 +196,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             key={`overtime-${index}`}
             className="bg-yellow-300 p-4 rounded-box mb-4"
           >
-            <div className="flex justify-between">
+            <div className="flex font-semibold justify-between">
               <p>{moment(overtime.date).format('DD/MM/YYYY')}</p>
               <p>ทำงานล่วงเวลา</p>
             </div>
