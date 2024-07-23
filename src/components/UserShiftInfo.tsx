@@ -21,11 +21,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 }) => {
   const today = moment().tz('Asia/Bangkok').startOf('day');
 
-  const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
-
-  const shift: ShiftData | null | undefined =
-    todayShiftAdjustment?.requestedShift || userData.assignedShift;
-
   const getStatusMessage = () => {
     if (attendanceStatus.isDayOff) return { message: 'วันหยุด', color: 'blue' };
     if (
@@ -45,9 +40,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   const renderTodayInfo = () => {
     const { message, color } = getStatusMessage();
-    const effectiveShift =
-      attendanceStatus.shiftAdjustment?.requestedShift ||
-      userData.assignedShift;
+    const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
+    const shift: ShiftData | null | undefined =
+      todayShiftAdjustment?.requestedShift || userData.assignedShift;
 
     return (
       <div className="rounded-box bg-white mb-4">
@@ -96,16 +91,16 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               )}
             </>
           )}
-        {!attendanceStatus.isDayOff && effectiveShift && (
+        {!attendanceStatus.isDayOff && shift && (
           <>
             <h3 className="text-md font-semibold mt-4 mb-1">
               กะการทำงานของคุณวันนี้:
             </h3>
             <p>
-              <span className="font-medium">{effectiveShift.name}</span> (
-              {effectiveShift.startTime} - {effectiveShift.endTime})
+              <span className="font-medium">{shift.name}</span> (
+              {shift.startTime} - {shift.endTime})
             </p>
-            {attendanceStatus.shiftAdjustment && (
+            {todayShiftAdjustment && (
               <p className="text-blue-600 mt-1">
                 * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
               </p>
@@ -181,7 +176,10 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return (
       <>
         {futureShiftAdjustments.map((adjustment, index) => (
-          <div key={`shift-${index}`} className="rounded-box bg-amber-400 mb-4">
+          <div
+            key={`shift-${index}`}
+            className="bg-yellow-100 p-4 rounded-lg mb-4"
+          >
             <div className="flex justify-between">
               <p>{moment(adjustment.date).format('DD/MM/YYYY')}</p>
               <p>เวลาทำงาน</p>
@@ -195,7 +193,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         {allFutureOvertimes.map((overtime, index) => (
           <div
             key={`overtime-${index}`}
-            className="rounded-box bg-amber-400 mb-4"
+            className="bg-yellow-100 p-4 rounded-lg mb-4"
           >
             <div className="flex justify-between">
               <p>{moment(overtime.date).format('DD/MM/YYYY')}</p>
