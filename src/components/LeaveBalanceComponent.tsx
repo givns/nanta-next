@@ -22,27 +22,43 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  console.log('LeaveBalanceComponent rendered with userId:', userId);
 
   useEffect(() => {
+    console.log('LeaveBalanceComponent useEffect triggered');
     const fetchLeaveBalance = async () => {
       try {
+        console.log('Fetching leave balance for userId:', userId);
         const response = await axios.get<LeaveBalanceData>(
           `/api/checkLeaveBalance?userId=${userId}`,
         );
+        console.log('Leave balance response:', response.data);
         setLeaveBalance(response.data);
         onBalanceLoaded(response.data);
       } catch (error) {
+        console.error('Error fetching leave balance:', error);
         setError('Error fetching leave balance');
-        console.error(error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchLeaveBalance();
   }, [userId, onBalanceLoaded]);
 
+  if (isLoading) {
+    console.log('LeaveBalanceComponent is still loading');
+    return <div>Loading leave balance...</div>;
+  }
+
   if (error) {
+    console.log('LeaveBalanceComponent encountered an error:', error);
     return <div>{error}</div>;
   }
+
+  console.log('Rendering LeaveBalanceComponent content');
 
   if (!leaveBalance) {
     return <div>Loading leave balance...</div>;

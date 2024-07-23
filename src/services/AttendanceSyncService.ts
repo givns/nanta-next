@@ -131,7 +131,7 @@ export class AttendanceSyncService {
 
     switch (record.fx) {
       case 0:
-        action = 'บันทึกเวลา';
+        action = '';
         break;
       case 1:
         action = 'เข้างาน';
