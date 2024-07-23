@@ -39,7 +39,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 }) => {
   const [step, setStep] = useState(1);
   const router = useRouter();
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalanceData | null>(
     null,
   );

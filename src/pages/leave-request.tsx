@@ -23,7 +23,7 @@ const LeaveRequestPage: React.FC = () => {
           liff.login();
         } else {
           const profile = await liff.getProfile();
-          fetchUserData(profile.userId);
+          await fetchUserData(profile.userId);
         }
       } catch (err) {
         console.error('LIFF initialization failed', err);
@@ -38,13 +38,14 @@ const LeaveRequestPage: React.FC = () => {
   const fetchUserData = async (lineUserId: string) => {
     try {
       const response = await axios.get(`/api/users?lineUserId=${lineUserId}`);
-      if (!response.data) {
+      console.log('User data response:', response.data);
+      if (!response.data || !response.data.user) {
         throw new Error('Failed to fetch user data');
       }
-      setUserData(response.data);
+      setUserData(response.data.user);
 
       if (resubmit === 'true' && originalId) {
-        fetchOriginalLeaveRequest(originalId as string);
+        await fetchOriginalLeaveRequest(originalId as string);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -64,6 +65,7 @@ const LeaveRequestPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching original leave request:', error);
+      // We're not setting isLoading to false here because it's not a critical error
     }
   };
 
