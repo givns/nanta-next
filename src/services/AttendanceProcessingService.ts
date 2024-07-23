@@ -26,6 +26,7 @@ export class AttendanceProcessingService {
       reason?: string;
       photo?: string;
       deviceSerial: string;
+      isLate?: boolean;
     },
   ): Promise<Attendance> {
     const user = await this.getUserWithShift(userId);

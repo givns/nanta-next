@@ -34,7 +34,10 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     ) || [];
 
   const getStatusMessage = () => {
-    if (!attendanceStatus.latestAttendance) {
+    if (
+      !attendanceStatus.latestAttendance ||
+      !moment(attendanceStatus.latestAttendance.date).isSame(today, 'day')
+    ) {
       return 'ยังไม่มีการลงเวลาในวันนี้';
     }
     if (attendanceStatus.latestAttendance.checkOutTime) {
@@ -56,11 +59,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const renderTodayInfo = () => (
     <div className="bg-gray-100 p-4 rounded-lg mb-4">
       <h2 className="text-lg font-semibold mb-2">
-        สถานะวันนี้:{' '}
-        <span className="text-black-600">
-          {attendanceStatus.isDayOff ? 'วันหยุด' : getStatusMessage()}
-        </span>
+        สถานะวันนี้:{today.format('DD/MM/YYY')}
       </h2>
+      <span className="text-black-600">
+        {attendanceStatus.isDayOff ? 'วันหยุด' : getStatusMessage()}
+      </span>
       {attendanceStatus.isDayOff && attendanceStatus.potentialOvertime && (
         <div className="mt-2 text-yellow-600">
           <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>

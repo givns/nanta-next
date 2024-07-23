@@ -45,6 +45,7 @@ export interface AttendanceData {
   deviceSerial: string;
   isCheckIn: boolean;
   isOvertime?: boolean;
+  isLate: boolean;
   isFlexibleStart?: boolean;
   isFlexibleEnd?: boolean;
   isWithinGracePeriod?: boolean;
@@ -282,6 +283,7 @@ export interface CheckInData {
   reason?: string;
   photo: string;
   deviceSerial?: string;
+  isLate?: boolean;
 }
 
 export interface CheckOutData {

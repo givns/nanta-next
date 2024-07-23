@@ -1,4 +1,4 @@
-// check-in-out.ts
+// pages/api/check-in-out.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
@@ -25,6 +25,8 @@ export default async function handler(
     photo,
     deviceSerial,
     isCheckIn,
+    isOvertime,
+    isLate,
   } = req.body;
 
   // Validate required fields
@@ -92,7 +94,8 @@ export default async function handler(
       photo,
       deviceSerial,
       isCheckIn,
-      isOvertime: attendanceStatus.approvedOvertime ? true : undefined,
+      isOvertime: attendanceStatus.approvedOvertime ? true : isOvertime,
+      isLate,
       isFlexibleStart,
       isFlexibleEnd,
       isWithinGracePeriod,

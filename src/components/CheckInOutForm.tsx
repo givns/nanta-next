@@ -8,6 +8,8 @@ import { useFaceDetection } from '../hooks/useFaceDetection';
 import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
+import moment from 'moment-timezone';
+import LateReasonModal from './LateReasonModal';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -63,6 +65,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [step, setStep] = useState<'info' | 'camera' | 'confirm'>('info');
   const [isShiftAdjustmentNeeded, setIsShiftAdjustmentNeeded] = useState(false);
   const [disabledReason, setDisabledReason] = useState<string | null>(null);
+  const [isLate, setIsLate] = useState(false);
+  const [lateReason, setLateReason] = useState('');
+  const [isOvertime, setIsOvertime] = useState(false);
+  const [isLateModalOpen, setIsLateModalOpen] = useState(false);
 
   const handlePhotoCapture = useCallback((capturedPhoto: string) => {
     setPhoto(capturedPhoto);
@@ -99,47 +105,59 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const isCheckInOutAllowed = useCallback(async () => {
     if (attendanceStatus.approvedOvertime)
-      return { allowed: true, reason: null };
+      return { allowed: true, reason: null, isLate: false, isOvertime: true };
 
-    const now = new Date();
+    const now = moment().tz('Asia/Bangkok');
     try {
       const { shift, shiftStart, shiftEnd } =
-        await shiftManagementService.getEffectiveShift(userData.id, now);
-      const twoHoursBeforeShift = new Date(
-        shiftStart.getTime() - 2 * 60 * 60 * 1000,
-      );
+        await shiftManagementService.getEffectiveShift(
+          userData.id,
+          now.toDate(),
+        );
 
-      if (now < twoHoursBeforeShift) {
+      const twoHoursBeforeShift = moment(shiftStart).subtract(2, 'hours');
+      const lateThreshold = moment(shiftStart).add(30, 'minutes');
+      const overtimeThreshold = moment(shiftEnd).add(5, 'minutes');
+
+      if (now.isBefore(twoHoursBeforeShift)) {
         return {
           allowed: false,
           reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
+          isLate: false,
+          isOvertime: false,
         };
       }
 
-      if (now < shiftStart || now > shiftEnd) {
-        if (now > shiftEnd) {
-          return {
-            allowed: false,
-            reason: 'เลยเวลาเข้างานแล้ว หากต้องการลงเวลา กรุณาติดต่อ HR',
-          };
-        } else {
-          return {
-            allowed: false,
-            reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
-          };
-        }
+      if (now.isAfter(lateThreshold) && now.isBefore(shiftEnd)) {
+        return {
+          allowed: true,
+          reason: 'คุณกำลังเข้างานสาย กรุณาระบุเหตุผล',
+          isLate: true,
+          isOvertime: false,
+        };
       }
 
-      return { allowed: true, reason: null };
+      if (now.isAfter(overtimeThreshold)) {
+        return {
+          allowed: true,
+          reason: null,
+          isLate: false,
+          isOvertime: true,
+        };
+      }
+
+      return { allowed: true, reason: null, isLate: false, isOvertime: false };
     } catch (error) {
       console.error('Error getting effective shift:', error);
       return {
         allowed: false,
         reason:
           'เกิดข้อผิดพลาดในการตรวจสอบกะงาน กรุณาลองใหม่อีกครั้งหรือติดต่อ HR',
+        isLate: false,
+        isOvertime: false,
       };
     }
-  }, [attendanceStatus.approvedOvertime, userData.id]);
+  }, [attendanceStatus.approvedOvertime, userData.id, shiftManagementService]);
 
   useEffect(() => {
     const checkAllowance = async () => {
@@ -174,24 +192,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   useEffect(() => {
     fetchApiKey();
   }, [fetchApiKey]);
-
-  const checkIfShiftAdjustmentNeeded = () => {
-    const shift =
-      attendanceStatus.shiftAdjustment?.requestedShift ||
-      userData.assignedShift;
-
-    // Add a null check or default assignment before accessing properties of 'shift'
-    if (shift) {
-      const checkInTime = new Date(
-        attendanceStatus.latestAttendance?.checkInTime || new Date(),
-      );
-      const shiftStartTime = new Date(checkInTime);
-      const [startHour, startMinute] = shift.startTime.split(':').map(Number);
-      shiftStartTime.setHours(startHour, startMinute, 0, 0);
-
-      setIsShiftAdjustmentNeeded(checkInTime < shiftStartTime);
-    }
-  };
 
   const isWithinPremises = useCallback(
     (lat: number, lng: number): Premise | null => {
@@ -304,18 +304,51 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         throw new Error('No photo captured. Please try again.');
       }
 
+      const { allowed, reason, isLate, isOvertime } =
+        await isCheckInOutAllowed();
+
+      if (!allowed) {
+        setErrorMessage(reason || 'Check-in/out not allowed at this time');
+        return;
+      }
+
+      setIsLate(isLate);
+      setIsOvertime(isOvertime);
+
+      if (isLate && attendanceStatus.isCheckingIn) {
+        setIsLateModalOpen(true);
+        return;
+      }
+
+      await submitCheckInOut();
+    } catch (error) {
+      console.error('Error during check-in/out:', error);
+      setErrorMessage(
+        'An error occurred during check-in/out. Please try again.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitCheckInOut = async (lateReasonInput?: string) => {
+    try {
       const checkInOutData = {
         userId: userData.id,
         employeeId: userData.employeeId,
         checkTime: new Date().toISOString(),
         location: location ? JSON.stringify(location) : null,
         address,
-        reason: !inPremises ? reason : undefined,
+        reason: !inPremises
+          ? isLate
+            ? lateReasonInput || lateReason
+            : reason
+          : undefined,
         photo,
-        deviceSerial: 'WEBAPP001', // Assuming this is the default for web app
+        deviceSerial: 'WEBAPP001',
         isCheckIn: attendanceStatus.isCheckingIn,
-        isOvertime: false, // You might want to determine this based on shift times
-        requiresShiftAdjustment: isShiftAdjustmentNeeded,
+        isOvertime,
+        isLate,
       };
 
       console.log('Submitting data:', checkInOutData);
@@ -324,86 +357,80 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
       console.log('Check-in/out response:', response.data);
 
-      if (response.data && response.data.success) {
+      if (response.data) {
         const newStatus = !attendanceStatus.isCheckingIn;
         setAttendanceStatus((prevStatus) => ({
           ...prevStatus,
           isCheckingIn: newStatus,
-          latestAttendance: response.data.attendance,
+          latestAttendance: response.data,
         }));
         onStatusChange(newStatus);
 
-        setStep('info'); // Reset to initial step
+        setStep('info');
         setPhoto(null);
         setReason('');
+        setLateReason('');
 
         let successMsg = `Successfully ${newStatus ? 'checked out' : 'checked in'}.`;
-        if (isShiftAdjustmentNeeded) {
-          successMsg +=
-            ' Shift adjustment request has been submitted for approval.';
+        if (isLate && !newStatus) {
+          successMsg += ' Late check-in has been recorded.';
+        }
+        if (isOvertime) {
+          successMsg += ' Overtime has been recorded.';
         }
         setSuccessMessage(successMsg);
       } else {
-        throw new Error(
-          response.data.message || 'Invalid response from server',
-        );
+        throw new Error('Invalid response from server');
       }
     } catch (error) {
       console.error('Error during check-in/out:', error);
-      if (axios.isAxiosError(error) && error.response) {
-        setErrorMessage(
-          `Error: ${error.response.data.message || error.message}`,
-        );
-      } else if (error instanceof Error) {
-        setErrorMessage(`Error: ${error.message}`);
-      } else {
-        setErrorMessage('An unexpected error occurred. Please try again.');
-      }
-    } finally {
-      setLoading(false);
+      setErrorMessage(
+        'An error occurred during check-in/out. Please try again.',
+      );
     }
   };
+
+  const handleLateReasonSubmit = (reason: string) => {
+    setLateReason(reason);
+    setIsLateModalOpen(false);
+    submitCheckInOut(reason);
+  };
+
+  // Render part for step 1
+  const renderStep1 = () => (
+    <div className="flex-grow overflow-hidden">
+      <UserShiftInfo
+        userData={userData}
+        attendanceStatus={attendanceStatus}
+        departmentName={userData.department}
+        isOutsideShift={isOutsideShift}
+      />
+      <div className="flex-shrink-0 mt-4">
+        <button
+          onClick={() => setStep('camera')}
+          disabled={!!disabledReason}
+          className={`w-full ${
+            !disabledReason
+              ? 'bg-blue-500 hover:bg-blue-600'
+              : 'bg-gray-400 cursor-not-allowed'
+          } text-white py-3 px-4 rounded-lg transition duration-300`}
+          aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+        >
+          {!disabledReason
+            ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+            : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+        </button>
+        {disabledReason && (
+          <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div className="h-screen flex flex-col">
       <div className="flex-grow overflow-hidden flex flex-col">
-        {step === 'info' && (
-          <>
-            <div className="flex-grow overflow-hidden">
-              <UserShiftInfo
-                userData={userData}
-                attendanceStatus={attendanceStatus}
-                departmentName={userData.department}
-                isOutsideShift={isOutsideShift}
-              />
-            </div>
-            <div className="flex-shrink-0 mt-4">
-              <button
-                onClick={async () => {
-                  const { allowed } = await isCheckInOutAllowed();
-                  if (allowed) {
-                    setStep('camera');
-                  }
-                }}
-                disabled={!!disabledReason}
-                className={`w-full ${
-                  !disabledReason
-                    ? 'bg-blue-500 hover:bg-blue-600'
-                    : 'bg-gray-400 cursor-not-allowed'
-                } text-white py-3 px-4 rounded-lg transition duration-300`}
-                aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-              >
-                {!disabledReason
-                  ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-                  : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
-              </button>
-              {disabledReason && (
-                <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
-              )}
-            </div>
-          </>
-        )}
-
+        {step === 'info' && renderStep1()}
         {step === 'camera' && (
           <div className="h-full flex flex-col justify-center">
             {isModelLoading ? (
@@ -498,7 +525,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
         )}
       </div>
-
       {(errorMessage || successMessage) && (
         <div className="mt-4">
           {errorMessage && (
@@ -513,6 +539,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           )}
         </div>
       )}
+      <LateReasonModal
+        isOpen={isLateModalOpen}
+        onClose={() => setIsLateModalOpen(false)}
+        onSubmit={handleLateReasonSubmit}
+      />
     </div>
   );
 };

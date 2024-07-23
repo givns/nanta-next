@@ -531,6 +531,7 @@ export class AttendanceService {
             reason: data.reason,
             photo: data.photo,
             deviceSerial: data.deviceSerial,
+            isLate: data.isLate,
           },
         );
       } else {
