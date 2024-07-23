@@ -19,22 +19,15 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   departmentName,
   isOutsideShift,
 }) => {
-  const formatOvertimeTime = (time: string) => time;
-
   const today = moment().tz('Asia/Bangkok').startOf('day');
-  const currentTime = moment().tz('Asia/Bangkok').format('HH:mm:ss');
 
   const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
 
   const shift: ShiftData | null | undefined =
     todayShiftAdjustment?.requestedShift || userData.assignedShift;
 
-  const futureShiftAdjustments =
-    attendanceStatus.futureShiftAdjustments?.filter((adj) =>
-      moment(adj.date).tz('Asia/Bangkok').startOf('day').isAfter(today),
-    ) || [];
-
   const getStatusMessage = () => {
+    if (attendanceStatus.isDayOff) return { message: 'วันหยุด', color: 'blue' };
     if (
       !attendanceStatus.latestAttendance ||
       !moment(attendanceStatus.latestAttendance.date).isSame(today, 'day')
@@ -50,43 +43,24 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return { message: 'ยังไม่มีการลงเวลาในวันนี้', color: 'red' };
   };
 
-  const isOvertimeForToday = (overtime: any) => {
-    const overtimeDate = moment(overtime.date)
-      .tz('Asia/Bangkok')
-      .startOf('day');
-    return overtimeDate.isSame(today);
-  };
-
-  const renderUserInfo = () => (
-    <div className="bg-white p-4 rounded-lg mb-6 text-center">
-      <p className="text-2xl font-bold">{userData.name}</p>
-      <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
-      <p className="text-gray-600">แผนก: {departmentName}</p>
-    </div>
-  );
-
   const renderTodayInfo = () => {
-    const statusInfo = attendanceStatus.isDayOff
-      ? { message: 'วันหยุด', color: 'blue' }
-      : getStatusMessage();
+    const { message, color } = getStatusMessage();
     const shift =
       attendanceStatus.shiftAdjustment?.requestedShift ||
       userData.assignedShift;
 
     return (
-      <div className="bg-white p-4 rounded-lg mb-6">
-        <div className="flex items-center mb-2">
-          <h2 className="text-lg font-semibold">
-            สถานะวันนี้ ({today.format('DD/MM/YYYY')})
-            <p>
-              {' '}
-              <div
-                className={`w-4 h-4 rounded-full bg-${statusInfo.color}-500 mr-2`}
-              ></div>
-              <span className="text-black-600">{statusInfo.message}</span>
-            </p>
-          </h2>
+      <div className="bg-white p-4 rounded-[35px] mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <span className="font-semibold">สถานะวันนี้</span>
+          <div className="flex items-center">
+            <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
+            <span className="text-black-600">{message}</span>
+          </div>
         </div>
+        <p className="text-sm text-gray-500 mb-4">
+          {today.format('DD/MM/YYYY')}
+        </p>
         {!attendanceStatus.isDayOff &&
           attendanceStatus.latestAttendance &&
           moment(attendanceStatus.latestAttendance.date).isSame(
@@ -133,16 +107,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             </p>
           </>
         )}
-        {attendanceStatus.isDayOff && attendanceStatus.potentialOvertime && (
-          <div className="mt-2 text-yellow-600">
-            <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
-            <p>
-              {attendanceStatus.potentialOvertime.start} -{' '}
-              {attendanceStatus.potentialOvertime.end}
-            </p>
-          </div>
+        {attendanceStatus.shiftAdjustment && (
+          <p className="text-blue-600 mt-1">
+            * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+          </p>
         )}
-
         {attendanceStatus.approvedOvertime &&
           isOvertimeForToday(attendanceStatus.approvedOvertime) && (
             <>
@@ -152,17 +121,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               <p>
                 เวลาเริ่ม:{' '}
                 <span className="font-medium">
-                  {formatOvertimeTime(
-                    attendanceStatus.approvedOvertime.startTime,
-                  )}
+                  {formatTime(attendanceStatus.approvedOvertime.startTime)}
                 </span>
               </p>
               <p>
                 เวลาสิ้นสุด:{' '}
                 <span className="font-medium">
-                  {formatOvertimeTime(
-                    attendanceStatus.approvedOvertime.endTime,
-                  )}
+                  {formatTime(attendanceStatus.approvedOvertime.endTime)}
                 </span>
               </p>
               <p>
@@ -175,11 +140,14 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               </p>
             </>
           )}
-
-        {isOutsideShift && !attendanceStatus.approvedOvertime && (
-          <p className="text-red-500 mt-2">
-            คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
-          </p>
+        {attendanceStatus.isDayOff && attendanceStatus.potentialOvertime && (
+          <div className="mt-2 text-yellow-600">
+            <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
+            <p>
+              {attendanceStatus.potentialOvertime.start} -{' '}
+              {attendanceStatus.potentialOvertime.end}
+            </p>
+          </div>
         )}
       </div>
     );
@@ -200,6 +168,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       ...additionalFutureOvertimes,
     ];
 
+    const futureShiftAdjustments =
+      attendanceStatus.futureShiftAdjustments || [];
+
     if (
       futureShiftAdjustments.length === 0 &&
       allFutureOvertimes.length === 0
@@ -208,13 +179,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     }
 
     return (
-      <div className="space-y-3">
+      <>
         {futureShiftAdjustments.map((adjustment, index) => (
           <div
             key={`shift-${index}`}
-            className="bg-yellow-100 p-4 rounded-lg mb-4"
+            className="bg-[#fdf112] p-4 rounded-[35px] mb-4"
           >
-            <div className="flex justify-between mb-2">
+            <div className="flex justify-between">
               <p>{moment(adjustment.date).format('DD/MM/YYYY')}</p>
               <p>เวลาทำงาน</p>
             </div>
@@ -227,9 +198,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         {allFutureOvertimes.map((overtime, index) => (
           <div
             key={`overtime-${index}`}
-            className="bg-yellow-100 p-4 rounded-lg mb-4"
+            className="bg-[#fdf112] p-4 rounded-[35px] mb-4"
           >
-            <div className="flex justify-between mb-2">
+            <div className="flex justify-between">
               <p>{moment(overtime.date).format('DD/MM/YYYY')}</p>
               <p>ทำงานล่วงเวลา</p>
             </div>
@@ -248,13 +219,25 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             )}
           </div>
         ))}
-      </div>
+      </>
     );
   };
 
+  const isOvertimeForToday = (overtime: any) => {
+    const overtimeDate = moment(overtime.date)
+      .tz('Asia/Bangkok')
+      .startOf('day');
+    return overtimeDate.isSame(today);
+  };
+
   return (
-    <div className="flex-grow overflow-y-auto space-y-6">
-      {renderUserInfo()}
+    <div className="flex flex-col">
+      <div className="bg-white p-4 rounded-[35px] mb-4 text-center">
+        <p className="text-2xl font-bold">{userData.name}</p>
+        <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
+        <p className="text-gray-600">แผนก: {departmentName}</p>
+      </div>
+
       {renderTodayInfo()}
       {renderFutureInfo()}
     </div>

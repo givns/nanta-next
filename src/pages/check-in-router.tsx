@@ -124,24 +124,29 @@ const CheckInRouter: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">
-          {attendanceStatus.isCheckingIn
-            ? 'ระบบบันทึกเวลาเข้างาน'
-            : 'ระบบบันทึกเวลาออกงาน'}
-        </h1>
-        <div className="text-2xl font-bold text-center mb-8 text-black-950">
-          {currentTime}
+      <div
+        className="main-container flex flex-col min-h-screen bg-gray-100 p-4"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="flex-grow flex flex-col justify-start items-center">
+          <h1 className="text-2xl font-bold text-center mt-8 mb-2 text-gray-800">
+            {attendanceStatus.isCheckingIn
+              ? 'ระบบบันทึกเวลาเข้างาน'
+              : 'ระบบบันทึกเวลาออกงาน'}
+          </h1>
+          <div className="text-3xl font-bold text-center mb-8 text-black-950">
+            {currentTime}
+          </div>
+          <CheckInOutForm
+            userData={userData}
+            initialAttendanceStatus={attendanceStatus}
+            onStatusChange={(newStatus) =>
+              setAttendanceStatus((prev) =>
+                prev ? { ...prev, isCheckingIn: newStatus } : null,
+              )
+            }
+          />
         </div>
-        <CheckInOutForm
-          userData={userData}
-          initialAttendanceStatus={attendanceStatus}
-          onStatusChange={(newStatus) =>
-            setAttendanceStatus((prev) =>
-              prev ? { ...prev, isCheckingIn: newStatus } : null,
-            )
-          }
-        />
       </div>
     </ErrorBoundary>
   );

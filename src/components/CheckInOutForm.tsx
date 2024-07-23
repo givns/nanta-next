@@ -415,9 +415,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       attendanceStatus.latestAttendance &&
       attendanceStatus.latestAttendance.checkInTime &&
       !attendanceStatus.latestAttendance.checkOutTime;
+    const hasApprovedOvertimeNow =
+      attendanceStatus.approvedOvertime &&
+      moment(attendanceStatus.approvedOvertime.startTime).isSameOrBefore(now) &&
+      moment(attendanceStatus.approvedOvertime.endTime).isSameOrAfter(now);
 
     return (
-      <div className="flex-grow overflow-y-auto space-y-6">
+      <div className="flex flex-col h-full">
         <UserShiftInfo
           userData={userData}
           attendanceStatus={attendanceStatus}
@@ -425,34 +429,30 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           isOutsideShift={isOutsideShiftTime}
         />
 
-        <div className="bg-white p-4 rounded-lg">
-          {isOutsideShiftTime && !attendanceStatus.approvedOvertime && (
-            <p className="text-red-500 mb-4">
-              คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
-            </p>
-          )}
-          {(isCheckedIn ||
-            !isOutsideShiftTime ||
-            attendanceStatus.approvedOvertime) && (
-            <button
-              onClick={() => setStep('camera')}
-              disabled={!!disabledReason}
-              className={`w-full ${
-                !disabledReason
-                  ? 'bg-red-500 hover:bg-red-600'
-                  : 'bg-gray-400 cursor-not-allowed'
-              } text-white py-3 px-4 rounded-lg transition duration-300`}
-              aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-            >
-              {!disabledReason
-                ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-                : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
-            </button>
-          )}
-          {disabledReason && (
-            <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
-          )}
-        </div>
+        {isOutsideShiftTime && !hasApprovedOvertimeNow && (
+          <p className="text-red-500 mb-4">
+            คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
+          </p>
+        )}
+
+        {(isCheckedIn || !isOutsideShiftTime || hasApprovedOvertimeNow) && (
+          <button
+            onClick={() => setStep('camera')}
+            disabled={!!disabledReason}
+            className={`w-full ${
+              !disabledReason
+                ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-gray-400 cursor-not-allowed'
+            } text-white py-3 px-4 rounded-[35px] transition duration-300`}
+          >
+            {!disabledReason
+              ? `เปิดกล้องเพื่อ${hasApprovedOvertimeNow ? 'ลงเวลาทำงานล่วงเวลา' : attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+              : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+          </button>
+        )}
+        {disabledReason && (
+          <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
+        )}
       </div>
     );
   };
