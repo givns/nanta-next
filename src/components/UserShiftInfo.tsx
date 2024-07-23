@@ -50,7 +50,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       userData.assignedShift;
 
     return (
-      <div className="bg-white p-4 rounded-[35px] mb-4">
+      <div className="rounded-box bg-white mb-4">
         <div className="flex justify-between items-center mb-2">
           <span className="font-semibold">สถานะวันนี้</span>
           <div className="flex items-center">
@@ -181,10 +181,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return (
       <>
         {futureShiftAdjustments.map((adjustment, index) => (
-          <div
-            key={`shift-${index}`}
-            className="bg-[#fdf112] p-4 rounded-[35px] mb-4"
-          >
+          <div key={`shift-${index}`} className="rounded-box bg-amber-400 mb-4">
             <div className="flex justify-between">
               <p>{moment(adjustment.date).format('DD/MM/YYYY')}</p>
               <p>เวลาทำงาน</p>
@@ -198,7 +195,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         {allFutureOvertimes.map((overtime, index) => (
           <div
             key={`overtime-${index}`}
-            className="bg-[#fdf112] p-4 rounded-[35px] mb-4"
+            className="rounded-box bg-amber-400 mb-4"
           >
             <div className="flex justify-between">
               <p>{moment(overtime.date).format('DD/MM/YYYY')}</p>
@@ -232,7 +229,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   return (
     <div className="flex flex-col">
-      <div className="bg-white p-4 rounded-[35px] mb-4 text-center">
+      <div className="rounded-box bg-white mb-4 text-center">
         <p className="text-2xl font-bold">{userData.name}</p>
         <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
         <p className="text-gray-600">แผนก: {departmentName}</p>

@@ -422,37 +422,41 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
     return (
       <div className="flex flex-col h-full">
-        <UserShiftInfo
-          userData={userData}
-          attendanceStatus={attendanceStatus}
-          departmentName={userData.department}
-          isOutsideShift={isOutsideShiftTime}
-        />
+        <div className="flex-grow overflow-y-auto mb-4">
+          <UserShiftInfo
+            userData={userData}
+            attendanceStatus={attendanceStatus}
+            departmentName={userData.department}
+            isOutsideShift={isOutsideShiftTime}
+          />
+        </div>
 
-        {isOutsideShiftTime && !hasApprovedOvertimeNow && (
-          <p className="text-red-500 mb-4">
-            คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
-          </p>
-        )}
+        <div className="flex-shrink-0">
+          {isOutsideShiftTime && !hasApprovedOvertimeNow && (
+            <p className="text-red-500 mb-4">
+              คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
+            </p>
+          )}
 
-        {(isCheckedIn || !isOutsideShiftTime || hasApprovedOvertimeNow) && (
-          <button
-            onClick={() => setStep('camera')}
-            disabled={!!disabledReason}
-            className={`w-full ${
-              !disabledReason
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-gray-400 cursor-not-allowed'
-            } text-white py-3 px-4 rounded-[35px] transition duration-300`}
-          >
-            {!disabledReason
-              ? `เปิดกล้องเพื่อ${hasApprovedOvertimeNow ? 'ลงเวลาทำงานล่วงเวลา' : attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-              : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
-          </button>
-        )}
-        {disabledReason && (
-          <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
-        )}
+          {(isCheckedIn || !isOutsideShiftTime || hasApprovedOvertimeNow) && (
+            <button
+              onClick={() => setStep('camera')}
+              disabled={!!disabledReason}
+              className={`w-full ${
+                !disabledReason
+                  ? 'bg-red-500 hover:bg-red-600'
+                  : 'bg-gray-400 cursor-not-allowed'
+              } text-white py-3 px-4 rounded-[35px] transition duration-300`}
+            >
+              {!disabledReason
+                ? `เปิดกล้องเพื่อ${hasApprovedOvertimeNow ? 'ลงเวลาทำงานล่วงเวลา' : attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+                : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+            </button>
+          )}
+          {disabledReason && (
+            <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
+          )}
+        </div>
       </div>
     );
   };

@@ -18,6 +18,11 @@ body {
   color: #e3342f;
 }
 
+.rounded-box {
+  border-radius: 35px;
+  padding: 30px;
+}
+
 .bg-scarlet-700 {
   --tw-bg-opacity: 1;
   background-color: rgba(220, 38, 38, var(--tw-bg-opacity));
