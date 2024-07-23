@@ -251,11 +251,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   };
 
   return (
-      <div className="flex-grow overflow-y-auto space-y-6">
-        {renderUserInfo()}
-        {renderTodayInfo()}
-        {renderFutureInfo()}
-      </div>
+    <div className="flex-grow overflow-y-auto space-y-6">
+      {renderUserInfo()}
+      {renderTodayInfo()}
+      {renderFutureInfo()}
+    </div>
   );
 };
 

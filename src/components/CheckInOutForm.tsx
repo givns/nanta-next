@@ -78,36 +78,40 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const { webcamRef, isModelLoading, photo, setPhoto, message } =
     useFaceDetection(5, handlePhotoCapture);
 
-    const isOutsideShift = useCallback(() => {
-      const shift: ShiftData | null | undefined =
-        attendanceStatus.shiftAdjustment?.requestedShift ||
-        userData.assignedShift;
-    
-      if (!shift) return false;
-    
-      const now = moment().tz('Asia/Bangkok');
-      const shiftStart = moment(now).tz('Asia/Bangkok').set({
+  const isOutsideShift = useCallback(() => {
+    const shift: ShiftData | null | undefined =
+      attendanceStatus.shiftAdjustment?.requestedShift ||
+      userData.assignedShift;
+
+    if (!shift) return false;
+
+    const now = moment().tz('Asia/Bangkok');
+    const shiftStart = moment(now)
+      .tz('Asia/Bangkok')
+      .set({
         hour: parseInt(shift.startTime.split(':')[0]),
         minute: parseInt(shift.startTime.split(':')[1]),
         second: 0,
         millisecond: 0,
       });
-      const shiftEnd = moment(now).tz('Asia/Bangkok').set({
+    const shiftEnd = moment(now)
+      .tz('Asia/Bangkok')
+      .set({
         hour: parseInt(shift.endTime.split(':')[0]),
         minute: parseInt(shift.endTime.split(':')[1]),
         second: 0,
         millisecond: 0,
       });
-    
-      // Handle overnight shifts
-      if (shiftEnd.isBefore(shiftStart)) {
-        shiftEnd.add(1, 'day');
-      }
-    
-      const flexibleEnd = moment(shiftEnd).add(30, 'minutes');
-    
-      return now.isBefore(shiftStart) || now.isAfter(flexibleEnd);
-    }, [attendanceStatus.shiftAdjustment, userData.assignedShift]);
+
+    // Handle overnight shifts
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    const flexibleEnd = moment(shiftEnd).add(30, 'minutes');
+
+    return now.isBefore(shiftStart) || now.isAfter(flexibleEnd);
+  }, [attendanceStatus.shiftAdjustment, userData.assignedShift]);
 
   const isCheckInOutAllowed = useCallback(async () => {
     if (attendanceStatus.approvedOvertime)
@@ -407,9 +411,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     <div className="flex flex-col h-full">
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold mb-2">ระบบบันทึกเวลาเข้างาน</h1>
-        <p className="text-3xl font-bold">{moment().tz('Asia/Bangkok').format('HH:mm:ss')}</p>
+        <p className="text-3xl font-bold">
+          {moment().tz('Asia/Bangkok').format('HH:mm:ss')}
+        </p>
       </div>
-  
+
       <div className="flex-grow overflow-y-auto space-y-6">
         <UserShiftInfo
           userData={userData}
@@ -417,12 +423,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           departmentName={userData.department}
           isOutsideShift={isOutsideShift}
         />
-  
+
         <div className="bg-white p-4 rounded-lg">
           {isOutsideShift() && !attendanceStatus.approvedOvertime && (
-            <p className="text-red-500 mb-4">คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ</p>
+            <p className="text-red-500 mb-4">
+              คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
+            </p>
           )}
-          {(!isOutsideShift() || attendanceStatus.approvedOvertime || !attendanceStatus.isCheckingIn) && (
+          {(!isOutsideShift() ||
+            attendanceStatus.approvedOvertime ||
+            !attendanceStatus.isCheckingIn) && (
             <button
               onClick={() => setStep('camera')}
               disabled={!!disabledReason}
