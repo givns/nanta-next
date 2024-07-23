@@ -45,7 +45,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   const renderTodayInfo = () => {
     const { message, color } = getStatusMessage();
-    const shift =
+    const effectiveShift =
       attendanceStatus.shiftAdjustment?.requestedShift ||
       userData.assignedShift;
 
@@ -96,21 +96,21 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               )}
             </>
           )}
-        {!attendanceStatus.isDayOff && shift && (
+        {!attendanceStatus.isDayOff && effectiveShift && (
           <>
             <h3 className="text-md font-semibold mt-4 mb-1">
               กะการทำงานของคุณวันนี้:
             </h3>
             <p>
-              <span className="font-medium">{shift.name}</span> (
-              {shift.startTime} - {shift.endTime})
+              <span className="font-medium">{effectiveShift.name}</span> (
+              {effectiveShift.startTime} - {effectiveShift.endTime})
             </p>
+            {attendanceStatus.shiftAdjustment && (
+              <p className="text-blue-600 mt-1">
+                * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+              </p>
+            )}
           </>
-        )}
-        {attendanceStatus.shiftAdjustment && (
-          <p className="text-blue-600 mt-1">
-            * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
-          </p>
         )}
         {attendanceStatus.approvedOvertime &&
           isOvertimeForToday(attendanceStatus.approvedOvertime) && (
