@@ -14,38 +14,45 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
   const { userId } = req.query;
 
   if (!userId || typeof userId !== 'string') {
-    return res.status(400).json({ error: 'Invalid or missing user ID' });
+    return res.status(400).json({ message: 'Invalid user ID' });
   }
 
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        leaveRequests: {
-          where: { status: 'Approved' },
-        },
+      select: {
+        sickLeaveBalance: true,
+        businessLeaveBalance: true,
+        annualLeaveBalance: true,
+        overtimeLeaveBalance: true,
       },
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    const leaveBalance = calculateLeaveBalance(user);
-    return res.status(200).json(leaveBalance);
+    const totalLeaveDays =
+      user.sickLeaveBalance +
+      user.businessLeaveBalance +
+      user.annualLeaveBalance;
+
+    res.status(200).json({
+      sickLeave: user.sickLeaveBalance,
+      businessLeave: user.businessLeaveBalance,
+      annualLeave: user.annualLeaveBalance,
+      overtimeLeave: user.overtimeLeaveBalance,
+      totalLeaveDays,
+    });
   } catch (error) {
     console.error('Error fetching leave balance:', error);
-    return res.status(500).json({
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      userId: userId, // Include the userId in the error response for debugging
-    });
+    res.status(500).json({ message: 'Error fetching leave balance' });
   }
 }
 

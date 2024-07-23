@@ -104,8 +104,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               {effectiveShift.startTime} - {effectiveShift.endTime})
             </p>
             {todayShiftAdjustment && (
-              <p className="text-blue-600 mt-1">
-                * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+              <p className="text-blue-600 text-center mt-1">
+                เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
               </p>
             )}
           </>
