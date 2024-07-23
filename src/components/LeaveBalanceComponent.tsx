@@ -27,13 +27,13 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
     const fetchLeaveBalance = async () => {
       try {
         const response = await axios.get<LeaveBalanceData>(
-          `/api/leave-balance?userId=${userId}`,
+          `/api/checkLeaveBalance?userId=${userId}`,
         );
         setLeaveBalance(response.data);
         onBalanceLoaded(response.data);
       } catch (error) {
         setError('Error fetching leave balance');
-        console.error('Error fetching leave balance:', error);
+        console.error(error);
       }
     };
 
@@ -41,7 +41,7 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
   }, [userId, onBalanceLoaded]);
 
   if (error) {
-    return <div className="text-red-500">{error}</div>;
+    return <div>{error}</div>;
   }
 
   if (!leaveBalance) {

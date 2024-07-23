@@ -24,6 +24,12 @@ const LeaveRequestPage: React.FC = () => {
         } else {
           const profile = await liff.getProfile();
           await fetchUserData(profile.userId);
+
+          if (resubmit === 'true' && originalId) {
+            await fetchOriginalLeaveRequest(originalId as string);
+          }
+
+          setIsLoading(false);
         }
       } catch (err) {
         console.error('LIFF initialization failed', err);
@@ -33,7 +39,7 @@ const LeaveRequestPage: React.FC = () => {
     };
 
     initializeLiff();
-  }, []);
+  }, [resubmit, originalId]);
 
   const fetchUserData = async (lineUserId: string) => {
     try {
@@ -65,21 +71,27 @@ const LeaveRequestPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching original leave request:', error);
-      // We're not setting isLoading to false here because it's not a critical error
+      // Set originalLeaveData to null in case of an error
+      setOriginalLeaveData(null);
     }
   };
 
   if (isLoading) {
+    console.log('Still loading...');
     return <div>Loading...</div>;
   }
 
   if (error) {
+    console.log('Error occurred:', error);
     return <div>Error: {error}</div>;
   }
 
   if (!userData) {
+    console.log('No user data available');
     return <div>No user data available.</div>;
   }
+
+  console.log('Rendering LeaveRequestForm with userData:', userData);
 
   return (
     <LeaveRequestForm
@@ -89,5 +101,4 @@ const LeaveRequestPage: React.FC = () => {
     />
   );
 };
-
 export default LeaveRequestPage;

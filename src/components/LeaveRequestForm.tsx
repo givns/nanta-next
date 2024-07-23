@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import axios from 'axios';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
 import LeaveBalanceComponent from './LeaveBalanceComponent';
@@ -42,7 +41,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalanceData | null>(
     null,
   );
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const handleBalanceLoaded = (balance: LeaveBalanceData) => {
@@ -152,7 +151,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           validationSchema={leaveRequestSchema}
           onSubmit={handleSubmit}
         >
-          {({ values, errors, touched }) => (
+          {({ values }) => (
             <Form className="space-y-4">
               {step === 1 && (
                 <div>
