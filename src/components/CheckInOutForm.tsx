@@ -398,31 +398,41 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   // Render part for step 1
   const renderStep1 = () => (
-    <div className="flex-grow overflow-hidden">
-      <UserShiftInfo
-        userData={userData}
-        attendanceStatus={attendanceStatus}
-        departmentName={userData.department}
-        isOutsideShift={isOutsideShift}
-      />
-      <div className="flex-shrink-0 mt-4">
-        <button
-          onClick={() => setStep('camera')}
-          disabled={!!disabledReason}
-          className={`w-full ${
-            !disabledReason
-              ? 'bg-red-500 hover:bg-red-600'
-              : 'bg-gray-400 cursor-not-allowed'
-          } text-white py-3 px-4 rounded-lg transition duration-300`}
-          aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-        >
-          {!disabledReason
-            ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-            : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
-        </button>
-        {disabledReason && (
-          <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
-        )}
+    <div className="flex flex-col h-full">
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold mb-2">ระบบบันทึกเวลาเข้างาน</h1>
+        <p className="text-3xl font-bold">
+          {moment().tz('Asia/Bangkok').format('HH:mm:ss')}
+        </p>
+      </div>
+
+      <div className="flex-grow overflow-y-auto space-y-6">
+        <UserShiftInfo
+          userData={userData}
+          attendanceStatus={attendanceStatus}
+          departmentName={userData.department}
+          isOutsideShift={isOutsideShift}
+        />
+
+        <div className="bg-white p-4 rounded-lg">
+          <button
+            onClick={() => setStep('camera')}
+            disabled={!!disabledReason}
+            className={`w-full ${
+              !disabledReason
+                ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-gray-400 cursor-not-allowed'
+            } text-white py-3 px-4 rounded-lg transition duration-300`}
+            aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+          >
+            {!disabledReason
+              ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+              : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+          </button>
+          {disabledReason && (
+            <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
+          )}
+        </div>
       </div>
     </div>
   );

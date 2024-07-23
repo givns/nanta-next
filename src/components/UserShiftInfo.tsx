@@ -22,6 +22,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const formatOvertimeTime = (time: string) => time;
 
   const today = moment().tz('Asia/Bangkok').startOf('day');
+  const currentTime = moment().tz('Asia/Bangkok').format('HH:mm:ss');
 
   const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
 
@@ -56,6 +57,14 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return overtimeDate.isSame(today);
   };
 
+  const renderUserInfo = () => (
+    <div className="bg-white p-4 rounded-lg mb-6 text-center">
+      <p className="text-2xl font-bold">{userData.name}</p>
+      <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
+      <p className="text-gray-600">แผนก: {departmentName}</p>
+    </div>
+  );
+
   const renderTodayInfo = () => {
     const statusInfo = attendanceStatus.isDayOff
       ? { message: 'วันหยุด', color: 'blue' }
@@ -65,14 +74,17 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       userData.assignedShift;
 
     return (
-      <div className="bg-white p-4 rounded-lg mb-4">
+      <div className="bg-white p-4 rounded-lg mb-6">
         <div className="flex items-center mb-2">
-          <div
-            className={`w-4 h-4 rounded-full bg-${statusInfo.color}-500 mr-2`}
-          ></div>
           <h2 className="text-lg font-semibold">
-            สถานะวันนี้ ({today.format('DD/MM/YYYY')}):{' '}
-            <span className="text-black-600">{statusInfo.message}</span>
+            สถานะวันนี้ ({today.format('DD/MM/YYYY')})
+            <p>
+              {' '}
+              <div
+                className={`w-4 h-4 rounded-full bg-${statusInfo.color}-500 mr-2`}
+              ></div>
+              <span className="text-black-600">{statusInfo.message}</span>
+            </p>
           </h2>
         </div>
         {!attendanceStatus.isDayOff &&
@@ -129,22 +141,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               {attendanceStatus.potentialOvertime.end}
             </p>
           </div>
-        )}
-        {shift && (
-          <>
-            <h3 className="text-md font-semibold mt-4 mb-1">
-              กะการทำงานของคุณวันนี้:
-            </h3>
-            <p>
-              <span className="font-medium">{shift.name}</span> (
-              {shift.startTime} - {shift.endTime})
-            </p>
-            {todayShiftAdjustment && (
-              <p className="text-blue-600 mt-1">
-                * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
-              </p>
-            )}
-          </>
         )}
 
         {attendanceStatus.approvedOvertime &&
@@ -212,7 +208,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     }
 
     return (
-      <>
+      <div className="space-y-3">
         {futureShiftAdjustments.map((adjustment, index) => (
           <div
             key={`shift-${index}`}
@@ -252,19 +248,19 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             )}
           </div>
         ))}
-      </>
+      </div>
     );
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="bg-white p-4 rounded-lg mb-4 text-center">
-        <p className="text-2xl font-bold">{userData.name}</p>
-        <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
-        <p className="text-gray-600">แผนก: {departmentName}</p>
+    <div className="flex flex-col h-full">
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold mb-2">ระบบบันทึกเวลาเข้างาน</h1>
+        <p className="text-3xl font-bold">{currentTime}</p>
       </div>
 
-      <div className="flex-grow overflow-y-auto">
+      <div className="flex-grow overflow-y-auto space-y-6">
+        {renderUserInfo()}
         {renderTodayInfo()}
         {renderFutureInfo()}
       </div>
