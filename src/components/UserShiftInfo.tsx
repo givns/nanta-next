@@ -22,6 +22,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const formatOvertimeTime = (time: string) => time;
 
   const today = moment().tz('Asia/Bangkok').startOf('day');
+  const currentTime = moment().tz('Asia/Bangkok').format('HH:mm:ss');
+
   const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
 
   const shift: ShiftData | null | undefined =
@@ -251,10 +253,17 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   };
 
   return (
-    <div className="flex-grow overflow-y-auto space-y-6">
-      {renderUserInfo()}
-      {renderTodayInfo()}
-      {renderFutureInfo()}
+    <div className="flex flex-col h-full">
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold mb-2">ระบบบันทึกเวลาเข้างาน</h1>
+        <p className="text-3xl font-bold">{currentTime}</p>
+      </div>
+
+      <div className="flex-grow overflow-y-auto space-y-6">
+        {renderUserInfo()}
+        {renderTodayInfo()}
+        {renderFutureInfo()}
+      </div>
     </div>
   );
 };
