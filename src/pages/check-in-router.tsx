@@ -124,25 +124,16 @@ const CheckInRouter: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          {attendanceStatus.isCheckingIn
-            ? 'ระบบบันทึกเวลาเข้างาน'
-            : 'ระบบบันทึกเวลาออกงาน'}
-        </h1>
-        <div className="text-3xl font-bold text-center mb-8 text-black-950">
-          {currentTime}
-        </div>
-        <CheckInOutForm
-          userData={userData}
-          initialAttendanceStatus={attendanceStatus}
-          onStatusChange={(newStatus) =>
-            setAttendanceStatus((prev) =>
-              prev ? { ...prev, isCheckingIn: newStatus } : null,
-            )
-          }
-        />
-      </div>
+      <div className="main-container flex flex-col justify-center items-center min-h-screen bg-gray-100 p-4"></div>
+      <CheckInOutForm
+        userData={userData}
+        initialAttendanceStatus={attendanceStatus}
+        onStatusChange={(newStatus) =>
+          setAttendanceStatus((prev) =>
+            prev ? { ...prev, isCheckingIn: newStatus } : null,
+          )
+        }
+      />
     </ErrorBoundary>
   );
 };
