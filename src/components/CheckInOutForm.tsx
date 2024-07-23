@@ -411,7 +411,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           disabled={!!disabledReason}
           className={`w-full ${
             !disabledReason
-              ? 'bg-blue-500 hover:bg-blue-600'
+              ? 'bg-red-500 hover:bg-red-600'
               : 'bg-gray-400 cursor-not-allowed'
           } text-white py-3 px-4 rounded-lg transition duration-300`}
           aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
@@ -514,7 +514,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               <button
                 onClick={handleCheckInOut}
                 disabled={loading || (!inPremises && !reason)}
-                className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition duration-300 disabled:bg-gray-400"
+                className="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition duration-300 disabled:bg-gray-400"
                 aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
               >
                 {loading
