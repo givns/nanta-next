@@ -78,30 +78,36 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const { webcamRef, isModelLoading, photo, setPhoto, message } =
     useFaceDetection(5, handlePhotoCapture);
 
-  const isOutsideShift = useCallback(() => {
-    const shift: ShiftData | null | undefined =
-      attendanceStatus.shiftAdjustment?.requestedShift ||
-      userData.assignedShift;
-
-    if (!shift) return false;
-
-    const now = new Date();
-    const shiftStart = new Date(now);
-    const shiftEnd = new Date(now);
-
-    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
-    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
-
-    shiftStart.setHours(startHour, startMinute, 0, 0);
-    shiftEnd.setHours(endHour, endMinute, 0, 0);
-
-    // Handle overnight shifts
-    if (shiftEnd < shiftStart) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
-    }
-
-    return now < shiftStart || now > shiftEnd;
-  }, [attendanceStatus.shiftAdjustment, userData.assignedShift]);
+    const isOutsideShift = useCallback(() => {
+      const shift: ShiftData | null | undefined =
+        attendanceStatus.shiftAdjustment?.requestedShift ||
+        userData.assignedShift;
+    
+      if (!shift) return false;
+    
+      const now = moment().tz('Asia/Bangkok');
+      const shiftStart = moment(now).tz('Asia/Bangkok').set({
+        hour: parseInt(shift.startTime.split(':')[0]),
+        minute: parseInt(shift.startTime.split(':')[1]),
+        second: 0,
+        millisecond: 0,
+      });
+      const shiftEnd = moment(now).tz('Asia/Bangkok').set({
+        hour: parseInt(shift.endTime.split(':')[0]),
+        minute: parseInt(shift.endTime.split(':')[1]),
+        second: 0,
+        millisecond: 0,
+      });
+    
+      // Handle overnight shifts
+      if (shiftEnd.isBefore(shiftStart)) {
+        shiftEnd.add(1, 'day');
+      }
+    
+      const flexibleEnd = moment(shiftEnd).add(30, 'minutes');
+    
+      return now.isBefore(shiftStart) || now.isAfter(flexibleEnd);
+    }, [attendanceStatus.shiftAdjustment, userData.assignedShift]);
 
   const isCheckInOutAllowed = useCallback(async () => {
     if (attendanceStatus.approvedOvertime)
@@ -401,11 +407,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     <div className="flex flex-col h-full">
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold mb-2">ระบบบันทึกเวลาเข้างาน</h1>
-        <p className="text-3xl font-bold">
-          {moment().tz('Asia/Bangkok').format('HH:mm:ss')}
-        </p>
+        <p className="text-3xl font-bold">{moment().tz('Asia/Bangkok').format('HH:mm:ss')}</p>
       </div>
-
+  
       <div className="flex-grow overflow-y-auto space-y-6">
         <UserShiftInfo
           userData={userData}
@@ -413,22 +417,27 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           departmentName={userData.department}
           isOutsideShift={isOutsideShift}
         />
-
+  
         <div className="bg-white p-4 rounded-lg">
-          <button
-            onClick={() => setStep('camera')}
-            disabled={!!disabledReason}
-            className={`w-full ${
-              !disabledReason
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-gray-400 cursor-not-allowed'
-            } text-white py-3 px-4 rounded-lg transition duration-300`}
-            aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-          >
-            {!disabledReason
-              ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-              : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
-          </button>
+          {isOutsideShift() && !attendanceStatus.approvedOvertime && (
+            <p className="text-red-500 mb-4">คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ</p>
+          )}
+          {(!isOutsideShift() || attendanceStatus.approvedOvertime || !attendanceStatus.isCheckingIn) && (
+            <button
+              onClick={() => setStep('camera')}
+              disabled={!!disabledReason}
+              className={`w-full ${
+                !disabledReason
+                  ? 'bg-red-500 hover:bg-red-600'
+                  : 'bg-gray-400 cursor-not-allowed'
+              } text-white py-3 px-4 rounded-lg transition duration-300`}
+              aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+            >
+              {!disabledReason
+                ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+                : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+            </button>
+          )}
           {disabledReason && (
             <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
           )}
