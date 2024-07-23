@@ -433,7 +433,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         <div className="flex-shrink-0">
           {isOutsideShiftTime && !hasApprovedOvertimeNow && (
-            <p className="text-red-500 mb-4">
+            <p className="text-red-500 text-center mb-4">
               คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
             </p>
           )}
