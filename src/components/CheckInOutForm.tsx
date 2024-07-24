@@ -119,56 +119,83 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       return { allowed: true, reason: null, isLate: false, isOvertime: true };
 
     const now = moment().tz('Asia/Bangkok');
-    try {
-      const { shift, shiftStart, shiftEnd } =
-        await shiftManagementService.getEffectiveShift(
-          userData.id,
-          now.toDate(),
-        );
+    const effectiveShift =
+      attendanceStatus.shiftAdjustment?.requestedShift ||
+      userData.assignedShift;
 
-      const twoHoursBeforeShift = moment(shiftStart).subtract(2, 'hours');
-      const lateThreshold = moment(shiftStart).add(30, 'minutes');
-      const overtimeThreshold = moment(shiftEnd).add(5, 'minutes');
-
-      if (now.isBefore(twoHoursBeforeShift)) {
-        return {
-          allowed: false,
-          reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
-          isLate: false,
-          isOvertime: false,
-        };
-      }
-
-      if (now.isAfter(lateThreshold) && now.isBefore(shiftEnd)) {
-        return {
-          allowed: true,
-          reason: 'คุณกำลังเข้างานสาย กรุณาระบุเหตุผล',
-          isLate: true,
-          isOvertime: false,
-        };
-      }
-
-      if (now.isAfter(overtimeThreshold)) {
-        return {
-          allowed: true,
-          reason: null,
-          isLate: false,
-          isOvertime: true,
-        };
-      }
-
-      return { allowed: true, reason: null, isLate: false, isOvertime: false };
-    } catch (error) {
-      console.error('Error getting effective shift:', error);
+    if (!effectiveShift) {
       return {
         allowed: false,
-        reason:
-          'เกิดข้อผิดพลาดในการตรวจสอบกะงาน กรุณาลองใหม่อีกครั้งหรือติดต่อ HR',
+        reason: 'ไม่พบข้อมูลกะการทำงาน กรุณาติดต่อ HR',
         isLate: false,
         isOvertime: false,
       };
     }
-  }, [attendanceStatus.approvedOvertime, userData.id, shiftManagementService]);
+
+    const shiftStart = moment(now).set({
+      hour: parseInt(effectiveShift.startTime.split(':')[0]),
+      minute: parseInt(effectiveShift.startTime.split(':')[1]),
+      second: 0,
+      millisecond: 0,
+    });
+
+    const shiftEnd = moment(now).set({
+      hour: parseInt(effectiveShift.endTime.split(':')[0]),
+      minute: parseInt(effectiveShift.endTime.split(':')[1]),
+      second: 0,
+      millisecond: 0,
+    });
+
+    // Handle overnight shifts
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    const twoHoursBeforeShift = moment(shiftStart).subtract(2, 'hours');
+    const lateThreshold = moment(shiftStart).add(30, 'minutes');
+    const overtimeThreshold = moment(shiftEnd).add(5, 'minutes');
+
+    if (now.isBefore(twoHoursBeforeShift)) {
+      return {
+        allowed: false,
+        reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
+        isLate: false,
+        isOvertime: false,
+      };
+    }
+
+    if (now.isAfter(lateThreshold) && now.isBefore(shiftEnd)) {
+      return {
+        allowed: true,
+        reason: 'คุณกำลังเข้างานสาย กรุณาระบุเหตุผล',
+        isLate: true,
+        isOvertime: false,
+      };
+    }
+
+    if (now.isAfter(overtimeThreshold)) {
+      return {
+        allowed: true,
+        reason: null,
+        isLate: false,
+        isOvertime: true,
+      };
+    }
+
+    return { allowed: true, reason: null, isLate: false, isOvertime: false };
+  }, [
+    attendanceStatus.approvedOvertime,
+    attendanceStatus.shiftAdjustment,
+    userData.assignedShift,
+  ]);
+
+  useEffect(() => {
+    const checkAllowance = async () => {
+      const { allowed, reason } = await isCheckInOutAllowed();
+      setDisabledReason(reason);
+    };
+    checkAllowance();
+  }, [isCheckInOutAllowed]);
 
   useEffect(() => {
     const checkAllowance = async () => {
