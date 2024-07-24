@@ -69,6 +69,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [lateReason, setLateReason] = useState('');
   const [isOvertime, setIsOvertime] = useState(false);
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isOutsideShiftState, setIsOutsideShiftState] = useState(false);
+  const [checkInOutAllowedState, setCheckInOutAllowedState] = useState<{
+    allowed: boolean;
+    reason: string | null;
+    isLate: boolean;
+    isOvertime: boolean;
+  }>({ allowed: false, reason: null, isLate: false, isOvertime: false });
 
   const handlePhotoCapture = useCallback((capturedPhoto: string) => {
     setPhoto(capturedPhoto);
@@ -78,60 +86,37 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const { webcamRef, isModelLoading, photo, setPhoto, message } =
     useFaceDetection(5, handlePhotoCapture);
 
-  const isOutsideShift = useCallback(() => {
-    const shift: ShiftData | null | undefined =
-      attendanceStatus.shiftAdjustment?.requestedShift ||
-      userData.assignedShift;
-
-    if (!shift) return false;
-
-    const now = moment().tz('Asia/Bangkok');
-    const shiftStart = moment(now)
-      .tz('Asia/Bangkok')
-      .set({
-        hour: parseInt(shift.startTime.split(':')[0]),
-        minute: parseInt(shift.startTime.split(':')[1]),
-        second: 0,
-        millisecond: 0,
-      });
-    const shiftEnd = moment(now)
-      .tz('Asia/Bangkok')
-      .set({
-        hour: parseInt(shift.endTime.split(':')[0]),
-        minute: parseInt(shift.endTime.split(':')[1]),
-        second: 0,
-        millisecond: 0,
-      });
-
-    // Handle overnight shifts
-    if (shiftEnd.isBefore(shiftStart)) {
-      shiftEnd.add(1, 'day');
+  const getEffectiveShift = useCallback(async () => {
+    try {
+      const now = new Date();
+      const { shift, shiftStart, shiftEnd } =
+        await shiftManagementService.getEffectiveShift(userData.id, now);
+      return { shift, shiftStart, shiftEnd };
+    } catch (error) {
+      console.error('Error getting effective shift:', error);
+      return null;
     }
+  }, [userData.id]);
+
+  const isOutsideShift = useCallback(async () => {
+    const effectiveShiftData = await getEffectiveShift();
+    if (!effectiveShiftData) return false;
+
+    const { shiftStart, shiftEnd } = effectiveShiftData;
+    const now = moment().tz('Asia/Bangkok');
 
     const flexibleStart = moment(shiftStart).subtract(30, 'minutes');
     const flexibleEnd = moment(shiftEnd).add(30, 'minutes');
 
     return now.isBefore(flexibleStart) || now.isAfter(flexibleEnd);
-  }, [attendanceStatus.shiftAdjustment, userData.assignedShift]);
+  }, [getEffectiveShift]);
 
-  const isCheckInOutAllowed = useCallback(() => {
+  const isCheckInOutAllowed = useCallback(async () => {
     if (attendanceStatus.approvedOvertime)
       return { allowed: true, reason: null, isLate: false, isOvertime: true };
 
-    const now = moment().tz('Asia/Bangkok');
-    const today = now.startOf('day');
-
-    // Check if there's a shift adjustment for today
-    const todayShiftAdjustment =
-      attendanceStatus.shiftAdjustment &&
-      moment(attendanceStatus.shiftAdjustment.date).isSame(today, 'day')
-        ? attendanceStatus.shiftAdjustment
-        : null;
-
-    const effectiveShift =
-      todayShiftAdjustment?.requestedShift || userData.assignedShift;
-
-    if (!effectiveShift) {
+    const effectiveShiftData = await getEffectiveShift();
+    if (!effectiveShiftData) {
       return {
         allowed: false,
         reason: 'ไม่พบข้อมูลกะการทำงาน กรุณาติดต่อ HR',
@@ -140,24 +125,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       };
     }
 
-    const shiftStart = moment(now).set({
-      hour: parseInt(effectiveShift.startTime.split(':')[0]),
-      minute: parseInt(effectiveShift.startTime.split(':')[1]),
-      second: 0,
-      millisecond: 0,
-    });
-
-    const shiftEnd = moment(now).set({
-      hour: parseInt(effectiveShift.endTime.split(':')[0]),
-      minute: parseInt(effectiveShift.endTime.split(':')[1]),
-      second: 0,
-      millisecond: 0,
-    });
-
-    // Handle overnight shifts
-    if (shiftEnd.isBefore(shiftStart)) {
-      shiftEnd.add(1, 'day');
-    }
+    const { shiftStart, shiftEnd } = effectiveShiftData;
+    const now = moment().tz('Asia/Bangkok');
 
     const twoHoursBeforeShift = moment(shiftStart).subtract(2, 'hours');
     const lateThreshold = moment(shiftStart).add(30, 'minutes');
@@ -191,19 +160,28 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
 
     return { allowed: true, reason: null, isLate: false, isOvertime: false };
-  }, [
-    attendanceStatus.approvedOvertime,
-    attendanceStatus.shiftAdjustment,
-    userData.assignedShift,
-  ]);
+  }, [getEffectiveShift, attendanceStatus.approvedOvertime]);
 
   useEffect(() => {
-    const checkAllowance = () => {
-      const { allowed, reason } = isCheckInOutAllowed();
-      setDisabledReason(reason);
+    const initializeState = async () => {
+      setIsLoading(true);
+      try {
+        const [outsideShift, checkInOutAllowed] = await Promise.all([
+          isOutsideShift(),
+          isCheckInOutAllowed(),
+        ]);
+        setIsOutsideShiftState(outsideShift);
+        setDisabledReason(checkInOutAllowed.reason);
+      } catch (error) {
+        console.error('Error initializing state:', error);
+        setErrorMessage('An error occurred while loading shift information.');
+      } finally {
+        setIsLoading(false);
+      }
     };
-    checkAllowance();
-  }, [isCheckInOutAllowed]);
+
+    initializeState();
+  }, [isOutsideShift, isCheckInOutAllowed]);
 
   const handleError = (error: unknown, customMessage: string) => {
     console.error(customMessage, error);
@@ -436,50 +414,34 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   // Render part for step 1
   const renderStep1 = () => {
-    const now = moment().tz('Asia/Bangkok');
-    const isOutsideShiftTime = isOutsideShift();
-    const isCheckedIn =
-      attendanceStatus.latestAttendance &&
-      attendanceStatus.latestAttendance.checkInTime &&
-      !attendanceStatus.latestAttendance.checkOutTime;
-    const hasApprovedOvertimeNow =
-      attendanceStatus.approvedOvertime &&
-      moment(attendanceStatus.approvedOvertime.startTime).isSameOrBefore(now) &&
-      moment(attendanceStatus.approvedOvertime.endTime).isSameOrAfter(now);
+    if (isLoading) {
+      return <div>Loading shift information...</div>;
+    }
 
     return (
       <div className="flex flex-col h-full">
-        <div className="flex-grow overflow-y-auto mb-4">
-          <UserShiftInfo
-            userData={userData}
-            attendanceStatus={attendanceStatus}
-            departmentName={userData.department}
-            isOutsideShift={isOutsideShiftTime}
-          />
-        </div>
+        <UserShiftInfo
+          userData={userData}
+          attendanceStatus={attendanceStatus}
+          departmentName={userData.department}
+          isOutsideShift={isOutsideShiftState}
+        />
 
-        <div className="flex-shrink-0">
-          {isOutsideShiftTime && !hasApprovedOvertimeNow && (
-            <p className="text-red-500 text-center mb-4">
-              คุณกำลังลงเวลานอกช่วงเวลาทำงานของคุณ
-            </p>
-          )}
-
-          {(isCheckedIn || !isOutsideShiftTime || hasApprovedOvertimeNow) && (
-            <button
-              onClick={() => setStep('camera')}
-              disabled={!!disabledReason}
-              className={`w-full ${
-                !disabledReason
-                  ? 'bg-red-500 hover:bg-red-600'
-                  : 'bg-gray-400 cursor-not-allowed'
-              } text-white py-3 px-4 rounded-[35px] transition duration-300`}
-            >
-              {!disabledReason
-                ? `เปิดกล้องเพื่อ${hasApprovedOvertimeNow ? 'ลงเวลาทำงานล่วงเวลา' : attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-                : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
-            </button>
-          )}
+        <div className="flex-shrink-0 mt-4">
+          <button
+            onClick={() => setStep('camera')}
+            disabled={!!disabledReason}
+            className={`w-full ${
+              !disabledReason
+                ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-gray-400 cursor-not-allowed'
+            } text-white py-3 px-4 rounded-lg transition duration-300`}
+            aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+          >
+            {!disabledReason
+              ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+              : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+          </button>
           {disabledReason && (
             <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
           )}
