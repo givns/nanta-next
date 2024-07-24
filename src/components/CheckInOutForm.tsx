@@ -89,18 +89,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const getEffectiveShift = useCallback(async () => {
     try {
       const now = new Date();
-      const { shift, shiftStart, shiftEnd } =
-        await shiftManagementService.getEffectiveShift(userData.id, now);
-      return { shift, shiftStart, shiftEnd };
+      const result = await shiftManagementService.getEffectiveShift(
+        userData.id,
+        now,
+      );
+      if (!result) {
+        console.error('No shift data returned from getEffectiveShift');
+        return null;
+      }
+      return result;
     } catch (error) {
       console.error('Error getting effective shift:', error);
       return null;
     }
-  }, [userData.id]);
+  }, [userData.id, shiftManagementService]);
 
   const isOutsideShift = useCallback(async () => {
     const effectiveShiftData = await getEffectiveShift();
-    if (!effectiveShiftData) return false;
+    if (!effectiveShiftData) return true; // Assume outside shift if no data
 
     const { shiftStart, shiftEnd } = effectiveShiftData;
     const now = moment().tz('Asia/Bangkok');
@@ -166,10 +172,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const initializeState = async () => {
       setIsLoading(true);
       try {
+        console.log('Initializing state with user data:', userData);
         const [outsideShift, checkInOutAllowed] = await Promise.all([
           isOutsideShift(),
           isCheckInOutAllowed(),
         ]);
+        console.log('State initialized:', { outsideShift, checkInOutAllowed });
         setIsOutsideShiftState(outsideShift);
         setDisabledReason(checkInOutAllowed.reason);
       } catch (error) {
@@ -181,7 +189,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
 
     initializeState();
-  }, [isOutsideShift, isCheckInOutAllowed]);
+  }, [isOutsideShift, isCheckInOutAllowed, userData]);
 
   const handleError = (error: unknown, customMessage: string) => {
     console.error(customMessage, error);

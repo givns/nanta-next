@@ -113,57 +113,65 @@ export class ShiftManagementService {
   async getEffectiveShift(
     userId: string,
     date: Date,
-  ): Promise<{ shift: Shift; shiftStart: Date; shiftEnd: Date }> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { assignedShift: true },
-    });
+  ): Promise<{ shift: Shift; shiftStart: Date; shiftEnd: Date } | null> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { assignedShift: true },
+      });
 
-    if (!user || !user.assignedShift) {
-      throw new Error('User or assigned shift not found');
-    }
+      if (!user || !user.assignedShift) {
+        console.error('User or assigned shift not found');
+        return null;
+      }
 
-    const startOfDay = new Date(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate(),
-    );
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setDate(endOfDay.getDate() + 1);
+      const startOfDay = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+      );
+      const endOfDay = new Date(startOfDay);
+      endOfDay.setDate(endOfDay.getDate() + 1);
 
-    const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
-      where: {
-        userId,
-        date: {
-          gte: startOfDay,
-          lt: endOfDay,
+      const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
+        where: {
+          userId,
+          date: {
+            gte: startOfDay,
+            lt: endOfDay,
+          },
+          status: 'approved',
         },
-        status: 'approved',
-      },
-      include: { requestedShift: true },
-    });
+        include: { requestedShift: true },
+      });
 
-    const effectiveShift = shiftAdjustment
-      ? shiftAdjustment.requestedShift
-      : user.assignedShift;
+      const effectiveShift = shiftAdjustment
+        ? shiftAdjustment.requestedShift
+        : user.assignedShift;
 
-    const shiftStart = new Date(date);
-    const shiftEnd = new Date(date);
+      const shiftStart = new Date(date);
+      const shiftEnd = new Date(date);
 
-    const [startHour, startMinute] = effectiveShift.startTime
-      .split(':')
-      .map(Number);
-    const [endHour, endMinute] = effectiveShift.endTime.split(':').map(Number);
+      const [startHour, startMinute] = effectiveShift.startTime
+        .split(':')
+        .map(Number);
+      const [endHour, endMinute] = effectiveShift.endTime
+        .split(':')
+        .map(Number);
 
-    shiftStart.setHours(startHour, startMinute, 0, 0);
-    shiftEnd.setHours(endHour, endMinute, 0, 0);
+      shiftStart.setHours(startHour, startMinute, 0, 0);
+      shiftEnd.setHours(endHour, endMinute, 0, 0);
 
-    // Handle overnight shifts
-    if (shiftEnd <= shiftStart) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
+      // Handle overnight shifts
+      if (shiftEnd <= shiftStart) {
+        shiftEnd.setDate(shiftEnd.getDate() + 1);
+      }
+
+      return { shift: effectiveShift, shiftStart, shiftEnd };
+    } catch (error) {
+      console.error('Error in getEffectiveShift:', error);
+      return null;
     }
-
-    return { shift: effectiveShift, shiftStart, shiftEnd };
   }
 
   async getUserShift(userId: string): Promise<Shift | null> {
