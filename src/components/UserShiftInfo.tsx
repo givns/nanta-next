@@ -44,8 +44,16 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   const renderTodayInfo = () => {
     const { message, color } = getStatusMessage();
+    const todayShiftAdjustment =
+      attendanceStatus.shiftAdjustment &&
+      moment(attendanceStatus.shiftAdjustment.date).isSame(
+        moment().startOf('day'),
+        'day',
+      )
+        ? attendanceStatus.shiftAdjustment
+        : null;
     const effectiveShift =
-      todayShiftAdjustment?.shift || userData.assignedShift;
+      todayShiftAdjustment?.requestedShift || userData.assignedShift;
 
     return (
       <div className="bg-white p-4 rounded-box mb-4">
@@ -104,8 +112,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               {effectiveShift.startTime} - {effectiveShift.endTime})
             </p>
             {todayShiftAdjustment && (
-              <p className="text-blue-600 text-center mt-1">
-                เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+              <p className="text-blue-600 mt-1">
+                * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
               </p>
             )}
           </>

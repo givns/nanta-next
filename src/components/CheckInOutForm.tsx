@@ -114,14 +114,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     return now.isBefore(flexibleStart) || now.isAfter(flexibleEnd);
   }, [attendanceStatus.shiftAdjustment, userData.assignedShift]);
 
-  const isCheckInOutAllowed = useCallback(async () => {
+  const isCheckInOutAllowed = useCallback(() => {
     if (attendanceStatus.approvedOvertime)
       return { allowed: true, reason: null, isLate: false, isOvertime: true };
 
     const now = moment().tz('Asia/Bangkok');
+    const today = now.startOf('day');
+
+    // Check if there's a shift adjustment for today
+    const todayShiftAdjustment =
+      attendanceStatus.shiftAdjustment &&
+      moment(attendanceStatus.shiftAdjustment.date).isSame(today, 'day')
+        ? attendanceStatus.shiftAdjustment
+        : null;
+
     const effectiveShift =
-      attendanceStatus.shiftAdjustment?.requestedShift ||
-      userData.assignedShift;
+      todayShiftAdjustment?.requestedShift || userData.assignedShift;
 
     if (!effectiveShift) {
       return {
@@ -190,16 +198,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   ]);
 
   useEffect(() => {
-    const checkAllowance = async () => {
-      const { allowed, reason } = await isCheckInOutAllowed();
-      setDisabledReason(reason);
-    };
-    checkAllowance();
-  }, [isCheckInOutAllowed]);
-
-  useEffect(() => {
-    const checkAllowance = async () => {
-      const { allowed, reason } = await isCheckInOutAllowed();
+    const checkAllowance = () => {
+      const { allowed, reason } = isCheckInOutAllowed();
       setDisabledReason(reason);
     };
     checkAllowance();
