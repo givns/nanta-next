@@ -30,6 +30,7 @@
     "scripts/validatePrismaClient.ts",
     "types/**/*.d.ts",
     "src/**/*",
+    "src/**/*.ts",
     "ecosystem.config.js",
     "next.config.js"
   ],
