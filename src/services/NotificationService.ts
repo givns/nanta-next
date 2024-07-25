@@ -1,7 +1,7 @@
 // NotificationService.ts
 
 import { PrismaClient, User, OvertimeRequest } from '@prisma/client';
-import LineService from './LineService';
+import LineService from '@/services/LineService';
 
 const prisma = new PrismaClient();
 const lineService = new LineService();
