@@ -58,7 +58,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return (
       <div className="bg-white p-4 rounded-box mb-4">
         <div className="flex justify-between items-center mb-2">
-          <span className="font-semibold">สถานะวันนี้</span>
+          <span className="text-xl font-semibold">สถานะวันนี้</span>
           <div className="flex items-center">
             <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
             <span className="text-black-600">{message}</span>
