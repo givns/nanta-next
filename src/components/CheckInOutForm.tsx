@@ -425,6 +425,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   };
 
+  const handleLateReasonSubmit = async (lateReason: string) => {
+    setLateReason(lateReason);
+    setIsLateModalOpen(false);
+    await submitCheckInOut(lateReason);
+  };
+
   const submitCheckInOut = async (lateReasonInput?: string) => {
     try {
       const checkInOutData = {
@@ -433,11 +439,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         checkTime: new Date().toISOString(),
         location: location ? JSON.stringify(location) : null,
         address,
-        reason: !inPremises
-          ? isLate
-            ? lateReasonInput || lateReason
-            : reason
-          : undefined,
+        reason: lateReasonInput || reason,
         photo,
         deviceSerial: 'WEBAPP001',
         isCheckIn: attendanceStatus.isCheckingIn,
@@ -474,28 +476,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         }
         setSuccessMessage(successMsg);
 
-        await router.push('/checkInOutSuccess');
+        router.push('/checkInOutSuccess');
       } else {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
       console.error('Error during check-in/out:', error);
-      if (axios.isAxiosError(error) && error.response) {
-        console.error('Server response:', error.response.data);
-      }
       setErrorMessage(
         'An error occurred during check-in/out. Please try again.',
       );
     }
   };
 
-  const handleLateReasonSubmit = (reason: string) => {
-    setLateReason(reason);
-    setIsLateModalOpen(false);
-    submitCheckInOut(reason);
-  };
-
-  // Render part for step 1
   const renderStep1 = () => {
     if (isLoading) {
       return <div>Loading shift information...</div>;
@@ -561,9 +553,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     <div className="bg-white p-4 rounded-box mb-4">
       <div className="h-full flex flex-col justify-between">
         <div className="overflow-y-auto">
-          <h3 className="text-lg font-semibold mb-2">
-            ยืนยันการ{attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-          </h3>
           <div className="mb-4">
             <label
               htmlFor="address-display"
