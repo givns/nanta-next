@@ -89,24 +89,86 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const getEffectiveShift = useCallback(async () => {
     try {
       const now = new Date();
-      const result = await shiftManagementService.getEffectiveShift(
-        userData.id,
-        now,
-      );
-      if (!result) {
-        console.error('No shift data returned from getEffectiveShift');
-        return null;
+      console.log('Current date:', now);
+      console.log('User data:', userData);
+      console.log('Attendance status:', attendanceStatus);
+
+      if (attendanceStatus.shiftAdjustment) {
+        const adjustmentDate = new Date(attendanceStatus.shiftAdjustment.date);
+        if (adjustmentDate.toDateString() === now.toDateString()) {
+          console.log(
+            'Using shift adjustment:',
+            attendanceStatus.shiftAdjustment.requestedShift,
+          );
+          const [startHour, startMinute] =
+            attendanceStatus.shiftAdjustment.requestedShift.startTime
+              .split(':')
+              .map(Number);
+          const [endHour, endMinute] =
+            attendanceStatus.shiftAdjustment.requestedShift.endTime
+              .split(':')
+              .map(Number);
+          return {
+            shift: attendanceStatus.shiftAdjustment.requestedShift,
+            shiftStart: new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate(),
+              startHour,
+              startMinute,
+            ),
+            shiftEnd: new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate(),
+              endHour,
+              endMinute,
+            ),
+          };
+        }
       }
-      return result;
+
+      if (userData.assignedShift) {
+        console.log('Using assigned shift:', userData.assignedShift);
+        const [startHour, startMinute] = userData.assignedShift.startTime
+          .split(':')
+          .map(Number);
+        const [endHour, endMinute] = userData.assignedShift.endTime
+          .split(':')
+          .map(Number);
+        return {
+          shift: userData.assignedShift,
+          shiftStart: new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+            startHour,
+            startMinute,
+          ),
+          shiftEnd: new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+            endHour,
+            endMinute,
+          ),
+        };
+      }
+
+      console.error('No shift data found');
+      return null;
     } catch (error) {
       console.error('Error getting effective shift:', error);
       return null;
     }
-  }, [userData.id, shiftManagementService]);
+  }, [userData, attendanceStatus]);
 
   const isOutsideShift = useCallback(async () => {
     const effectiveShiftData = await getEffectiveShift();
-    if (!effectiveShiftData) return true; // Assume outside shift if no data
+    if (!effectiveShiftData) {
+      console.error('No effective shift data found');
+      return true; // Assume outside shift if no data
+    }
 
     const { shiftStart, shiftEnd } = effectiveShiftData;
     const now = moment().tz('Asia/Bangkok');
@@ -114,15 +176,20 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const flexibleStart = moment(shiftStart).subtract(30, 'minutes');
     const flexibleEnd = moment(shiftEnd).add(30, 'minutes');
 
-    return now.isBefore(flexibleStart) || now.isAfter(flexibleEnd);
+    const result = now.isBefore(flexibleStart) || now.isAfter(flexibleEnd);
+    console.log('Is outside shift:', result);
+    return result;
   }, [getEffectiveShift]);
 
   const isCheckInOutAllowed = useCallback(async () => {
-    if (attendanceStatus.approvedOvertime)
+    if (attendanceStatus.approvedOvertime) {
+      console.log('Approved overtime found');
       return { allowed: true, reason: null, isLate: false, isOvertime: true };
+    }
 
     const effectiveShiftData = await getEffectiveShift();
     if (!effectiveShiftData) {
+      console.error('No effective shift data found');
       return {
         allowed: false,
         reason: 'ไม่พบข้อมูลกะการทำงาน กรุณาติดต่อ HR',
@@ -173,12 +240,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setIsLoading(true);
       try {
         console.log('Initializing state with user data:', userData);
+        console.log('Attendance status:', attendanceStatus);
         const [outsideShift, checkInOutAllowed] = await Promise.all([
           isOutsideShift(),
           isCheckInOutAllowed(),
         ]);
         console.log('State initialized:', { outsideShift, checkInOutAllowed });
         setIsOutsideShiftState(outsideShift);
+        setCheckInOutAllowedState(checkInOutAllowed);
         setDisabledReason(checkInOutAllowed.reason);
       } catch (error) {
         console.error('Error initializing state:', error);
@@ -189,7 +258,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
 
     initializeState();
-  }, [isOutsideShift, isCheckInOutAllowed, userData]);
+  }, [isOutsideShift, isCheckInOutAllowed, userData, attendanceStatus]);
 
   const handleError = (error: unknown, customMessage: string) => {
     console.error(customMessage, error);
@@ -438,20 +507,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <div className="flex-shrink-0 mt-4">
           <button
             onClick={() => setStep('camera')}
-            disabled={!!disabledReason}
+            disabled={!checkInOutAllowedState.allowed}
             className={`w-full ${
-              !disabledReason
+              checkInOutAllowedState.allowed
                 ? 'bg-red-500 hover:bg-red-600'
                 : 'bg-gray-400 cursor-not-allowed'
             } text-white py-3 px-4 rounded-lg transition duration-300`}
             aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
           >
-            {!disabledReason
+            {checkInOutAllowedState.allowed
               ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
               : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
           </button>
-          {disabledReason && (
-            <p className="text-red-500 text-sm mt-2">{disabledReason}</p>
+          {checkInOutAllowedState.reason && (
+            <p className="text-red-500 text-sm mt-2">
+              {checkInOutAllowedState.reason}
+            </p>
           )}
         </div>
       </div>

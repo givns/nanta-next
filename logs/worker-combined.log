@@ -41436,3 +41436,993 @@
 2024-07-24 19:55:18 +07:00: Worker still running...
 2024-07-24 19:56:18 +07:00: Worker still running...
 2024-07-24 19:57:18 +07:00: Worker still running...
+2024-07-24 19:58:18 +07:00: Worker still running...
+2024-07-24 19:59:18 +07:00: Worker still running...
+2024-07-24 19:59:22 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 19:59:22 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 19:59:22 +07:00:   errno: -54,
+2024-07-24 19:59:22 +07:00:   code: 'ECONNRESET',
+2024-07-24 19:59:22 +07:00:   syscall: 'read'
+2024-07-24 19:59:22 +07:00: }
+2024-07-24 19:59:22 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 19:59:22 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 19:59:22 +07:00:   errno: -54,
+2024-07-24 19:59:22 +07:00:   code: 'ECONNRESET',
+2024-07-24 19:59:22 +07:00:   syscall: 'read'
+2024-07-24 19:59:22 +07:00: }
+2024-07-24 19:59:31 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 19:59:31 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 19:59:31 +07:00:   errno: -54,
+2024-07-24 19:59:31 +07:00:   code: 'ECONNRESET',
+2024-07-24 19:59:31 +07:00:   syscall: 'read'
+2024-07-24 19:59:31 +07:00: }
+2024-07-24 19:59:31 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 19:59:31 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 19:59:31 +07:00:   errno: -54,
+2024-07-24 19:59:31 +07:00:   code: 'ECONNRESET',
+2024-07-24 19:59:31 +07:00:   syscall: 'read'
+2024-07-24 19:59:31 +07:00: }
+2024-07-24 20:00:18 +07:00: Worker still running...
+2024-07-24 20:01:18 +07:00: Worker still running...
+2024-07-24 20:02:18 +07:00: Worker still running...
+2024-07-24 20:03:18 +07:00: Worker still running...
+2024-07-24 20:04:18 +07:00: Worker still running...
+2024-07-24 20:05:18 +07:00: Worker still running...
+2024-07-24 20:06:18 +07:00: Worker still running...
+2024-07-24 20:07:18 +07:00: Worker still running...
+2024-07-24 20:08:18 +07:00: Worker still running...
+2024-07-24 20:13:37 +07:00: Worker still running...
+2024-07-24 20:13:37 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 20:13:37 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 20:13:37 +07:00:   errno: -54,
+2024-07-24 20:13:37 +07:00:   code: 'ECONNRESET',
+2024-07-24 20:13:37 +07:00:   syscall: 'read'
+2024-07-24 20:13:37 +07:00: }
+2024-07-24 20:13:37 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 20:13:37 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 20:13:37 +07:00:   errno: -54,
+2024-07-24 20:13:37 +07:00:   code: 'ECONNRESET',
+2024-07-24 20:13:37 +07:00:   syscall: 'read'
+2024-07-24 20:13:37 +07:00: }
+2024-07-24 20:29:23 +07:00: Worker still running...
+2024-07-24 20:29:23 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 20:29:23 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 20:29:23 +07:00:   errno: -54,
+2024-07-24 20:29:23 +07:00:   code: 'ECONNRESET',
+2024-07-24 20:29:23 +07:00:   syscall: 'read'
+2024-07-24 20:29:23 +07:00: }
+2024-07-24 20:29:23 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 20:29:23 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 20:29:23 +07:00:   errno: -54,
+2024-07-24 20:29:23 +07:00:   code: 'ECONNRESET',
+2024-07-24 20:29:23 +07:00:   syscall: 'read'
+2024-07-24 20:29:23 +07:00: }
+2024-07-24 20:30:23 +07:00: Worker still running...
+2024-07-24 20:31:23 +07:00: Worker still running...
+2024-07-24 20:47:14 +07:00: Worker still running...
+2024-07-24 20:47:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 20:47:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 20:47:14 +07:00:   errno: -54,
+2024-07-24 20:47:14 +07:00:   code: 'ECONNRESET',
+2024-07-24 20:47:14 +07:00:   syscall: 'read'
+2024-07-24 20:47:14 +07:00: }
+2024-07-24 20:47:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 20:47:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 20:47:14 +07:00:   errno: -54,
+2024-07-24 20:47:14 +07:00:   code: 'ECONNRESET',
+2024-07-24 20:47:14 +07:00:   syscall: 'read'
+2024-07-24 20:47:14 +07:00: }
+2024-07-24 20:48:14 +07:00: Worker still running...
+2024-07-24 20:49:14 +07:00: Worker still running...
+2024-07-24 21:05:14 +07:00: Worker still running...
+2024-07-24 21:06:14 +07:00: Worker still running...
+2024-07-24 21:06:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 21:06:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 21:06:14 +07:00:   errno: -54,
+2024-07-24 21:06:14 +07:00:   code: 'ECONNRESET',
+2024-07-24 21:06:14 +07:00:   syscall: 'read'
+2024-07-24 21:06:14 +07:00: }
+2024-07-24 21:06:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 21:06:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 21:06:14 +07:00:   errno: -54,
+2024-07-24 21:06:14 +07:00:   code: 'ECONNRESET',
+2024-07-24 21:06:14 +07:00:   syscall: 'read'
+2024-07-24 21:06:14 +07:00: }
+2024-07-24 21:07:14 +07:00: Worker still running...
+2024-07-24 21:23:05 +07:00: Worker still running...
+2024-07-24 21:23:05 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 21:23:05 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 21:23:05 +07:00:   errno: -54,
+2024-07-24 21:23:05 +07:00:   code: 'ECONNRESET',
+2024-07-24 21:23:05 +07:00:   syscall: 'read'
+2024-07-24 21:23:05 +07:00: }
+2024-07-24 21:23:05 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 21:23:05 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 21:23:05 +07:00:   errno: -54,
+2024-07-24 21:23:05 +07:00:   code: 'ECONNRESET',
+2024-07-24 21:23:05 +07:00:   syscall: 'read'
+2024-07-24 21:23:05 +07:00: }
+2024-07-24 21:24:05 +07:00: Worker still running...
+2024-07-24 21:25:05 +07:00: Worker still running...
+2024-07-24 21:26:05 +07:00: Worker still running...
+2024-07-24 21:41:42 +07:00: Worker still running...
+2024-07-24 21:41:42 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 21:41:42 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 21:41:42 +07:00:   errno: -54,
+2024-07-24 21:41:42 +07:00:   code: 'ECONNRESET',
+2024-07-24 21:41:42 +07:00:   syscall: 'read'
+2024-07-24 21:41:42 +07:00: }
+2024-07-24 21:41:42 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 21:41:42 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 21:41:42 +07:00:   errno: -54,
+2024-07-24 21:41:42 +07:00:   code: 'ECONNRESET',
+2024-07-24 21:41:42 +07:00:   syscall: 'read'
+2024-07-24 21:41:42 +07:00: }
+2024-07-24 21:48:13 +07:00: Worker still running...
+2024-07-24 21:48:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 21:48:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 21:48:14 +07:00:   errno: -54,
+2024-07-24 21:48:14 +07:00:   code: 'ECONNRESET',
+2024-07-24 21:48:14 +07:00:   syscall: 'read'
+2024-07-24 21:48:14 +07:00: }
+2024-07-24 21:48:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 21:48:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 21:48:14 +07:00:   errno: -54,
+2024-07-24 21:48:14 +07:00:   code: 'ECONNRESET',
+2024-07-24 21:48:14 +07:00:   syscall: 'read'
+2024-07-24 21:48:14 +07:00: }
+2024-07-24 21:49:13 +07:00: Worker still running...
+2024-07-24 21:50:14 +07:00: Worker still running...
+2024-07-24 22:04:54 +07:00: Worker still running...
+2024-07-24 22:04:54 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 22:04:54 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 22:04:54 +07:00:   errno: -54,
+2024-07-24 22:04:54 +07:00:   code: 'ECONNRESET',
+2024-07-24 22:04:54 +07:00:   syscall: 'read'
+2024-07-24 22:04:54 +07:00: }
+2024-07-24 22:04:54 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 22:04:54 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 22:04:54 +07:00:   errno: -54,
+2024-07-24 22:04:54 +07:00:   code: 'ECONNRESET',
+2024-07-24 22:04:54 +07:00:   syscall: 'read'
+2024-07-24 22:04:54 +07:00: }
+2024-07-24 22:05:54 +07:00: Worker still running...
+2024-07-24 22:06:54 +07:00: Worker still running...
+2024-07-24 22:07:54 +07:00: Worker still running...
+2024-07-24 22:08:54 +07:00: Worker still running...
+2024-07-24 22:09:54 +07:00: Worker still running...
+2024-07-24 22:10:54 +07:00: Worker still running...
+2024-07-24 22:12:01 +07:00: Worker still running...
+2024-07-24 22:27:52 +07:00: Worker still running...
+2024-07-24 22:27:52 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 22:27:52 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 22:27:52 +07:00:   errno: -54,
+2024-07-24 22:27:52 +07:00:   code: 'ECONNRESET',
+2024-07-24 22:27:52 +07:00:   syscall: 'read'
+2024-07-24 22:27:52 +07:00: }
+2024-07-24 22:27:52 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 22:27:52 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 22:27:52 +07:00:   errno: -54,
+2024-07-24 22:27:52 +07:00:   code: 'ECONNRESET',
+2024-07-24 22:27:52 +07:00:   syscall: 'read'
+2024-07-24 22:27:52 +07:00: }
+2024-07-24 22:28:52 +07:00: Worker still running...
+2024-07-24 22:29:52 +07:00: Worker still running...
+2024-07-24 22:45:49 +07:00: Worker still running...
+2024-07-24 22:45:50 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 22:45:50 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 22:45:50 +07:00:   errno: -54,
+2024-07-24 22:45:50 +07:00:   code: 'ECONNRESET',
+2024-07-24 22:45:50 +07:00:   syscall: 'read'
+2024-07-24 22:45:50 +07:00: }
+2024-07-24 22:45:50 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 22:45:50 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 22:45:50 +07:00:   errno: -54,
+2024-07-24 22:45:50 +07:00:   code: 'ECONNRESET',
+2024-07-24 22:45:50 +07:00:   syscall: 'read'
+2024-07-24 22:45:50 +07:00: }
+2024-07-24 22:46:49 +07:00: Worker still running...
+2024-07-24 22:47:49 +07:00: Worker still running...
+2024-07-24 23:03:41 +07:00: Worker still running...
+2024-07-24 23:03:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 23:03:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 23:03:41 +07:00:   errno: -54,
+2024-07-24 23:03:41 +07:00:   code: 'ECONNRESET',
+2024-07-24 23:03:41 +07:00:   syscall: 'read'
+2024-07-24 23:03:41 +07:00: }
+2024-07-24 23:03:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 23:03:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 23:03:41 +07:00:   errno: -54,
+2024-07-24 23:03:41 +07:00:   code: 'ECONNRESET',
+2024-07-24 23:03:41 +07:00:   syscall: 'read'
+2024-07-24 23:03:41 +07:00: }
+2024-07-24 23:04:41 +07:00: Worker still running...
+2024-07-24 23:05:41 +07:00: Worker still running...
+2024-07-24 23:06:41 +07:00: Worker still running...
+2024-07-24 23:21:58 +07:00: Worker still running...
+2024-07-24 23:21:58 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 23:21:58 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 23:21:58 +07:00:   errno: -54,
+2024-07-24 23:21:58 +07:00:   code: 'ECONNRESET',
+2024-07-24 23:21:58 +07:00:   syscall: 'read'
+2024-07-24 23:21:58 +07:00: }
+2024-07-24 23:21:58 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 23:21:58 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 23:21:58 +07:00:   errno: -54,
+2024-07-24 23:21:58 +07:00:   code: 'ECONNRESET',
+2024-07-24 23:21:58 +07:00:   syscall: 'read'
+2024-07-24 23:21:58 +07:00: }
+2024-07-24 23:22:58 +07:00: Worker still running...
+2024-07-24 23:23:58 +07:00: Worker still running...
+2024-07-24 23:39:55 +07:00: Worker still running...
+2024-07-24 23:39:55 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 23:39:55 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 23:39:55 +07:00:   errno: -54,
+2024-07-24 23:39:55 +07:00:   code: 'ECONNRESET',
+2024-07-24 23:39:55 +07:00:   syscall: 'read'
+2024-07-24 23:39:55 +07:00: }
+2024-07-24 23:39:55 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 23:39:55 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 23:39:55 +07:00:   errno: -54,
+2024-07-24 23:39:55 +07:00:   code: 'ECONNRESET',
+2024-07-24 23:39:55 +07:00:   syscall: 'read'
+2024-07-24 23:39:55 +07:00: }
+2024-07-24 23:40:55 +07:00: Worker still running...
+2024-07-24 23:41:55 +07:00: Worker still running...
+2024-07-24 23:57:31 +07:00: Worker still running...
+2024-07-24 23:57:31 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 23:57:31 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 23:57:31 +07:00:   errno: -54,
+2024-07-24 23:57:31 +07:00:   code: 'ECONNRESET',
+2024-07-24 23:57:31 +07:00:   syscall: 'read'
+2024-07-24 23:57:31 +07:00: }
+2024-07-24 23:57:31 +07:00: Queue error: Error: read ECONNRESET
+2024-07-24 23:57:31 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-24 23:57:31 +07:00:   errno: -54,
+2024-07-24 23:57:31 +07:00:   code: 'ECONNRESET',
+2024-07-24 23:57:31 +07:00:   syscall: 'read'
+2024-07-24 23:57:31 +07:00: }
+2024-07-24 23:58:31 +07:00: Worker still running...
+2024-07-24 23:59:31 +07:00: Worker still running...
+2024-07-25 00:05:54 +07:00: Worker still running...
+2024-07-25 00:05:54 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 00:05:54 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 00:05:54 +07:00:   errno: -54,
+2024-07-25 00:05:54 +07:00:   code: 'ECONNRESET',
+2024-07-25 00:05:54 +07:00:   syscall: 'read'
+2024-07-25 00:05:54 +07:00: }
+2024-07-25 00:05:54 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 00:05:54 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 00:05:54 +07:00:   errno: -54,
+2024-07-25 00:05:54 +07:00:   code: 'ECONNRESET',
+2024-07-25 00:05:54 +07:00:   syscall: 'read'
+2024-07-25 00:05:54 +07:00: }
+2024-07-25 00:06:54 +07:00: Worker still running...
+2024-07-25 00:07:54 +07:00: Worker still running...
+2024-07-25 00:23:40 +07:00: Worker still running...
+2024-07-25 00:23:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 00:23:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 00:23:41 +07:00:   errno: -54,
+2024-07-25 00:23:41 +07:00:   code: 'ECONNRESET',
+2024-07-25 00:23:41 +07:00:   syscall: 'read'
+2024-07-25 00:23:41 +07:00: }
+2024-07-25 00:23:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 00:23:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 00:23:41 +07:00:   errno: -54,
+2024-07-25 00:23:41 +07:00:   code: 'ECONNRESET',
+2024-07-25 00:23:41 +07:00:   syscall: 'read'
+2024-07-25 00:23:41 +07:00: }
+2024-07-25 00:24:40 +07:00: Worker still running...
+2024-07-25 00:25:40 +07:00: Worker still running...
+2024-07-25 00:41:28 +07:00: Worker still running...
+2024-07-25 00:41:28 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 00:41:28 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 00:41:28 +07:00:   errno: -54,
+2024-07-25 00:41:28 +07:00:   code: 'ECONNRESET',
+2024-07-25 00:41:28 +07:00:   syscall: 'read'
+2024-07-25 00:41:28 +07:00: }
+2024-07-25 00:41:28 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 00:41:28 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 00:41:28 +07:00:   errno: -54,
+2024-07-25 00:41:28 +07:00:   code: 'ECONNRESET',
+2024-07-25 00:41:28 +07:00:   syscall: 'read'
+2024-07-25 00:41:28 +07:00: }
+2024-07-25 00:42:28 +07:00: Worker still running...
+2024-07-25 00:43:28 +07:00: Worker still running...
+2024-07-25 00:59:14 +07:00: Worker still running...
+2024-07-25 00:59:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 00:59:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 00:59:14 +07:00:   errno: -54,
+2024-07-25 00:59:14 +07:00:   code: 'ECONNRESET',
+2024-07-25 00:59:14 +07:00:   syscall: 'read'
+2024-07-25 00:59:14 +07:00: }
+2024-07-25 00:59:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 00:59:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 00:59:14 +07:00:   errno: -54,
+2024-07-25 00:59:14 +07:00:   code: 'ECONNRESET',
+2024-07-25 00:59:14 +07:00:   syscall: 'read'
+2024-07-25 00:59:14 +07:00: }
+2024-07-25 01:00:14 +07:00: Worker still running...
+2024-07-25 01:01:14 +07:00: Worker still running...
+2024-07-25 01:02:14 +07:00: Worker still running...
+2024-07-25 01:03:14 +07:00: Worker still running...
+2024-07-25 01:04:14 +07:00: Worker still running...
+2024-07-25 01:05:14 +07:00: Worker still running...
+2024-07-25 01:06:14 +07:00: Worker still running...
+2024-07-25 01:07:14 +07:00: Worker still running...
+2024-07-25 01:23:16 +07:00: Worker still running...
+2024-07-25 01:23:16 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 01:23:16 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 01:23:16 +07:00:   errno: -54,
+2024-07-25 01:23:16 +07:00:   code: 'ECONNRESET',
+2024-07-25 01:23:16 +07:00:   syscall: 'read'
+2024-07-25 01:23:16 +07:00: }
+2024-07-25 01:23:16 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 01:23:16 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 01:23:16 +07:00:   errno: -54,
+2024-07-25 01:23:16 +07:00:   code: 'ECONNRESET',
+2024-07-25 01:23:16 +07:00:   syscall: 'read'
+2024-07-25 01:23:16 +07:00: }
+2024-07-25 01:24:16 +07:00: Worker still running...
+2024-07-25 01:25:16 +07:00: Worker still running...
+2024-07-25 01:26:16 +07:00: Worker still running...
+2024-07-25 01:41:23 +07:00: Worker still running...
+2024-07-25 01:41:23 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 01:41:23 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 01:41:23 +07:00:   errno: -54,
+2024-07-25 01:41:23 +07:00:   code: 'ECONNRESET',
+2024-07-25 01:41:23 +07:00:   syscall: 'read'
+2024-07-25 01:41:23 +07:00: }
+2024-07-25 01:41:23 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 01:41:23 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 01:41:23 +07:00:   errno: -54,
+2024-07-25 01:41:23 +07:00:   code: 'ECONNRESET',
+2024-07-25 01:41:23 +07:00:   syscall: 'read'
+2024-07-25 01:41:23 +07:00: }
+2024-07-25 01:42:23 +07:00: Worker still running...
+2024-07-25 01:43:23 +07:00: Worker still running...
+2024-07-25 01:44:23 +07:00: Worker still running...
+2024-07-25 01:59:50 +07:00: Worker still running...
+2024-07-25 01:59:50 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 01:59:50 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 01:59:50 +07:00:   errno: -54,
+2024-07-25 01:59:50 +07:00:   code: 'ECONNRESET',
+2024-07-25 01:59:50 +07:00:   syscall: 'read'
+2024-07-25 01:59:50 +07:00: }
+2024-07-25 01:59:50 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 01:59:50 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 01:59:50 +07:00:   errno: -54,
+2024-07-25 01:59:50 +07:00:   code: 'ECONNRESET',
+2024-07-25 01:59:50 +07:00:   syscall: 'read'
+2024-07-25 01:59:50 +07:00: }
+2024-07-25 02:00:50 +07:00: Worker still running...
+2024-07-25 02:01:50 +07:00: Worker still running...
+2024-07-25 02:06:57 +07:00: Worker still running...
+2024-07-25 02:06:57 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 02:06:57 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 02:06:57 +07:00:   errno: -54,
+2024-07-25 02:06:57 +07:00:   code: 'ECONNRESET',
+2024-07-25 02:06:57 +07:00:   syscall: 'read'
+2024-07-25 02:06:57 +07:00: }
+2024-07-25 02:06:57 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 02:06:57 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 02:06:57 +07:00:   errno: -54,
+2024-07-25 02:06:57 +07:00:   code: 'ECONNRESET',
+2024-07-25 02:06:57 +07:00:   syscall: 'read'
+2024-07-25 02:06:57 +07:00: }
+2024-07-25 02:07:57 +07:00: Worker still running...
+2024-07-25 02:08:57 +07:00: Worker still running...
+2024-07-25 02:24:43 +07:00: Worker still running...
+2024-07-25 02:24:43 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 02:24:43 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 02:24:43 +07:00:   errno: -54,
+2024-07-25 02:24:43 +07:00:   code: 'ECONNRESET',
+2024-07-25 02:24:43 +07:00:   syscall: 'read'
+2024-07-25 02:24:43 +07:00: }
+2024-07-25 02:24:43 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 02:24:43 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 02:24:43 +07:00:   errno: -54,
+2024-07-25 02:24:43 +07:00:   code: 'ECONNRESET',
+2024-07-25 02:24:43 +07:00:   syscall: 'read'
+2024-07-25 02:24:43 +07:00: }
+2024-07-25 02:25:43 +07:00: Worker still running...
+2024-07-25 02:26:43 +07:00: Worker still running...
+2024-07-25 02:27:43 +07:00: Worker still running...
+2024-07-25 02:28:43 +07:00: Worker still running...
+2024-07-25 02:29:43 +07:00: Worker still running...
+2024-07-25 02:30:43 +07:00: Worker still running...
+2024-07-25 02:31:43 +07:00: Worker still running...
+2024-07-25 02:32:43 +07:00: Worker still running...
+2024-07-25 02:33:43 +07:00: Worker still running...
+2024-07-25 02:34:43 +07:00: Worker still running...
+2024-07-25 02:35:43 +07:00: Worker still running...
+2024-07-25 02:36:43 +07:00: Worker still running...
+2024-07-25 02:37:43 +07:00: Worker still running...
+2024-07-25 02:38:43 +07:00: Worker still running...
+2024-07-25 02:39:43 +07:00: Worker still running...
+2024-07-25 02:40:43 +07:00: Worker still running...
+2024-07-25 02:41:43 +07:00: Worker still running...
+2024-07-25 02:42:43 +07:00: Worker still running...
+2024-07-25 02:43:43 +07:00: Worker still running...
+2024-07-25 02:44:43 +07:00: Worker still running...
+2024-07-25 02:45:43 +07:00: Worker still running...
+2024-07-25 02:46:43 +07:00: Worker still running...
+2024-07-25 02:47:43 +07:00: Worker still running...
+2024-07-25 03:04:04 +07:00: Worker still running...
+2024-07-25 03:04:04 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:04:04 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:04:04 +07:00:   errno: -54,
+2024-07-25 03:04:04 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:04:04 +07:00:   syscall: 'read'
+2024-07-25 03:04:04 +07:00: }
+2024-07-25 03:04:04 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:04:04 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:04:04 +07:00:   errno: -54,
+2024-07-25 03:04:04 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:04:04 +07:00:   syscall: 'read'
+2024-07-25 03:04:04 +07:00: }
+2024-07-25 03:05:04 +07:00: Worker still running...
+2024-07-25 03:06:04 +07:00: Worker still running...
+2024-07-25 03:07:55 +07:00: Worker still running...
+2024-07-25 03:07:55 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:07:55 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:07:55 +07:00:   errno: -54,
+2024-07-25 03:07:55 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:07:55 +07:00:   syscall: 'read'
+2024-07-25 03:07:55 +07:00: }
+2024-07-25 03:07:55 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:07:55 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:07:55 +07:00:   errno: -54,
+2024-07-25 03:07:55 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:07:55 +07:00:   syscall: 'read'
+2024-07-25 03:07:55 +07:00: }
+2024-07-25 03:23:41 +07:00: Worker still running...
+2024-07-25 03:23:42 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:23:42 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:23:42 +07:00:   errno: -54,
+2024-07-25 03:23:42 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:23:42 +07:00:   syscall: 'read'
+2024-07-25 03:23:42 +07:00: }
+2024-07-25 03:23:42 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:23:42 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:23:42 +07:00:   errno: -54,
+2024-07-25 03:23:42 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:23:42 +07:00:   syscall: 'read'
+2024-07-25 03:23:42 +07:00: }
+2024-07-25 03:39:32 +07:00: Worker still running...
+2024-07-25 03:39:32 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:39:32 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:39:32 +07:00:   errno: -54,
+2024-07-25 03:39:32 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:39:32 +07:00:   syscall: 'read'
+2024-07-25 03:39:32 +07:00: }
+2024-07-25 03:39:32 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:39:32 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:39:32 +07:00:   errno: -54,
+2024-07-25 03:39:32 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:39:32 +07:00:   syscall: 'read'
+2024-07-25 03:39:32 +07:00: }
+2024-07-25 03:55:18 +07:00: Worker still running...
+2024-07-25 03:55:18 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:55:18 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:55:18 +07:00:   errno: -54,
+2024-07-25 03:55:18 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:55:18 +07:00:   syscall: 'read'
+2024-07-25 03:55:18 +07:00: }
+2024-07-25 03:55:18 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 03:55:18 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 03:55:18 +07:00:   errno: -54,
+2024-07-25 03:55:18 +07:00:   code: 'ECONNRESET',
+2024-07-25 03:55:18 +07:00:   syscall: 'read'
+2024-07-25 03:55:18 +07:00: }
+2024-07-25 03:56:18 +07:00: Worker still running...
+2024-07-25 03:57:18 +07:00: Worker still running...
+2024-07-25 03:58:18 +07:00: Worker still running...
+2024-07-25 04:08:54 +07:00: Worker still running...
+2024-07-25 04:08:54 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:08:54 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:08:54 +07:00:   errno: -54,
+2024-07-25 04:08:54 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:08:54 +07:00:   syscall: 'read'
+2024-07-25 04:08:54 +07:00: }
+2024-07-25 04:08:54 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:08:54 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:08:54 +07:00:   errno: -54,
+2024-07-25 04:08:54 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:08:54 +07:00:   syscall: 'read'
+2024-07-25 04:08:54 +07:00: }
+2024-07-25 04:09:54 +07:00: Worker still running...
+2024-07-25 04:10:54 +07:00: Worker still running...
+2024-07-25 04:15:30 +07:00: Worker still running...
+2024-07-25 04:15:31 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:15:31 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:15:31 +07:00:   errno: -54,
+2024-07-25 04:15:31 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:15:31 +07:00:   syscall: 'read'
+2024-07-25 04:15:31 +07:00: }
+2024-07-25 04:15:31 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:15:31 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:15:31 +07:00:   errno: -54,
+2024-07-25 04:15:31 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:15:31 +07:00:   syscall: 'read'
+2024-07-25 04:15:31 +07:00: }
+2024-07-25 04:31:21 +07:00: Worker still running...
+2024-07-25 04:31:21 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:31:21 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:31:21 +07:00:   errno: -54,
+2024-07-25 04:31:21 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:31:21 +07:00:   syscall: 'read'
+2024-07-25 04:31:21 +07:00: }
+2024-07-25 04:31:21 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:31:21 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:31:21 +07:00:   errno: -54,
+2024-07-25 04:31:21 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:31:21 +07:00:   syscall: 'read'
+2024-07-25 04:31:21 +07:00: }
+2024-07-25 04:32:22 +07:00: Worker still running...
+2024-07-25 04:33:22 +07:00: Worker still running...
+2024-07-25 04:34:22 +07:00: Worker still running...
+2024-07-25 04:35:22 +07:00: Worker still running...
+2024-07-25 04:36:22 +07:00: Worker still running...
+2024-07-25 04:37:22 +07:00: Worker still running...
+2024-07-25 04:38:22 +07:00: Worker still running...
+2024-07-25 04:39:14 +07:00: Queue error: Error: read ETIMEDOUT
+2024-07-25 04:39:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:39:14 +07:00:   errno: -60,
+2024-07-25 04:39:14 +07:00:   code: 'ETIMEDOUT',
+2024-07-25 04:39:14 +07:00:   syscall: 'read'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:14 +07:00: Queue error: Error: read ETIMEDOUT
+2024-07-25 04:39:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:39:14 +07:00:   errno: -60,
+2024-07-25 04:39:14 +07:00:   code: 'ETIMEDOUT',
+2024-07-25 04:39:14 +07:00:   syscall: 'read'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:14 +07:00:   errno: -3008,
+2024-07-25 04:39:14 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:14 +07:00:   errno: -3008,
+2024-07-25 04:39:14 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:14 +07:00:   errno: -3008,
+2024-07-25 04:39:14 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:14 +07:00:   errno: -3008,
+2024-07-25 04:39:14 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:14 +07:00:   errno: -3008,
+2024-07-25 04:39:14 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:14 +07:00:   errno: -3008,
+2024-07-25 04:39:14 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:14 +07:00:   errno: -3008,
+2024-07-25 04:39:14 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:14 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:14 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:14 +07:00:   errno: -3008,
+2024-07-25 04:39:14 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:14 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:14 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:14 +07:00: }
+2024-07-25 04:39:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:15 +07:00:   errno: -3008,
+2024-07-25 04:39:15 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:15 +07:00: }
+2024-07-25 04:39:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:15 +07:00:   errno: -3008,
+2024-07-25 04:39:15 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:15 +07:00: }
+2024-07-25 04:39:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:15 +07:00:   errno: -3008,
+2024-07-25 04:39:15 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:15 +07:00: }
+2024-07-25 04:39:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:15 +07:00:   errno: -3008,
+2024-07-25 04:39:15 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:15 +07:00: }
+2024-07-25 04:39:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:15 +07:00:   errno: -3008,
+2024-07-25 04:39:15 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:15 +07:00: }
+2024-07-25 04:39:15 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:15 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:15 +07:00:   errno: -3008,
+2024-07-25 04:39:15 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:15 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:15 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:15 +07:00: }
+2024-07-25 04:39:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:16 +07:00:   errno: -3008,
+2024-07-25 04:39:16 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:16 +07:00: }
+2024-07-25 04:39:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:16 +07:00:   errno: -3008,
+2024-07-25 04:39:16 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:16 +07:00: }
+2024-07-25 04:39:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:16 +07:00:   errno: -3008,
+2024-07-25 04:39:16 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:16 +07:00: }
+2024-07-25 04:39:16 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:16 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:16 +07:00:   errno: -3008,
+2024-07-25 04:39:16 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:16 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:16 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:16 +07:00: }
+2024-07-25 04:39:17 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:17 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:17 +07:00:   errno: -3008,
+2024-07-25 04:39:17 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:17 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:17 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:17 +07:00: }
+2024-07-25 04:39:17 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:17 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:17 +07:00:   errno: -3008,
+2024-07-25 04:39:17 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:17 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:17 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:17 +07:00: }
+2024-07-25 04:39:17 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:17 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:17 +07:00:   errno: -3008,
+2024-07-25 04:39:17 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:17 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:17 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:17 +07:00: }
+2024-07-25 04:39:17 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:17 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:17 +07:00:   errno: -3008,
+2024-07-25 04:39:17 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:17 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:17 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:17 +07:00: }
+2024-07-25 04:39:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:18 +07:00:   errno: -3008,
+2024-07-25 04:39:18 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:18 +07:00: }
+2024-07-25 04:39:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:18 +07:00:   errno: -3008,
+2024-07-25 04:39:18 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:18 +07:00: }
+2024-07-25 04:39:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:18 +07:00:   errno: -3008,
+2024-07-25 04:39:18 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:18 +07:00: }
+2024-07-25 04:39:18 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:18 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:18 +07:00:   errno: -3008,
+2024-07-25 04:39:18 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:18 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:18 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:18 +07:00: }
+2024-07-25 04:39:19 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:19 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:19 +07:00:   errno: -3008,
+2024-07-25 04:39:19 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:19 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:19 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:19 +07:00: }
+2024-07-25 04:39:19 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:19 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:19 +07:00:   errno: -3008,
+2024-07-25 04:39:19 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:19 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:19 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:19 +07:00: }
+2024-07-25 04:39:20 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:20 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:20 +07:00:   errno: -3008,
+2024-07-25 04:39:20 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:20 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:20 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:20 +07:00: }
+2024-07-25 04:39:20 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:20 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:20 +07:00:   errno: -3008,
+2024-07-25 04:39:20 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:20 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:20 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:20 +07:00: }
+2024-07-25 04:39:21 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:21 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:21 +07:00:   errno: -3008,
+2024-07-25 04:39:21 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:21 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:21 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:21 +07:00: }
+2024-07-25 04:39:21 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:21 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:21 +07:00:   errno: -3008,
+2024-07-25 04:39:21 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:21 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:21 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:21 +07:00: }
+2024-07-25 04:39:22 +07:00: Worker still running...
+2024-07-25 04:39:22 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:22 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:22 +07:00:   errno: -3008,
+2024-07-25 04:39:22 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:22 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:22 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:22 +07:00: }
+2024-07-25 04:39:22 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:22 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:22 +07:00:   errno: -3008,
+2024-07-25 04:39:22 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:22 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:22 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:22 +07:00: }
+2024-07-25 04:39:23 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:23 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:23 +07:00:   errno: -3008,
+2024-07-25 04:39:23 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:23 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:23 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:23 +07:00: }
+2024-07-25 04:39:23 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:23 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:23 +07:00:   errno: -3008,
+2024-07-25 04:39:23 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:23 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:23 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:23 +07:00: }
+2024-07-25 04:39:23 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:23 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:23 +07:00:   errno: -3008,
+2024-07-25 04:39:23 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:23 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:23 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:23 +07:00: }
+2024-07-25 04:39:23 +07:00: Queue error: Error: getaddrinfo ENOTFOUND redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com
+2024-07-25 04:39:23 +07:00:     at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:109:26) {
+2024-07-25 04:39:23 +07:00:   errno: -3008,
+2024-07-25 04:39:23 +07:00:   code: 'ENOTFOUND',
+2024-07-25 04:39:23 +07:00:   syscall: 'getaddrinfo',
+2024-07-25 04:39:23 +07:00:   hostname: 'redis-19278.c252.ap-southeast-1-1.ec2.redns.redis-cloud.com'
+2024-07-25 04:39:23 +07:00: }
+2024-07-25 04:40:22 +07:00: Worker still running...
+2024-07-25 04:41:22 +07:00: Worker still running...
+2024-07-25 04:42:22 +07:00: Worker still running...
+2024-07-25 04:43:22 +07:00: Worker still running...
+2024-07-25 04:44:22 +07:00: Worker still running...
+2024-07-25 04:45:22 +07:00: Worker still running...
+2024-07-25 04:45:45 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:45:45 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:45:45 +07:00:   errno: -54,
+2024-07-25 04:45:45 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:45:45 +07:00:   syscall: 'read'
+2024-07-25 04:45:45 +07:00: }
+2024-07-25 04:45:45 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:45:45 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:45:45 +07:00:   errno: -54,
+2024-07-25 04:45:45 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:45:45 +07:00:   syscall: 'read'
+2024-07-25 04:45:45 +07:00: }
+2024-07-25 04:45:52 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:45:52 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:45:52 +07:00:   errno: -54,
+2024-07-25 04:45:52 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:45:52 +07:00:   syscall: 'read'
+2024-07-25 04:45:52 +07:00: }
+2024-07-25 04:45:52 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 04:45:52 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 04:45:52 +07:00:   errno: -54,
+2024-07-25 04:45:52 +07:00:   code: 'ECONNRESET',
+2024-07-25 04:45:52 +07:00:   syscall: 'read'
+2024-07-25 04:45:52 +07:00: }
+2024-07-25 04:46:22 +07:00: Worker still running...
+2024-07-25 04:47:22 +07:00: Worker still running...
+2024-07-25 04:48:22 +07:00: Worker still running...
+2024-07-25 04:49:22 +07:00: Worker still running...
+2024-07-25 05:07:40 +07:00: Worker still running...
+2024-07-25 05:07:40 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:07:40 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:07:40 +07:00:   errno: -54,
+2024-07-25 05:07:40 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:07:40 +07:00:   syscall: 'read'
+2024-07-25 05:07:40 +07:00: }
+2024-07-25 05:07:40 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:07:40 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:07:40 +07:00:   errno: -54,
+2024-07-25 05:07:40 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:07:40 +07:00:   syscall: 'read'
+2024-07-25 05:07:40 +07:00: }
+2024-07-25 05:08:40 +07:00: Worker still running...
+2024-07-25 05:09:40 +07:00: Worker still running...
+2024-07-25 05:10:40 +07:00: Worker still running...
+2024-07-25 05:25:47 +07:00: Worker still running...
+2024-07-25 05:25:48 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:25:48 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:25:48 +07:00:   errno: -54,
+2024-07-25 05:25:48 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:25:48 +07:00:   syscall: 'read'
+2024-07-25 05:25:48 +07:00: }
+2024-07-25 05:25:48 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:25:48 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:25:48 +07:00:   errno: -54,
+2024-07-25 05:25:48 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:25:48 +07:00:   syscall: 'read'
+2024-07-25 05:25:48 +07:00: }
+2024-07-25 05:26:47 +07:00: Worker still running...
+2024-07-25 05:27:47 +07:00: Worker still running...
+2024-07-25 05:32:21 +07:00: Worker still running...
+2024-07-25 05:32:21 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:32:21 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:32:21 +07:00:   errno: -54,
+2024-07-25 05:32:21 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:32:21 +07:00:   syscall: 'read'
+2024-07-25 05:32:21 +07:00: }
+2024-07-25 05:32:21 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:32:21 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:32:21 +07:00:   errno: -54,
+2024-07-25 05:32:21 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:32:21 +07:00:   syscall: 'read'
+2024-07-25 05:32:21 +07:00: }
+2024-07-25 05:33:21 +07:00: Worker still running...
+2024-07-25 05:34:21 +07:00: Worker still running...
+2024-07-25 05:35:21 +07:00: Worker still running...
+2024-07-25 05:36:21 +07:00: Worker still running...
+2024-07-25 05:40:41 +07:00: Worker still running...
+2024-07-25 05:40:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:40:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:40:41 +07:00:   errno: -54,
+2024-07-25 05:40:41 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:40:41 +07:00:   syscall: 'read'
+2024-07-25 05:40:41 +07:00: }
+2024-07-25 05:40:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:40:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:40:41 +07:00:   errno: -54,
+2024-07-25 05:40:41 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:40:41 +07:00:   syscall: 'read'
+2024-07-25 05:40:41 +07:00: }
+2024-07-25 05:54:10 +07:00: Worker still running...
+2024-07-25 05:54:10 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:54:10 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:54:10 +07:00:   errno: -54,
+2024-07-25 05:54:10 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:54:10 +07:00:   syscall: 'read'
+2024-07-25 05:54:10 +07:00: }
+2024-07-25 05:54:10 +07:00: Queue error: Error: read ECONNRESET
+2024-07-25 05:54:10 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-25 05:54:10 +07:00:   errno: -54,
+2024-07-25 05:54:10 +07:00:   code: 'ECONNRESET',
+2024-07-25 05:54:10 +07:00:   syscall: 'read'
+2024-07-25 05:54:10 +07:00: }
+2024-07-25 05:55:10 +07:00: Worker still running...
+2024-07-25 05:56:10 +07:00: Worker still running...
+2024-07-25 05:57:10 +07:00: Worker still running...
+2024-07-25 05:58:10 +07:00: Worker still running...
+2024-07-25 05:59:10 +07:00: Worker still running...
+2024-07-25 06:00:10 +07:00: Worker still running...
+2024-07-25 06:01:10 +07:00: Worker still running...
+2024-07-25 06:02:10 +07:00: Worker still running...
+2024-07-25 06:03:10 +07:00: Worker still running...
+2024-07-25 06:04:10 +07:00: Worker still running...
+2024-07-25 06:05:10 +07:00: Worker still running...
+2024-07-25 06:06:10 +07:00: Worker still running...
+2024-07-25 06:07:10 +07:00: Worker still running...
+2024-07-25 06:08:10 +07:00: Worker still running...
+2024-07-25 06:09:10 +07:00: Worker still running...
+2024-07-25 06:10:10 +07:00: Worker still running...
+2024-07-25 06:11:10 +07:00: Worker still running...
+2024-07-25 06:12:10 +07:00: Worker still running...
+2024-07-25 06:13:10 +07:00: Worker still running...
+2024-07-25 06:14:10 +07:00: Worker still running...
+2024-07-25 06:15:10 +07:00: Worker still running...
+2024-07-25 06:16:10 +07:00: Worker still running...
+2024-07-25 06:17:10 +07:00: Worker still running...
+2024-07-25 06:18:10 +07:00: Worker still running...
+2024-07-25 06:19:10 +07:00: Worker still running...
+2024-07-25 06:20:10 +07:00: Worker still running...
+2024-07-25 06:21:10 +07:00: Worker still running...
+2024-07-25 06:22:10 +07:00: Worker still running...
+2024-07-25 06:23:10 +07:00: Worker still running...
+2024-07-25 06:24:10 +07:00: Worker still running...
+2024-07-25 06:25:10 +07:00: Worker still running...
+2024-07-25 06:26:10 +07:00: Worker still running...
+2024-07-25 06:27:10 +07:00: Worker still running...
+2024-07-25 06:28:10 +07:00: Worker still running...
+2024-07-25 06:29:10 +07:00: Worker still running...
+2024-07-25 06:30:10 +07:00: Worker still running...
+2024-07-25 06:31:10 +07:00: Worker still running...
+2024-07-25 06:32:10 +07:00: Worker still running...
+2024-07-25 06:33:10 +07:00: Worker still running...
+2024-07-25 06:34:10 +07:00: Worker still running...
+2024-07-25 06:35:10 +07:00: Worker still running...
+2024-07-25 06:36:10 +07:00: Worker still running...
+2024-07-25 06:37:10 +07:00: Worker still running...
+2024-07-25 06:38:10 +07:00: Worker still running...
+2024-07-25 06:39:10 +07:00: Worker still running...
+2024-07-25 06:40:10 +07:00: Worker still running...
+2024-07-25 06:41:10 +07:00: Worker still running...
+2024-07-25 06:42:10 +07:00: Worker still running...
+2024-07-25 06:43:10 +07:00: Worker still running...
+2024-07-25 06:44:10 +07:00: Worker still running...
+2024-07-25 06:45:10 +07:00: Worker still running...
+2024-07-25 06:46:10 +07:00: Worker still running...
+2024-07-25 06:47:10 +07:00: Worker still running...
+2024-07-25 06:48:10 +07:00: Worker still running...
+2024-07-25 06:49:10 +07:00: Worker still running...
+2024-07-25 06:50:10 +07:00: Worker still running...
+2024-07-25 06:51:10 +07:00: Worker still running...
+2024-07-25 06:52:10 +07:00: Worker still running...
+2024-07-25 06:53:10 +07:00: Worker still running...
+2024-07-25 06:54:10 +07:00: Worker still running...
+2024-07-25 06:55:10 +07:00: Worker still running...
+2024-07-25 06:56:10 +07:00: Worker still running...
+2024-07-25 06:57:10 +07:00: Worker still running...
+2024-07-25 06:58:10 +07:00: Worker still running...
+2024-07-25 06:59:10 +07:00: Worker still running...
+2024-07-25 07:00:10 +07:00: Worker still running...
+2024-07-25 07:01:10 +07:00: Worker still running...
+2024-07-25 07:02:10 +07:00: Worker still running...
+2024-07-25 07:03:10 +07:00: Worker still running...
+2024-07-25 07:04:10 +07:00: Worker still running...
+2024-07-25 07:05:10 +07:00: Worker still running...
+2024-07-25 07:06:10 +07:00: Worker still running...
+2024-07-25 07:07:10 +07:00: Worker still running...
