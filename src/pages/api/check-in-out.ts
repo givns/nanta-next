@@ -3,6 +3,7 @@ import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import moment from 'moment-timezone';
 import { AttendanceData } from '@/types/user';
+import { NotificationService } from '@/services/NotificationService';
 
 const attendanceService = new AttendanceService();
 const shiftService = new ShiftManagementService();
@@ -68,6 +69,43 @@ export default async function handler(
 
     const checkTime = moment(req.body.checkTime).tz(TIMEZONE);
     console.log('Check time (local):', checkTime.format());
+
+    if (!isCheckIn) {
+      // Check if there's a check-in for today
+      const todayCheckIn = await attendanceService.getTodayCheckIn(userId);
+
+      if (!todayCheckIn) {
+        // Handle missing check-in
+        const potentialStartTime = moment(checkTime).set({
+          hour: parseInt(shift.startTime.split(':')[0]),
+          minute: parseInt(shift.startTime.split(':')[1]),
+          second: 0,
+          millisecond: 0,
+        });
+
+        const pendingAttendance =
+          await attendanceService.createPendingAttendance(
+            userId,
+            potentialStartTime.toDate(),
+            checkTime.toDate(),
+          );
+
+        // Notify admins
+        await NotificationService.notifyAdminsOfMissingCheckIn(
+          userId,
+          employeeId,
+          potentialStartTime.format('HH:mm:ss'),
+          checkTime.format('HH:mm:ss'),
+          pendingAttendance.id,
+        );
+
+        return res.status(200).json({
+          message:
+            'Check-out recorded. Pending admin approval for missing check-in.',
+          pendingAttendanceId: pendingAttendance.id,
+        });
+      }
+    }
 
     let effectiveShift = shift;
     if (attendanceStatus.shiftAdjustment) {

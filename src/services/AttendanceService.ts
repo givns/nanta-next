@@ -407,6 +407,41 @@ export class AttendanceService {
     return false; // User has checked in but not out, so they need to check out
   }
 
+  async getTodayCheckIn(userId: string): Promise<Attendance | null> {
+    const today = moment().tz('Asia/Bangkok').startOf('day');
+    return prisma.attendance.findFirst({
+      where: {
+        userId,
+        date: {
+          gte: today.toDate(),
+          lt: today.add(1, 'day').toDate(),
+        },
+        checkInTime: { not: null },
+      },
+    });
+  }
+
+  async createPendingAttendance(
+    userId: string,
+    potentialCheckInTime: Date,
+    checkOutTime: Date,
+  ): Promise<Attendance> {
+    return prisma.attendance.create({
+      data: {
+        userId,
+        date: moment(potentialCheckInTime)
+          .tz('Asia/Bangkok')
+          .startOf('day')
+          .toDate(),
+        checkInTime: potentialCheckInTime,
+        checkOutTime,
+        status: 'PENDING_APPROVAL',
+        checkInLocation: 'UNKNOWN', // Add this line
+        checkOutLocation: 'UNKNOWN', // Add this line if required
+      },
+    });
+  }
+
   async processExternalCheckInOut(
     externalCheckIn: ExternalCheckInData,
     userInfo: any,

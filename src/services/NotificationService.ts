@@ -1,13 +1,21 @@
 import axios from 'axios';
-import { OvertimeRequest, User } from '@prisma/client';
+import { OvertimeRequest, User, PrismaClient } from '@prisma/client';
+import { LineService } from './LineService';
+
+const prisma = new PrismaClient();
+const lineService = new LineService();
 
 export class NotificationService {
-  private lineApiUrl = 'https://api.line.me/v2/bot/message/push';
-  private headers = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
-  };
-
+  sendFlexMessage: any;
+  static notifyAdminsOfMissingCheckIn(
+    userId: any,
+    employeeId: any,
+    arg2: string,
+    arg3: string,
+    id: string,
+  ) {
+    throw new Error('Method not implemented.');
+  }
   async sendNotification(
     userId: string,
     message: string,
@@ -19,16 +27,70 @@ export class NotificationService {
     }
 
     try {
-      await axios.post(
-        this.lineApiUrl,
-        {
-          to: lineUserId,
-          messages: [{ type: 'text', text: message }],
-        },
-        { headers: this.headers },
-      );
+      await lineService.sendNotification(lineUserId, message);
     } catch (error) {
       console.error('Error sending LINE notification:', error);
+    }
+  }
+
+  async notifyAdminsOfMissingCheckIn(
+    userId: string,
+    employeeId: string,
+    potentialStartTime: string,
+    checkOutTime: string,
+    pendingAttendanceId: string,
+  ): Promise<void> {
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { lineUserId: true },
+    });
+
+    const flexContent = {
+      type: 'bubble',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'text',
+            text: 'Missing Check-in Approval Required',
+            weight: 'bold',
+            size: 'lg',
+          },
+          {
+            type: 'text',
+            text: `Employee ID: ${employeeId}`,
+          },
+          {
+            type: 'text',
+            text: `Potential Start Time: ${potentialStartTime}`,
+          },
+          {
+            type: 'text',
+            text: `Check-out Time: ${checkOutTime}`,
+          },
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            action: {
+              type: 'uri',
+              label: 'Approve',
+              uri: `https://your-admin-panel.com/approve-attendance/${pendingAttendanceId}`,
+            },
+          },
+        ],
+      },
+    };
+
+    for (const admin of admins) {
+      if (admin.lineUserId) {
+        await lineService.sendFlexMessage(admin.lineUserId, flexContent);
+      }
     }
   }
 

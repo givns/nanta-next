@@ -1,15 +1,21 @@
 // services/AttendanceSyncService.ts
 
-import { PrismaClient, User, Shift } from '@prisma/client';
+import { PrismaClient, User, Shift, Holiday } from '@prisma/client';
 import { ExternalDbService } from './ExternalDbService';
 import { AttendanceService } from './AttendanceService';
 import { NotificationService } from './NotificationService';
+import { ShiftManagementService } from './ShiftManagementService';
+import { HolidayService } from './HolidayService';
+import { Shift104HolidayService } from './Shift104HolidayService';
 import moment from 'moment-timezone';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
 const attendanceService = new AttendanceService();
 const notificationService = new NotificationService();
+const shiftManagementService = new ShiftManagementService();
+const holidayService = new HolidayService();
+const shift104HolidayService = new Shift104HolidayService();
 
 export class AttendanceSyncService {
   async syncAttendanceData(syncType: string = 'regular') {
@@ -104,7 +110,7 @@ export class AttendanceSyncService {
     for (const session of unclosedSessions) {
       await notificationService.sendNotification(
         session.userId,
-        `Your overtime session is ending soon. Please remember to check out.`,
+        `เวลาทำงาน OT ใกล้สิ้นสุดลงแล้ว ระบบได้บันทึกชั่วโมงทำ OT เมื่อมีการลงเวลาออกงาน`,
       );
     }
   }
@@ -150,5 +156,103 @@ export class AttendanceSyncService {
     }
 
     return `บันทึกเวลา${action}เรียบร้อยแล้ว: ${time}`;
+  }
+
+  async checkMissingCheckIns(): Promise<void> {
+    const today = moment().tz('Asia/Bangkok').startOf('day');
+    const users = await prisma.user.findMany({
+      where: {
+        role: { not: 'ADMIN' },
+      },
+      include: {
+        assignedShift: true,
+        leaveRequests: {
+          where: {
+            startDate: { lte: today.toDate() },
+            endDate: { gte: today.toDate() },
+            status: 'APPROVED',
+          },
+        },
+      },
+    });
+
+    const holidays = await holidayService.getHolidays(
+      today.toDate(),
+      today.toDate(),
+    );
+
+    for (const user of users) {
+      const effectiveShift = await shiftManagementService.getEffectiveShift(
+        user.id,
+        today.toDate(),
+      );
+
+      if (!effectiveShift) continue;
+
+      const isWorkDay = effectiveShift.shift.workDays.includes(today.day());
+      const isOnLeave = user.leaveRequests.length > 0;
+      const isHoliday = this.isHolidayForUser(user, holidays, today.toDate());
+
+      if (isWorkDay && !isOnLeave && !isHoliday) {
+        const checkIn = await prisma.attendance.findFirst({
+          where: {
+            userId: user.id,
+            date: today.toDate(),
+            checkInTime: { not: null },
+          },
+        });
+
+        if (!checkIn) {
+          const shiftStartTime = moment(today).set({
+            hour: parseInt(effectiveShift.shift.startTime.split(':')[0]),
+            minute: parseInt(effectiveShift.shift.startTime.split(':')[1]),
+          });
+
+          if (moment().isAfter(shiftStartTime.add(1, 'hour'))) {
+            await this.sendMissingCheckInNotification(
+              user,
+              effectiveShift.shift,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  private isHolidayForUser(
+    user: User & { assignedShift: Shift },
+    holidays: Holiday[],
+    date: Date,
+  ): boolean {
+    if (user.assignedShift.shiftCode === 'SHIFT104') {
+      const shiftedDate = new Date(date);
+      shiftedDate.setDate(shiftedDate.getDate() + 1);
+      return holidays.some(
+        (holiday) => holiday.date.getTime() === shiftedDate.getTime(),
+      );
+    }
+    return holidays.some(
+      (holiday) => holiday.date.getTime() === date.getTime(),
+    );
+  }
+
+  private async sendMissingCheckInNotification(
+    user: User,
+    shift: Shift,
+  ): Promise<void> {
+    const message = `No check-in record found for ${user.name} (${user.employeeId}). Shift start time: ${shift.startTime}`;
+
+    // Send to user
+    if (user.lineUserId) {
+      await notificationService.sendNotification(user.lineUserId, message);
+    }
+
+    // Send to admins
+    const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+    for (const admin of admins) {
+      if (admin.lineUserId) {
+        await notificationService.sendNotification(admin.lineUserId, message);
+      }
+    }
   }
 }
