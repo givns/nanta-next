@@ -563,8 +563,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderStep3 = () => (
-    <div className="bg-white p-6 rounded-box mb-4">
-      <div className="h-full flex flex-col justify-between">
+    <div className="flex flex-col h-full">
+      <div className="bg-white p-6 rounded-box shadow-lg mb-4 flex-grow overflow-y-auto">
         <div className="mb-4">
           <label
             htmlFor="address-display"
@@ -616,17 +616,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
         )}
       </div>
-
-      <button
-        onClick={handleCheckInOut}
-        disabled={loading || (!inPremises && !reason)}
-        className="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition duration-300 disabled:bg-gray-400"
-        aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
-      >
-        {loading
-          ? `กำลังดำเนินการ...`
-          : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
-      </button>
+      <div className="mt-auto">
+        <button
+          onClick={handleCheckInOut}
+          disabled={loading || (!inPremises && !reason)}
+          className="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition duration-300 disabled:bg-gray-400"
+          aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+        >
+          {loading
+            ? `กำลังดำเนินการ...`
+            : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+        </button>
+      </div>
     </div>
   );
 

@@ -141,11 +141,11 @@ const CheckInRouter: React.FC = () => {
               ? 'ระบบบันทึกเวลาเข้างาน'
               : 'ระบบบันทึกเวลาออกงาน'}
           </h1>
-          <div className="text-3xl font-bold text-center mb-2 text-black-950">
-            {currentTime}
-          </div>
           <div className="text-lg text-center mb-8 text-gray-600">
             {currentDate}
+          </div>
+          <div className="text-3xl font-bold text-center mb-2 text-black-950">
+            {currentTime}
           </div>
           <div className="w-full max-w-md">
             <CheckInOutForm

@@ -64,9 +64,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             <span className="text-black-600">{message}</span>
           </div>
         </div>
-        <p className="text-sm text-gray-500 mb-4">
-          {today.format('DD/MM/YYYY')}
-        </p>
         {!attendanceStatus.isDayOff &&
           attendanceStatus.latestAttendance &&
           moment(attendanceStatus.latestAttendance.date).isSame(
