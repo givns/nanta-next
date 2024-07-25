@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export class LineService {
+export default class LineService {
   private lineApiUrl = 'https://api.line.me/v2/bot/message/push';
   private channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
