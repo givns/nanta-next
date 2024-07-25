@@ -17,7 +17,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@prisma/client": ["./node_modules/@prisma/client"]
+      "@prisma/client": ["./node_modules/@prisma/client"],
+      "@/services/*": ["src/services/*"]
     },
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "types": ["node"]

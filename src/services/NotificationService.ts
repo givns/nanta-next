@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { OvertimeRequest, User, PrismaClient } from '@prisma/client';
-import { LineService } from '../services/LineService';
+import { LineService } from '@/services/LineService';
 
 const prisma = new PrismaClient();
 const lineService = new LineService();
