@@ -64,16 +64,15 @@ export default async function handler(
       return res.status(400).json({ message: 'User shift not found' });
     }
 
-    // Convert checkTime to moment object in the correct timezone
-    const now = moment(checkTime).tz(TIMEZONE);
-    console.log('Check time (local):', now.format());
+    const checkTime = moment(req.body.checkTime).tz(TIMEZONE);
+    console.log('Check time (local):', checkTime.format());
 
     let effectiveShift = shift;
     if (attendanceStatus.shiftAdjustment) {
       const adjustmentDate = moment(attendanceStatus.shiftAdjustment.date).tz(
         TIMEZONE,
       );
-      if (adjustmentDate.isSame(now, 'day')) {
+      if (adjustmentDate.isSame(checkTime, 'day')) {
         console.log('Using adjusted shift');
         effectiveShift = attendanceStatus.shiftAdjustment.requestedShift;
       }
@@ -89,7 +88,7 @@ export default async function handler(
       graceStart,
       graceEnd,
     } = calculateShiftTimes(
-      now,
+      checkTime,
       effectiveShift.startTime,
       effectiveShift.endTime,
     );
@@ -103,14 +102,16 @@ export default async function handler(
       graceEnd: graceEnd.format(),
     });
 
-    const isOutsideShift = now.isBefore(shiftStart) || now.isAfter(shiftEnd);
+    const isOutsideShift =
+      checkTime.isBefore(shiftStart) || checkTime.isAfter(shiftEnd);
     const isFlexibleStart =
-      now.isSameOrAfter(flexibleStart) && now.isBefore(shiftStart);
+      checkTime.isSameOrAfter(flexibleStart) && checkTime.isBefore(shiftStart);
     const isFlexibleEnd =
-      now.isAfter(shiftEnd) && now.isSameOrBefore(flexibleEnd);
+      checkTime.isAfter(shiftEnd) && checkTime.isSameOrBefore(flexibleEnd);
     const isWithinGracePeriod =
-      (now.isSameOrAfter(graceStart) && now.isSameOrBefore(shiftStart)) ||
-      (now.isSameOrAfter(shiftEnd) && now.isSameOrBefore(graceEnd));
+      (checkTime.isSameOrAfter(graceStart) &&
+        checkTime.isSameOrBefore(shiftStart)) ||
+      (checkTime.isSameOrAfter(shiftEnd) && checkTime.isSameOrBefore(graceEnd));
 
     const isCheckInOutAllowed =
       attendanceStatus.approvedOvertime ||
@@ -141,7 +142,7 @@ export default async function handler(
     const attendanceData: AttendanceData = {
       userId,
       employeeId,
-      checkTime: now.toDate(), // or now.toISOString() if you prefer string
+      checkTime: checkTime.toDate(),
       location: JSON.stringify(location), // Assuming location is an object
       address,
       reason,
@@ -172,17 +173,17 @@ export default async function handler(
   }
 
   function calculateShiftTimes(
-    now: moment.Moment,
+    checkTime: moment.Moment,
     startTime: string,
     endTime: string,
   ) {
     const [startHour, startMinute] = startTime.split(':').map(Number);
     const [endHour, endMinute] = endTime.split(':').map(Number);
 
-    const shiftStart = now
+    const shiftStart = checkTime
       .clone()
       .set({ hour: startHour, minute: startMinute, second: 0, millisecond: 0 });
-    const shiftEnd = now
+    const shiftEnd = checkTime
       .clone()
       .set({ hour: endHour, minute: endMinute, second: 0, millisecond: 0 });
 

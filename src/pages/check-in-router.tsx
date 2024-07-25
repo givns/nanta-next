@@ -4,6 +4,13 @@ import { UserData, AttendanceStatus } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
+import dayjs from 'dayjs';
+import 'dayjs/locale/th'; // Import Thai locale
+
+dayjs.locale('th'); // Set dayjs to use Thai locale
+
+const today = dayjs(); // Get current date
+const currentDate = dayjs().format('D MMMM YYYY');
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -134,12 +141,13 @@ const CheckInRouter: React.FC = () => {
               ? 'ระบบบันทึกเวลาเข้างาน'
               : 'ระบบบันทึกเวลาออกงาน'}
           </h1>
-          <div className="text-3xl font-bold text-center mb-8 text-black-950">
+          <div className="text-3xl font-bold text-center mb-2 text-black-950">
             {currentTime}
           </div>
+          <div className="text-lg text-center mb-8 text-gray-600">
+            {currentDate}
+          </div>
           <div className="w-full max-w-md">
-            {' '}
-            {/* Add this wrapper */}
             <CheckInOutForm
               userData={userData}
               initialAttendanceStatus={attendanceStatus}
