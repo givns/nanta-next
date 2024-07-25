@@ -37,6 +37,7 @@ export enum CheckType {
 export interface AttendanceData {
   userId: string;
   employeeId: string;
+  lineUserId: string;
   checkTime: string | Date;
   location: string;
   address: string;

@@ -22,6 +22,7 @@ export default async function handler(
   const {
     userId,
     employeeId,
+    lineUserId,
     checkTime,
     location,
     address,
@@ -37,6 +38,7 @@ export default async function handler(
   if (
     !userId ||
     !employeeId ||
+    !lineUserId ||
     !checkTime ||
     !location ||
     !address ||
@@ -142,6 +144,7 @@ export default async function handler(
     const attendanceData: AttendanceData = {
       userId,
       employeeId,
+      lineUserId,
       checkTime: checkTime.toDate(),
       location: JSON.stringify(location), // Assuming location is an object
       address,

@@ -449,6 +449,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       const checkInOutData = {
         userId: userData.id,
         employeeId: userData.employeeId,
+        lineUserId: userData.lineUserId,
         checkTime: localCheckTime.toISOString(),
         location: location ? JSON.stringify(location) : null,
         address,
