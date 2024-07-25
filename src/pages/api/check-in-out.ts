@@ -15,6 +15,8 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
+  console.log('Received check-in/out request:', req.body);
+
   const {
     userId,
     employeeId,
@@ -39,22 +41,30 @@ export default async function handler(
     !deviceSerial ||
     typeof isCheckIn !== 'boolean'
   ) {
+    console.error('Missing or invalid required fields:', req.body);
     return res
       .status(400)
       .json({ message: 'Missing or invalid required fields' });
   }
 
   try {
-    // Get the user's shift and attendance status
+    console.log(`Getting shift for user: ${userId}`);
     const shift = await shiftService.getUserShift(userId);
+    console.log('User shift:', shift);
+
+    console.log(`Getting attendance status for employee: ${employeeId}`);
     const attendanceStatus =
       await attendanceService.getLatestAttendanceStatus(employeeId);
+    console.log('Attendance status:', attendanceStatus);
 
     if (!shift) {
+      console.error(`Shift not found for user: ${userId}`);
       return res.status(400).json({ message: 'User shift not found' });
     }
 
     const now = new Date(checkTime);
+    console.log('Check time:', now);
+
     const {
       shiftStart,
       shiftEnd,
@@ -63,6 +73,15 @@ export default async function handler(
       graceStart,
       graceEnd,
     } = calculateShiftTimes(now, shift.startTime, shift.endTime);
+
+    console.log('Calculated shift times:', {
+      shiftStart,
+      shiftEnd,
+      flexibleStart,
+      flexibleEnd,
+      graceStart,
+      graceEnd,
+    });
 
     const isOutsideShift = now < shiftStart || now > shiftEnd;
     const isFlexibleStart = now >= flexibleStart && now < shiftStart;
@@ -77,6 +96,8 @@ export default async function handler(
       isFlexibleStart ||
       isFlexibleEnd ||
       isWithinGracePeriod;
+
+    console.log('Check-in/out allowed:', isCheckInOutAllowed);
 
     if (!isCheckInOutAllowed) {
       return res
@@ -100,6 +121,8 @@ export default async function handler(
       isFlexibleEnd,
       isWithinGracePeriod,
     });
+
+    console.log('Processed attendance:', attendance);
 
     res.status(200).json(attendance);
   } catch (error: any) {
@@ -125,10 +148,10 @@ function calculateShiftTimes(now: Date, startTime: string, endTime: string) {
     shiftEnd.setDate(shiftEnd.getDate() + 1);
   }
 
-  const flexibleStart = new Date(shiftStart.getTime() - 30 * 60000); // 30 minutes before shift start
-  const flexibleEnd = new Date(shiftEnd.getTime() + 30 * 60000); // 30 minutes after shift end
-  const graceStart = new Date(shiftStart.getTime() - 5 * 60000); // 5 minutes before shift start
-  const graceEnd = new Date(shiftEnd.getTime() + 5 * 60000); // 5 minutes after shift end
+  const flexibleStart = new Date(shiftStart.getTime() - 30 * 60000);
+  const flexibleEnd = new Date(shiftEnd.getTime() + 30 * 60000);
+  const graceStart = new Date(shiftStart.getTime() - 5 * 60000);
+  const graceEnd = new Date(shiftEnd.getTime() + 5 * 60000);
 
   return {
     shiftStart,

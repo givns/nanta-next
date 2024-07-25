@@ -480,6 +480,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     } catch (error) {
       console.error('Error during check-in/out:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('Server response:', error.response.data);
+      }
       setErrorMessage(
         'An error occurred during check-in/out. Please try again.',
       );
@@ -555,73 +558,75 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderStep3 = () => (
-    <div className="h-full flex flex-col justify-between">
-      <div className="overflow-y-auto">
-        <h3 className="text-lg font-semibold mb-2">
-          ยืนยันการ{attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-        </h3>
-        <div className="mb-4">
-          <label
-            htmlFor="address-display"
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
-            ที่อยู่ของคุณ
-          </label>
-          {addressError ? (
-            <p className="text-red-500">{addressError}</p>
-          ) : (
-            <div
-              id="address-display"
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
-              aria-live="polite"
+    <div className="bg-white p-4 rounded-box mb-4">
+      <div className="h-full flex flex-col justify-between">
+        <div className="overflow-y-auto">
+          <h3 className="text-lg font-semibold mb-2">
+            ยืนยันการ{attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+          </h3>
+          <div className="mb-4">
+            <label
+              htmlFor="address-display"
+              className="block text-sm font-medium text-gray-700 mb-2"
             >
-              {address || 'Loading address...'}
+              ที่อยู่ของคุณ
+            </label>
+            {addressError ? (
+              <p className="text-red-500">{addressError}</p>
+            ) : (
+              <div
+                id="address-display"
+                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
+                aria-live="polite"
+              >
+                {address || 'Loading address...'}
+              </div>
+            )}
+          </div>
+          {apiKey && location ? (
+            <div className="mb-4">
+              <InteractiveMap
+                apiKey={apiKey}
+                lat={location.lat}
+                lng={location.lng}
+              />
+            </div>
+          ) : (
+            <SkeletonLoader />
+          )}
+          {!inPremises && (
+            <div className="mt-4">
+              <label
+                htmlFor="reason-input"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                เหตุผลสำหรับการ
+                {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+                นอกสถานที่
+              </label>
+              <input
+                type="text"
+                id="reason-input"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+                required
+              />
             </div>
           )}
         </div>
-        {apiKey && location ? (
-          <div className="mb-4">
-            <InteractiveMap
-              apiKey={apiKey}
-              lat={location.lat}
-              lng={location.lng}
-            />
-          </div>
-        ) : (
-          <SkeletonLoader />
-        )}
-        {!inPremises && (
-          <div className="mt-4">
-            <label
-              htmlFor="reason-input"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              เหตุผลสำหรับการ
-              {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-              นอกสถานที่
-            </label>
-            <input
-              type="text"
-              id="reason-input"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
-              required
-            />
-          </div>
-        )}
-      </div>
-      <div className="mt-6">
-        <button
-          onClick={handleCheckInOut}
-          disabled={loading || (!inPremises && !reason)}
-          className="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition duration-300 disabled:bg-gray-400"
-          aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
-        >
-          {loading
-            ? `กำลังดำเนินการ...`
-            : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออกงาน'}${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
-        </button>
+        <div className="mt-6">
+          <button
+            onClick={handleCheckInOut}
+            disabled={loading || (!inPremises && !reason)}
+            className="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition duration-300 disabled:bg-gray-400"
+            aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+          >
+            {loading
+              ? `กำลังดำเนินการ...`
+              : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออกงาน'}${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+          </button>
+        </div>
       </div>
     </div>
   );
