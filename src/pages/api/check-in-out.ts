@@ -1,11 +1,12 @@
-// pages/api/check-in-out.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
+import moment from 'moment-timezone';
 
 const attendanceService = new AttendanceService();
 const shiftService = new ShiftManagementService();
+
+const TIMEZONE = 'Asia/Bangkok'; // Set this to your local timezone
 
 export default async function handler(
   req: NextApiRequest,
@@ -62,8 +63,19 @@ export default async function handler(
       return res.status(400).json({ message: 'User shift not found' });
     }
 
-    const now = new Date(checkTime);
-    console.log('Check time:', now);
+    // Convert checkTime to moment object in the correct timezone
+    const now = moment(checkTime).tz(TIMEZONE);
+    console.log('Check time (local):', now.format());
+
+    let effectiveShift = shift;
+    if (attendanceStatus.shiftAdjustment) {
+      const adjustmentDate = moment(attendanceStatus.shiftAdjustment.date).tz(
+        TIMEZONE,
+      );
+      if (adjustmentDate.isSame(now, 'day')) {
+        effectiveShift = attendanceStatus.shiftAdjustment.requestedShift;
+      }
+    }
 
     const {
       shiftStart,
@@ -72,23 +84,29 @@ export default async function handler(
       flexibleEnd,
       graceStart,
       graceEnd,
-    } = calculateShiftTimes(now, shift.startTime, shift.endTime);
+    } = calculateShiftTimes(
+      now,
+      effectiveShift.startTime,
+      effectiveShift.endTime,
+    );
 
     console.log('Calculated shift times:', {
-      shiftStart,
-      shiftEnd,
-      flexibleStart,
-      flexibleEnd,
-      graceStart,
-      graceEnd,
+      shiftStart: shiftStart.format(),
+      shiftEnd: shiftEnd.format(),
+      flexibleStart: flexibleStart.format(),
+      flexibleEnd: flexibleEnd.format(),
+      graceStart: graceStart.format(),
+      graceEnd: graceEnd.format(),
     });
 
-    const isOutsideShift = now < shiftStart || now > shiftEnd;
-    const isFlexibleStart = now >= flexibleStart && now < shiftStart;
-    const isFlexibleEnd = now > shiftEnd && now <= flexibleEnd;
+    const isOutsideShift = now.isBefore(shiftStart) || now.isAfter(shiftEnd);
+    const isFlexibleStart =
+      now.isSameOrAfter(flexibleStart) && now.isBefore(shiftStart);
+    const isFlexibleEnd =
+      now.isAfter(shiftEnd) && now.isSameOrBefore(flexibleEnd);
     const isWithinGracePeriod =
-      (now >= graceStart && now <= shiftStart) ||
-      (now >= shiftEnd && now <= graceEnd);
+      (now.isSameOrAfter(graceStart) && now.isSameOrBefore(shiftStart)) ||
+      (now.isSameOrAfter(shiftEnd) && now.isSameOrBefore(graceEnd));
 
     const isCheckInOutAllowed =
       attendanceStatus.approvedOvertime ||
@@ -108,7 +126,7 @@ export default async function handler(
     const attendance = await attendanceService.processAttendance({
       userId,
       employeeId,
-      checkTime,
+      checkTime: now.toISOString(),
       location,
       address,
       reason,
@@ -134,24 +152,30 @@ export default async function handler(
   }
 }
 
-function calculateShiftTimes(now: Date, startTime: string, endTime: string) {
-  const shiftStart = new Date(now);
-  const shiftEnd = new Date(now);
+function calculateShiftTimes(
+  now: moment.Moment,
+  startTime: string,
+  endTime: string,
+) {
   const [startHour, startMinute] = startTime.split(':').map(Number);
   const [endHour, endMinute] = endTime.split(':').map(Number);
 
-  shiftStart.setHours(startHour, startMinute, 0, 0);
-  shiftEnd.setHours(endHour, endMinute, 0, 0);
+  const shiftStart = now
+    .clone()
+    .set({ hour: startHour, minute: startMinute, second: 0, millisecond: 0 });
+  const shiftEnd = now
+    .clone()
+    .set({ hour: endHour, minute: endMinute, second: 0, millisecond: 0 });
 
   // Handle overnight shifts
-  if (shiftEnd <= shiftStart) {
-    shiftEnd.setDate(shiftEnd.getDate() + 1);
+  if (shiftEnd.isBefore(shiftStart)) {
+    shiftEnd.add(1, 'day');
   }
 
-  const flexibleStart = new Date(shiftStart.getTime() - 30 * 60000);
-  const flexibleEnd = new Date(shiftEnd.getTime() + 30 * 60000);
-  const graceStart = new Date(shiftStart.getTime() - 5 * 60000);
-  const graceEnd = new Date(shiftEnd.getTime() + 5 * 60000);
+  const flexibleStart = shiftStart.clone().subtract(30, 'minutes');
+  const flexibleEnd = shiftEnd.clone().add(30, 'minutes');
+  const graceStart = shiftStart.clone().subtract(5, 'minutes');
+  const graceEnd = shiftEnd.clone().add(5, 'minutes');
 
   return {
     shiftStart,
