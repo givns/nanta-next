@@ -1,31 +1,196 @@
 // NotificationService.ts
 
+import axios from 'axios';
 import { PrismaClient, User, OvertimeRequest } from '@prisma/client';
-import LineService from '@/services/LineService';
 
 const prisma = new PrismaClient();
-const lineService = new LineService();
 
 export class NotificationService {
-  private lineService: LineService;
+  private lineApiUrl = 'https://api.line.me/v2/bot/message/push';
+  private channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
-  constructor() {
-    this.lineService = new LineService();
-  }
   async sendNotification(
     userId: string,
     message: string,
     lineUserId?: string,
   ): Promise<void> {
-    if (lineUserId) {
-      await lineService.sendNotification(lineUserId, message);
-    } else {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user && user.lineUserId) {
-        await lineService.sendNotification(user.lineUserId, message);
+    try {
+      if (lineUserId) {
+        await this.sendLineMessage(lineUserId, message);
       } else {
-        console.warn(`No LINE user ID found for user ${userId}`);
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (user && user.lineUserId) {
+          await this.sendLineMessage(user.lineUserId, message);
+        } else {
+          console.warn(`No LINE user ID found for user ${userId}`);
+        }
       }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      throw new Error('Failed to send notification');
+    }
+  }
+
+  private async sendLineMessage(
+    lineUserId: string,
+    message: string,
+  ): Promise<void> {
+    try {
+      await axios.post(
+        this.lineApiUrl,
+        {
+          to: lineUserId,
+          messages: [
+            {
+              type: 'text',
+              text: message,
+            },
+          ],
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.channelAccessToken}`,
+          },
+        },
+      );
+      console.log(`Notification sent to LINE user ${lineUserId}: ${message}`);
+    } catch (error) {
+      console.error('Error sending LINE message:', error);
+      throw new Error('Failed to send LINE message');
+    }
+  }
+
+  async sendConfirmationRequest(
+    userId: string,
+    action: 'check-in' | 'check-out',
+  ): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.lineUserId) {
+      console.warn(`No LINE user ID found for user ${userId}`);
+      return;
+    }
+
+    const message = {
+      type: 'template',
+      altText: `Confirm ${action}`,
+      template: {
+        type: 'confirm',
+        text: `Do you want to ${action}?`,
+        actions: [
+          {
+            type: 'postback',
+            label: 'Yes',
+            data: `action=${action}&confirm=yes`,
+          },
+          {
+            type: 'postback',
+            label: 'No',
+            data: `action=${action}&confirm=no`,
+          },
+        ],
+      },
+    };
+
+    try {
+      await axios.post(
+        this.lineApiUrl,
+        {
+          to: user.lineUserId,
+          messages: [message],
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.channelAccessToken}`,
+          },
+        },
+      );
+      console.log(`Confirmation request sent to user ${userId} for ${action}`);
+    } catch (error) {
+      console.error('Error sending LINE confirmation request:', error);
+      throw new Error('Failed to send LINE confirmation request');
+    }
+  }
+
+  async sendFlexMessage(
+    lineUserId: string,
+    altText: string,
+    flexContent: any,
+  ): Promise<void> {
+    try {
+      await axios.post(
+        this.lineApiUrl,
+        {
+          to: lineUserId,
+          messages: [
+            {
+              type: 'flex',
+              altText: altText,
+              contents: flexContent,
+            },
+          ],
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.channelAccessToken}`,
+          },
+        },
+      );
+      console.log(`Flex message sent to user ${lineUserId}`);
+    } catch (error) {
+      console.error('Error sending LINE flex message:', error);
+      throw new Error('Failed to send LINE flex message');
+    }
+  }
+
+  async sendQuickReply(
+    userId: string,
+    message: string,
+    options: string[],
+  ): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.lineUserId) {
+      console.warn(`No LINE user ID found for user ${userId}`);
+      return;
+    }
+
+    const quickReply = {
+      items: options.map((option) => ({
+        type: 'action',
+        action: {
+          type: 'message',
+          label: option,
+          text: option,
+        },
+      })),
+    };
+
+    try {
+      await axios.post(
+        this.lineApiUrl,
+        {
+          to: user.lineUserId,
+          messages: [
+            {
+              type: 'text',
+              text: message,
+              quickReply,
+            },
+          ],
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.channelAccessToken}`,
+          },
+        },
+      );
+      console.log(`Quick reply sent to user ${userId}`);
+    } catch (error) {
+      console.error('Error sending LINE quick reply:', error);
+      throw new Error('Failed to send LINE quick reply');
     }
   }
 
@@ -94,23 +259,13 @@ export class NotificationService {
       },
     };
 
+    const altText = 'Missing Check-in Approval Required';
+
     for (const admin of admins) {
       if (admin.lineUserId) {
-        await this.sendFlexMessage(
-          admin.lineUserId,
-          'Missing Check-in Approval',
-          flexContent,
-        );
+        await this.sendFlexMessage(admin.lineUserId, altText, flexContent);
       }
     }
-  }
-
-  async sendFlexMessage(
-    lineUserId: string,
-    altText: string,
-    flexContent: any,
-  ): Promise<void> {
-    await lineService.sendFlexMessage(lineUserId, altText, flexContent);
   }
 
   async sendOvertimeApprovalNotification(
