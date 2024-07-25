@@ -11,7 +11,7 @@ const CheckInOutSuccess: React.FC = () => {
 
         setTimeout(() => {
           liff.closeWindow();
-        }, 3000); // Close the window after 3 seconds
+        }, 2000); // Close the window after 3 seconds
       } catch (error) {
         console.error('Error initializing LIFF:', error);
       }
@@ -30,7 +30,7 @@ const CheckInOutSuccess: React.FC = () => {
           ระบบได้บันทึกการทำรายงานของคุณเรียบร้อยแล้ว
         </p>
         <p className="text-gray-500">
-          ระบบจะกลับเข้าสู่ Line หลังจาก 3 วินาที...
+          ระบบจะกลับเข้าสู่ Line หลังจาก 2 วินาที...
         </p>
       </div>
     </div>
