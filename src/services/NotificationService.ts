@@ -7,6 +7,11 @@ const prisma = new PrismaClient();
 const lineService = new LineService();
 
 export class NotificationService {
+  private lineService: LineService;
+
+  constructor() {
+    this.lineService = new LineService();
+  }
   async sendNotification(
     userId: string,
     message: string,
