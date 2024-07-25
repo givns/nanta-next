@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import moment from 'moment-timezone';
+import { AttendanceData } from '@/types/user';
 
 const attendanceService = new AttendanceService();
 const shiftService = new ShiftManagementService();
@@ -73,9 +74,12 @@ export default async function handler(
         TIMEZONE,
       );
       if (adjustmentDate.isSame(now, 'day')) {
+        console.log('Using adjusted shift');
         effectiveShift = attendanceStatus.shiftAdjustment.requestedShift;
       }
     }
+
+    console.log('Effective shift:', effectiveShift);
 
     const {
       shiftStart,
@@ -123,11 +127,22 @@ export default async function handler(
         .json({ message: 'Check-in/out not allowed at this time' });
     }
 
-    const attendance = await attendanceService.processAttendance({
+    let attendanceType:
+      | 'regular'
+      | 'flexible-start'
+      | 'flexible-end'
+      | 'grace-period'
+      | 'overtime' = 'regular';
+    if (isFlexibleStart) attendanceType = 'flexible-start';
+    else if (isFlexibleEnd) attendanceType = 'flexible-end';
+    else if (isWithinGracePeriod) attendanceType = 'grace-period';
+    else if (attendanceStatus.approvedOvertime) attendanceType = 'overtime';
+
+    const attendanceData: AttendanceData = {
       userId,
       employeeId,
-      checkTime: now.toISOString(),
-      location,
+      checkTime: now.toDate(), // or now.toISOString() if you prefer string
+      location: JSON.stringify(location), // Assuming location is an object
       address,
       reason,
       photo,
@@ -135,10 +150,15 @@ export default async function handler(
       isCheckIn,
       isOvertime: attendanceStatus.approvedOvertime ? true : isOvertime,
       isLate,
-      isFlexibleStart,
-      isFlexibleEnd,
-      isWithinGracePeriod,
-    });
+      isFlexibleStart: attendanceType === 'flexible-start',
+      isFlexibleEnd: attendanceType === 'flexible-end',
+      isWithinGracePeriod: attendanceType === 'grace-period',
+    };
+
+    console.log('Attendance data:', attendanceData);
+
+    const attendance =
+      await attendanceService.processAttendance(attendanceData);
 
     console.log('Processed attendance:', attendance);
 
@@ -150,39 +170,39 @@ export default async function handler(
       error: error.message,
     });
   }
-}
 
-function calculateShiftTimes(
-  now: moment.Moment,
-  startTime: string,
-  endTime: string,
-) {
-  const [startHour, startMinute] = startTime.split(':').map(Number);
-  const [endHour, endMinute] = endTime.split(':').map(Number);
+  function calculateShiftTimes(
+    now: moment.Moment,
+    startTime: string,
+    endTime: string,
+  ) {
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
 
-  const shiftStart = now
-    .clone()
-    .set({ hour: startHour, minute: startMinute, second: 0, millisecond: 0 });
-  const shiftEnd = now
-    .clone()
-    .set({ hour: endHour, minute: endMinute, second: 0, millisecond: 0 });
+    const shiftStart = now
+      .clone()
+      .set({ hour: startHour, minute: startMinute, second: 0, millisecond: 0 });
+    const shiftEnd = now
+      .clone()
+      .set({ hour: endHour, minute: endMinute, second: 0, millisecond: 0 });
 
-  // Handle overnight shifts
-  if (shiftEnd.isBefore(shiftStart)) {
-    shiftEnd.add(1, 'day');
+    // Handle overnight shifts
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    const flexibleStart = shiftStart.clone().subtract(30, 'minutes');
+    const flexibleEnd = shiftEnd.clone().add(30, 'minutes');
+    const graceStart = shiftStart.clone().subtract(5, 'minutes');
+    const graceEnd = shiftEnd.clone().add(5, 'minutes');
+
+    return {
+      shiftStart,
+      shiftEnd,
+      flexibleStart,
+      flexibleEnd,
+      graceStart,
+      graceEnd,
+    };
   }
-
-  const flexibleStart = shiftStart.clone().subtract(30, 'minutes');
-  const flexibleEnd = shiftEnd.clone().add(30, 'minutes');
-  const graceStart = shiftStart.clone().subtract(5, 'minutes');
-  const graceEnd = shiftEnd.clone().add(5, 'minutes');
-
-  return {
-    shiftStart,
-    shiftEnd,
-    flexibleStart,
-    flexibleEnd,
-    graceStart,
-    graceEnd,
-  };
 }

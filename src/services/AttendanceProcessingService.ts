@@ -37,6 +37,9 @@ export class AttendanceProcessingService {
       checkInTime,
     );
     console.log(`Shift: ${shift.name}`);
+    console.log(`Shift start: ${shiftStart.toISOString()}`);
+    console.log(`Shift end: ${shiftEnd.toISOString()}`);
+    console.log(`Check-in time: ${checkInTime.toISOString()}`);
 
     let status: string;
     let isOvertime = false;
@@ -44,8 +47,10 @@ export class AttendanceProcessingService {
     const twoHoursBeforeShift = new Date(
       shiftStart.getTime() - 2 * 60 * 60 * 1000,
     );
+    console.log(`Two hours before shift: ${twoHoursBeforeShift.toISOString()}`);
 
     if (checkInTime < twoHoursBeforeShift) {
+      console.log('Check-in is more than 2 hours before shift start');
       await notificationService.sendNotification(
         userId,
         `Your check-in for ${checkInTime.toDateString()} at ${checkInTime.toTimeString()} is more than 2 hours before your shift starts. This may not be counted as a valid attendance. Please check your schedule.`,
