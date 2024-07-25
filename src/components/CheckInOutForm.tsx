@@ -654,7 +654,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               )}
             </div>
             {apiKey && location ? (
-              <div className="mb-4">
+              <div className="mb-4 max-w-full">
                 <InteractiveMap
                   apiKey={apiKey}
                   lat={location.lat}
