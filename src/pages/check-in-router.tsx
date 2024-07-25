@@ -137,15 +137,19 @@ const CheckInRouter: React.FC = () => {
           <div className="text-3xl font-bold text-center mb-8 text-black-950">
             {currentTime}
           </div>
-          <CheckInOutForm
-            userData={userData}
-            initialAttendanceStatus={attendanceStatus}
-            onStatusChange={(newStatus) =>
-              setAttendanceStatus((prev) =>
-                prev ? { ...prev, isCheckingIn: newStatus } : null,
-              )
-            }
-          />
+          <div className="w-full max-w-md">
+            {' '}
+            {/* Add this wrapper */}
+            <CheckInOutForm
+              userData={userData}
+              initialAttendanceStatus={attendanceStatus}
+              onStatusChange={(newStatus) =>
+                setAttendanceStatus((prev) =>
+                  prev ? { ...prev, isCheckingIn: newStatus } : null,
+                )
+              }
+            />
+          </div>
         </div>
       </div>
     </ErrorBoundary>

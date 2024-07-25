@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import Webcam from 'react-webcam';
 import '@tensorflow/tfjs-backend-webgl';
-import { AttendanceStatus, UserData, ShiftData } from '../types/user';
+import { AttendanceStatus, UserData } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 import { useFaceDetection } from '../hooks/useFaceDetection';
@@ -47,7 +48,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     userData,
     initialAttendanceStatus,
   });
-
+  const router = useRouter();
   const [attendanceStatus, setAttendanceStatus] = useState(
     initialAttendanceStatus,
   );
@@ -472,6 +473,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           successMsg += ' Overtime has been recorded.';
         }
         setSuccessMessage(successMsg);
+
+        await router.push('/checkInOutSuccess');
       } else {
         throw new Error('Invalid response from server');
       }
@@ -529,104 +532,106 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   };
 
+  const renderStep2 = () => (
+    <div className="h-full flex flex-col justify-center">
+      {isModelLoading ? (
+        <SkeletonLoader />
+      ) : (
+        <>
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            className="w-full rounded-lg mb-4"
+            onUserMedia={() => console.log('Camera is ready')}
+            onUserMediaError={(error) =>
+              handleError(error, 'Failed to access camera')
+            }
+          />
+          <p className="text-center mb-2">{message}</p>
+        </>
+      )}
+    </div>
+  );
+
+  const renderStep3 = () => (
+    <div className="h-full flex flex-col justify-between">
+      <div className="overflow-y-auto">
+        <h3 className="text-lg font-semibold mb-2">
+          ยืนยันการ{attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+        </h3>
+        <div className="mb-4">
+          <label
+            htmlFor="address-display"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
+            ที่อยู่ของคุณ
+          </label>
+          {addressError ? (
+            <p className="text-red-500">{addressError}</p>
+          ) : (
+            <div
+              id="address-display"
+              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
+              aria-live="polite"
+            >
+              {address || 'Loading address...'}
+            </div>
+          )}
+        </div>
+        {apiKey && location ? (
+          <div className="mb-4">
+            <InteractiveMap
+              apiKey={apiKey}
+              lat={location.lat}
+              lng={location.lng}
+            />
+          </div>
+        ) : (
+          <SkeletonLoader />
+        )}
+        {!inPremises && (
+          <div className="mt-4">
+            <label
+              htmlFor="reason-input"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              เหตุผลสำหรับการ
+              {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
+              นอกสถานที่
+            </label>
+            <input
+              type="text"
+              id="reason-input"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+              required
+            />
+          </div>
+        )}
+      </div>
+      <div className="mt-6">
+        <button
+          onClick={handleCheckInOut}
+          disabled={loading || (!inPremises && !reason)}
+          className="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition duration-300 disabled:bg-gray-400"
+          aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+        >
+          {loading
+            ? `กำลังดำเนินการ...`
+            : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออกงาน'}${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-screen flex flex-col">
       <div className="flex-grow overflow-hidden flex flex-col">
         {step === 'info' && renderStep1()}
-        {step === 'camera' && (
-          <div className="h-full flex flex-col justify-center">
-            {isModelLoading ? (
-              <SkeletonLoader />
-            ) : (
-              <>
-                <Webcam
-                  audio={false}
-                  ref={webcamRef}
-                  screenshotFormat="image/jpeg"
-                  className="w-full rounded-lg mb-4"
-                  onUserMedia={() => console.log('Camera is ready')}
-                  onUserMediaError={(error) =>
-                    handleError(error, 'Failed to access camera')
-                  }
-                />
-                <p className="text-center mb-2">{message}</p>
-              </>
-            )}
-          </div>
-        )}
-
-        {step === 'confirm' && (
-          <div className="flex flex-col h-full">
-            <div className="bg-white p-6 rounded-lg shadow-lg">
-              <h3 className="text-lg font-semibold mb-4">
-                ยืนยันการ
-                {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-              </h3>
-              <div className="mb-4">
-                <label
-                  htmlFor="address-display"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  ที่อยู่ของคุณ
-                </label>
-                {addressError ? (
-                  <p className="text-red-500">{addressError}</p>
-                ) : (
-                  <div
-                    id="address-display"
-                    className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
-                    aria-live="polite"
-                  >
-                    {address || 'Loading address...'}
-                  </div>
-                )}
-              </div>
-              {apiKey && location ? (
-                <div className="mb-4 w-full h-48">
-                  <InteractiveMap
-                    apiKey={apiKey}
-                    lat={location.lat}
-                    lng={location.lng}
-                  />
-                </div>
-              ) : (
-                <SkeletonLoader />
-              )}
-              {!inPremises && (
-                <div className="mt-4">
-                  <label
-                    htmlFor="reason-input"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    เหตุผลสำหรับการ
-                    {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-                    นอกสถานที่
-                  </label>
-                  <input
-                    type="text"
-                    id="reason-input"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
-                    required
-                  />
-                </div>
-              )}
-            </div>
-            <div className="mt-6">
-              <button
-                onClick={handleCheckInOut}
-                disabled={loading || (!inPremises && !reason)}
-                className="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition duration-300 disabled:bg-gray-400"
-                aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
-              >
-                {loading
-                  ? `กำลังดำเนินการ...`
-                  : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้า' : 'ออก'}งาน${isShiftAdjustmentNeeded ? ' และส่งคำขอปรับเปลี่ยนกะ' : ''}`}
-              </button>
-            </div>
-          </div>
-        )}
+        {step === 'camera' && renderStep2()}
+        {step === 'confirm' && renderStep3()}
       </div>
       {(errorMessage || successMessage) && (
         <div className="mt-4">
