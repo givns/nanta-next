@@ -77,16 +77,20 @@ export class LineService {
     }
   }
 
-  async sendFlexMessage(userId: string, flexContent: any): Promise<void> {
+  async sendFlexMessage(
+    lineUserId: string,
+    altText: string,
+    flexContent: any,
+  ): Promise<void> {
     try {
       await axios.post(
         this.lineApiUrl,
         {
-          to: userId,
+          to: lineUserId,
           messages: [
             {
               type: 'flex',
-              altText: 'Flex Message',
+              altText: altText,
               contents: flexContent,
             },
           ],
@@ -98,7 +102,7 @@ export class LineService {
           },
         },
       );
-      console.log(`Flex message sent to user ${userId}`);
+      console.log(`Flex message sent to user ${lineUserId}`);
     } catch (error) {
       console.error('Error sending LINE flex message:', error);
       throw new Error('Failed to send LINE flex message');

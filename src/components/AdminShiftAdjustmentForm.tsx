@@ -150,235 +150,240 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   };
 
   return (
-    <Formik
-      initialValues={initialValues}
-      validationSchema={validationSchema}
-      onSubmit={handleSubmit}
-    >
-      {({ values, isSubmitting, setFieldValue }) => (
-        <Form className="space-y-4">
-          <div>
-            <label
-              htmlFor="targetType"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Adjust for
-            </label>
-            <Field
-              as="select"
-              id="targetType"
-              name="targetType"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            >
-              <option value="department">รายแผนก</option>
-              <option value="individual">รายบุคคล</option>
-            </Field>
-            <ErrorMessage
-              name="targetType"
-              component="div"
-              className="text-red-500 text-sm"
-            />
-          </div>
+    <div className="bg-white p-4 rounded-box mb-4">
+      <Formik
+        initialValues={initialValues}
+        validationSchema={validationSchema}
+        onSubmit={handleSubmit}
+      >
+        {({ values, isSubmitting, setFieldValue }) => (
+          <Form className="space-y-4">
+            <div>
+              <label
+                htmlFor="targetType"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Adjust for
+              </label>
+              <Field
+                as="select"
+                id="targetType"
+                name="targetType"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              >
+                <option value="department">รายแผนก</option>
+                <option value="individual">รายบุคคล</option>
+              </Field>
+              <ErrorMessage
+                name="targetType"
+                component="div"
+                className="text-red-500 text-sm"
+              />
+            </div>
 
-          {values.targetType === 'department' && (
-            <FieldArray name="departmentShifts">
-              {({ remove, push }) => (
-                <div>
-                  {values.departmentShifts.map((_, index) => (
-                    <div
-                      key={index}
-                      className="bg-gray-100 p-4 rounded-lg mb-4"
+            {values.targetType === 'department' && (
+              <FieldArray name="departmentShifts">
+                {({ remove, push }) => (
+                  <div>
+                    {values.departmentShifts.map((_, index) => (
+                      <div
+                        key={index}
+                        className="bg-gray-100 p-4 rounded-lg mb-4"
+                      >
+                        <div>
+                          <label
+                            htmlFor={`departmentShifts.${index}.departmentId`}
+                            className="block text-sm font-medium text-gray-700"
+                          >
+                            Department
+                          </label>
+                          <Field
+                            as="select"
+                            name={`departmentShifts.${index}.departmentId`}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                          >
+                            {isLoading ? (
+                              <option>Loading departments...</option>
+                            ) : (
+                              <>
+                                <option value="">Select a department</option>
+                                {departments.map((dept) => (
+                                  <option key={dept.id} value={dept.id}>
+                                    {dept.name}
+                                  </option>
+                                ))}
+                              </>
+                            )}
+                          </Field>
+                          <ErrorMessage
+                            name={`departmentShifts.${index}.departmentId`}
+                            component="div"
+                            className="text-red-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`departmentShifts.${index}.shiftId`}
+                            className="block text-sm font-medium text-gray-700"
+                          >
+                            New Shift
+                          </label>
+                          <Field
+                            as="select"
+                            name={`departmentShifts.${index}.shiftId`}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                          >
+                            <option value="">Select a shift</option>
+                            {shifts.map((shift) => (
+                              <option key={shift.id} value={shift.id}>
+                                {shift.name} ({shift.startTime} -{' '}
+                                {shift.endTime})
+                              </option>
+                            ))}
+                          </Field>
+                          <ErrorMessage
+                            name={`departmentShifts.${index}.shiftId`}
+                            component="div"
+                            className="text-red-500 text-sm"
+                          />
+                        </div>
+                        {index > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => remove(index)}
+                            className="mt-2 text-red-600"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => push({ departmentId: '', shiftId: '' })}
+                      className="mt-2 text-blue-600"
                     >
-                      <div>
-                        <label
-                          htmlFor={`departmentShifts.${index}.departmentId`}
-                          className="block text-sm font-medium text-gray-700"
-                        >
-                          Department
-                        </label>
-                        <Field
-                          as="select"
-                          name={`departmentShifts.${index}.departmentId`}
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                        >
-                          {isLoading ? (
-                            <option>Loading departments...</option>
-                          ) : (
-                            <>
-                              <option value="">Select a department</option>
-                              {departments.map((dept) => (
-                                <option key={dept.id} value={dept.id}>
-                                  {dept.name}
-                                </option>
-                              ))}
-                            </>
-                          )}
-                        </Field>
-                        <ErrorMessage
-                          name={`departmentShifts.${index}.departmentId`}
-                          component="div"
-                          className="text-red-500 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label
-                          htmlFor={`departmentShifts.${index}.shiftId`}
-                          className="block text-sm font-medium text-gray-700"
-                        >
-                          New Shift
-                        </label>
-                        <Field
-                          as="select"
-                          name={`departmentShifts.${index}.shiftId`}
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                        >
-                          <option value="">Select a shift</option>
-                          {shifts.map((shift) => (
-                            <option key={shift.id} value={shift.id}>
-                              {shift.name} ({shift.startTime} - {shift.endTime})
-                            </option>
-                          ))}
-                        </Field>
-                        <ErrorMessage
-                          name={`departmentShifts.${index}.shiftId`}
-                          component="div"
-                          className="text-red-500 text-sm"
-                        />
-                      </div>
-                      {index > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => remove(index)}
-                          className="mt-2 text-red-600"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => push({ departmentId: '', shiftId: '' })}
-                    className="mt-2 text-blue-600"
+                      Add Department
+                    </button>
+                  </div>
+                )}
+              </FieldArray>
+            )}
+
+            {values.targetType === 'individual' && (
+              <>
+                <div>
+                  <label
+                    htmlFor="individualEmployeeId"
+                    className="block text-sm font-medium text-gray-700"
                   >
-                    Add Department
-                  </button>
+                    Employee ID
+                  </label>
+                  <Field
+                    type="text"
+                    id="individualEmployeeId"
+                    name="individualEmployeeId"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                  />
+                  <ErrorMessage
+                    name="individualEmployeeId"
+                    component="div"
+                    className="text-red-500 text-sm"
+                  />
                 </div>
-              )}
-            </FieldArray>
-          )}
+                <div>
+                  <label
+                    htmlFor="individualShiftId"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    New Shift
+                  </label>
+                  <Field
+                    as="select"
+                    id="individualShiftId"
+                    name="individualShiftId"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                  >
+                    <option value="">Select a shift</option>
+                    {shifts.map((shift) => (
+                      <option key={shift.id} value={shift.id}>
+                        {shift.name} ({shift.startTime} - {shift.endTime})
+                      </option>
+                    ))}
+                  </Field>
+                  <ErrorMessage
+                    name="individualShiftId"
+                    component="div"
+                    className="text-red-500 text-sm"
+                  />
+                </div>
+              </>
+            )}
 
-          {values.targetType === 'individual' && (
-            <>
-              <div>
-                <label
-                  htmlFor="individualEmployeeId"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Employee ID
-                </label>
-                <Field
-                  type="text"
-                  id="individualEmployeeId"
-                  name="individualEmployeeId"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                />
-                <ErrorMessage
-                  name="individualEmployeeId"
-                  component="div"
-                  className="text-red-500 text-sm"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="individualShiftId"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  New Shift
-                </label>
-                <Field
-                  as="select"
-                  id="individualShiftId"
-                  name="individualShiftId"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                >
-                  <option value="">Select a shift</option>
-                  {shifts.map((shift) => (
-                    <option key={shift.id} value={shift.id}>
-                      {shift.name} ({shift.startTime} - {shift.endTime})
-                    </option>
-                  ))}
-                </Field>
-                <ErrorMessage
-                  name="individualShiftId"
-                  component="div"
-                  className="text-red-500 text-sm"
-                />
-              </div>
-            </>
-          )}
+            <div>
+              <label
+                htmlFor="date"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Date
+              </label>
+              <Field
+                type="date"
+                id="date"
+                name="date"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              />
+              <ErrorMessage
+                name="date"
+                component="div"
+                className="text-red-500 text-sm"
+              />
+            </div>
 
-          <div>
-            <label
-              htmlFor="date"
-              className="block text-sm font-medium text-gray-700"
+            <div>
+              <label
+                htmlFor="reason"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Reason
+              </label>
+              <Field
+                as="textarea"
+                id="reason"
+                name="reason"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                rows={3}
+              />
+              <ErrorMessage
+                name="reason"
+                component="div"
+                className="text-red-500 text-sm"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting || !lineUserId}
+              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
             >
-              Date
-            </label>
-            <Field
-              type="date"
-              id="date"
-              name="date"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            />
-            <ErrorMessage
-              name="date"
-              component="div"
-              className="text-red-500 text-sm"
-            />
-          </div>
+              {isSubmitting ? 'Applying...' : 'Apply Shift Adjustment'}
+            </button>
 
-          <div>
-            <label
-              htmlFor="reason"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Reason
-            </label>
-            <Field
-              as="textarea"
-              id="reason"
-              name="reason"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              rows={3}
-            />
-            <ErrorMessage
-              name="reason"
-              component="div"
-              className="text-red-500 text-sm"
-            />
-          </div>
+            {!lineUserId && (
+              <p className="mt-2 text-sm text-center text-red-600">
+                User ID is not available. Shift adjustment is disabled.
+              </p>
+            )}
 
-          <button
-            type="submit"
-            disabled={isSubmitting || !lineUserId}
-            className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
-          >
-            {isSubmitting ? 'Applying...' : 'Apply Shift Adjustment'}
-          </button>
-
-          {!lineUserId && (
-            <p className="mt-2 text-sm text-center text-red-600">
-              User ID is not available. Shift adjustment is disabled.
-            </p>
-          )}
-
-          {message && (
-            <p className="mt-2 text-sm text-center text-gray-600">{message}</p>
-          )}
-        </Form>
-      )}
-    </Formik>
+            {message && (
+              <p className="mt-2 text-sm text-center text-gray-600">
+                {message}
+              </p>
+            )}
+          </Form>
+        )}
+      </Formik>
+    </div>
   );
 };
 

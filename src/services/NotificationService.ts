@@ -1,35 +1,26 @@
-import axios from 'axios';
-import { OvertimeRequest, User, PrismaClient } from '@prisma/client';
-import { LineService } from '@/services/LineService';
+// NotificationService.ts
+
+import { PrismaClient, User, OvertimeRequest } from '@prisma/client';
+import { LineService } from './LineService';
 
 const prisma = new PrismaClient();
 const lineService = new LineService();
 
 export class NotificationService {
-  sendFlexMessage: any;
-  static notifyAdminsOfMissingCheckIn(
-    userId: any,
-    employeeId: any,
-    arg2: string,
-    arg3: string,
-    id: string,
-  ) {
-    throw new Error('Method not implemented.');
-  }
   async sendNotification(
     userId: string,
     message: string,
     lineUserId?: string,
   ): Promise<void> {
-    if (!lineUserId) {
-      console.warn('No LINE user ID provided for notification');
-      return;
-    }
-
-    try {
+    if (lineUserId) {
       await lineService.sendNotification(lineUserId, message);
-    } catch (error) {
-      console.error('Error sending LINE notification:', error);
+    } else {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user && user.lineUserId) {
+        await lineService.sendNotification(user.lineUserId, message);
+      } else {
+        console.warn(`No LINE user ID found for user ${userId}`);
+      }
     }
   }
 
@@ -42,7 +33,7 @@ export class NotificationService {
   ): Promise<void> {
     const admins = await prisma.user.findMany({
       where: { role: 'ADMIN' },
-      select: { lineUserId: true },
+      select: { id: true, lineUserId: true },
     });
 
     const flexContent = {
@@ -73,14 +64,25 @@ export class NotificationService {
       },
       footer: {
         type: 'box',
-        layout: 'vertical',
+        layout: 'horizontal',
+        spacing: 'sm',
         contents: [
           {
             type: 'button',
+            style: 'primary',
             action: {
-              type: 'uri',
+              type: 'postback',
               label: 'Approve',
-              uri: `https://your-admin-panel.com/approve-attendance/${pendingAttendanceId}`,
+              data: `action=approve&attendanceId=${pendingAttendanceId}`,
+            },
+          },
+          {
+            type: 'button',
+            style: 'secondary',
+            action: {
+              type: 'postback',
+              label: 'Deny',
+              data: `action=deny&attendanceId=${pendingAttendanceId}`,
             },
           },
         ],
@@ -89,9 +91,21 @@ export class NotificationService {
 
     for (const admin of admins) {
       if (admin.lineUserId) {
-        await lineService.sendFlexMessage(admin.lineUserId, flexContent);
+        await this.sendFlexMessage(
+          admin.lineUserId,
+          'Missing Check-in Approval',
+          flexContent,
+        );
       }
     }
+  }
+
+  async sendFlexMessage(
+    lineUserId: string,
+    altText: string,
+    flexContent: any,
+  ): Promise<void> {
+    await lineService.sendFlexMessage(lineUserId, altText, flexContent);
   }
 
   async sendOvertimeApprovalNotification(
@@ -133,3 +147,5 @@ export class NotificationService {
     );
   }
 }
+
+export const notificationService = new NotificationService();

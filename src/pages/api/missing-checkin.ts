@@ -50,13 +50,14 @@ export default async function handler(
     });
 
     // Send flex message to admins
-    const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+    const admins = await prisma.user.findMany({ where: { role: 'Admin' } });
     for (const admin of admins) {
-      await notificationService.sendFlexMessage(
-        admin.lineUserId,
-        'Missing Check-in Approval Required',
-        `User: ${user.name}\nEmployee ID: ${user.employeeId}\nPotential Start Time: ${potentialStartTime.toLocaleTimeString()}\nCheck-out Time: ${new Date(checkOutTime).toLocaleTimeString()}`,
-        `https://your-admin-panel.com/approve-attendance/${pendingAttendance.id}`,
+      await notificationService.notifyAdminsOfMissingCheckIn(
+        userId,
+        user.employeeId,
+        potentialStartTime.toLocaleTimeString(),
+        checkOutTime.toLocaleTimeString(),
+        pendingAttendance.id,
       );
     }
 

@@ -3,7 +3,7 @@ import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import moment from 'moment-timezone';
 import { AttendanceData } from '@/types/user';
-import { NotificationService } from '@/services/NotificationService';
+import { notificationService } from '@/services/NotificationService';
 
 const attendanceService = new AttendanceService();
 const shiftService = new ShiftManagementService();
@@ -91,7 +91,7 @@ export default async function handler(
           );
 
         // Notify admins
-        await NotificationService.notifyAdminsOfMissingCheckIn(
+        await notificationService.notifyAdminsOfMissingCheckIn(
           userId,
           employeeId,
           potentialStartTime.format('HH:mm:ss'),

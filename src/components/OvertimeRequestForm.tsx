@@ -172,7 +172,7 @@ const OvertimeRequestForm: React.FC = () => {
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+      <div className="bg-white p-8 rounded-box shadow-md w-full">
         {step === 1 && (
           <div className="space-y-4">
             <h2 className="text-2xl font-bold mb-4">คำขอทำงานล่วงเวลา</h2>
