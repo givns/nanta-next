@@ -78,7 +78,7 @@ model LeaveRequest {
   leaveType         String
   leaveFormat       String
   reason            String
-  useOvertimeHours  Boolean
+  useOvertimeHours  Boolean 
   startDate         DateTime
   endDate           DateTime
   status            String

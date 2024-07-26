@@ -1,5 +1,7 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../lib/prisma';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { LeaveServiceServer } from '../../../services/LeaveServiceServer';
+
+const leaveService = new LeaveServiceServer();
 
 export default async function handler(
   req: NextApiRequest,
@@ -10,60 +12,41 @@ export default async function handler(
   }
 
   const {
-    userId,
+    lineUserId,
     leaveType,
     leaveFormat,
     reason,
     startDate,
     endDate,
     fullDayCount,
+    useOvertimeHours,
     resubmitted,
     originalRequestId,
   } = req.body;
 
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required' });
-  }
-
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    console.log('Received leave request data:', req.body);
 
-    let leaveRequestData: any = {
-      userId,
+    const newLeaveRequest = await leaveService.createLeaveRequest(
+      lineUserId,
       leaveType,
       leaveFormat,
       reason,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      status: 'Pending',
+      startDate,
+      endDate,
       fullDayCount,
+      useOvertimeHours,
       resubmitted,
-    };
+      originalRequestId,
+    );
 
-    if (resubmitted && originalRequestId) {
-      const originalRequest = await prisma.leaveRequest.findUnique({
-        where: { id: originalRequestId },
-      });
-      if (originalRequest) {
-        leaveRequestData = {
-          ...originalRequest,
-          ...leaveRequestData,
-          originalRequestId,
-          id: undefined,
-          createdAt: undefined,
-          updatedAt: undefined,
-        };
-      }
-    }
-
-    const newLeaveRequest = await prisma.leaveRequest.create({
-      data: leaveRequestData,
-    });
+    console.log('Leave request created:', newLeaveRequest);
 
     return res.status(201).json(newLeaveRequest);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating leave request:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res
+      .status(500)
+      .json({ error: 'Internal server error', details: error.message });
   }
 }

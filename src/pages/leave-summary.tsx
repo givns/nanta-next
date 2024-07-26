@@ -45,6 +45,7 @@ const LeaveSummaryPage: React.FC = () => {
       const leaveData = {
         ...summaryData,
         fullDayCount: leaveDays,
+        useOvertimeHours: false,
         startDate: new Date(summaryData.startDate).toISOString(),
         endDate:
           summaryData.leaveFormat === 'ลาครึ่งวัน'
