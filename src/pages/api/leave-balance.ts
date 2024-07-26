@@ -26,11 +26,15 @@ export default async function handler(
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        sickLeaveBalance: true,
-        businessLeaveBalance: true,
-        annualLeaveBalance: true,
-        overtimeLeaveBalance: true,
+      include: {
+        leaveRequests: {
+          where: {
+            status: 'APPROVED',
+            startDate: {
+              gte: new Date(new Date().getFullYear(), 0, 1), // Start of current year
+            },
+          },
+        },
       },
     });
 
@@ -38,18 +42,9 @@ export default async function handler(
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const totalLeaveDays =
-      user.sickLeaveBalance +
-      user.businessLeaveBalance +
-      user.annualLeaveBalance;
+    const leaveBalance = calculateLeaveBalance(user);
 
-    res.status(200).json({
-      sickLeave: user.sickLeaveBalance,
-      businessLeave: user.businessLeaveBalance,
-      annualLeave: user.annualLeaveBalance,
-      overtimeLeave: user.overtimeLeaveBalance,
-      totalLeaveDays,
-    });
+    res.status(200).json(leaveBalance);
   } catch (error) {
     console.error('Error fetching leave balance:', error);
     res.status(500).json({ message: 'Error fetching leave balance' });
@@ -66,16 +61,16 @@ function calculateLeaveBalance(user: any): LeaveBalanceData {
 
   user.leaveRequests.forEach((request: any) => {
     switch (request.leaveType) {
-      case 'ลาป่วย':
+      case 'sick':
         usedLeave.sickLeave += request.fullDayCount;
         break;
-      case 'ลากิจ':
+      case 'business':
         usedLeave.businessLeave += request.fullDayCount;
         break;
-      case 'ลาพักร้อน':
+      case 'annual':
         usedLeave.annualLeave += request.fullDayCount;
         break;
-      case 'ลาโดยใช้ชั่วโมง OT':
+      case 'overtime':
         usedLeave.overtimeLeave += request.fullDayCount;
         break;
     }
@@ -90,10 +85,7 @@ function calculateLeaveBalance(user: any): LeaveBalanceData {
   };
 
   balance.totalLeaveDays =
-    balance.sickLeave +
-    balance.businessLeave +
-    balance.annualLeave +
-    balance.overtimeLeave;
+    balance.sickLeave + balance.businessLeave + balance.annualLeave;
 
   return balance;
 }
