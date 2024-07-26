@@ -269,7 +269,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
         {/* Status Message Section */}
         <div className="flex flex-col items-center">
-          <span className="text-xl font-semibold">สถานะวันนี้</span>
           <div className="flex items-center mt-2">
             <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
             <span className="text-gray-600">{message}</span>
