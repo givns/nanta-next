@@ -94,8 +94,8 @@ const LeaveRequestPage: React.FC = () => {
   console.log('Rendering LeaveRequestForm with userData:', userData);
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8">
-      <div className="max-w-md mx-auto">
+    <div className="main-container flex flex-col min-h-screen bg-gray-100 p-4">
+      <div className="flex-grow flex flex-col justify-start items-center">
         <LeaveRequestForm
           initialData={originalLeaveData || undefined}
           isResubmission={resubmit === 'true'}
