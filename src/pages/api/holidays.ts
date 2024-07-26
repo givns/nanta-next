@@ -18,16 +18,16 @@ export default async function handler(
     );
 
     if (Array.isArray(response.data)) {
-      const holidays: Holiday[] = response.data.map((holiday: any) => ({
-        date: holiday.date,
-        localName: holiday.localName,
-        name: holiday.name,
-        countryCode: holiday.countryCode,
-        fixed: holiday.fixed,
-        global: holiday.global,
-        counties: holiday.counties,
-        launchYear: holiday.launchYear,
-        types: holiday.types,
+      const holidays: Holiday[] = response.data.map((item: any) => ({
+        date: item.date,
+        localName: item.localName,
+        name: item.name,
+        countryCode: item.countryCode,
+        fixed: item.fixed,
+        global: item.global,
+        counties: item.counties || null,
+        launchYear: item.launchYear || null,
+        types: item.types || [],
       }));
       res.status(200).json(holidays);
     } else {

@@ -26,31 +26,33 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   );
 
   const getStatusMessage = () => {
-    console.log('isDayOff:', attendanceStatus.isDayOff);
-    console.log('latestAttendance:', attendanceStatus.latestAttendance);
-    console.log('today:', today);
+    const now = moment().tz('Asia/Bangkok');
+    const today = now.startOf('day');
 
     if (attendanceStatus.isDayOff) {
-      console.log('Condition: Day Off');
       return { message: 'วันหยุด', color: 'blue' };
     }
-    if (
-      !attendanceStatus.latestAttendance ||
-      !moment(attendanceStatus.latestAttendance.date).isSame(today, 'day')
-    ) {
-      console.log('Condition: No attendance or not today');
+
+    if (!attendanceStatus.latestAttendance) {
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }
+
+    const attendanceDate = moment(
+      attendanceStatus.latestAttendance.date,
+    ).startOf('day');
+
+    if (!attendanceDate.isSame(today)) {
+      return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
+    }
+
     if (attendanceStatus.latestAttendance.checkOutTime) {
-      console.log('Condition: Checked out');
       return { message: 'ทำงานเสร็จแล้ว', color: 'green' };
     }
+
     if (attendanceStatus.latestAttendance.checkInTime) {
-      console.log('Condition: Checked in');
       return { message: 'ลงเวลาเข้างานแล้ว', color: 'orange' };
     }
-    console.log('attendanceStatus:', attendanceStatus);
-    console.log('Condition: Default - No attendance');
+
     return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
   };
 

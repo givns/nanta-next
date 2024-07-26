@@ -106,7 +106,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
       {renderUserInfo()}
-      <div className="bg-white rounded-box mb-4">
+      <div className="rounded-box bg-white p-6">
         <LeaveBalanceComponent
           userId={userData.id}
           onBalanceLoaded={handleBalanceLoaded}
@@ -114,7 +114,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       </div>
       <button
         onClick={() => setStep(2)}
-        className="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition duration-300"
+        className="mt-4 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
       >
         Next: Choose Leave Type
       </button>
@@ -122,7 +122,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep2 = (setFieldValue: (field: string, value: any) => void) => (
-    <div className="bg-white rounded-lg p-4 mb-4">
+    <div className="rounded-box bg-white p-6">
       <h2 className="text-lg font-semibold mb-4">เลือกประเภทการลา</h2>
       <div className="space-y-2">
         {Object.keys(leaveTypeMapping).map((type) => (
@@ -143,7 +143,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep3 = (setFieldValue: (field: string, value: any) => void) => (
-    <div className="bg-white rounded-lg p-4 mb-4">
+    <div className="rounded-box bg-white p-6">
       <h2 className="text-lg font-semibold mb-4">เลือกลักษณะการลา</h2>
       <div className="space-y-2">
         {['ลาเต็มวัน', 'ลาครึ่งวัน'].map((format) => (
@@ -164,7 +164,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep4 = (values: FormValues) => (
-    <div className="bg-white rounded-lg p-4 mb-4">
+    <div className="rounded-box bg-white p-6">
       <h2 className="text-lg font-semibold mb-4">เลือกวันที่ลา</h2>
       <div className="space-y-4">
         <div>
@@ -213,7 +213,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep5 = () => (
-    <div className="bg-white rounded-lg p-4 mb-4">
+    <div className="rounded-box bg-white p-6">
       <h2 className="text-lg font-semibold mb-4">ระบุเหตุการลา</h2>
       <div>
         <label htmlFor="reason" className="block mb-1">
@@ -246,8 +246,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8">
-      <div className="max-w-md mx-auto">
+    <div className="min-h-screen bg-gray-100 py-8 px-4">
+      <div className="max-w-3xl mx-auto">
         <h1 className="text-2xl font-bold text-center mb-6">
           {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
         </h1>
@@ -266,7 +266,13 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           onSubmit={handleSubmit}
         >
           {({ values, setFieldValue }) => (
-            <Form>
+            <Form className="space-y-6">
+              <div className="rounded-box bg-white p-6 mb-4">
+                <LeaveBalanceComponent
+                  userId={userData.id}
+                  onBalanceLoaded={handleBalanceLoaded}
+                />
+              </div>
               {step === 1 && renderStep1()}
               {step === 2 && renderStep2(setFieldValue)}
               {step === 3 && renderStep3(setFieldValue)}

@@ -23,6 +23,12 @@ body {
   padding: 30px;
 }
 
+body,
+html {
+  min-height: 100vh;
+  background-color: #f3f4f6; /* Tailwind's gray-100 */
+}
+
 .bg-scarlet-700 {
   --tw-bg-opacity: 1;
   background-color: rgba(220, 38, 38, var(--tw-bg-opacity));

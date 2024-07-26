@@ -27,34 +27,41 @@ export const handleApprove = async (
   requestType: 'leave' | 'overtime',
 ) => {
   try {
+    const admin = await prisma.user.findUnique({
+      where: { lineUserId },
+    });
+
+    if (!admin) {
+      throw new Error('Admin not found');
+    }
+
     const model = getRequestModel(requestType);
     let request;
 
     if (requestType === 'leave') {
       request = await (model as typeof prisma.leaveRequest).update({
         where: { id: requestId },
-        data: { status: 'Approved', approverId: lineUserId },
+        data: {
+          status: 'approved',
+          approverId: admin.id,
+        },
         include: { user: true },
       });
     } else {
       request = await (model as typeof prisma.overtimeRequest).update({
         where: { id: requestId },
-        data: { status: 'Approved', approverId: lineUserId },
+        data: {
+          status: 'approved',
+          approverId: admin.id,
+        },
         include: { user: true },
       });
     }
 
-    const admin = await prisma.user.findUnique({
-      where: { lineUserId },
-    });
-
-    if (request.user && admin) {
+    if (request.user) {
       await sendApproveNotification(request.user, request, admin, requestType);
     } else {
-      console.error('User or admin not found:', {
-        user: request.user,
-        admin,
-      });
+      console.error('User not found:', { request });
     }
 
     return request;
@@ -70,36 +77,42 @@ export const handleDeny = async (
   requestType: 'leave' | 'overtime',
 ) => {
   try {
+    const admin = await prisma.user.findUnique({
+      where: { lineUserId },
+    });
+
+    if (!admin) {
+      throw new Error('Admin not found');
+    }
+
     const model = getRequestModel(requestType);
     let request;
 
     if (requestType === 'leave') {
       request = await (model as typeof prisma.leaveRequest).update({
         where: { id: requestId },
-        data: { status: 'DenialPending', approverId: lineUserId },
+        data: {
+          status: 'DenialPending',
+          approverId: admin.id,
+        },
         include: { user: true },
       });
     } else {
       request = await (model as typeof prisma.overtimeRequest).update({
         where: { id: requestId },
-        data: { status: 'DenialPending', approverId: lineUserId },
+        data: {
+          status: 'DenialPending',
+          approverId: admin.id,
+        },
         include: { user: true },
       });
     }
 
-    const admin = await prisma.user.findUnique({
-      where: { lineUserId },
+    const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&approverId=${admin.id}&requestType=${requestType}`;
+    await client.pushMessage(lineUserId, {
+      type: 'text',
+      text: `กรุณาระบุเหตุผลในการไม่อนุมัติคำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}: ${liffUrl}`,
     });
-
-    if (admin) {
-      const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&approverId=${lineUserId}&requestType=${requestType}`;
-      await client.pushMessage(lineUserId, {
-        type: 'text',
-        text: `กรุณาระบุเหตุผลในการไม่อนุมัติคำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}: ${liffUrl}`,
-      });
-    } else {
-      console.error('Admin not found:', { lineUserId });
-    }
 
     return request;
   } catch (error: any) {
