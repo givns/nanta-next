@@ -214,7 +214,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
   const renderStep5 = () => (
     <div className="bg-white rounded-lg p-4 mb-4">
-      <h2 className="text-lg font-semibold mb-4">เหตุผลการลา</h2>
+      <h2 className="text-lg font-semibold mb-4">ระบุเหตุการลา</h2>
       <div>
         <label htmlFor="reason" className="block mb-1">
           เหตุผล

@@ -22,8 +22,16 @@ export const fetchThaiHolidays = async (year: number): Promise<Holiday[]> => {
 
   try {
     const response = await axios.get(`/api/holidays?year=${year}`);
-    holidayCache[year] = response.data;
-    return response.data;
+    if (Array.isArray(response.data)) {
+      holidayCache[year] = response.data;
+      return response.data;
+    } else {
+      console.error(
+        'Unexpected response format from holiday API:',
+        response.data,
+      );
+      return [];
+    }
   } catch (error) {
     console.error('Error fetching Thai holidays:', error);
     return [];
@@ -38,6 +46,11 @@ export const isNonWorkingDay = async (
 
   const year = date.year();
   const holidays = await fetchThaiHolidays(year);
+
+  if (!Array.isArray(holidays)) {
+    console.error('Holidays is not an array:', holidays);
+    return false; // Or handle this case as appropriate for your application
+  }
 
   if (userShift === 'SHIFT104') {
     // For Shift 104, the holiday is the day before the regular holiday
@@ -68,7 +81,13 @@ export const calculateFullDayCount = async (
     date.isBefore(end) || date.isSame(end, 'day');
     date = date.add(1, 'day')
   ) {
-    if (!(await isNonWorkingDay(date, userShift))) {
+    try {
+      if (!(await isNonWorkingDay(date, userShift))) {
+        fullDayCount += 1;
+      }
+    } catch (error) {
+      console.error('Error determining if day is non-working:', error);
+      // Assume it's a working day if there's an error
       fullDayCount += 1;
     }
   }

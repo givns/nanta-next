@@ -208,35 +208,54 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const lateThreshold = moment(shiftStart).add(30, 'minutes');
     const overtimeThreshold = moment(shiftEnd).add(5, 'minutes');
 
-    if (now.isBefore(twoHoursBeforeShift)) {
-      return {
-        allowed: false,
-        reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
-        isLate: false,
-        isOvertime: false,
-      };
-    }
+    if (attendanceStatus.isCheckingIn) {
+      // Logic for check-in
+      if (now.isBefore(twoHoursBeforeShift)) {
+        return {
+          allowed: false,
+          reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
+          isLate: false,
+          isOvertime: false,
+        };
+      }
 
-    if (now.isAfter(lateThreshold) && now.isBefore(shiftEnd)) {
-      return {
-        allowed: true,
-        reason: 'คุณกำลังเข้างานสาย',
-        isLate: true,
-        isOvertime: false,
-      };
-    }
+      if (now.isAfter(lateThreshold)) {
+        return {
+          allowed: true,
+          reason: 'คุณกำลังเข้างานสาย',
+          isLate: true,
+          isOvertime: false,
+        };
+      }
 
-    if (now.isAfter(overtimeThreshold)) {
-      return {
-        allowed: true,
-        reason: null,
-        isLate: false,
-        isOvertime: true,
-      };
-    }
+      return { allowed: true, reason: null, isLate: false, isOvertime: false };
+    } else {
+      // Logic for check-out
+      if (now.isBefore(shiftEnd)) {
+        return {
+          allowed: true,
+          reason: 'คุณกำลังออกงานก่อนเวลา',
+          isLate: false,
+          isOvertime: false,
+        };
+      }
 
-    return { allowed: true, reason: null, isLate: false, isOvertime: false };
-  }, [getEffectiveShift, attendanceStatus.approvedOvertime]);
+      if (now.isAfter(overtimeThreshold)) {
+        return {
+          allowed: true,
+          reason: null,
+          isLate: false,
+          isOvertime: true,
+        };
+      }
+
+      return { allowed: true, reason: null, isLate: false, isOvertime: false };
+    }
+  }, [
+    getEffectiveShift,
+    attendanceStatus.approvedOvertime,
+    attendanceStatus.isCheckingIn,
+  ]);
 
   useEffect(() => {
     const initializeState = async () => {
