@@ -1,5 +1,3 @@
-// components/AdminShiftAdjustmentForm.tsx
-
 import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
 import * as Yup from 'yup';
@@ -36,19 +34,20 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   useEffect(() => {
     const initialize = async () => {
       try {
-        const fetchedShifts = await axios.get('/api/shifts/shifts');
+        const [fetchedShifts, fetchedDepartments] = await Promise.all([
+          axios.get('/api/shifts/shifts'),
+          axios.get('/api/departments'),
+        ]);
         setShifts(fetchedShifts.data);
-
-        const fetchedDepartments = await axios.get('/api/departments');
-        console.log('Fetched departments:', fetchedDepartments.data);
         setDepartments(fetchedDepartments.data);
       } catch (error) {
         console.error('Error initializing form:', error);
         setMessage('Error initializing form. Please try again.');
+      } finally {
+        setIsLoading(false);
       }
     };
     initialize();
-    setIsLoading(false);
   }, []);
 
   const validationSchema = Yup.object().shape({
@@ -118,14 +117,6 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
               },
             ];
 
-      console.log('Sending data to API:', {
-        lineUserId,
-        targetType: values.targetType,
-        adjustments,
-        date: values.date,
-        reason: values.reason,
-      });
-
       const response = await axios.post('/api/adjust-shift', {
         lineUserId,
         targetType: values.targetType,
@@ -134,15 +125,12 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
         reason: values.reason,
       });
 
-      console.log('API Response:', response.data);
       setMessage('Shift adjustment(s) applied successfully.');
       resetForm();
     } catch (error: any) {
       console.error('Shift adjustment error:', error);
       setMessage(
-        `Error applying shift adjustment(s): ${
-          error.response?.data?.message || error.message
-        }`,
+        `Error applying shift adjustment(s): ${error.response?.data?.message || error.message}`,
       );
     } finally {
       setSubmitting(false);
@@ -150,20 +138,23 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
   };
 
   return (
-    <div className="bg-white p-4 rounded-box mb-4">
+    <div className="max-w-2xl mx-auto">
+      <h2 className="text-2xl font-bold mb-6 text-center">
+        แบบฟอร์มปรับเวลาทำงาน
+      </h2>
       <Formik
         initialValues={initialValues}
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
       >
         {({ values, isSubmitting, setFieldValue }) => (
-          <Form className="space-y-4">
+          <Form className="space-y-6 bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
             <div>
               <label
                 htmlFor="targetType"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-gray-700 mb-1"
               >
-                Adjust for
+                เลือกประเภทการปรับเวลา
               </label>
               <Field
                 as="select"
@@ -177,7 +168,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
               <ErrorMessage
                 name="targetType"
                 component="div"
-                className="text-red-500 text-sm"
+                className="text-red-500 text-xs mt-1"
               />
             </div>
 
@@ -188,12 +179,12 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                     {values.departmentShifts.map((_, index) => (
                       <div
                         key={index}
-                        className="bg-gray-100 p-4 rounded-lg mb-4"
+                        className="bg-gray-50 p-4 rounded-lg mb-4"
                       >
-                        <div>
+                        <div className="mb-4">
                           <label
                             htmlFor={`departmentShifts.${index}.departmentId`}
-                            className="block text-sm font-medium text-gray-700"
+                            className="block text-sm font-medium text-gray-700 mb-1"
                           >
                             Department
                           </label>
@@ -202,29 +193,23 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                             name={`departmentShifts.${index}.departmentId`}
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                           >
-                            {isLoading ? (
-                              <option>Loading departments...</option>
-                            ) : (
-                              <>
-                                <option value="">Select a department</option>
-                                {departments.map((dept) => (
-                                  <option key={dept.id} value={dept.id}>
-                                    {dept.name}
-                                  </option>
-                                ))}
-                              </>
-                            )}
+                            <option value="">Select a department</option>
+                            {departments.map((dept) => (
+                              <option key={dept.id} value={dept.id}>
+                                {dept.name}
+                              </option>
+                            ))}
                           </Field>
                           <ErrorMessage
                             name={`departmentShifts.${index}.departmentId`}
                             component="div"
-                            className="text-red-500 text-sm"
+                            className="text-red-500 text-xs mt-1"
                           />
                         </div>
-                        <div>
+                        <div className="mb-4">
                           <label
                             htmlFor={`departmentShifts.${index}.shiftId`}
-                            className="block text-sm font-medium text-gray-700"
+                            className="block text-sm font-medium text-gray-700 mb-1"
                           >
                             New Shift
                           </label>
@@ -244,14 +229,14 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                           <ErrorMessage
                             name={`departmentShifts.${index}.shiftId`}
                             component="div"
-                            className="text-red-500 text-sm"
+                            className="text-red-500 text-xs mt-1"
                           />
                         </div>
                         {index > 0 && (
                           <button
                             type="button"
                             onClick={() => remove(index)}
-                            className="mt-2 text-red-600"
+                            className="text-red-600 hover:text-red-800 text-sm"
                           >
                             Remove
                           </button>
@@ -261,7 +246,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                     <button
                       type="button"
                       onClick={() => push({ departmentId: '', shiftId: '' })}
-                      className="mt-2 text-blue-600"
+                      className="text-blue-600 hover:text-blue-800 text-sm"
                     >
                       Add Department
                     </button>
@@ -272,10 +257,10 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
 
             {values.targetType === 'individual' && (
               <>
-                <div>
+                <div className="mb-4">
                   <label
                     htmlFor="individualEmployeeId"
-                    className="block text-sm font-medium text-gray-700"
+                    className="block text-sm font-medium text-gray-700 mb-1"
                   >
                     Employee ID
                   </label>
@@ -288,13 +273,13 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                   <ErrorMessage
                     name="individualEmployeeId"
                     component="div"
-                    className="text-red-500 text-sm"
+                    className="text-red-500 text-xs mt-1"
                   />
                 </div>
-                <div>
+                <div className="mb-4">
                   <label
                     htmlFor="individualShiftId"
-                    className="block text-sm font-medium text-gray-700"
+                    className="block text-sm font-medium text-gray-700 mb-1"
                   >
                     New Shift
                   </label>
@@ -314,16 +299,16 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
                   <ErrorMessage
                     name="individualShiftId"
                     component="div"
-                    className="text-red-500 text-sm"
+                    className="text-red-500 text-xs mt-1"
                   />
                 </div>
               </>
             )}
 
-            <div>
+            <div className="mb-4">
               <label
                 htmlFor="date"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-gray-700 mb-1"
               >
                 Date
               </label>
@@ -336,14 +321,14 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
               <ErrorMessage
                 name="date"
                 component="div"
-                className="text-red-500 text-sm"
+                className="text-red-500 text-xs mt-1"
               />
             </div>
 
-            <div>
+            <div className="mb-4">
               <label
                 htmlFor="reason"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-gray-700 mb-1"
               >
                 Reason
               </label>
@@ -357,17 +342,19 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
               <ErrorMessage
                 name="reason"
                 component="div"
-                className="text-red-500 text-sm"
+                className="text-red-500 text-xs mt-1"
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting || !lineUserId}
-              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
-            >
-              {isSubmitting ? 'Applying...' : 'Apply Shift Adjustment'}
-            </button>
+            <div className="flex items-center justify-between">
+              <button
+                type="submit"
+                disabled={isSubmitting || !lineUserId}
+                className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
+              >
+                {isSubmitting ? 'Applying...' : 'Apply Shift Adjustment'}
+              </button>
+            </div>
 
             {!lineUserId && (
               <p className="mt-2 text-sm text-center text-red-600">
