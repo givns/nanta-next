@@ -6,6 +6,7 @@ import liff from '@line/liff';
 import { formatTime } from '../utils/dateUtils';
 import TimePickerField from './TimePickerField';
 import { UserData } from '@/types/user';
+import moment from 'moment-timezone';
 
 const OvertimeSchema = Yup.object().shape({
   startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
@@ -21,6 +22,9 @@ const OvertimeRequestForm: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [newRequestDate, setNewRequestDate] = useState(
+    moment().format('YYYY-MM-DD'),
+  );
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -150,8 +154,29 @@ const OvertimeRequestForm: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-lg font-semibold mb-2">สร้างคำขอใหม่</h3>
+                <div className="mb-4">
+                  <label
+                    htmlFor="newRequestDate"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    วันที่
+                  </label>
+                  <input
+                    type="date"
+                    id="newRequestDate"
+                    value={newRequestDate}
+                    onChange={(e) => setNewRequestDate(e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                  />
+                </div>
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => {
+                    if (newRequestDate) {
+                      setStep(3);
+                    } else {
+                      setMessage('กรุณาเลือกวันที่ก่อนสร้างคำขอใหม่');
+                    }
+                  }}
                   className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                 >
                   สร้างคำขอใหม่
