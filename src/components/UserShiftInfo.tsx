@@ -26,33 +26,41 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   );
 
   const getStatusMessage = () => {
-    const now = moment().tz('Asia/Bangkok');
-    const today = now.startOf('day');
+    console.log('isDayOff:', attendanceStatus.isDayOff);
+    console.log('latestAttendance:', attendanceStatus.latestAttendance);
+    console.log('today:', today.format('YYYY-MM-DD'));
 
     if (attendanceStatus.isDayOff) {
+      console.log('Condition: Day Off');
       return { message: 'วันหยุด', color: 'blue' };
     }
 
     if (!attendanceStatus.latestAttendance) {
+      console.log('Condition: No attendance');
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }
 
     const attendanceDate = moment(
       attendanceStatus.latestAttendance.date,
-    ).startOf('day');
+    ).format('YYYY-MM-DD');
+    console.log('Attendance date:', attendanceDate);
 
-    if (!attendanceDate.isSame(today)) {
+    if (attendanceDate !== today.format('YYYY-MM-DD')) {
+      console.log('Condition: Attendance not for today');
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }
 
     if (attendanceStatus.latestAttendance.checkOutTime) {
+      console.log('Condition: Checked out');
       return { message: 'ทำงานเสร็จแล้ว', color: 'green' };
     }
 
     if (attendanceStatus.latestAttendance.checkInTime) {
+      console.log('Condition: Checked in');
       return { message: 'ลงเวลาเข้างานแล้ว', color: 'orange' };
     }
 
+    console.log('Condition: Default - No attendance');
     return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
   };
 
@@ -74,9 +82,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         <div className="flex justify-between items-center mb-2">
           <span className="text-xl font-semibold">สถานะวันนี้</span>
           <div className="flex items-center">
-            <div
-              className={`w-3 h-3 rounded-full bg-${color || 'gray'}-500 mr-2`}
-            ></div>
+            <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
             <span className="text-black-600">{message}</span>
           </div>
         </div>
