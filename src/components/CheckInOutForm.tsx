@@ -540,7 +540,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             disabled={!checkInOutAllowedState.allowed}
             className={`w-full ${
               checkInOutAllowedState.allowed
-                ? 'bg-red-500 hover:bg-red-600'
+                ? 'bg-red-600 hover:bg-red-700'
                 : 'bg-gray-400 cursor-not-allowed'
             } text-white py-3 px-4 rounded-lg transition duration-300`}
             aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}

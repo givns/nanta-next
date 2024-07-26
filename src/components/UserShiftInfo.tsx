@@ -78,11 +78,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       todayShiftAdjustment?.requestedShift || userData.assignedShift;
 
     return (
-      <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-xl font-semibold text-gray-800">
-            สถานะวันนี้
-          </span>
+      <div className="bg-white p-4 rounded-box mb-4">
+        <div className="flex flex-col items-end mb-2">
+          <span className="text-xl font-semibold mb-1">สถานะวันนี้</span>
           <div className="flex items-center">
             <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
             <span className="text-gray-600">{message}</span>
@@ -94,85 +92,83 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             today,
             'day',
           ) && (
-            <div className="mb-4">
+            <>
               {attendanceStatus.latestAttendance.checkInTime && (
-                <p className="text-sm text-gray-700">
+                <p>
                   เวลาเข้างาน:{' '}
-                  <span className="font-medium text-gray-800">
+                  <span className="font-medium">
                     {formatTime(attendanceStatus.latestAttendance.checkInTime)}
                   </span>
                 </p>
               )}
               {attendanceStatus.latestAttendance.checkOutTime && (
-                <p className="text-sm text-gray-700">
+                <p>
                   เวลาออกงาน:{' '}
-                  <span className="font-medium text-gray-800">
+                  <span className="font-medium">
                     {formatTime(attendanceStatus.latestAttendance.checkOutTime)}
                   </span>
                 </p>
               )}
               {attendanceStatus.latestAttendance.checkInDeviceSerial && (
-                <p className="text-sm text-gray-700">
+                <p>
                   วิธีการ:{' '}
-                  <span className="font-medium text-gray-800">
+                  <span className="font-medium">
                     {getDeviceType(
                       attendanceStatus.latestAttendance.checkInDeviceSerial,
                     )}
                   </span>
                 </p>
               )}
-            </div>
+            </>
           )}
         {!attendanceStatus.isDayOff && effectiveShift && (
-          <div className="mb-4">
-            <h3 className="text-md font-semibold text-gray-800">
+          <>
+            <h3 className="text-md font-semibold mt-4 mb-1">
               กะการทำงานของคุณวันนี้:
             </h3>
-            <p className="text-sm text-gray-700">
-              <span className="font-medium text-gray-800">
-                {effectiveShift.name}
-              </span>{' '}
-              ({effectiveShift.startTime} - {effectiveShift.endTime})
+            <p>
+              <span className="font-medium">{effectiveShift.name}</span> (
+              {effectiveShift.startTime} - {effectiveShift.endTime})
             </p>
             {todayShiftAdjustment && (
-              <p className="text-sm text-blue-600 mt-1">
+              <p className="text-blue-600 mt-1">
                 * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
               </p>
             )}
-          </div>
+          </>
         )}
         {attendanceStatus.approvedOvertime &&
           isOvertimeForToday(attendanceStatus.approvedOvertime) && (
-            <div className="mb-4">
-              <h3 className="text-md font-semibold text-gray-800">
+            <>
+              <h3 className="text-md font-semibold mt-4 mb-1">
                 รายละเอียดการทำงานล่วงเวลาที่ได้รับอนุมัติ:
               </h3>
-              <p className="text-sm text-gray-700">
+              <p>
                 เวลาเริ่ม:{' '}
-                <span className="font-medium text-gray-800">
+                <span className="font-medium">
                   {formatTime(attendanceStatus.approvedOvertime.startTime)}
                 </span>
               </p>
-              <p className="text-sm text-gray-700">
+              <p>
                 เวลาสิ้นสุด:{' '}
-                <span className="font-medium text-gray-800">
+                <span className="font-medium">
                   {formatTime(attendanceStatus.approvedOvertime.endTime)}
                 </span>
               </p>
-              <p className="text-sm text-gray-700">
+              <p>
                 เวลาที่อนุมัติ:{' '}
-                <span className="font-medium text-gray-800">
+                <span className="font-medium">
                   {moment(attendanceStatus.approvedOvertime.approvedAt)
                     .tz('Asia/Bangkok')
                     .format('YYYY-MM-DD HH:mm:ss')}
                 </span>
               </p>
-            </div>
+            </>
           )}
         {attendanceStatus.isDayOff && attendanceStatus.potentialOvertime && (
-          <div className="text-yellow-600">
+          <div className="mt-2 text-yellow-600">
             <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
-            <p className="text-sm">
+            <p>
               {attendanceStatus.potentialOvertime.start} -{' '}
               {attendanceStatus.potentialOvertime.end}
             </p>
@@ -214,13 +210,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         {futureShiftAdjustments.map((adjustment, index) => (
           <div
             key={`shift-${index}`}
-            className="bg-yellow-100 p-4 rounded-lg mb-4"
+            className="bg-yellow-300 p-4 rounded-box mb-4"
           >
-            <div className="flex justify-between font-semibold text-gray-800">
+            <div className="flex font-semibold justify-between">
               <p>{moment(adjustment.date).format('DD/MM/YYYY')}</p>
               <p>เวลาทำงาน</p>
             </div>
-            <p className="text-sm text-gray-700">
+            <p>
               {adjustment.shift.name} ({adjustment.shift.startTime} -{' '}
               {adjustment.shift.endTime})
             </p>
@@ -229,19 +225,19 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         {allFutureOvertimes.map((overtime, index) => (
           <div
             key={`overtime-${index}`}
-            className="bg-yellow-100 p-4 rounded-lg mb-4"
+            className="bg-yellow-300 p-4 rounded-box mb-4"
           >
-            <div className="flex justify-between font-semibold text-gray-800">
+            <div className="flex font-semibold justify-between">
               <p>{moment(overtime.date).format('DD/MM/YYYY')}</p>
               <p>ทำงานล่วงเวลา</p>
             </div>
-            <p className="text-sm text-gray-700">
+            <p>
               เวลา: {overtime.startTime} - {overtime.endTime}
             </p>
-            <p className="text-sm text-gray-700">เหตุผล: {overtime.reason}</p>
-            <p className="text-sm text-gray-700">สถานะ: {overtime.status}</p>
+            <p>เหตุผล: {overtime.reason}</p>
+            <p>สถานะ: {overtime.status}</p>
             {overtime.approvedAt && (
-              <p className="text-sm text-gray-700">
+              <p>
                 เวลาที่อนุมัติ:{' '}
                 {moment(overtime.approvedAt)
                   .tz('Asia/Bangkok')
@@ -263,11 +259,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   return (
     <div className="flex flex-col">
-      <div className="bg-white p-6 rounded-lg shadow-sm mb-6 text-center">
-        <p className="text-2xl font-bold text-gray-800">{userData.name}</p>
-        <p className="text-xl text-gray-600">
-          รหัสพนักงาน: {userData.employeeId}
-        </p>
+      <div className="bg-white p-4 rounded-box mb-4 text-center">
+        <p className="text-2xl font-bold">{userData.name}</p>
+        <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
         <p className="text-gray-600">แผนก: {departmentName}</p>
       </div>
 
@@ -276,4 +270,5 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     </div>
   );
 };
+
 export default UserShiftInfo;
