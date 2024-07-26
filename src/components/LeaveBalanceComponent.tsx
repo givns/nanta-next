@@ -62,8 +62,8 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
   }
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
-      <h2 className="text-xl font-bold mb-4">Leave Balance</h2>
+    <div className="bg-yellow-300 p-4 rounded-lg shadow">
+      <h2 className="text-xl font-bold mb-4">วันลาคงเหลือ</h2>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <p>Sick Leave:</p>

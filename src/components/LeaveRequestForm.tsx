@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Formik, Field, Form, ErrorMessage } from 'formik';
-import axios from 'axios';
 import * as Yup from 'yup';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
@@ -48,6 +47,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   isResubmission = false,
   userData,
 }) => {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalanceData | null>(
     null,
@@ -55,23 +55,12 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  console.log('LeaveRequestForm rendered with userData:', userData);
-
   useEffect(() => {
-    console.log('LeaveRequestForm useEffect triggered');
     setIsLoading(false);
   }, []);
 
   const handleBalanceLoaded = (balance: LeaveBalanceData) => {
     setLeaveBalance(balance);
-  };
-
-  const calculateLeaveDays = (startDate: string, endDate: string) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays + 1; // Including both start and end date
   };
 
   const handleSubmit = async (values: FormValues) => {
@@ -82,52 +71,19 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
       const englishLeaveType =
         leaveTypeMapping[values.leaveType as ThaiLeaveType];
-      const leaveDays = calculateLeaveDays(values.startDate, values.endDate);
 
-      // Check if the user has enough leave balance
-      if (leaveBalance) {
-        let availableDays: number;
-        switch (englishLeaveType) {
-          case 'sick':
-            availableDays = leaveBalance.sickLeave;
-            break;
-          case 'business':
-            availableDays = leaveBalance.businessLeave;
-            break;
-          case 'annual':
-            availableDays = leaveBalance.annualLeave;
-            break;
-          case 'overtime':
-            availableDays = leaveBalance.overtimeLeave;
-            break;
-          default:
-            availableDays = Infinity; // For unpaid leave
-        }
-
-        if (leaveDays > availableDays) {
-          throw new Error(`ไม่มีวันลา${values.leaveType}เพียงพอ`);
-        }
-      }
-
-      const submissionData = {
-        ...values,
-        leaveType: englishLeaveType,
-        userId: userData.id,
-        fullDayCount: leaveDays,
-        resubmitted: isResubmission,
-      };
-
-      const response = await axios.post(
-        '/api/leaveRequest/create',
-        submissionData,
+      sessionStorage.setItem(
+        'leaveSummary',
+        JSON.stringify({
+          ...values,
+          leaveType: englishLeaveType,
+          userId: userData.id,
+          lineUserId: userData.lineUserId,
+          resubmitted: isResubmission,
+        }),
       );
 
-      if (response.status === 201) {
-        console.log('Leave request submitted successfully');
-        // Handle successful submission (e.g., show success message, redirect)
-      } else {
-        throw new Error(response.data.error || 'Unknown error occurred');
-      }
+      router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);
       setError(
@@ -136,21 +92,154 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     }
   };
 
-  const handleNextStep = () => {
-    setStep(step + 1);
-  };
+  const renderUserInfo = () => (
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-2">User Information</h2>
+      <p>Name: {userData.name}</p>
+      <p>Employee ID: {userData.employeeId}</p>
+      <p>Department: {userData.department}</p>
+    </div>
+  );
 
-  const handlePreviousStep = () => {
-    setStep(step - 1);
-  };
+  const renderStep1 = () => (
+    <div className="flex flex-col h-full">
+      {renderUserInfo()}
+      <div className="bg-white rounded-lg p-4 mb-4">
+        <LeaveBalanceComponent
+          userId={userData.id}
+          onBalanceLoaded={handleBalanceLoaded}
+        />
+      </div>
+      <button
+        onClick={() => setStep(2)}
+        className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+      >
+        Next: Choose Leave Type
+      </button>
+    </div>
+  );
+
+  const renderStep2 = (setFieldValue: (field: string, value: any) => void) => (
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-4">Choose Leave Type</h2>
+      <div className="space-y-2">
+        {Object.keys(leaveTypeMapping).map((type) => (
+          <button
+            key={type}
+            type="button"
+            className="w-full p-2 text-left border rounded-lg hover:bg-gray-100"
+            onClick={() => {
+              setFieldValue('leaveType', type);
+              setStep(3);
+            }}
+          >
+            {type}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderStep3 = (setFieldValue: (field: string, value: any) => void) => (
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-4">Choose Leave Format</h2>
+      <div className="space-y-2">
+        {['ลาเต็มวัน', 'ลาครึ่งวัน'].map((format) => (
+          <button
+            key={format}
+            type="button"
+            className="w-full p-2 text-left border rounded-lg hover:bg-gray-100"
+            onClick={() => {
+              setFieldValue('leaveFormat', format);
+              setStep(4);
+            }}
+          >
+            {format}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderStep4 = (values: FormValues) => (
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-4">Select Dates</h2>
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="startDate" className="block mb-1">
+            Start Date
+          </label>
+          <Field
+            type="date"
+            id="startDate"
+            name="startDate"
+            className="w-full p-2 border rounded"
+          />
+          <ErrorMessage
+            name="startDate"
+            component="div"
+            className="text-red-500"
+          />
+        </div>
+        {values.leaveFormat === 'ลาเต็มวัน' && (
+          <div>
+            <label htmlFor="endDate" className="block mb-1">
+              End Date
+            </label>
+            <Field
+              type="date"
+              id="endDate"
+              name="endDate"
+              className="w-full p-2 border rounded"
+            />
+            <ErrorMessage
+              name="endDate"
+              component="div"
+              className="text-red-500"
+            />
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => setStep(5)}
+        className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+      >
+        Next
+      </button>
+    </div>
+  );
+
+  const renderStep5 = () => (
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-4">Reason for Leave</h2>
+      <div>
+        <label htmlFor="reason" className="block mb-1">
+          Reason
+        </label>
+        <Field
+          as="textarea"
+          id="reason"
+          name="reason"
+          className="w-full p-2 border rounded"
+          rows={3}
+        />
+        <ErrorMessage name="reason" component="div" className="text-red-500" />
+      </div>
+      <button
+        type="submit"
+        className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+      >
+        Submit Leave Request
+      </button>
+    </div>
+  );
 
   if (isLoading) {
-    console.log('LeaveRequestForm is still loading');
     return <div>Loading leave request form...</div>;
   }
 
   if (error) {
-    console.log('LeaveRequestForm encountered an error:', error);
     return <div>Error: {error}</div>;
   }
 
@@ -158,201 +247,37 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     return <div>No user data available.</div>;
   }
 
-  console.log('Rendering LeaveRequestForm content, current step:', step);
-
   return (
-    <div
-      className="min-h-screen bg-gray-100"
-      style={{ paddingTop: 'env(safe-area-inset-top)' }}
-    >
-      <h1 className="text-2xl font-bold text-center mb-6 pt-4">
-        {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
-      </h1>
+    <div className="min-h-screen bg-gray-100 py-8">
+      <div className="max-w-md mx-auto">
+        <h1 className="text-2xl font-bold text-center mb-6">
+          {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
+        </h1>
 
-      <div className="bg-white overflow-hidden rounded-box">
-        <div className="px-4 py-5 sm:p-6">
-          <LeaveBalanceComponent
-            userId={userData.id}
-            onBalanceLoaded={handleBalanceLoaded}
-          />
-
-          <Formik
-            initialValues={
-              initialData || {
-                leaveType: '',
-                leaveFormat: '',
-                reason: '',
-                startDate: '',
-                endDate: '',
-              }
+        <Formik
+          initialValues={
+            initialData || {
+              leaveType: '',
+              leaveFormat: '',
+              reason: '',
+              startDate: '',
+              endDate: '',
             }
-            validationSchema={leaveRequestSchema}
-            onSubmit={handleSubmit}
-          >
-            {({ values, setFieldValue }) => (
-              <Form className="space-y-4">
-                {step === 1 && (
-                  <div>
-                    <h5 className="text-xl font-medium text-gray-900 dark:text-white">
-                      เลือกประเภทการลา
-                    </h5>
-                    <div className="space-y-4">
-                      {Object.keys(leaveTypeMapping).map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          className={`block w-full p-2.5 text-center border rounded-lg ${
-                            values.leaveType === type
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-50 text-gray-900'
-                          }`}
-                          onClick={() => {
-                            setFieldValue('leaveType', type);
-                            handleNextStep();
-                          }}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {step === 2 && (
-                  <div>
-                    <h5 className="text-xl font-medium text-gray-900 dark:text-white">
-                      เลือกลักษณะการลา
-                    </h5>
-                    <div className="space-y-4">
-                      {['ลาเต็มวัน', 'ลาครึ่งวัน'].map((format) => (
-                        <button
-                          key={format}
-                          type="button"
-                          className={`block w-full p-2.5 text-center border rounded-lg ${
-                            values.leaveFormat === format
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-50 text-gray-900'
-                          }`}
-                          onClick={() => {
-                            values.leaveFormat = format;
-                            handleNextStep();
-                          }}
-                        >
-                          {format}
-                        </button>
-                      ))}
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="startDate"
-                        className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >
-                        วันที่เริ่มลา
-                      </label>
-                      <Field
-                        type="date"
-                        id="startDate"
-                        name="startDate"
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                      />
-                      <ErrorMessage
-                        name="startDate"
-                        component="div"
-                        className="text-red-500"
-                      />
-                    </div>
-                    {values.leaveFormat === 'ลาเต็มวัน' && (
-                      <div>
-                        <label
-                          htmlFor="endDate"
-                          className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                        >
-                          วันที่สิ้นสุด
-                        </label>
-                        <Field
-                          type="date"
-                          id="endDate"
-                          name="endDate"
-                          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                        />
-                        <ErrorMessage
-                          name="endDate"
-                          component="div"
-                          className="text-red-500"
-                        />
-                      </div>
-                    )}
-                    <div className="button-container flex justify-between mt-4">
-                      <button
-                        type="button"
-                        className="py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
-                        onClick={handlePreviousStep}
-                      >
-                        ย้อนกลับ
-                      </button>
-                      <button
-                        type="button"
-                        className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
-                        onClick={handleNextStep}
-                        disabled={
-                          !values.startDate ||
-                          (values.leaveFormat === 'ลาเต็มวัน' &&
-                            !values.endDate)
-                        }
-                      >
-                        ถัดไป
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {step === 3 && (
-                  <div>
-                    <h5 className="text-xl font-medium text-gray-900 dark:text-white">
-                      สาเหตุการลา
-                    </h5>
-                    <div className="space-y-4">
-                      <label
-                        htmlFor="reason"
-                        className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >
-                        ระบุเหตุผล
-                      </label>
-                      <Field
-                        as="textarea"
-                        id="reason"
-                        name="reason"
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                      />
-                      <ErrorMessage
-                        name="reason"
-                        component="div"
-                        className="text-red-500"
-                      />
-                    </div>
-                    <div className="button-container flex justify-between mt-4">
-                      <button
-                        type="button"
-                        className="py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"
-                        onClick={handlePreviousStep}
-                      >
-                        ย้อนกลับ
-                      </button>
-                      <button
-                        type="submit"
-                        className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5"
-                      >
-                        ยืนยัน
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </Form>
-            )}
-          </Formik>
-        </div>
+          }
+          validationSchema={leaveRequestSchema}
+          onSubmit={handleSubmit}
+        >
+          {({ values, setFieldValue }) => (
+            <Form>
+              {step === 1 && renderStep1()}
+              {step === 2 && renderStep2(setFieldValue)}
+              {step === 3 && renderStep3(setFieldValue)}
+              {step === 4 && renderStep4(values)}
+              {step === 5 && renderStep5()}
+            </Form>
+          )}
+        </Formik>
       </div>
-      {error && <div className="mt-4 text-red-500">{error}</div>}
     </div>
   );
 };
