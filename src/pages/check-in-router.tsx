@@ -131,10 +131,7 @@ const CheckInRouter: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div
-        className="main-container flex flex-col min-h-screen bg-gray-100 p-4"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-      >
+      <div className="main-container flex flex-col min-h-screen bg-gray-100 p-4">
         <div className="flex-grow flex flex-col justify-start items-center">
           <div className="text-lg text-center mb-8 text-gray-600">
             {currentDate}

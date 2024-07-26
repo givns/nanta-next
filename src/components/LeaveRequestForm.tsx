@@ -162,15 +162,15 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
   return (
     <div
-      className="main-container flex flex-col min-h-screen bg-gray-100"
+      className="min-h-screen bg-gray-100"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <h1 className="text-2xl font-bold text-center mb-6 pt-4">
         {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
       </h1>
 
-      <div className="flex-grow p-4">
-        <div className="rounded-box bg-white p-6 shadow-lg">
+      <div className="bg-white overflow-hidden rounded-box">
+        <div className="px-4 py-5 sm:p-6">
           <LeaveBalanceComponent
             userId={userData.id}
             onBalanceLoaded={handleBalanceLoaded}

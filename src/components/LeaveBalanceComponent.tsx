@@ -28,7 +28,7 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
     const fetchLeaveBalance = async () => {
       try {
         const response = await axios.get<LeaveBalanceData>(
-          `/api/checkLeaveBalance?userId=${userId}`,
+          `/api/leave-balance?userId=${userId}`,
         );
         setLeaveBalance(response.data);
         onBalanceLoaded(response.data);
