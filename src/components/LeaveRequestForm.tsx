@@ -54,6 +54,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [endDateVisible, setEndDateVisible] = useState(false);
 
   useEffect(() => {
     setIsLoading(false);
@@ -63,26 +64,19 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     setLeaveBalance(balance);
   };
 
+  // In LeaveRequestForm.tsx
+
   const handleSubmit = async (values: FormValues) => {
     try {
-      if (!userData || !userData.id) {
-        throw new Error('User data not available');
-      }
+      const summaryData = {
+        ...values,
+        leaveType: values.leaveType,
+        userId: userData.id,
+        lineUserId: userData.lineUserId,
+        resubmitted: isResubmission,
+      };
 
-      const englishLeaveType =
-        leaveTypeMapping[values.leaveType as ThaiLeaveType];
-
-      sessionStorage.setItem(
-        'leaveSummary',
-        JSON.stringify({
-          ...values,
-          leaveType: englishLeaveType,
-          userId: userData.id,
-          lineUserId: userData.lineUserId,
-          resubmitted: isResubmission,
-        }),
-      );
-
+      sessionStorage.setItem('leaveSummary', JSON.stringify(summaryData));
       router.push('/leave-summary');
     } catch (error) {
       console.error('Error submitting leave request:', error);

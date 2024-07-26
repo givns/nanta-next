@@ -18,6 +18,14 @@ interface SummaryData {
   resubmitted: boolean;
 }
 
+const leaveTypeMapping = {
+  annual: 'ลาพักร้อน',
+  sick: 'ลาป่วย',
+  business: 'ลากิจ',
+  overtime: 'ลาโดยใช้ชั่วโมง OT',
+  unpaid: 'ลาโดยไม่ได้รับค่าจ้าง',
+};
+
 const LeaveSummaryPage: React.FC = () => {
   const router = useRouter();
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
@@ -25,19 +33,29 @@ const LeaveSummaryPage: React.FC = () => {
   const [leaveDays, setLeaveDays] = useState<number | null>(null);
 
   useEffect(() => {
-    const data = sessionStorage.getItem('leaveSummary');
-    if (data) {
-      const parsedData = JSON.parse(data) as SummaryData;
-      setSummaryData(parsedData);
-      calculateFullDayCount(
-        parsedData.startDate,
-        parsedData.endDate || parsedData.startDate,
-        parsedData.leaveFormat,
-      ).then(setLeaveDays);
-    } else {
-      console.log('No data found, redirecting to leave request page.');
-      router.push('/leave-request');
-    }
+    const fetchData = async () => {
+      const data = sessionStorage.getItem('leaveSummary');
+      if (data) {
+        const parsedData = JSON.parse(data) as SummaryData;
+        setSummaryData(parsedData);
+        try {
+          const days = await calculateFullDayCount(
+            parsedData.startDate,
+            parsedData.endDate || parsedData.startDate,
+            parsedData.leaveFormat,
+          );
+          setLeaveDays(days);
+        } catch (error) {
+          console.error('Error calculating leave days:', error);
+          setLeaveDays(null);
+        }
+      } else {
+        console.log('No data found, redirecting to leave request page.');
+        router.push('/leave-request');
+      }
+    };
+
+    fetchData();
   }, [router]);
 
   const handleSubmit = async () => {
@@ -45,29 +63,18 @@ const LeaveSummaryPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const startDate = new Date(summaryData.startDate);
-      const endDate =
-        summaryData.leaveFormat === 'ลาครึ่งวัน'
-          ? startDate
-          : new Date(summaryData.endDate!);
-
-      const fullDayCount = await calculateFullDayCount(
-        startDate.toISOString(),
-        endDate.toISOString(),
-        summaryData.leaveFormat,
-      );
-
       const leaveData = {
-        lineUserId: summaryData.lineUserId,
-        leaveType: summaryData.leaveType,
-        leaveFormat: summaryData.leaveFormat,
-        reason: summaryData.reason,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        fullDayCount,
-        useOvertimeHours: summaryData.useOvertimeHours || false,
-        resubmitted: summaryData.resubmitted || false,
-        originalRequestId: summaryData.originalRequestId,
+        ...summaryData,
+        leaveType:
+          leaveTypeMapping[
+            summaryData.leaveType as keyof typeof leaveTypeMapping
+          ] || summaryData.leaveType,
+        fullDayCount: leaveDays,
+        startDate: new Date(summaryData.startDate).toISOString(),
+        endDate:
+          summaryData.leaveFormat === 'ลาครึ่งวัน'
+            ? new Date(summaryData.startDate).toISOString()
+            : new Date(summaryData.endDate!).toISOString(),
       };
 
       console.log('Submitting leaveData:', leaveData);
