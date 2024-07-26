@@ -93,7 +93,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   };
 
   const renderUserInfo = () => (
-    <div className="bg-white rounded-lg p-4 mb-4">
+    <div className="bg-white rounded-box p-4 mb-4">
       <h2 className="text-lg font-semibold mb-2">User Information</h2>
       <p>Name: {userData.name}</p>
       <p>Employee ID: {userData.employeeId}</p>
@@ -120,7 +120,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep2 = (setFieldValue: (field: string, value: any) => void) => (
-    <div className="bg-white rounded-lg p-4 mb-4">
+    <div className="bg-white rounded-box p-4 mb-4">
       <h2 className="text-lg font-semibold mb-4">Choose Leave Type</h2>
       <div className="space-y-2">
         {Object.keys(leaveTypeMapping).map((type) => (
@@ -141,7 +141,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep3 = (setFieldValue: (field: string, value: any) => void) => (
-    <div className="bg-white rounded-lg p-4 mb-4">
+    <div className="bg-white rounded-box p-4 mb-4">
       <h2 className="text-lg font-semibold mb-4">Choose Leave Format</h2>
       <div className="space-y-2">
         {['ลาเต็มวัน', 'ลาครึ่งวัน'].map((format) => (
@@ -162,7 +162,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep4 = (values: FormValues) => (
-    <div className="bg-white rounded-lg p-4 mb-4">
+    <div className="bg-white rounded-box p-4 mb-4">
       <h2 className="text-lg font-semibold mb-4">Select Dates</h2>
       <div className="space-y-4">
         <div>
@@ -211,7 +211,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep5 = () => (
-    <div className="bg-white rounded-lg p-4 mb-4">
+    <div className="bg-white rounded-box p-4 mb-4">
       <h2 className="text-lg font-semibold mb-4">Reason for Leave</h2>
       <div>
         <label htmlFor="reason" className="block mb-1">
