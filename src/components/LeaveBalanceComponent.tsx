@@ -24,22 +24,23 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  console.log('LeaveBalanceComponent rendered with userId:', userId);
-
   useEffect(() => {
-    console.log('LeaveBalanceComponent useEffect triggered');
     const fetchLeaveBalance = async () => {
       try {
-        console.log('Fetching leave balance for userId:', userId);
         const response = await axios.get<LeaveBalanceData>(
           `/api/checkLeaveBalance?userId=${userId}`,
         );
-        console.log('Leave balance response:', response.data);
         setLeaveBalance(response.data);
         onBalanceLoaded(response.data);
       } catch (error) {
         console.error('Error fetching leave balance:', error);
-        setError('Error fetching leave balance');
+        if (axios.isAxiosError(error)) {
+          setError(
+            `Error fetching leave balance: ${error.response?.data?.message || error.message}`,
+          );
+        } else {
+          setError('An unexpected error occurred while fetching leave balance');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -49,19 +50,15 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
   }, [userId, onBalanceLoaded]);
 
   if (isLoading) {
-    console.log('LeaveBalanceComponent is still loading');
-    return <div>Loading leave balance...</div>;
+    return <div className="text-center">Loading leave balance...</div>;
   }
 
   if (error) {
-    console.log('LeaveBalanceComponent encountered an error:', error);
-    return <div>{error}</div>;
+    return <div className="text-red-500 text-center">{error}</div>;
   }
 
-  console.log('Rendering LeaveBalanceComponent content');
-
   if (!leaveBalance) {
-    return <div>Loading leave balance...</div>;
+    return <div className="text-center">No leave balance data available.</div>;
   }
 
   return (
@@ -76,11 +73,11 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
           <p className="font-bold">Total Leave Days:</p>
         </div>
         <div>
-          <p>{leaveBalance.sickLeave}</p>
-          <p>{leaveBalance.businessLeave}</p>
-          <p>{leaveBalance.annualLeave}</p>
-          <p>{leaveBalance.overtimeLeave}</p>
-          <p className="font-bold">{leaveBalance.totalLeaveDays}</p>
+          <p>{leaveBalance.sickLeave} days</p>
+          <p>{leaveBalance.businessLeave} days</p>
+          <p>{leaveBalance.annualLeave} days</p>
+          <p>{leaveBalance.overtimeLeave} hours</p>
+          <p className="font-bold">{leaveBalance.totalLeaveDays} days</p>
         </div>
       </div>
     </div>
