@@ -95,7 +95,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const renderUserInfo = () => (
     <div className="bg-white rounded-box p-4 mb-4">
       <h2 className="text-lg font-semibold mb-2">ข้อมูลพนักงาน</h2>
-      <p>=ชื่อ-สกุล: {userData.name}</p>
+      <p>ชื่อ-สกุล: {userData.name}</p>
       <p>รหัสพนักงาน: {userData.employeeId}</p>
       <p>แผนก: {userData.department}</p>
     </div>
