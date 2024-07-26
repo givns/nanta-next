@@ -94,16 +94,27 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       );
     }
   };
+  const renderUserInfo = () => (
+    <div className="bg-white rounded-box p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-2">ข้อมูลพนักงาน</h2>
+      <p>ชื่อ-สกุล: {userData.name}</p>
+      <p>รหัสพนักงาน: {userData.employeeId}</p>
+      <p>แผนก: {userData.department}</p>
+    </div>
+  );
 
   const renderStep1 = () => (
-    <div className="bg-white rounded-lg p-4 mb-4">
-      <LeaveBalanceComponent
-        userId={userData.id}
-        onBalanceLoaded={handleBalanceLoaded}
-      />
+    <div className="flex flex-col h-full">
+      {renderUserInfo()}
+      <div className="bg-white rounded-box mb-4">
+        <LeaveBalanceComponent
+          userId={userData.id}
+          onBalanceLoaded={handleBalanceLoaded}
+        />
+      </div>
       <button
         onClick={() => setStep(2)}
-        className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300 mt-4"
+        className="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition duration-300"
       >
         Next: Choose Leave Type
       </button>

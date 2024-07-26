@@ -132,29 +132,25 @@ const CheckInRouter: React.FC = () => {
   return (
     <ErrorBoundary>
       <div className="main-container flex flex-col min-h-screen bg-gray-100 p-4">
-        <div className="flex-grow flex flex-col justify-start items-center">
-          <div className="text-lg text-center mb-8 text-gray-600">
-            {currentDate}
-          </div>
-          <h1 className="text-2xl font-bold text-center mt-8 mb-2 text-gray-800">
-            {attendanceStatus.isCheckingIn
-              ? 'ระบบบันทึกเวลาเข้างาน'
-              : 'ระบบบันทึกเวลาออกงาน'}
-          </h1>
-          <div className="text-3xl font-bold text-center mb-2 text-black-950">
-            {currentTime}
-          </div>
-          <div className="w-full max-w-md">
-            <CheckInOutForm
-              userData={userData}
-              initialAttendanceStatus={attendanceStatus}
-              onStatusChange={(newStatus) =>
-                setAttendanceStatus((prev) =>
-                  prev ? { ...prev, isCheckingIn: newStatus } : null,
-                )
-              }
-            />
-          </div>
+        <div className="flex-grow flex flex-col justify-start items-center"></div>
+        <h1 className="text-2xl font-bold text-center mt-8 mb-2 text-gray-800">
+          {attendanceStatus.isCheckingIn
+            ? 'ระบบบันทึกเวลาเข้างาน'
+            : 'ระบบบันทึกเวลาออกงาน'}
+        </h1>
+        <div className="text-3xl font-bold text-center mb-2 text-black-950">
+          {currentTime}
+        </div>
+        <div className="w-full max-w-md">
+          <CheckInOutForm
+            userData={userData}
+            initialAttendanceStatus={attendanceStatus}
+            onStatusChange={(newStatus) =>
+              setAttendanceStatus((prev) =>
+                prev ? { ...prev, isCheckingIn: newStatus } : null,
+              )
+            }
+          />
         </div>
       </div>
     </ErrorBoundary>
