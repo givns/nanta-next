@@ -106,7 +106,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
       {renderUserInfo()}
-      <div className="rounded-box bg-white p-6">
+      <div className="rounded-box bg-yellow-200 p-6">
         <LeaveBalanceComponent
           userId={userData.id}
           onBalanceLoaded={handleBalanceLoaded}
@@ -246,42 +246,34 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-2xl font-bold text-center mb-6">
-          {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
-        </h1>
+    <div className="max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold text-center mb-6">
+        {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
+      </h1>
 
-        <Formik
-          initialValues={
-            initialData || {
-              leaveType: '',
-              leaveFormat: '',
-              reason: '',
-              startDate: '',
-              endDate: '',
-            }
+      <Formik
+        initialValues={
+          initialData || {
+            leaveType: '',
+            leaveFormat: '',
+            reason: '',
+            startDate: '',
+            endDate: '',
           }
-          validationSchema={leaveRequestSchema}
-          onSubmit={handleSubmit}
-        >
-          {({ values, setFieldValue }) => (
-            <Form className="space-y-6">
-              <div className="rounded-box bg-white p-6 mb-4">
-                <LeaveBalanceComponent
-                  userId={userData.id}
-                  onBalanceLoaded={handleBalanceLoaded}
-                />
-              </div>
-              {step === 1 && renderStep1()}
-              {step === 2 && renderStep2(setFieldValue)}
-              {step === 3 && renderStep3(setFieldValue)}
-              {step === 4 && renderStep4(values)}
-              {step === 5 && renderStep5()}
-            </Form>
-          )}
-        </Formik>
-      </div>
+        }
+        validationSchema={leaveRequestSchema}
+        onSubmit={handleSubmit}
+      >
+        {({ values, setFieldValue }) => (
+          <Form className="space-y-6">
+            {step === 1 && renderStep1()}
+            {step === 2 && renderStep2(setFieldValue)}
+            {step === 3 && renderStep3(setFieldValue)}
+            {step === 4 && renderStep4(values)}
+            {step === 5 && renderStep5()}
+          </Form>
+        )}
+      </Formik>
     </div>
   );
 };

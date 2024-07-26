@@ -96,14 +96,11 @@ const LeaveRequestPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 py-8">
       <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-box shadow-md p-6">
-          <h1 className="text-2xl font-bold mb-4 text-center">แบบฟอร์มขอลา</h1>
-          <LeaveRequestForm
-            initialData={originalLeaveData || undefined}
-            isResubmission={resubmit === 'true'}
-            userData={userData}
-          />
-        </div>
+        <LeaveRequestForm
+          initialData={originalLeaveData || undefined}
+          isResubmission={resubmit === 'true'}
+          userData={userData}
+        />
       </div>
     </div>
   );

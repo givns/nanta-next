@@ -62,7 +62,7 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
   }
 
   return (
-    <div className="bg-yellow-100 p-4 rounded-lg">
+    <div>
       <h2 className="text-xl font-bold mb-4">วันลาคงเหลือ</h2>
       <div className="grid grid-cols-2 gap-4">
         <div>
