@@ -79,13 +79,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
     return (
       <div className="bg-white p-4 rounded-box mb-4">
-        <div className="flex flex-col items-start mb-2">
-          <span className="text-xl font-semibold mb-1">สถานะวันนี้</span>
-          <div className="flex items-center">
-            <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
-            <span className="text-gray-600">{message}</span>
-          </div>
-        </div>
         {!attendanceStatus.isDayOff &&
           attendanceStatus.latestAttendance &&
           moment(attendanceStatus.latestAttendance.date).isSame(
@@ -256,6 +249,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       .startOf('day');
     return overtimeDate.isSame(today);
   };
+  const { message, color } = getStatusMessage();
 
   return (
     <div className="flex flex-col">
@@ -263,6 +257,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         <p className="text-2xl font-bold">{userData.name}</p>
         <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
         <p className="text-gray-600">แผนก: {departmentName}</p>
+        <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
+        <span className="text-gray-600">{message}</span>
       </div>
 
       {renderTodayInfo()}
