@@ -79,7 +79,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
     return (
       <div className="bg-white p-4 rounded-box mb-4">
-        <div className="flex flex-col items-end mb-2">
+        <div className="flex flex-col items-start mb-2">
           <span className="text-xl font-semibold mb-1">สถานะวันนี้</span>
           <div className="flex items-center">
             <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
