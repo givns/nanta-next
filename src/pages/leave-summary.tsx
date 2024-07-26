@@ -11,20 +11,13 @@ interface SummaryData {
   leaveFormat: string;
   startDate: string;
   endDate?: string;
-  useOvertimeHours?: string;
   reason: string;
   lineUserId: string | null;
-  originalRequestId?: string;
   resubmitted: boolean;
+  fullDayCount: number;
+  useOvertimeHours?: string;
+  userShift: string;
 }
-
-const leaveTypeMapping = {
-  annual: 'ลาพักร้อน',
-  sick: 'ลาป่วย',
-  business: 'ลากิจ',
-  overtime: 'ลาโดยใช้ชั่วโมง OT',
-  unpaid: 'ลาโดยไม่ได้รับค่าจ้าง',
-};
 
 const LeaveSummaryPage: React.FC = () => {
   const router = useRouter();
@@ -43,6 +36,7 @@ const LeaveSummaryPage: React.FC = () => {
             parsedData.startDate,
             parsedData.endDate || parsedData.startDate,
             parsedData.leaveFormat,
+            parsedData.userShift, // Now this should work
           );
           setLeaveDays(days);
         } catch (error) {
@@ -65,11 +59,8 @@ const LeaveSummaryPage: React.FC = () => {
     try {
       const leaveData = {
         ...summaryData,
-        leaveType:
-          leaveTypeMapping[
-            summaryData.leaveType as keyof typeof leaveTypeMapping
-          ] || summaryData.leaveType,
         fullDayCount: leaveDays,
+        useOvertimeHours: summaryData.useOvertimeHours || false, // Add this line
         startDate: new Date(summaryData.startDate).toISOString(),
         endDate:
           summaryData.leaveFormat === 'ลาครึ่งวัน'
@@ -102,7 +93,7 @@ const LeaveSummaryPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 py-8">
       <div className="max-w-md mx-auto">
-        <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p8 dark:bg-gray-800 dark:border-gray-700">
+        <div className="bg-white border rounded-box mb-4 dark:bg-gray-800 dark:border-gray-700">
           <h1 className="text-2xl font-bold mb-4">รายละเอียดการลา</h1>
           <div className="mb-4">
             <p className="mb-2">

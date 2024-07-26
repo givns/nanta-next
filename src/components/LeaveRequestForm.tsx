@@ -5,6 +5,7 @@ import * as Yup from 'yup';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
 import LeaveBalanceComponent from './LeaveBalanceComponent';
+import { calculateFullDayCount } from '../lib/holidayUtils';
 
 export interface FormValues {
   leaveType: string;
@@ -21,15 +22,12 @@ interface LeaveRequestFormProps {
 }
 
 const leaveTypeMapping = {
-  ลากิจ: 'business',
-  ลาป่วย: 'sick',
-  ลาพักร้อน: 'annual',
-  'ลาโดยใช้ชั่วโมง OT': 'overtime',
-  ลาโดยไม่ได้รับค่าจ้าง: 'unpaid',
+  ลาป่วย: 'ลาป่วย',
+  ลากิจ: 'ลากิจ',
+  ลาพักร้อน: 'ลาพักร้อน',
+  'ลาโดยใช้ชั่วโมง OT': 'ลาโดยใช้ชั่วโมง OT',
+  ลาโดยไม่ได้รับค่าจ้าง: 'ลาโดยไม่ได้รับค่าจ้าง',
 };
-
-type ThaiLeaveType = keyof typeof leaveTypeMapping;
-type EnglishLeaveType = (typeof leaveTypeMapping)[ThaiLeaveType];
 
 const leaveRequestSchema = Yup.object().shape({
   leaveType: Yup.string().required('กรุณาเลือกประเภทการลา'),
@@ -54,7 +52,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [endDateVisible, setEndDateVisible] = useState(false);
 
   useEffect(() => {
     setIsLoading(false);
@@ -64,16 +61,28 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     setLeaveBalance(balance);
   };
 
-  // In LeaveRequestForm.tsx
-
   const handleSubmit = async (values: FormValues) => {
     try {
+      if (!userData.assignedShift) {
+        throw new Error('User shift information is missing');
+      }
+
+      const fullDayCount = await calculateFullDayCount(
+        values.startDate,
+        values.endDate || values.startDate,
+        values.leaveFormat,
+        userData.assignedShift.shiftCode,
+      );
+
       const summaryData = {
         ...values,
-        leaveType: values.leaveType,
+        leaveType:
+          leaveTypeMapping[values.leaveType as keyof typeof leaveTypeMapping],
         userId: userData.id,
         lineUserId: userData.lineUserId,
         resubmitted: isResubmission,
+        fullDayCount,
+        userShift: userData.assignedShift.shiftCode,
       };
 
       sessionStorage.setItem('leaveSummary', JSON.stringify(summaryData));
@@ -86,27 +95,15 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     }
   };
 
-  const renderUserInfo = () => (
-    <div className="bg-white rounded-box p-4 mb-4">
-      <h2 className="text-lg font-semibold mb-2">ข้อมูลพนักงาน</h2>
-      <p>ชื่อ-สกุล: {userData.name}</p>
-      <p>รหัสพนักงาน: {userData.employeeId}</p>
-      <p>แผนก: {userData.department}</p>
-    </div>
-  );
-
   const renderStep1 = () => (
-    <div className="flex flex-col h-full">
-      {renderUserInfo()}
-      <div className="bg-white rounded-box mb-4">
-        <LeaveBalanceComponent
-          userId={userData.id}
-          onBalanceLoaded={handleBalanceLoaded}
-        />
-      </div>
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <LeaveBalanceComponent
+        userId={userData.id}
+        onBalanceLoaded={handleBalanceLoaded}
+      />
       <button
         onClick={() => setStep(2)}
-        className="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition duration-300"
+        className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300 mt-4"
       >
         Next: Choose Leave Type
       </button>
@@ -114,8 +111,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep2 = (setFieldValue: (field: string, value: any) => void) => (
-    <div className="bg-white rounded-box p-4 mb-4">
-      <h2 className="text-lg font-semibold mb-4">Choose Leave Type</h2>
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-4">เลือกประเภทการลา</h2>
       <div className="space-y-2">
         {Object.keys(leaveTypeMapping).map((type) => (
           <button
@@ -135,8 +132,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep3 = (setFieldValue: (field: string, value: any) => void) => (
-    <div className="bg-white rounded-box p-4 mb-4">
-      <h2 className="text-lg font-semibold mb-4">Choose Leave Format</h2>
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-4">เลือกลักษณะการลา</h2>
       <div className="space-y-2">
         {['ลาเต็มวัน', 'ลาครึ่งวัน'].map((format) => (
           <button
@@ -156,12 +153,12 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep4 = (values: FormValues) => (
-    <div className="bg-white rounded-box p-4 mb-4">
-      <h2 className="text-lg font-semibold mb-4">Select Dates</h2>
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-4">เลือกวันที่ลา</h2>
       <div className="space-y-4">
         <div>
           <label htmlFor="startDate" className="block mb-1">
-            Start Date
+            วันที่เริ่มลา
           </label>
           <Field
             type="date"
@@ -178,7 +175,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         {values.leaveFormat === 'ลาเต็มวัน' && (
           <div>
             <label htmlFor="endDate" className="block mb-1">
-              End Date
+              วันที่สิ้นสุด
             </label>
             <Field
               type="date"
@@ -205,11 +202,11 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   );
 
   const renderStep5 = () => (
-    <div className="bg-white rounded-box p-4 mb-4">
-      <h2 className="text-lg font-semibold mb-4">Reason for Leave</h2>
+    <div className="bg-white rounded-lg p-4 mb-4">
+      <h2 className="text-lg font-semibold mb-4">เหตุผลการลา</h2>
       <div>
         <label htmlFor="reason" className="block mb-1">
-          Reason
+          เหตุผล
         </label>
         <Field
           as="textarea"
@@ -224,7 +221,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         type="submit"
         className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
       >
-        Submit Leave Request
+        ส่งคำขอลา
       </button>
     </div>
   );
@@ -235,10 +232,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
   if (error) {
     return <div>Error: {error}</div>;
-  }
-
-  if (!userData) {
-    return <div>No user data available.</div>;
   }
 
   return (

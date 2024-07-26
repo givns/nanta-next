@@ -30,19 +30,30 @@ export const fetchThaiHolidays = async (year: number): Promise<Holiday[]> => {
   }
 };
 
-export const isNonWorkingDay = async (date: dayjs.Dayjs): Promise<boolean> => {
+export const isNonWorkingDay = async (
+  date: dayjs.Dayjs,
+  userShift: string,
+): Promise<boolean> => {
   if (date.day() === 0) return true; // Sunday
 
   const year = date.year();
   const holidays = await fetchThaiHolidays(year);
 
-  return holidays.some((holiday) => date.isSame(holiday.date, 'day'));
+  if (userShift === 'SHIFT104') {
+    // For Shift 104, the holiday is the day before the regular holiday
+    return holidays.some((holiday) =>
+      date.isSame(dayjs(holiday.date).subtract(1, 'day'), 'day'),
+    );
+  } else {
+    return holidays.some((holiday) => date.isSame(holiday.date, 'day'));
+  }
 };
 
 export const calculateFullDayCount = async (
   startDate: string,
   endDate: string,
   leaveFormat: string,
+  userShift: string,
 ): Promise<number> => {
   if (leaveFormat === 'ลาครึ่งวัน') {
     return 0.5;
@@ -57,7 +68,7 @@ export const calculateFullDayCount = async (
     date.isBefore(end) || date.isSame(end, 'day');
     date = date.add(1, 'day')
   ) {
-    if (!(await isNonWorkingDay(date))) {
+    if (!(await isNonWorkingDay(date, userShift))) {
       fullDayCount += 1;
     }
   }

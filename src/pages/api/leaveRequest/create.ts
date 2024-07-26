@@ -25,8 +25,7 @@ export default async function handler(
   } = req.body;
 
   try {
-    console.log('Received leave request data:', req.body);
-
+    const leaveService = new LeaveServiceServer();
     const newLeaveRequest = await leaveService.createLeaveRequest(
       lineUserId,
       leaveType,
@@ -39,8 +38,6 @@ export default async function handler(
       resubmitted,
       originalRequestId,
     );
-
-    console.log('Leave request created:', newLeaveRequest);
 
     return res.status(201).json(newLeaveRequest);
   } catch (error: any) {
