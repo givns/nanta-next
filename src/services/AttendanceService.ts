@@ -256,9 +256,11 @@ export class AttendanceService {
 
       let isCheckingIn = true;
       if (latestAttendance && latestAttendance.checkOutTime) {
-        isCheckingIn = true; // Reset to check-in state after a complete check-out
+        const lastCheckOutTime = moment(latestAttendance.checkOutTime);
+        const currentTime = moment();
+        isCheckingIn = currentTime.diff(lastCheckOutTime, 'hours') >= 1;
       } else if (latestAttendance) {
-        isCheckingIn = false; // Waiting for check-out
+        isCheckingIn = false;
       }
 
       const result: AttendanceStatus = {
@@ -349,13 +351,11 @@ export class AttendanceService {
     externalRecords: ExternalCheckInData[],
     shift: ShiftData,
   ): AttendanceRecord | null {
-    // Combine internal and external records
     const allRecords = [
       ...internalAttendances,
       ...externalRecords.map(this.convertExternalToInternal),
     ];
 
-    // Sort all records by date and time
     allRecords.sort(
       (a, b) => a.checkInTime!.getTime() - b.checkInTime!.getTime(),
     );
