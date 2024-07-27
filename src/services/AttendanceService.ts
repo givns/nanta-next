@@ -131,17 +131,36 @@ export class AttendanceService {
       const now = moment().tz('Asia/Bangkok');
       const today = now.clone().startOf('day');
       const shift = user.assignedShift;
+      let shiftStart, shiftEnd;
+      if (latestAttendance) {
+        const shiftDate = moment(latestAttendance.date);
+        shiftStart = shiftDate.clone().set({
+          hour: parseInt(shift.startTime.split(':')[0]),
+          minute: parseInt(shift.startTime.split(':')[1]),
+        });
+        shiftEnd = shiftDate.clone().set({
+          hour: parseInt(shift.endTime.split(':')[0]),
+          minute: parseInt(shift.endTime.split(':')[1]),
+        });
 
-      const shiftStart = moment(today).set({
-        hour: parseInt(shift.startTime.split(':')[0]),
-        minute: parseInt(shift.startTime.split(':')[1]),
-      });
-      const shiftEnd = moment(today).set({
-        hour: parseInt(shift.endTime.split(':')[0]),
-        minute: parseInt(shift.endTime.split(':')[1]),
-      });
-      if (shiftEnd.isBefore(shiftStart)) {
-        shiftEnd.add(1, 'day');
+        if (shiftEnd.isBefore(shiftStart)) {
+          shiftEnd.add(1, 'day');
+        }
+      } else {
+        // If there's no latest attendance, use current date for shift times
+        const currentDate = moment();
+        shiftStart = currentDate.clone().set({
+          hour: parseInt(shift.startTime.split(':')[0]),
+          minute: parseInt(shift.startTime.split(':')[1]),
+        });
+        shiftEnd = currentDate.clone().set({
+          hour: parseInt(shift.endTime.split(':')[0]),
+          minute: parseInt(shift.endTime.split(':')[1]),
+        });
+
+        if (shiftEnd.isBefore(shiftStart)) {
+          shiftEnd.add(1, 'day');
+        }
       }
 
       console.log('Shift start:', shiftStart.format());
@@ -149,16 +168,9 @@ export class AttendanceService {
 
       let isCheckingIn = true;
       if (latestAttendance) {
-        const now = new Date();
-        const attendanceDate = new Date(latestAttendance.date);
-        const isFromToday =
-          attendanceDate.getDate() === now.getDate() &&
-          attendanceDate.getMonth() === now.getMonth() &&
-          attendanceDate.getFullYear() === now.getFullYear();
-
-        if (isFromToday) {
-          isCheckingIn = !!latestAttendance.checkOutTime;
-        }
+        const checkInTime = moment(latestAttendance.checkInTime);
+        isCheckingIn =
+          checkInTime.isBefore(shiftEnd) && !latestAttendance.checkOutTime;
       }
 
       console.log('Initial isCheckingIn:', isCheckingIn);
@@ -228,9 +240,7 @@ export class AttendanceService {
         now.isAfter(shiftEnd)
           ? {
               start: shiftEnd.format('HH:mm'),
-              end: now.isAfter(shiftEnd.clone().add(1, 'day'))
-                ? now.format('HH:mm')
-                : '23:59',
+              end: now.format('HH:mm'),
             }
           : null;
 
@@ -336,19 +346,19 @@ export class AttendanceService {
     if (allRecords.length === 0) return null;
 
     const lastRecord = allRecords[allRecords.length - 1];
-    const recordDate = moment(lastRecord.date);
+    const checkInTime = moment(lastRecord.checkInTime);
+    const shiftDate = moment(lastRecord.date);
 
-    const shiftStart = recordDate.clone().set({
+    const shiftStart = shiftDate.clone().set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
     });
 
-    let shiftEnd = recordDate.clone().set({
+    let shiftEnd = shiftDate.clone().set({
       hour: parseInt(shift.endTime.split(':')[0]),
       minute: parseInt(shift.endTime.split(':')[1]),
     });
 
-    // Handle overnight shifts
     if (shiftEnd.isBefore(shiftStart)) {
       shiftEnd.add(1, 'day');
     }
@@ -356,76 +366,67 @@ export class AttendanceService {
     const previousDayShiftStart = shiftStart.clone().subtract(1, 'day');
     const previousDayShiftEnd = shiftEnd.clone().subtract(1, 'day');
 
-    let latestCheckIn: AttendanceRecord | null = null;
-    let latestCheckOut: AttendanceRecord | null = null;
+    let status: string;
+    let isOvertime: boolean;
 
-    for (const record of allRecords) {
-      const recordTime = moment(record.checkInTime);
-
-      // Check if this record is part of the previous day's shift
-      if (
-        recordTime.isBetween(
-          previousDayShiftStart,
-          previousDayShiftEnd,
-          null,
-          '[]',
-        )
-      ) {
-        latestCheckIn = record;
-        latestCheckIn.status = 'checked-in';
-        latestCheckIn.isOvertime = false;
+    if (checkInTime.isBetween(previousDayShiftEnd, shiftStart)) {
+      status = 'overtime-ended';
+      isOvertime = true;
+    } else if (checkInTime.isBefore(shiftStart)) {
+      if (checkInTime.isAfter(shiftStart.clone().subtract(1, 'hour'))) {
+        status = 'early-check-in';
+        isOvertime = false;
+      } else {
+        status = 'overtime-started';
+        isOvertime = true;
       }
-      // Check if this record is part of the current day's shift
-      else if (recordTime.isBetween(shiftStart, shiftEnd, null, '[]')) {
-        if (!latestCheckIn) {
-          latestCheckIn = record;
-          latestCheckIn.status = 'checked-in';
-          latestCheckIn.isOvertime = false;
-        } else {
-          latestCheckOut = record;
-          latestCheckOut.status = 'checked-out';
-          latestCheckOut.isOvertime = false;
-        }
-      }
-      // Handle early check-ins and overtime
-      else if (recordTime.isBefore(shiftStart)) {
-        if (recordTime.isAfter(shiftStart.clone().subtract(1, 'hour'))) {
-          latestCheckIn = record;
-          latestCheckIn.status = 'early-check-in';
-          latestCheckIn.isOvertime = false;
-        } else {
-          latestCheckIn = record;
-          latestCheckIn.status = 'overtime-started';
-          latestCheckIn.isOvertime = true;
-        }
-      }
-      // Handle late check-outs and overtime
-      else if (recordTime.isAfter(shiftEnd)) {
-        if (recordTime.isBefore(shiftEnd.clone().add(1, 'hour'))) {
-          latestCheckOut = record;
-          latestCheckOut.status = 'late-check-out';
-          latestCheckOut.isOvertime = false;
-        } else {
-          latestCheckOut = record;
-          latestCheckOut.status = 'overtime-ended';
-          latestCheckOut.isOvertime = true;
-        }
-      }
+    } else if (checkInTime.isBetween(shiftStart, shiftEnd)) {
+      status = 'checked-in';
+      isOvertime = false;
+    } else {
+      status = 'overtime-started';
+      isOvertime = true;
     }
 
-    // Combine check-in and check-out information
-    if (latestCheckIn && latestCheckOut) {
-      latestCheckIn.checkOutTime = latestCheckOut.checkInTime;
-      latestCheckIn.checkOutLocation = latestCheckOut.checkInLocation;
-      latestCheckIn.checkOutAddress = latestCheckOut.checkInAddress;
-      latestCheckIn.checkOutDeviceSerial = latestCheckOut.checkInDeviceSerial;
-      latestCheckIn.status = latestCheckOut.status;
-      latestCheckIn.isOvertime =
-        latestCheckIn.isOvertime || latestCheckOut.isOvertime;
-      return latestCheckIn;
+    // Check for check-out
+    const lastCheckOut = allRecords
+      .slice()
+      .reverse()
+      .find(
+        (record) =>
+          moment(record.checkInTime).isAfter(checkInTime) &&
+          moment(record.checkInTime).isSameOrBefore(shiftEnd),
+      );
+
+    if (lastCheckOut) {
+      const checkOutTime = moment(lastCheckOut.checkInTime);
+      if (checkOutTime.isAfter(shiftEnd)) {
+        if (checkOutTime.isBefore(shiftEnd.clone().add(1, 'hour'))) {
+          status = 'late-check-out';
+        } else {
+          status = 'overtime-ended';
+        }
+        isOvertime = true;
+      } else {
+        status = 'checked-out';
+      }
+
+      return {
+        ...lastRecord,
+        checkOutTime: lastCheckOut.checkInTime,
+        checkOutLocation: lastCheckOut.checkInLocation,
+        checkOutAddress: lastCheckOut.checkInAddress,
+        checkOutDeviceSerial: lastCheckOut.checkInDeviceSerial,
+        status,
+        isOvertime,
+      };
     }
 
-    return latestCheckIn || latestCheckOut;
+    return {
+      ...lastRecord,
+      status,
+      isOvertime,
+    };
   }
 
   private convertExternalToInternal(
