@@ -231,6 +231,23 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const lateThreshold = shiftStart.clone().add(30, 'minutes');
     const overtimeThreshold = shiftEnd.clone().add(5, 'minutes');
 
+    // Handle ongoing overtime from previous day or incomplete overtime records
+    if (
+      attendanceStatus.latestAttendance &&
+      (moment(attendanceStatus.latestAttendance.checkInTime).isBefore(
+        now.startOf('day'),
+      ) ||
+        attendanceStatus.latestAttendance.status === 'overtime-started') &&
+      !attendanceStatus.latestAttendance.checkOutTime
+    ) {
+      return {
+        allowed: true,
+        reason: 'การทำงานล่วงเวลาต่อเนื่องหรือยังไม่สมบูรณ์ กรุณาลงเวลาออก',
+        isLate: false,
+        isOvertime: true,
+      };
+    }
+
     // Handle overnight shifts
     if (shiftEnd.isBefore(shiftStart)) {
       shiftEnd.add(1, 'day');

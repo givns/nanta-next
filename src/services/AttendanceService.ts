@@ -90,7 +90,18 @@ export class AttendanceService {
         externalAttendanceData.records,
         user.assignedShift as ShiftData,
       );
-      const isCheckingIn = this.determineIfCheckingIn(latestAttendance);
+      let isCheckingIn: boolean;
+
+      if (
+        latestAttendance &&
+        latestAttendance.status === 'overtime-started' &&
+        !latestAttendance.checkOutTime
+      ) {
+        isCheckingIn = false; // Force check-out for incomplete overtime
+      } else {
+        isCheckingIn = this.determineIfCheckingIn(latestAttendance);
+      }
+
       const today = moment().tz('Asia/Bangkok').startOf('day');
       const tomorrow = moment(today).add(1, 'day');
       const shift = user.assignedShift;
