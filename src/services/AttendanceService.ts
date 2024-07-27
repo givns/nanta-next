@@ -122,9 +122,8 @@ export class AttendanceService {
         externalAttendanceData.records,
         user.assignedShift as ShiftData,
       );
-
       console.log(
-        'Latest attendance record:',
+        'Latest attendance from getLatestAttendanceRecord:',
         JSON.stringify(latestAttendance, null, 2),
       );
 
@@ -361,6 +360,12 @@ export class AttendanceService {
     externalRecords: ExternalCheckInData[],
     shift: ShiftData,
   ): AttendanceRecord | null {
+    console.log(
+      'Internal attendances:',
+      JSON.stringify(internalAttendances, null, 2),
+    );
+    console.log('External records:', JSON.stringify(externalRecords, null, 2));
+
     const allRecords = [
       ...internalAttendances,
       ...externalRecords.map(this.convertExternalToInternal),
@@ -372,10 +377,16 @@ export class AttendanceService {
 
     console.log('All sorted records:', JSON.stringify(allRecords, null, 2));
 
-    if (allRecords.length < 2) return allRecords[0] || null;
+    if (allRecords.length < 2) {
+      console.log('Not enough records to process');
+      return allRecords[0] || null;
+    }
 
     const checkIn = allRecords[allRecords.length - 2];
     const checkOut = allRecords[allRecords.length - 1];
+
+    console.log('Selected check-in:', JSON.stringify(checkIn, null, 2));
+    console.log('Selected check-out:', JSON.stringify(checkOut, null, 2));
 
     const checkInTime = moment(checkIn.checkInTime).tz('Asia/Bangkok');
     const checkOutTime = moment(checkOut.checkInTime).tz('Asia/Bangkok');
@@ -409,6 +420,9 @@ export class AttendanceService {
       status = 'checked-out';
       isOvertime = false;
     }
+
+    console.log('Calculated status:', status);
+    console.log('Is overtime:', isOvertime);
 
     return {
       ...checkIn,
