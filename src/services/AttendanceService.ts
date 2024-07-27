@@ -227,9 +227,18 @@ export class AttendanceService {
 
       let potentialOvertime = null;
       if (latestAttendance && latestAttendance.checkOutTime) {
+        const checkInTime = moment(latestAttendance.checkInTime).tz(
+          'Asia/Bangkok',
+        );
         const checkOutTime = moment(latestAttendance.checkOutTime).tz(
           'Asia/Bangkok',
         );
+
+        // Adjust shiftEnd if the check-in is from the previous day
+        if (checkInTime.isBefore(shiftStart)) {
+          shiftEnd.subtract(1, 'day');
+        }
+
         if (checkOutTime.isAfter(shiftEnd)) {
           potentialOvertime = {
             start: shiftEnd.format('HH:mm'),
@@ -303,7 +312,7 @@ export class AttendanceService {
         futureShiftAdjustments,
         approvedOvertime: formattedApprovedOvertime,
         futureApprovedOvertimes,
-        potentialOvertime: potentialOvertime,
+        potentialOvertime,
       };
 
       console.log(
