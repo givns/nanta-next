@@ -133,7 +133,7 @@ export class AttendanceService {
       const shift = user.assignedShift;
       let shiftStart, shiftEnd;
       if (latestAttendance) {
-        const shiftDate = moment(latestAttendance.date);
+        const shiftDate = moment.tz(latestAttendance.date, 'Asia/Bangkok');
         shiftStart = shiftDate.clone().set({
           hour: parseInt(shift.startTime.split(':')[0]),
           minute: parseInt(shift.startTime.split(':')[1]),
@@ -373,78 +373,37 @@ export class AttendanceService {
         recordTime.isBetween(
           previousDayShiftStart,
           previousDayShiftEnd,
-          null,
+          undefined,
           '[]',
         )
       ) {
-        checkIn = record;
-      } else if (
-        recordTime.isBetween(previousDayShiftEnd, shiftEnd, null, '[]')
-      ) {
-        if (!checkIn) {
+        if (!checkIn || recordTime.isAfter(moment(checkIn.checkInTime))) {
           checkIn = record;
-        } else {
+        }
+      } else if (
+        recordTime.isBetween(previousDayShiftEnd, shiftEnd, undefined, '[]')
+      ) {
+        if (!checkOut || recordTime.isAfter(moment(checkOut.checkInTime))) {
           checkOut = record;
         }
       }
     }
 
     if (checkIn && checkOut) {
-      const checkInTime = moment(checkIn.checkInTime);
-      const checkOutTime = moment(checkOut.checkInTime);
-
-      let status: string;
-      let isOvertime: boolean;
-
-      if (checkOutTime.isAfter(shiftEnd)) {
-        status = 'overtime-ended';
-        isOvertime = true;
-      } else if (
-        checkOutTime.isAfter(shiftStart) &&
-        checkOutTime.isSameOrBefore(shiftEnd)
-      ) {
-        status = 'checked-out';
-        isOvertime = false;
-      } else {
-        status = 'overtime-ended';
-        isOvertime = true;
-      }
-
       return {
         ...checkIn,
         checkOutTime: checkOut.checkInTime,
         checkOutLocation: checkOut.checkInLocation,
         checkOutAddress: checkOut.checkInAddress,
         checkOutDeviceSerial: checkOut.checkInDeviceSerial,
-        status,
-        isOvertime,
+        status: 'overtime-ended',
+        isOvertime: true,
       };
     } else if (checkIn) {
-      const checkInTime = moment(checkIn.checkInTime);
-
-      let status: string;
-      let isOvertime: boolean;
-
-      if (checkInTime.isBefore(shiftStart)) {
-        if (checkInTime.isAfter(shiftStart.clone().subtract(1, 'hour'))) {
-          status = 'early-check-in';
-          isOvertime = false;
-        } else {
-          status = 'overtime-started';
-          isOvertime = true;
-        }
-      } else if (checkInTime.isBetween(shiftStart, shiftEnd)) {
-        status = 'checked-in';
-        isOvertime = false;
-      } else {
-        status = 'overtime-started';
-        isOvertime = true;
-      }
-
       return {
         ...checkIn,
-        status,
-        isOvertime,
+        status: 'checked-in',
+        isOvertime: false,
       };
     }
 
