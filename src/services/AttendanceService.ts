@@ -166,13 +166,6 @@ export class AttendanceService {
       console.log('Shift start:', shiftStart.format());
       console.log('Shift end:', shiftEnd.format());
 
-      let isCheckingIn = true;
-      if (latestAttendance) {
-        isCheckingIn = !latestAttendance.checkOutTime;
-      }
-
-      console.log('Initial isCheckingIn:', isCheckingIn);
-
       const isWorkDay = await this.holidayService.isWorkingDay(
         user.id,
         today.toDate(),
@@ -232,15 +225,25 @@ export class AttendanceService {
         };
       }
 
-      const potentialOvertime =
-        latestAttendance &&
-        !latestAttendance.checkOutTime &&
-        now.isAfter(shiftEnd)
-          ? {
-              start: shiftEnd.format('HH:mm'),
-              end: now.format('HH:mm'),
-            }
-          : null;
+      let potentialOvertime = null;
+      if (latestAttendance && latestAttendance.checkOutTime) {
+        const checkOutTime = moment(latestAttendance.checkOutTime).tz(
+          'Asia/Bangkok',
+        );
+        if (checkOutTime.isAfter(shiftEnd)) {
+          potentialOvertime = {
+            start: shiftEnd.format('HH:mm'),
+            end: checkOutTime.format('HH:mm'),
+          };
+        }
+      }
+
+      let isCheckingIn = true;
+      if (latestAttendance && latestAttendance.checkOutTime) {
+        isCheckingIn = true; // Reset to check-in state after a complete check-out
+      } else if (latestAttendance) {
+        isCheckingIn = false; // Waiting for check-out
+      }
 
       const result: AttendanceStatus = {
         user: {
@@ -336,23 +339,25 @@ export class AttendanceService {
       ...externalRecords.map(this.convertExternalToInternal),
     ];
 
-    // Sort all records by date and time, most recent first
+    // Sort all records by date and time
     allRecords.sort(
-      (a, b) => b.checkInTime!.getTime() - a.checkInTime!.getTime(),
+      (a, b) => a.checkInTime!.getTime() - b.checkInTime!.getTime(),
     );
 
-    if (allRecords.length === 0) return null;
+    if (allRecords.length < 2) return null;
 
-    const latestRecord = allRecords[0];
-    const recordTime = moment(latestRecord.checkInTime).tz('Asia/Bangkok');
-    const recordDate = recordTime.clone().startOf('day');
+    const checkIn = allRecords[allRecords.length - 2];
+    const checkOut = allRecords[allRecords.length - 1];
 
-    const shiftStart = recordDate.clone().set({
+    const checkInTime = moment(checkIn.checkInTime).tz('Asia/Bangkok');
+    const checkOutTime = moment(checkOut.checkInTime).tz('Asia/Bangkok');
+
+    const shiftDate = checkOutTime.clone().startOf('day');
+    const shiftStart = shiftDate.clone().set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
     });
-
-    let shiftEnd = recordDate.clone().set({
+    let shiftEnd = shiftDate.clone().set({
       hour: parseInt(shift.endTime.split(':')[0]),
       minute: parseInt(shift.endTime.split(':')[1]),
     });
@@ -367,27 +372,23 @@ export class AttendanceService {
     let status: string;
     let isOvertime: boolean;
 
-    if (recordTime.isBetween(previousDayShiftEnd, shiftStart)) {
+    if (checkOutTime.isBetween(previousDayShiftEnd, shiftStart)) {
       status = 'overtime-ended';
       isOvertime = true;
-    } else if (recordTime.isBefore(shiftStart)) {
-      if (recordTime.isAfter(shiftStart.clone().subtract(1, 'hour'))) {
-        status = 'early-check-in';
-        isOvertime = false;
-      } else {
-        status = 'overtime-started';
-        isOvertime = true;
-      }
-    } else if (recordTime.isBetween(shiftStart, shiftEnd)) {
-      status = 'checked-in';
-      isOvertime = false;
-    } else {
-      status = 'overtime-started';
+    } else if (checkOutTime.isAfter(shiftEnd)) {
+      status = 'overtime-ended';
       isOvertime = true;
+    } else {
+      status = 'checked-out';
+      isOvertime = false;
     }
 
     return {
-      ...latestRecord,
+      ...checkIn,
+      checkOutTime: checkOut.checkInTime,
+      checkOutLocation: checkOut.checkInLocation,
+      checkOutAddress: checkOut.checkInAddress,
+      checkOutDeviceSerial: checkOut.checkInDeviceSerial,
       status,
       isOvertime,
     };
