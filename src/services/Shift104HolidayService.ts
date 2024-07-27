@@ -44,6 +44,26 @@ export class Shift104HolidayService {
     }
   }
 
+  async isShift104Holiday(date: Date): Promise<boolean> {
+    const shiftedDate = new Date(date);
+    shiftedDate.setDate(shiftedDate.getDate() + 1);
+
+    const holiday = await prisma.holiday.findFirst({
+      where: {
+        date: {
+          equals: new Date(
+            shiftedDate.getFullYear(),
+            shiftedDate.getMonth(),
+            shiftedDate.getDate(),
+          ),
+        },
+        name: { startsWith: 'Shift 104 - ' },
+      },
+    });
+
+    return !!holiday;
+  }
+
   async notifyShift104Workers(holidayDate: Date): Promise<void> {
     const shift104Workers = await prisma.user.findMany({
       where: { assignedShift: { shiftCode: 'SHIFT104' } },

@@ -49,6 +49,18 @@ export class HolidayService {
     }
   }
 
+  async isHoliday(date: Date): Promise<boolean> {
+    const holiday = await prisma.holiday.findFirst({
+      where: {
+        date: {
+          equals: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+        },
+      },
+    });
+
+    return !!holiday;
+  }
+
   async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
     return prisma.holiday.findMany({
       where: {

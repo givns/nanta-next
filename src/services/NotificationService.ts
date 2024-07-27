@@ -202,7 +202,7 @@ export class NotificationService {
     pendingAttendanceId: string,
   ): Promise<void> {
     const admins = await prisma.user.findMany({
-      where: { role: 'ADMIN' },
+      where: { role: 'Admin' },
       select: { id: true, lineUserId: true },
     });
 

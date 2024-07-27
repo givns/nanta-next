@@ -5,10 +5,19 @@ import { NotificationService } from './NotificationService';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { ApprovedOvertime } from '../types/user';
 import { getDeviceType } from '../utils/deviceUtils';
+import { ShiftManagementService } from './ShiftManagementService';
+import moment from 'moment-timezone';
+import { HolidayService } from './HolidayService';
+import { Shift104HolidayService } from './Shift104HolidayService';
+import { UserRole } from '@/types/enum';
+
+const shiftManagementService = new ShiftManagementService();
 
 const prisma = new PrismaClient();
 const overtimeService = new OvertimeServiceServer();
 const notificationService = new NotificationService();
+const holidayService = new HolidayService();
+const shift104HolidayService = new Shift104HolidayService();
 
 export class AttendanceProcessingService {
   async processCheckIn(
@@ -264,5 +273,92 @@ export class AttendanceProcessingService {
     date: Date,
   ): Promise<ApprovedOvertime | null> {
     return overtimeService.getApprovedOvertimeRequest(userId, date);
+  }
+  async closeOpenAttendances() {
+    const fourHoursAgo = moment().subtract(4, 'hours');
+    const openAttendances = await prisma.attendance.findMany({
+      where: {
+        checkOutTime: null,
+        checkInTime: { lt: fourHoursAgo.toDate() },
+      },
+      include: { user: true },
+    });
+
+    for (const attendance of openAttendances) {
+      const effectiveShift = await shiftManagementService.getEffectiveShift(
+        attendance.user.id,
+        attendance.date,
+      );
+
+      if (effectiveShift) {
+        const { shiftEnd } = effectiveShift;
+        const cutoffTime = moment(shiftEnd).add(4, 'hours');
+
+        if (moment().isAfter(cutoffTime)) {
+          await prisma.attendance.update({
+            where: { id: attendance.id },
+            data: {
+              checkOutTime: shiftEnd,
+              status: 'auto-checked-out',
+              checkOutReason: 'Auto-closed after 4 hours from shift end',
+            },
+          });
+        }
+      }
+    }
+  }
+
+  async handleUnapprovedOvertime(userId: string, checkOutTime: Date) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { assignedShift: true },
+    });
+
+    if (!user) throw new Error('User not found');
+
+    const effectiveShift = await shiftManagementService.getEffectiveShift(
+      userId,
+      checkOutTime,
+    );
+    if (!effectiveShift) throw new Error('Effective shift not found');
+
+    const { shift, shiftEnd } = effectiveShift;
+
+    if (moment(checkOutTime).isAfter(shiftEnd)) {
+      const overtimeMinutes = moment(checkOutTime).diff(shiftEnd, 'minutes');
+
+      // Check if it's a holiday
+      const isHoliday = await holidayService.isHoliday(checkOutTime);
+      const isShift104Holiday =
+        user.assignedShift.shiftCode === 'SHIFT104' &&
+        (await shift104HolidayService.isShift104Holiday(checkOutTime));
+
+      await prisma.timeEntry.create({
+        data: {
+          userId: user.id,
+          date: moment(checkOutTime).startOf('day').toDate(),
+          startTime: shiftEnd,
+          endTime: checkOutTime,
+          regularHours: 0,
+          overtimeHours: overtimeMinutes / 60,
+          status: 'unapproved-overtime',
+        },
+      });
+
+      // Notify admin about unapproved overtime
+      const admins = await prisma.user.findMany({
+        where: {
+          OR: [{ role: 'Admin' }, { role: 'SuperAdmin' }],
+        },
+      });
+
+      for (const admin of admins) {
+        await notificationService.sendNotification(
+          admin.id,
+          `Unapproved overtime detected for ${user.name} (${overtimeMinutes} minutes)` +
+            (isHoliday || isShift104Holiday ? ' on a holiday.' : ''),
+        );
+      }
+    }
   }
 }
