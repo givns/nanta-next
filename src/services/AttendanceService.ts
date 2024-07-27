@@ -226,12 +226,8 @@ export class AttendanceService {
 
       let potentialOvertime = null;
       if (latestAttendance && latestAttendance.checkOutTime) {
-        const checkInTime = moment(latestAttendance.checkInTime).tz(
-          'Asia/Bangkok',
-        );
-        const checkOutTime = moment(latestAttendance.checkOutTime).tz(
-          'Asia/Bangkok',
-        );
+        const checkInTime = moment(latestAttendance.checkInTime);
+        const checkOutTime = moment(latestAttendance.checkOutTime);
 
         const shiftDate = checkInTime.clone().startOf('day');
         const shiftStart = shiftDate.clone().set({
@@ -270,8 +266,10 @@ export class AttendanceService {
 
       let isCheckingIn = true;
       if (latestAttendance && latestAttendance.checkOutTime) {
-        const lastCheckOutTime = moment(latestAttendance.checkOutTime);
-        const currentTime = moment();
+        const lastCheckOutTime = moment(latestAttendance.checkOutTime).tz(
+          'Asia/Bangkok',
+        );
+        const currentTime = moment().tz('Asia/Bangkok');
         isCheckingIn = currentTime.diff(lastCheckOutTime, 'hours') >= 1;
       } else if (latestAttendance) {
         isCheckingIn = false;
@@ -418,10 +416,7 @@ export class AttendanceService {
     let status: string;
     let isOvertime: boolean;
 
-    if (checkOutTime.isAfter(shiftEnd)) {
-      status = 'overtime-ended';
-      isOvertime = true;
-    } else if (checkInTime.isBefore(shiftStart)) {
+    if (checkOutTime.isAfter(shiftEnd) || checkInTime.isBefore(shiftStart)) {
       status = 'overtime-ended';
       isOvertime = true;
     } else {
