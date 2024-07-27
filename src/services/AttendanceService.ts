@@ -336,19 +336,25 @@ export class AttendanceService {
     if (allRecords.length === 0) return null;
 
     const lastRecord = allRecords[allRecords.length - 1];
-    const recordDate = new Date(lastRecord.date);
+    const recordDate = moment(lastRecord.date);
 
-    const shiftStart = moment(recordDate).set({
+    const shiftStart = recordDate.clone().set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
     });
 
-    const shiftEnd = moment(shiftStart)
-      .add(24, 'hours')
-      .set({
-        hour: parseInt(shift.endTime.split(':')[0]),
-        minute: parseInt(shift.endTime.split(':')[1]),
-      });
+    let shiftEnd = recordDate.clone().set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+    });
+
+    // Handle overnight shifts
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    const previousDayShiftStart = shiftStart.clone().subtract(1, 'day');
+    const previousDayShiftEnd = shiftEnd.clone().subtract(1, 'day');
 
     let latestCheckIn: AttendanceRecord | null = null;
     let latestCheckOut: AttendanceRecord | null = null;
@@ -356,35 +362,45 @@ export class AttendanceService {
     for (const record of allRecords) {
       const recordTime = moment(record.checkInTime);
 
-      // Handle check-in
-      if (!latestCheckIn || recordTime.isBefore(shiftStart)) {
-        if (
-          recordTime.isBetween(
-            shiftStart.clone().subtract(1, 'hour'),
-            shiftStart,
-          )
-        ) {
-          latestCheckIn = record;
-          latestCheckIn.status = 'early-check-in';
-          latestCheckIn.isOvertime = false;
-        } else if (
-          recordTime.isBefore(shiftStart.clone().subtract(1, 'hour'))
-        ) {
-          latestCheckIn = record;
-          latestCheckIn.status = 'overtime-started';
-          latestCheckIn.isOvertime = true;
-        } else {
+      // Check if this record is part of the previous day's shift
+      if (
+        recordTime.isBetween(
+          previousDayShiftStart,
+          previousDayShiftEnd,
+          null,
+          '[]',
+        )
+      ) {
+        latestCheckIn = record;
+        latestCheckIn.status = 'checked-in';
+        latestCheckIn.isOvertime = false;
+      }
+      // Check if this record is part of the current day's shift
+      else if (recordTime.isBetween(shiftStart, shiftEnd, null, '[]')) {
+        if (!latestCheckIn) {
           latestCheckIn = record;
           latestCheckIn.status = 'checked-in';
           latestCheckIn.isOvertime = false;
+        } else {
+          latestCheckOut = record;
+          latestCheckOut.status = 'checked-out';
+          latestCheckOut.isOvertime = false;
         }
       }
-
-      // Handle check-out
-      if (
-        recordTime.isAfter(shiftEnd) ||
-        (recordTime.isAfter(shiftStart) && record.checkOutTime)
-      ) {
+      // Handle early check-ins and overtime
+      else if (recordTime.isBefore(shiftStart)) {
+        if (recordTime.isAfter(shiftStart.clone().subtract(1, 'hour'))) {
+          latestCheckIn = record;
+          latestCheckIn.status = 'early-check-in';
+          latestCheckIn.isOvertime = false;
+        } else {
+          latestCheckIn = record;
+          latestCheckIn.status = 'overtime-started';
+          latestCheckIn.isOvertime = true;
+        }
+      }
+      // Handle late check-outs and overtime
+      else if (recordTime.isAfter(shiftEnd)) {
         if (recordTime.isBefore(shiftEnd.clone().add(1, 'hour'))) {
           latestCheckOut = record;
           latestCheckOut.status = 'late-check-out';
