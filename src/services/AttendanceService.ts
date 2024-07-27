@@ -445,7 +445,7 @@ export class AttendanceService {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
       date: checkInTime.startOf('day').toDate(),
-      checkInTime: checkInTime.toDate(),
+      checkInTime: checkInTime.toDate(), // Keep the original time
       checkOutTime: null,
       isOvertime: false,
       overtimeStartTime: null,
