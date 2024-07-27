@@ -168,9 +168,7 @@ export class AttendanceService {
 
       let isCheckingIn = true;
       if (latestAttendance) {
-        const checkInTime = moment(latestAttendance.checkInTime);
-        isCheckingIn =
-          checkInTime.isBefore(shiftEnd) && !latestAttendance.checkOutTime;
+        isCheckingIn = !latestAttendance.checkOutTime;
       }
 
       console.log('Initial isCheckingIn:', isCheckingIn);
@@ -346,7 +344,6 @@ export class AttendanceService {
     if (allRecords.length === 0) return null;
 
     const lastRecord = allRecords[allRecords.length - 1];
-    const checkInTime = moment(lastRecord.checkInTime);
     const shiftDate = moment(lastRecord.date);
 
     const shiftStart = shiftDate.clone().set({
@@ -366,67 +363,92 @@ export class AttendanceService {
     const previousDayShiftStart = shiftStart.clone().subtract(1, 'day');
     const previousDayShiftEnd = shiftEnd.clone().subtract(1, 'day');
 
-    let status: string;
-    let isOvertime: boolean;
+    let checkIn: AttendanceRecord | null = null;
+    let checkOut: AttendanceRecord | null = null;
 
-    if (checkInTime.isBetween(previousDayShiftEnd, shiftStart)) {
-      status = 'overtime-ended';
-      isOvertime = true;
-    } else if (checkInTime.isBefore(shiftStart)) {
-      if (checkInTime.isAfter(shiftStart.clone().subtract(1, 'hour'))) {
-        status = 'early-check-in';
+    for (const record of allRecords) {
+      const recordTime = moment(record.checkInTime);
+
+      if (
+        recordTime.isBetween(
+          previousDayShiftStart,
+          previousDayShiftEnd,
+          null,
+          '[]',
+        )
+      ) {
+        checkIn = record;
+      } else if (
+        recordTime.isBetween(previousDayShiftEnd, shiftEnd, null, '[]')
+      ) {
+        if (!checkIn) {
+          checkIn = record;
+        } else {
+          checkOut = record;
+        }
+      }
+    }
+
+    if (checkIn && checkOut) {
+      const checkInTime = moment(checkIn.checkInTime);
+      const checkOutTime = moment(checkOut.checkInTime);
+
+      let status: string;
+      let isOvertime: boolean;
+
+      if (checkOutTime.isAfter(shiftEnd)) {
+        status = 'overtime-ended';
+        isOvertime = true;
+      } else if (
+        checkOutTime.isAfter(shiftStart) &&
+        checkOutTime.isSameOrBefore(shiftEnd)
+      ) {
+        status = 'checked-out';
+        isOvertime = false;
+      } else {
+        status = 'overtime-ended';
+        isOvertime = true;
+      }
+
+      return {
+        ...checkIn,
+        checkOutTime: checkOut.checkInTime,
+        checkOutLocation: checkOut.checkInLocation,
+        checkOutAddress: checkOut.checkInAddress,
+        checkOutDeviceSerial: checkOut.checkInDeviceSerial,
+        status,
+        isOvertime,
+      };
+    } else if (checkIn) {
+      const checkInTime = moment(checkIn.checkInTime);
+
+      let status: string;
+      let isOvertime: boolean;
+
+      if (checkInTime.isBefore(shiftStart)) {
+        if (checkInTime.isAfter(shiftStart.clone().subtract(1, 'hour'))) {
+          status = 'early-check-in';
+          isOvertime = false;
+        } else {
+          status = 'overtime-started';
+          isOvertime = true;
+        }
+      } else if (checkInTime.isBetween(shiftStart, shiftEnd)) {
+        status = 'checked-in';
         isOvertime = false;
       } else {
         status = 'overtime-started';
         isOvertime = true;
       }
-    } else if (checkInTime.isBetween(shiftStart, shiftEnd)) {
-      status = 'checked-in';
-      isOvertime = false;
-    } else {
-      status = 'overtime-started';
-      isOvertime = true;
-    }
-
-    // Check for check-out
-    const lastCheckOut = allRecords
-      .slice()
-      .reverse()
-      .find(
-        (record) =>
-          moment(record.checkInTime).isAfter(checkInTime) &&
-          moment(record.checkInTime).isSameOrBefore(shiftEnd),
-      );
-
-    if (lastCheckOut) {
-      const checkOutTime = moment(lastCheckOut.checkInTime);
-      if (checkOutTime.isAfter(shiftEnd)) {
-        if (checkOutTime.isBefore(shiftEnd.clone().add(1, 'hour'))) {
-          status = 'late-check-out';
-        } else {
-          status = 'overtime-ended';
-        }
-        isOvertime = true;
-      } else {
-        status = 'checked-out';
-      }
 
       return {
-        ...lastRecord,
-        checkOutTime: lastCheckOut.checkInTime,
-        checkOutLocation: lastCheckOut.checkInLocation,
-        checkOutAddress: lastCheckOut.checkInAddress,
-        checkOutDeviceSerial: lastCheckOut.checkInDeviceSerial,
+        ...checkIn,
         status,
         isOvertime,
       };
     }
 
-    return {
-      ...lastRecord,
-      status,
-      isOvertime,
-    };
+    return null;
   }
 
   private convertExternalToInternal(
