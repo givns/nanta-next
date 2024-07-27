@@ -274,7 +274,6 @@ export class AttendanceService {
       } else if (latestAttendance) {
         isCheckingIn = false;
       }
-
       const result: AttendanceStatus = {
         user: {
           id: user.id,
@@ -391,8 +390,8 @@ export class AttendanceService {
     console.log('Selected check-in:', JSON.stringify(checkIn, null, 2));
     console.log('Selected check-out:', JSON.stringify(checkOut, null, 2));
 
-    const checkInTime = moment(checkIn.checkInTime).tz('Asia/Bangkok');
-    const checkOutTime = moment(checkOut.checkInTime).tz('Asia/Bangkok');
+    const checkInTime = moment.tz(checkIn.checkInTime, 'Asia/Bangkok');
+    const checkOutTime = moment.tz(checkOut.checkInTime, 'Asia/Bangkok');
 
     const shiftDate = checkInTime.clone().startOf('day');
     const shiftStart = shiftDate.clone().set({
@@ -441,11 +440,12 @@ export class AttendanceService {
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
+    const checkInTime = moment.tz(external.sj, 'Asia/Bangkok');
     return {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
-      date: new Date(external.date),
-      checkInTime: new Date(external.sj),
+      date: checkInTime.startOf('day').toDate(),
+      checkInTime: checkInTime.toDate(),
       checkOutTime: null,
       isOvertime: false,
       overtimeStartTime: null,
