@@ -227,8 +227,12 @@ export class AttendanceService {
 
       let potentialOvertime = null;
       if (latestAttendance && latestAttendance.checkOutTime) {
-        const checkInTime = moment(latestAttendance.checkInTime);
-        const checkOutTime = moment(latestAttendance.checkOutTime);
+        const checkInTime = moment(latestAttendance.checkInTime).tz(
+          'Asia/Bangkok',
+        );
+        const checkOutTime = moment(latestAttendance.checkOutTime).tz(
+          'Asia/Bangkok',
+        );
 
         const shiftDate = checkInTime.clone().startOf('day');
         const shiftStart = shiftDate.clone().set({
@@ -243,6 +247,12 @@ export class AttendanceService {
         if (shiftEnd.isBefore(shiftStart)) {
           shiftEnd.add(1, 'day');
         }
+
+        console.log('Potential overtime calculation:');
+        console.log('Check-in time:', checkInTime.format());
+        console.log('Check-out time:', checkOutTime.format());
+        console.log('Shift start:', shiftStart.format());
+        console.log('Shift end:', shiftEnd.format());
 
         if (checkOutTime.isAfter(shiftEnd)) {
           potentialOvertime = {
@@ -367,8 +377,8 @@ export class AttendanceService {
     const checkIn = allRecords[allRecords.length - 2];
     const checkOut = allRecords[allRecords.length - 1];
 
-    const checkInTime = moment(checkIn.checkInTime);
-    const checkOutTime = moment(checkOut.checkInTime);
+    const checkInTime = moment(checkIn.checkInTime).tz('Asia/Bangkok');
+    const checkOutTime = moment(checkOut.checkInTime).tz('Asia/Bangkok');
 
     const shiftDate = checkInTime.clone().startOf('day');
     const shiftStart = shiftDate.clone().set({
@@ -384,6 +394,8 @@ export class AttendanceService {
       shiftEnd.add(1, 'day');
     }
 
+    console.log('Check-in time:', checkInTime.format());
+    console.log('Check-out time:', checkOutTime.format());
     console.log('Shift start:', shiftStart.format());
     console.log('Shift end:', shiftEnd.format());
 
