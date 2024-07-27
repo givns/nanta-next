@@ -149,6 +149,8 @@ export class AttendanceService {
         ) {
           isCheckingIn = true;
         } else {
+          // If status is unknown, determine based on shift times
+          const now = moment().tz('Asia/Bangkok');
           isCheckingIn = now.isBefore(shiftStart) || now.isAfter(shiftEnd);
         }
       }
@@ -172,6 +174,16 @@ export class AttendanceService {
       const futureApprovedOvertimes = await this.getFutureApprovedOvertimes(
         user.id,
       );
+
+      const potentialOvertime =
+        latestAttendance &&
+        !latestAttendance.checkOutTime &&
+        moment().tz('Asia/Bangkok').isAfter(shiftEnd)
+          ? {
+              start: shiftEnd.format('HH:mm'),
+              end: moment().tz('Asia/Bangkok').format('HH:mm'),
+            }
+          : null;
 
       const approvedOvertime = await prisma.overtimeRequest.findFirst({
         where: {
@@ -286,10 +298,7 @@ export class AttendanceService {
         futureShiftAdjustments,
         approvedOvertime: formattedApprovedOvertime,
         futureApprovedOvertimes,
-        potentialOvertime: this.calculatePotentialOvertime(
-          externalAttendanceData.records,
-          user.assignedShift,
-        ),
+        potentialOvertime: potentialOvertime,
       };
 
       console.log(
@@ -368,11 +377,6 @@ export class AttendanceService {
 
       for (const record of externalRecords) {
         const checkTime = moment(record.sj).tz('Asia/Bangkok');
-        const status = this.determineStatus(
-          checkTime.toDate(),
-          record.fx,
-          shift,
-        );
 
         // Adjust checkTime for overnight shifts
         if (
@@ -382,56 +386,39 @@ export class AttendanceService {
           checkTime.subtract(1, 'day');
         }
 
-        // Check-in logic
-        if (status === 'checked-in' || checkTime.isSameOrBefore(shiftEnd)) {
-          if (!earliestCheckIn || checkTime.isBefore(earliestCheckIn)) {
-            earliestCheckIn = checkTime;
-            latestRecord.checkInTime = checkTime.toDate();
-            latestRecord.checkInDeviceSerial = record.dev_serial;
-          }
+        if (!earliestCheckIn || checkTime.isBefore(earliestCheckIn)) {
+          earliestCheckIn = checkTime;
+          latestRecord.checkInTime = checkTime.toDate();
+          latestRecord.checkInDeviceSerial = record.dev_serial;
         }
 
-        // Check-out logic
-        if (status === 'checked-out' || checkTime.isSameOrAfter(shiftStart)) {
-          if (!latestCheckOut || checkTime.isAfter(latestCheckOut)) {
-            latestCheckOut = checkTime;
+        if (!latestCheckOut || checkTime.isAfter(latestCheckOut)) {
+          latestCheckOut = checkTime;
+          if (checkTime.isAfter(shiftEnd)) {
+            latestRecord.overtimeEndTime = checkTime.toDate();
+          } else {
             latestRecord.checkOutTime = checkTime.toDate();
-            latestRecord.checkOutDeviceSerial = record.dev_serial;
           }
-        }
-
-        // Overtime logic
-        if (status === 'overtime-started') {
-          latestRecord.overtimeStartTime = checkTime.toDate();
-        } else if (status === 'overtime-ended') {
-          latestRecord.overtimeEndTime = checkTime.toDate();
+          latestRecord.checkOutDeviceSerial = record.dev_serial;
         }
       }
 
       // Determine final status
-      if (latestRecord.checkInTime && latestRecord.checkOutTime) {
-        if (moment(latestRecord.checkOutTime).isAfter(shiftEnd)) {
-          latestRecord.status = 'overtime-ended';
-        } else {
-          latestRecord.status = 'checked-out';
-        }
-      } else if (latestRecord.checkInTime) {
-        if (now.isAfter(shiftEnd)) {
-          latestRecord.status = 'overtime-started';
-        } else {
-          latestRecord.status = 'checked-in';
-        }
+      if (latestRecord.overtimeEndTime) {
+        latestRecord.status = 'overtime-ended';
+      } else if (latestRecord.checkOutTime) {
+        latestRecord.status = 'checked-out';
+      } else if (now.isAfter(shiftEnd)) {
+        latestRecord.status = 'overtime-started';
       } else {
-        latestRecord.status = 'unknown';
+        latestRecord.status = 'checked-in';
       }
 
-      if (!internalAttendance) {
-        latestRecord.date = moment(externalRecords[0].date)
-          .tz('Asia/Bangkok')
-          .toDate();
-        latestRecord.userId = externalRecords[0].user_serial.toString();
-        latestRecord.id = externalRecords[0].bh.toString();
-      }
+      latestRecord.date = moment(externalRecords[0].date)
+        .tz('Asia/Bangkok')
+        .toDate();
+      latestRecord.userId = externalRecords[0].user_serial.toString();
+      latestRecord.id = externalRecords[0].bh.toString();
     }
 
     return latestRecord;
@@ -457,49 +444,6 @@ export class AttendanceService {
     }
 
     return null;
-  }
-
-  private getShiftDateTime(date: Date, timeString: string): Date {
-    const [hours, minutes] = timeString.split(':').map(Number);
-    const shiftDateTime = new Date(date);
-    shiftDateTime.setHours(hours, minutes, 0, 0);
-    return shiftDateTime;
-  }
-
-  private determineStatus(
-    checkTime: Date,
-    checkType: number,
-    shift: ShiftData,
-  ): string {
-    const shiftStart = this.getShiftDateTime(checkTime, shift.startTime);
-    const shiftEnd = this.getShiftDateTime(checkTime, shift.endTime);
-
-    // If shift ends next day
-    if (shiftEnd <= shiftStart) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
-    }
-
-    if (checkType === 0) {
-      // For automatic or unspecified check types, determine based on the time and shift
-      if (checkTime < shiftStart) {
-        return 'checked-in'; // Early check-in
-      } else if (checkTime > shiftEnd) {
-        return 'checked-out'; // Late check-out
-      } else {
-        // Within shift, use midpoint to determine
-        const shiftMidpoint = new Date(
-          (shiftStart.getTime() + shiftEnd.getTime()) / 2,
-        );
-        return checkTime < shiftMidpoint ? 'checked-in' : 'checked-out';
-      }
-    }
-    if (checkType === 1) return 'checked-in';
-    if (checkType === 2) return 'checked-out';
-    if (checkType === 3) return 'overtime-started';
-    if (checkType === 4) return 'overtime-ended';
-
-    // Default case
-    return 'unknown';
   }
 
   private isAttendanceFromToday(attendance: AttendanceRecord): boolean {
