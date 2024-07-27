@@ -120,6 +120,7 @@ export interface ShiftData {
 }
 
 export interface AttendanceRecord {
+  isOvertime: boolean;
   id: string;
   userId: string;
   date: Date;

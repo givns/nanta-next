@@ -17,6 +17,31 @@ import {
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
 
+type PrismaAttendanceRecord = {
+  id: string;
+  userId: string;
+  date: Date;
+  checkInTime: Date | null;
+  checkOutTime: Date | null;
+  isOvertime: boolean;
+  overtimeStartTime: Date | null;
+  overtimeEndTime: Date | null;
+  checkInLocation: any;
+  checkOutLocation: any;
+  checkInAddress: string | null;
+  checkOutAddress: string | null;
+  checkInReason: string | null;
+  checkOutReason: string | null;
+  checkInPhoto: string | null;
+  checkOutPhoto: string | null;
+  checkInDeviceSerial: string | null;
+  checkOutDeviceSerial: string | null;
+  status: string;
+  isManualEntry: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
 const notificationService = new NotificationService();
@@ -76,20 +101,21 @@ export class AttendanceService {
         `User found: ${user.id}, Assigned shift: ${user.assignedShift.id}`,
       );
 
-      // Fetch both internal and external attendance data
-      const [internalAttendance, externalAttendanceData] = await Promise.all([
-        this.getInternalAttendanceRecord(user.id),
-        this.externalDbService.getDailyAttendanceRecords(employeeId),
+      // Fetch both internal and external attendance data for the past 2 days
+      const twoDaysAgo = moment().subtract(2, 'days').startOf('day').toDate();
+      const [internalAttendances, externalAttendanceData] = await Promise.all([
+        prisma.attendance.findMany({
+          where: {
+            userId: user.id,
+            date: { gte: twoDaysAgo },
+          },
+          orderBy: { date: 'desc' },
+        }),
+        this.externalDbService.getDailyAttendanceRecords(employeeId, 2),
       ]);
 
-      console.log(
-        'External attendance data:',
-        JSON.stringify(externalAttendanceData, null, 2),
-      );
-
-      // Determine the latest attendance record
       const latestAttendance = this.getLatestAttendanceRecord(
-        internalAttendance,
+        internalAttendances,
         externalAttendanceData.records,
         user.assignedShift as ShiftData,
       );
@@ -120,15 +146,12 @@ export class AttendanceService {
 
       let isCheckingIn = true;
       if (latestAttendance) {
-        if (
-          latestAttendance.status === 'checked-in' ||
-          latestAttendance.status === 'overtime-started'
-        ) {
-          isCheckingIn = false;
-        } else if (
-          latestAttendance.status === 'checked-out' ||
-          latestAttendance.status === 'overtime-ended'
-        ) {
+        const latestCheckTime = moment(
+          latestAttendance.checkOutTime || latestAttendance.checkInTime,
+        );
+        if (latestCheckTime.isBetween(shiftStart, shiftEnd)) {
+          isCheckingIn = !latestAttendance.checkOutTime;
+        } else {
           isCheckingIn = true;
         }
       }
@@ -277,20 +300,97 @@ export class AttendanceService {
   }
 
   private getLatestAttendanceRecord(
-    internalAttendance: AttendanceRecord | null,
+    internalAttendances: PrismaAttendanceRecord[],
     externalRecords: ExternalCheckInData[],
     shift: ShiftData,
   ): AttendanceRecord | null {
-    if (!internalAttendance && externalRecords.length === 0) {
-      return null;
+    // Combine internal and external records
+    const allRecords = [
+      ...internalAttendances,
+      ...externalRecords.map(this.convertExternalToInternal),
+    ];
+
+    // Sort all records by date and time
+    allRecords.sort(
+      (a, b) => a.checkInTime!.getTime() - b.checkInTime!.getTime(),
+    );
+
+    const shiftStart = moment(allRecords[0]?.date).set({
+      hour: parseInt(shift.startTime.split(':')[0]),
+      minute: parseInt(shift.startTime.split(':')[1]),
+    });
+    const shiftEnd = moment(shiftStart)
+      .add(24, 'hours')
+      .set({
+        hour: parseInt(shift.endTime.split(':')[0]),
+        minute: parseInt(shift.endTime.split(':')[1]),
+      });
+
+    let latestCheckIn: AttendanceRecord | null = null;
+    let latestCheckOut: AttendanceRecord | null = null;
+
+    for (const record of allRecords) {
+      const recordTime = moment(record.checkInTime);
+
+      // Handle check-in
+      if (!latestCheckIn || recordTime.isBefore(shiftStart)) {
+        if (
+          recordTime.isBetween(
+            shiftStart.clone().subtract(1, 'hour'),
+            shiftStart,
+          )
+        ) {
+          latestCheckIn = record;
+          latestCheckIn.status = 'early-check-in';
+          latestCheckIn.isOvertime = false;
+        } else if (
+          recordTime.isBefore(shiftStart.clone().subtract(1, 'hour'))
+        ) {
+          latestCheckIn = record;
+          latestCheckIn.status = 'overtime-started';
+          latestCheckIn.isOvertime = true;
+        }
+      }
+
+      // Handle check-out
+      if (recordTime.isAfter(shiftEnd)) {
+        if (recordTime.isBefore(shiftEnd.clone().add(1, 'hour'))) {
+          latestCheckOut = record;
+          latestCheckOut.status = 'late-check-out';
+          latestCheckOut.isOvertime = false;
+        } else {
+          latestCheckOut = record;
+          latestCheckOut.status = 'overtime-ended';
+          latestCheckOut.isOvertime = true;
+        }
+      }
     }
 
-    let latestRecord: AttendanceRecord = internalAttendance || {
-      id: '',
-      userId: '',
-      date: new Date(),
-      checkInTime: null,
+    // Combine check-in and check-out information
+    if (latestCheckIn && latestCheckOut) {
+      latestCheckIn.checkOutTime = latestCheckOut.checkInTime;
+      latestCheckIn.checkOutLocation = latestCheckOut.checkInLocation;
+      latestCheckIn.checkOutAddress = latestCheckOut.checkInAddress;
+      latestCheckIn.checkOutDeviceSerial = latestCheckOut.checkInDeviceSerial;
+      latestCheckIn.status = latestCheckOut.status;
+      latestCheckIn.isOvertime =
+        latestCheckIn.isOvertime || latestCheckOut.isOvertime;
+      return latestCheckIn;
+    }
+
+    return latestCheckIn || latestCheckOut;
+  }
+
+  private convertExternalToInternal(
+    external: ExternalCheckInData,
+  ): AttendanceRecord {
+    return {
+      id: external.bh.toString(),
+      userId: external.user_serial.toString(),
+      date: new Date(external.date),
+      checkInTime: new Date(external.sj),
       checkOutTime: null,
+      isOvertime: false,
       overtimeStartTime: null,
       overtimeEndTime: null,
       checkInLocation: null,
@@ -301,83 +401,11 @@ export class AttendanceService {
       checkOutReason: null,
       checkInPhoto: null,
       checkOutPhoto: null,
-      checkInDeviceSerial: null,
+      checkInDeviceSerial: external.dev_serial,
       checkOutDeviceSerial: null,
-      status: 'unknown',
+      status: 'checked-in',
       isManualEntry: false,
     };
-
-    if (externalRecords.length > 0) {
-      const now = moment().tz('Asia/Bangkok');
-      const today = now.clone().startOf('day');
-
-      const shiftStart = moment(today).set({
-        hour: parseInt(shift.startTime.split(':')[0]),
-        minute: parseInt(shift.startTime.split(':')[1]),
-      });
-      const shiftEnd = moment(today).set({
-        hour: parseInt(shift.endTime.split(':')[0]),
-        minute: parseInt(shift.endTime.split(':')[1]),
-      });
-
-      // If shift ends next day
-      if (shiftEnd.isSameOrBefore(shiftStart)) {
-        shiftEnd.add(1, 'day');
-      }
-
-      let earliestCheckIn: moment.Moment | null = null;
-      let latestCheckOut: moment.Moment | null = null;
-
-      for (const record of externalRecords) {
-        const checkTime = moment(record.sj).tz('Asia/Bangkok');
-
-        // Adjust checkTime for overnight shifts
-        if (
-          checkTime.isBefore(shiftStart) &&
-          checkTime.isAfter(shiftEnd.clone().subtract(1, 'day'))
-        ) {
-          checkTime.subtract(1, 'day');
-        }
-
-        if (!earliestCheckIn || checkTime.isBefore(earliestCheckIn)) {
-          earliestCheckIn = checkTime;
-        }
-
-        if (!latestCheckOut || checkTime.isAfter(latestCheckOut)) {
-          latestCheckOut = checkTime;
-        }
-      }
-
-      if (earliestCheckIn) {
-        latestRecord.checkInTime = earliestCheckIn.toDate();
-        latestRecord.checkInDeviceSerial = externalRecords[0].dev_serial;
-      }
-
-      if (latestCheckOut) {
-        if (latestCheckOut.isAfter(shiftEnd)) {
-          latestRecord.overtimeEndTime = latestCheckOut.toDate();
-          latestRecord.status = 'overtime-ended';
-        } else {
-          latestRecord.checkOutTime = latestCheckOut.toDate();
-          latestRecord.status = 'checked-out';
-        }
-        latestRecord.checkOutDeviceSerial =
-          externalRecords[externalRecords.length - 1].dev_serial;
-      } else if (now.isAfter(shiftEnd)) {
-        latestRecord.status = 'overtime-started';
-      } else {
-        latestRecord.status = 'checked-in';
-      }
-
-      latestRecord.date = moment(externalRecords[0].date)
-        .tz('Asia/Bangkok')
-        .startOf('day')
-        .toDate();
-      latestRecord.userId = externalRecords[0].user_serial.toString();
-      latestRecord.id = externalRecords[0].bh.toString();
-    }
-
-    return latestRecord;
   }
 
   private calculatePotentialOvertime(

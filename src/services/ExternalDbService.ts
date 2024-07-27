@@ -39,7 +39,10 @@ interface ExternalUserInfo {
 }
 
 export class ExternalDbService {
-  async getDailyAttendanceRecords(employeeId: string): Promise<{
+  async getDailyAttendanceRecords(
+    employeeId: string,
+    days: number = 1,
+  ): Promise<{
     records: ExternalCheckInData[];
     userInfo: ExternalUserInfo | null;
   }> {
@@ -51,17 +54,17 @@ export class ExternalDbService {
 
         const userInfoQuery = 'SELECT * FROM dt_user WHERE user_no = ?';
         const attendanceQuery = `
-        SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
-        FROM kt_jl kj
-        JOIN dt_user du ON kj.user_serial = du.user_serial
-        LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
-        WHERE du.user_no = ? AND kj.date = CURDATE()
-        ORDER BY kj.sj ASC
-      `;
+          SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
+          FROM kt_jl kj
+          JOIN dt_user du ON kj.user_serial = du.user_serial
+          LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
+          WHERE du.user_no = ? AND kj.date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+          ORDER BY kj.sj ASC
+        `;
 
         const [userInfoResult, attendanceResult] = await Promise.all([
           query<any[]>(userInfoQuery, [employeeId]),
-          query<ExternalCheckInData[]>(attendanceQuery, [employeeId]),
+          query<ExternalCheckInData[]>(attendanceQuery, [employeeId, days - 1]),
         ]);
 
         console.log(

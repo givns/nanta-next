@@ -67,22 +67,35 @@ export class AttendanceProcessingService {
       throw new Error('Check-in too early');
     }
 
-    switch (attendanceType) {
-      case 'overtime':
+    if (checkInTime < shiftStart) {
+      const yesterdayShiftEnd = new Date(shiftEnd);
+      yesterdayShiftEnd.setDate(yesterdayShiftEnd.getDate() - 1);
+      if (checkInTime > yesterdayShiftEnd) {
         status = 'overtime-started';
         isOvertime = true;
-        break;
-      case 'flexible-start':
-        status = 'flexible-start';
-        break;
-      case 'flexible-end':
-        status = 'flexible-end';
-        break;
-      case 'grace-period':
-        status = 'grace-period';
-        break;
-      default:
-        status = 'checked-in';
+      } else {
+        status = 'early-check-in';
+      }
+    } else if (checkInTime > shiftEnd) {
+      status = 'late-check-in';
+    } else {
+      switch (attendanceType) {
+        case 'overtime':
+          status = 'overtime-started';
+          isOvertime = true;
+          break;
+        case 'flexible-start':
+          status = 'flexible-start';
+          break;
+        case 'flexible-end':
+          status = 'flexible-end';
+          break;
+        case 'grace-period':
+          status = 'grace-period';
+          break;
+        default:
+          status = 'checked-in';
+      }
     }
 
     if (attendanceType === 'regular' && checkInTime < shiftStart) {
@@ -164,22 +177,36 @@ export class AttendanceProcessingService {
 
     let status: string;
     let isOvertime = latestAttendance.isOvertime;
-    switch (attendanceType) {
-      case 'overtime':
+
+    if (checkOutTime > shiftEnd) {
+      const nextDayShiftStart = new Date(shiftStart);
+      nextDayShiftStart.setDate(nextDayShiftStart.getDate() + 1);
+      if (checkOutTime < nextDayShiftStart) {
         status = 'overtime-ended';
         isOvertime = true;
-        break;
-      case 'flexible-start':
-        status = 'flexible-start-ended';
-        break;
-      case 'flexible-end':
-        status = 'flexible-end-ended';
-        break;
-      case 'grace-period':
-        status = 'grace-period-ended';
-        break;
-      default:
-        status = 'checked-out';
+      } else {
+        status = 'late-check-out';
+      }
+    } else if (checkOutTime < shiftEnd) {
+      status = 'early-check-out';
+    } else {
+      switch (attendanceType) {
+        case 'overtime':
+          status = 'overtime-ended';
+          isOvertime = true;
+          break;
+        case 'flexible-start':
+          status = 'flexible-start-ended';
+          break;
+        case 'flexible-end':
+          status = 'flexible-end-ended';
+          break;
+        case 'grace-period':
+          status = 'grace-period-ended';
+          break;
+        default:
+          status = 'checked-out';
+      }
     }
 
     if (attendanceType === 'regular' && checkOutTime > shiftEnd) {
