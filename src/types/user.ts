@@ -74,7 +74,7 @@ export interface AttendanceStatus {
     checkOutTime: string | null;
     checkInDeviceSerial: string;
     checkOutDeviceSerial: string | null;
-    status: 'checked-in' | 'checked-out';
+    status: AttendanceStatusType; // Update this line
     isManualEntry: boolean;
   } | null;
   isCheckingIn: boolean;
@@ -95,6 +95,15 @@ export interface AttendanceStatus {
   approvedOvertime: ApprovedOvertime | null;
   futureApprovedOvertimes: ApprovedOvertime[];
 }
+
+export type AttendanceStatusType =
+  | 'checked-in'
+  | 'checked-out'
+  | 'overtime-started'
+  | 'overtime-ended'
+  | 'pending'
+  | 'approved'
+  | 'denied';
 
 export interface potentialOvertime {
   start: string;

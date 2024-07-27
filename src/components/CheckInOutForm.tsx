@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Webcam from 'react-webcam';
 import '@tensorflow/tfjs-backend-webgl';
-import { AttendanceStatus, UserData } from '../types/user';
+import { AttendanceStatus, UserData, ShiftData } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 import { useFaceDetection } from '../hooks/useFaceDetection';
@@ -92,77 +92,69 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const getEffectiveShift = useCallback(async () => {
     try {
       const now = moment().tz(TIMEZONE);
+      const yesterday = moment(now).subtract(1, 'day');
       console.log('Current date:', now.format());
       console.log('User data:', userData);
       console.log('Attendance status:', attendanceStatus);
 
-      if (attendanceStatus.shiftAdjustment) {
-        const adjustmentDate = moment(attendanceStatus.shiftAdjustment.date).tz(
-          TIMEZONE,
+      // Check for shift adjustment
+      const shiftAdjustment =
+        attendanceStatus.shiftAdjustment ||
+        attendanceStatus.futureShiftAdjustments.find(
+          (adj) =>
+            moment(adj.date).isSame(now, 'day') ||
+            moment(adj.date).isSame(yesterday, 'day'),
         );
-        if (adjustmentDate.isSame(now, 'day')) {
-          console.log(
-            'Using shift adjustment:',
-            attendanceStatus.shiftAdjustment.requestedShift,
-          );
-          const [startHour, startMinute] =
-            attendanceStatus.shiftAdjustment.requestedShift.startTime
-              .split(':')
-              .map(Number);
-          const [endHour, endMinute] =
-            attendanceStatus.shiftAdjustment.requestedShift.endTime
-              .split(':')
-              .map(Number);
-          return {
-            shift: attendanceStatus.shiftAdjustment.requestedShift,
-            shiftStart: moment(now).set({
-              hour: startHour,
-              minute: startMinute,
-              second: 0,
-              millisecond: 0,
-            }),
-            shiftEnd: moment(now).set({
-              hour: endHour,
-              minute: endMinute,
-              second: 0,
-              millisecond: 0,
-            }),
-          };
+
+      let shift: ShiftData;
+      if (shiftAdjustment) {
+        shift =
+          'requestedShift' in shiftAdjustment
+            ? shiftAdjustment.requestedShift
+            : shiftAdjustment.shift;
+      } else {
+        shift = userData.assignedShift!;
+      }
+
+      if (!shift) {
+        console.error('No shift data found');
+        return null;
+      }
+
+      console.log('Using shift:', shift);
+
+      const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+      const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+
+      let shiftStart = moment(now).set({
+        hour: startHour,
+        minute: startMinute,
+        second: 0,
+        millisecond: 0,
+      });
+
+      let shiftEnd = moment(now).set({
+        hour: endHour,
+        minute: endMinute,
+        second: 0,
+        millisecond: 0,
+      });
+
+      // Handle overnight shift
+      if (shiftEnd.isBefore(shiftStart)) {
+        if (now.isBefore(shiftStart)) {
+          shiftStart.subtract(1, 'day');
+        } else {
+          shiftEnd.add(1, 'day');
         }
       }
 
-      if (userData.assignedShift) {
-        console.log('Using assigned shift:', userData.assignedShift);
-        const [startHour, startMinute] = userData.assignedShift.startTime
-          .split(':')
-          .map(Number);
-        const [endHour, endMinute] = userData.assignedShift.endTime
-          .split(':')
-          .map(Number);
-        return {
-          shift: userData.assignedShift,
-          shiftStart: moment(now).set({
-            hour: startHour,
-            minute: startMinute,
-            second: 0,
-            millisecond: 0,
-          }),
-          shiftEnd: moment(now).set({
-            hour: endHour,
-            minute: endMinute,
-            second: 0,
-            millisecond: 0,
-          }),
-        };
-      }
-
-      console.error('No shift data found');
-      return null;
+      return { shift, shiftStart, shiftEnd };
     } catch (error) {
       console.error('Error getting effective shift:', error);
       return null;
     }
-  }, [userData, attendanceStatus]);
+  }, [userData, attendanceStatus, TIMEZONE]);
 
   const isOutsideShift = useCallback(async () => {
     const effectiveShiftData = await getEffectiveShift();
@@ -177,29 +169,25 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const flexibleStart = shiftStart.clone().subtract(30, 'minutes');
     const flexibleEnd = shiftEnd.clone().add(30, 'minutes');
 
+    console.log('Now:', now.format());
+    console.log('Flexible start:', flexibleStart.format());
+    console.log('Flexible end:', flexibleEnd.format());
+
     // Handle overnight shifts
-    if (shiftEnd.isSameOrBefore(shiftStart)) {
-      if (
-        now.isBefore(flexibleStart) &&
-        now.isAfter(flexibleEnd.clone().subtract(1, 'day'))
-      ) {
+    if (shiftEnd.isBefore(shiftStart)) {
+      if (now.isBetween(flexibleStart, flexibleEnd.clone().add(1, 'day'))) {
         return false;
       }
-      return (
-        now.isAfter(flexibleEnd) ||
-        now.isBefore(flexibleStart.clone().subtract(1, 'day'))
-      );
+    } else {
+      if (now.isBetween(flexibleStart, flexibleEnd)) {
+        return false;
+      }
     }
 
-    return now.isBefore(flexibleStart) || now.isAfter(flexibleEnd);
-  }, [getEffectiveShift]);
+    return true;
+  }, [getEffectiveShift, TIMEZONE]);
 
   const isCheckInOutAllowed = useCallback(async () => {
-    if (attendanceStatus.approvedOvertime) {
-      console.log('Approved overtime found');
-      return { allowed: true, reason: null, isLate: false, isOvertime: true };
-    }
-
     const effectiveShiftData = await getEffectiveShift();
     if (!effectiveShiftData) {
       console.error('No effective shift data found');
@@ -214,99 +202,83 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const { shiftStart, shiftEnd } = effectiveShiftData;
     let now = moment().tz(TIMEZONE);
 
+    // Handle ongoing overtime from previous day
+    if (
+      attendanceStatus.latestAttendance &&
+      moment(attendanceStatus.latestAttendance.checkInTime).isBefore(
+        now.startOf('day'),
+      ) &&
+      attendanceStatus.latestAttendance.status === 'overtime-started'
+    ) {
+      return {
+        allowed: true,
+        reason: 'การทำงานล่วงเวลาต่อเนื่องจากวันก่อน',
+        isLate: false,
+        isOvertime: true,
+      };
+    }
+
+    if (attendanceStatus.isDayOff) {
+      return {
+        allowed: true,
+        reason: 'วันหยุด: การทำงานจะถูกบันทึกเป็นการทำงานล่วงเวลา',
+        isLate: false,
+        isOvertime: true,
+      };
+    }
+
     const twoHoursBeforeShift = shiftStart.clone().subtract(2, 'hours');
     const lateThreshold = shiftStart.clone().add(30, 'minutes');
     const overtimeThreshold = shiftEnd.clone().add(5, 'minutes');
 
     // Handle overnight shifts
-    if (shiftEnd.isSameOrBefore(shiftStart)) {
-      const adjustedShiftEnd = shiftEnd.clone().add(1, 'day');
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
       if (now.isBefore(shiftStart)) {
-        now = now.add(1, 'day');
+        now.add(1, 'day');
+      }
+    }
+
+    if (attendanceStatus.isCheckingIn) {
+      if (now.isBefore(twoHoursBeforeShift)) {
+        return {
+          allowed: false,
+          reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
+          isLate: false,
+          isOvertime: false,
+        };
       }
 
-      if (attendanceStatus.isCheckingIn) {
-        // Check-in logic for overnight shifts
-        if (now.isBefore(twoHoursBeforeShift)) {
-          return {
-            allowed: false,
-            reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
-            isLate: false,
-            isOvertime: false,
-          };
-        }
-
-        if (now.isAfter(lateThreshold)) {
-          return {
-            allowed: true,
-            reason: 'คุณกำลังเข้างานสาย',
-            isLate: true,
-            isOvertime: false,
-          };
-        }
-      } else {
-        // Check-out logic for overnight shifts
-        if (now.isBefore(adjustedShiftEnd)) {
-          return {
-            allowed: true,
-            reason: 'คุณกำลังออกงานก่อนเวลา',
-            isLate: false,
-            isOvertime: false,
-          };
-        }
-
-        if (now.isAfter(adjustedShiftEnd.clone().add(5, 'minutes'))) {
-          return {
-            allowed: true,
-            reason: null,
-            isLate: false,
-            isOvertime: true,
-          };
-        }
+      if (now.isAfter(lateThreshold)) {
+        return {
+          allowed: true,
+          reason: 'คุณกำลังเข้างานสาย',
+          isLate: true,
+          isOvertime: false,
+        };
       }
     } else {
-      // Regular shift logic
-      if (attendanceStatus.isCheckingIn) {
-        if (now.isBefore(twoHoursBeforeShift)) {
-          return {
-            allowed: false,
-            reason: 'ยังไม่ถึงเวลาเข้างาน กรุณารอจนกว่าจะถึงเวลาที่กำหนด',
-            isLate: false,
-            isOvertime: false,
-          };
-        }
+      if (now.isBefore(shiftEnd)) {
+        return {
+          allowed: true,
+          reason: 'คุณกำลังออกงานก่อนเวลา',
+          isLate: false,
+          isOvertime: false,
+        };
+      }
 
-        if (now.isAfter(lateThreshold)) {
-          return {
-            allowed: true,
-            reason: 'คุณกำลังเข้างานสาย',
-            isLate: true,
-            isOvertime: false,
-          };
-        }
-      } else {
-        if (now.isBefore(shiftEnd)) {
-          return {
-            allowed: true,
-            reason: 'คุณกำลังออกงานก่อนเวลา',
-            isLate: false,
-            isOvertime: false,
-          };
-        }
-
-        if (now.isAfter(overtimeThreshold)) {
-          return {
-            allowed: true,
-            reason: null,
-            isLate: false,
-            isOvertime: true,
-          };
-        }
+      if (now.isAfter(overtimeThreshold)) {
+        return {
+          allowed: true,
+          reason: 'คุณกำลังทำงานล่วงเวลา',
+          isLate: false,
+          isOvertime: true,
+        };
       }
     }
 
     return { allowed: true, reason: null, isLate: false, isOvertime: false };
-  }, [getEffectiveShift, attendanceStatus]);
+  }, [getEffectiveShift, attendanceStatus, TIMEZONE]);
 
   useEffect(() => {
     const initializeState = async () => {
