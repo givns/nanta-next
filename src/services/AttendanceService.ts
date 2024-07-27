@@ -90,16 +90,35 @@ export class AttendanceService {
         externalAttendanceData.records,
         user.assignedShift as ShiftData,
       );
-      let isCheckingIn: boolean;
 
-      if (
-        latestAttendance &&
-        latestAttendance.status === 'overtime-started' &&
-        !latestAttendance.checkOutTime
-      ) {
-        isCheckingIn = false; // Force check-out for incomplete overtime
-      } else {
-        isCheckingIn = this.determineIfCheckingIn(latestAttendance);
+      let isCheckingIn = true;
+      if (latestAttendance) {
+        if (
+          latestAttendance.status === 'checked-in' ||
+          latestAttendance.status === 'overtime-started'
+        ) {
+          isCheckingIn = false;
+        } else if (
+          latestAttendance.status === 'checked-out' ||
+          latestAttendance.status === 'overtime-ended'
+        ) {
+          isCheckingIn = true;
+        } else {
+          // If status is unknown, determine based on shift times
+          const now = moment().tz('Asia/Bangkok');
+          const shiftStart = moment(now).set({
+            hour: parseInt(user.assignedShift.startTime.split(':')[0]),
+            minute: parseInt(user.assignedShift.startTime.split(':')[1]),
+          });
+          const shiftEnd = moment(now).set({
+            hour: parseInt(user.assignedShift.endTime.split(':')[0]),
+            minute: parseInt(user.assignedShift.endTime.split(':')[1]),
+          });
+          if (shiftEnd.isBefore(shiftStart)) {
+            shiftEnd.add(1, 'day');
+          }
+          isCheckingIn = now.isBefore(shiftStart) || now.isAfter(shiftEnd);
+        }
       }
 
       const today = moment().tz('Asia/Bangkok').startOf('day');
@@ -238,7 +257,7 @@ export class AttendanceService {
       return null;
     }
 
-    let latestRecord: AttendanceRecord = {
+    let latestRecord: AttendanceRecord = internalAttendance || {
       id: '',
       userId: '',
       date: new Date(),
@@ -259,10 +278,6 @@ export class AttendanceService {
       status: 'unknown',
       isManualEntry: false,
     };
-
-    if (internalAttendance) {
-      latestRecord = { ...internalAttendance };
-    }
 
     if (externalRecords.length > 0) {
       const today = new Date();
@@ -310,10 +325,15 @@ export class AttendanceService {
       }
 
       // Determine final status
+      const now = moment().tz('Asia/Bangkok');
       if (latestRecord.checkInTime && latestRecord.checkOutTime) {
-        latestRecord.status = 'checked-out';
+        if (moment(latestRecord.checkOutTime).isAfter(shiftEnd)) {
+          latestRecord.status = 'overtime-ended';
+        } else {
+          latestRecord.status = 'checked-out';
+        }
       } else if (latestRecord.checkInTime) {
-        if (latestRecord.overtimeStartTime) {
+        if (now.isAfter(shiftEnd)) {
           latestRecord.status = 'overtime-started';
         } else {
           latestRecord.status = 'checked-in';
@@ -322,9 +342,11 @@ export class AttendanceService {
         latestRecord.status = 'unknown';
       }
 
-      latestRecord.date = new Date(externalRecords[0].date);
-      latestRecord.userId = externalRecords[0].user_serial.toString();
-      latestRecord.id = externalRecords[0].bh.toString();
+      if (!internalAttendance) {
+        latestRecord.date = new Date(externalRecords[0].date);
+        latestRecord.userId = externalRecords[0].user_serial.toString();
+        latestRecord.id = externalRecords[0].bh.toString();
+      }
     }
 
     return latestRecord;
