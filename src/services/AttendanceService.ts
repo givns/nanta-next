@@ -149,13 +149,15 @@ export class AttendanceService {
 
       let isCheckingIn = true;
       if (latestAttendance) {
-        const latestCheckTime = moment(
-          latestAttendance.checkOutTime || latestAttendance.checkInTime,
-        );
-        if (latestCheckTime.isBetween(shiftStart, shiftEnd)) {
-          isCheckingIn = !latestAttendance.checkOutTime;
-        } else {
-          isCheckingIn = true;
+        const now = new Date();
+        const attendanceDate = new Date(latestAttendance.date);
+        const isFromToday =
+          attendanceDate.getDate() === now.getDate() &&
+          attendanceDate.getMonth() === now.getMonth() &&
+          attendanceDate.getFullYear() === now.getFullYear();
+
+        if (isFromToday) {
+          isCheckingIn = !!latestAttendance.checkOutTime;
         }
       }
 
@@ -226,7 +228,9 @@ export class AttendanceService {
         now.isAfter(shiftEnd)
           ? {
               start: shiftEnd.format('HH:mm'),
-              end: now.format('HH:mm'),
+              end: now.isAfter(shiftEnd.clone().add(1, 'day'))
+                ? now.format('HH:mm')
+                : '23:59',
             }
           : null;
 
@@ -329,10 +333,16 @@ export class AttendanceService {
       (a, b) => a.checkInTime!.getTime() - b.checkInTime!.getTime(),
     );
 
-    const shiftStart = moment(allRecords[0]?.date).set({
+    if (allRecords.length === 0) return null;
+
+    const lastRecord = allRecords[allRecords.length - 1];
+    const recordDate = new Date(lastRecord.date);
+
+    const shiftStart = moment(recordDate).set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
     });
+
     const shiftEnd = moment(shiftStart)
       .add(24, 'hours')
       .set({
@@ -363,15 +373,19 @@ export class AttendanceService {
           latestCheckIn = record;
           latestCheckIn.status = 'overtime-started';
           latestCheckIn.isOvertime = true;
+        } else {
+          latestCheckIn = record;
+          latestCheckIn.status = 'checked-in';
+          latestCheckIn.isOvertime = false;
         }
       }
 
       // Handle check-out
-      if (recordTime.isAfter(shiftEnd) || recordTime.isBefore(shiftStart)) {
-        if (
-          recordTime.isBefore(shiftEnd.clone().add(1, 'hour')) ||
-          recordTime.isAfter(shiftStart.clone().subtract(1, 'hour'))
-        ) {
+      if (
+        recordTime.isAfter(shiftEnd) ||
+        (recordTime.isAfter(shiftStart) && record.checkOutTime)
+      ) {
+        if (recordTime.isBefore(shiftEnd.clone().add(1, 'hour'))) {
           latestCheckOut = record;
           latestCheckOut.status = 'late-check-out';
           latestCheckOut.isOvertime = false;
@@ -565,16 +579,18 @@ export class AttendanceService {
       0,
       0,
     );
-    const shiftEnd = new Date(checkTime);
+    let shiftEnd = new Date(checkTime);
     shiftEnd.setHours(
       parseInt(shift.endTime.split(':')[0]),
       parseInt(shift.endTime.split(':')[1]),
       0,
       0,
     );
-    if (shiftEnd < shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
+    if (shiftEnd <= shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
 
-    return checkTime < shiftStart || checkTime > shiftEnd;
+    const oneHourBeforeShift = new Date(shiftStart.getTime() - 60 * 60 * 1000);
+
+    return checkTime < oneHourBeforeShift || checkTime > shiftEnd;
   }
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {
