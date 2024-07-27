@@ -38,6 +38,14 @@
     {
       "path": "/api/cron/sync-attendance",
       "schedule": "30 23 * * *"
+    },
+    {
+      "path": "/api/cron/sync-holidays",
+      "schedule": "0 0 1 1 *"
+    },
+    {
+      "path": "/api/cron/sync-holidays",
+      "schedule": "0 0 * * *"
     }
   ]
 }
