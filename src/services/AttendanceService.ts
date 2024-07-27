@@ -100,32 +100,14 @@ export class AttendanceService {
       );
 
       const now = moment().tz('Asia/Bangkok');
-      let adjustedToday = now.clone().startOf('day');
+      const today = now.clone().startOf('day');
       const shift = user.assignedShift;
 
-      // Adjust the day for overnight shifts
-      if (latestAttendance && latestAttendance.checkInTime) {
-        const checkInMoment = moment(latestAttendance.checkInTime).tz(
-          'Asia/Bangkok',
-        );
-        const shiftStart = moment(adjustedToday).set({
-          hour: parseInt(shift.startTime.split(':')[0]),
-          minute: parseInt(shift.startTime.split(':')[1]),
-        });
-        if (checkInMoment.isBefore(shiftStart)) {
-          adjustedToday.subtract(1, 'day');
-          console.log(
-            'Adjusted day for overnight shift. New adjusted date:',
-            adjustedToday.format(),
-          );
-        }
-      }
-
-      const shiftStart = moment(adjustedToday).set({
+      const shiftStart = moment(today).set({
         hour: parseInt(shift.startTime.split(':')[0]),
         minute: parseInt(shift.startTime.split(':')[1]),
       });
-      const shiftEnd = moment(adjustedToday).set({
+      const shiftEnd = moment(today).set({
         hour: parseInt(shift.endTime.split(':')[0]),
         minute: parseInt(shift.endTime.split(':')[1]),
       });
@@ -148,23 +130,15 @@ export class AttendanceService {
           latestAttendance.status === 'overtime-ended'
         ) {
           isCheckingIn = true;
-        } else {
-          // If status is unknown, determine based on shift times
-          const now = moment().tz('Asia/Bangkok');
-          isCheckingIn = now.isBefore(shiftStart) || now.isAfter(shiftEnd);
         }
       }
 
       console.log('Initial isCheckingIn:', isCheckingIn);
 
-      const isWorkDay = shift.workDays.includes(adjustedToday.day());
-      const isHoliday = await this.holidayService.isHoliday(
-        adjustedToday.toDate(),
-      );
-      let isDayOff = !isWorkDay || isHoliday;
+      const isWorkDay = shift.workDays.includes(today.day());
+      const isDayOff = !isWorkDay;
 
       console.log('Is work day:', isWorkDay);
-      console.log('Is holiday:', isHoliday);
       console.log('Initial isDayOff:', isDayOff);
 
       const shiftAdjustment = await this.getLatestShiftAdjustment(user.id);
@@ -174,23 +148,12 @@ export class AttendanceService {
       const futureApprovedOvertimes = await this.getFutureApprovedOvertimes(
         user.id,
       );
-
-      const potentialOvertime =
-        latestAttendance &&
-        !latestAttendance.checkOutTime &&
-        moment().tz('Asia/Bangkok').isAfter(shiftEnd)
-          ? {
-              start: shiftEnd.format('HH:mm'),
-              end: moment().tz('Asia/Bangkok').format('HH:mm'),
-            }
-          : null;
-
       const approvedOvertime = await prisma.overtimeRequest.findFirst({
         where: {
           userId: user.id,
           date: {
-            gte: adjustedToday.toDate(),
-            lt: adjustedToday.clone().add(1, 'day').toDate(),
+            gte: today.toDate(),
+            lt: today.clone().add(1, 'day').toDate(),
           },
           status: 'approved',
         },
@@ -218,27 +181,17 @@ export class AttendanceService {
           approvedBy: approvedOvertime.approverId || '',
           approvedAt: approvedOvertime.updatedAt,
         };
-
-        const overtimeStart = moment(approvedOvertime.date).set({
-          hour: parseInt(approvedOvertime.startTime.split(':')[0]),
-          minute: parseInt(approvedOvertime.startTime.split(':')[1]),
-        });
-        const overtimeEnd = moment(approvedOvertime.date).set({
-          hour: parseInt(approvedOvertime.endTime.split(':')[0]),
-          minute: parseInt(approvedOvertime.endTime.split(':')[1]),
-        });
-
-        if (now.isBetween(overtimeStart, overtimeEnd)) {
-          isCheckingIn = false;
-          isDayOff = false;
-          console.log(
-            'Adjusted for approved overtime. isCheckingIn:',
-            isCheckingIn,
-            'isDayOff:',
-            isDayOff,
-          );
-        }
       }
+
+      const potentialOvertime =
+        latestAttendance &&
+        !latestAttendance.checkOutTime &&
+        now.isAfter(shiftEnd)
+          ? {
+              start: shiftEnd.format('HH:mm'),
+              end: now.format('HH:mm'),
+            }
+          : null;
 
       const result: AttendanceStatus = {
         user: {
@@ -388,26 +341,28 @@ export class AttendanceService {
 
         if (!earliestCheckIn || checkTime.isBefore(earliestCheckIn)) {
           earliestCheckIn = checkTime;
-          latestRecord.checkInTime = checkTime.toDate();
-          latestRecord.checkInDeviceSerial = record.dev_serial;
         }
 
         if (!latestCheckOut || checkTime.isAfter(latestCheckOut)) {
           latestCheckOut = checkTime;
-          if (checkTime.isAfter(shiftEnd)) {
-            latestRecord.overtimeEndTime = checkTime.toDate();
-          } else {
-            latestRecord.checkOutTime = checkTime.toDate();
-          }
-          latestRecord.checkOutDeviceSerial = record.dev_serial;
         }
       }
 
-      // Determine final status
-      if (latestRecord.overtimeEndTime) {
-        latestRecord.status = 'overtime-ended';
-      } else if (latestRecord.checkOutTime) {
-        latestRecord.status = 'checked-out';
+      if (earliestCheckIn) {
+        latestRecord.checkInTime = earliestCheckIn.toDate();
+        latestRecord.checkInDeviceSerial = externalRecords[0].dev_serial;
+      }
+
+      if (latestCheckOut) {
+        if (latestCheckOut.isAfter(shiftEnd)) {
+          latestRecord.overtimeEndTime = latestCheckOut.toDate();
+          latestRecord.status = 'overtime-ended';
+        } else {
+          latestRecord.checkOutTime = latestCheckOut.toDate();
+          latestRecord.status = 'checked-out';
+        }
+        latestRecord.checkOutDeviceSerial =
+          externalRecords[externalRecords.length - 1].dev_serial;
       } else if (now.isAfter(shiftEnd)) {
         latestRecord.status = 'overtime-started';
       } else {
@@ -416,6 +371,7 @@ export class AttendanceService {
 
       latestRecord.date = moment(externalRecords[0].date)
         .tz('Asia/Bangkok')
+        .startOf('day')
         .toDate();
       latestRecord.userId = externalRecords[0].user_serial.toString();
       latestRecord.id = externalRecords[0].bh.toString();
@@ -444,6 +400,49 @@ export class AttendanceService {
     }
 
     return null;
+  }
+
+  private getShiftDateTime(date: Date, timeString: string): Date {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const shiftDateTime = new Date(date);
+    shiftDateTime.setHours(hours, minutes, 0, 0);
+    return shiftDateTime;
+  }
+
+  private determineStatus(
+    checkTime: Date,
+    checkType: number,
+    shift: ShiftData,
+  ): string {
+    const shiftStart = this.getShiftDateTime(checkTime, shift.startTime);
+    const shiftEnd = this.getShiftDateTime(checkTime, shift.endTime);
+
+    // If shift ends next day
+    if (shiftEnd <= shiftStart) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
+
+    if (checkType === 0) {
+      // For automatic or unspecified check types, determine based on the time and shift
+      if (checkTime < shiftStart) {
+        return 'checked-in'; // Early check-in
+      } else if (checkTime > shiftEnd) {
+        return 'checked-out'; // Late check-out
+      } else {
+        // Within shift, use midpoint to determine
+        const shiftMidpoint = new Date(
+          (shiftStart.getTime() + shiftEnd.getTime()) / 2,
+        );
+        return checkTime < shiftMidpoint ? 'checked-in' : 'checked-out';
+      }
+    }
+    if (checkType === 1) return 'checked-in';
+    if (checkType === 2) return 'checked-out';
+    if (checkType === 3) return 'overtime-started';
+    if (checkType === 4) return 'overtime-ended';
+
+    // Default case
+    return 'unknown';
   }
 
   private isAttendanceFromToday(attendance: AttendanceRecord): boolean {
