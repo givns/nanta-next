@@ -11,6 +11,7 @@ import {
   ShiftAdjustment,
   FutureShiftAdjustment,
   ApprovedOvertime,
+  AttendanceStatusType,
 } from '../types/user';
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
@@ -166,7 +167,7 @@ export class AttendanceService {
               checkInDeviceSerial: latestAttendance.checkInDeviceSerial ?? '',
               checkOutDeviceSerial:
                 latestAttendance.checkOutDeviceSerial ?? null,
-              status: latestAttendance.status as 'checked-in' | 'checked-out',
+              status: latestAttendance.status as AttendanceStatusType,
               isManualEntry: latestAttendance.isManualEntry,
             }
           : null,
@@ -301,7 +302,11 @@ export class AttendanceService {
       if (latestRecord.checkInTime && latestRecord.checkOutTime) {
         latestRecord.status = 'checked-out';
       } else if (latestRecord.checkInTime) {
-        latestRecord.status = 'checked-in';
+        if (latestRecord.overtimeStartTime) {
+          latestRecord.status = 'overtime-started';
+        } else {
+          latestRecord.status = 'checked-in';
+        }
       } else {
         latestRecord.status = 'unknown';
       }
@@ -553,6 +558,19 @@ export class AttendanceService {
         attendanceType = 'flexible-end';
       } else if (data.isWithinGracePeriod) {
         attendanceType = 'grace-period';
+      }
+
+      const now = moment().tz('Asia/Bangkok');
+      const todayStart = moment(now).startOf('day');
+
+      // Check for ongoing overtime from previous day
+      const latestAttendance = await this.getInternalAttendanceRecord(user.id);
+      if (
+        latestAttendance &&
+        moment(latestAttendance.checkInTime).isBefore(todayStart) &&
+        latestAttendance.status === 'overtime-started'
+      ) {
+        attendanceType = 'overtime';
       }
 
       if (data.isCheckIn) {
