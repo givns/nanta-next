@@ -1,5 +1,5 @@
 import axios from 'axios';
-import dayjs from 'dayjs';
+import { parseISO, isSameDay, subDays, addDays } from 'date-fns';
 
 export interface Holiday {
   date: string;
@@ -39,26 +39,26 @@ export const fetchThaiHolidays = async (year: number): Promise<Holiday[]> => {
 };
 
 export const isNonWorkingDay = async (
-  date: dayjs.Dayjs,
+  date: Date,
   userShift: string,
 ): Promise<boolean> => {
-  if (date.day() === 0) return true; // Sunday
+  if (date.getDay() === 0 && userShift !== 'SHIFT104') return true; // Sunday for non-SHIFT104
 
-  const year = date.year();
+  const year = date.getFullYear();
   const holidays = await fetchThaiHolidays(year);
 
   if (!Array.isArray(holidays)) {
     console.error('Holidays is not an array:', holidays);
-    return false; // Or handle this case as appropriate for your application
+    return false;
   }
 
   if (userShift === 'SHIFT104') {
-    // For Shift 104, the holiday is the day before the regular holiday
+    const nextDay = addDays(date, 1);
     return holidays.some((holiday) =>
-      date.isSame(dayjs(holiday.date).subtract(1, 'day'), 'day'),
+      isSameDay(parseISO(holiday.date), nextDay),
     );
   } else {
-    return holidays.some((holiday) => date.isSame(holiday.date, 'day'));
+    return holidays.some((holiday) => isSameDay(parseISO(holiday.date), date));
   }
 };
 
@@ -72,24 +72,16 @@ export const calculateFullDayCount = async (
     return 0.5;
   }
 
-  const start = dayjs(startDate);
-  const end = dayjs(endDate);
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
   let fullDayCount = 0;
+  let currentDate = start;
 
-  for (
-    let date = start;
-    date.isBefore(end) || date.isSame(end, 'day');
-    date = date.add(1, 'day')
-  ) {
-    try {
-      if (!(await isNonWorkingDay(date, userShift))) {
-        fullDayCount += 1;
-      }
-    } catch (error) {
-      console.error('Error determining if day is non-working:', error);
-      // Assume it's a working day if there's an error
+  while (currentDate <= end) {
+    if (!(await isNonWorkingDay(currentDate, userShift))) {
       fullDayCount += 1;
     }
+    currentDate = addDays(currentDate, 1);
   }
 
   return fullDayCount;

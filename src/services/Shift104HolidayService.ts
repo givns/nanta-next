@@ -1,7 +1,8 @@
 // services/Shift104HolidayService.ts
 
-import { PrismaClient, Holiday } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { NotificationService } from './NotificationService';
+import { subDays, format, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
@@ -10,13 +11,15 @@ export class Shift104HolidayService {
   async adjustHolidaysForShift104(year: number): Promise<void> {
     const holidays = await prisma.holiday.findMany({
       where: {
-        date: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) },
+        date: {
+          gte: new Date(year, 0, 1),
+          lt: new Date(year + 1, 0, 1),
+        },
       },
     });
 
     for (const holiday of holidays) {
-      const shiftedDate = new Date(holiday.date);
-      shiftedDate.setDate(shiftedDate.getDate() - 1);
+      const shiftedDate = subDays(holiday.date, 1);
 
       await prisma.holiday.create({
         data: {
@@ -27,7 +30,6 @@ export class Shift104HolidayService {
       });
     }
 
-    // Notify admin to confirm holiday placements
     await this.notifyAdminForConfirmation(year);
   }
 
@@ -45,17 +47,14 @@ export class Shift104HolidayService {
   }
 
   async isShift104Holiday(date: Date): Promise<boolean> {
-    const shiftedDate = new Date(date);
-    shiftedDate.setDate(shiftedDate.getDate() + 1);
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const formattedNextDay = format(nextDay, 'yyyy-MM-dd');
 
     const holiday = await prisma.holiday.findFirst({
       where: {
         date: {
-          equals: new Date(
-            shiftedDate.getFullYear(),
-            shiftedDate.getMonth(),
-            shiftedDate.getDate(),
-          ),
+          equals: parseISO(formattedNextDay),
         },
         name: { startsWith: 'Shift 104 - ' },
       },

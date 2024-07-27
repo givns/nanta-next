@@ -9,17 +9,53 @@ import { ShiftManagementService } from './ShiftManagementService';
 import moment from 'moment-timezone';
 import { HolidayService } from './HolidayService';
 import { Shift104HolidayService } from './Shift104HolidayService';
-import { UserRole } from '@/types/enum';
+import {
+  differenceInMinutes,
+  isBefore,
+  isAfter,
+  startOfDay,
+  endOfDay,
+  addDays,
+} from 'date-fns';
 
 const shiftManagementService = new ShiftManagementService();
-
 const prisma = new PrismaClient();
 const overtimeService = new OvertimeServiceServer();
 const notificationService = new NotificationService();
-const holidayService = new HolidayService();
-const shift104HolidayService = new Shift104HolidayService();
 
 export class AttendanceProcessingService {
+  private holidayService: HolidayService;
+  private shift104HolidayService: Shift104HolidayService;
+
+  constructor() {
+    this.holidayService = new HolidayService();
+    this.shift104HolidayService = new Shift104HolidayService();
+  }
+
+  private async isValidAttendanceDay(
+    userId: string,
+    date: Date,
+  ): Promise<boolean> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { assignedShift: true },
+    });
+
+    if (!user || !user.assignedShift) {
+      throw new Error('User or assigned shift not found');
+    }
+
+    const isWorkDay = await this.holidayService.isWorkingDay(userId, date);
+
+    if (user.assignedShift.shiftCode === 'SHIFT104') {
+      const isShift104Holiday =
+        await this.shift104HolidayService.isShift104Holiday(date);
+      return isWorkDay && !isShift104Holiday;
+    }
+
+    return isWorkDay;
+  }
+
   async processCheckIn(
     userId: string,
     checkInTime: Date,
@@ -38,6 +74,10 @@ export class AttendanceProcessingService {
       isLate?: boolean;
     },
   ): Promise<Attendance> {
+    const isValidDay = await this.isValidAttendanceDay(userId, checkInTime);
+    if (!isValidDay) {
+      throw new Error('Invalid attendance day');
+    }
     const user = await this.getUserWithShift(userId);
     if (!user) throw new Error('User not found');
 
@@ -157,6 +197,10 @@ export class AttendanceProcessingService {
       deviceSerial: string;
     },
   ): Promise<Attendance> {
+    const isValidDay = await this.isValidAttendanceDay(userId, checkOutTime);
+    if (!isValidDay) {
+      throw new Error('Invalid attendance day');
+    }
     const user = await this.getUserWithShift(userId);
     if (!user) throw new Error('User not found');
 
@@ -349,22 +393,32 @@ export class AttendanceProcessingService {
     );
     if (!effectiveShift) throw new Error('Effective shift not found');
 
-    const { shift, shiftEnd } = effectiveShift;
+    const { shift, shiftStart, shiftEnd } = effectiveShift;
 
-    if (moment(checkOutTime).isAfter(shiftEnd)) {
-      const overtimeMinutes = moment(checkOutTime).diff(shiftEnd, 'minutes');
+    // Handle overnight shifts
+    const adjustedShiftEnd = isBefore(shiftEnd, shiftStart)
+      ? addDays(shiftEnd, 1)
+      : shiftEnd;
+
+    if (isAfter(checkOutTime, adjustedShiftEnd)) {
+      const overtimeMinutes = differenceInMinutes(
+        checkOutTime,
+        adjustedShiftEnd,
+      );
 
       // Check if it's a holiday
-      const isHoliday = await holidayService.isHoliday(checkOutTime);
+      const checkDate = startOfDay(checkOutTime);
+      const isHoliday = await this.holidayService.isHoliday(checkDate);
       const isShift104Holiday =
         user.assignedShift.shiftCode === 'SHIFT104' &&
-        (await shift104HolidayService.isShift104Holiday(checkOutTime));
+        (await this.shift104HolidayService.isShift104Holiday(checkDate));
 
+      // Create time entry for overtime
       await prisma.timeEntry.create({
         data: {
           userId: user.id,
-          date: moment(checkOutTime).startOf('day').toDate(),
-          startTime: shiftEnd,
+          date: startOfDay(checkOutTime),
+          startTime: adjustedShiftEnd,
           endTime: checkOutTime,
           regularHours: 0,
           overtimeHours: overtimeMinutes / 60,
@@ -385,6 +439,26 @@ export class AttendanceProcessingService {
           `Unapproved overtime detected for ${user.name} (${overtimeMinutes} minutes)` +
             (isHoliday || isShift104Holiday ? ' on a holiday.' : ''),
         );
+      }
+
+      // If the overtime extends to the next day, create an additional time entry
+      const nextDayStart = endOfDay(checkOutTime);
+      if (isAfter(checkOutTime, nextDayStart)) {
+        const nextDayOvertimeMinutes = differenceInMinutes(
+          checkOutTime,
+          nextDayStart,
+        );
+        await prisma.timeEntry.create({
+          data: {
+            userId: user.id,
+            date: startOfDay(nextDayStart),
+            startTime: nextDayStart,
+            endTime: checkOutTime,
+            regularHours: 0,
+            overtimeHours: nextDayOvertimeMinutes / 60,
+            status: 'unapproved-overtime',
+          },
+        });
       }
     }
   }

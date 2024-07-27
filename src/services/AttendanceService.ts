@@ -2,7 +2,8 @@ import { PrismaClient, Attendance } from '@prisma/client';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { ExternalDbService } from './ExternalDbService';
 import { NotificationService } from './NotificationService';
-import { HolidayService } from '../services/HolidayService';
+import { HolidayService } from './HolidayService';
+import { Shift104HolidayService } from './Shift104HolidayService';
 import {
   ExternalCheckInData,
   AttendanceData,
@@ -49,10 +50,12 @@ const notificationService = new NotificationService();
 export class AttendanceService {
   private externalDbService: ExternalDbService;
   private holidayService: HolidayService;
+  private shift104HolidayService: Shift104HolidayService;
 
   constructor() {
     this.externalDbService = new ExternalDbService();
     this.holidayService = new HolidayService();
+    this.shift104HolidayService = new Shift104HolidayService();
   }
 
   async getLatestAttendanceStatus(
@@ -158,11 +161,22 @@ export class AttendanceService {
 
       console.log('Initial isCheckingIn:', isCheckingIn);
 
-      const isWorkDay = shift.workDays.includes(today.day());
-      const isDayOff = !isWorkDay;
+      const isWorkDay = await this.holidayService.isWorkingDay(
+        user.id,
+        today.toDate(),
+      );
 
       console.log('Is work day:', isWorkDay);
-      console.log('Initial isDayOff:', isDayOff);
+      let isDayOff = !isWorkDay;
+
+      // For SHIFT104, check if it's a holiday
+      if (user.assignedShift.shiftCode === 'SHIFT104') {
+        const isShift104Holiday =
+          await this.shift104HolidayService.isShift104Holiday(today.toDate());
+        if (isShift104Holiday) {
+          isDayOff = true;
+        }
+      }
 
       const shiftAdjustment = await this.getLatestShiftAdjustment(user.id);
       const futureShiftAdjustments = await this.getFutureShiftAdjustments(
@@ -353,8 +367,11 @@ export class AttendanceService {
       }
 
       // Handle check-out
-      if (recordTime.isAfter(shiftEnd)) {
-        if (recordTime.isBefore(shiftEnd.clone().add(1, 'hour'))) {
+      if (recordTime.isAfter(shiftEnd) || recordTime.isBefore(shiftStart)) {
+        if (
+          recordTime.isBefore(shiftEnd.clone().add(1, 'hour')) ||
+          recordTime.isAfter(shiftStart.clone().subtract(1, 'hour'))
+        ) {
           latestCheckOut = record;
           latestCheckOut.status = 'late-check-out';
           latestCheckOut.isOvertime = false;
@@ -406,71 +423,6 @@ export class AttendanceService {
       status: 'checked-in',
       isManualEntry: false,
     };
-  }
-
-  private calculatePotentialOvertime(
-    records: any[],
-    assignedShift: ShiftData,
-  ): { start: string; end: string } | null {
-    if (records.length < 2) return null;
-
-    const firstRecord = moment(records[0].sj);
-    const lastRecord = moment(records[records.length - 1].sj);
-
-    const shiftStart = moment(assignedShift.startTime, 'HH:mm');
-    const shiftEnd = moment(assignedShift.endTime, 'HH:mm');
-
-    if (firstRecord.isBefore(shiftStart) || lastRecord.isAfter(shiftEnd)) {
-      return {
-        start: firstRecord.format('HH:mm'),
-        end: lastRecord.format('HH:mm'),
-      };
-    }
-
-    return null;
-  }
-
-  private getShiftDateTime(date: Date, timeString: string): Date {
-    const [hours, minutes] = timeString.split(':').map(Number);
-    const shiftDateTime = new Date(date);
-    shiftDateTime.setHours(hours, minutes, 0, 0);
-    return shiftDateTime;
-  }
-
-  private determineStatus(
-    checkTime: Date,
-    checkType: number,
-    shift: ShiftData,
-  ): string {
-    const shiftStart = this.getShiftDateTime(checkTime, shift.startTime);
-    const shiftEnd = this.getShiftDateTime(checkTime, shift.endTime);
-
-    // If shift ends next day
-    if (shiftEnd <= shiftStart) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
-    }
-
-    if (checkType === 0) {
-      // For automatic or unspecified check types, determine based on the time and shift
-      if (checkTime < shiftStart) {
-        return 'checked-in'; // Early check-in
-      } else if (checkTime > shiftEnd) {
-        return 'checked-out'; // Late check-out
-      } else {
-        // Within shift, use midpoint to determine
-        const shiftMidpoint = new Date(
-          (shiftStart.getTime() + shiftEnd.getTime()) / 2,
-        );
-        return checkTime < shiftMidpoint ? 'checked-in' : 'checked-out';
-      }
-    }
-    if (checkType === 1) return 'checked-in';
-    if (checkType === 2) return 'checked-out';
-    if (checkType === 3) return 'overtime-started';
-    if (checkType === 4) return 'overtime-ended';
-
-    // Default case
-    return 'unknown';
   }
 
   private isAttendanceFromToday(attendance: AttendanceRecord): boolean {
