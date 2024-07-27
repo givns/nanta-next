@@ -253,9 +253,14 @@ export class AttendanceService {
         console.log('Shift start:', shiftStart.format());
         console.log('Shift end:', shiftEnd.format());
 
-        if (checkOutTime.isAfter(shiftEnd)) {
+        if (
+          checkOutTime.isAfter(shiftEnd) ||
+          checkInTime.isBefore(shiftStart)
+        ) {
           potentialOvertime = {
-            start: shiftEnd.format('HH:mm'),
+            start: checkInTime.isBefore(shiftStart)
+              ? checkInTime.format('HH:mm')
+              : shiftEnd.format('HH:mm'),
             end: checkOutTime.format('HH:mm'),
           };
         }
@@ -330,7 +335,7 @@ export class AttendanceService {
         futureShiftAdjustments,
         approvedOvertime: formattedApprovedOvertime,
         futureApprovedOvertimes,
-        potentialOvertime,
+        potentialOvertime: potentialOvertime,
       };
 
       console.log(
@@ -414,6 +419,9 @@ export class AttendanceService {
     let isOvertime: boolean;
 
     if (checkOutTime.isAfter(shiftEnd)) {
+      status = 'overtime-ended';
+      isOvertime = true;
+    } else if (checkInTime.isBefore(shiftStart)) {
       status = 'overtime-ended';
       isOvertime = true;
     } else {
