@@ -440,7 +440,7 @@ export class AttendanceService {
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    const checkInTime = moment(external.sj);
+    const checkInTime = moment.tz(external.sj, 'Asia/Bangkok');
     return {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
