@@ -393,8 +393,18 @@ export class AttendanceService {
     allRecords.sort(
       (a, b) => a.checkInTime!.getTime() - b.checkInTime!.getTime(),
     );
-
-    console.log('All sorted records:', JSON.stringify(allRecords, null, 2));
+    console.log(
+      'Sorted records:',
+      JSON.stringify(
+        allRecords.map((r) => ({
+          id: r.id,
+          checkInTime: r.checkInTime,
+          checkOutTime: r.checkOutTime,
+        })),
+        null,
+        2,
+      ),
+    );
 
     if (allRecords.length < 2) return allRecords[0] || null;
 
@@ -448,12 +458,18 @@ export class AttendanceService {
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
+    console.log(
+      'Converting external record:',
+      JSON.stringify(external, null, 2),
+    );
     const checkInTime = moment.tz(external.sj, 'Asia/Bangkok');
+    console.log('Original sj:', external.sj);
+    console.log('Converted check-in time:', checkInTime.format());
     return {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
       date: checkInTime.startOf('day').toDate(),
-      checkInTime: checkInTime.toDate(), // Keep the original time
+      checkInTime: checkInTime.toDate(),
       checkOutTime: null,
       isOvertime: false,
       overtimeStartTime: null,
