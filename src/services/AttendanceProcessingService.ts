@@ -462,4 +462,77 @@ export class AttendanceProcessingService {
       }
     }
   }
+  public async processCheckInForDebug(
+    internalAttendance: any,
+    externalAttendance: any,
+    shift: any,
+  ) {
+    const debugSteps = [];
+
+    debugSteps.push({
+      step: 'Raw Data',
+      internalCheckIn: internalAttendance?.checkInTime,
+      externalCheckIn: externalAttendance?.sj,
+      shift: {
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+      },
+    });
+
+    // Convert times to Bangkok timezone
+    const checkInTime = moment.tz(externalAttendance.sj, 'Asia/Bangkok');
+    const shiftStart = moment.tz(
+      `${externalAttendance.date.split('T')[0]}T${shift.startTime}`,
+      'Asia/Bangkok',
+    );
+    const shiftEnd = moment.tz(
+      `${externalAttendance.date.split('T')[0]}T${shift.endTime}`,
+      'Asia/Bangkok',
+    );
+
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    debugSteps.push({
+      step: 'Converted to Bangkok time',
+      checkInTime: checkInTime.format(),
+      shiftStart: shiftStart.format(),
+      shiftEnd: shiftEnd.format(),
+    });
+
+    // Determine check-in status
+    let status;
+    if (checkInTime.isBefore(shiftStart)) {
+      status = 'early';
+    } else if (checkInTime.isAfter(shiftEnd)) {
+      status = 'late';
+    } else {
+      status = 'on-time';
+    }
+
+    debugSteps.push({
+      step: 'Determine check-in status',
+      status: status,
+    });
+
+    // Apply any business logic for adjusting check-in time
+    let adjustedCheckInTime = checkInTime.clone();
+    if (status === 'early') {
+      adjustedCheckInTime = shiftStart.clone();
+    }
+
+    debugSteps.push({
+      step: 'Apply business logic',
+      adjustedCheckInTime: adjustedCheckInTime.format(),
+    });
+
+    // Final check-in time
+    debugSteps.push({
+      step: 'Final check-in time',
+      finalCheckInTime: adjustedCheckInTime.format(),
+    });
+
+    return debugSteps;
+  }
 }
