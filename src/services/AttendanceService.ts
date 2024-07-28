@@ -138,7 +138,7 @@ export class AttendanceService {
       );
 
       console.log(
-        'Latest attendance record:',
+        'Latest attendance after getLatestAttendanceRecord:',
         JSON.stringify(latestAttendance, null, 2),
       );
 
@@ -354,7 +354,10 @@ export class AttendanceService {
         potentialOvertime: potentialOvertime,
       };
 
-      console.log('Final attendance status:', JSON.stringify(result, null, 2));
+      console.log(
+        'Final latestAttendance in result:',
+        JSON.stringify(result.latestAttendance, null, 2),
+      );
 
       return result;
     } catch (error) {
