@@ -104,26 +104,41 @@ export class AttendanceService {
         `User found: ${user.id}, Assigned shift: ${user.assignedShift.id}`,
       );
 
-      // Fetch both internal and external attendance data for the past 2 days
-      const threeDaysAgo = moment().subtract(3, 'days').startOf('day').toDate();
+      // Log the time range we're looking at
+      const threeDaysAgo = moment().subtract(3, 'days').startOf('day');
+      console.log(
+        `Fetching attendance data from ${threeDaysAgo.format()} to now`,
+      );
+
+      // Fetch attendance data
       const [internalAttendances, externalAttendanceData] = await Promise.all([
         prisma.attendance.findMany({
           where: {
             userId: user.id,
-            date: { gte: threeDaysAgo },
+            date: { gte: threeDaysAgo.toDate() },
           },
           orderBy: { date: 'desc' },
         }),
         this.externalDbService.getDailyAttendanceRecords(employeeId, 3),
       ]);
 
+      console.log(
+        'Internal attendances:',
+        JSON.stringify(internalAttendances, null, 2),
+      );
+      console.log(
+        'External attendance data:',
+        JSON.stringify(externalAttendanceData, null, 2),
+      );
+
       const latestAttendance = this.getLatestAttendanceRecord(
         internalAttendances,
         externalAttendanceData.records,
         user.assignedShift as ShiftData,
       );
+
       console.log(
-        'Latest attendance from getLatestAttendanceRecord:',
+        'Latest attendance record:',
         JSON.stringify(latestAttendance, null, 2),
       );
 
@@ -226,14 +241,8 @@ export class AttendanceService {
 
       let potentialOvertime = null;
       if (latestAttendance && latestAttendance.checkOutTime) {
-        const checkInTime = moment.tz(
-          latestAttendance.checkInTime,
-          'Asia/Bangkok',
-        );
-        const checkOutTime = moment.tz(
-          latestAttendance.checkOutTime,
-          'Asia/Bangkok',
-        );
+        const checkInTime = moment(latestAttendance.checkInTime);
+        const checkOutTime = moment(latestAttendance.checkOutTime);
 
         const shiftDate = checkInTime.clone().startOf('day');
         const shiftStart = shiftDate.clone().set({
@@ -244,6 +253,12 @@ export class AttendanceService {
           hour: parseInt(shift.endTime.split(':')[0]),
           minute: parseInt(shift.endTime.split(':')[1]),
         });
+
+        console.log('Potential overtime calculation:');
+        console.log('Check-in time:', checkInTime.format());
+        console.log('Check-out time:', checkOutTime.format());
+        console.log('Shift start:', shiftStart.format());
+        console.log('Shift end:', shiftEnd.format());
 
         if (shiftEnd.isBefore(shiftStart)) {
           shiftEnd.add(1, 'day');
@@ -266,9 +281,7 @@ export class AttendanceService {
         }
       }
 
-      console.log('Potential overtime:', potentialOvertime);
-
-      console.log('Potential overtime:', potentialOvertime);
+      console.log('Calculated potential overtime:', potentialOvertime);
 
       let isCheckingIn = true;
       if (latestAttendance && latestAttendance.checkOutTime) {
@@ -341,10 +354,7 @@ export class AttendanceService {
         potentialOvertime: potentialOvertime,
       };
 
-      console.log(
-        `Constructed AttendanceStatus:`,
-        JSON.stringify(result, null, 2),
-      );
+      console.log('Final attendance status:', JSON.stringify(result, null, 2));
 
       return result;
     } catch (error) {
@@ -368,14 +378,12 @@ export class AttendanceService {
     externalRecords: ExternalCheckInData[],
     shift: ShiftData,
   ): AttendanceRecord | null {
+    console.log('Getting latest attendance record');
     console.log(
-      'Raw internal attendances:',
+      'Internal attendances:',
       JSON.stringify(internalAttendances, null, 2),
     );
-    console.log(
-      'Raw external records:',
-      JSON.stringify(externalRecords, null, 2),
-    );
+    console.log('External records:', JSON.stringify(externalRecords, null, 2));
 
     const allRecords = [
       ...internalAttendances,
@@ -393,8 +401,8 @@ export class AttendanceService {
     const checkIn = allRecords[allRecords.length - 2];
     const checkOut = allRecords[allRecords.length - 1];
 
-    console.log('Raw check-in record:', JSON.stringify(checkIn, null, 2));
-    console.log('Raw check-out record:', JSON.stringify(checkOut, null, 2));
+    console.log('Selected check-in:', JSON.stringify(checkIn, null, 2));
+    console.log('Selected check-out:', JSON.stringify(checkOut, null, 2));
 
     const checkInTime = moment.tz(checkIn.checkInTime, 'Asia/Bangkok');
     const checkOutTime = moment.tz(checkOut.checkInTime, 'Asia/Bangkok');
