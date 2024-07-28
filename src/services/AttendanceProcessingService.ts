@@ -466,6 +466,7 @@ export class AttendanceProcessingService {
     internalAttendance: any,
     externalAttendance: any,
     shift: any,
+    overtimeRequests: any[],
   ) {
     const debugSteps = [];
 
@@ -478,6 +479,7 @@ export class AttendanceProcessingService {
         startTime: shift.startTime,
         endTime: shift.endTime,
       },
+      storedStatus: internalAttendance?.status,
     });
 
     const checkInTime =
@@ -503,6 +505,10 @@ export class AttendanceProcessingService {
 
     if (shiftEnd < shiftStart) {
       shiftEnd.setDate(shiftEnd.getDate() + 1);
+      debugSteps.push({
+        step: 'Shift Span',
+        message: 'This shift spans midnight',
+      });
     }
 
     debugSteps.push({
@@ -513,36 +519,52 @@ export class AttendanceProcessingService {
     });
 
     let status;
-    if (checkInDate < shiftStart) {
+    const earlyThreshold = new Date(shiftStart);
+    earlyThreshold.setMinutes(earlyThreshold.getMinutes() - 30);
+
+    if (checkInDate < earlyThreshold) {
+      status = 'overtime-started';
+    } else if (checkInDate < shiftStart) {
       status = 'early';
     } else if (checkInDate > shiftEnd) {
-      status = 'late';
+      status = 'overtime-started';
     } else {
       status = 'on-time';
     }
 
-    debugSteps.push({ step: 'Determine check-in status', status: status });
+    debugSteps.push({ step: 'Initial status determination', status: status });
 
-    // Add logic for overtime and early check-in handling here
-    const earlyThreshold = new Date(shiftStart);
-    earlyThreshold.setHours(earlyThreshold.getHours() - 2);
+    // Check for approved overtime
+    const approvedOvertime = overtimeRequests.find(
+      (r) =>
+        r.status === 'approved' &&
+        new Date(r.startTime) <= checkInDate &&
+        new Date(r.endTime) >= checkInDate,
+    );
 
-    if (checkInDate < earlyThreshold) {
+    if (approvedOvertime) {
+      status = 'overtime-started';
       debugSteps.push({
-        step: 'Early Check-in Alert',
-        message: 'Check-in is more than 2 hours before shift start',
+        step: 'Approved Overtime',
+        message: 'This check-in is within an approved overtime period',
+      });
+    } else if (status === 'overtime-started') {
+      debugSteps.push({
+        step: 'Potential Unauthorized Overtime',
+        message:
+          'This check-in is considered overtime but there is no approved overtime request',
       });
     }
 
-    if (
-      status === 'late' ||
-      (status === 'early' && checkInDate < earlyThreshold)
-    ) {
-      debugSteps.push({
-        step: 'Potential Overtime',
-        message: 'This check-in might be considered overtime',
-      });
-    }
+    debugSteps.push({
+      step: 'Final Status Determination',
+      calculatedStatus: status,
+      storedStatus: internalAttendance?.status,
+      explanation:
+        status !== internalAttendance?.status
+          ? 'Status mismatch requires investigation'
+          : 'Calculated status matches stored status',
+    });
 
     debugSteps.push({
       step: 'Final check-in time',

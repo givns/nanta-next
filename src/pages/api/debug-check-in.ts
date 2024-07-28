@@ -61,20 +61,24 @@ export default async function handler(
       employeeId,
       1,
     );
-    debugInfo.externalAttendance = records[0] || null;
+    debugInfo.externalAttendance = records[0];
 
-    // Process check-in time only if we have attendance data
-    if (debugInfo.internalAttendance || debugInfo.externalAttendance) {
-      debugInfo.processedCheckIn =
-        await attendanceProcessingService.processCheckInForDebug(
-          debugInfo.internalAttendance,
-          debugInfo.externalAttendance,
-          user.assignedShift,
-        );
-    } else {
-      debugInfo.processedCheckIn =
-        'No attendance data found for the given date';
-    }
+    // Fetch overtime requests
+    const overtimeRequests = await prisma.overtimeRequest.findMany({
+      where: {
+        userId: user.id,
+        date: date ? new Date(date as string) : undefined,
+      },
+    });
+
+    // Process check-in time
+    debugInfo.processedCheckIn =
+      await attendanceProcessingService.processCheckInForDebug(
+        debugInfo.internalAttendance,
+        debugInfo.externalAttendance,
+        user.assignedShift,
+        overtimeRequests,
+      );
 
     return res.status(200).json(debugInfo);
   } catch (error: any) {
