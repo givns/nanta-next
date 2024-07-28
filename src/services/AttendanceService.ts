@@ -105,16 +105,16 @@ export class AttendanceService {
       );
 
       // Fetch both internal and external attendance data for the past 2 days
-      const twoDaysAgo = moment().subtract(2, 'days').startOf('day').toDate();
+      const threeDaysAgo = moment().subtract(3, 'days').startOf('day').toDate();
       const [internalAttendances, externalAttendanceData] = await Promise.all([
         prisma.attendance.findMany({
           where: {
             userId: user.id,
-            date: { gte: twoDaysAgo },
+            date: { gte: threeDaysAgo },
           },
           orderBy: { date: 'desc' },
         }),
-        this.externalDbService.getDailyAttendanceRecords(employeeId, 2),
+        this.externalDbService.getDailyAttendanceRecords(employeeId, 3),
       ]);
 
       const latestAttendance = this.getLatestAttendanceRecord(
@@ -249,12 +249,6 @@ export class AttendanceService {
           shiftEnd.add(1, 'day');
         }
 
-        console.log('Potential overtime calculation:');
-        console.log('Check-in time:', checkInTime.format());
-        console.log('Check-out time:', checkOutTime.format());
-        console.log('Shift start:', shiftStart.format());
-        console.log('Shift end:', shiftEnd.format());
-
         if (
           checkOutTime.isAfter(shiftEnd) ||
           checkInTime.isBefore(shiftStart)
@@ -266,6 +260,19 @@ export class AttendanceService {
             end: checkOutTime.format('HH:mm'),
           };
         }
+      } else if (
+        latestAttendance &&
+        latestAttendance.status === 'overtime-started'
+      ) {
+        const checkInTime = moment.tz(
+          latestAttendance.checkInTime,
+          'Asia/Bangkok',
+        );
+        const now = moment.tz('Asia/Bangkok');
+        potentialOvertime = {
+          start: checkInTime.format('HH:mm'),
+          end: now.format('HH:mm'),
+        };
       }
 
       console.log('Potential overtime:', potentialOvertime);
@@ -385,74 +392,48 @@ export class AttendanceService {
 
     console.log('All sorted records:', JSON.stringify(allRecords, null, 2));
 
-    if (allRecords.length === 0) return null;
+    if (allRecords.length < 2) return allRecords[0] || null;
 
-    let latestCheckIn: AttendanceRecord | null = null;
-    let latestCheckOut: AttendanceRecord | null = null;
+    const lastRecord = allRecords[allRecords.length - 1];
+    const secondLastRecord = allRecords[allRecords.length - 2];
 
-    for (const record of allRecords) {
-      const recordTime = moment.tz(record.checkInTime, 'Asia/Bangkok');
-      const shiftDate = recordTime.clone().startOf('day');
-      const shiftStart = shiftDate.clone().set({
-        hour: parseInt(shift.startTime.split(':')[0]),
-        minute: parseInt(shift.startTime.split(':')[1]),
-      });
-      let shiftEnd = shiftDate.clone().set({
-        hour: parseInt(shift.endTime.split(':')[0]),
-        minute: parseInt(shift.endTime.split(':')[1]),
-      });
+    const checkInTime = moment.tz(secondLastRecord.checkInTime, 'Asia/Bangkok');
+    const checkOutTime = moment.tz(lastRecord.checkInTime, 'Asia/Bangkok');
 
-      if (shiftEnd.isBefore(shiftStart)) {
-        shiftEnd.add(1, 'day');
-      }
+    const shiftDate = checkInTime.clone().startOf('day');
+    const shiftStart = shiftDate.clone().set({
+      hour: parseInt(shift.startTime.split(':')[0]),
+      minute: parseInt(shift.startTime.split(':')[1]),
+    });
+    let shiftEnd = shiftDate.clone().set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+    });
 
-      if (recordTime.isBefore(shiftStart)) {
-        if (
-          !latestCheckIn ||
-          recordTime.isAfter(
-            moment.tz(latestCheckIn.checkInTime, 'Asia/Bangkok'),
-          )
-        ) {
-          latestCheckIn = record;
-        }
-      } else if (recordTime.isAfter(shiftEnd)) {
-        if (
-          !latestCheckOut ||
-          recordTime.isAfter(
-            moment.tz(latestCheckOut.checkInTime, 'Asia/Bangkok'),
-          )
-        ) {
-          latestCheckOut = record;
-        }
-      } else {
-        if (
-          !latestCheckIn ||
-          recordTime.isBefore(
-            moment.tz(latestCheckIn.checkInTime, 'Asia/Bangkok'),
-          )
-        ) {
-          latestCheckIn = record;
-        } else {
-          latestCheckOut = record;
-        }
-      }
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
     }
 
-    if (latestCheckIn && latestCheckOut) {
-      const status = 'overtime-ended';
-      const isOvertime = true;
-      return {
-        ...latestCheckIn,
-        checkOutTime: latestCheckOut.checkInTime,
-        checkOutLocation: latestCheckOut.checkInLocation,
-        checkOutAddress: latestCheckOut.checkInAddress,
-        checkOutDeviceSerial: latestCheckOut.checkInDeviceSerial,
-        status,
-        isOvertime,
-      };
-    }
+    console.log('Check-in time:', checkInTime.format());
+    console.log('Check-out time:', checkOutTime.format());
+    console.log('Shift start:', shiftStart.format());
+    console.log('Shift end:', shiftEnd.format());
 
-    return latestCheckIn || latestCheckOut;
+    const status =
+      checkOutTime.isAfter(shiftEnd) || checkInTime.isBefore(shiftStart)
+        ? 'overtime-ended'
+        : 'checked-out';
+    const isOvertime = status === 'overtime-ended';
+
+    return {
+      ...secondLastRecord,
+      checkOutTime: lastRecord.checkInTime,
+      checkOutLocation: lastRecord.checkInLocation,
+      checkOutAddress: lastRecord.checkInAddress,
+      checkOutDeviceSerial: lastRecord.checkInDeviceSerial,
+      status,
+      isOvertime,
+    };
   }
 
   private convertExternalToInternal(
