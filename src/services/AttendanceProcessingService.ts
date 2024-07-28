@@ -534,6 +534,18 @@ export class AttendanceProcessingService {
 
     debugSteps.push({ step: 'Initial status determination', status: status });
 
+    // Check checkout time if available
+    if (internalAttendance.checkOutTime) {
+      const checkOutDate = new Date(internalAttendance.checkOutTime);
+      if (checkOutDate > shiftEnd) {
+        status = 'overtime-ended';
+      }
+      debugSteps.push({
+        step: 'Status after considering check-out',
+        status: status,
+      });
+    }
+
     // Check for approved overtime
     const approvedOvertime = overtimeRequests.find(
       (r) =>
@@ -567,8 +579,11 @@ export class AttendanceProcessingService {
     });
 
     debugSteps.push({
-      step: 'Final check-in time',
-      finalCheckInTime: checkInTime,
+      step: 'Attendance Times',
+      checkInTime: checkInTime,
+      checkOutTime: internalAttendance.checkOutTime || 'Not available',
+      shiftStart: shiftStart.toISOString(),
+      shiftEnd: shiftEnd.toISOString(),
     });
 
     return debugSteps;
