@@ -5,6 +5,7 @@ import { AttendanceSyncService } from '../../services/AttendanceSyncService';
 import prisma from '../../lib/prisma';
 import { query } from '../../utils/mysqlConnection';
 import { ExternalCheckInData } from '../../types/user';
+import moment from 'moment-timezone';
 
 const attendanceService = new AttendanceService();
 const externalDbService = new ExternalDbService();
@@ -58,6 +59,14 @@ export default async function handler(
     // Get external attendance records
     logs.externalAttendances =
       await externalDbService.getDailyAttendanceRecords(employeeId, 3);
+    logs.timeDetails = {
+      rawCheckInTime: moment(logs.internalAttendances[0].checkInTime).format(),
+      processedCheckInTime: moment(
+        logs.attendanceStatus.latestAttendance.checkInTime,
+      ).format(),
+      timeZone: moment.tz.guess(),
+      currentServerTime: moment().tz('Asia/Bangkok').format(),
+    };
 
     // Simulate check-in/out if action is provided
     if (action === 'check-in' || action === 'check-out') {

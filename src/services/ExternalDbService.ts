@@ -8,6 +8,7 @@ import {
 } from '../types/user';
 import { retry } from '../utils/retry';
 import { createLogger } from '../utils/logger';
+import moment from 'moment-timezone';
 
 const logger = createLogger('ExternalDbService');
 
@@ -72,9 +73,20 @@ export class ExternalDbService {
           JSON.stringify(userInfoResult, null, 2),
         );
         console.log(
-          'Attendance records:',
+          'Raw external attendance records:',
           JSON.stringify(attendanceResult, null, 2),
         );
+
+        const processedRecords = attendanceResult.map((record) => ({
+          ...record,
+          sj: moment.tz(record.sj, 'Asia/Bangkok').format(),
+        }));
+
+        console.log(
+          'Processed external attendance records:',
+          JSON.stringify(processedRecords, null, 2),
+        );
+
         logger.info(
           `Found ${attendanceResult.length} attendance records for employeeId: ${employeeId}`,
         );
