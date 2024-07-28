@@ -474,87 +474,79 @@ export class AttendanceProcessingService {
       internalCheckIn: internalAttendance?.checkInTime,
       externalCheckIn: externalAttendance?.sj,
       shift: {
+        code: shift.shiftCode,
         startTime: shift.startTime,
         endTime: shift.endTime,
       },
     });
 
-    // If no attendance data, return early
-    if (!internalAttendance && !externalAttendance) {
-      debugSteps.push({
-        step: 'No Attendance Data',
-        message: 'No internal or external attendance data found',
-      });
-      return debugSteps;
-    }
-
-    // Prioritize external data if available
-    const checkInTime = externalAttendance?.sj
-      ? moment.tz(externalAttendance.sj, 'Asia/Bangkok')
-      : internalAttendance?.checkInTime
-        ? moment.tz(internalAttendance.checkInTime, 'Asia/Bangkok')
-        : null;
-
+    const checkInTime =
+      internalAttendance?.checkInTime || externalAttendance?.sj;
     if (!checkInTime) {
       debugSteps.push({
         step: 'No Valid Check-In Time',
-        message:
-          'Could not determine a valid check-in time from the available data',
+        message: 'Could not determine a valid check-in time',
       });
       return debugSteps;
     }
 
-    const shiftDate = checkInTime.clone().startOf('day');
-    const shiftStart = shiftDate.clone().set({
-      hour: parseInt(shift.startTime.split(':')[0]),
-      minute: parseInt(shift.startTime.split(':')[1]),
-    });
-    let shiftEnd = shiftDate.clone().set({
-      hour: parseInt(shift.endTime.split(':')[0]),
-      minute: parseInt(shift.endTime.split(':')[1]),
-    });
+    const [shiftStartHour, shiftStartMinute] = shift.startTime
+      .split(':')
+      .map(Number);
+    const [shiftEndHour, shiftEndMinute] = shift.endTime.split(':').map(Number);
 
-    if (shiftEnd.isBefore(shiftStart)) {
-      shiftEnd.add(1, 'day');
+    const checkInDate = new Date(checkInTime);
+    const shiftStart = new Date(checkInDate);
+    shiftStart.setHours(shiftStartHour, shiftStartMinute, 0, 0);
+    const shiftEnd = new Date(checkInDate);
+    shiftEnd.setHours(shiftEndHour, shiftEndMinute, 0, 0);
+
+    if (shiftEnd < shiftStart) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
     }
 
     debugSteps.push({
-      step: 'Converted to Bangkok time',
-      checkInTime: checkInTime.format(),
-      shiftStart: shiftStart.format(),
-      shiftEnd: shiftEnd.format(),
+      step: 'Shift Times',
+      checkInTime: checkInTime,
+      shiftStart: shiftStart.toISOString(),
+      shiftEnd: shiftEnd.toISOString(),
     });
 
-    // Determine check-in status
     let status;
-    if (checkInTime.isBefore(shiftStart)) {
+    if (checkInDate < shiftStart) {
       status = 'early';
-    } else if (checkInTime.isAfter(shiftEnd)) {
+    } else if (checkInDate > shiftEnd) {
       status = 'late';
     } else {
       status = 'on-time';
     }
 
-    debugSteps.push({
-      step: 'Determine check-in status',
-      status: status,
-    });
+    debugSteps.push({ step: 'Determine check-in status', status: status });
 
-    // Apply any business logic for adjusting check-in time
-    let adjustedCheckInTime = checkInTime.clone();
-    if (status === 'early') {
-      adjustedCheckInTime = shiftStart.clone();
+    // Add logic for overtime and early check-in handling here
+    const earlyThreshold = new Date(shiftStart);
+    earlyThreshold.setHours(earlyThreshold.getHours() - 2);
+
+    if (checkInDate < earlyThreshold) {
+      debugSteps.push({
+        step: 'Early Check-in Alert',
+        message: 'Check-in is more than 2 hours before shift start',
+      });
+    }
+
+    if (
+      status === 'late' ||
+      (status === 'early' && checkInDate < earlyThreshold)
+    ) {
+      debugSteps.push({
+        step: 'Potential Overtime',
+        message: 'This check-in might be considered overtime',
+      });
     }
 
     debugSteps.push({
-      step: 'Apply business logic',
-      adjustedCheckInTime: adjustedCheckInTime.format(),
-    });
-
-    // Final check-in time
-    debugSteps.push({
       step: 'Final check-in time',
-      finalCheckInTime: adjustedCheckInTime.format(),
+      finalCheckInTime: checkInTime,
     });
 
     return debugSteps;
