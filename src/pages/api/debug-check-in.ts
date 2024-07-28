@@ -57,11 +57,14 @@ export default async function handler(
     });
 
     // Fetch external attendance
-    const { records } = await externalDbService.getDailyAttendanceRecords(
-      employeeId,
-      1,
+    const { records, userInfo } =
+      await externalDbService.getDailyAttendanceRecords(employeeId);
+    debugInfo.externalAttendance = records.find(
+      (record) =>
+        moment(record.sj).format('YYYY-MM-DD') ===
+        moment(date as string).format('YYYY-MM-DD'),
     );
-    debugInfo.externalAttendance = records[0];
+    debugInfo.externalUserInfo = userInfo;
 
     // Fetch overtime requests
     const overtimeRequests = await prisma.overtimeRequest.findMany({

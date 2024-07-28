@@ -577,6 +577,29 @@ export class AttendanceProcessingService {
           ? 'Status mismatch requires investigation'
           : 'Calculated status matches stored status',
     });
+    // After determining the final status
+    let overtimeDuration = 0;
+    if (status.includes('overtime')) {
+      if (checkInDate < shiftStart) {
+        overtimeDuration +=
+          (shiftStart.getTime() - checkInDate.getTime()) / (1000 * 60); // in minutes
+      }
+      if (internalAttendance.checkOutTime) {
+        const checkOutDate = new Date(internalAttendance.checkOutTime);
+        if (checkOutDate > shiftEnd) {
+          overtimeDuration +=
+            (checkOutDate.getTime() - shiftEnd.getTime()) / (1000 * 60);
+        }
+      }
+    }
+
+    debugSteps.push({
+      step: 'Overtime Calculation',
+      overtimeDuration: `${Math.round(overtimeDuration)} minutes`,
+      isComplete: internalAttendance.checkOutTime
+        ? 'Yes'
+        : 'No (Check-out time not available)',
+    });
 
     debugSteps.push({
       step: 'Attendance Times',
