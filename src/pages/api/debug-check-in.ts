@@ -61,21 +61,27 @@ export default async function handler(
       employeeId,
       1,
     );
-    debugInfo.externalAttendance = records[0];
+    debugInfo.externalAttendance = records[0] || null;
 
-    // Process check-in time
-    debugInfo.processedCheckIn =
-      await attendanceProcessingService.processCheckInForDebug(
-        debugInfo.internalAttendance,
-        debugInfo.externalAttendance,
-        user.assignedShift,
-      );
+    // Process check-in time only if we have attendance data
+    if (debugInfo.internalAttendance || debugInfo.externalAttendance) {
+      debugInfo.processedCheckIn =
+        await attendanceProcessingService.processCheckInForDebug(
+          debugInfo.internalAttendance,
+          debugInfo.externalAttendance,
+          user.assignedShift,
+        );
+    } else {
+      debugInfo.processedCheckIn =
+        'No attendance data found for the given date';
+    }
 
     return res.status(200).json(debugInfo);
   } catch (error: any) {
     console.error('Error in debug-check-in handler:', error);
-    return res
-      .status(500)
-      .json({ message: error.message || 'Error processing debug check-in' });
+    return res.status(500).json({
+      message: error.message || 'Error processing debug check-in',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
   }
 }

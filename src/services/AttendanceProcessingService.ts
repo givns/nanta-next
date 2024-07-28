@@ -479,16 +479,40 @@ export class AttendanceProcessingService {
       },
     });
 
-    // Convert times to Bangkok timezone
-    const checkInTime = moment.tz(externalAttendance.sj, 'Asia/Bangkok');
-    const shiftStart = moment.tz(
-      `${externalAttendance.date.split('T')[0]}T${shift.startTime}`,
-      'Asia/Bangkok',
-    );
-    const shiftEnd = moment.tz(
-      `${externalAttendance.date.split('T')[0]}T${shift.endTime}`,
-      'Asia/Bangkok',
-    );
+    // If no attendance data, return early
+    if (!internalAttendance && !externalAttendance) {
+      debugSteps.push({
+        step: 'No Attendance Data',
+        message: 'No internal or external attendance data found',
+      });
+      return debugSteps;
+    }
+
+    // Prioritize external data if available
+    const checkInTime = externalAttendance?.sj
+      ? moment.tz(externalAttendance.sj, 'Asia/Bangkok')
+      : internalAttendance?.checkInTime
+        ? moment.tz(internalAttendance.checkInTime, 'Asia/Bangkok')
+        : null;
+
+    if (!checkInTime) {
+      debugSteps.push({
+        step: 'No Valid Check-In Time',
+        message:
+          'Could not determine a valid check-in time from the available data',
+      });
+      return debugSteps;
+    }
+
+    const shiftDate = checkInTime.clone().startOf('day');
+    const shiftStart = shiftDate.clone().set({
+      hour: parseInt(shift.startTime.split(':')[0]),
+      minute: parseInt(shift.startTime.split(':')[1]),
+    });
+    let shiftEnd = shiftDate.clone().set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+    });
 
     if (shiftEnd.isBefore(shiftStart)) {
       shiftEnd.add(1, 'day');
