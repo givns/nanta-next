@@ -226,8 +226,14 @@ export class AttendanceService {
 
       let potentialOvertime = null;
       if (latestAttendance && latestAttendance.checkOutTime) {
-        const checkInTime = moment(latestAttendance.checkInTime);
-        const checkOutTime = moment(latestAttendance.checkOutTime);
+        const checkInTime = moment.tz(
+          latestAttendance.checkInTime,
+          'Asia/Bangkok',
+        );
+        const checkOutTime = moment.tz(
+          latestAttendance.checkOutTime,
+          'Asia/Bangkok',
+        );
 
         const shiftDate = checkInTime.clone().startOf('day');
         const shiftStart = shiftDate.clone().set({
@@ -379,62 +385,74 @@ export class AttendanceService {
 
     console.log('All sorted records:', JSON.stringify(allRecords, null, 2));
 
-    if (allRecords.length < 2) {
-      console.log('Not enough records to process');
-      return allRecords[0] || null;
+    if (allRecords.length === 0) return null;
+
+    let latestCheckIn: AttendanceRecord | null = null;
+    let latestCheckOut: AttendanceRecord | null = null;
+
+    for (const record of allRecords) {
+      const recordTime = moment.tz(record.checkInTime, 'Asia/Bangkok');
+      const shiftDate = recordTime.clone().startOf('day');
+      const shiftStart = shiftDate.clone().set({
+        hour: parseInt(shift.startTime.split(':')[0]),
+        minute: parseInt(shift.startTime.split(':')[1]),
+      });
+      let shiftEnd = shiftDate.clone().set({
+        hour: parseInt(shift.endTime.split(':')[0]),
+        minute: parseInt(shift.endTime.split(':')[1]),
+      });
+
+      if (shiftEnd.isBefore(shiftStart)) {
+        shiftEnd.add(1, 'day');
+      }
+
+      if (recordTime.isBefore(shiftStart)) {
+        if (
+          !latestCheckIn ||
+          recordTime.isAfter(
+            moment.tz(latestCheckIn.checkInTime, 'Asia/Bangkok'),
+          )
+        ) {
+          latestCheckIn = record;
+        }
+      } else if (recordTime.isAfter(shiftEnd)) {
+        if (
+          !latestCheckOut ||
+          recordTime.isAfter(
+            moment.tz(latestCheckOut.checkInTime, 'Asia/Bangkok'),
+          )
+        ) {
+          latestCheckOut = record;
+        }
+      } else {
+        if (
+          !latestCheckIn ||
+          recordTime.isBefore(
+            moment.tz(latestCheckIn.checkInTime, 'Asia/Bangkok'),
+          )
+        ) {
+          latestCheckIn = record;
+        } else {
+          latestCheckOut = record;
+        }
+      }
     }
 
-    const checkIn = allRecords[allRecords.length - 2];
-    const checkOut = allRecords[allRecords.length - 1];
-
-    console.log('Selected check-in:', JSON.stringify(checkIn, null, 2));
-    console.log('Selected check-out:', JSON.stringify(checkOut, null, 2));
-
-    const checkInTime = moment.tz(checkIn.checkInTime, 'Asia/Bangkok');
-    const checkOutTime = moment.tz(checkOut.checkInTime, 'Asia/Bangkok');
-
-    const shiftDate = checkInTime.clone().startOf('day');
-    const shiftStart = shiftDate.clone().set({
-      hour: parseInt(shift.startTime.split(':')[0]),
-      minute: parseInt(shift.startTime.split(':')[1]),
-    });
-    let shiftEnd = shiftDate.clone().set({
-      hour: parseInt(shift.endTime.split(':')[0]),
-      minute: parseInt(shift.endTime.split(':')[1]),
-    });
-
-    if (shiftEnd.isBefore(shiftStart)) {
-      shiftEnd.add(1, 'day');
+    if (latestCheckIn && latestCheckOut) {
+      const status = 'overtime-ended';
+      const isOvertime = true;
+      return {
+        ...latestCheckIn,
+        checkOutTime: latestCheckOut.checkInTime,
+        checkOutLocation: latestCheckOut.checkInLocation,
+        checkOutAddress: latestCheckOut.checkInAddress,
+        checkOutDeviceSerial: latestCheckOut.checkInDeviceSerial,
+        status,
+        isOvertime,
+      };
     }
 
-    console.log('Check-in time:', checkInTime.format());
-    console.log('Check-out time:', checkOutTime.format());
-    console.log('Shift start:', shiftStart.format());
-    console.log('Shift end:', shiftEnd.format());
-
-    let status: string;
-    let isOvertime: boolean;
-
-    if (checkOutTime.isAfter(shiftEnd) || checkInTime.isBefore(shiftStart)) {
-      status = 'overtime-ended';
-      isOvertime = true;
-    } else {
-      status = 'checked-out';
-      isOvertime = false;
-    }
-
-    console.log('Calculated status:', status);
-    console.log('Is overtime:', isOvertime);
-
-    return {
-      ...checkIn,
-      checkOutTime: checkOut.checkInTime,
-      checkOutLocation: checkOut.checkInLocation,
-      checkOutAddress: checkOut.checkInAddress,
-      checkOutDeviceSerial: checkOut.checkInDeviceSerial,
-      status,
-      isOvertime,
-    };
+    return latestCheckIn || latestCheckOut;
   }
 
   private convertExternalToInternal(
@@ -473,24 +491,6 @@ export class AttendanceService {
       attendanceDate.getMonth() === today.getMonth() &&
       attendanceDate.getFullYear() === today.getFullYear()
     );
-  }
-
-  private determineIfCheckingIn(
-    latestAttendance: AttendanceRecord | null,
-  ): boolean {
-    if (!latestAttendance) {
-      return true; // If no attendance record, user needs to check in
-    }
-
-    if (!this.isAttendanceFromToday(latestAttendance)) {
-      return true; // If the latest attendance is not from today, user needs to check in
-    }
-
-    if (latestAttendance.checkOutTime) {
-      return true; // If there's a check-out time for today, user needs to check in for a new cycle
-    }
-
-    return false; // User has checked in but not out, so they need to check out
   }
 
   async getTodayCheckIn(userId: string): Promise<Attendance | null> {
@@ -598,25 +598,26 @@ export class AttendanceService {
     checkTime: Date,
     shift: { startTime: string; endTime: string },
   ): boolean {
-    const shiftStart = new Date(checkTime);
-    shiftStart.setHours(
-      parseInt(shift.startTime.split(':')[0]),
-      parseInt(shift.startTime.split(':')[1]),
-      0,
-      0,
-    );
-    let shiftEnd = new Date(checkTime);
-    shiftEnd.setHours(
-      parseInt(shift.endTime.split(':')[0]),
-      parseInt(shift.endTime.split(':')[1]),
-      0,
-      0,
-    );
-    if (shiftEnd <= shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
+    const checkMoment = moment.tz(checkTime, 'Asia/Bangkok');
+    const shiftDate = checkMoment.clone().startOf('day');
+    const shiftStart = shiftDate.clone().set({
+      hour: parseInt(shift.startTime.split(':')[0]),
+      minute: parseInt(shift.startTime.split(':')[1]),
+    });
+    let shiftEnd = shiftDate.clone().set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+    });
 
-    const oneHourBeforeShift = new Date(shiftStart.getTime() - 60 * 60 * 1000);
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
 
-    return checkTime < oneHourBeforeShift || checkTime > shiftEnd;
+    const oneHourBeforeShift = shiftStart.clone().subtract(1, 'hour');
+
+    return (
+      checkMoment.isBefore(oneHourBeforeShift) || checkMoment.isAfter(shiftEnd)
+    );
   }
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {
