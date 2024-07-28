@@ -1,21 +1,25 @@
+// pages/debug.tsx
+
 import { useState } from 'react';
-import { GetServerSideProps } from 'next';
+import axios from 'axios';
 
 export default function DebugPage() {
   const [employeeId, setEmployeeId] = useState('');
   const [logs, setLogs] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchLogs = async (action?: string) => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch(
-        `/api/debug?employeeId=${employeeId}${action ? `&action=${action}` : ''}`,
-      );
-      const data = await response.json();
-      setLogs(data);
-    } catch (error) {
-      console.error('Error fetching logs:', error);
+      const response = await axios.get(`/api/debug-logs`, {
+        params: { employeeId, action },
+      });
+      setLogs(response.data);
+    } catch (err: any) {
+      console.error('Error fetching logs:', err);
+      setError(err.response?.data?.message || 'An error occurred');
     }
     setLoading(false);
   };
@@ -54,6 +58,7 @@ export default function DebugPage() {
         </button>
       </div>
       {loading && <p>Loading...</p>}
+      {error && <p className="text-red-500">{error}</p>}
       {logs && (
         <div className="whitespace-pre-wrap bg-gray-100 p-4 rounded">
           <h2 className="text-xl font-bold mb-2">Log Output:</h2>
@@ -63,8 +68,3 @@ export default function DebugPage() {
     </div>
   );
 }
-
-export const getServerSideProps: GetServerSideProps = async (context) => {
-  // Add any server-side logic here if needed
-  return { props: {} };
-};
