@@ -381,12 +381,14 @@ export class AttendanceService {
     externalRecords: ExternalCheckInData[],
     shift: ShiftData,
   ): AttendanceRecord | null {
-    console.log('Getting latest attendance record');
     console.log(
-      'Internal attendances:',
+      'Raw internal attendances:',
       JSON.stringify(internalAttendances, null, 2),
     );
-    console.log('External records:', JSON.stringify(externalRecords, null, 2));
+    console.log(
+      'Raw external records:',
+      JSON.stringify(externalRecords, null, 2),
+    );
 
     const allRecords = [
       ...internalAttendances,
@@ -396,23 +398,13 @@ export class AttendanceService {
     allRecords.sort(
       (a, b) => a.checkInTime!.getTime() - b.checkInTime!.getTime(),
     );
-    console.log(
-      'Sorted records:',
-      JSON.stringify(
-        allRecords.map((r) => ({
-          id: r.id,
-          checkInTime: r.checkInTime,
-          checkOutTime: r.checkOutTime,
-        })),
-        null,
-        2,
-      ),
-    );
+
+    console.log('Sorted records:', JSON.stringify(allRecords, null, 2));
 
     if (allRecords.length < 2) return allRecords[0] || null;
 
-    const checkIn = allRecords[allRecords.length - 2];
-    const checkOut = allRecords[allRecords.length - 1];
+    const checkIn = allRecords[0]; // First record (earliest)
+    const checkOut = allRecords[allRecords.length - 1]; // Last record (latest)
 
     console.log('Selected check-in:', JSON.stringify(checkIn, null, 2));
     console.log('Selected check-out:', JSON.stringify(checkOut, null, 2));
@@ -440,14 +432,11 @@ export class AttendanceService {
     console.log('Shift start:', shiftStart.format());
     console.log('Shift end:', shiftEnd.format());
 
-    const thirtyMinutesBeforeShift = shiftStart.clone().subtract(30, 'minutes');
-
     const isOvertime =
-      checkInTime.isBefore(thirtyMinutesBeforeShift) ||
-      checkOutTime.isAfter(shiftEnd);
+      checkInTime.isBefore(shiftStart) || checkOutTime.isAfter(shiftEnd);
     const status = isOvertime ? 'overtime-ended' : 'checked-out';
 
-    return {
+    const result = {
       ...checkIn,
       checkOutTime: checkOut.checkInTime,
       checkOutLocation: checkOut.checkInLocation,
@@ -456,6 +445,10 @@ export class AttendanceService {
       status,
       isOvertime,
     };
+
+    console.log('Final attendance record:', JSON.stringify(result, null, 2));
+
+    return result;
   }
 
   private convertExternalToInternal(
