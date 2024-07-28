@@ -249,31 +249,24 @@ export class AttendanceService {
           shiftEnd.add(1, 'day');
         }
 
+        const thirtyMinutesBeforeShift = shiftStart
+          .clone()
+          .subtract(30, 'minutes');
+
         if (
-          checkOutTime.isAfter(shiftEnd) ||
-          checkInTime.isBefore(shiftStart)
+          checkInTime.isBefore(thirtyMinutesBeforeShift) ||
+          checkOutTime.isAfter(shiftEnd)
         ) {
           potentialOvertime = {
-            start: checkInTime.isBefore(shiftStart)
+            start: checkInTime.isBefore(thirtyMinutesBeforeShift)
               ? checkInTime.format('HH:mm')
               : shiftEnd.format('HH:mm'),
             end: checkOutTime.format('HH:mm'),
           };
         }
-      } else if (
-        latestAttendance &&
-        latestAttendance.status === 'overtime-started'
-      ) {
-        const checkInTime = moment.tz(
-          latestAttendance.checkInTime,
-          'Asia/Bangkok',
-        );
-        const now = moment.tz('Asia/Bangkok');
-        potentialOvertime = {
-          start: checkInTime.format('HH:mm'),
-          end: now.format('HH:mm'),
-        };
       }
+
+      console.log('Potential overtime:', potentialOvertime);
 
       console.log('Potential overtime:', potentialOvertime);
 
@@ -376,10 +369,13 @@ export class AttendanceService {
     shift: ShiftData,
   ): AttendanceRecord | null {
     console.log(
-      'Internal attendances:',
+      'Raw internal attendances:',
       JSON.stringify(internalAttendances, null, 2),
     );
-    console.log('External records:', JSON.stringify(externalRecords, null, 2));
+    console.log(
+      'Raw external records:',
+      JSON.stringify(externalRecords, null, 2),
+    );
 
     const allRecords = [
       ...internalAttendances,
@@ -394,11 +390,17 @@ export class AttendanceService {
 
     if (allRecords.length < 2) return allRecords[0] || null;
 
-    const lastRecord = allRecords[allRecords.length - 1];
-    const secondLastRecord = allRecords[allRecords.length - 2];
+    const checkIn = allRecords[allRecords.length - 2];
+    const checkOut = allRecords[allRecords.length - 1];
 
-    const checkInTime = moment.tz(secondLastRecord.checkInTime, 'Asia/Bangkok');
-    const checkOutTime = moment.tz(lastRecord.checkInTime, 'Asia/Bangkok');
+    console.log('Raw check-in record:', JSON.stringify(checkIn, null, 2));
+    console.log('Raw check-out record:', JSON.stringify(checkOut, null, 2));
+
+    const checkInTime = moment.tz(checkIn.checkInTime, 'Asia/Bangkok');
+    const checkOutTime = moment.tz(checkOut.checkInTime, 'Asia/Bangkok');
+
+    console.log('Processed check-in time:', checkInTime.format());
+    console.log('Processed check-out time:', checkOutTime.format());
 
     const shiftDate = checkInTime.clone().startOf('day');
     const shiftStart = shiftDate.clone().set({
@@ -414,23 +416,22 @@ export class AttendanceService {
       shiftEnd.add(1, 'day');
     }
 
-    console.log('Check-in time:', checkInTime.format());
-    console.log('Check-out time:', checkOutTime.format());
     console.log('Shift start:', shiftStart.format());
     console.log('Shift end:', shiftEnd.format());
 
-    const status =
-      checkOutTime.isAfter(shiftEnd) || checkInTime.isBefore(shiftStart)
-        ? 'overtime-ended'
-        : 'checked-out';
-    const isOvertime = status === 'overtime-ended';
+    const thirtyMinutesBeforeShift = shiftStart.clone().subtract(30, 'minutes');
+
+    const isOvertime =
+      checkInTime.isBefore(thirtyMinutesBeforeShift) ||
+      checkOutTime.isAfter(shiftEnd);
+    const status = isOvertime ? 'overtime-ended' : 'checked-out';
 
     return {
-      ...secondLastRecord,
-      checkOutTime: lastRecord.checkInTime,
-      checkOutLocation: lastRecord.checkInLocation,
-      checkOutAddress: lastRecord.checkInAddress,
-      checkOutDeviceSerial: lastRecord.checkInDeviceSerial,
+      ...checkIn,
+      checkOutTime: checkOut.checkInTime,
+      checkOutLocation: checkOut.checkInLocation,
+      checkOutAddress: checkOut.checkInAddress,
+      checkOutDeviceSerial: checkOut.checkInDeviceSerial,
       status,
       isOvertime,
     };
@@ -594,10 +595,11 @@ export class AttendanceService {
       shiftEnd.add(1, 'day');
     }
 
-    const oneHourBeforeShift = shiftStart.clone().subtract(1, 'hour');
+    const thirtyMinutesBeforeShift = shiftStart.clone().subtract(30, 'minutes');
 
     return (
-      checkMoment.isBefore(oneHourBeforeShift) || checkMoment.isAfter(shiftEnd)
+      checkMoment.isBefore(thirtyMinutesBeforeShift) ||
+      checkMoment.isAfter(shiftEnd)
     );
   }
 
