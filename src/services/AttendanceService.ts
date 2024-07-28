@@ -403,8 +403,8 @@ export class AttendanceService {
 
     if (allRecords.length < 2) return allRecords[0] || null;
 
-    const checkIn = allRecords[0]; // First record (earliest)
-    const checkOut = allRecords[allRecords.length - 1]; // Last record (latest)
+    const checkIn = allRecords[allRecords.length - 2]; // Second to last record
+    const checkOut = allRecords[allRecords.length - 1]; // Last record
 
     console.log('Selected check-in:', JSON.stringify(checkIn, null, 2));
     console.log('Selected check-out:', JSON.stringify(checkOut, null, 2));
@@ -459,8 +459,8 @@ export class AttendanceService {
       JSON.stringify(external, null, 2),
     );
     const checkInTime = moment.tz(external.sj, 'Asia/Bangkok');
-    console.log('Original sj:', external.sj);
     console.log('Converted check-in time:', checkInTime.format());
+
     return {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
