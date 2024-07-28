@@ -65,6 +65,7 @@ export default async function handler(
         moment(date as string).format('YYYY-MM-DD'),
     );
     debugInfo.externalUserInfo = userInfo;
+    debugInfo.allExternalRecords = records;
 
     // Fetch overtime requests
     const overtimeRequests = await prisma.overtimeRequest.findMany({
