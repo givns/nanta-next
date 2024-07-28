@@ -26,6 +26,9 @@ const notificationService = new NotificationService();
 export class AttendanceProcessingService {
   private holidayService: HolidayService;
   private shift104HolidayService: Shift104HolidayService;
+  private readonly TIMEZONE = 'Asia/Bangkok';
+  private readonly GRACE_PERIOD_MINUTES = 30;
+  private readonly MAX_OVERTIME_MINUTES = 24 * 60; // 24 hours
 
   constructor() {
     this.holidayService = new HolidayService();
@@ -473,6 +476,7 @@ export class AttendanceProcessingService {
     debugSteps.push({
       step: 'Raw Data',
       internalCheckIn: internalAttendance?.checkInTime,
+      internalCheckOut: internalAttendance?.checkOutTime,
       externalCheckIn: externalAttendance?.sj,
       shift: {
         code: shift.shiftCode,
@@ -482,8 +486,15 @@ export class AttendanceProcessingService {
       storedStatus: internalAttendance?.status,
     });
 
-    const checkInTime =
-      internalAttendance?.checkInTime || externalAttendance?.sj;
+    const checkInTime = this.getCheckInTime(
+      internalAttendance,
+      externalAttendance,
+    );
+    const checkOutTime = this.getCheckOutTime(
+      internalAttendance,
+      externalAttendance,
+    );
+
     if (!checkInTime) {
       debugSteps.push({
         step: 'No Valid Check-In Time',
@@ -492,79 +503,54 @@ export class AttendanceProcessingService {
       return debugSteps;
     }
 
-    const [shiftStartHour, shiftStartMinute] = shift.startTime
-      .split(':')
-      .map(Number);
-    const [shiftEndHour, shiftEndMinute] = shift.endTime.split(':').map(Number);
-
-    const checkInDate = new Date(checkInTime);
-    const shiftStart = new Date(checkInDate);
-    shiftStart.setHours(shiftStartHour, shiftStartMinute, 0, 0);
-    const shiftEnd = new Date(checkInDate);
-    shiftEnd.setHours(shiftEndHour, shiftEndMinute, 0, 0);
-
-    if (shiftEnd < shiftStart) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
-      debugSteps.push({
-        step: 'Shift Span',
-        message: 'This shift spans midnight',
-      });
-    }
+    const { shiftStart, shiftEnd } = this.calculateShiftTimes(
+      checkInTime,
+      shift,
+    );
 
     debugSteps.push({
       step: 'Shift Times',
-      checkInTime: checkInTime,
-      shiftStart: shiftStart.toISOString(),
-      shiftEnd: shiftEnd.toISOString(),
+      checkInTime: checkInTime.format(),
+      checkOutTime: checkOutTime ? checkOutTime.format() : 'Not available',
+      shiftStart: shiftStart.format(),
+      shiftEnd: shiftEnd.format(),
+      isOvernightShift: shiftEnd.isBefore(shiftStart),
     });
 
-    let status;
-    const earlyThreshold = new Date(shiftStart);
-    earlyThreshold.setMinutes(earlyThreshold.getMinutes() - 30);
-
-    if (checkInDate < earlyThreshold) {
-      status = 'overtime-started';
-    } else if (checkInDate < shiftStart) {
-      status = 'early';
-    } else if (checkInDate > shiftEnd) {
-      status = 'overtime-started';
-    } else {
-      status = 'on-time';
-    }
-
+    const status = this.determineStatus(
+      checkInTime,
+      checkOutTime,
+      shiftStart,
+      shiftEnd,
+    );
     debugSteps.push({ step: 'Initial status determination', status: status });
 
-    // Check checkout time if available
-    if (internalAttendance.checkOutTime) {
-      const checkOutDate = new Date(internalAttendance.checkOutTime);
-      if (checkOutDate > shiftEnd) {
-        status = 'overtime-ended';
-      }
-      debugSteps.push({
-        step: 'Status after considering check-out',
-        status: status,
-      });
-    }
-
-    // Check for approved overtime
-    const approvedOvertime = overtimeRequests.find(
-      (r) =>
-        r.status === 'approved' &&
-        new Date(r.startTime) <= checkInDate &&
-        new Date(r.endTime) >= checkInDate,
+    const overtimeDuration = this.calculateOvertimeDuration(
+      checkInTime,
+      checkOutTime,
+      shiftStart,
+      shiftEnd,
     );
+    debugSteps.push({
+      step: 'Overtime Calculation',
+      overtimeDuration: `${overtimeDuration} minutes`,
+      isComplete: checkOutTime ? 'Yes' : 'No (Check-out time not available)',
+    });
 
+    const approvedOvertime = this.checkApprovedOvertime(
+      checkInTime,
+      overtimeRequests,
+    );
     if (approvedOvertime) {
-      status = 'overtime-started';
       debugSteps.push({
         step: 'Approved Overtime',
         message: 'This check-in is within an approved overtime period',
       });
-    } else if (status === 'overtime-started') {
+    } else if (status.includes('overtime')) {
       debugSteps.push({
         step: 'Potential Unauthorized Overtime',
         message:
-          'This check-in is considered overtime but there is no approved overtime request',
+          'This check-in/out is considered overtime but there is no approved overtime request',
       });
     }
 
@@ -577,38 +563,159 @@ export class AttendanceProcessingService {
           ? 'Status mismatch requires investigation'
           : 'Calculated status matches stored status',
     });
-    // After determining the final status
-    let overtimeDuration = 0;
-    if (status.includes('overtime')) {
-      if (checkInDate < shiftStart) {
-        overtimeDuration +=
-          (shiftStart.getTime() - checkInDate.getTime()) / (1000 * 60); // in minutes
-      }
-      if (internalAttendance.checkOutTime) {
-        const checkOutDate = new Date(internalAttendance.checkOutTime);
-        if (checkOutDate > shiftEnd) {
-          overtimeDuration +=
-            (checkOutDate.getTime() - shiftEnd.getTime()) / (1000 * 60);
-        }
-      }
+
+    if (!checkOutTime) {
+      debugSteps.push({
+        step: 'Missing Check-out Warning',
+        message:
+          'No check-out time recorded. Overtime calculation may be incomplete.',
+      });
     }
 
     debugSteps.push({
-      step: 'Overtime Calculation',
-      overtimeDuration: `${Math.round(overtimeDuration)} minutes`,
-      isComplete: internalAttendance.checkOutTime
-        ? 'Yes'
-        : 'No (Check-out time not available)',
-    });
-
-    debugSteps.push({
-      step: 'Attendance Times',
-      checkInTime: checkInTime,
-      checkOutTime: internalAttendance.checkOutTime || 'Not available',
-      shiftStart: shiftStart.toISOString(),
-      shiftEnd: shiftEnd.toISOString(),
+      step: 'Grace Period Info',
+      earlyGracePeriod: `${this.GRACE_PERIOD_MINUTES} minutes`,
+      lateGracePeriod: `${this.GRACE_PERIOD_MINUTES} minutes`,
     });
 
     return debugSteps;
+  }
+
+  private getCheckInTime(
+    internalAttendance: any,
+    externalAttendance: any,
+  ): moment.Moment | null {
+    const internalTime = internalAttendance?.checkInTime
+      ? moment.tz(internalAttendance.checkInTime, this.TIMEZONE)
+      : null;
+    const externalTime = externalAttendance?.sj
+      ? moment.tz(externalAttendance.sj, this.TIMEZONE)
+      : null;
+    return internalTime || externalTime;
+  }
+
+  private getCheckOutTime(
+    internalAttendance: any,
+    externalAttendance: any,
+  ): moment.Moment | null {
+    const internalTime = internalAttendance?.checkOutTime
+      ? moment.tz(internalAttendance.checkOutTime, this.TIMEZONE)
+      : null;
+    const externalTime = externalAttendance?.sj
+      ? moment.tz(externalAttendance.sj, this.TIMEZONE)
+      : null;
+    // Assuming 01:07 is a check-out, we'll use it if it's after midnight and before 12:00
+    if (externalTime && externalTime.hour() < 12) {
+      return externalTime;
+    }
+    return internalTime;
+  }
+
+  private calculateShiftTimes(
+    checkTime: moment.Moment,
+    shift: any,
+  ): { shiftStart: moment.Moment; shiftEnd: moment.Moment } {
+    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+
+    let shiftStart = moment(checkTime)
+      .tz(this.TIMEZONE)
+      .startOf('day')
+      .add(startHour, 'hours')
+      .add(startMinute, 'minutes');
+    let shiftEnd = moment(checkTime)
+      .tz(this.TIMEZONE)
+      .startOf('day')
+      .add(endHour, 'hours')
+      .add(endMinute, 'minutes');
+
+    // If check time is before noon and after midnight, assume it's for the previous day's shift
+    if (checkTime.hour() < 12 && checkTime.hour() >= 0) {
+      shiftStart.subtract(1, 'day');
+      shiftEnd.subtract(1, 'day');
+    }
+
+    // Handle overnight shifts
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    return { shiftStart, shiftEnd };
+  }
+
+  private determineStatus(
+    checkInTime: moment.Moment,
+    checkOutTime: moment.Moment | null,
+    shiftStart: moment.Moment,
+    shiftEnd: moment.Moment,
+  ): string {
+    const earlyThreshold = moment(shiftStart).subtract(
+      this.GRACE_PERIOD_MINUTES,
+      'minutes',
+    );
+    const lateThreshold = moment(shiftStart).add(
+      this.GRACE_PERIOD_MINUTES,
+      'minutes',
+    );
+
+    if (checkInTime.isBefore(earlyThreshold)) {
+      return 'overtime-started';
+    } else if (checkInTime.isBetween(earlyThreshold, shiftStart, null, '[)')) {
+      return 'early';
+    } else if (checkInTime.isBetween(shiftStart, lateThreshold, null, '[)')) {
+      return 'on-time';
+    } else if (
+      checkInTime.isAfter(lateThreshold) &&
+      checkInTime.isBefore(shiftEnd)
+    ) {
+      return 'late';
+    }
+
+    if (checkOutTime) {
+      if (checkOutTime.isAfter(shiftEnd)) {
+        return 'overtime-ended';
+      }
+    }
+
+    return 'unknown';
+  }
+
+  private calculateOvertimeDuration(
+    checkInTime: moment.Moment,
+    checkOutTime: moment.Moment | null,
+    shiftStart: moment.Moment,
+    shiftEnd: moment.Moment,
+  ): number {
+    let overtimeDuration = 0;
+
+    if (checkInTime.isBefore(shiftStart)) {
+      overtimeDuration += moment
+        .duration(shiftStart.diff(checkInTime))
+        .asMinutes();
+    }
+
+    if (checkOutTime && checkOutTime.isAfter(shiftEnd)) {
+      overtimeDuration += moment
+        .duration(checkOutTime.diff(shiftEnd))
+        .asMinutes();
+    }
+
+    return Math.min(Math.round(overtimeDuration), this.MAX_OVERTIME_MINUTES);
+  }
+
+  private checkApprovedOvertime(
+    checkTime: moment.Moment,
+    overtimeRequests: any[],
+  ): boolean {
+    return overtimeRequests.some(
+      (request) =>
+        request.status === 'approved' &&
+        checkTime.isBetween(
+          moment(request.startTime),
+          moment(request.endTime),
+          null,
+          '[]',
+        ),
+    );
   }
 }
