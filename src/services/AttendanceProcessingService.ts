@@ -29,6 +29,7 @@ export class AttendanceProcessingService {
   private readonly TIMEZONE = 'Asia/Bangkok';
   private readonly GRACE_PERIOD_MINUTES = 30;
   private readonly MAX_OVERTIME_MINUTES = 24 * 60; // 24 hours
+  private readonly OVERTIME_INCREMENT_MINUTES = 30;
 
   constructor() {
     this.holidayService = new HolidayService();
@@ -485,16 +486,24 @@ export class AttendanceProcessingService {
     const { checkInTime, checkOutTime } = this.determineCheckTimes(
       internalAttendance,
       externalAttendance,
-    );
-    const { shiftStart, shiftEnd } = this.calculateShiftTimes(
-      checkInTime || moment(),
       shift,
     );
+    const shiftStart = moment
+      .tz(checkInTime, this.TIMEZONE)
+      .set({
+        hour: parseInt(shift.startTime.split(':')[0]),
+        minute: parseInt(shift.startTime.split(':')[1]),
+      });
+    const shiftEnd = moment(shiftStart).set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+    });
+    if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, 'day');
 
     debugSteps.push({
       step: 'Processed Times',
-      checkInTime: checkInTime?.format(),
-      checkOutTime: checkOutTime?.format(),
+      checkInTime: checkInTime.format(),
+      checkOutTime: checkOutTime?.format() || 'Not available',
       shiftStart: shiftStart.format(),
       shiftEnd: shiftEnd.format(),
     });
@@ -515,9 +524,10 @@ export class AttendanceProcessingService {
     );
     debugSteps.push({ step: 'Overtime Calculation', overtimeDuration });
 
-    const isApprovedOvertime = checkInTime
-      ? this.checkApprovedOvertime(checkInTime, overtimeRequests)
-      : false;
+    const isApprovedOvertime = this.checkApprovedOvertime(
+      checkInTime,
+      overtimeRequests,
+    );
     debugSteps.push({ step: 'Overtime Approval', isApprovedOvertime });
 
     const finalStatus = this.determineFinalStatus(
@@ -540,43 +550,46 @@ export class AttendanceProcessingService {
   private determineCheckTimes(
     internalAttendance: any,
     externalAttendance: any,
+    shift: any,
   ): { checkInTime: moment.Moment; checkOutTime: moment.Moment | null } {
-    let checkInTime: moment.Moment;
+    let checkInTime: moment.Moment | null = null;
     let checkOutTime: moment.Moment | null = null;
 
-    // Determine check-in time
+    const shiftStart = moment
+      .tz(internalAttendance?.date || externalAttendance?.date, this.TIMEZONE)
+      .set({
+        hour: parseInt(shift.startTime.split(':')[0]),
+        minute: parseInt(shift.startTime.split(':')[1]),
+      });
+    const shiftEnd = moment(shiftStart).set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+    });
+    if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, 'day');
+
     if (internalAttendance?.checkInTime) {
       checkInTime = moment.tz(internalAttendance.checkInTime, this.TIMEZONE);
     } else if (externalAttendance?.sj) {
-      checkInTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
-    } else {
-      // If no check-in time is found, use the current time as a fallback
-      checkInTime = moment.tz(this.TIMEZONE);
-      console.warn('No check-in time found. Using current time as fallback.');
-    }
-
-    // Determine check-out time
-    if (internalAttendance?.checkOutTime) {
-      checkOutTime = moment.tz(internalAttendance.checkOutTime, this.TIMEZONE);
-    } else if (
-      externalAttendance &&
-      moment(externalAttendance.sj).hour() < 12
-    ) {
-      // Treat early morning external record as check-out
-      checkOutTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
-      // If this is a check-out, and we don't have a check-in, use the shift start as check-in
+      const externalTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
       if (
-        !internalAttendance?.checkInTime &&
-        !externalAttendance?.checkInTime
+        externalTime.isBefore(shiftStart) &&
+        externalTime.isAfter(shiftStart.clone().subtract(12, 'hours'))
       ) {
-        checkInTime = moment
-          .tz(externalAttendance.date, this.TIMEZONE)
-          .hour(14) // Assuming shift starts at 14:00
-          .minute(0);
+        checkInTime = externalTime;
+      } else if (
+        externalTime.isAfter(shiftEnd) ||
+        externalTime.isBefore(shiftStart.clone().subtract(12, 'hours'))
+      ) {
+        checkOutTime = externalTime;
+        checkInTime = shiftStart; // Assume check-in at shift start if only check-out is present
       }
     }
 
-    return { checkInTime, checkOutTime };
+    if (internalAttendance?.checkOutTime) {
+      checkOutTime = moment.tz(internalAttendance.checkOutTime, this.TIMEZONE);
+    }
+
+    return { checkInTime: checkInTime!, checkOutTime };
   }
 
   private calculateShiftTimes(checkTime: moment.Moment, shift: any) {
@@ -643,14 +656,14 @@ export class AttendanceProcessingService {
   }
 
   private calculateOvertimeDuration(
-    checkInTime: moment.Moment | null,
+    checkInTime: moment.Moment,
     checkOutTime: moment.Moment | null,
     shiftStart: moment.Moment,
     shiftEnd: moment.Moment,
-  ) {
+  ): number {
     let overtimeDuration = 0;
 
-    if (checkInTime && checkInTime.isBefore(shiftStart)) {
+    if (checkInTime.isBefore(shiftStart)) {
       overtimeDuration += shiftStart.diff(checkInTime, 'minutes');
     }
 
@@ -658,7 +671,14 @@ export class AttendanceProcessingService {
       overtimeDuration += checkOutTime.diff(shiftEnd, 'minutes');
     }
 
-    return Math.min(overtimeDuration, this.MAX_OVERTIME_MINUTES);
+    // Round up to the nearest 30-minute increment
+    overtimeDuration =
+      Math.ceil(overtimeDuration / this.OVERTIME_INCREMENT_MINUTES) *
+      this.OVERTIME_INCREMENT_MINUTES;
+
+    return overtimeDuration >= this.OVERTIME_INCREMENT_MINUTES
+      ? overtimeDuration
+      : 0;
   }
 
   private checkApprovedOvertime(
