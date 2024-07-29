@@ -428,6 +428,12 @@ export class AttendanceService {
       `Selected check-out: ${checkOut ? JSON.stringify(checkOut) : 'No check-out'}`,
     );
 
+    const { status, isOvertime, overtimeDuration } = this.determineStatus(
+      checkIn,
+      checkOut,
+      shift,
+    );
+
     const result: AttendanceRecord = {
       ...checkIn,
       checkOutTime: checkOut.checkOutTime || checkOut.checkInTime,
@@ -435,7 +441,12 @@ export class AttendanceService {
       checkOutAddress: checkOut.checkOutAddress || checkOut.checkInAddress,
       checkOutDeviceSerial:
         checkOut.checkOutDeviceSerial || checkOut.checkInDeviceSerial,
-      status: this.determineStatus(checkIn, checkOut, shift),
+      status,
+      isOvertime,
+      overtimeStartTime: isOvertime
+        ? moment(shift.endTime, 'HH:mm').toDate()
+        : null,
+      overtimeEndTime: isOvertime ? checkOut.checkOutTime : null,
     };
 
     logMessage(`Final result: ${JSON.stringify(result)}`);
@@ -446,7 +457,7 @@ export class AttendanceService {
     checkIn: AttendanceRecord,
     checkOut: AttendanceRecord,
     shift: ShiftData,
-  ): string {
+  ): { status: string; isOvertime: boolean; overtimeDuration: number } {
     const checkInTime = moment(checkIn.checkInTime);
     const checkOutTime = moment(checkOut.checkOutTime || checkOut.checkInTime);
     const shiftStart = moment(checkIn.date).set({
@@ -466,21 +477,29 @@ export class AttendanceService {
       `Determining status: Check-in: ${checkInTime.format()}, Check-out: ${checkOutTime.format()}, Shift start: ${shiftStart.format()}, Shift end: ${shiftEnd.format()}`,
     );
 
+    let status: string;
+    let isOvertime = false;
+    let overtimeDuration = 0;
+
     if (checkOutTime.isAfter(shiftEnd)) {
-      return 'overtime-ended';
+      status = 'overtime-ended';
+      isOvertime = true;
+      overtimeDuration = checkOutTime.diff(shiftEnd, 'minutes');
     } else if (checkInTime.isBefore(shiftStart)) {
-      return 'early-check-in';
+      status = 'early-check-in';
     } else if (!checkOut.checkOutTime) {
-      return 'checked-in';
+      status = 'checked-in';
     } else {
-      return 'checked-out';
+      status = 'checked-out';
     }
+
+    return { status, isOvertime, overtimeDuration };
   }
 
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    const checkInTime = moment.tz(external.sj, 'Asia/Bangkok');
+    const checkInTime = moment(external.sj);
     logMessage(
       `Converting external record. Raw sj: ${external.sj}, Parsed: ${checkInTime.format()}`,
     );
