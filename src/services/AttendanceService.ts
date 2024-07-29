@@ -406,33 +406,34 @@ export class AttendanceService {
     // Group records by date
     const recordsByDate = this.groupRecordsByDate(allRecords, shift);
 
-    // Get the latest date
-    const latestDate = Object.keys(recordsByDate).sort().pop();
-    if (!latestDate) {
-      logMessage('No valid dates found');
-      return null;
-    }
+    // Get the latest date for each user
+    const latestDatesByUser: Record<string, string> = {};
+    Object.keys(recordsByDate).forEach((key) => {
+      const [date, userId] = key.split('-');
+      if (!latestDatesByUser[userId] || date > latestDatesByUser[userId]) {
+        latestDatesByUser[userId] = date;
+      }
+    });
 
-    const latestRecords = recordsByDate[latestDate];
-    logMessage(
-      `Latest date: ${latestDate}, Records: ${JSON.stringify(latestRecords)}`,
+    // Process the latest records for each user
+    const latestRecordsByUser = Object.entries(latestDatesByUser).map(
+      ([userId, date]) => {
+        const key = `${date}-${userId}`;
+        const records = recordsByDate[key];
+        const pairedRecords = this.pairCheckInCheckOut(records);
+        return this.processAttendancePair(
+          pairedRecords[pairedRecords.length - 1],
+          shift,
+        );
+      },
     );
 
-    // Pair check-ins with check-outs
-    const pairedRecords = this.pairCheckInCheckOut(latestRecords);
-    logMessage(`Paired records: ${JSON.stringify(pairedRecords)}`);
-
-    // Get the latest complete pair or the last pair if no complete pair exists
-    const latestPair = pairedRecords[pairedRecords.length - 1];
-
-    if (!latestPair) {
-      logMessage('No valid attendance pair found');
-      return null;
-    }
-
-    const result = this.processAttendancePair(latestPair, shift);
-    logMessage(`Final result: ${JSON.stringify(result)}`);
-    return result;
+    // Return the latest record overall
+    return (
+      latestRecordsByUser.sort((a, b) =>
+        moment(b.checkInTime).diff(moment(a.checkInTime)),
+      )[0] || null
+    );
   }
 
   private groupRecordsByDate(
@@ -447,7 +448,7 @@ export class AttendanceService {
       if (recordDate.hour() < shiftStartHour) {
         recordDate.subtract(1, 'day');
       }
-      const dateKey = recordDate.format('YYYY-MM-DD');
+      const dateKey = `${recordDate.format('YYYY-MM-DD')}-${record.userId}`;
       if (!recordsByDate[dateKey]) {
         recordsByDate[dateKey] = [];
       }
@@ -497,25 +498,11 @@ export class AttendanceService {
     pair: { checkIn: AttendanceRecord; checkOut: AttendanceRecord | null },
     shift: ShiftData,
   ): AttendanceRecord {
-    const timezone = 'Asia/Bangkok';
     const checkIn = pair.checkIn;
     const checkOut = pair.checkOut;
 
-    const { status, isOvertime, overtimeDuration } = this.determineStatus(
-      checkIn,
-      checkOut,
-      shift,
-    );
-
-    const shiftEnd = moment(checkIn.checkInTime)
-      .tz(timezone)
-      .startOf('day')
-      .set({
-        hour: parseInt(shift.endTime.split(':')[0]),
-        minute: parseInt(shift.endTime.split(':')[1]),
-        second: 0,
-        millisecond: 0,
-      });
+    const { status, isOvertime, overtimeDuration, overtimeStartTime } =
+      this.determineStatus(checkIn, checkOut, shift);
 
     return {
       ...checkIn,
@@ -531,7 +518,7 @@ export class AttendanceService {
         : checkIn.checkOutDeviceSerial,
       status,
       isOvertime,
-      overtimeStartTime: isOvertime ? shiftEnd.toDate() : null,
+      overtimeStartTime,
       overtimeEndTime:
         isOvertime && (checkOut || checkIn.checkOutTime)
           ? checkOut
@@ -545,7 +532,12 @@ export class AttendanceService {
     checkIn: AttendanceRecord,
     checkOut: AttendanceRecord | null,
     shift: ShiftData,
-  ): { status: string; isOvertime: boolean; overtimeDuration: number } {
+  ): {
+    status: string;
+    isOvertime: boolean;
+    overtimeDuration: number;
+    overtimeStartTime: Date | null;
+  } {
     const timezone = 'Asia/Bangkok';
     const checkInTime = moment(checkIn.checkInTime).tz(timezone);
     const checkOutTime = checkOut
@@ -581,6 +573,7 @@ export class AttendanceService {
     let status: string;
     let isOvertime = false;
     let overtimeDuration = 0;
+    let overtimeStartTime: Date | null = null;
 
     if (!checkOutTime) {
       status = 'checked-in';
@@ -588,13 +581,17 @@ export class AttendanceService {
       status = 'overtime-ended';
       isOvertime = true;
       overtimeDuration = checkOutTime.diff(shiftEnd, 'minutes');
+      overtimeStartTime = shiftEnd.toDate();
     } else if (checkInTime.isBefore(shiftStart)) {
       status = 'early-check-in';
+      isOvertime = true;
+      overtimeDuration = shiftStart.diff(checkInTime, 'minutes');
+      overtimeStartTime = checkInTime.toDate();
     } else {
       status = 'checked-out';
     }
 
-    return { status, isOvertime, overtimeDuration };
+    return { status, isOvertime, overtimeDuration, overtimeStartTime };
   }
 
   private convertExternalToInternal(
