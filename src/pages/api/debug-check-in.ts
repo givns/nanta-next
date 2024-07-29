@@ -30,7 +30,6 @@ export default async function handler(
       timestamp: new Date().toISOString(),
     };
 
-    // Fetch user data
     const user = await prisma.user.findUnique({
       where: { employeeId },
       include: { assignedShift: true },
@@ -47,37 +46,40 @@ export default async function handler(
       assignedShift: user.assignedShift,
     };
 
-    // Fetch internal attendance
+    const queryDate = moment.tz(date as string, 'Asia/Bangkok').toDate();
+    const nextDay = moment(queryDate).add(1, 'day').toDate();
+
     debugInfo.internalAttendance = await prisma.attendance.findFirst({
       where: {
         userId: user.id,
-        date: date ? new Date(date as string) : undefined,
+        date: {
+          gte: queryDate,
+          lt: nextDay,
+        },
       },
-      orderBy: { checkInTime: 'desc' },
+      orderBy: { checkInTime: 'asc' },
     });
 
-    // Fetch external attendance
-    const { records, userInfo } =
-      await externalDbService.getDailyAttendanceRecords(employeeId);
+    const { records } = await externalDbService.getDailyAttendanceRecords(
+      employeeId,
+      2,
+    ); // Fetch 2 days to catch potential check-outs
     debugInfo.externalAttendance = records.find(
       (record) =>
-        moment(record.sj).format('YYYY-MM-DD') ===
-        moment(date as string).format('YYYY-MM-DD'),
+        moment(record.sj).isSameOrAfter(queryDate) &&
+        moment(record.sj).isBefore(nextDay),
     );
-    debugInfo.externalUserInfo = userInfo;
-    debugInfo.allExternalRecords = records;
 
-    // Fetch overtime requests
     const overtimeRequests = await prisma.overtimeRequest.findMany({
       where: {
         userId: user.id,
-        date: date ? new Date(date as string) : undefined,
+        date: queryDate,
+        status: 'approved',
       },
     });
 
-    // Process check-in time
-    debugInfo.processedCheckIn =
-      await attendanceProcessingService.processCheckInForDebug(
+    debugInfo.processedAttendance =
+      await attendanceProcessingService.processAttendance(
         debugInfo.internalAttendance,
         debugInfo.externalAttendance,
         user.assignedShift,

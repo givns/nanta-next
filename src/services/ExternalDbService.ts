@@ -55,18 +55,15 @@ export class ExternalDbService {
 
         const userInfoQuery = 'SELECT * FROM dt_user WHERE user_no = ?';
         const attendanceQuery = `
-    SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
-    FROM kt_jl kj
-    JOIN dt_user du ON kj.user_serial = du.user_serial
-    LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
-    WHERE du.user_no = ? 
-    AND kj.date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-    AND kj.date <= DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-    ORDER BY kj.sj ASC
-  `;
-
-        console.log('Executing attendance query:', attendanceQuery);
-        console.log('Query parameters:', [employeeId, days]);
+          SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
+          FROM kt_jl kj
+          JOIN dt_user du ON kj.user_serial = du.user_serial
+          LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
+          WHERE du.user_no = ? 
+          AND kj.date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+          AND kj.date <= DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+          ORDER BY kj.sj ASC
+        `;
 
         const [userInfoResult, attendanceResult] = await Promise.all([
           query<any[]>(userInfoQuery, [employeeId]),
@@ -78,7 +75,7 @@ export class ExternalDbService {
           JSON.stringify(userInfoResult, null, 2),
         );
         console.log(
-          'Attendance records:',
+          'Raw external attendance records:',
           JSON.stringify(attendanceResult, null, 2),
         );
 
@@ -98,7 +95,7 @@ export class ExternalDbService {
 
         return {
           userInfo: userInfoResult.length > 0 ? userInfoResult[0] : null,
-          records: attendanceResult,
+          records: processedRecords,
         };
       },
       3,

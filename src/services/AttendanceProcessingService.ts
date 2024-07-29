@@ -465,7 +465,8 @@ export class AttendanceProcessingService {
       }
     }
   }
-  public async processCheckInForDebug(
+
+  public async processAttendance(
     internalAttendance: any,
     externalAttendance: any,
     shift: any,
@@ -475,46 +476,27 @@ export class AttendanceProcessingService {
 
     debugSteps.push({
       step: 'Raw Data',
-      internalCheckIn: internalAttendance?.checkInTime,
-      internalCheckOut: internalAttendance?.checkOutTime,
-      externalCheckIn: externalAttendance?.sj,
-      shift: {
-        code: shift.shiftCode,
-        startTime: shift.startTime,
-        endTime: shift.endTime,
-      },
-      storedStatus: internalAttendance?.status,
+      internalAttendance,
+      externalAttendance,
+      shift,
+      overtimeRequests,
     });
 
-    const checkInTime = this.getCheckInTime(
+    const { checkInTime, checkOutTime } = this.determineCheckTimes(
       internalAttendance,
       externalAttendance,
     );
-    const checkOutTime = this.getCheckOutTime(
-      internalAttendance,
-      externalAttendance,
-    );
-
-    if (!checkInTime) {
-      debugSteps.push({
-        step: 'No Valid Check-In Time',
-        message: 'Could not determine a valid check-in time',
-      });
-      return debugSteps;
-    }
-
     const { shiftStart, shiftEnd } = this.calculateShiftTimes(
-      checkInTime,
+      checkInTime || moment(),
       shift,
     );
 
     debugSteps.push({
-      step: 'Shift Times',
-      checkInTime: checkInTime.format(),
-      checkOutTime: checkOutTime ? checkOutTime.format() : 'Not available',
+      step: 'Processed Times',
+      checkInTime: checkInTime?.format(),
+      checkOutTime: checkOutTime?.format(),
       shiftStart: shiftStart.format(),
       shiftEnd: shiftEnd.format(),
-      isOvernightShift: shiftEnd.isBefore(shiftStart),
     });
 
     const status = this.determineStatus(
@@ -523,7 +505,7 @@ export class AttendanceProcessingService {
       shiftStart,
       shiftEnd,
     );
-    debugSteps.push({ step: 'Initial status determination', status: status });
+    debugSteps.push({ step: 'Status Determination', status });
 
     const overtimeDuration = this.calculateOvertimeDuration(
       checkInTime,
@@ -531,111 +513,83 @@ export class AttendanceProcessingService {
       shiftStart,
       shiftEnd,
     );
-    debugSteps.push({
-      step: 'Overtime Calculation',
-      overtimeDuration: `${overtimeDuration} minutes`,
-      isComplete: checkOutTime ? 'Yes' : 'No (Check-out time not available)',
-    });
+    debugSteps.push({ step: 'Overtime Calculation', overtimeDuration });
 
-    const approvedOvertime = this.checkApprovedOvertime(
-      checkInTime,
-      overtimeRequests,
+    const isApprovedOvertime = checkInTime
+      ? this.checkApprovedOvertime(checkInTime, overtimeRequests)
+      : false;
+    debugSteps.push({ step: 'Overtime Approval', isApprovedOvertime });
+
+    const finalStatus = this.determineFinalStatus(
+      status,
+      isApprovedOvertime,
+      checkOutTime,
     );
-    if (approvedOvertime) {
-      debugSteps.push({
-        step: 'Approved Overtime',
-        message: 'This check-in is within an approved overtime period',
-      });
-    } else if (status.includes('overtime')) {
-      debugSteps.push({
-        step: 'Potential Unauthorized Overtime',
-        message:
-          'This check-in/out is considered overtime but there is no approved overtime request',
-      });
-    }
+    debugSteps.push({ step: 'Final Status', finalStatus });
 
-    debugSteps.push({
-      step: 'Final Status Determination',
-      calculatedStatus: status,
-      storedStatus: internalAttendance?.status,
-      explanation:
-        status !== internalAttendance?.status
-          ? 'Status mismatch requires investigation'
-          : 'Calculated status matches stored status',
-    });
-
-    if (!checkOutTime) {
-      debugSteps.push({
-        step: 'Missing Check-out Warning',
-        message:
-          'No check-out time recorded. Overtime calculation may be incomplete.',
-      });
-    }
-
-    debugSteps.push({
-      step: 'Grace Period Info',
-      earlyGracePeriod: `${this.GRACE_PERIOD_MINUTES} minutes`,
-      lateGracePeriod: `${this.GRACE_PERIOD_MINUTES} minutes`,
-    });
-
-    return debugSteps;
+    return {
+      checkInTime,
+      checkOutTime,
+      status: finalStatus,
+      overtimeDuration,
+      isApprovedOvertime,
+      debugSteps,
+    };
   }
 
-  private getCheckInTime(
+  private determineCheckTimes(
     internalAttendance: any,
     externalAttendance: any,
-  ): moment.Moment | null {
-    const internalTime = internalAttendance?.checkInTime
-      ? moment.tz(internalAttendance.checkInTime, this.TIMEZONE)
-      : null;
-    const externalTime = externalAttendance?.sj
-      ? moment.tz(externalAttendance.sj, this.TIMEZONE)
-      : null;
-    return internalTime || externalTime;
-  }
+  ): { checkInTime: moment.Moment; checkOutTime: moment.Moment | null } {
+    let checkInTime: moment.Moment;
+    let checkOutTime: moment.Moment | null = null;
 
-  private getCheckOutTime(
-    internalAttendance: any,
-    externalAttendance: any,
-  ): moment.Moment | null {
-    const internalTime = internalAttendance?.checkOutTime
-      ? moment.tz(internalAttendance.checkOutTime, this.TIMEZONE)
-      : null;
-    const externalTime = externalAttendance?.sj
-      ? moment.tz(externalAttendance.sj, this.TIMEZONE)
-      : null;
-    // Assuming 01:07 is a check-out, we'll use it if it's after midnight and before 12:00
-    if (externalTime && externalTime.hour() < 12) {
-      return externalTime;
-    }
-    return internalTime;
-  }
-
-  private calculateShiftTimes(
-    checkTime: moment.Moment,
-    shift: any,
-  ): { shiftStart: moment.Moment; shiftEnd: moment.Moment } {
-    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
-    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
-
-    let shiftStart = moment(checkTime)
-      .tz(this.TIMEZONE)
-      .startOf('day')
-      .add(startHour, 'hours')
-      .add(startMinute, 'minutes');
-    let shiftEnd = moment(checkTime)
-      .tz(this.TIMEZONE)
-      .startOf('day')
-      .add(endHour, 'hours')
-      .add(endMinute, 'minutes');
-
-    // If check time is before noon and after midnight, assume it's for the previous day's shift
-    if (checkTime.hour() < 12 && checkTime.hour() >= 0) {
-      shiftStart.subtract(1, 'day');
-      shiftEnd.subtract(1, 'day');
+    // Determine check-in time
+    if (internalAttendance?.checkInTime) {
+      checkInTime = moment.tz(internalAttendance.checkInTime, this.TIMEZONE);
+    } else if (externalAttendance?.sj) {
+      checkInTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
+    } else {
+      // If no check-in time is found, use the current time as a fallback
+      checkInTime = moment.tz(this.TIMEZONE);
+      console.warn('No check-in time found. Using current time as fallback.');
     }
 
-    // Handle overnight shifts
+    // Determine check-out time
+    if (internalAttendance?.checkOutTime) {
+      checkOutTime = moment.tz(internalAttendance.checkOutTime, this.TIMEZONE);
+    } else if (
+      externalAttendance &&
+      moment(externalAttendance.sj).hour() < 12
+    ) {
+      // Treat early morning external record as check-out
+      checkOutTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
+      // If this is a check-out, and we don't have a check-in, use the shift start as check-in
+      if (
+        !internalAttendance?.checkInTime &&
+        !externalAttendance?.checkInTime
+      ) {
+        checkInTime = moment
+          .tz(externalAttendance.date, this.TIMEZONE)
+          .hour(14) // Assuming shift starts at 14:00
+          .minute(0);
+      }
+    }
+
+    return { checkInTime, checkOutTime };
+  }
+
+  private calculateShiftTimes(checkTime: moment.Moment, shift: any) {
+    const referenceDate = checkTime.clone().startOf('day');
+    let shiftStart = referenceDate.clone().set({
+      hour: parseInt(shift.startTime.split(':')[0]),
+      minute: parseInt(shift.startTime.split(':')[1]),
+    });
+    let shiftEnd = referenceDate.clone().set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+    });
+
     if (shiftEnd.isBefore(shiftStart)) {
       shiftEnd.add(1, 'day');
     }
@@ -644,11 +598,15 @@ export class AttendanceProcessingService {
   }
 
   private determineStatus(
-    checkInTime: moment.Moment,
+    checkInTime: moment.Moment | null,
     checkOutTime: moment.Moment | null,
     shiftStart: moment.Moment,
     shiftEnd: moment.Moment,
-  ): string {
+  ) {
+    if (!checkInTime) {
+      return 'missing-check-in';
+    }
+
     const earlyThreshold = moment(shiftStart).subtract(
       this.GRACE_PERIOD_MINUTES,
       'minutes',
@@ -658,55 +616,55 @@ export class AttendanceProcessingService {
       'minutes',
     );
 
+    let status: string;
+
+    // Determine check-in status
     if (checkInTime.isBefore(earlyThreshold)) {
-      return 'overtime-started';
+      status = 'early-overtime';
     } else if (checkInTime.isBetween(earlyThreshold, shiftStart, null, '[)')) {
-      return 'early';
+      status = 'early';
     } else if (checkInTime.isBetween(shiftStart, lateThreshold, null, '[)')) {
-      return 'on-time';
-    } else if (
-      checkInTime.isAfter(lateThreshold) &&
-      checkInTime.isBefore(shiftEnd)
-    ) {
-      return 'late';
+      status = 'on-time';
+    } else {
+      status = 'late';
     }
 
+    // Adjust status based on check-out time
     if (checkOutTime) {
       if (checkOutTime.isAfter(shiftEnd)) {
-        return 'overtime-ended';
+        status += '-overtime';
       }
+      status += '-complete';
+    } else {
+      status += '-incomplete';
     }
 
-    return 'unknown';
+    return status;
   }
 
   private calculateOvertimeDuration(
-    checkInTime: moment.Moment,
+    checkInTime: moment.Moment | null,
     checkOutTime: moment.Moment | null,
     shiftStart: moment.Moment,
     shiftEnd: moment.Moment,
-  ): number {
+  ) {
     let overtimeDuration = 0;
 
-    if (checkInTime.isBefore(shiftStart)) {
-      overtimeDuration += moment
-        .duration(shiftStart.diff(checkInTime))
-        .asMinutes();
+    if (checkInTime && checkInTime.isBefore(shiftStart)) {
+      overtimeDuration += shiftStart.diff(checkInTime, 'minutes');
     }
 
     if (checkOutTime && checkOutTime.isAfter(shiftEnd)) {
-      overtimeDuration += moment
-        .duration(checkOutTime.diff(shiftEnd))
-        .asMinutes();
+      overtimeDuration += checkOutTime.diff(shiftEnd, 'minutes');
     }
 
-    return Math.min(Math.round(overtimeDuration), this.MAX_OVERTIME_MINUTES);
+    return Math.min(overtimeDuration, this.MAX_OVERTIME_MINUTES);
   }
 
   private checkApprovedOvertime(
     checkTime: moment.Moment,
     overtimeRequests: any[],
-  ): boolean {
+  ) {
     return overtimeRequests.some(
       (request) =>
         request.status === 'approved' &&
@@ -717,5 +675,19 @@ export class AttendanceProcessingService {
           '[]',
         ),
     );
+  }
+
+  private determineFinalStatus(
+    initialStatus: string,
+    isApprovedOvertime: boolean,
+    checkOutTime: moment.Moment | null,
+  ) {
+    if (initialStatus === 'early-overtime' && isApprovedOvertime) {
+      return checkOutTime ? 'overtime-ended' : 'overtime-started';
+    }
+    if (checkOutTime) {
+      return initialStatus + '-ended';
+    }
+    return initialStatus + '-started';
   }
 }
