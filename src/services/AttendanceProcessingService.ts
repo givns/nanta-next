@@ -488,12 +488,10 @@ export class AttendanceProcessingService {
       externalAttendance,
       shift,
     );
-    const shiftStart = moment
-      .tz(checkInTime, this.TIMEZONE)
-      .set({
-        hour: parseInt(shift.startTime.split(':')[0]),
-        minute: parseInt(shift.startTime.split(':')[1]),
-      });
+    const shiftStart = moment.tz(checkInTime, this.TIMEZONE).set({
+      hour: parseInt(shift.startTime.split(':')[0]),
+      minute: parseInt(shift.startTime.split(':')[1]),
+    });
     const shiftEnd = moment(shiftStart).set({
       hour: parseInt(shift.endTime.split(':')[0]),
       minute: parseInt(shift.endTime.split(':')[1]),
