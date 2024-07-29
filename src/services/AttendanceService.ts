@@ -475,13 +475,10 @@ export class AttendanceService {
       }
       // Otherwise, look for the next record as a potential check-out
       else if (i + 1 < records.length) {
-        checkOut = records[i + 1];
-        // If the next record is from a different user or device, don't use it as check-out
-        if (
-          checkOut.userId !== checkIn.userId ||
-          checkOut.checkInDeviceSerial !== checkIn.checkInDeviceSerial
-        ) {
-          checkOut = null;
+        const nextRecord = records[i + 1];
+        // Use the next record as check-out if it's from the same user
+        if (nextRecord.userId === checkIn.userId) {
+          checkOut = nextRecord;
         }
       }
 
@@ -500,6 +497,7 @@ export class AttendanceService {
     pair: { checkIn: AttendanceRecord; checkOut: AttendanceRecord | null },
     shift: ShiftData,
   ): AttendanceRecord {
+    const timezone = 'Asia/Bangkok';
     const checkIn = pair.checkIn;
     const checkOut = pair.checkOut;
 
@@ -508,6 +506,16 @@ export class AttendanceService {
       checkOut,
       shift,
     );
+
+    const shiftEnd = moment(checkIn.checkInTime)
+      .tz(timezone)
+      .startOf('day')
+      .set({
+        hour: parseInt(shift.endTime.split(':')[0]),
+        minute: parseInt(shift.endTime.split(':')[1]),
+        second: 0,
+        millisecond: 0,
+      });
 
     return {
       ...checkIn,
@@ -523,9 +531,7 @@ export class AttendanceService {
         : checkIn.checkOutDeviceSerial,
       status,
       isOvertime,
-      overtimeStartTime: isOvertime
-        ? moment(shift.endTime, 'HH:mm').toDate()
-        : null,
+      overtimeStartTime: isOvertime ? shiftEnd.toDate() : null,
       overtimeEndTime:
         isOvertime && (checkOut || checkIn.checkOutTime)
           ? checkOut
@@ -540,30 +546,28 @@ export class AttendanceService {
     checkOut: AttendanceRecord | null,
     shift: ShiftData,
   ): { status: string; isOvertime: boolean; overtimeDuration: number } {
-    const checkInTime = moment(checkIn.checkInTime).tz('Asia/Bangkok');
+    const timezone = 'Asia/Bangkok';
+    const checkInTime = moment(checkIn.checkInTime).tz(timezone);
     const checkOutTime = checkOut
-      ? moment(checkOut.checkInTime).tz('Asia/Bangkok')
+      ? moment(checkOut.checkInTime).tz(timezone)
       : checkIn.checkOutTime
-        ? moment(checkIn.checkOutTime).tz('Asia/Bangkok')
+        ? moment(checkIn.checkOutTime).tz(timezone)
         : null;
 
-    const shiftStart = moment(checkIn.checkInTime)
-      .tz('Asia/Bangkok')
-      .set({
-        hour: parseInt(shift.startTime.split(':')[0]),
-        minute: parseInt(shift.startTime.split(':')[1]),
-        second: 0,
-        millisecond: 0,
-      });
+    const shiftDate = checkInTime.clone().startOf('day');
+    const shiftStart = shiftDate.clone().set({
+      hour: parseInt(shift.startTime.split(':')[0]),
+      minute: parseInt(shift.startTime.split(':')[1]),
+      second: 0,
+      millisecond: 0,
+    });
 
-    let shiftEnd = moment(checkIn.checkInTime)
-      .tz('Asia/Bangkok')
-      .set({
-        hour: parseInt(shift.endTime.split(':')[0]),
-        minute: parseInt(shift.endTime.split(':')[1]),
-        second: 0,
-        millisecond: 0,
-      });
+    let shiftEnd = shiftDate.clone().set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+      second: 0,
+      millisecond: 0,
+    });
 
     // Handle overnight shift
     if (shiftEnd.isBefore(shiftStart)) {
