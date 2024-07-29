@@ -105,13 +105,11 @@ export class AttendanceService {
         `User found: ${user.id}, Assigned shift: ${user.assignedShift.id}`,
       );
 
-      // Log the time range we're looking at
       const threeDaysAgo = moment().subtract(3, 'days').startOf('day');
       console.log(
         `Fetching attendance data from ${threeDaysAgo.format()} to now`,
       );
 
-      // Fetch attendance data
       const [internalAttendances, externalAttendanceData] = await Promise.all([
         prisma.attendance.findMany({
           where: {
@@ -132,7 +130,7 @@ export class AttendanceService {
         JSON.stringify(externalAttendanceData, null, 2),
       );
 
-      const latestAttendance = this.getLatestAttendanceRecord(
+      const latestAttendance = await this.getLatestAttendanceRecord(
         internalAttendances,
         externalAttendanceData.records,
         user.assignedShift as ShiftData,
@@ -147,6 +145,7 @@ export class AttendanceService {
       const today = now.clone().startOf('day');
       const shift = user.assignedShift;
       let shiftStart, shiftEnd;
+
       if (latestAttendance) {
         const shiftDate = moment.tz(latestAttendance.date, 'Asia/Bangkok');
         shiftStart = shiftDate.clone().set({
@@ -162,7 +161,6 @@ export class AttendanceService {
           shiftEnd.add(1, 'day');
         }
       } else {
-        // If there's no latest attendance, use current date for shift times
         const currentDate = moment();
         shiftStart = currentDate.clone().set({
           hour: parseInt(shift.startTime.split(':')[0]),
@@ -185,11 +183,9 @@ export class AttendanceService {
         user.id,
         today.toDate(),
       );
-
       console.log('Is work day:', isWorkDay);
       let isDayOff = !isWorkDay;
 
-      // For SHIFT104, check if it's a holiday
       if (user.assignedShift.shiftCode === 'SHIFT104') {
         const isShift104Holiday =
           await this.shift104HolidayService.isShift104Holiday(today.toDate());
@@ -225,7 +221,6 @@ export class AttendanceService {
       );
 
       let formattedApprovedOvertime: ApprovedOvertime | null = null;
-
       if (approvedOvertime) {
         formattedApprovedOvertime = {
           id: approvedOvertime.id,
@@ -245,25 +240,11 @@ export class AttendanceService {
         const checkInTime = moment(latestAttendance.checkInTime);
         const checkOutTime = moment(latestAttendance.checkOutTime);
 
-        const shiftDate = checkInTime.clone().startOf('day');
-        const shiftStart = shiftDate.clone().set({
-          hour: parseInt(shift.startTime.split(':')[0]),
-          minute: parseInt(shift.startTime.split(':')[1]),
-        });
-        let shiftEnd = shiftDate.clone().set({
-          hour: parseInt(shift.endTime.split(':')[0]),
-          minute: parseInt(shift.endTime.split(':')[1]),
-        });
-
         console.log('Potential overtime calculation:');
         console.log('Check-in time:', checkInTime.format());
         console.log('Check-out time:', checkOutTime.format());
         console.log('Shift start:', shiftStart.format());
         console.log('Shift end:', shiftEnd.format());
-
-        if (shiftEnd.isBefore(shiftStart)) {
-          shiftEnd.add(1, 'day');
-        }
 
         const thirtyMinutesBeforeShift = shiftStart
           .clone()
@@ -294,6 +275,7 @@ export class AttendanceService {
       } else if (latestAttendance) {
         isCheckingIn = false;
       }
+
       const result: AttendanceStatus = {
         user: {
           id: user.id,
@@ -377,20 +359,22 @@ export class AttendanceService {
     return attendance as AttendanceRecord | null;
   }
 
-  private getLatestAttendanceRecord(
+  private async getLatestAttendanceRecord(
     internalAttendances: PrismaAttendanceRecord[],
     externalRecords: ExternalCheckInData[],
     shift: ShiftData,
-  ): AttendanceRecord | null {
+  ): Promise<AttendanceRecord | null> {
     logMessage('Starting getLatestAttendanceRecord');
     logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
     logMessage(`External records: ${JSON.stringify(externalRecords)}`);
 
-    const convertedExternalRecords = externalRecords.map(
-      this.convertExternalToInternal,
+    const convertedExternalRecords = await Promise.all(
+      externalRecords.map((r) => this.convertExternalToInternal(r)),
+    );
+    logMessage(
+      `Converted external records: ${JSON.stringify(convertedExternalRecords)}`,
     );
 
-    // Combine and sort all records
     const allRecords = [...internalAttendances, ...convertedExternalRecords];
     allRecords.sort((a, b) =>
       moment(a.checkInTime).diff(moment(b.checkInTime)),
@@ -403,8 +387,8 @@ export class AttendanceService {
       return null;
     }
 
-    // Group records by date
     const recordsByDate = this.groupRecordsByDate(allRecords, shift);
+    logMessage(`Records grouped by date: ${JSON.stringify(recordsByDate)}`);
 
     // Get the latest date for each user
     const latestDatesByUser: Record<string, string> = {};
@@ -414,6 +398,7 @@ export class AttendanceService {
         latestDatesByUser[userId] = date;
       }
     });
+    logMessage(`Latest dates by user: ${JSON.stringify(latestDatesByUser)}`);
 
     // Process the latest records for each user
     const latestRecordsByUser = Object.entries(latestDatesByUser)
@@ -421,9 +406,13 @@ export class AttendanceService {
         const key = `${date}-${userId}`;
         const records = recordsByDate[key];
         if (!records || records.length === 0) {
-          return null; // Return null if no records found for this user and date
+          logMessage(`No records found for user ${userId} on date ${date}`);
+          return null;
         }
         const pairedRecords = this.pairCheckInCheckOut(records);
+        logMessage(
+          `Paired records for user ${userId} on date ${date}: ${JSON.stringify(pairedRecords)}`,
+        );
         return pairedRecords.length > 0
           ? this.processAttendancePair(
               pairedRecords[pairedRecords.length - 1],
@@ -431,14 +420,20 @@ export class AttendanceService {
             )
           : null;
       })
-      .filter((record) => record !== null); // Filter out null records
+      .filter((record) => record !== null);
+
+    logMessage(
+      `Latest records by user: ${JSON.stringify(latestRecordsByUser)}`,
+    );
 
     // Return the latest record overall
-    return (
+    const result =
       latestRecordsByUser.sort((a, b) =>
         moment(b!.checkInTime).diff(moment(a!.checkInTime)),
-      )[0] || null
-    );
+      )[0] || null;
+
+    logMessage(`Final result: ${JSON.stringify(result)}`);
+    return result;
   }
 
   private groupRecordsByDate(
@@ -607,15 +602,34 @@ export class AttendanceService {
     return { status, isOvertime, overtimeDuration, overtimeStartTime };
   }
 
-  private convertExternalToInternal(
+  private async convertExternalToInternal(
     external: ExternalCheckInData,
-  ): AttendanceRecord {
+  ): Promise<AttendanceRecord> {
     const checkInTime = moment.tz(external.sj, 'Asia/Bangkok');
+
+    // Find the user by employeeId (which matches external user_no)
+    const user = await prisma.user.findUnique({
+      where: { employeeId: external.user_no },
+    });
+
+    if (!user) {
+      logMessage(
+        `No internal user found for external user_no: ${external.user_no}`,
+      );
+      throw new Error(
+        `No internal user found for external user_no: ${external.user_no}`,
+      );
+    }
+
+    logMessage(
+      `Converted external record for user ${user.id}: ${JSON.stringify(external)}`,
+    );
+
     return {
       id: external.bh.toString(),
-      userId: external.user_serial.toString(),
+      userId: user.id, // Use the internal user ID
       date: checkInTime.startOf('day').toDate(),
-      checkInTime: checkInTime.toDate(), // Use the actual time from sj
+      checkInTime: checkInTime.toDate(),
       checkOutTime: null,
       isOvertime: false,
       overtimeStartTime: null,
