@@ -484,7 +484,10 @@ export class AttendanceService {
     external: ExternalCheckInData,
   ): AttendanceRecord {
     const checkInTime = moment.tz(external.sj, 'Asia/Bangkok');
-    logMessage('Converted check-in time:, ${checkInTime.format()}');
+    logMessage(
+      `Converting external record. Raw sj: ${external.sj}, Parsed: ${checkInTime.format()}`,
+    );
+
     return {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
