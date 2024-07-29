@@ -467,6 +467,133 @@ export class AttendanceProcessingService {
     }
   }
 
+  private determineCheckTimes(
+    internalAttendance: any,
+    externalAttendance: any,
+    shift: any,
+  ): { checkInTime: moment.Moment; checkOutTime: moment.Moment | null } {
+    let checkInTime: moment.Moment;
+    let checkOutTime: moment.Moment | null = null;
+
+    if (internalAttendance?.checkInTime) {
+      checkInTime = moment.tz(internalAttendance.checkInTime, this.TIMEZONE);
+    } else if (externalAttendance?.sj) {
+      checkInTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
+    } else {
+      // If no check-in time is found, use the shift start time as a fallback
+      const dateToUse =
+        internalAttendance?.date || externalAttendance?.date || moment();
+      checkInTime = moment.tz(dateToUse, this.TIMEZONE).set({
+        hour: parseInt(shift.startTime.split(':')[0]),
+        minute: parseInt(shift.startTime.split(':')[1]),
+        second: 0,
+        millisecond: 0,
+      });
+      console.warn(
+        'No check-in time found. Using shift start time as fallback.',
+      );
+    }
+
+    if (internalAttendance?.checkOutTime) {
+      checkOutTime = moment.tz(internalAttendance.checkOutTime, this.TIMEZONE);
+    } else if (
+      externalAttendance?.sj &&
+      moment(externalAttendance.sj).hour() < 12
+    ) {
+      // Treat early morning external record as check-out
+      checkOutTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
+    }
+
+    return { checkInTime, checkOutTime };
+  }
+
+  private calculateShiftTimes(
+    date: moment.Moment,
+    shift: any,
+  ): { shiftStart: moment.Moment; shiftEnd: moment.Moment } {
+    const shiftStart = moment.tz(date, this.TIMEZONE).set({
+      hour: parseInt(shift.startTime.split(':')[0]),
+      minute: parseInt(shift.startTime.split(':')[1]),
+      second: 0,
+      millisecond: 0,
+    });
+
+    const shiftEnd = moment.tz(date, this.TIMEZONE).set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+      second: 0,
+      millisecond: 0,
+    });
+
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    return { shiftStart, shiftEnd };
+  }
+
+  private calculateOvertimeDuration(
+    checkInTime: moment.Moment,
+    checkOutTime: moment.Moment | null,
+    shiftStart: moment.Moment,
+    shiftEnd: moment.Moment,
+  ): number {
+    let overtimeDuration = 0;
+
+    if (checkInTime.isBefore(shiftStart)) {
+      overtimeDuration += shiftStart.diff(checkInTime, 'minutes');
+    }
+
+    if (checkOutTime && checkOutTime.isAfter(shiftEnd)) {
+      overtimeDuration += checkOutTime.diff(shiftEnd, 'minutes');
+    }
+
+    // Round up to the nearest 30-minute increment
+    overtimeDuration =
+      Math.ceil(overtimeDuration / this.OVERTIME_INCREMENT_MINUTES) *
+      this.OVERTIME_INCREMENT_MINUTES;
+
+    return overtimeDuration >= this.OVERTIME_INCREMENT_MINUTES
+      ? overtimeDuration
+      : 0;
+  }
+
+  private determineStatus(
+    checkInTime: moment.Moment,
+    checkOutTime: moment.Moment | null,
+    shiftStart: moment.Moment,
+    shiftEnd: moment.Moment,
+  ): string {
+    const earlyThreshold = moment(shiftStart).subtract(
+      this.GRACE_PERIOD_MINUTES,
+      'minutes',
+    );
+    const lateThreshold = moment(shiftStart).add(
+      this.GRACE_PERIOD_MINUTES,
+      'minutes',
+    );
+
+    let status = '';
+
+    if (checkInTime.isBefore(earlyThreshold)) {
+      status = 'early-overtime';
+    } else if (checkInTime.isBetween(earlyThreshold, shiftStart, null, '[)')) {
+      status = 'early';
+    } else if (checkInTime.isBetween(shiftStart, lateThreshold, null, '[)')) {
+      status = 'on-time';
+    } else {
+      status = 'late';
+    }
+
+    if (!checkOutTime) {
+      status += '-incomplete';
+    } else if (checkOutTime.isAfter(shiftEnd)) {
+      status += '-overtime';
+    }
+
+    return status;
+  }
+
   public async processAttendance(
     internalAttendance: any,
     externalAttendance: any,
@@ -488,15 +615,10 @@ export class AttendanceProcessingService {
       externalAttendance,
       shift,
     );
-    const shiftStart = moment.tz(checkInTime, this.TIMEZONE).set({
-      hour: parseInt(shift.startTime.split(':')[0]),
-      minute: parseInt(shift.startTime.split(':')[1]),
-    });
-    const shiftEnd = moment(shiftStart).set({
-      hour: parseInt(shift.endTime.split(':')[0]),
-      minute: parseInt(shift.endTime.split(':')[1]),
-    });
-    if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, 'day');
+    const { shiftStart, shiftEnd } = this.calculateShiftTimes(
+      checkInTime,
+      shift,
+    );
 
     debugSteps.push({
       step: 'Processed Times',
@@ -528,11 +650,7 @@ export class AttendanceProcessingService {
     );
     debugSteps.push({ step: 'Overtime Approval', isApprovedOvertime });
 
-    const finalStatus = this.determineFinalStatus(
-      status,
-      isApprovedOvertime,
-      checkOutTime,
-    );
+    const finalStatus = `${status}-${checkOutTime ? 'ended' : 'started'}`;
     debugSteps.push({ step: 'Final Status', finalStatus });
 
     return {
@@ -545,144 +663,10 @@ export class AttendanceProcessingService {
     };
   }
 
-  private determineCheckTimes(
-    internalAttendance: any,
-    externalAttendance: any,
-    shift: any,
-  ): { checkInTime: moment.Moment; checkOutTime: moment.Moment | null } {
-    let checkInTime: moment.Moment | null = null;
-    let checkOutTime: moment.Moment | null = null;
-
-    const shiftStart = moment
-      .tz(internalAttendance?.date || externalAttendance?.date, this.TIMEZONE)
-      .set({
-        hour: parseInt(shift.startTime.split(':')[0]),
-        minute: parseInt(shift.startTime.split(':')[1]),
-      });
-    const shiftEnd = moment(shiftStart).set({
-      hour: parseInt(shift.endTime.split(':')[0]),
-      minute: parseInt(shift.endTime.split(':')[1]),
-    });
-    if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, 'day');
-
-    if (internalAttendance?.checkInTime) {
-      checkInTime = moment.tz(internalAttendance.checkInTime, this.TIMEZONE);
-    } else if (externalAttendance?.sj) {
-      const externalTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
-      if (
-        externalTime.isBefore(shiftStart) &&
-        externalTime.isAfter(shiftStart.clone().subtract(12, 'hours'))
-      ) {
-        checkInTime = externalTime;
-      } else if (
-        externalTime.isAfter(shiftEnd) ||
-        externalTime.isBefore(shiftStart.clone().subtract(12, 'hours'))
-      ) {
-        checkOutTime = externalTime;
-        checkInTime = shiftStart; // Assume check-in at shift start if only check-out is present
-      }
-    }
-
-    if (internalAttendance?.checkOutTime) {
-      checkOutTime = moment.tz(internalAttendance.checkOutTime, this.TIMEZONE);
-    }
-
-    return { checkInTime: checkInTime!, checkOutTime };
-  }
-
-  private calculateShiftTimes(checkTime: moment.Moment, shift: any) {
-    const referenceDate = checkTime.clone().startOf('day');
-    let shiftStart = referenceDate.clone().set({
-      hour: parseInt(shift.startTime.split(':')[0]),
-      minute: parseInt(shift.startTime.split(':')[1]),
-    });
-    let shiftEnd = referenceDate.clone().set({
-      hour: parseInt(shift.endTime.split(':')[0]),
-      minute: parseInt(shift.endTime.split(':')[1]),
-    });
-
-    if (shiftEnd.isBefore(shiftStart)) {
-      shiftEnd.add(1, 'day');
-    }
-
-    return { shiftStart, shiftEnd };
-  }
-
-  private determineStatus(
-    checkInTime: moment.Moment | null,
-    checkOutTime: moment.Moment | null,
-    shiftStart: moment.Moment,
-    shiftEnd: moment.Moment,
-  ) {
-    if (!checkInTime) {
-      return 'missing-check-in';
-    }
-
-    const earlyThreshold = moment(shiftStart).subtract(
-      this.GRACE_PERIOD_MINUTES,
-      'minutes',
-    );
-    const lateThreshold = moment(shiftStart).add(
-      this.GRACE_PERIOD_MINUTES,
-      'minutes',
-    );
-
-    let status: string;
-
-    // Determine check-in status
-    if (checkInTime.isBefore(earlyThreshold)) {
-      status = 'early-overtime';
-    } else if (checkInTime.isBetween(earlyThreshold, shiftStart, null, '[)')) {
-      status = 'early';
-    } else if (checkInTime.isBetween(shiftStart, lateThreshold, null, '[)')) {
-      status = 'on-time';
-    } else {
-      status = 'late';
-    }
-
-    // Adjust status based on check-out time
-    if (checkOutTime) {
-      if (checkOutTime.isAfter(shiftEnd)) {
-        status += '-overtime';
-      }
-      status += '-complete';
-    } else {
-      status += '-incomplete';
-    }
-
-    return status;
-  }
-
-  private calculateOvertimeDuration(
-    checkInTime: moment.Moment,
-    checkOutTime: moment.Moment | null,
-    shiftStart: moment.Moment,
-    shiftEnd: moment.Moment,
-  ): number {
-    let overtimeDuration = 0;
-
-    if (checkInTime.isBefore(shiftStart)) {
-      overtimeDuration += shiftStart.diff(checkInTime, 'minutes');
-    }
-
-    if (checkOutTime && checkOutTime.isAfter(shiftEnd)) {
-      overtimeDuration += checkOutTime.diff(shiftEnd, 'minutes');
-    }
-
-    // Round up to the nearest 30-minute increment
-    overtimeDuration =
-      Math.ceil(overtimeDuration / this.OVERTIME_INCREMENT_MINUTES) *
-      this.OVERTIME_INCREMENT_MINUTES;
-
-    return overtimeDuration >= this.OVERTIME_INCREMENT_MINUTES
-      ? overtimeDuration
-      : 0;
-  }
-
   private checkApprovedOvertime(
     checkTime: moment.Moment,
     overtimeRequests: any[],
-  ) {
+  ): boolean {
     return overtimeRequests.some(
       (request) =>
         request.status === 'approved' &&
@@ -693,19 +677,5 @@ export class AttendanceProcessingService {
           '[]',
         ),
     );
-  }
-
-  private determineFinalStatus(
-    initialStatus: string,
-    isApprovedOvertime: boolean,
-    checkOutTime: moment.Moment | null,
-  ) {
-    if (initialStatus === 'early-overtime' && isApprovedOvertime) {
-      return checkOutTime ? 'overtime-ended' : 'overtime-started';
-    }
-    if (checkOutTime) {
-      return initialStatus + '-ended';
-    }
-    return initialStatus + '-started';
   }
 }
