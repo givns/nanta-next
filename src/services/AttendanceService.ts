@@ -17,6 +17,7 @@ import {
 } from '../types/user';
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
+import { logMessage } from '../utils/logger';
 
 type PrismaAttendanceRecord = {
   id: string;
@@ -412,8 +413,8 @@ export class AttendanceService {
     const checkInTime = moment.tz(checkIn.checkInTime, 'Asia/Bangkok');
     const checkOutTime = moment.tz(checkOut.checkInTime, 'Asia/Bangkok');
 
-    console.log('Processed check-in time:', checkInTime.format());
-    console.log('Processed check-out time:', checkOutTime.format());
+    logMessage(`Processed check-in time: ${checkInTime.format()}`);
+    logMessage(`Processed check-out time: ${checkOutTime.format()}`);
 
     const shiftDate = checkInTime.clone().startOf('day');
     const shiftStart = shiftDate.clone().set({

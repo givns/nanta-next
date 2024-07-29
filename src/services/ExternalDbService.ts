@@ -7,7 +7,7 @@ import {
   ExternalManualEntryInputData,
 } from '../types/user';
 import { retry } from '../utils/retry';
-import { createLogger } from '../utils/logger';
+import { createLogger, logMessage } from '../utils/logger';
 import moment from 'moment-timezone';
 
 const logger = createLogger('ExternalDbService');
@@ -76,7 +76,7 @@ export class ExternalDbService {
         );
 
         attendanceResult.forEach((record) => {
-          console.log(`Raw sj value for record ${record.bh}: ${record.sj}`);
+          logMessage(`Raw sj value for record ${record.bh}: ${record.sj}`);
         });
 
         const processedRecords = attendanceResult.map((record) => ({
