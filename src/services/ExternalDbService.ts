@@ -71,13 +71,13 @@ export class ExternalDbService {
         ]);
 
         console.log(
-          'User info result:',
-          JSON.stringify(userInfoResult, null, 2),
-        );
-        console.log(
-          'Raw external attendance records:',
+          'Raw attendance records:',
           JSON.stringify(attendanceResult, null, 2),
         );
+
+        attendanceResult.forEach((record) => {
+          console.log(`Raw sj value for record ${record.bh}: ${record.sj}`);
+        });
 
         const processedRecords = attendanceResult.map((record) => ({
           ...record,
@@ -85,7 +85,7 @@ export class ExternalDbService {
         }));
 
         console.log(
-          'Processed external attendance records:',
+          'Processed attendance records:',
           JSON.stringify(processedRecords, null, 2),
         );
 
