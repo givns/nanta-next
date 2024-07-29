@@ -382,40 +382,87 @@ export class AttendanceService {
     externalRecords: ExternalCheckInData[],
     shift: ShiftData,
   ): AttendanceRecord | null {
-    logMessage('Internal attendances: ' + JSON.stringify(internalAttendances));
-    logMessage('External records: ' + JSON.stringify(externalRecords));
+    logMessage('Starting getLatestAttendanceRecord');
+    logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
+    logMessage(`External records: ${JSON.stringify(externalRecords)}`);
 
-    const allRecords = [
-      ...internalAttendances,
-      ...externalRecords.map(this.convertExternalToInternal),
-    ];
+    const convertedExternalRecords = externalRecords.map((record) => {
+      const converted = this.convertExternalToInternal(record);
+      logMessage(`Converted external record: ${JSON.stringify(converted)}`);
+      return converted;
+    });
 
-    allRecords.sort(
-      (a, b) => a.checkInTime!.getTime() - b.checkInTime!.getTime(),
+    // Combine and sort all records
+    const allRecords = [...internalAttendances, ...convertedExternalRecords];
+    allRecords.sort((a, b) => moment(b.date).diff(moment(a.date)));
+
+    logMessage(`All sorted records: ${JSON.stringify(allRecords)}`);
+
+    if (allRecords.length === 0) {
+      logMessage('No records found');
+      return null;
+    }
+
+    // Find the latest date with records
+    const latestDate = moment(allRecords[0].date).startOf('day');
+    logMessage(`Latest date with records: ${latestDate.format('YYYY-MM-DD')}`);
+
+    // Filter records for the latest date
+    const latestDateRecords = allRecords.filter((record) =>
+      moment(record.date).isSame(latestDate, 'day'),
+    );
+    logMessage(`Records for latest date: ${JSON.stringify(latestDateRecords)}`);
+
+    // Prioritize internal records over external
+    const prioritizedRecords = latestDateRecords.sort((a, b) => {
+      if (a.id.startsWith('clz') && !b.id.startsWith('clz')) return -1;
+      if (!a.id.startsWith('clz') && b.id.startsWith('clz')) return 1;
+      return moment(b.checkInTime).diff(moment(a.checkInTime));
+    });
+
+    logMessage(`Prioritized records: ${JSON.stringify(prioritizedRecords)}`);
+
+    // Select the latest check-in and check-out
+    let latestCheckIn = prioritizedRecords[0];
+    let latestCheckOut = prioritizedRecords.find((r) => r.checkOutTime) || null;
+
+    logMessage(`Selected check-in: ${JSON.stringify(latestCheckIn)}`);
+    logMessage(
+      `Selected check-out: ${latestCheckOut ? JSON.stringify(latestCheckOut) : 'No check-out'}`,
     );
 
-    logMessage('Sorted records: ' + JSON.stringify(allRecords));
+    // If no check-out, the latest check-in is the current state
+    if (!latestCheckOut) {
+      logMessage('Returning latest check-in as current state');
+      return latestCheckIn;
+    }
 
-    if (allRecords.length < 2) return allRecords[0] || null;
+    // Combine check-in and check-out information
+    const result: AttendanceRecord = {
+      ...latestCheckIn,
+      checkOutTime: latestCheckOut.checkOutTime,
+      checkOutLocation: latestCheckOut.checkOutLocation,
+      checkOutAddress: latestCheckOut.checkOutAddress,
+      checkOutDeviceSerial: latestCheckOut.checkOutDeviceSerial,
+      status: this.determineStatus(latestCheckIn, latestCheckOut, shift),
+    };
 
-    const checkIn = allRecords[allRecords.length - 2]; // Second to last record
-    const checkOut = allRecords[allRecords.length - 1]; // Last record
+    logMessage(`Final result: ${JSON.stringify(result)}`);
+    return result;
+  }
 
-    logMessage('Selected check-in: ' + JSON.stringify(checkIn));
-    logMessage('Selected check-out: ' + JSON.stringify(checkOut));
-
-    const checkInTime = moment.tz(checkIn.checkInTime, 'Asia/Bangkok');
-    const checkOutTime = moment.tz(checkOut.checkInTime, 'Asia/Bangkok');
-
-    logMessage(`Processed check-in time: ${checkInTime.format()}`);
-    logMessage(`Processed check-out time: ${checkOutTime.format()}`);
-
-    const shiftDate = checkInTime.clone().startOf('day');
-    const shiftStart = shiftDate.clone().set({
+  private determineStatus(
+    checkIn: AttendanceRecord,
+    checkOut: AttendanceRecord,
+    shift: ShiftData,
+  ): string {
+    const checkInTime = moment(checkIn.checkInTime);
+    const checkOutTime = moment(checkOut.checkOutTime);
+    const shiftStart = moment(checkIn.date).set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
     });
-    let shiftEnd = shiftDate.clone().set({
+    const shiftEnd = moment(checkIn.date).set({
       hour: parseInt(shift.endTime.split(':')[0]),
       minute: parseInt(shift.endTime.split(':')[1]),
     });
@@ -424,38 +471,20 @@ export class AttendanceService {
       shiftEnd.add(1, 'day');
     }
 
-    console.log('Shift start:', shiftStart.format());
-    console.log('Shift end:', shiftEnd.format());
-
-    const isOvertime =
-      checkInTime.isBefore(shiftStart) || checkOutTime.isAfter(shiftEnd);
-    const status = isOvertime ? 'overtime-ended' : 'checked-out';
-
-    const result = {
-      ...checkIn,
-      checkOutTime: checkOut.checkInTime,
-      checkOutLocation: checkOut.checkInLocation,
-      checkOutAddress: checkOut.checkInAddress,
-      checkOutDeviceSerial: checkOut.checkInDeviceSerial,
-      status,
-      isOvertime,
-    };
-
-    console.log('Final attendance record:', JSON.stringify(result, null, 2));
-
-    return result;
+    if (checkOutTime.isAfter(shiftEnd)) {
+      return 'overtime-ended';
+    } else if (checkInTime.isBefore(shiftStart)) {
+      return 'early-check-in';
+    } else {
+      return 'checked-out';
+    }
   }
 
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    console.log(
-      'Converting external record:',
-      JSON.stringify(external, null, 2),
-    );
     const checkInTime = moment.tz(external.sj, 'Asia/Bangkok');
-    console.log('Converted check-in time:', checkInTime.format());
-
+    logMessage('Converted check-in time:, ${checkInTime.format()}');
     return {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
