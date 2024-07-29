@@ -443,7 +443,7 @@ export class AttendanceService {
     const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
 
     records.forEach((record) => {
-      let recordDate = moment(record.checkInTime);
+      let recordDate = moment(record.checkInTime).tz('Asia/Bangkok');
       if (recordDate.hour() < shiftStartHour) {
         recordDate.subtract(1, 'day');
       }
@@ -467,12 +467,28 @@ export class AttendanceService {
 
     for (let i = 0; i < records.length; i++) {
       const checkIn = records[i];
-      const checkOut = i + 1 < records.length ? records[i + 1] : null;
+      let checkOut: AttendanceRecord | null = null;
+
+      // If this record already has a check-out time, use it
+      if (checkIn.checkOutTime) {
+        checkOut = { ...checkIn, checkInTime: checkIn.checkOutTime };
+      }
+      // Otherwise, look for the next record as a potential check-out
+      else if (i + 1 < records.length) {
+        checkOut = records[i + 1];
+        // If the next record is from a different user or device, don't use it as check-out
+        if (
+          checkOut.userId !== checkIn.userId ||
+          checkOut.checkInDeviceSerial !== checkIn.checkInDeviceSerial
+        ) {
+          checkOut = null;
+        }
+      }
 
       pairs.push({ checkIn, checkOut });
 
-      // If we added a check-out, skip it in the next iteration
-      if (checkOut) {
+      // If we added a check-out from the next record, skip it in the next iteration
+      if (checkOut && checkOut !== checkIn) {
         i++;
       }
     }
@@ -481,18 +497,11 @@ export class AttendanceService {
   }
 
   private processAttendancePair(
-    pair: {
-      checkIn: AttendanceRecord | null;
-      checkOut: AttendanceRecord | null;
-    },
+    pair: { checkIn: AttendanceRecord; checkOut: AttendanceRecord | null },
     shift: ShiftData,
   ): AttendanceRecord {
     const checkIn = pair.checkIn;
     const checkOut = pair.checkOut;
-
-    if (!checkIn) {
-      throw new Error('Invalid attendance pair: missing check-in');
-    }
 
     const { status, isOvertime, overtimeDuration } = this.determineStatus(
       checkIn,
@@ -502,16 +511,27 @@ export class AttendanceService {
 
     return {
       ...checkIn,
-      checkOutTime: checkOut ? checkOut.checkInTime : null,
-      checkOutLocation: checkOut ? checkOut.checkInLocation : null,
-      checkOutAddress: checkOut ? checkOut.checkInAddress : null,
-      checkOutDeviceSerial: checkOut ? checkOut.checkInDeviceSerial : null,
+      checkOutTime: checkOut ? checkOut.checkInTime : checkIn.checkOutTime,
+      checkOutLocation: checkOut
+        ? checkOut.checkInLocation
+        : checkIn.checkOutLocation,
+      checkOutAddress: checkOut
+        ? checkOut.checkInAddress
+        : checkIn.checkOutAddress,
+      checkOutDeviceSerial: checkOut
+        ? checkOut.checkInDeviceSerial
+        : checkIn.checkOutDeviceSerial,
       status,
       isOvertime,
       overtimeStartTime: isOvertime
         ? moment(shift.endTime, 'HH:mm').toDate()
         : null,
-      overtimeEndTime: isOvertime && checkOut ? checkOut.checkInTime : null,
+      overtimeEndTime:
+        isOvertime && (checkOut || checkIn.checkOutTime)
+          ? checkOut
+            ? checkOut.checkInTime
+            : checkIn.checkOutTime
+          : null,
     };
   }
 
@@ -520,22 +540,30 @@ export class AttendanceService {
     checkOut: AttendanceRecord | null,
     shift: ShiftData,
   ): { status: string; isOvertime: boolean; overtimeDuration: number } {
-    const checkInTime = moment(checkIn.checkInTime);
-    const checkOutTime = checkOut ? moment(checkOut.checkInTime) : null;
+    const checkInTime = moment(checkIn.checkInTime).tz('Asia/Bangkok');
+    const checkOutTime = checkOut
+      ? moment(checkOut.checkInTime).tz('Asia/Bangkok')
+      : checkIn.checkOutTime
+        ? moment(checkIn.checkOutTime).tz('Asia/Bangkok')
+        : null;
 
-    const shiftStart = moment(checkIn.checkInTime).set({
-      hour: parseInt(shift.startTime.split(':')[0]),
-      minute: parseInt(shift.startTime.split(':')[1]),
-      second: 0,
-      millisecond: 0,
-    });
+    const shiftStart = moment(checkIn.checkInTime)
+      .tz('Asia/Bangkok')
+      .set({
+        hour: parseInt(shift.startTime.split(':')[0]),
+        minute: parseInt(shift.startTime.split(':')[1]),
+        second: 0,
+        millisecond: 0,
+      });
 
-    let shiftEnd = moment(checkIn.checkInTime).set({
-      hour: parseInt(shift.endTime.split(':')[0]),
-      minute: parseInt(shift.endTime.split(':')[1]),
-      second: 0,
-      millisecond: 0,
-    });
+    let shiftEnd = moment(checkIn.checkInTime)
+      .tz('Asia/Bangkok')
+      .set({
+        hour: parseInt(shift.endTime.split(':')[0]),
+        minute: parseInt(shift.endTime.split(':')[1]),
+        second: 0,
+        millisecond: 0,
+      });
 
     // Handle overnight shift
     if (shiftEnd.isBefore(shiftStart)) {
@@ -568,7 +596,7 @@ export class AttendanceService {
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    const checkInTime = moment(external.sj);
+    const checkInTime = moment.tz(external.sj, 'Asia/Bangkok');
     return {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
