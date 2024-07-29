@@ -17,7 +17,7 @@ import {
 } from '../types/user';
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
-import { logMessage } from '../utils/serverLogger';
+import { logMessage } from '../utils/inMemoryLogger';
 
 type PrismaAttendanceRecord = {
   id: string;
