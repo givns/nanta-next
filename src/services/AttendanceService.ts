@@ -416,22 +416,27 @@ export class AttendanceService {
     });
 
     // Process the latest records for each user
-    const latestRecordsByUser = Object.entries(latestDatesByUser).map(
-      ([userId, date]) => {
+    const latestRecordsByUser = Object.entries(latestDatesByUser)
+      .map(([userId, date]) => {
         const key = `${date}-${userId}`;
         const records = recordsByDate[key];
+        if (!records || records.length === 0) {
+          return null; // Return null if no records found for this user and date
+        }
         const pairedRecords = this.pairCheckInCheckOut(records);
-        return this.processAttendancePair(
-          pairedRecords[pairedRecords.length - 1],
-          shift,
-        );
-      },
-    );
+        return pairedRecords.length > 0
+          ? this.processAttendancePair(
+              pairedRecords[pairedRecords.length - 1],
+              shift,
+            )
+          : null;
+      })
+      .filter((record) => record !== null); // Filter out null records
 
     // Return the latest record overall
     return (
       latestRecordsByUser.sort((a, b) =>
-        moment(b.checkInTime).diff(moment(a.checkInTime)),
+        moment(b!.checkInTime).diff(moment(a!.checkInTime)),
       )[0] || null
     );
   }
@@ -440,6 +445,10 @@ export class AttendanceService {
     records: AttendanceRecord[],
     shift: ShiftData,
   ): Record<string, AttendanceRecord[]> {
+    if (!records || records.length === 0) {
+      return {}; // Return an empty object if there are no records
+    }
+
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
     const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
 
@@ -461,6 +470,10 @@ export class AttendanceService {
   private pairCheckInCheckOut(
     records: AttendanceRecord[],
   ): Array<{ checkIn: AttendanceRecord; checkOut: AttendanceRecord | null }> {
+    if (!records || records.length === 0) {
+      return []; // Return an empty array if there are no records
+    }
+
     const pairs: Array<{
       checkIn: AttendanceRecord;
       checkOut: AttendanceRecord | null;
