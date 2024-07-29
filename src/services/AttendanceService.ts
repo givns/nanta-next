@@ -388,62 +388,30 @@ export class AttendanceService {
     }
 
     const recordsByDate = this.groupRecordsByDate(allRecords, shift);
-    logMessage(`Records grouped by date: ${JSON.stringify(recordsByDate)}`);
 
-    // Get the latest date for each user
-    const latestDatesByUser: Record<string, string> = {};
-    Object.keys(recordsByDate).forEach((key) => {
-      const [date, userId] = key.split('-');
-      if (!latestDatesByUser[userId] || date > latestDatesByUser[userId]) {
-        latestDatesByUser[userId] = date;
-      }
-    });
-    logMessage(`Latest dates by user: ${JSON.stringify(latestDatesByUser)}`);
+    const latestDate = Object.keys(recordsByDate).sort().pop();
+    if (!latestDate) {
+      return null;
+    }
+    logMessage(`Latest dates by user: ${JSON.stringify(latestDate)}`);
 
     // Process the latest records for each user
-    const latestRecordsByUser = Object.entries(latestDatesByUser)
-      .map(([userId, date]) => {
-        const key = `${date}-${userId}`;
-        const records = recordsByDate[key];
-        if (!records || records.length === 0) {
-          logMessage(`No records found for user ${userId} on date ${date}`);
-          return null;
-        }
-        const pairedRecords = this.pairCheckInCheckOut(records);
-        logMessage(
-          `Paired records for user ${userId} on date ${date}: ${JSON.stringify(pairedRecords)}`,
-        );
-        return pairedRecords.length > 0
-          ? this.processAttendancePair(
-              pairedRecords[pairedRecords.length - 1],
-              shift,
-            )
-          : null;
-      })
-      .filter((record) => record !== null);
-
-    logMessage(
-      `Latest records by user: ${JSON.stringify(latestRecordsByUser)}`,
-    );
+    const latestRecords = recordsByDate[latestDate];
+    const pairedRecords = this.pairCheckInCheckOut(latestRecords);
 
     // Return the latest record overall
-    const result =
-      latestRecordsByUser.sort((a, b) =>
-        moment(b!.checkInTime).diff(moment(a!.checkInTime)),
-      )[0] || null;
+    const latestPair = pairedRecords[pairedRecords.length - 1];
+    if (!latestPair) {
+      return null;
+    }
 
-    logMessage(`Final result: ${JSON.stringify(result)}`);
-    return result;
+    return this.processAttendancePair(latestPair, shift);
   }
 
   private groupRecordsByDate(
     records: AttendanceRecord[],
     shift: ShiftData,
   ): Record<string, AttendanceRecord[]> {
-    if (!records || records.length === 0) {
-      return {}; // Return an empty object if there are no records
-    }
-
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
     const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
 
@@ -627,7 +595,7 @@ export class AttendanceService {
 
     return {
       id: external.bh.toString(),
-      userId: user.id, // Use the internal user ID
+      userId: external.user_no, // Use the internal user ID
       date: checkInTime.startOf('day').toDate(),
       checkInTime: checkInTime.toDate(),
       checkOutTime: null,
