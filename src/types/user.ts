@@ -125,6 +125,7 @@ export interface ShiftData {
 }
 
 export interface AttendanceRecord {
+  employeeId: string;
   id: string;
   userId: string;
   date: Date;
