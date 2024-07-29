@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 
 export default function ViewLogs() {
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<string>('');
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const response = await fetch('/api/logs');
+      const response = await fetch('/api/read-logs');
       const data = await response.json();
-      setLogs(data);
+      setLogs(data.logs);
     };
 
     fetchLogs();
@@ -17,8 +17,8 @@ export default function ViewLogs() {
   }, []);
 
   const clearLogs = async () => {
-    await fetch('/api/logs', { method: 'DELETE' });
-    setLogs([]);
+    await fetch('/api/read-logs', { method: 'DELETE' });
+    setLogs('');
   };
 
   return (
@@ -30,13 +30,7 @@ export default function ViewLogs() {
       >
         Clear Logs
       </button>
-      <div className="bg-gray-100 p-4 rounded">
-        {logs.map((log, index) => (
-          <p key={index} className="mb-2">
-            {log}
-          </p>
-        ))}
-      </div>
+      <pre className="bg-gray-100 p-4 rounded whitespace-pre-wrap">{logs}</pre>
     </div>
   );
 }

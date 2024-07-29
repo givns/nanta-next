@@ -7,7 +7,7 @@ import {
   ExternalManualEntryInputData,
 } from '../types/user';
 import { retry } from '../utils/retry';
-import { logMessage } from '../utils/logger';
+import { logMessage } from '../utils/serverLogger';
 import moment from 'moment-timezone';
 import { createLogger } from '../utils/loggers';
 
