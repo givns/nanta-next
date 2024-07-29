@@ -393,7 +393,7 @@ export class AttendanceService {
     // Combine and sort all records
     const allRecords = [...internalAttendances, ...convertedExternalRecords];
     allRecords.sort((a, b) =>
-      moment(b.checkInTime).diff(moment(a.checkInTime)),
+      moment(a.checkInTime).diff(moment(b.checkInTime)),
     );
 
     logMessage(`All sorted records: ${JSON.stringify(allRecords)}`);
@@ -403,30 +403,107 @@ export class AttendanceService {
       return null;
     }
 
-    // Find the latest date with records
-    const latestDate = moment(allRecords[0].checkInTime).startOf('day');
-    logMessage(`Latest date with records: ${latestDate.format('YYYY-MM-DD')}`);
+    // Group records by date
+    const recordsByDate = this.groupRecordsByDate(allRecords, shift);
 
-    // Filter records for the latest date
-    const latestDateRecords = allRecords.filter((record) =>
-      moment(record.checkInTime).isSame(latestDate, 'day'),
-    );
-    logMessage(`Records for latest date: ${JSON.stringify(latestDateRecords)}`);
+    // Get the latest date
+    const latestDate = Object.keys(recordsByDate).sort().pop();
+    if (!latestDate) {
+      logMessage('No valid dates found');
+      return null;
+    }
 
-    // Sort records by check-in time
-    latestDateRecords.sort((a, b) =>
-      moment(b.checkInTime).diff(moment(a.checkInTime)),
-    );
-
-    // Determine check-in and check-out
-    const checkIn = latestDateRecords[latestDateRecords.length - 1];
-    const checkOut =
-      latestDateRecords.find((r) => r.checkOutTime) || latestDateRecords[0];
-
-    logMessage(`Selected check-in: ${JSON.stringify(checkIn)}`);
+    const latestRecords = recordsByDate[latestDate];
     logMessage(
-      `Selected check-out: ${checkOut ? JSON.stringify(checkOut) : 'No check-out'}`,
+      `Latest date: ${latestDate}, Records: ${JSON.stringify(latestRecords)}`,
     );
+
+    // Pair check-ins with check-outs
+    const pairedRecords = this.pairCheckInCheckOut(latestRecords);
+    logMessage(`Paired records: ${JSON.stringify(pairedRecords)}`);
+
+    // Get the latest complete pair
+    const latestPair =
+      pairedRecords.find((pair) => pair.checkIn && pair.checkOut) ||
+      pairedRecords[pairedRecords.length - 1];
+
+    if (!latestPair) {
+      logMessage('No valid attendance pair found');
+      return null;
+    }
+
+    const result = this.processAttendancePair(latestPair, shift);
+    logMessage(`Final result: ${JSON.stringify(result)}`);
+    return result;
+  }
+
+  private groupRecordsByDate(
+    records: AttendanceRecord[],
+    shift: ShiftData,
+  ): Record<string, AttendanceRecord[]> {
+    const recordsByDate: Record<string, AttendanceRecord[]> = {};
+    const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
+
+    records.forEach((record) => {
+      let recordDate = moment(record.checkInTime);
+      if (recordDate.hour() < shiftStartHour) {
+        recordDate = recordDate.subtract(1, 'day');
+      }
+      const dateKey = recordDate.format('YYYY-MM-DD');
+      if (!recordsByDate[dateKey]) {
+        recordsByDate[dateKey] = [];
+      }
+      recordsByDate[dateKey].push(record);
+    });
+
+    return recordsByDate;
+  }
+
+  private pairCheckInCheckOut(
+    records: AttendanceRecord[],
+  ): Array<{
+    checkIn: AttendanceRecord | null;
+    checkOut: AttendanceRecord | null;
+  }> {
+    const pairs: Array<{
+      checkIn: AttendanceRecord | null;
+      checkOut: AttendanceRecord | null;
+    }> = [];
+    let currentPair: {
+      checkIn: AttendanceRecord | null;
+      checkOut: AttendanceRecord | null;
+    } = { checkIn: null, checkOut: null };
+
+    records.forEach((record) => {
+      if (!currentPair.checkIn) {
+        currentPair.checkIn = record;
+      } else if (!currentPair.checkOut) {
+        currentPair.checkOut = record;
+        pairs.push(currentPair);
+        currentPair = { checkIn: null, checkOut: null };
+      }
+    });
+
+    if (currentPair.checkIn) {
+      pairs.push(currentPair);
+    }
+
+    return pairs;
+  }
+
+  private processAttendancePair(
+    pair: {
+      checkIn: AttendanceRecord | null;
+      checkOut: AttendanceRecord | null;
+    },
+    shift: ShiftData,
+  ): AttendanceRecord {
+    const checkIn = pair.checkIn;
+    const checkOut = pair.checkOut;
+
+    if (!checkIn) {
+      throw new Error('Invalid attendance pair: missing check-in');
+    }
 
     const { status, isOvertime, overtimeDuration } = this.determineStatus(
       checkIn,
@@ -434,61 +511,64 @@ export class AttendanceService {
       shift,
     );
 
-    const result: AttendanceRecord = {
+    return {
       ...checkIn,
-      checkOutTime: checkOut.checkOutTime || checkOut.checkInTime,
-      checkOutLocation: checkOut.checkOutLocation || checkOut.checkInLocation,
-      checkOutAddress: checkOut.checkOutAddress || checkOut.checkInAddress,
-      checkOutDeviceSerial:
-        checkOut.checkOutDeviceSerial || checkOut.checkInDeviceSerial,
+      checkOutTime: checkOut ? checkOut.checkInTime : null,
+      checkOutLocation: checkOut ? checkOut.checkInLocation : null,
+      checkOutAddress: checkOut ? checkOut.checkInAddress : null,
+      checkOutDeviceSerial: checkOut ? checkOut.checkInDeviceSerial : null,
       status,
       isOvertime,
       overtimeStartTime: isOvertime
         ? moment(shift.endTime, 'HH:mm').toDate()
         : null,
-      overtimeEndTime: isOvertime ? checkOut.checkOutTime : null,
+      overtimeEndTime: isOvertime && checkOut ? checkOut.checkInTime : null,
     };
-
-    logMessage(`Final result: ${JSON.stringify(result)}`);
-    return result;
   }
 
   private determineStatus(
     checkIn: AttendanceRecord,
-    checkOut: AttendanceRecord,
+    checkOut: AttendanceRecord | null,
     shift: ShiftData,
   ): { status: string; isOvertime: boolean; overtimeDuration: number } {
     const checkInTime = moment(checkIn.checkInTime);
-    const checkOutTime = moment(checkOut.checkOutTime || checkOut.checkInTime);
-    const shiftStart = moment(checkIn.date).set({
+    const checkOutTime = checkOut ? moment(checkOut.checkInTime) : null;
+
+    const shiftStart = moment(checkIn.checkInTime).set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
-    });
-    const shiftEnd = moment(checkIn.date).set({
-      hour: parseInt(shift.endTime.split(':')[0]),
-      minute: parseInt(shift.endTime.split(':')[1]),
+      second: 0,
+      millisecond: 0,
     });
 
+    let shiftEnd = moment(checkIn.checkInTime).set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+      second: 0,
+      millisecond: 0,
+    });
+
+    // Handle overnight shift
     if (shiftEnd.isBefore(shiftStart)) {
       shiftEnd.add(1, 'day');
     }
 
     logMessage(
-      `Determining status: Check-in: ${checkInTime.format()}, Check-out: ${checkOutTime.format()}, Shift start: ${shiftStart.format()}, Shift end: ${shiftEnd.format()}`,
+      `Determining status: Check-in: ${checkInTime.format()}, Check-out: ${checkOutTime ? checkOutTime.format() : 'N/A'}, Shift start: ${shiftStart.format()}, Shift end: ${shiftEnd.format()}`,
     );
 
     let status: string;
     let isOvertime = false;
     let overtimeDuration = 0;
 
-    if (checkOutTime.isAfter(shiftEnd)) {
+    if (!checkOutTime) {
+      status = 'checked-in';
+    } else if (checkOutTime.isAfter(shiftEnd)) {
       status = 'overtime-ended';
       isOvertime = true;
       overtimeDuration = checkOutTime.diff(shiftEnd, 'minutes');
     } else if (checkInTime.isBefore(shiftStart)) {
       status = 'early-check-in';
-    } else if (!checkOut.checkOutTime) {
-      status = 'checked-in';
     } else {
       status = 'checked-out';
     }
@@ -500,10 +580,6 @@ export class AttendanceService {
     external: ExternalCheckInData,
   ): AttendanceRecord {
     const checkInTime = moment(external.sj);
-    logMessage(
-      `Converting external record. Raw sj: ${external.sj}, Parsed: ${checkInTime.format()}`,
-    );
-
     return {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
