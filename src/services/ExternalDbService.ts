@@ -7,8 +7,9 @@ import {
   ExternalManualEntryInputData,
 } from '../types/user';
 import { retry } from '../utils/retry';
-import { createLogger, logMessage } from '../utils/logger';
+import { logMessage } from '../utils/logger';
 import moment from 'moment-timezone';
+import { createLogger } from '../utils/loggers';
 
 const logger = createLogger('ExternalDbService');
 
