@@ -496,12 +496,6 @@ export class AttendanceProcessingService {
 
     if (internalAttendance?.checkOutTime) {
       checkOutTime = moment.tz(internalAttendance.checkOutTime, this.TIMEZONE);
-    } else if (
-      externalAttendance?.sj &&
-      moment(externalAttendance.sj).hour() < 12
-    ) {
-      // Treat early morning external record as check-out
-      checkOutTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
     }
 
     return { checkInTime, checkOutTime };
@@ -511,19 +505,23 @@ export class AttendanceProcessingService {
     date: moment.Moment,
     shift: any,
   ): { shiftStart: moment.Moment; shiftEnd: moment.Moment } {
-    const shiftStart = moment.tz(date, this.TIMEZONE).set({
-      hour: parseInt(shift.startTime.split(':')[0]),
-      minute: parseInt(shift.startTime.split(':')[1]),
-      second: 0,
-      millisecond: 0,
-    });
+    const shiftStart = moment(date)
+      .tz(this.TIMEZONE)
+      .set({
+        hour: parseInt(shift.startTime.split(':')[0]),
+        minute: parseInt(shift.startTime.split(':')[1]),
+        second: 0,
+        millisecond: 0,
+      });
 
-    const shiftEnd = moment.tz(date, this.TIMEZONE).set({
-      hour: parseInt(shift.endTime.split(':')[0]),
-      minute: parseInt(shift.endTime.split(':')[1]),
-      second: 0,
-      millisecond: 0,
-    });
+    const shiftEnd = moment(date)
+      .tz(this.TIMEZONE)
+      .set({
+        hour: parseInt(shift.endTime.split(':')[0]),
+        minute: parseInt(shift.endTime.split(':')[1]),
+        second: 0,
+        millisecond: 0,
+      });
 
     if (shiftEnd.isBefore(shiftStart)) {
       shiftEnd.add(1, 'day');
