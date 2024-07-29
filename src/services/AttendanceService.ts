@@ -382,14 +382,8 @@ export class AttendanceService {
     externalRecords: ExternalCheckInData[],
     shift: ShiftData,
   ): AttendanceRecord | null {
-    console.log(
-      'Raw internal attendances:',
-      JSON.stringify(internalAttendances, null, 2),
-    );
-    console.log(
-      'Raw external records:',
-      JSON.stringify(externalRecords, null, 2),
-    );
+    logMessage('Internal attendances: ' + JSON.stringify(internalAttendances));
+    logMessage('External records: ' + JSON.stringify(externalRecords));
 
     const allRecords = [
       ...internalAttendances,
@@ -400,15 +394,15 @@ export class AttendanceService {
       (a, b) => a.checkInTime!.getTime() - b.checkInTime!.getTime(),
     );
 
-    console.log('Sorted records:', JSON.stringify(allRecords, null, 2));
+    logMessage('Sorted records: ' + JSON.stringify(allRecords));
 
     if (allRecords.length < 2) return allRecords[0] || null;
 
     const checkIn = allRecords[allRecords.length - 2]; // Second to last record
     const checkOut = allRecords[allRecords.length - 1]; // Last record
 
-    console.log('Selected check-in:', JSON.stringify(checkIn, null, 2));
-    console.log('Selected check-out:', JSON.stringify(checkOut, null, 2));
+    logMessage('Selected check-in: ' + JSON.stringify(checkIn));
+    logMessage('Selected check-out: ' + JSON.stringify(checkOut));
 
     const checkInTime = moment.tz(checkIn.checkInTime, 'Asia/Bangkok');
     const checkOutTime = moment.tz(checkOut.checkInTime, 'Asia/Bangkok');
