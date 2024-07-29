@@ -476,9 +476,9 @@ export class AttendanceProcessingService {
     let checkOutTime: moment.Moment | null = null;
 
     if (internalAttendance?.checkInTime) {
-      checkInTime = moment.tz(internalAttendance.checkInTime, this.TIMEZONE);
+      checkInTime = moment(internalAttendance.checkInTime).tz(this.TIMEZONE);
     } else if (externalAttendance?.sj) {
-      checkInTime = moment.tz(externalAttendance.sj, this.TIMEZONE);
+      checkInTime = moment(externalAttendance.sj).tz(this.TIMEZONE);
     } else {
       // If no check-in time is found, use the shift start time as a fallback
       const dateToUse =
@@ -495,7 +495,7 @@ export class AttendanceProcessingService {
     }
 
     if (internalAttendance?.checkOutTime) {
-      checkOutTime = moment.tz(internalAttendance.checkOutTime, this.TIMEZONE);
+      checkOutTime = moment(internalAttendance.checkOutTime).tz(this.TIMEZONE);
     }
 
     return { checkInTime, checkOutTime };
@@ -537,8 +537,12 @@ export class AttendanceProcessingService {
     shiftEnd: moment.Moment,
   ): number {
     let overtimeDuration = 0;
+    const earlyOvertimeThreshold = moment(shiftStart).subtract(
+      this.OVERTIME_INCREMENT_MINUTES,
+      'minutes',
+    );
 
-    if (checkInTime.isBefore(shiftStart)) {
+    if (checkInTime.isBefore(earlyOvertimeThreshold)) {
       overtimeDuration += shiftStart.diff(checkInTime, 'minutes');
     }
 
@@ -551,9 +555,7 @@ export class AttendanceProcessingService {
       Math.ceil(overtimeDuration / this.OVERTIME_INCREMENT_MINUTES) *
       this.OVERTIME_INCREMENT_MINUTES;
 
-    return overtimeDuration >= this.OVERTIME_INCREMENT_MINUTES
-      ? overtimeDuration
-      : 0;
+    return overtimeDuration;
   }
 
   private determineStatus(
@@ -562,6 +564,10 @@ export class AttendanceProcessingService {
     shiftStart: moment.Moment,
     shiftEnd: moment.Moment,
   ): string {
+    const earlyOvertimeThreshold = moment(shiftStart).subtract(
+      this.OVERTIME_INCREMENT_MINUTES,
+      'minutes',
+    );
     const earlyThreshold = moment(shiftStart).subtract(
       this.GRACE_PERIOD_MINUTES,
       'minutes',
@@ -573,11 +579,15 @@ export class AttendanceProcessingService {
 
     let status = '';
 
-    if (checkInTime.isBefore(earlyThreshold)) {
+    if (checkInTime.isBefore(earlyOvertimeThreshold)) {
       status = 'early-overtime';
-    } else if (checkInTime.isBetween(earlyThreshold, shiftStart, null, '[)')) {
+    } else if (
+      checkInTime.isBetween(earlyOvertimeThreshold, earlyThreshold, null, '[)')
+    ) {
       status = 'early';
-    } else if (checkInTime.isBetween(shiftStart, lateThreshold, null, '[)')) {
+    } else if (
+      checkInTime.isBetween(earlyThreshold, lateThreshold, null, '[)')
+    ) {
       status = 'on-time';
     } else {
       status = 'late';
