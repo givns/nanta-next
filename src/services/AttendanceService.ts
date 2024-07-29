@@ -514,12 +514,11 @@ export class AttendanceService {
     overtimeDuration: number;
     overtimeStartTime: Date | null;
   } {
-    const timezone = 'Asia/Bangkok';
-    const checkInTime = moment(checkIn.checkInTime).tz(timezone);
+    const checkInTime = moment(checkIn.checkInTime);
     const checkOutTime = checkOut
-      ? moment(checkOut.checkInTime).tz(timezone)
+      ? moment(checkOut.checkInTime)
       : checkIn.checkOutTime
-        ? moment(checkIn.checkOutTime).tz(timezone)
+        ? moment(checkIn.checkOutTime)
         : null;
 
     const shiftDate = checkInTime.clone().startOf('day');
