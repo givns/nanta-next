@@ -422,10 +422,8 @@ export class AttendanceService {
     const pairedRecords = this.pairCheckInCheckOut(latestRecords);
     logMessage(`Paired records: ${JSON.stringify(pairedRecords)}`);
 
-    // Get the latest complete pair
-    const latestPair =
-      pairedRecords.find((pair) => pair.checkIn && pair.checkOut) ||
-      pairedRecords[pairedRecords.length - 1];
+    // Get the latest complete pair or the last pair if no complete pair exists
+    const latestPair = pairedRecords[pairedRecords.length - 1];
 
     if (!latestPair) {
       logMessage('No valid attendance pair found');
@@ -447,7 +445,7 @@ export class AttendanceService {
     records.forEach((record) => {
       let recordDate = moment(record.checkInTime);
       if (recordDate.hour() < shiftStartHour) {
-        recordDate = recordDate.subtract(1, 'day');
+        recordDate.subtract(1, 'day');
       }
       const dateKey = recordDate.format('YYYY-MM-DD');
       if (!recordsByDate[dateKey]) {
@@ -459,31 +457,24 @@ export class AttendanceService {
     return recordsByDate;
   }
 
-  private pairCheckInCheckOut(records: AttendanceRecord[]): Array<{
-    checkIn: AttendanceRecord | null;
-    checkOut: AttendanceRecord | null;
-  }> {
+  private pairCheckInCheckOut(
+    records: AttendanceRecord[],
+  ): Array<{ checkIn: AttendanceRecord; checkOut: AttendanceRecord | null }> {
     const pairs: Array<{
-      checkIn: AttendanceRecord | null;
+      checkIn: AttendanceRecord;
       checkOut: AttendanceRecord | null;
     }> = [];
-    let currentPair: {
-      checkIn: AttendanceRecord | null;
-      checkOut: AttendanceRecord | null;
-    } = { checkIn: null, checkOut: null };
 
-    records.forEach((record) => {
-      if (!currentPair.checkIn) {
-        currentPair.checkIn = record;
-      } else if (!currentPair.checkOut) {
-        currentPair.checkOut = record;
-        pairs.push(currentPair);
-        currentPair = { checkIn: null, checkOut: null };
+    for (let i = 0; i < records.length; i++) {
+      const checkIn = records[i];
+      const checkOut = i + 1 < records.length ? records[i + 1] : null;
+
+      pairs.push({ checkIn, checkOut });
+
+      // If we added a check-out, skip it in the next iteration
+      if (checkOut) {
+        i++;
       }
-    });
-
-    if (currentPair.checkIn) {
-      pairs.push(currentPair);
     }
 
     return pairs;
@@ -582,7 +573,7 @@ export class AttendanceService {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
       date: checkInTime.startOf('day').toDate(),
-      checkInTime: checkInTime.toDate(),
+      checkInTime: checkInTime.toDate(), // Use the actual time from sj
       checkOutTime: null,
       isOvertime: false,
       overtimeStartTime: null,
