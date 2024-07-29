@@ -459,9 +459,7 @@ export class AttendanceService {
     return recordsByDate;
   }
 
-  private pairCheckInCheckOut(
-    records: AttendanceRecord[],
-  ): Array<{
+  private pairCheckInCheckOut(records: AttendanceRecord[]): Array<{
     checkIn: AttendanceRecord | null;
     checkOut: AttendanceRecord | null;
   }> {
