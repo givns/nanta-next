@@ -386,15 +386,15 @@ export class AttendanceService {
     logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
     logMessage(`External records: ${JSON.stringify(externalRecords)}`);
 
-    const convertedExternalRecords = externalRecords.map((record) => {
-      const converted = this.convertExternalToInternal(record);
-      logMessage(`Converted external record: ${JSON.stringify(converted)}`);
-      return converted;
-    });
+    const convertedExternalRecords = externalRecords.map(
+      this.convertExternalToInternal,
+    );
 
     // Combine and sort all records
     const allRecords = [...internalAttendances, ...convertedExternalRecords];
-    allRecords.sort((a, b) => moment(b.date).diff(moment(a.date)));
+    allRecords.sort((a, b) =>
+      moment(b.checkInTime).diff(moment(a.checkInTime)),
+    );
 
     logMessage(`All sorted records: ${JSON.stringify(allRecords)}`);
 
@@ -404,47 +404,38 @@ export class AttendanceService {
     }
 
     // Find the latest date with records
-    const latestDate = moment(allRecords[0].date).startOf('day');
+    const latestDate = moment(allRecords[0].checkInTime).startOf('day');
     logMessage(`Latest date with records: ${latestDate.format('YYYY-MM-DD')}`);
 
     // Filter records for the latest date
     const latestDateRecords = allRecords.filter((record) =>
-      moment(record.date).isSame(latestDate, 'day'),
+      moment(record.checkInTime).isSame(latestDate, 'day'),
     );
     logMessage(`Records for latest date: ${JSON.stringify(latestDateRecords)}`);
 
-    // Prioritize internal records over external
-    const prioritizedRecords = latestDateRecords.sort((a, b) => {
-      if (a.id.startsWith('clz') && !b.id.startsWith('clz')) return -1;
-      if (!a.id.startsWith('clz') && b.id.startsWith('clz')) return 1;
-      return moment(b.checkInTime).diff(moment(a.checkInTime));
-    });
-
-    logMessage(`Prioritized records: ${JSON.stringify(prioritizedRecords)}`);
-
-    // Select the latest check-in and check-out
-    let latestCheckIn = prioritizedRecords[0];
-    let latestCheckOut = prioritizedRecords.find((r) => r.checkOutTime) || null;
-
-    logMessage(`Selected check-in: ${JSON.stringify(latestCheckIn)}`);
-    logMessage(
-      `Selected check-out: ${latestCheckOut ? JSON.stringify(latestCheckOut) : 'No check-out'}`,
+    // Sort records by check-in time
+    latestDateRecords.sort((a, b) =>
+      moment(b.checkInTime).diff(moment(a.checkInTime)),
     );
 
-    // If no check-out, the latest check-in is the current state
-    if (!latestCheckOut) {
-      logMessage('Returning latest check-in as current state');
-      return latestCheckIn;
-    }
+    // Determine check-in and check-out
+    const checkIn = latestDateRecords[latestDateRecords.length - 1];
+    const checkOut =
+      latestDateRecords.find((r) => r.checkOutTime) || latestDateRecords[0];
 
-    // Combine check-in and check-out information
+    logMessage(`Selected check-in: ${JSON.stringify(checkIn)}`);
+    logMessage(
+      `Selected check-out: ${checkOut ? JSON.stringify(checkOut) : 'No check-out'}`,
+    );
+
     const result: AttendanceRecord = {
-      ...latestCheckIn,
-      checkOutTime: latestCheckOut.checkOutTime,
-      checkOutLocation: latestCheckOut.checkOutLocation,
-      checkOutAddress: latestCheckOut.checkOutAddress,
-      checkOutDeviceSerial: latestCheckOut.checkOutDeviceSerial,
-      status: this.determineStatus(latestCheckIn, latestCheckOut, shift),
+      ...checkIn,
+      checkOutTime: checkOut.checkOutTime || checkOut.checkInTime,
+      checkOutLocation: checkOut.checkOutLocation || checkOut.checkInLocation,
+      checkOutAddress: checkOut.checkOutAddress || checkOut.checkInAddress,
+      checkOutDeviceSerial:
+        checkOut.checkOutDeviceSerial || checkOut.checkInDeviceSerial,
+      status: this.determineStatus(checkIn, checkOut, shift),
     };
 
     logMessage(`Final result: ${JSON.stringify(result)}`);
@@ -457,7 +448,7 @@ export class AttendanceService {
     shift: ShiftData,
   ): string {
     const checkInTime = moment(checkIn.checkInTime);
-    const checkOutTime = moment(checkOut.checkOutTime);
+    const checkOutTime = moment(checkOut.checkOutTime || checkOut.checkInTime);
     const shiftStart = moment(checkIn.date).set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
@@ -471,10 +462,16 @@ export class AttendanceService {
       shiftEnd.add(1, 'day');
     }
 
+    logMessage(
+      `Determining status: Check-in: ${checkInTime.format()}, Check-out: ${checkOutTime.format()}, Shift start: ${shiftStart.format()}, Shift end: ${shiftEnd.format()}`,
+    );
+
     if (checkOutTime.isAfter(shiftEnd)) {
       return 'overtime-ended';
     } else if (checkInTime.isBefore(shiftStart)) {
       return 'early-check-in';
+    } else if (!checkOut.checkOutTime) {
+      return 'checked-in';
     } else {
       return 'checked-out';
     }
