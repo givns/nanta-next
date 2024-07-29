@@ -1,14 +1,16 @@
+// user-dashboard.tsx
 import { useState, useEffect } from 'react';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Calendar } from '../components/ui/calendar';
 import { Input } from '../components/ui/input';
 import liff from '@line/liff';
-import { UserData, Attendance } from '@/types/user';
+import { UserData, ProcessedAttendance, ShiftData } from '@/types/user';
 import moment from 'moment-timezone';
+import AttendanceTable from '../components/AttendanceTable';
 
 interface DashboardData {
-  user: UserData;
-  recentAttendance: Attendance[];
+  user: UserData & { assignedShift: ShiftData };
+  payrollAttendance: ProcessedAttendance[];
   totalWorkingDays: number;
   totalPresent: number;
   totalAbsent: number;
@@ -66,25 +68,20 @@ export default function UserDashboard() {
 
   const {
     user,
-    recentAttendance,
+    payrollAttendance,
     totalWorkingDays,
     totalPresent,
     totalAbsent,
     overtimeHours,
     balanceLeave,
   } = dashboardData;
-  const latestAttendance = recentAttendance[0];
 
   return (
     <div className="flex flex-col items-center w-full max-w-md p-4 mx-auto space-y-4 border rounded-md">
       <div className="flex flex-col items-center w-full space-y-4">
         <Avatar className="h-16 w-16 rounded-full">
           <AvatarImage
-            src={
-              user.profilePictureExternal ||
-              user.profilePictureUrl ||
-              '/placeholder-user.jpg'
-            }
+            src={user.profilePictureUrl || '/placeholder-user.jpg'}
           />
           <AvatarFallback>
             {user.name.substring(0, 2).toUpperCase()}
@@ -95,35 +92,19 @@ export default function UserDashboard() {
           <div className="text-muted-foreground">{user.department}</div>
         </div>
       </div>
+      <div className="w-full overflow-x-auto">
+        <h2 className="text-xl font-bold mb-2">Payroll Period Attendance</h2>
+        {dashboardData && (
+          <AttendanceTable
+            attendanceData={dashboardData.payrollAttendance}
+            shift={dashboardData.user.assignedShift}
+          />
+        )}
+      </div>
+
       <div className="flex flex-col w-full space-y-2">
         <div className="flex justify-between">
-          <span>รหัสพนักงาน</span>
-          <span>{user.employeeId}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>เวลาเข้างาน</span>
-          <span>
-            {latestAttendance?.checkInTime
-              ? moment(latestAttendance.checkInTime).format('HH:mm:ss')
-              : 'N/A'}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span>เวลาออกงาน</span>
-          <span>
-            {latestAttendance?.checkOutTime
-              ? moment(latestAttendance.checkOutTime).format('HH:mm:ss')
-              : 'N/A'}
-          </span>
-        </div>
-      </div>
-      <div className="w-full">
-        <h2 className="font-bold">ประวัติการทำงาน</h2>
-        <Calendar mode="single" className="border rounded-md" />
-      </div>
-      <div className="flex flex-col w-full space-y-2">
-        <div className="flex justify-between">
-          <span>จำนวนวันทำงานทั้งหมด</span>
+          <span>Total Working Days</span>
           <Input
             value={totalWorkingDays.toString()}
             readOnly
@@ -131,19 +112,19 @@ export default function UserDashboard() {
           />
         </div>
         <div className="flex justify-between">
-          <span>จำนวนวันที่มาทำงาน</span>
+          <span>Total Present</span>
           <Input value={totalPresent.toString()} readOnly className="w-16" />
         </div>
         <div className="flex justify-between">
-          <span>จำนวนวันที่ลา</span>
+          <span>Total Absent</span>
           <Input value={totalAbsent.toString()} readOnly className="w-16" />
         </div>
         <div className="flex justify-between">
-          <span>จำนวนชั่วโมงล่วงเวลา OT</span>
+          <span>Overtime Hours</span>
           <Input value={`${overtimeHours} Hr`} readOnly className="w-16" />
         </div>
         <div className="flex justify-between">
-          <span>วันลาคงเหลือ</span>
+          <span>Leave Balance</span>
           <Input value={balanceLeave.toString()} readOnly className="w-16" />
         </div>
       </div>

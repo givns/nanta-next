@@ -34,6 +34,11 @@ export enum CheckType {
   LeaveDuringWork = 6,
 }
 
+export interface Location {
+  lat: number;
+  lng: number;
+}
+
 export interface AttendanceData {
   userId: string;
   employeeId: string;
@@ -120,12 +125,12 @@ export interface ShiftData {
 }
 
 export interface AttendanceRecord {
-  isOvertime: boolean;
   id: string;
   userId: string;
   date: Date;
   checkInTime: Date | null;
   checkOutTime: Date | null;
+  isOvertime: boolean;
   overtimeStartTime: Date | null;
   overtimeEndTime: Date | null;
   checkInLocation: Location | null;
@@ -140,6 +145,17 @@ export interface AttendanceRecord {
   checkOutDeviceSerial: string | null;
   status: string;
   isManualEntry: boolean;
+}
+
+export interface ProcessedAttendance {
+  date: Date;
+  status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off';
+  checkIn?: string;
+  checkOut?: string;
+  isEarlyCheckIn?: boolean;
+  isLateCheckIn?: boolean;
+  isLateCheckOut?: boolean;
+  overtimeHours?: number;
 }
 
 export interface ShiftAdjustment {
