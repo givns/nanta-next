@@ -476,8 +476,9 @@ export class AttendanceService {
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
+    // Use moment to parse the date and time correctly
     const bangkokTime = moment.tz(
-      `${external.date.split('T')[0]} ${external.time}`,
+      `${moment(external.date).format('YYYY-MM-DD')} ${external.time}`,
       'YYYY-MM-DD HH:mm:ss',
       'Asia/Bangkok',
     );
