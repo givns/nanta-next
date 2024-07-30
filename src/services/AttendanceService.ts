@@ -18,7 +18,7 @@ import {
 import { UserRole } from '@/types/enum';
 import { logMessage } from '../utils/inMemoryLogger';
 import moment from 'moment-timezone';
-import { createLogger, logTimeConversion } from '../utils/loggers';
+import { createLogger } from '../utils/loggers';
 import { convertToLocalTime, TIMEZONE } from '../utils/timezoneHelper';
 
 const logger = createLogger('AttendanceService');
@@ -463,36 +463,21 @@ export class AttendanceService {
     return recordsByDate;
   }
 
-  private validateConvertedTime(
-    original: ExternalCheckInData,
-    converted: AttendanceRecord,
-  ) {
-    const originalTime = convertToLocalTime(
-      `${original.date} ${original.time}`,
-    );
-    const convertedTime = moment(converted.checkInTime).tz(TIMEZONE);
-
-    if (!originalTime.isSame(convertedTime)) {
-      logger.warn('Time conversion mismatch', {
-        original: originalTime.format(),
-        converted: convertedTime.format(),
-        difference: convertedTime.diff(originalTime, 'minutes'),
-      });
-    }
-  }
-
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    logMessage(`Converting external record: ${JSON.stringify(external)}`);
+    const checkInMoment = moment.tz(
+      `${external.date} ${external.time}`,
+      'YYYY-MM-DD HH:mm:ss',
+      TIMEZONE,
+    );
 
-    const checkInTime = new Date(external.sj);
     const converted: AttendanceRecord = {
       id: external.bh.toString(),
       userId: '',
       employeeId: external.user_no,
-      date: new Date(checkInTime.setHours(0, 0, 0, 0)),
-      checkInTime: checkInTime,
+      date: checkInMoment.startOf('day').toDate(),
+      checkInTime: checkInMoment.toDate(),
       checkOutTime: null,
       isOvertime: false,
       overtimeStartTime: null,
@@ -510,23 +495,31 @@ export class AttendanceService {
       status: 'checked-in',
       isManualEntry: false,
     };
-    logTimeConversion(
-      'ExternalToInternal',
-      {
-        sj: external.sj,
-        date: external.date,
-        time: external.time,
-      },
-      {
-        date: converted.date,
-        checkInTime: converted.checkInTime,
-      },
-    );
 
     logMessage(`Converted record: ${JSON.stringify(converted)}`);
     this.validateConvertedTime(external, converted);
 
     return converted;
+  }
+
+  private validateConvertedTime(
+    original: ExternalCheckInData,
+    converted: AttendanceRecord,
+  ) {
+    const originalTime = moment.tz(
+      `${original.date} ${original.time}`,
+      'YYYY-MM-DD HH:mm:ss',
+      TIMEZONE,
+    );
+    const convertedTime = moment(converted.checkInTime).tz(TIMEZONE);
+
+    if (!originalTime.isSame(convertedTime)) {
+      logger.warn('Time conversion mismatch', {
+        original: originalTime.format(),
+        converted: convertedTime.format(),
+        difference: convertedTime.diff(originalTime, 'minutes'),
+      });
+    }
   }
 
   private determineStatus(
