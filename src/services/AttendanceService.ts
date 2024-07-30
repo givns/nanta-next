@@ -19,7 +19,7 @@ import { UserRole } from '@/types/enum';
 import { logMessage } from '../utils/inMemoryLogger';
 import moment from 'moment-timezone';
 import { createLogger } from '../utils/loggers';
-import { convertToLocalTime, TIMEZONE } from '../utils/timezoneHelper';
+import { TIMEZONE } from '../utils/timezoneHelper';
 
 const logger = createLogger('AttendanceService');
 
@@ -61,6 +61,9 @@ export class AttendanceService {
     this.externalDbService = new ExternalDbService();
     this.holidayService = new HolidayService();
     this.shift104HolidayService = new Shift104HolidayService();
+    this.convertExternalToInternal = this.convertExternalToInternal.bind(this);
+    this.validateConvertedTime = this.validateConvertedTime.bind(this);
+    this.getLatestAttendanceRecord = this.getLatestAttendanceRecord.bind(this);
   }
 
   async getLatestAttendanceStatus(
