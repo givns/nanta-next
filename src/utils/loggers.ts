@@ -15,3 +15,13 @@ export const createLogger = (service: string) => {
     ],
   });
 };
+
+const attendanceLogger = createLogger('attendance');
+
+export function logTimeConversion(
+  stage: string,
+  original: any,
+  converted: any,
+) {
+  attendanceLogger.debug('Time conversion', { stage, original, converted });
+}

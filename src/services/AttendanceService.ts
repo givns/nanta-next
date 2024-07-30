@@ -18,6 +18,10 @@ import {
 import { UserRole } from '@/types/enum';
 import { logMessage } from '../utils/inMemoryLogger';
 import moment from 'moment-timezone';
+import { createLogger, logTimeConversion } from '../utils/loggers';
+import { convertToLocalTime, TIMEZONE } from '../utils/timezoneHelper';
+
+const logger = createLogger('AttendanceService');
 
 type PrismaAttendanceRecord = {
   id: string;
@@ -459,6 +463,24 @@ export class AttendanceService {
     return recordsByDate;
   }
 
+  private validateConvertedTime(
+    original: ExternalCheckInData,
+    converted: AttendanceRecord,
+  ) {
+    const originalTime = convertToLocalTime(
+      `${original.date} ${original.time}`,
+    );
+    const convertedTime = moment(converted.checkInTime).tz(TIMEZONE);
+
+    if (!originalTime.isSame(convertedTime)) {
+      logger.warn('Time conversion mismatch', {
+        original: originalTime.format(),
+        converted: convertedTime.format(),
+        difference: convertedTime.diff(originalTime, 'minutes'),
+      });
+    }
+  }
+
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
@@ -488,8 +510,22 @@ export class AttendanceService {
       status: 'checked-in',
       isManualEntry: false,
     };
+    logTimeConversion(
+      'ExternalToInternal',
+      {
+        sj: external.sj,
+        date: external.date,
+        time: external.time,
+      },
+      {
+        date: converted.date,
+        checkInTime: converted.checkInTime,
+      },
+    );
 
     logMessage(`Converted record: ${JSON.stringify(converted)}`);
+    this.validateConvertedTime(external, converted);
+
     return converted;
   }
 

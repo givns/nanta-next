@@ -50040,3 +50040,800 @@
 2024-07-30 04:18:57 +07:00: Worker still running...
 2024-07-30 04:19:57 +07:00: Worker still running...
 2024-07-30 04:20:57 +07:00: Worker still running...
+2024-07-30 04:21:57 +07:00: Worker still running...
+2024-07-30 04:22:57 +07:00: Worker still running...
+2024-07-30 04:23:57 +07:00: Worker still running...
+2024-07-30 04:24:57 +07:00: Worker still running...
+2024-07-30 04:25:57 +07:00: Worker still running...
+2024-07-30 04:26:57 +07:00: Worker still running...
+2024-07-30 04:27:57 +07:00: Worker still running...
+2024-07-30 04:28:57 +07:00: Worker still running...
+2024-07-30 04:29:57 +07:00: Worker still running...
+2024-07-30 04:30:57 +07:00: Worker still running...
+2024-07-30 04:31:57 +07:00: Worker still running...
+2024-07-30 04:47:40 +07:00: Worker still running...
+2024-07-30 04:47:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 04:47:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 04:47:41 +07:00:   errno: -54,
+2024-07-30 04:47:41 +07:00:   code: 'ECONNRESET',
+2024-07-30 04:47:41 +07:00:   syscall: 'read'
+2024-07-30 04:47:41 +07:00: }
+2024-07-30 04:47:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 04:47:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 04:47:41 +07:00:   errno: -54,
+2024-07-30 04:47:41 +07:00:   code: 'ECONNRESET',
+2024-07-30 04:47:41 +07:00:   syscall: 'read'
+2024-07-30 04:47:41 +07:00: }
+2024-07-30 04:48:40 +07:00: Worker still running...
+2024-07-30 05:03:41 +07:00: Worker still running...
+2024-07-30 05:03:42 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:03:42 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:03:42 +07:00:   errno: -54,
+2024-07-30 05:03:42 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:03:42 +07:00:   syscall: 'read'
+2024-07-30 05:03:42 +07:00: }
+2024-07-30 05:03:42 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:03:42 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:03:42 +07:00:   errno: -54,
+2024-07-30 05:03:42 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:03:42 +07:00:   syscall: 'read'
+2024-07-30 05:03:42 +07:00: }
+2024-07-30 05:04:41 +07:00: Worker still running...
+2024-07-30 05:19:48 +07:00: Worker still running...
+2024-07-30 05:19:48 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:19:48 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:19:48 +07:00:   errno: -54,
+2024-07-30 05:19:48 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:19:48 +07:00:   syscall: 'read'
+2024-07-30 05:19:48 +07:00: }
+2024-07-30 05:19:48 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:19:48 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:19:48 +07:00:   errno: -54,
+2024-07-30 05:19:48 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:19:48 +07:00:   syscall: 'read'
+2024-07-30 05:19:48 +07:00: }
+2024-07-30 05:30:23 +07:00: Worker still running...
+2024-07-30 05:30:23 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:30:23 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:30:23 +07:00:   errno: -54,
+2024-07-30 05:30:23 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:30:23 +07:00:   syscall: 'read'
+2024-07-30 05:30:23 +07:00: }
+2024-07-30 05:30:23 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:30:23 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:30:23 +07:00:   errno: -54,
+2024-07-30 05:30:23 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:30:23 +07:00:   syscall: 'read'
+2024-07-30 05:30:23 +07:00: }
+2024-07-30 05:32:11 +07:00: Worker still running...
+2024-07-30 05:32:11 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:32:11 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:32:11 +07:00:   errno: -54,
+2024-07-30 05:32:11 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:32:11 +07:00:   syscall: 'read'
+2024-07-30 05:32:11 +07:00: }
+2024-07-30 05:32:11 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:32:11 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:32:11 +07:00:   errno: -54,
+2024-07-30 05:32:11 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:32:11 +07:00:   syscall: 'read'
+2024-07-30 05:32:11 +07:00: }
+2024-07-30 05:33:11 +07:00: Worker still running...
+2024-07-30 05:35:07 +07:00: Worker still running...
+2024-07-30 05:35:07 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:35:07 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:35:07 +07:00:   errno: -54,
+2024-07-30 05:35:07 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:35:07 +07:00:   syscall: 'read'
+2024-07-30 05:35:07 +07:00: }
+2024-07-30 05:35:07 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:35:07 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:35:07 +07:00:   errno: -54,
+2024-07-30 05:35:07 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:35:07 +07:00:   syscall: 'read'
+2024-07-30 05:35:07 +07:00: }
+2024-07-30 05:36:08 +07:00: Worker still running...
+2024-07-30 05:51:54 +07:00: Worker still running...
+2024-07-30 05:51:54 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:51:54 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:51:54 +07:00:   errno: -54,
+2024-07-30 05:51:54 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:51:54 +07:00:   syscall: 'read'
+2024-07-30 05:51:54 +07:00: }
+2024-07-30 05:51:54 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 05:51:54 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 05:51:54 +07:00:   errno: -54,
+2024-07-30 05:51:54 +07:00:   code: 'ECONNRESET',
+2024-07-30 05:51:54 +07:00:   syscall: 'read'
+2024-07-30 05:51:54 +07:00: }
+2024-07-30 05:52:54 +07:00: Worker still running...
+2024-07-30 05:53:54 +07:00: Worker still running...
+2024-07-30 06:09:41 +07:00: Worker still running...
+2024-07-30 06:09:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 06:09:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 06:09:41 +07:00:   errno: -54,
+2024-07-30 06:09:41 +07:00:   code: 'ECONNRESET',
+2024-07-30 06:09:41 +07:00:   syscall: 'read'
+2024-07-30 06:09:41 +07:00: }
+2024-07-30 06:09:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 06:09:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 06:09:41 +07:00:   errno: -54,
+2024-07-30 06:09:41 +07:00:   code: 'ECONNRESET',
+2024-07-30 06:09:41 +07:00:   syscall: 'read'
+2024-07-30 06:09:41 +07:00: }
+2024-07-30 06:10:41 +07:00: Worker still running...
+2024-07-30 06:26:33 +07:00: Worker still running...
+2024-07-30 06:26:33 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 06:26:33 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 06:26:33 +07:00:   errno: -54,
+2024-07-30 06:26:33 +07:00:   code: 'ECONNRESET',
+2024-07-30 06:26:33 +07:00:   syscall: 'read'
+2024-07-30 06:26:33 +07:00: }
+2024-07-30 06:26:33 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 06:26:33 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 06:26:33 +07:00:   errno: -54,
+2024-07-30 06:26:33 +07:00:   code: 'ECONNRESET',
+2024-07-30 06:26:33 +07:00:   syscall: 'read'
+2024-07-30 06:26:33 +07:00: }
+2024-07-30 06:27:33 +07:00: Worker still running...
+2024-07-30 06:28:33 +07:00: Worker still running...
+2024-07-30 06:44:14 +07:00: Worker still running...
+2024-07-30 06:44:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 06:44:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 06:44:14 +07:00:   errno: -54,
+2024-07-30 06:44:14 +07:00:   code: 'ECONNRESET',
+2024-07-30 06:44:14 +07:00:   syscall: 'read'
+2024-07-30 06:44:14 +07:00: }
+2024-07-30 06:44:14 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 06:44:14 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 06:44:14 +07:00:   errno: -54,
+2024-07-30 06:44:14 +07:00:   code: 'ECONNRESET',
+2024-07-30 06:44:14 +07:00:   syscall: 'read'
+2024-07-30 06:44:14 +07:00: }
+2024-07-30 06:45:14 +07:00: Worker still running...
+2024-07-30 06:46:14 +07:00: Worker still running...
+2024-07-30 06:47:14 +07:00: Worker still running...
+2024-07-30 07:02:31 +07:00: Worker still running...
+2024-07-30 07:02:31 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 07:02:31 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 07:02:31 +07:00:   errno: -54,
+2024-07-30 07:02:31 +07:00:   code: 'ECONNRESET',
+2024-07-30 07:02:31 +07:00:   syscall: 'read'
+2024-07-30 07:02:31 +07:00: }
+2024-07-30 07:02:31 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 07:02:31 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 07:02:31 +07:00:   errno: -54,
+2024-07-30 07:02:31 +07:00:   code: 'ECONNRESET',
+2024-07-30 07:02:31 +07:00:   syscall: 'read'
+2024-07-30 07:02:31 +07:00: }
+2024-07-30 07:03:31 +07:00: Worker still running...
+2024-07-30 07:04:31 +07:00: Worker still running...
+2024-07-30 07:05:31 +07:00: Worker still running...
+2024-07-30 07:06:31 +07:00: Worker still running...
+2024-07-30 07:07:31 +07:00: Worker still running...
+2024-07-30 07:08:31 +07:00: Worker still running...
+2024-07-30 07:09:31 +07:00: Worker still running...
+2024-07-30 07:10:31 +07:00: Worker still running...
+2024-07-30 07:11:31 +07:00: Worker still running...
+2024-07-30 07:12:31 +07:00: Worker still running...
+2024-07-30 07:13:31 +07:00: Worker still running...
+2024-07-30 07:14:31 +07:00: Worker still running...
+2024-07-30 07:15:31 +07:00: Worker still running...
+2024-07-30 07:16:31 +07:00: Worker still running...
+2024-07-30 07:17:31 +07:00: Worker still running...
+2024-07-30 07:18:31 +07:00: Worker still running...
+2024-07-30 07:19:31 +07:00: Worker still running...
+2024-07-30 07:20:31 +07:00: Worker still running...
+2024-07-30 07:27:36 +07:00: Worker still running...
+2024-07-30 07:27:36 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 07:27:36 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 07:27:36 +07:00:   errno: -54,
+2024-07-30 07:27:36 +07:00:   code: 'ECONNRESET',
+2024-07-30 07:27:36 +07:00:   syscall: 'read'
+2024-07-30 07:27:36 +07:00: }
+2024-07-30 07:27:36 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 07:27:36 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 07:27:36 +07:00:   errno: -54,
+2024-07-30 07:27:36 +07:00:   code: 'ECONNRESET',
+2024-07-30 07:27:36 +07:00:   syscall: 'read'
+2024-07-30 07:27:36 +07:00: }
+2024-07-30 07:28:36 +07:00: Worker still running...
+2024-07-30 07:29:36 +07:00: Worker still running...
+2024-07-30 07:45:28 +07:00: Worker still running...
+2024-07-30 07:45:28 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 07:45:28 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 07:45:28 +07:00:   errno: -54,
+2024-07-30 07:45:28 +07:00:   code: 'ECONNRESET',
+2024-07-30 07:45:28 +07:00:   syscall: 'read'
+2024-07-30 07:45:28 +07:00: }
+2024-07-30 07:45:28 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 07:45:28 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 07:45:28 +07:00:   errno: -54,
+2024-07-30 07:45:28 +07:00:   code: 'ECONNRESET',
+2024-07-30 07:45:28 +07:00:   syscall: 'read'
+2024-07-30 07:45:28 +07:00: }
+2024-07-30 07:46:28 +07:00: Worker still running...
+2024-07-30 07:47:28 +07:00: Worker still running...
+2024-07-30 08:03:19 +07:00: Worker still running...
+2024-07-30 08:03:19 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 08:03:19 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 08:03:19 +07:00:   errno: -54,
+2024-07-30 08:03:19 +07:00:   code: 'ECONNRESET',
+2024-07-30 08:03:19 +07:00:   syscall: 'read'
+2024-07-30 08:03:19 +07:00: }
+2024-07-30 08:03:19 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 08:03:19 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 08:03:19 +07:00:   errno: -54,
+2024-07-30 08:03:19 +07:00:   code: 'ECONNRESET',
+2024-07-30 08:03:19 +07:00:   syscall: 'read'
+2024-07-30 08:03:19 +07:00: }
+2024-07-30 08:04:19 +07:00: Worker still running...
+2024-07-30 08:05:19 +07:00: Worker still running...
+2024-07-30 08:21:01 +07:00: Worker still running...
+2024-07-30 08:21:01 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 08:21:01 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 08:21:01 +07:00:   errno: -54,
+2024-07-30 08:21:01 +07:00:   code: 'ECONNRESET',
+2024-07-30 08:21:01 +07:00:   syscall: 'read'
+2024-07-30 08:21:01 +07:00: }
+2024-07-30 08:21:01 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 08:21:01 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 08:21:01 +07:00:   errno: -54,
+2024-07-30 08:21:01 +07:00:   code: 'ECONNRESET',
+2024-07-30 08:21:01 +07:00:   syscall: 'read'
+2024-07-30 08:21:01 +07:00: }
+2024-07-30 08:28:33 +07:00: Worker still running...
+2024-07-30 08:28:33 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 08:28:33 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 08:28:33 +07:00:   errno: -54,
+2024-07-30 08:28:33 +07:00:   code: 'ECONNRESET',
+2024-07-30 08:28:33 +07:00:   syscall: 'read'
+2024-07-30 08:28:33 +07:00: }
+2024-07-30 08:28:33 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 08:28:33 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 08:28:33 +07:00:   errno: -54,
+2024-07-30 08:28:33 +07:00:   code: 'ECONNRESET',
+2024-07-30 08:28:33 +07:00:   syscall: 'read'
+2024-07-30 08:28:33 +07:00: }
+2024-07-30 08:29:33 +07:00: Worker still running...
+2024-07-30 08:30:33 +07:00: Worker still running...
+2024-07-30 08:46:24 +07:00: Worker still running...
+2024-07-30 08:46:24 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 08:46:24 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 08:46:24 +07:00:   errno: -54,
+2024-07-30 08:46:24 +07:00:   code: 'ECONNRESET',
+2024-07-30 08:46:24 +07:00:   syscall: 'read'
+2024-07-30 08:46:24 +07:00: }
+2024-07-30 08:46:24 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 08:46:24 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 08:46:24 +07:00:   errno: -54,
+2024-07-30 08:46:24 +07:00:   code: 'ECONNRESET',
+2024-07-30 08:46:24 +07:00:   syscall: 'read'
+2024-07-30 08:46:24 +07:00: }
+2024-07-30 08:47:24 +07:00: Worker still running...
+2024-07-30 08:48:24 +07:00: Worker still running...
+2024-07-30 08:49:24 +07:00: Worker still running...
+2024-07-30 08:50:24 +07:00: Worker still running...
+2024-07-30 08:51:24 +07:00: Worker still running...
+2024-07-30 08:52:24 +07:00: Worker still running...
+2024-07-30 09:04:18 +07:00: Worker still running...
+2024-07-30 09:04:18 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 09:04:18 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 09:04:18 +07:00:   errno: -54,
+2024-07-30 09:04:18 +07:00:   code: 'ECONNRESET',
+2024-07-30 09:04:18 +07:00:   syscall: 'read'
+2024-07-30 09:04:18 +07:00: }
+2024-07-30 09:04:18 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 09:04:18 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 09:04:18 +07:00:   errno: -54,
+2024-07-30 09:04:18 +07:00:   code: 'ECONNRESET',
+2024-07-30 09:04:18 +07:00:   syscall: 'read'
+2024-07-30 09:04:18 +07:00: }
+2024-07-30 09:05:18 +07:00: Worker still running...
+2024-07-30 09:06:18 +07:00: Worker still running...
+2024-07-30 09:07:18 +07:00: Worker still running...
+2024-07-30 09:08:18 +07:00: Worker still running...
+2024-07-30 09:09:18 +07:00: Worker still running...
+2024-07-30 09:10:18 +07:00: Worker still running...
+2024-07-30 09:11:18 +07:00: Worker still running...
+2024-07-30 09:12:18 +07:00: Worker still running...
+2024-07-30 09:13:18 +07:00: Worker still running...
+2024-07-30 09:14:18 +07:00: Worker still running...
+2024-07-30 09:15:18 +07:00: Worker still running...
+2024-07-30 09:16:18 +07:00: Worker still running...
+2024-07-30 09:17:18 +07:00: Worker still running...
+2024-07-30 09:18:18 +07:00: Worker still running...
+2024-07-30 09:19:18 +07:00: Worker still running...
+2024-07-30 09:20:18 +07:00: Worker still running...
+2024-07-30 09:21:18 +07:00: Worker still running...
+2024-07-30 09:22:18 +07:00: Worker still running...
+2024-07-30 09:23:18 +07:00: Worker still running...
+2024-07-30 09:24:18 +07:00: Worker still running...
+2024-07-30 09:25:18 +07:00: Worker still running...
+2024-07-30 09:26:18 +07:00: Worker still running...
+2024-07-30 09:27:18 +07:00: Worker still running...
+2024-07-30 09:28:18 +07:00: Worker still running...
+2024-07-30 09:29:18 +07:00: Worker still running...
+2024-07-30 09:30:18 +07:00: Worker still running...
+2024-07-30 09:31:18 +07:00: Worker still running...
+2024-07-30 09:32:18 +07:00: Worker still running...
+2024-07-30 09:33:18 +07:00: Worker still running...
+2024-07-30 09:34:18 +07:00: Worker still running...
+2024-07-30 09:35:18 +07:00: Worker still running...
+2024-07-30 09:36:18 +07:00: Worker still running...
+2024-07-30 09:37:18 +07:00: Worker still running...
+2024-07-30 09:38:18 +07:00: Worker still running...
+2024-07-30 09:39:18 +07:00: Worker still running...
+2024-07-30 09:40:18 +07:00: Worker still running...
+2024-07-30 09:41:18 +07:00: Worker still running...
+2024-07-30 09:42:18 +07:00: Worker still running...
+2024-07-30 09:43:18 +07:00: Worker still running...
+2024-07-30 09:44:18 +07:00: Worker still running...
+2024-07-30 09:45:18 +07:00: Worker still running...
+2024-07-30 09:46:18 +07:00: Worker still running...
+2024-07-30 09:47:18 +07:00: Worker still running...
+2024-07-30 09:48:18 +07:00: Worker still running...
+2024-07-30 09:49:18 +07:00: Worker still running...
+2024-07-30 09:50:18 +07:00: Worker still running...
+2024-07-30 09:51:18 +07:00: Worker still running...
+2024-07-30 09:52:18 +07:00: Worker still running...
+2024-07-30 09:53:18 +07:00: Worker still running...
+2024-07-30 09:54:18 +07:00: Worker still running...
+2024-07-30 09:55:18 +07:00: Worker still running...
+2024-07-30 09:56:18 +07:00: Worker still running...
+2024-07-30 09:57:18 +07:00: Worker still running...
+2024-07-30 09:58:18 +07:00: Worker still running...
+2024-07-30 09:59:18 +07:00: Worker still running...
+2024-07-30 10:00:18 +07:00: Worker still running...
+2024-07-30 10:01:18 +07:00: Worker still running...
+2024-07-30 10:02:18 +07:00: Worker still running...
+2024-07-30 10:03:18 +07:00: Worker still running...
+2024-07-30 10:04:18 +07:00: Worker still running...
+2024-07-30 10:05:18 +07:00: Worker still running...
+2024-07-30 10:20:41 +07:00: Worker still running...
+2024-07-30 10:20:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:20:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:20:41 +07:00:   errno: -54,
+2024-07-30 10:20:41 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:20:41 +07:00:   syscall: 'read'
+2024-07-30 10:20:41 +07:00: }
+2024-07-30 10:20:41 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:20:41 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:20:41 +07:00:   errno: -54,
+2024-07-30 10:20:41 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:20:41 +07:00:   syscall: 'read'
+2024-07-30 10:20:41 +07:00: }
+2024-07-30 10:21:41 +07:00: Worker still running...
+2024-07-30 10:22:41 +07:00: Worker still running...
+2024-07-30 10:25:02 +07:00: Worker still running...
+2024-07-30 10:25:02 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:25:02 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:25:02 +07:00:   errno: -54,
+2024-07-30 10:25:02 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:25:02 +07:00:   syscall: 'read'
+2024-07-30 10:25:02 +07:00: }
+2024-07-30 10:25:02 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:25:02 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:25:02 +07:00:   errno: -54,
+2024-07-30 10:25:02 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:25:02 +07:00:   syscall: 'read'
+2024-07-30 10:25:02 +07:00: }
+2024-07-30 10:29:59 +07:00: Worker still running...
+2024-07-30 10:29:59 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:29:59 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:29:59 +07:00:   errno: -54,
+2024-07-30 10:29:59 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:29:59 +07:00:   syscall: 'read'
+2024-07-30 10:29:59 +07:00: }
+2024-07-30 10:29:59 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:29:59 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:29:59 +07:00:   errno: -54,
+2024-07-30 10:29:59 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:29:59 +07:00:   syscall: 'read'
+2024-07-30 10:29:59 +07:00: }
+2024-07-30 10:30:59 +07:00: Worker still running...
+2024-07-30 10:31:13 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:31:13 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:31:13 +07:00:   errno: -54,
+2024-07-30 10:31:13 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:31:13 +07:00:   syscall: 'read'
+2024-07-30 10:31:13 +07:00: }
+2024-07-30 10:31:13 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:31:13 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:31:13 +07:00:   errno: -54,
+2024-07-30 10:31:13 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:31:13 +07:00:   syscall: 'read'
+2024-07-30 10:31:13 +07:00: }
+2024-07-30 10:31:15 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:31:15 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:31:15 +07:00:   errno: -54,
+2024-07-30 10:31:15 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:31:15 +07:00:   syscall: 'read'
+2024-07-30 10:31:15 +07:00: }
+2024-07-30 10:31:15 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:31:15 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:31:15 +07:00:   errno: -54,
+2024-07-30 10:31:15 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:31:15 +07:00:   syscall: 'read'
+2024-07-30 10:31:15 +07:00: }
+2024-07-30 10:31:59 +07:00: Worker still running...
+2024-07-30 10:47:35 +07:00: Worker still running...
+2024-07-30 10:47:35 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:47:35 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:47:35 +07:00:   errno: -54,
+2024-07-30 10:47:35 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:47:35 +07:00:   syscall: 'read'
+2024-07-30 10:47:35 +07:00: }
+2024-07-30 10:47:35 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 10:47:35 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 10:47:35 +07:00:   errno: -54,
+2024-07-30 10:47:35 +07:00:   code: 'ECONNRESET',
+2024-07-30 10:47:35 +07:00:   syscall: 'read'
+2024-07-30 10:47:35 +07:00: }
+2024-07-30 10:48:35 +07:00: Worker still running...
+2024-07-30 10:49:35 +07:00: Worker still running...
+2024-07-30 11:04:05 +07:00: Worker still running...
+2024-07-30 11:04:05 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 11:04:05 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 11:04:05 +07:00:   errno: -54,
+2024-07-30 11:04:05 +07:00:   code: 'ECONNRESET',
+2024-07-30 11:04:05 +07:00:   syscall: 'read'
+2024-07-30 11:04:05 +07:00: }
+2024-07-30 11:04:05 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 11:04:05 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 11:04:05 +07:00:   errno: -54,
+2024-07-30 11:04:05 +07:00:   code: 'ECONNRESET',
+2024-07-30 11:04:05 +07:00:   syscall: 'read'
+2024-07-30 11:04:05 +07:00: }
+2024-07-30 11:05:05 +07:00: Worker still running...
+2024-07-30 11:06:05 +07:00: Worker still running...
+2024-07-30 11:07:05 +07:00: Worker still running...
+2024-07-30 11:08:05 +07:00: Worker still running...
+2024-07-30 11:09:05 +07:00: Worker still running...
+2024-07-30 11:10:05 +07:00: Worker still running...
+2024-07-30 11:11:05 +07:00: Worker still running...
+2024-07-30 11:11:55 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:55 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:55 +07:00:   errno: -61,
+2024-07-30 11:11:55 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:55 +07:00:   syscall: 'connect',
+2024-07-30 11:11:55 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:55 +07:00:   port: 19278
+2024-07-30 11:11:55 +07:00: }
+2024-07-30 11:11:55 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:55 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:55 +07:00:   errno: -61,
+2024-07-30 11:11:55 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:55 +07:00:   syscall: 'connect',
+2024-07-30 11:11:55 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:55 +07:00:   port: 19278
+2024-07-30 11:11:55 +07:00: }
+2024-07-30 11:11:55 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:55 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:55 +07:00:   errno: -61,
+2024-07-30 11:11:55 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:55 +07:00:   syscall: 'connect',
+2024-07-30 11:11:55 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:55 +07:00:   port: 19278
+2024-07-30 11:11:55 +07:00: }
+2024-07-30 11:11:55 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:55 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:55 +07:00:   errno: -61,
+2024-07-30 11:11:55 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:55 +07:00:   syscall: 'connect',
+2024-07-30 11:11:55 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:55 +07:00:   port: 19278
+2024-07-30 11:11:55 +07:00: }
+2024-07-30 11:11:55 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:55 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:55 +07:00:   errno: -61,
+2024-07-30 11:11:55 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:55 +07:00:   syscall: 'connect',
+2024-07-30 11:11:55 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:55 +07:00:   port: 19278
+2024-07-30 11:11:55 +07:00: }
+2024-07-30 11:11:55 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:55 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:55 +07:00:   errno: -61,
+2024-07-30 11:11:55 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:55 +07:00:   syscall: 'connect',
+2024-07-30 11:11:55 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:55 +07:00:   port: 19278
+2024-07-30 11:11:55 +07:00: }
+2024-07-30 11:11:56 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:56 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:56 +07:00:   errno: -61,
+2024-07-30 11:11:56 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:56 +07:00:   syscall: 'connect',
+2024-07-30 11:11:56 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:56 +07:00:   port: 19278
+2024-07-30 11:11:56 +07:00: }
+2024-07-30 11:11:56 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:56 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:56 +07:00:   errno: -61,
+2024-07-30 11:11:56 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:56 +07:00:   syscall: 'connect',
+2024-07-30 11:11:56 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:56 +07:00:   port: 19278
+2024-07-30 11:11:56 +07:00: }
+2024-07-30 11:11:56 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:56 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:56 +07:00:   errno: -61,
+2024-07-30 11:11:56 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:56 +07:00:   syscall: 'connect',
+2024-07-30 11:11:56 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:56 +07:00:   port: 19278
+2024-07-30 11:11:56 +07:00: }
+2024-07-30 11:11:56 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:56 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:56 +07:00:   errno: -61,
+2024-07-30 11:11:56 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:56 +07:00:   syscall: 'connect',
+2024-07-30 11:11:56 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:56 +07:00:   port: 19278
+2024-07-30 11:11:56 +07:00: }
+2024-07-30 11:11:56 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:56 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:56 +07:00:   errno: -61,
+2024-07-30 11:11:56 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:56 +07:00:   syscall: 'connect',
+2024-07-30 11:11:56 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:56 +07:00:   port: 19278
+2024-07-30 11:11:56 +07:00: }
+2024-07-30 11:11:56 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:56 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:56 +07:00:   errno: -61,
+2024-07-30 11:11:56 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:56 +07:00:   syscall: 'connect',
+2024-07-30 11:11:56 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:56 +07:00:   port: 19278
+2024-07-30 11:11:56 +07:00: }
+2024-07-30 11:11:57 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:57 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:57 +07:00:   errno: -61,
+2024-07-30 11:11:57 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:57 +07:00:   syscall: 'connect',
+2024-07-30 11:11:57 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:57 +07:00:   port: 19278
+2024-07-30 11:11:57 +07:00: }
+2024-07-30 11:11:57 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:57 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:57 +07:00:   errno: -61,
+2024-07-30 11:11:57 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:57 +07:00:   syscall: 'connect',
+2024-07-30 11:11:57 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:57 +07:00:   port: 19278
+2024-07-30 11:11:57 +07:00: }
+2024-07-30 11:11:57 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:57 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:57 +07:00:   errno: -61,
+2024-07-30 11:11:57 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:57 +07:00:   syscall: 'connect',
+2024-07-30 11:11:57 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:57 +07:00:   port: 19278
+2024-07-30 11:11:57 +07:00: }
+2024-07-30 11:11:57 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:57 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:57 +07:00:   errno: -61,
+2024-07-30 11:11:57 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:57 +07:00:   syscall: 'connect',
+2024-07-30 11:11:57 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:57 +07:00:   port: 19278
+2024-07-30 11:11:57 +07:00: }
+2024-07-30 11:11:58 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:58 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:58 +07:00:   errno: -61,
+2024-07-30 11:11:58 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:58 +07:00:   syscall: 'connect',
+2024-07-30 11:11:58 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:58 +07:00:   port: 19278
+2024-07-30 11:11:58 +07:00: }
+2024-07-30 11:11:58 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:58 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:58 +07:00:   errno: -61,
+2024-07-30 11:11:58 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:58 +07:00:   syscall: 'connect',
+2024-07-30 11:11:58 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:58 +07:00:   port: 19278
+2024-07-30 11:11:58 +07:00: }
+2024-07-30 11:11:58 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:58 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:58 +07:00:   errno: -61,
+2024-07-30 11:11:58 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:58 +07:00:   syscall: 'connect',
+2024-07-30 11:11:58 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:58 +07:00:   port: 19278
+2024-07-30 11:11:58 +07:00: }
+2024-07-30 11:11:58 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:58 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:58 +07:00:   errno: -61,
+2024-07-30 11:11:58 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:58 +07:00:   syscall: 'connect',
+2024-07-30 11:11:58 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:58 +07:00:   port: 19278
+2024-07-30 11:11:58 +07:00: }
+2024-07-30 11:11:59 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:59 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:59 +07:00:   errno: -61,
+2024-07-30 11:11:59 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:59 +07:00:   syscall: 'connect',
+2024-07-30 11:11:59 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:59 +07:00:   port: 19278
+2024-07-30 11:11:59 +07:00: }
+2024-07-30 11:11:59 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:59 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:59 +07:00:   errno: -61,
+2024-07-30 11:11:59 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:59 +07:00:   syscall: 'connect',
+2024-07-30 11:11:59 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:59 +07:00:   port: 19278
+2024-07-30 11:11:59 +07:00: }
+2024-07-30 11:11:59 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:59 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:59 +07:00:   errno: -61,
+2024-07-30 11:11:59 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:59 +07:00:   syscall: 'connect',
+2024-07-30 11:11:59 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:59 +07:00:   port: 19278
+2024-07-30 11:11:59 +07:00: }
+2024-07-30 11:11:59 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:11:59 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:11:59 +07:00:   errno: -61,
+2024-07-30 11:11:59 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:11:59 +07:00:   syscall: 'connect',
+2024-07-30 11:11:59 +07:00:   address: '18.138.254.175',
+2024-07-30 11:11:59 +07:00:   port: 19278
+2024-07-30 11:11:59 +07:00: }
+2024-07-30 11:12:00 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:12:00 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:12:00 +07:00:   errno: -61,
+2024-07-30 11:12:00 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:12:00 +07:00:   syscall: 'connect',
+2024-07-30 11:12:00 +07:00:   address: '18.138.254.175',
+2024-07-30 11:12:00 +07:00:   port: 19278
+2024-07-30 11:12:00 +07:00: }
+2024-07-30 11:12:00 +07:00: Queue error: Error: connect ECONNREFUSED 18.138.254.175:19278
+2024-07-30 11:12:00 +07:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1605:16) {
+2024-07-30 11:12:00 +07:00:   errno: -61,
+2024-07-30 11:12:00 +07:00:   code: 'ECONNREFUSED',
+2024-07-30 11:12:00 +07:00:   syscall: 'connect',
+2024-07-30 11:12:00 +07:00:   address: '18.138.254.175',
+2024-07-30 11:12:00 +07:00:   port: 19278
+2024-07-30 11:12:00 +07:00: }
+2024-07-30 11:12:05 +07:00: Worker still running...
+2024-07-30 11:13:05 +07:00: Worker still running...
+2024-07-30 11:14:05 +07:00: Worker still running...
+2024-07-30 11:15:05 +07:00: Worker still running...
+2024-07-30 11:16:05 +07:00: Worker still running...
+2024-07-30 11:17:05 +07:00: Worker still running...
+2024-07-30 11:18:56 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 11:18:56 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 11:18:56 +07:00:   errno: -54,
+2024-07-30 11:18:56 +07:00:   code: 'ECONNRESET',
+2024-07-30 11:18:56 +07:00:   syscall: 'read'
+2024-07-30 11:18:56 +07:00: }
+2024-07-30 11:18:56 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 11:18:56 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 11:18:56 +07:00:   errno: -54,
+2024-07-30 11:18:56 +07:00:   code: 'ECONNRESET',
+2024-07-30 11:18:56 +07:00:   syscall: 'read'
+2024-07-30 11:18:56 +07:00: }
+2024-07-30 11:18:56 +07:00: Worker still running...
+2024-07-30 11:29:16 +07:00: Worker still running...
+2024-07-30 11:29:17 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 11:29:17 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 11:29:17 +07:00:   errno: -54,
+2024-07-30 11:29:17 +07:00:   code: 'ECONNRESET',
+2024-07-30 11:29:17 +07:00:   syscall: 'read'
+2024-07-30 11:29:17 +07:00: }
+2024-07-30 11:29:17 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 11:29:17 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 11:29:17 +07:00:   errno: -54,
+2024-07-30 11:29:17 +07:00:   code: 'ECONNRESET',
+2024-07-30 11:29:17 +07:00:   syscall: 'read'
+2024-07-30 11:29:17 +07:00: }
+2024-07-30 11:30:16 +07:00: Worker still running...
+2024-07-30 11:31:36 +07:00: Worker still running...
+2024-07-30 11:47:22 +07:00: Worker still running...
+2024-07-30 11:47:22 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 11:47:22 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 11:47:22 +07:00:   errno: -54,
+2024-07-30 11:47:22 +07:00:   code: 'ECONNRESET',
+2024-07-30 11:47:22 +07:00:   syscall: 'read'
+2024-07-30 11:47:22 +07:00: }
+2024-07-30 11:47:22 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 11:47:22 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 11:47:22 +07:00:   errno: -54,
+2024-07-30 11:47:22 +07:00:   code: 'ECONNRESET',
+2024-07-30 11:47:22 +07:00:   syscall: 'read'
+2024-07-30 11:47:22 +07:00: }
+2024-07-30 11:48:52 +07:00: Worker still running...
+2024-07-30 11:49:52 +07:00: Worker still running...
+2024-07-30 11:50:52 +07:00: Worker still running...
+2024-07-30 11:51:52 +07:00: Worker still running...
+2024-07-30 11:52:52 +07:00: Worker still running...
+2024-07-30 11:53:52 +07:00: Worker still running...
+2024-07-30 11:54:52 +07:00: Worker still running...
+2024-07-30 11:55:52 +07:00: Worker still running...
+2024-07-30 11:56:52 +07:00: Worker still running...
+2024-07-30 11:57:52 +07:00: Worker still running...
+2024-07-30 11:58:52 +07:00: Worker still running...
+2024-07-30 11:59:52 +07:00: Worker still running...
+2024-07-30 12:00:52 +07:00: Worker still running...
+2024-07-30 12:01:52 +07:00: Worker still running...
+2024-07-30 12:02:52 +07:00: Worker still running...
+2024-07-30 12:03:52 +07:00: Worker still running...
+2024-07-30 12:04:52 +07:00: Worker still running...
+2024-07-30 12:06:14 +07:00: Worker still running...
+2024-07-30 12:22:05 +07:00: Worker still running...
+2024-07-30 12:22:05 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 12:22:05 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 12:22:05 +07:00:   errno: -54,
+2024-07-30 12:22:05 +07:00:   code: 'ECONNRESET',
+2024-07-30 12:22:05 +07:00:   syscall: 'read'
+2024-07-30 12:22:05 +07:00: }
+2024-07-30 12:22:05 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 12:22:05 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 12:22:05 +07:00:   errno: -54,
+2024-07-30 12:22:05 +07:00:   code: 'ECONNRESET',
+2024-07-30 12:22:05 +07:00:   syscall: 'read'
+2024-07-30 12:22:05 +07:00: }
+2024-07-30 12:23:05 +07:00: Worker still running...
+2024-07-30 12:24:05 +07:00: Worker still running...
+2024-07-30 12:32:36 +07:00: Worker still running...
+2024-07-30 12:32:36 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 12:32:36 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 12:32:36 +07:00:   errno: -54,
+2024-07-30 12:32:36 +07:00:   code: 'ECONNRESET',
+2024-07-30 12:32:36 +07:00:   syscall: 'read'
+2024-07-30 12:32:36 +07:00: }
+2024-07-30 12:32:36 +07:00: Queue error: Error: read ECONNRESET
+2024-07-30 12:32:36 +07:00:     at TCP.onStreamRead (node:internal/stream_base_commons:218:20) {
+2024-07-30 12:32:36 +07:00:   errno: -54,
+2024-07-30 12:32:36 +07:00:   code: 'ECONNRESET',
+2024-07-30 12:32:36 +07:00:   syscall: 'read'
+2024-07-30 12:32:36 +07:00: }
+2024-07-30 12:33:36 +07:00: Worker still running...
+2024-07-30 12:34:36 +07:00: Worker still running...
+2024-07-30 12:35:36 +07:00: Worker still running...
+2024-07-30 12:36:36 +07:00: Worker still running...
+2024-07-30 12:37:36 +07:00: Worker still running...
+2024-07-30 12:38:36 +07:00: Worker still running...
+2024-07-30 12:39:36 +07:00: Worker still running...
+2024-07-30 12:40:36 +07:00: Worker still running...
+2024-07-30 12:41:36 +07:00: Worker still running...
+2024-07-30 12:42:36 +07:00: Worker still running...
+2024-07-30 12:43:36 +07:00: Worker still running...
+2024-07-30 12:44:36 +07:00: Worker still running...
+2024-07-30 12:45:38 +07:00: Worker still running...
+2024-07-30 12:46:38 +07:00: Worker still running...
+2024-07-30 12:47:38 +07:00: Worker still running...
+2024-07-30 12:48:38 +07:00: Worker still running...
+2024-07-30 12:49:38 +07:00: Worker still running...
+2024-07-30 12:50:38 +07:00: Worker still running...
+2024-07-30 12:51:38 +07:00: Worker still running...
+2024-07-30 12:52:38 +07:00: Worker still running...
+2024-07-30 12:53:38 +07:00: Worker still running...
+2024-07-30 12:54:38 +07:00: Worker still running...
+2024-07-30 12:55:38 +07:00: Worker still running...
+2024-07-30 12:56:38 +07:00: Worker still running...
+2024-07-30 12:57:38 +07:00: Worker still running...
+2024-07-30 12:58:38 +07:00: Worker still running...
+2024-07-30 12:59:38 +07:00: Worker still running...
+2024-07-30 13:00:38 +07:00: Worker still running...
+2024-07-30 13:01:38 +07:00: Worker still running...
+2024-07-30 13:02:38 +07:00: Worker still running...
+2024-07-30 13:03:38 +07:00: Worker still running...
+2024-07-30 13:04:38 +07:00: Worker still running...
+2024-07-30 13:05:38 +07:00: Worker still running...
+2024-07-30 13:06:38 +07:00: Worker still running...
+2024-07-30 13:07:39 +07:00: Worker still running...
+2024-07-30 13:08:39 +07:00: Worker still running...
+2024-07-30 13:09:39 +07:00: Worker still running...
+2024-07-30 13:10:39 +07:00: Worker still running...
+2024-07-30 13:11:39 +07:00: Worker still running...
+2024-07-30 13:12:39 +07:00: Worker still running...
+2024-07-30 13:13:39 +07:00: Worker still running...
+2024-07-30 13:14:39 +07:00: Worker still running...
+2024-07-30 13:15:39 +07:00: Worker still running...
+2024-07-30 13:16:39 +07:00: Worker still running...
