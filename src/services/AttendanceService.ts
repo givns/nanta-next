@@ -18,10 +18,6 @@ import {
 import { UserRole } from '@/types/enum';
 import { logMessage } from '../utils/inMemoryLogger';
 import moment from 'moment-timezone';
-import { createLogger } from '../utils/loggers';
-import { TIMEZONE } from '../utils/timezoneHelper';
-
-const logger = createLogger('AttendanceService');
 
 type PrismaAttendanceRecord = {
   id: string;
@@ -61,9 +57,6 @@ export class AttendanceService {
     this.externalDbService = new ExternalDbService();
     this.holidayService = new HolidayService();
     this.shift104HolidayService = new Shift104HolidayService();
-    this.convertExternalToInternal = this.convertExternalToInternal.bind(this);
-    this.validateConvertedTime = this.validateConvertedTime.bind(this);
-    this.getLatestAttendanceRecord = this.getLatestAttendanceRecord.bind(this);
   }
 
   async getLatestAttendanceStatus(
@@ -382,10 +375,9 @@ export class AttendanceService {
     logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
     logMessage(`External records: ${JSON.stringify(externalRecords)}`);
 
-    const convertedExternalRecords: AttendanceRecord[] = [];
-    for (const record of externalRecords) {
-      convertedExternalRecords.push(this.convertExternalToInternal(record));
-    }
+    const convertedExternalRecords = externalRecords.map(
+      this.convertExternalToInternal,
+    );
     logMessage(
       `Converted external records: ${JSON.stringify(convertedExternalRecords)}`,
     );
@@ -470,18 +462,15 @@ export class AttendanceService {
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    const checkInMoment = moment.tz(
-      `${external.date} ${external.time}`,
-      'YYYY-MM-DD HH:mm:ss',
-      TIMEZONE,
-    );
+    logMessage(`Converting external record: ${JSON.stringify(external)}`);
 
+    const checkInTime = new Date(external.sj);
     const converted: AttendanceRecord = {
       id: external.bh.toString(),
       userId: '',
       employeeId: external.user_no,
-      date: checkInMoment.startOf('day').toDate(),
-      checkInTime: checkInMoment.toDate(),
+      date: new Date(checkInTime.setHours(0, 0, 0, 0)),
+      checkInTime: checkInTime,
       checkOutTime: null,
       isOvertime: false,
       overtimeStartTime: null,
@@ -500,28 +489,8 @@ export class AttendanceService {
       isManualEntry: false,
     };
 
-    this.validateConvertedTime(external, converted);
+    logMessage(`Converted record: ${JSON.stringify(converted)}`);
     return converted;
-  }
-
-  private validateConvertedTime(
-    original: ExternalCheckInData,
-    converted: AttendanceRecord,
-  ) {
-    const originalTime = moment.tz(
-      `${original.date} ${original.time}`,
-      'YYYY-MM-DD HH:mm:ss',
-      TIMEZONE,
-    );
-    const convertedTime = moment(converted.checkInTime).tz(TIMEZONE);
-
-    if (!originalTime.isSame(convertedTime)) {
-      logger.warn('Time conversion mismatch', {
-        original: originalTime.format(),
-        converted: convertedTime.format(),
-        difference: convertedTime.diff(originalTime, 'minutes'),
-      });
-    }
   }
 
   private determineStatus(
