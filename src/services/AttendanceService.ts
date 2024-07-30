@@ -379,9 +379,10 @@ export class AttendanceService {
     logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
     logMessage(`External records: ${JSON.stringify(externalRecords)}`);
 
-    const convertedExternalRecords = externalRecords.map(
-      this.convertExternalToInternal,
-    );
+    const convertedExternalRecords: AttendanceRecord[] = [];
+    for (const record of externalRecords) {
+      convertedExternalRecords.push(this.convertExternalToInternal(record));
+    }
     logMessage(
       `Converted external records: ${JSON.stringify(convertedExternalRecords)}`,
     );
@@ -496,9 +497,7 @@ export class AttendanceService {
       isManualEntry: false,
     };
 
-    logMessage(`Converted record: ${JSON.stringify(converted)}`);
     this.validateConvertedTime(external, converted);
-
     return converted;
   }
 
