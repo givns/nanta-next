@@ -464,7 +464,13 @@ export class AttendanceService {
   ): AttendanceRecord {
     logMessage(`Converting external record: ${JSON.stringify(external)}`);
 
-    const checkInTime = new Date(external.sj);
+    const checkInTime = moment
+      .tz(
+        `${external.date} ${external.time}`,
+        'YYYY-MM-DD HH:mm:ss',
+        'Asia/Bangkok',
+      )
+      .toDate();
     const converted: AttendanceRecord = {
       id: external.bh.toString(),
       userId: '',
