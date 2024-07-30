@@ -19,31 +19,6 @@ import { UserRole } from '@/types/enum';
 import { logMessage } from '../utils/inMemoryLogger';
 import moment from 'moment-timezone';
 
-type PrismaAttendanceRecord = {
-  id: string;
-  userId: string;
-  date: Date;
-  checkInTime: Date | null;
-  checkOutTime: Date | null;
-  isOvertime: boolean;
-  overtimeStartTime: Date | null;
-  overtimeEndTime: Date | null;
-  checkInLocation: any;
-  checkOutLocation: any;
-  checkInAddress: string | null;
-  checkOutAddress: string | null;
-  checkInReason: string | null;
-  checkOutReason: string | null;
-  checkInPhoto: string | null;
-  checkOutPhoto: string | null;
-  checkInDeviceSerial: string | null;
-  checkOutDeviceSerial: string | null;
-  status: string;
-  isManualEntry: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
 const prisma = new PrismaClient();
 const processingService = new AttendanceProcessingService();
 const notificationService = new NotificationService();
@@ -363,120 +338,161 @@ export class AttendanceService {
     }
   }
 
+  private convertAttendanceToRecord(
+    attendance: Attendance,
+    employeeId: string,
+  ): AttendanceRecord {
+    return {
+      ...attendance,
+      employeeId,
+      isOvertime: false,
+      overtimeStartTime: null,
+      overtimeEndTime: null,
+      checkInLocation: attendance.checkInLocation
+        ? JSON.parse(attendance.checkInLocation as string)
+        : null,
+      checkOutLocation: attendance.checkOutLocation
+        ? JSON.parse(attendance.checkOutLocation as string)
+        : null,
+      status: attendance.status as AttendanceRecord['status'],
+    };
+  }
+
+  private combineRecords(
+    records: (Attendance | AttendanceRecord)[],
+  ): AttendanceRecord {
+    logMessage(
+      `Combining records: ${JSON.stringify({ recordCount: records.length })}`,
+    );
+
+    const internalRecord = records.find(
+      (r) => 'userId' in r && r.userId !== '',
+    ) as Attendance | undefined;
+    if (internalRecord) {
+      logMessage(
+        `Using internal record: ${JSON.stringify({ recordId: internalRecord.id })}`,
+      );
+      return this.convertAttendanceToRecord(
+        internalRecord,
+        internalRecord.userId,
+      );
+    }
+
+    const firstRecord = records[0] as AttendanceRecord;
+    const combined = records.reduce<AttendanceRecord>(
+      (combined, current) => {
+        const currentRecord = current as Partial<AttendanceRecord>;
+        return {
+          ...combined,
+          checkInTime:
+            !combined.checkInTime ||
+            (currentRecord.checkInTime &&
+              currentRecord.checkInTime < combined.checkInTime)
+              ? currentRecord.checkInTime || null
+              : combined.checkInTime,
+          checkOutTime:
+            !combined.checkOutTime ||
+            (currentRecord.checkOutTime &&
+              currentRecord.checkOutTime > combined.checkOutTime)
+              ? currentRecord.checkOutTime || null
+              : combined.checkOutTime,
+          employeeId: currentRecord.employeeId || combined.employeeId,
+        };
+      },
+      {
+        ...firstRecord,
+        employeeId: firstRecord.employeeId || 'unknown',
+      },
+    );
+
+    logMessage(
+      `Combined record: ${JSON.stringify({
+        checkInTime: combined.checkInTime,
+        checkOutTime: combined.checkOutTime,
+        employeeId: combined.employeeId,
+      })}`,
+    );
+
+    return combined;
+  }
+
   private async getLatestAttendanceRecord(
-    internalAttendances: PrismaAttendanceRecord[],
+    internalAttendances: Attendance[],
     externalRecords: ExternalCheckInData[],
     shift: ShiftData,
     employeeId: string,
   ): Promise<AttendanceRecord | null> {
     logMessage(
-      `Starting getLatestAttendanceRecord for employeeId: ${employeeId}`,
+      `Starting getLatestAttendanceRecord: ${JSON.stringify({ employeeId })}`,
     );
-    logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
-    logMessage(`External records: ${JSON.stringify(externalRecords)}`);
 
-    const convertedExternalRecords = externalRecords.map(
-      this.convertExternalToInternal,
+    const convertedExternalRecords = externalRecords.map((record) =>
+      this.convertExternalToInternal(record),
     );
     logMessage(
-      `Converted external records: ${JSON.stringify(convertedExternalRecords)}`,
+      `Converted external records: ${JSON.stringify({ count: convertedExternalRecords.length })}`,
     );
 
-    const allRecords: AttendanceRecord[] = [
-      ...internalAttendances.map((record) => ({
-        ...record,
-        employeeId, // Add employeeId to internal records
-      })),
-      ...convertedExternalRecords,
-    ];
-    allRecords.sort((a, b) => {
-      const dateA = a.checkInTime ? new Date(a.checkInTime).getTime() : 0;
-      const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
-      return dateA - dateB;
-    });
+    const allRecords = [...internalAttendances, ...convertedExternalRecords];
+    logMessage(`All records: ${JSON.stringify({ count: allRecords.length })}`);
 
-    logMessage(`All sorted records: ${JSON.stringify(allRecords)}`);
-
-    const recordsByDate = this.groupRecordsByDate(allRecords, shift);
-    logMessage(`Records grouped by date: ${JSON.stringify(recordsByDate)}`);
-
-    const userRecords = Object.values(recordsByDate)
-      .flat()
-      .filter((record) => record.employeeId === employeeId);
-
+    const groupedRecords = this.groupRecordsByDate(allRecords, shift);
     logMessage(
-      `Filtered records for employeeId ${employeeId}: ${JSON.stringify(userRecords)}`,
+      `Grouped records: ${JSON.stringify({ dateCount: Object.keys(groupedRecords).length })}`,
     );
 
-    if (userRecords.length === 0) {
-      logMessage(`No records found for employeeId ${employeeId}`);
-      return null;
-    }
+    const combinedRecords = Object.entries(groupedRecords).map(
+      ([date, records]) => {
+        logMessage(
+          `Combining records for date: ${JSON.stringify({ date, recordCount: records.length })}`,
+        );
+        return this.combineRecords(records);
+      },
+    );
 
-    const latestRecord = userRecords[userRecords.length - 1];
-    logMessage(`Latest record: ${JSON.stringify(latestRecord)}`);
+    const sortedRecords = combinedRecords.sort(
+      (a, b) => b.date.getTime() - a.date.getTime(),
+    );
+    logMessage(
+      `Sorted records: ${JSON.stringify({ count: sortedRecords.length })}`,
+    );
+    const latestRecord = sortedRecords[0] || null;
+    logMessage(
+      `Latest record: ${
+        latestRecord
+          ? JSON.stringify({
+              id: latestRecord.id,
+              date: latestRecord.date,
+              checkInTime: latestRecord.checkInTime,
+              checkOutTime: latestRecord.checkOutTime,
+            })
+          : 'No record found'
+      }`,
+    );
 
-    const { status, isOvertime, overtimeDuration, overtimeStartTime } =
-      this.determineStatus(latestRecord, shift);
-
-    const processedRecord: AttendanceRecord = {
-      ...latestRecord,
-      status,
-      isOvertime,
-      overtimeStartTime,
-      overtimeEndTime:
-        isOvertime && latestRecord.checkOutTime
-          ? new Date(latestRecord.checkOutTime)
-          : null,
-    };
-
-    logMessage(`Processed record: ${JSON.stringify(processedRecord)}`);
-
-    return processedRecord;
-  }
-
-  private groupRecordsByDate(
-    records: AttendanceRecord[],
-    shift: ShiftData,
-  ): Record<string, AttendanceRecord[]> {
-    const recordsByDate: Record<string, AttendanceRecord[]> = {};
-    const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
-
-    records.forEach((record) => {
-      if (record.checkInTime) {
-        let recordDate = new Date(record.checkInTime);
-        if (recordDate.getHours() < shiftStartHour) {
-          recordDate.setDate(recordDate.getDate() - 1);
-        }
-        const dateKey = `${recordDate.toISOString().split('T')[0]}-${record.employeeId}`;
-        if (!recordsByDate[dateKey]) {
-          recordsByDate[dateKey] = [];
-        }
-        recordsByDate[dateKey].push(record);
-      }
-    });
-
-    return recordsByDate;
+    return latestRecord;
   }
 
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    logMessage(`Converting external record: ${JSON.stringify(external)}`);
+    const bangkokTime = moment.tz(
+      `${external.date.split('T')[0]} ${external.time}`,
+      'YYYY-MM-DD HH:mm:ss',
+      'Asia/Bangkok',
+    );
 
-    const checkInTime = moment
-      .tz(
-        `${external.date} ${external.time}`,
-        'YYYY-MM-DD HH:mm:ss',
-        'Asia/Bangkok',
-      )
-      .toDate();
+    // Adjust the date if the time is before 6 AM (assuming night shift)
+    if (bangkokTime.hour() < 6) {
+      bangkokTime.subtract(1, 'day');
+    }
+
     const converted: AttendanceRecord = {
       id: external.bh.toString(),
       userId: '',
       employeeId: external.user_no,
-      date: new Date(checkInTime.setHours(0, 0, 0, 0)),
-      checkInTime: checkInTime,
+      date: bangkokTime.startOf('day').toDate(),
+      checkInTime: bangkokTime.toDate(),
       checkOutTime: null,
       isOvertime: false,
       overtimeStartTime: null,
@@ -495,8 +511,43 @@ export class AttendanceService {
       isManualEntry: false,
     };
 
-    logMessage(`Converted record: ${JSON.stringify(converted)}`);
+    logMessage(
+      `Converted external record: ${JSON.stringify({
+        id: converted.id,
+        date: converted.date,
+        checkInTime: converted.checkInTime,
+      })}`,
+    );
+
     return converted;
+  }
+
+  private groupRecordsByDate(
+    records: (Attendance | AttendanceRecord)[],
+    shift: ShiftData,
+  ): Record<string, (Attendance | AttendanceRecord)[]> {
+    const recordsByDate: Record<string, (Attendance | AttendanceRecord)[]> = {};
+    const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
+
+    records.forEach((record) => {
+      if (record.checkInTime) {
+        let recordDate = moment(record.checkInTime).tz('Asia/Bangkok');
+        if (recordDate.hour() < shiftStartHour) {
+          recordDate.subtract(1, 'day');
+        }
+        const dateKey = `${recordDate.format('YYYY-MM-DD')}-${(record as AttendanceRecord).employeeId || (record as Attendance).userId}`;
+        if (!recordsByDate[dateKey]) {
+          recordsByDate[dateKey] = [];
+        }
+        recordsByDate[dateKey].push(record);
+      }
+    });
+
+    logMessage(
+      `Grouped records by date: ${JSON.stringify({ dateCount: Object.keys(recordsByDate).length })}`,
+    );
+
+    return recordsByDate;
   }
 
   private determineStatus(
@@ -544,10 +595,10 @@ export class AttendanceService {
       shiftEnd.setDate(shiftEnd.getDate() + 1);
     }
 
-    logMessage(`Check-in time: ${checkInTime}`);
-    logMessage(`Check-out time: ${checkOutTime}`);
-    logMessage(`Shift start: ${shiftStart}`);
-    logMessage(`Shift end: ${shiftEnd}`);
+    logMessage(`Check-in time: ${checkInTime.toISOString()}`);
+    logMessage(`Check-out time: ${checkOutTime?.toISOString()}`);
+    logMessage(`Shift start: ${shiftStart.toISOString()}`);
+    logMessage(`Shift end: ${shiftEnd.toISOString()}`);
 
     let status: string;
     let isOvertime = false;
@@ -561,14 +612,14 @@ export class AttendanceService {
       isOvertime = true;
       overtimeDuration = Math.round(
         (checkOutTime.getTime() - shiftEnd.getTime()) / (1000 * 60),
-      ); // in minutes
+      );
       overtimeStartTime = shiftEnd;
     } else if (checkInTime < shiftStart) {
       status = 'early-check-in';
       isOvertime = true;
       overtimeDuration = Math.round(
         (shiftStart.getTime() - checkInTime.getTime()) / (1000 * 60),
-      ); // in minutes
+      );
       overtimeStartTime = checkInTime;
     } else {
       status = 'checked-out';
@@ -577,7 +628,7 @@ export class AttendanceService {
     logMessage(`Determined status: ${status}`);
     logMessage(`Is overtime: ${isOvertime}`);
     logMessage(`Overtime duration: ${overtimeDuration} minutes`);
-    logMessage(`Overtime start time: ${overtimeStartTime}`);
+    logMessage(`Overtime start time: ${overtimeStartTime?.toISOString()}`);
 
     return { status, isOvertime, overtimeDuration, overtimeStartTime };
   }

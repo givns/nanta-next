@@ -8,7 +8,6 @@ import {
 } from '../types/user';
 import { retry } from '../utils/retry';
 import { logMessage } from '../utils/inMemoryLogger';
-import moment from 'moment-timezone';
 import { createLogger } from '../utils/loggers';
 
 const logger = createLogger('ExternalDbService');
