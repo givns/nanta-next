@@ -3,6 +3,7 @@
 import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
 import { NotificationService } from './NotificationService';
 import { DepartmentMappingService } from './DepartmentMappingService';
+import { ShiftData } from '@/types/user';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
@@ -50,7 +51,7 @@ export class ShiftManagementService {
         requestedShiftId,
         date,
         reason,
-        status: 'approved', // Automatically approve the request
+        status: 'approved',
       },
     });
 
@@ -113,7 +114,7 @@ export class ShiftManagementService {
   async getEffectiveShift(
     userId: string,
     date: Date,
-  ): Promise<{ shift: Shift; shiftStart: Date; shiftEnd: Date } | null> {
+  ): Promise<{ shift: ShiftData; shiftStart: Date; shiftEnd: Date } | null> {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -167,11 +168,80 @@ export class ShiftManagementService {
         shiftEnd.setDate(shiftEnd.getDate() + 1);
       }
 
-      return { shift: effectiveShift, shiftStart, shiftEnd };
+      const effectiveShiftData = this.convertToShiftData(effectiveShift);
+
+      return { shift: effectiveShiftData, shiftStart, shiftEnd };
     } catch (error) {
       console.error('Error in getEffectiveShift:', error);
       return null;
     }
+  }
+
+  async getFutureShiftAdjustments(
+    userId: string,
+  ): Promise<ShiftAdjustmentRequest[]> {
+    const adjustments = await prisma.shiftAdjustmentRequest.findMany({
+      where: {
+        userId,
+        date: { gte: new Date() },
+        status: 'approved',
+      },
+      include: { requestedShift: true },
+      orderBy: { date: 'asc' },
+    });
+
+    return adjustments.map((adj) => ({
+      id: adj.id,
+      userId: adj.userId,
+      requestedShiftId: adj.requestedShiftId,
+      date: adj.date,
+      reason: adj.reason,
+      status: adj.status,
+      createdAt: adj.createdAt,
+      updatedAt: adj.updatedAt,
+      requestedShift: this.convertToShiftData(adj.requestedShift),
+    }));
+  }
+
+  async getShiftAdjustmentForDate(
+    userId: string,
+    date: Date,
+  ): Promise<ShiftAdjustmentRequest | null> {
+    const adjustment = await prisma.shiftAdjustmentRequest.findFirst({
+      where: {
+        userId,
+        date: {
+          gte: new Date(date.setHours(0, 0, 0, 0)),
+          lt: new Date(date.setHours(23, 59, 59, 999)),
+        },
+        status: 'approved',
+      },
+      include: { requestedShift: true },
+    });
+
+    if (!adjustment) return null;
+
+    return {
+      id: adjustment.id,
+      userId: adjustment.userId,
+      requestedShiftId: adjustment.requestedShiftId,
+      date: adjustment.date,
+      reason: adjustment.reason,
+      status: adjustment.status,
+      createdAt: adjustment.createdAt,
+      updatedAt: adjustment.updatedAt,
+    };
+  }
+
+  private convertToShiftData(shift: Shift): ShiftData {
+    return {
+      id: shift.id,
+      shiftCode: shift.shiftCode,
+      name: shift.name,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      workDays: shift.workDays,
+    };
   }
 
   async getUserShift(userId: string): Promise<Shift | null> {

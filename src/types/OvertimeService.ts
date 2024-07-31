@@ -41,4 +41,10 @@ export interface IOvertimeServiceServer extends IOvertimeServiceBase {
     date: Date,
   ): Promise<ApprovedOvertime | null>; // Changed return type to ApprovedOvertime
   getPendingOvertimeRequests(): Promise<OvertimeRequest[]>;
+  createUnapprovedOvertime(
+    userId: string,
+    startTime: Date,
+    endTime: Date,
+    overtimeMinutes: number,
+  ): Promise<void>;
 }

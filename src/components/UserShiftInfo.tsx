@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserData, AttendanceStatus, ShiftData } from '../types/user';
+import { UserData, AttendanceStatus } from '../types/user';
 import { formatTime } from '../utils/dateUtils';
 import { getDeviceType } from '../utils/deviceUtils';
 import moment from 'moment-timezone';
@@ -47,6 +47,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
     if (attendanceDate !== today.format('YYYY-MM-DD')) {
       console.log('Condition: Attendance not for today');
+
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }
 

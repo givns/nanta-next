@@ -568,16 +568,22 @@ export class AttendanceProcessingService {
     isOvertime: boolean;
     overtimeDuration: number;
     overtimeStartTime: moment.Moment | null;
+    isEarlyCheckIn: boolean;
   } {
+    const EARLY_CHECK_IN_THRESHOLD = 30; // minutes
+    let isEarlyCheckIn = false;
+
+    if (
+      checkInTime.isBefore(
+        shiftStart.subtract(EARLY_CHECK_IN_THRESHOLD, 'minutes'),
+      )
+    ) {
+      isEarlyCheckIn = true;
+    }
     let status: AttendanceStatusType = 'checked-in';
     let isOvertime = false;
     let overtimeDuration = 0;
     let overtimeStartTime: moment.Moment | null = null;
-
-    const earlyOvertimeThreshold = moment(shiftStart).subtract(
-      this.OVERTIME_INCREMENT_MINUTES,
-      'minutes',
-    );
 
     if (checkOutTime) {
       if (checkOutTime.isAfter(shiftEnd)) {
@@ -597,7 +603,13 @@ export class AttendanceProcessingService {
       overtimeStartTime = checkInTime;
     }
 
-    return { status, isOvertime, overtimeDuration, overtimeStartTime };
+    return {
+      status,
+      isOvertime,
+      overtimeDuration,
+      overtimeStartTime,
+      isEarlyCheckIn,
+    };
   }
 
   public async processAttendance(
@@ -669,6 +681,7 @@ export class AttendanceProcessingService {
     shiftEnd: moment.Moment,
     approvedOvertime: any | null,
   ): { start: string; end: string } | null {
+    const OVERTIME_THRESHOLD = 30; // minutes
     let potentialStart: moment.Moment | null = null;
     let potentialEnd: moment.Moment | null = null;
 

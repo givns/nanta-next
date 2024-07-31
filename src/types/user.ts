@@ -42,15 +42,15 @@ export interface Location {
 export interface AttendanceData {
   userId: string;
   employeeId: string;
-  lineUserId: string;
-  checkTime: string | Date;
+  lineUserId: string | null;
+  checkTime: Date;
   location: string;
   address: string;
   reason?: string;
-  photo?: string;
+  photo: string | null;
   deviceSerial: string;
   isCheckIn: boolean;
-  isOvertime?: boolean;
+  isOvertime: boolean;
   isLate: boolean;
   isFlexibleStart?: boolean;
   isFlexibleEnd?: boolean;
@@ -71,17 +71,8 @@ export interface ApprovedOvertime {
 
 export interface AttendanceStatus {
   user: UserData;
-  latestAttendance: {
-    id: string;
-    userId: string;
-    date: string;
-    checkInTime: string | null;
-    checkOutTime: string | null;
-    checkInDeviceSerial: string;
-    checkOutDeviceSerial: string | null;
-    status: AttendanceStatusType; // Update this line
-    isManualEntry: boolean;
-  } | null;
+  latestAttendance: AttendanceRecord | null;
+  status: AttendanceStatusType;
   isCheckingIn: boolean;
   isDayOff: boolean;
   potentialOvertime: {
@@ -102,13 +93,27 @@ export interface AttendanceStatus {
 }
 
 export type AttendanceStatusType =
+  | 'present'
+  | 'absent'
+  | 'holiday'
+  | 'day-off'
+  | 'not-checked-in'
   | 'checked-in'
   | 'checked-out'
+  | 'overtime-ongoing'
+  | 'overtime'
   | 'overtime-started'
   | 'overtime-ended'
   | 'pending'
+  | 'denied'
+  | 'early-check-in'
+  | 'late-check-out'
+  | 'grace-period'
+  | 'incomplete'
+  | 'manual-entry-pending'
   | 'approved'
-  | 'denied';
+  | 'auto-checked-out'
+  | 'PENDING_APPROVAL';
 
 export interface potentialOvertime {
   start: string;
@@ -131,7 +136,10 @@ export interface AttendanceRecord {
   date: Date;
   checkInTime: Date | null;
   checkOutTime: Date | null;
-  isOvertime: boolean;
+  isEarlyCheckIn: boolean;
+  isLateCheckIn: boolean;
+  isLateCheckOut: boolean;
+  overtimeHours: number;
   overtimeStartTime: Date | null;
   overtimeEndTime: Date | null;
   overtimeDuration?: number;
@@ -169,7 +177,7 @@ export interface ShiftAdjustment {
   reason: string;
   createdAt: Date;
   updatedAt: Date;
-  requestedShift: Shift;
+  requestedShift: ShiftData;
 }
 
 export interface FutureShiftAdjustment {

@@ -56,7 +56,6 @@ export class AttendanceSyncService {
           const attendance = await attendanceService.processExternalCheckInOut(
             record,
             userInfo,
-            user.assignedShift,
           );
 
           const message = this.createNotificationMessage(record, attendance);

@@ -5,10 +5,12 @@ import { OvertimeNotificationService } from './OvertimeNotificationService';
 import { TimeEntryService } from './TimeEntryService';
 import { ApprovedOvertime } from '@/types/user';
 import moment from 'moment-timezone';
+import { NotificationService } from './NotificationService';
 
 const prisma = new PrismaClient();
 
 export class OvertimeServiceServer implements IOvertimeServiceServer {
+  [x: string]: any;
   private overtimeNotificationService: OvertimeNotificationService;
   private timeEntryService: TimeEntryService;
 
@@ -240,5 +242,35 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+  async createUnapprovedOvertime(
+    userId: string,
+    startTime: Date,
+    endTime: Date,
+    overtimeMinutes: number,
+  ): Promise<void> {
+    const overtimeRequest = await prisma.overtimeRequest.create({
+      data: {
+        userId,
+        date: startTime,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        status: 'pending',
+        reason: `Unapproved overtime: ${overtimeMinutes} minutes`,
+      },
+    });
+
+    // Fetch admins
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+    });
+
+    // Send notifications to admins
+    for (const admin of admins) {
+      await this.notificationService.sendNotification(
+        admin.id,
+        `New unapproved overtime request from user ${userId} for ${overtimeMinutes} minutes. Please review.`,
+      );
+    }
   }
 }
