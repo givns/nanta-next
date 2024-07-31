@@ -457,18 +457,28 @@ export class AttendanceService {
       `Sorted records: ${JSON.stringify({ count: sortedRecords.length })}`,
     );
     const latestRecord = sortedRecords[0] || null;
-    logMessage(
-      `Latest record: ${
-        latestRecord
-          ? JSON.stringify({
-              id: latestRecord.id,
-              date: latestRecord.date,
-              checkInTime: latestRecord.checkInTime,
-              checkOutTime: latestRecord.checkOutTime,
-            })
-          : 'No record found'
-      }`,
-    );
+    if (latestRecord) {
+      const statusInfo = this.determineStatus(latestRecord, shift);
+      latestRecord.status = statusInfo.status;
+      latestRecord.isOvertime = statusInfo.isOvertime;
+      latestRecord.overtimeStartTime = statusInfo.overtimeStartTime;
+      latestRecord.overtimeDuration = statusInfo.overtimeDuration;
+
+      logMessage(
+        `Latest record: ${JSON.stringify({
+          id: latestRecord.id,
+          date: latestRecord.date,
+          checkInTime: latestRecord.checkInTime,
+          checkOutTime: latestRecord.checkOutTime,
+          status: latestRecord.status,
+          isOvertime: latestRecord.isOvertime,
+          overtimeStartTime: latestRecord.overtimeStartTime,
+          overtimeDuration: latestRecord.overtimeDuration,
+        })}`,
+      );
+    } else {
+      logMessage('No latest record found');
+    }
 
     return latestRecord;
   }
@@ -476,19 +486,18 @@ export class AttendanceService {
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    // Use moment to parse the date and time correctly
-    const bangkokTime = moment.tz(
-      `${moment(external.date).format('YYYY-MM-DD')} ${external.time}`,
-      'YYYY-MM-DD HH:mm:ss',
-      'Asia/Bangkok',
+    const recordDate = new Date(external.date);
+    const recordTime = external.time.split(':').map(Number);
+    const checkInTime = new Date(
+      recordDate.setHours(recordTime[0], recordTime[1], recordTime[2] || 0),
     );
 
     const converted: AttendanceRecord = {
       id: external.bh.toString(),
       userId: '',
       employeeId: external.user_no,
-      date: bangkokTime.startOf('day').toDate(),
-      checkInTime: bangkokTime.toDate(),
+      date: new Date(recordDate.setHours(0, 0, 0, 0)),
+      checkInTime: checkInTime,
       checkOutTime: null,
       isOvertime: false,
       overtimeStartTime: null,
@@ -527,11 +536,11 @@ export class AttendanceService {
 
     records.forEach((record) => {
       if (record.checkInTime) {
-        let recordDate = moment(record.checkInTime).tz('Asia/Bangkok');
-        if (recordDate.hour() < shiftStartHour) {
-          recordDate.subtract(1, 'day');
+        const recordDate = new Date(record.checkInTime);
+        if (recordDate.getHours() < shiftStartHour) {
+          recordDate.setDate(recordDate.getDate() - 1);
         }
-        const dateKey = `${recordDate.format('YYYY-MM-DD')}-${(record as AttendanceRecord).employeeId || (record as Attendance).userId}`;
+        const dateKey = `${recordDate.toISOString().split('T')[0]}-${(record as AttendanceRecord).employeeId || (record as Attendance).userId}`;
         if (!recordsByDate[dateKey]) {
           recordsByDate[dateKey] = [];
         }
@@ -601,24 +610,29 @@ export class AttendanceService {
     let overtimeDuration = 0;
     let overtimeStartTime: Date | null = null;
 
+    const overtimeThreshold = 30; // minutes
+
     if (!checkOutTime) {
       status = 'checked-in';
-    } else if (checkOutTime > shiftEnd) {
-      status = 'overtime-ended';
-      isOvertime = true;
-      overtimeDuration = Math.round(
-        (checkOutTime.getTime() - shiftEnd.getTime()) / (1000 * 60),
-      );
-      overtimeStartTime = shiftEnd;
-    } else if (checkInTime < shiftStart) {
-      status = 'early-check-in';
-      isOvertime = true;
-      overtimeDuration = Math.round(
-        (shiftStart.getTime() - checkInTime.getTime()) / (1000 * 60),
-      );
-      overtimeStartTime = checkInTime;
     } else {
-      status = 'checked-out';
+      const minutesAfterShiftEnd =
+        (checkOutTime.getTime() - shiftEnd.getTime()) / (1000 * 60);
+      if (minutesAfterShiftEnd >= overtimeThreshold) {
+        status = 'overtime-ended';
+        isOvertime = true;
+        overtimeDuration = minutesAfterShiftEnd;
+        overtimeStartTime = shiftEnd;
+      } else {
+        status = 'checked-out';
+      }
+
+      const minutesBeforeShiftStart =
+        (shiftStart.getTime() - checkInTime.getTime()) / (1000 * 60);
+      if (minutesBeforeShiftStart >= overtimeThreshold) {
+        isOvertime = true;
+        overtimeDuration += minutesBeforeShiftStart;
+        overtimeStartTime = overtimeStartTime || checkInTime;
+      }
     }
 
     logMessage(`Determined status: ${status}`);

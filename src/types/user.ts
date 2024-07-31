@@ -134,6 +134,7 @@ export interface AttendanceRecord {
   isOvertime: boolean;
   overtimeStartTime: Date | null;
   overtimeEndTime: Date | null;
+  overtimeDuration?: number;
   checkInLocation: Location | null;
   checkOutLocation: Location | null;
   checkInAddress: string | null;
