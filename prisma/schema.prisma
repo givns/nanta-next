@@ -226,18 +226,3 @@ model Department {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }
-
-model ShiftAdjustmentAudit {
-  id         String   @id @default(cuid())
-  userId     String
-  date       DateTime
-  oldShiftId String
-  newShiftId String
-  adjustedBy String
-  reason     String
-  createdAt  DateTime @default(now())
-
-  user     User  @relation(fields: [userId], references: [id])
-  oldShift Shift @relation("OldShift", fields: [oldShiftId], references: [id])
-  newShift Shift @relation("NewShift", fields: [newShiftId], references: [id])
-}
