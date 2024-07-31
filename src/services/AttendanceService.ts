@@ -555,11 +555,15 @@ export class AttendanceService {
     return recordsByDate;
   }
 
+  private roundOvertimeDuration(minutes: number): number {
+    return Math.floor(minutes / 30) * 30;
+  }
+
   private determineStatus(
     record: AttendanceRecord,
     shift: ShiftData,
   ): {
-    status: string;
+    status: AttendanceStatusType;
     isOvertime: boolean;
     overtimeDuration: number;
     overtimeStartTime: Date | null;
@@ -567,78 +571,61 @@ export class AttendanceService {
     logMessage(`Determining status for record: ${JSON.stringify(record)}`);
     logMessage(`Shift: ${JSON.stringify(shift)}`);
 
-    const checkInTime = record.checkInTime
-      ? new Date(record.checkInTime)
-      : null;
-    const checkOutTime = record.checkOutTime
-      ? new Date(record.checkOutTime)
-      : null;
+    const shiftStart = new Date(record.date);
+    shiftStart.setHours(
+      parseInt(shift.startTime.split(':')[0]),
+      parseInt(shift.startTime.split(':')[1]),
+      0,
+      0,
+    );
+    const shiftEnd = new Date(record.date);
+    shiftEnd.setHours(
+      parseInt(shift.endTime.split(':')[0]),
+      parseInt(shift.endTime.split(':')[1]),
+      0,
+      0,
+    );
 
-    if (!checkInTime) {
-      logMessage('No check-in time available');
-      return {
-        status: 'unknown',
-        isOvertime: false,
-        overtimeDuration: 0,
-        overtimeStartTime: null,
-      };
-    }
-
-    const [shiftStartHour, shiftStartMinute] = shift.startTime
-      .split(':')
-      .map(Number);
-    const [shiftEndHour, shiftEndMinute] = shift.endTime.split(':').map(Number);
-
-    const shiftStart = new Date(checkInTime);
-    shiftStart.setHours(shiftStartHour, shiftStartMinute, 0, 0);
-
-    let shiftEnd = new Date(checkInTime);
-    shiftEnd.setHours(shiftEndHour, shiftEndMinute, 0, 0);
-
-    // Handle overnight shift
     if (shiftEnd < shiftStart) {
       shiftEnd.setDate(shiftEnd.getDate() + 1);
     }
 
-    logMessage(`Check-in time: ${checkInTime.toISOString()}`);
-    logMessage(`Check-out time: ${checkOutTime?.toISOString()}`);
     logMessage(`Shift start: ${shiftStart.toISOString()}`);
     logMessage(`Shift end: ${shiftEnd.toISOString()}`);
 
-    let status: string;
+    let status: AttendanceStatusType = 'checked-in';
     let isOvertime = false;
     let overtimeDuration = 0;
     let overtimeStartTime: Date | null = null;
 
-    const overtimeThreshold = 30; // minutes
+    if (record.checkInTime) {
+      logMessage(`Check-in time: ${record.checkInTime.toISOString()}`);
+    }
 
-    if (!checkOutTime) {
-      status = 'checked-in';
-    } else {
-      const minutesAfterShiftEnd =
-        (checkOutTime.getTime() - shiftEnd.getTime()) / (1000 * 60);
-      if (minutesAfterShiftEnd >= overtimeThreshold) {
-        status = 'overtime-ended';
+    if (record.checkOutTime) {
+      logMessage(`Check-out time: ${record.checkOutTime.toISOString()}`);
+      if (record.checkOutTime > shiftEnd) {
         isOvertime = true;
-        overtimeDuration = minutesAfterShiftEnd;
-        overtimeStartTime = shiftEnd;
+        overtimeStartTime = new Date(shiftEnd);
+        overtimeDuration =
+          (record.checkOutTime.getTime() - shiftEnd.getTime()) / (60 * 1000);
+        overtimeDuration = Math.floor(overtimeDuration / 30) * 30; // Round down to nearest 30 minutes
+        status = overtimeDuration > 0 ? 'overtime-ended' : 'checked-out';
       } else {
         status = 'checked-out';
       }
-
-      const minutesBeforeShiftStart =
-        (shiftStart.getTime() - checkInTime.getTime()) / (1000 * 60);
-      if (minutesBeforeShiftStart >= overtimeThreshold) {
-        isOvertime = true;
-        overtimeDuration += minutesBeforeShiftStart;
-        overtimeStartTime = overtimeStartTime || checkInTime;
-      }
+    } else if (record.checkInTime && record.checkInTime > shiftEnd) {
+      status = 'overtime-started';
+      isOvertime = true;
+      overtimeStartTime = record.checkInTime;
     }
 
     logMessage(`Determined status: ${status}`);
     logMessage(`Is overtime: ${isOvertime}`);
     logMessage(`Overtime duration: ${overtimeDuration} minutes`);
-    logMessage(`Overtime start time: ${overtimeStartTime?.toISOString()}`);
+    logMessage(
+      `Overtime start time: ${overtimeStartTime?.toISOString() || 'N/A'}`,
+    );
 
     return { status, isOvertime, overtimeDuration, overtimeStartTime };
   }

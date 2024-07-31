@@ -3,7 +3,7 @@
 import { PrismaClient, Attendance, User, Shift } from '@prisma/client';
 import { NotificationService } from './NotificationService';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
-import { ApprovedOvertime } from '../types/user';
+import { ApprovedOvertime, AttendanceStatusType } from '../types/user';
 import { getDeviceType } from '../utils/deviceUtils';
 import { ShiftManagementService } from './ShiftManagementService';
 import moment from 'moment-timezone';
@@ -563,43 +563,41 @@ export class AttendanceProcessingService {
     checkOutTime: moment.Moment | null,
     shiftStart: moment.Moment,
     shiftEnd: moment.Moment,
-  ): string {
+  ): {
+    status: AttendanceStatusType;
+    isOvertime: boolean;
+    overtimeDuration: number;
+    overtimeStartTime: moment.Moment | null;
+  } {
+    let status: AttendanceStatusType = 'checked-in';
+    let isOvertime = false;
+    let overtimeDuration = 0;
+    let overtimeStartTime: moment.Moment | null = null;
+
     const earlyOvertimeThreshold = moment(shiftStart).subtract(
       this.OVERTIME_INCREMENT_MINUTES,
       'minutes',
     );
-    const earlyThreshold = moment(shiftStart).subtract(
-      this.GRACE_PERIOD_MINUTES,
-      'minutes',
-    );
-    const lateThreshold = moment(shiftStart).add(
-      this.GRACE_PERIOD_MINUTES,
-      'minutes',
-    );
 
-    let status = '';
-
-    if (checkInTime.isBefore(earlyOvertimeThreshold)) {
-      status = 'early-overtime';
-    } else if (
-      checkInTime.isBetween(earlyOvertimeThreshold, earlyThreshold, null, '[)')
-    ) {
-      status = 'early';
-    } else if (
-      checkInTime.isBetween(earlyThreshold, lateThreshold, null, '[)')
-    ) {
-      status = 'on-time';
-    } else {
-      status = 'late';
+    if (checkOutTime) {
+      if (checkOutTime.isAfter(shiftEnd)) {
+        isOvertime = true;
+        overtimeStartTime = moment(shiftEnd);
+        overtimeDuration = checkOutTime.diff(shiftEnd, 'minutes');
+        overtimeDuration =
+          Math.floor(overtimeDuration / this.OVERTIME_INCREMENT_MINUTES) *
+          this.OVERTIME_INCREMENT_MINUTES;
+        status = overtimeDuration > 0 ? 'overtime-ended' : 'checked-out';
+      } else {
+        status = 'checked-out';
+      }
+    } else if (checkInTime.isAfter(shiftEnd)) {
+      status = 'overtime-started';
+      isOvertime = true;
+      overtimeStartTime = checkInTime;
     }
 
-    if (!checkOutTime) {
-      status += '-incomplete';
-    } else if (checkOutTime.isAfter(shiftEnd)) {
-      status += '-overtime';
-    }
-
-    return status;
+    return { status, isOvertime, overtimeDuration, overtimeStartTime };
   }
 
   public async processAttendance(
@@ -636,21 +634,15 @@ export class AttendanceProcessingService {
       shiftEnd: shiftEnd.format(),
     });
 
-    const status = this.determineStatus(
-      checkInTime,
-      checkOutTime,
-      shiftStart,
-      shiftEnd,
-    );
-    debugSteps.push({ step: 'Status Determination', status });
-
-    const overtimeDuration = this.calculateOvertimeDuration(
-      checkInTime,
-      checkOutTime,
-      shiftStart,
-      shiftEnd,
-    );
-    debugSteps.push({ step: 'Overtime Calculation', overtimeDuration });
+    const { status, isOvertime, overtimeDuration, overtimeStartTime } =
+      this.determineStatus(checkInTime, checkOutTime, shiftStart, shiftEnd);
+    debugSteps.push({
+      step: 'Status Determination',
+      status,
+      isOvertime,
+      overtimeDuration,
+      overtimeStartTime,
+    });
 
     const isApprovedOvertime = this.checkApprovedOvertime(
       checkInTime,
@@ -658,17 +650,57 @@ export class AttendanceProcessingService {
     );
     debugSteps.push({ step: 'Overtime Approval', isApprovedOvertime });
 
-    const finalStatus = `${status}-${checkOutTime ? 'ended' : 'started'}`;
-    debugSteps.push({ step: 'Final Status', finalStatus });
-
     return {
       checkInTime,
       checkOutTime,
-      status: finalStatus,
+      status,
+      isOvertime,
       overtimeDuration,
+      overtimeStartTime,
       isApprovedOvertime,
       debugSteps,
     };
+  }
+
+  private calculatePotentialOvertime(
+    checkInTime: moment.Moment,
+    checkOutTime: moment.Moment | null,
+    shiftStart: moment.Moment,
+    shiftEnd: moment.Moment,
+    approvedOvertime: any | null,
+  ): { start: string; end: string } | null {
+    let potentialStart: moment.Moment | null = null;
+    let potentialEnd: moment.Moment | null = null;
+
+    if (checkInTime.isBefore(shiftStart)) {
+      potentialStart = checkInTime;
+    }
+
+    if (checkOutTime && checkOutTime.isAfter(shiftEnd)) {
+      potentialEnd = checkOutTime;
+    }
+
+    if (potentialStart || potentialEnd) {
+      // Check if there's no approved overtime for this period
+      if (
+        !approvedOvertime ||
+        (potentialStart &&
+          moment(approvedOvertime.startTime).isAfter(potentialStart)) ||
+        (potentialEnd &&
+          moment(approvedOvertime.endTime).isBefore(potentialEnd))
+      ) {
+        return {
+          start: potentialStart
+            ? potentialStart.format('HH:mm')
+            : shiftStart.format('HH:mm'),
+          end: potentialEnd
+            ? potentialEnd.format('HH:mm')
+            : shiftEnd.format('HH:mm'),
+        };
+      }
+    }
+
+    return null;
   }
 
   private checkApprovedOvertime(
