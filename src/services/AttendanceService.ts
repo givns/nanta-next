@@ -483,11 +483,6 @@ export class AttendanceService {
       'Asia/Bangkok',
     );
 
-    // Adjust the date if the time is before 6 AM (assuming night shift)
-    if (bangkokTime.hour() < 6) {
-      bangkokTime.subtract(1, 'day');
-    }
-
     const converted: AttendanceRecord = {
       id: external.bh.toString(),
       userId: '',

@@ -155,7 +155,7 @@ export class AttendanceSyncService {
         action = 'บันทึกเวลา';
     }
 
-    return `บันทึกเวลา${action}เรียบร้อยแล้ว: ${time}`;
+    return `${action}เรียบร้อยแล้ว: ${time}`;
   }
 
   async checkMissingCheckIns(): Promise<void> {
