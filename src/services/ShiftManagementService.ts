@@ -10,6 +10,9 @@ const notificationService = new NotificationService();
 const departmentMappingService = new DepartmentMappingService();
 
 export class ShiftManagementService {
+  RequestShiftAdjustment(userId: string): any {
+    throw new Error('Method not implemented.');
+  }
   async initialize() {
     await departmentMappingService.initialize();
   }

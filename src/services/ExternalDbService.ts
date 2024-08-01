@@ -42,7 +42,8 @@ interface ExternalUserInfo {
 export class ExternalDbService {
   async getDailyAttendanceRecords(
     employeeId: string,
-    days: number = 1,
+    startDate: Date,
+    endDate: Date = new Date(),
   ): Promise<{
     records: ExternalCheckInData[];
     userInfo: ExternalUserInfo | null;
@@ -68,7 +69,11 @@ export class ExternalDbService {
 
         const [userInfoResult, attendanceResult] = await Promise.all([
           query<any[]>(userInfoQuery, [employeeId]),
-          query<ExternalCheckInData[]>(attendanceQuery, [employeeId, days]),
+          query<ExternalCheckInData[]>(attendanceQuery, [
+            employeeId,
+            startDate,
+            endDate,
+          ]),
         ]);
 
         console.log(

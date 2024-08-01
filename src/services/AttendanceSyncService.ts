@@ -16,6 +16,12 @@ const notificationService = new NotificationService();
 const shiftManagementService = new ShiftManagementService();
 const holidayService = new HolidayService();
 const shift104HolidayService = new Shift104HolidayService();
+const now = new Date();
+const startDate = new Date(
+  now.getFullYear(),
+  now.getMonth(),
+  now.getDate() - 1,
+);
 
 export class AttendanceSyncService {
   async syncAttendanceData(syncType: string = 'regular') {
@@ -37,7 +43,11 @@ export class AttendanceSyncService {
   ) {
     try {
       const { records, userInfo } =
-        await externalDbService.getDailyAttendanceRecords(user.employeeId);
+        await externalDbService.getDailyAttendanceRecords(
+          user.employeeId,
+          startDate,
+          now,
+        );
 
       if (!userInfo) {
         console.error(
@@ -56,6 +66,7 @@ export class AttendanceSyncService {
           const attendance = await attendanceService.processExternalCheckInOut(
             record,
             userInfo,
+            user.assignedShift,
           );
 
           const message = this.createNotificationMessage(record, attendance);

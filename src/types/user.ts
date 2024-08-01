@@ -93,27 +93,26 @@ export interface AttendanceStatus {
 }
 
 export type AttendanceStatusType =
-  | 'present'
-  | 'absent'
-  | 'holiday'
-  | 'day-off'
-  | 'not-checked-in'
   | 'checked-in'
   | 'checked-out'
-  | 'overtime-ongoing'
-  | 'overtime'
+  | 'early-check-in'
+  | 'late-check-in'
+  | 'early-check-out'
+  | 'late-check-out'
   | 'overtime-started'
   | 'overtime-ended'
-  | 'pending'
-  | 'denied'
-  | 'early-check-in'
-  | 'late-check-out'
+  | 'overtime-ongoing'
+  | 'flexible-start'
+  | 'flexible-end'
   | 'grace-period'
-  | 'incomplete'
+  | 'absent'
+  | 'day-off'
+  | 'holiday'
+  | 'manual-entry'
   | 'manual-entry-pending'
-  | 'approved'
   | 'auto-checked-out'
-  | 'PENDING_APPROVAL';
+  | 'not-checked-in'
+  | 'pending';
 
 export interface potentialOvertime {
   start: string;
@@ -130,6 +129,7 @@ export interface ShiftData {
 }
 
 export interface AttendanceRecord {
+  isOvertime: boolean;
   employeeId: string;
   id: string;
   userId: string;
@@ -155,6 +155,8 @@ export interface AttendanceRecord {
   checkOutDeviceSerial: string | null;
   status: string;
   isManualEntry: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ProcessedAttendance {

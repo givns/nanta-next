@@ -38,8 +38,19 @@ export async function processRegistration(
     let user = await prisma.user.findUnique({ where: { lineUserId } });
     console.log('Existing user:', user);
 
-    const externalData =
-      await externalDbService.getDailyAttendanceRecords(employeeId);
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - 30,
+    );
+
+    const externalData = await externalDbService.getDailyAttendanceRecords(
+      employeeId,
+      startDate,
+      now,
+    );
+
     console.log('External data:', JSON.stringify(externalData, null, 2));
 
     console.log('Getting department and shift...');
