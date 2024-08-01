@@ -2,6 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
+import { logMessage } from '../../utils/inMemoryLogger';
 
 const attendanceService = new AttendanceService();
 
@@ -9,35 +10,46 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  console.log('Received request for check-status');
-  console.log('Query parameters:', req.query);
+  logMessage('Received request for check-status');
+  logMessage(`Query parameters: ${JSON.stringify(req.query)}`);
 
   if (req.method !== 'GET') {
-    console.log('Method not allowed:', req.method);
+    logMessage(`Method not allowed: ${req.method}`);
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   const { employeeId } = req.query;
 
   if (!employeeId || typeof employeeId !== 'string') {
-    console.error('Invalid or missing employeeId:', employeeId);
+    logMessage(`Invalid or missing employeeId: ${employeeId}`);
     return res.status(400).json({ message: 'Valid Employee ID is required' });
   }
 
   try {
-    console.log('Fetching attendance status for employeeId:', employeeId);
+    logMessage(`Fetching attendance status for employeeId: ${employeeId}`);
     const attendanceStatus =
       await attendanceService.getLatestAttendanceStatus(employeeId);
-    console.log(
-      'Attendance status retrieved:',
-      JSON.stringify(attendanceStatus, null, 2),
+    logMessage(
+      `Attendance status retrieved: ${JSON.stringify(attendanceStatus, null, 2)}`,
     );
 
     return res.status(200).json(attendanceStatus);
   } catch (error: any) {
-    console.error('Error in check-status handler:', error);
-    return res
-      .status(error.statusCode || 500)
-      .json({ message: error.message || 'Error checking status' });
+    logMessage(`Error in check-status handler: ${error.message}`);
+    logMessage(`Error stack: ${error.stack}`);
+
+    // Handle specific database error
+    if (error.code === 'ER_CANT_AGGREGATE_2COLLATIONS') {
+      logMessage('Database collation mismatch error detected');
+      return res.status(500).json({
+        message: 'Database configuration error. Please contact support.',
+        error: 'COLLATION_MISMATCH',
+      });
+    }
+
+    return res.status(error.statusCode || 500).json({
+      message: error.message || 'Error checking status',
+      error: error.name || 'UNKNOWN_ERROR',
+    });
   }
 }
