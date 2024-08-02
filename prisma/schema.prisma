@@ -118,6 +118,7 @@ model ApprovedOvertime {
   user       User     @relation(fields: [userId], references: [id])
   startTime  DateTime
   endTime    DateTime
+  status     String
   approvedBy String
   approvedAt DateTime
   date       DateTime

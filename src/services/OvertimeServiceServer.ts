@@ -235,6 +235,41 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     };
   }
 
+  async getFutureApprovedOvertimes(
+    userId: string,
+    startDate: Date,
+  ): Promise<ApprovedOvertime[]> {
+    try {
+      const futureOvertimes = await prisma.approvedOvertime.findMany({
+        where: {
+          userId: userId,
+          date: {
+            gte: startDate,
+          },
+          status: 'APPROVED', // Assuming you have a status field
+        },
+        orderBy: {
+          date: 'asc',
+        },
+      });
+
+      return futureOvertimes.map((overtime) => ({
+        id: overtime.id,
+        userId: overtime.userId,
+        date: overtime.date,
+        startTime: overtime.startTime.toISOString(), // Convert startTime to string
+        endTime: overtime.endTime.toISOString(), // Convert endTime to string
+        status: overtime.status,
+        reason: '', // Add the 'reason' property with an appropriate value
+        approvedBy: overtime.approvedBy,
+        approvedAt: overtime.approvedAt,
+      }));
+    } catch (error) {
+      console.error('Error getting future approved overtimes:', error);
+      throw error;
+    }
+  }
+
   async getPendingOvertimeRequests(): Promise<OvertimeRequest[]> {
     return prisma.overtimeRequest.findMany({
       where: {
