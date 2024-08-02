@@ -63,16 +63,20 @@ export class AttendanceService {
     }
 
     const now = moment().tz(this.TIMEZONE);
-    const startDate = moment(now).subtract(1, 'month').date(25).startOf('day');
+    const startDate = moment(now)
+      .subtract(1, 'month')
+      .date(25)
+      .startOf('day')
+      .toDate()
+      .getTime();
     const endDate = now;
 
     logMessage(
-      `Fetching attendance data from ${startDate.format()} to ${endDate.format()}`,
+      `Fetching attendance data from ${startDate} to ${endDate.format()}`,
     );
     const { records } = await this.externalDbService.getDailyAttendanceRecords(
       user.employeeId,
-      startDate.toDate(),
-      endDate.toDate(),
+      startDate,
     );
     logMessage(`Fetched ${records.length} external attendance records`);
 
@@ -411,29 +415,39 @@ export class AttendanceService {
     const today = now.clone().startOf('day');
     const sevenDaysAgo = today.clone().subtract(7, 'days');
 
-    const [internalAttendances, externalAttendanceData, shiftAdjustment] =
-      await Promise.all([
-        this.getInternalAttendances(user.id, sevenDaysAgo.toDate()),
-        this.externalDbService.getDailyAttendanceRecords(
-          employeeId,
-          sevenDaysAgo.toDate(),
-          now.toDate(),
-        ),
-        this.getLatestShiftAdjustment(user.id),
-      ]);
+    const [
+      internalAttendances,
+      recentExternalData,
+      historicalExternalData,
+      shiftAdjustment,
+    ] = await Promise.all([
+      this.getInternalAttendances(user.id, sevenDaysAgo.toDate()),
+      this.externalDbService.getDailyAttendanceRecords(employeeId, 7), // Get last 7 days
+      this.externalDbService.getHistoricalAttendanceRecords(
+        employeeId,
+        sevenDaysAgo.toDate(),
+        now.toDate(),
+      ),
+      this.getLatestShiftAdjustment(user.id),
+    ]);
+
+    const allExternalRecords = [
+      ...recentExternalData.records,
+      ...historicalExternalData,
+    ];
 
     logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
     logMessage(
-      `Full external attendance data: ${JSON.stringify(externalAttendanceData)}`,
+      `Recent external attendance data: ${JSON.stringify(recentExternalData)}`,
     );
     logMessage(
-      `External attendance records: ${JSON.stringify(externalAttendanceData.records)}`,
+      `Historical external attendance data: ${JSON.stringify(historicalExternalData)}`,
     );
     logMessage(`Shift adjustment: ${JSON.stringify(shiftAdjustment)}`);
 
     const latestAttendance = await this.getLatestAttendanceRecord(
       internalAttendances,
-      externalAttendanceData.records,
+      allExternalRecords,
       user.assignedShift,
       employeeId,
     );
