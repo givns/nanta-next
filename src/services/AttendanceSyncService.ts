@@ -45,16 +45,8 @@ export class AttendanceSyncService {
       const { records, userInfo } =
         await externalDbService.getDailyAttendanceRecords(
           user.employeeId,
-          startDate,
-          now,
+          1, // Replace startDate with the number of days
         );
-
-      if (!userInfo) {
-        console.error(
-          `User info not found for employee ID: ${user.employeeId}`,
-        );
-        return;
-      }
 
       for (const record of records) {
         const existingAttendance = await this.findExistingAttendance(
