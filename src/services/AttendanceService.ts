@@ -424,7 +424,10 @@ export class AttendanceService {
 
     logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
     logMessage(
-      `External attendance data: ${JSON.stringify(externalAttendanceData)}`,
+      `Full external attendance data: ${JSON.stringify(externalAttendanceData)}`,
+    );
+    logMessage(
+      `External attendance records: ${JSON.stringify(externalAttendanceData.records)}`,
     );
     logMessage(`Shift adjustment: ${JSON.stringify(shiftAdjustment)}`);
 
