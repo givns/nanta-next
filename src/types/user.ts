@@ -75,21 +75,11 @@ export interface AttendanceStatus {
   status: AttendanceStatusType;
   isCheckingIn: boolean;
   isDayOff: boolean;
-  potentialOvertime: {
-    start: string;
-    end: string;
-  } | null;
-  shiftAdjustment: {
-    date: string;
-    requestedShiftId: string;
-    requestedShift: ShiftData;
-  } | null;
-  futureShiftAdjustments: Array<{
-    date: string;
-    shift: ShiftData;
-  }>;
+  shiftAdjustment: ShiftAdjustment | null;
+  futureShiftAdjustments: ShiftAdjustment[];
   approvedOvertime: ApprovedOvertime | null;
   futureApprovedOvertimes: ApprovedOvertime[];
+  potentialOvertime: { start: string; end: string } | null;
 }
 
 export type AttendanceStatusType =
@@ -173,13 +163,13 @@ export interface ProcessedAttendance {
 export interface ShiftAdjustment {
   id: string;
   userId: string;
-  requestedShiftId: string;
   date: string;
-  status: 'pending' | 'approved' | 'rejected';
+  requestedShiftId: string;
+  requestedShift: ShiftData;
+  status: string;
   reason: string;
   createdAt: Date;
   updatedAt: Date;
-  requestedShift: ShiftData;
 }
 
 export interface FutureShiftAdjustment {

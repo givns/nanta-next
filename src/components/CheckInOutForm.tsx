@@ -108,10 +108,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
       let shift: ShiftData;
       if (shiftAdjustment) {
-        shift =
-          'requestedShift' in shiftAdjustment
-            ? shiftAdjustment.requestedShift
-            : shiftAdjustment.shift;
+        // Type guard to check the structure of shiftAdjustment
+        if (
+          'requestedShift' in shiftAdjustment &&
+          shiftAdjustment.requestedShift
+        ) {
+          shift = shiftAdjustment.requestedShift as ShiftData;
+        } else if ('shift' in shiftAdjustment && shiftAdjustment.shift) {
+          shift = shiftAdjustment.shift as ShiftData;
+        } else {
+          console.error(
+            'Unexpected shiftAdjustment structure:',
+            shiftAdjustment,
+          );
+          shift = userData.assignedShift!;
+        }
       } else {
         shift = userData.assignedShift!;
       }

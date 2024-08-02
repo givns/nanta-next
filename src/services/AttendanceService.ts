@@ -13,6 +13,7 @@ import {
   AttendanceStatus,
   AttendanceRecord,
   ShiftData,
+  ShiftAdjustment,
   ApprovedOvertime,
   AttendanceStatusType,
   UserData,
@@ -24,14 +25,6 @@ import { logMessage } from '../utils/inMemoryLogger';
 import moment from 'moment-timezone';
 
 const prisma = new PrismaClient();
-
-export interface ShiftAdjustment {
-  shiftId: any;
-  date: string;
-  requestedShiftId: string;
-  requestedShift: ShiftData;
-  status: string;
-}
 
 export interface FutureShiftAdjustment {
   date: string;
@@ -400,20 +393,37 @@ export class AttendanceService {
     );
 
     return {
-      user: {
-        ...this.mapUserData({
-          ...user,
-          department: { name: user.departmentId },
-        }),
-      },
+      user: this.mapUserData({
+        ...user,
+        department: { name: user.departmentId },
+      }),
       latestAttendance,
       status,
       isCheckingIn: this.isCheckingIn(latestAttendance),
       isDayOff,
-      shiftAdjustment,
+      shiftAdjustment: shiftAdjustment
+        ? {
+            id: shiftAdjustment.id,
+            userId: shiftAdjustment.userId,
+            date: shiftAdjustment.date,
+            requestedShiftId: shiftAdjustment.requestedShiftId,
+            requestedShift: shiftAdjustment.requestedShift,
+            status: shiftAdjustment.status,
+            reason: shiftAdjustment.reason,
+            createdAt: shiftAdjustment.createdAt,
+            updatedAt: shiftAdjustment.updatedAt,
+          }
+        : null,
       futureShiftAdjustments: futureShiftAdjustments.map((adjustment) => ({
+        id: adjustment.id,
+        userId: adjustment.userId,
         date: adjustment.date,
-        shift: adjustment.shiftId, // Update 'shiftId' to 'shift'
+        requestedShiftId: adjustment.requestedShiftId,
+        requestedShift: adjustment.requestedShift,
+        status: adjustment.status,
+        reason: adjustment.reason,
+        createdAt: adjustment.createdAt,
+        updatedAt: adjustment.updatedAt,
       })),
       approvedOvertime,
       futureApprovedOvertimes,
@@ -737,7 +747,12 @@ export class AttendanceService {
     });
 
     return adjustments.map((adj) => ({
-      shiftId: adj.requestedShiftId, // Add the missing shiftId property
+      id: '', // Add the missing id property
+      userId: '', // Add the missing userId property
+      reason: '', // Add the missing reason property
+      createdAt: new Date(), // Add the missing createdAt property
+      updatedAt: new Date(), // Add the missing updatedAt property
+      shiftId: adj.requestedShiftId,
       date: adj.date.toISOString(),
       shift: this.convertToShiftData(adj.requestedShift),
       requestedShiftId: adj.requestedShiftId,
