@@ -133,7 +133,11 @@ model Attendance {
   isOvertime           Boolean @default(false)
   overtimeStartTime    DateTime?
   overtimeEndTime      DateTime?
-  checkInLocation      Json
+  overtimeDuration  Float?
+  isEarlyCheckIn    Boolean?
+  isLateCheckIn     Boolean?
+  isLateCheckOut    Boolean?
+  checkInLocation      Json?
   checkOutLocation     Json?
   checkInAddress       String?
   checkOutAddress      String?

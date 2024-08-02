@@ -12,14 +12,18 @@ import {
   getDepartmentIdByName,
   departmentIdNameMap,
 } from './shiftCache';
+
+import { AttendanceService } from '@/services/AttendanceService';
 import { Shift, User } from '@prisma/client';
 import { UserRole } from '@/types/enum';
+import moment from 'moment-timezone';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
 const externalDbService = new ExternalDbService();
+const attendanceService = new AttendanceService();
 
 export async function processRegistration(
   job: Job,
@@ -38,24 +42,23 @@ export async function processRegistration(
     let user = await prisma.user.findUnique({ where: { lineUserId } });
     console.log('Existing user:', user);
 
-    const now = new Date();
-    const startDate = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - 30,
-    );
+    const now = moment().tz('Asia/Bangkok');
+    const startDate = moment(now).subtract(1, 'month').date(26).startOf('day');
 
-    const externalData = await externalDbService.getDailyAttendanceRecords(
+    const externalData = await externalDbService.getHistoricalAttendanceRecords(
       employeeId,
-      startDate,
-      now,
+      startDate.toDate(),
+      now.toDate(),
     );
 
     console.log('External data:', JSON.stringify(externalData, null, 2));
 
+    // Assuming the first record contains the user information
+    const userInfo = externalData.length > 0 ? externalData[0] : null;
+
     console.log('Getting department and shift...');
     const { departmentId, shift } = await getDepartmentAndShift(
-      externalData,
+      userInfo?.user_dep,
       department,
     );
     console.log('Department ID:', departmentId);
@@ -65,27 +68,40 @@ export async function processRegistration(
     const isFirstUser = userCount === 0;
     const role = determineRole(department, isFirstUser);
 
-    const profilePictureExternal = externalData?.userInfo?.user_photo
-      ? `https://external-service-url.com/photos/${externalData.userInfo.user_photo}`
+    const profilePictureExternal = userInfo?.user_photo
+      ? `https://external-service-url.com/photos/${userInfo.user_photo}`
       : null;
 
-    const userData = {
+    const userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'> = {
       lineUserId,
-      name: externalData?.userInfo?.user_lname || name,
+      name: userInfo?.user_lname || name,
       nickname,
       departmentId,
       profilePictureUrl,
       profilePictureExternal,
       role: role.toString(),
-      employeeId: externalData?.userInfo?.user_no || employeeId,
-      externalEmployeeId: externalData?.userInfo?.user_serial?.toString(),
+      employeeId: userInfo?.user_no || employeeId,
+      externalEmployeeId: userInfo?.user_serial?.toString() || null,
       overtimeHours: 0,
       shiftId: shift.id,
+      sickLeaveBalance: 30, // Default values, adjust as needed
+      businessLeaveBalance: 3,
+      annualLeaveBalance: 6,
+      overtimeLeaveBalance: 0,
     };
 
     console.log('Upserting user with data:', userData);
     user = await upsertUser(user, userData);
     console.log('Upserted user:', user);
+
+    // Process historical attendance data
+    if (user && shift) {
+      await attendanceService.processAndStoreHistoricalData(
+        user.id,
+        externalData,
+        shift,
+      );
+    }
 
     await linkRichMenu(lineUserId, role);
 

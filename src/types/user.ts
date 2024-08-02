@@ -75,6 +75,10 @@ export interface AttendanceStatus {
   status: AttendanceStatusType;
   isCheckingIn: boolean;
   isDayOff: boolean;
+  effectiveShift: ShiftData;
+  isOvertime: boolean;
+  overtimeDuration: number;
+  overtimeStartTime: Date | null;
   shiftAdjustment: ShiftAdjustment | null;
   futureShiftAdjustments: ShiftAdjustment[];
   approvedOvertime: ApprovedOvertime | null;
@@ -132,7 +136,7 @@ export interface AttendanceRecord {
   overtimeHours: number;
   overtimeStartTime: Date | null;
   overtimeEndTime: Date | null;
-  overtimeDuration?: number;
+  overtimeDuration: number | null;
   checkInLocation: Location | null;
   checkOutLocation: Location | null;
   checkInAddress: string | null;
