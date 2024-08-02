@@ -576,25 +576,61 @@ export class AttendanceService {
 
     const combinedRecords = Object.entries(groupedRecords).map(
       ([date, records]) => {
-        return this.combineRecords(records);
+        return this.combineRecords(records, shift);
       },
     );
 
-    const sortedRecords = combinedRecords.sort(
-      (a, b) => b.date.getTime() - a.date.getTime(),
-    );
+    const sortedRecords = combinedRecords.sort((a, b) => {
+      const aDate = moment(a.checkInTime || a.date).tz(this.TIMEZONE);
+      const bDate = moment(b.checkInTime || b.date).tz(this.TIMEZONE);
+      return bDate.valueOf() - aDate.valueOf();
+    });
+
     const latestRecord = sortedRecords[0] || null;
 
     if (latestRecord) {
       const now = moment().tz(this.TIMEZONE);
       const { status, isOvertime, overtimeDuration, overtimeStartTime } =
         this.determineStatus(latestRecord, shift, false, now);
+
       latestRecord.status = status;
       latestRecord.isOvertime = isOvertime;
       latestRecord.overtimeDuration = overtimeDuration;
       latestRecord.overtimeStartTime = overtimeStartTime
         ? overtimeStartTime.toDate()
         : null;
+
+      // Adjust for shifts spanning midnight
+      const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
+      const shiftEndHour = parseInt(shift.endTime.split(':')[0]);
+      if (shiftEndHour < shiftStartHour && latestRecord.checkOutTime) {
+        const checkOutMoment = moment(latestRecord.checkOutTime).tz(
+          this.TIMEZONE,
+        );
+        if (checkOutMoment.hour() < shiftEndHour) {
+          checkOutMoment.add(1, 'day');
+          latestRecord.checkOutTime = checkOutMoment.toDate();
+        }
+      }
+
+      // Recalculate overtime if necessary
+      if (latestRecord.isOvertime) {
+        const shiftEnd = moment(latestRecord.checkInTime || latestRecord.date)
+          .tz(this.TIMEZONE)
+          .set({
+            hour: shiftEndHour,
+            minute: parseInt(shift.endTime.split(':')[1]),
+          });
+        if (
+          shiftEnd.isBefore(moment(latestRecord.checkInTime).tz(this.TIMEZONE))
+        ) {
+          shiftEnd.add(1, 'day');
+        }
+        latestRecord.overtimeStartTime = shiftEnd.toDate();
+        latestRecord.overtimeDuration = moment(latestRecord.checkOutTime)
+          .tz(this.TIMEZONE)
+          .diff(shiftEnd, 'minutes');
+      }
     }
 
     logMessage(`Latest attendance record: ${JSON.stringify(latestRecord)}`);
@@ -644,18 +680,18 @@ export class AttendanceService {
 
   private groupRecordsByDate(
     records: (Attendance | AttendanceRecord)[],
-    shift: Shift,
+    shift: ShiftData,
   ): Record<string, (Attendance | AttendanceRecord)[]> {
     const recordsByDate: Record<string, (Attendance | AttendanceRecord)[]> = {};
     const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
 
     records.forEach((record) => {
       if (record.checkInTime) {
-        const recordDate = new Date(record.checkInTime);
-        if (recordDate.getHours() < shiftStartHour) {
-          recordDate.setDate(recordDate.getDate() - 1);
+        const recordDate = moment(record.checkInTime);
+        if (recordDate.hour() < shiftStartHour) {
+          recordDate.subtract(1, 'day');
         }
-        const dateKey = `${recordDate.toISOString().split('T')[0]}-${(record as AttendanceRecord).employeeId || (record as Attendance).userId}`;
+        const dateKey = `${recordDate.format('YYYY-MM-DD')}-${(record as AttendanceRecord).employeeId || (record as Attendance).userId}`;
         if (!recordsByDate[dateKey]) {
           recordsByDate[dateKey] = [];
         }
@@ -668,6 +704,7 @@ export class AttendanceService {
 
   private combineRecords(
     records: (Attendance | AttendanceRecord)[],
+    shift: ShiftData,
   ): AttendanceRecord {
     const employeeId = (records[0] as AttendanceRecord).employeeId || 'unknown';
     const internalRecord = records.find(
@@ -675,26 +712,49 @@ export class AttendanceService {
     ) as Attendance | undefined;
 
     if (internalRecord) {
-      return this.convertAttendanceToRecord(internalRecord);
+      return this.convertAttendanceToRecord(internalRecord, shift);
     }
 
     const firstRecord = records[0] as AttendanceRecord;
-    return records.reduce<AttendanceRecord>(
+    const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
+    const shiftEndHour = parseInt(shift.endTime.split(':')[0]);
+
+    const combinedRecord = records.reduce<AttendanceRecord>(
       (combined, current) => {
         const currentRecord = current as Partial<AttendanceRecord>;
+        const currentCheckIn = currentRecord.checkInTime
+          ? moment(currentRecord.checkInTime)
+          : null;
+        const currentCheckOut = currentRecord.checkOutTime
+          ? moment(currentRecord.checkOutTime)
+          : null;
+        const combinedCheckIn = combined.checkInTime
+          ? moment(combined.checkInTime)
+          : null;
+        const combinedCheckOut = combined.checkOutTime
+          ? moment(combined.checkOutTime)
+          : null;
+
+        // Adjust for shifts spanning midnight
+        if (
+          shiftEndHour < shiftStartHour &&
+          currentCheckOut &&
+          currentCheckOut.hour() < shiftEndHour
+        ) {
+          currentCheckOut.add(1, 'day');
+        }
+
         return {
           ...combined,
           checkInTime:
-            !combined.checkInTime ||
-            (currentRecord.checkInTime &&
-              currentRecord.checkInTime < combined.checkInTime)
-              ? currentRecord.checkInTime || null
+            !combinedCheckIn ||
+            (currentCheckIn && currentCheckIn.isBefore(combinedCheckIn))
+              ? currentCheckIn?.toDate() || null
               : combined.checkInTime,
           checkOutTime:
-            !combined.checkOutTime ||
-            (currentRecord.checkOutTime &&
-              currentRecord.checkOutTime > combined.checkOutTime)
-              ? currentRecord.checkOutTime || null
+            !combinedCheckOut ||
+            (currentCheckOut && currentCheckOut.isAfter(combinedCheckOut))
+              ? currentCheckOut?.toDate() || null
               : combined.checkOutTime,
           employeeId: currentRecord.employeeId || combined.employeeId,
         };
@@ -704,10 +764,49 @@ export class AttendanceService {
         employeeId: firstRecord.employeeId || 'unknown',
       },
     );
+
+    // Calculate overtime and other shift-specific properties
+    const shiftStart = moment(combinedRecord.checkInTime).set({
+      hour: shiftStartHour,
+      minute: parseInt(shift.startTime.split(':')[1]),
+    });
+    const shiftEnd = moment(combinedRecord.checkInTime).set({
+      hour: shiftEndHour,
+      minute: parseInt(shift.endTime.split(':')[1]),
+    });
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    combinedRecord.isOvertime = moment(combinedRecord.checkOutTime).isAfter(
+      shiftEnd,
+    );
+    combinedRecord.isEarlyCheckIn = moment(combinedRecord.checkInTime).isBefore(
+      shiftStart.subtract(30, 'minutes'),
+    );
+    combinedRecord.isLateCheckIn = moment(combinedRecord.checkInTime).isAfter(
+      shiftStart.add(5, 'minutes'),
+    );
+    combinedRecord.isLateCheckOut = moment(combinedRecord.checkOutTime).isAfter(
+      shiftEnd.add(15, 'minutes'),
+    );
+
+    if (combinedRecord.isOvertime) {
+      combinedRecord.overtimeStartTime = shiftEnd.toDate();
+      combinedRecord.overtimeEndTime = combinedRecord.checkOutTime;
+      combinedRecord.overtimeDuration = moment(
+        combinedRecord.checkOutTime,
+      ).diff(shiftEnd, 'minutes');
+    }
+
+    return combinedRecord;
   }
 
-  private convertAttendanceToRecord(attendance: Attendance): AttendanceRecord {
-    return {
+  private convertAttendanceToRecord(
+    attendance: Attendance,
+    shift: ShiftData,
+  ): AttendanceRecord {
+    const record = {
       id: attendance.id,
       userId: attendance.userId,
       employeeId: attendance.userId, // Assuming userId is used as employeeId
@@ -737,6 +836,39 @@ export class AttendanceService {
       createdAt: attendance.createdAt,
       updatedAt: attendance.updatedAt,
     };
+    // Calculate shift-specific properties
+    const shiftStart = moment(attendance.checkInTime).set({
+      hour: parseInt(shift.startTime.split(':')[0]),
+      minute: parseInt(shift.startTime.split(':')[1]),
+    });
+    const shiftEnd = moment(attendance.checkInTime).set({
+      hour: parseInt(shift.endTime.split(':')[0]),
+      minute: parseInt(shift.endTime.split(':')[1]),
+    });
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    record.isEarlyCheckIn = moment(attendance.checkInTime).isBefore(
+      shiftStart.subtract(30, 'minutes'),
+    );
+    record.isLateCheckIn = moment(attendance.checkInTime).isAfter(
+      shiftStart.add(5, 'minutes'),
+    );
+    record.isLateCheckOut = moment(attendance.checkOutTime).isAfter(
+      shiftEnd.add(15, 'minutes'),
+    );
+
+    // Recalculate overtime if necessary
+    if (attendance.isOvertime) {
+      record.overtimeStartTime = shiftEnd.toDate();
+      record.overtimeDuration = moment(attendance.checkOutTime).diff(
+        shiftEnd,
+        'minutes',
+      );
+    }
+
+    return record;
   }
 
   private initializeAttendanceRecord(
