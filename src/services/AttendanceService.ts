@@ -413,7 +413,7 @@ export class AttendanceService {
 
     const now = moment().tz(this.TIMEZONE);
     const today = now.clone().startOf('day');
-    const sevenDaysAgo = today.clone().subtract(7, 'days');
+    const threeDaysAgo = today.clone().subtract(3, 'days');
 
     const [
       internalAttendances,
@@ -421,11 +421,11 @@ export class AttendanceService {
       historicalExternalData,
       shiftAdjustment,
     ] = await Promise.all([
-      this.getInternalAttendances(user.id, sevenDaysAgo.toDate()),
-      this.externalDbService.getDailyAttendanceRecords(employeeId, 7), // Get last 7 days
+      this.getInternalAttendances(user.id, threeDaysAgo.toDate()),
+      this.externalDbService.getDailyAttendanceRecords(employeeId, 3), // Get last 7 days
       this.externalDbService.getHistoricalAttendanceRecords(
         employeeId,
-        sevenDaysAgo.toDate(),
+        threeDaysAgo.toDate(),
         now.toDate(),
       ),
       this.getLatestShiftAdjustment(user.id),

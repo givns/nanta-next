@@ -16,12 +16,6 @@ const notificationService = new NotificationService();
 const shiftManagementService = new ShiftManagementService();
 const holidayService = new HolidayService();
 const shift104HolidayService = new Shift104HolidayService();
-const now = new Date();
-const startDate = new Date(
-  now.getFullYear(),
-  now.getMonth(),
-  now.getDate() - 1,
-);
 
 export class AttendanceSyncService {
   async syncAttendanceData(syncType: string = 'regular') {
@@ -43,10 +37,14 @@ export class AttendanceSyncService {
   ) {
     try {
       const { records, userInfo } =
-        await externalDbService.getDailyAttendanceRecords(
-          user.employeeId,
-          1, // Replace startDate with the number of days
+        await externalDbService.getDailyAttendanceRecords(user.employeeId);
+
+      if (!userInfo) {
+        console.error(
+          `User info not found for employee ID: ${user.employeeId}`,
         );
+        return;
+      }
 
       for (const record of records) {
         const existingAttendance = await this.findExistingAttendance(
@@ -157,7 +155,7 @@ export class AttendanceSyncService {
         action = 'บันทึกเวลา';
     }
 
-    return `${action}เรียบร้อยแล้ว: ${time}`;
+    return `บันทึกเวลา${action}เรียบร้อยแล้ว: ${time}`;
   }
 
   async checkMissingCheckIns(): Promise<void> {
