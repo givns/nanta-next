@@ -1,5 +1,11 @@
 import React from 'react';
-import { UserData, AttendanceStatus, ApprovedOvertime } from '../types/user';
+import {
+  UserData,
+  AttendanceStatus,
+  ApprovedOvertime,
+  ShiftData,
+  ShiftAdjustment,
+} from '../types/user';
 import { formatTime } from '../utils/dateUtils';
 import { getDeviceType } from '../utils/deviceUtils';
 import moment from 'moment-timezone';
@@ -57,6 +63,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       moment(attendanceStatus.shiftAdjustment.date).isSame(today, 'day')
         ? attendanceStatus.shiftAdjustment
         : null;
+
     const effectiveShift =
       todayShiftAdjustment?.requestedShift || userData.assignedShift;
 
@@ -71,7 +78,8 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return (
       <div className="bg-white p-4 rounded-lg mb-4">
         {renderAttendanceInfo()}
-        {renderShiftInfo(effectiveShift, todayShiftAdjustment)}
+        {effectiveShift &&
+          renderShiftInfo(effectiveShift, todayShiftAdjustment)}
         {renderOvertimeInfo()}
       </div>
     );
@@ -116,7 +124,10 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     );
   };
 
-  const renderShiftInfo = (effectiveShift: any, todayShiftAdjustment: any) => {
+  const renderShiftInfo = (
+    effectiveShift: ShiftData,
+    todayShiftAdjustment: ShiftAdjustment | null,
+  ) => {
     if (!effectiveShift) return null;
 
     return (
