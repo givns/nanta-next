@@ -15,7 +15,7 @@ import {
 
 import { AttendanceService } from '../services/AttendanceService';
 import { Shift, User } from '@prisma/client';
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../types/enum';
 import moment from 'moment-timezone';
 
 const client = new Client({

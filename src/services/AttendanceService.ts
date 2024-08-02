@@ -19,8 +19,8 @@ import {
   UserData,
   Location,
 } from '../types/user';
-import { UserRole } from '@/types/enum';
-import { getDeviceType } from '@/utils/deviceUtils';
+import { UserRole } from '../types/enum';
+import { getDeviceType } from '../utils/deviceUtils';
 import { logMessage } from '../utils/inMemoryLogger';
 import moment from 'moment-timezone';
 import { cacheService } from './CacheService';
