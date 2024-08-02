@@ -53,19 +53,30 @@ export class ExternalDbService {
         console.log(
           `Searching for external user with employeeId: ${employeeId}`,
         );
+        logMessage(`Start date: ${startDate.toISOString()}`);
+        logMessage(`End date: ${endDate.toISOString()}`);
 
         const userInfoQuery = 'SELECT * FROM dt_user WHERE user_no = ?';
         const attendanceQuery = `
-          SELECT kj.sj, kj.user_serial, kj.bh, kj.dev_serial, kj.date, kj.time,
-                 du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
-          FROM kt_jl kj
-          JOIN dt_user du ON kj.user_serial = du.user_serial
+          SELECT 
+            a.*, 
+            du.user_no, 
+            du.user_lname, 
+            du.user_fname, 
+            dd.dep_name as department,
+            sd.dev_serial
+          FROM atttime a
+          JOIN dt_user du ON a.user_serial = du.user_serial
           LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
-          WHERE CAST(du.user_no AS CHAR) = CAST(? AS CHAR)
-          AND kj.date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-          AND kj.date <= DATE_ADD(CURDATE(), INTERVAL 1 DAY)
-          ORDER BY kj.sj ASC
+          LEFT JOIN st_device sd ON a.dev_serial = sd.dev_serial
+          WHERE du.user_no = ? 
+          AND a.sj >= ?
+          AND a.sj <= ?
+          ORDER BY a.sj ASC
         `;
+
+        logMessage('User info query: ' + userInfoQuery);
+        logMessage('Attendance query: ' + attendanceQuery);
 
         const [userInfoResult, attendanceResult] = await Promise.all([
           query<any[]>(userInfoQuery, [employeeId]),
@@ -77,17 +88,23 @@ export class ExternalDbService {
         ]);
 
         console.log(
+          'User info result:',
+          JSON.stringify(userInfoResult, null, 2),
+        );
+        console.log(
           'Raw attendance records:',
           JSON.stringify(attendanceResult, null, 2),
         );
 
         attendanceResult.forEach((record) => {
-          logMessage(`Raw sj value for record ${record.bh}: ${record.sj}`);
+          logMessage(`Raw sj value for record: ${record.sj}`);
         });
 
         const processedRecords = attendanceResult.map((record) => ({
           ...record,
           sj: record.sj,
+          date: record.sj.split(' ')[0],
+          time: record.sj.split(' ')[1],
         }));
 
         console.log(
@@ -95,8 +112,8 @@ export class ExternalDbService {
           JSON.stringify(processedRecords, null, 2),
         );
 
-        logger.info(
-          `Found ${attendanceResult.length} attendance records for employeeId: ${employeeId}`,
+        console.log(
+          `Found ${processedRecords.length} attendance records for employeeId: ${employeeId}`,
         );
 
         return {
@@ -106,7 +123,7 @@ export class ExternalDbService {
       },
       3,
       1000,
-    ); // Retry 3 times with 1 second delay between attempts
+    );
   }
 
   async getHistoricalAttendanceRecords(
