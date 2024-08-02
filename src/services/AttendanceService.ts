@@ -409,24 +409,24 @@ export class AttendanceService {
 
     const now = moment().tz(this.TIMEZONE);
     const today = now.clone().startOf('day');
+    const sevenDaysAgo = today.clone().subtract(7, 'days');
 
-    const threeDaysAgo = today.clone().subtract(3, 'days');
-    const startDate = new Date(now.year(), now.month(), now.date() - 3);
-    const endDate = new Date();
-
-    const [internalAttendances, externalAttendanceData] = await Promise.all([
-      this.getInternalAttendances(user.id, threeDaysAgo.toDate()),
-      this.externalDbService.getDailyAttendanceRecords(
-        employeeId,
-        startDate,
-        endDate,
-      ),
-    ]);
+    const [internalAttendances, externalAttendanceData, shiftAdjustment] =
+      await Promise.all([
+        this.getInternalAttendances(user.id, sevenDaysAgo.toDate()),
+        this.externalDbService.getDailyAttendanceRecords(
+          employeeId,
+          sevenDaysAgo.toDate(),
+          now.toDate(),
+        ),
+        this.getLatestShiftAdjustment(user.id),
+      ]);
 
     logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
     logMessage(
       `External attendance data: ${JSON.stringify(externalAttendanceData)}`,
     );
+    logMessage(`Shift adjustment: ${JSON.stringify(shiftAdjustment)}`);
 
     const latestAttendance = await this.getLatestAttendanceRecord(
       internalAttendances,
@@ -438,7 +438,6 @@ export class AttendanceService {
     logMessage(`Latest attendance: ${JSON.stringify(latestAttendance)}`);
 
     const isDayOff = await this.isDayOff(user, today.toDate());
-    const shiftAdjustment = await this.getLatestShiftAdjustment(user.id);
     const futureShiftAdjustments = await this.getFutureShiftAdjustments(
       user.id,
     );
@@ -453,6 +452,8 @@ export class AttendanceService {
     const effectiveShift = shiftAdjustment
       ? shiftAdjustment.requestedShift
       : user.assignedShift;
+    logMessage(`Effective shift: ${JSON.stringify(effectiveShift)}`);
+
     const potentialOvertime = this.calculatePotentialOvertime(
       latestAttendance,
       effectiveShift,
@@ -463,7 +464,7 @@ export class AttendanceService {
         ? {
             status: latestAttendance.status as AttendanceStatusType,
             isOvertime: latestAttendance.isOvertime,
-            overtimeDuration: latestAttendance.overtimeDuration,
+            overtimeDuration: latestAttendance.overtimeDuration || 0,
             overtimeStartTime: latestAttendance.overtimeStartTime,
           }
         : this.determineStatus(null, effectiveShift, isDayOff, now);
@@ -493,23 +494,12 @@ export class AttendanceService {
             updatedAt: shiftAdjustment.updatedAt,
           }
         : null,
-      futureShiftAdjustments: futureShiftAdjustments.map((adjustment) => ({
-        id: adjustment.id,
-        userId: adjustment.userId,
-        date: adjustment.date,
-        requestedShiftId: adjustment.requestedShiftId,
-        requestedShift: this.convertToShiftData(adjustment.requestedShift),
-        status: adjustment.status,
-        reason: adjustment.reason,
-        createdAt: adjustment.createdAt,
-        updatedAt: adjustment.updatedAt,
-      })),
+      futureShiftAdjustments,
       approvedOvertime,
       futureApprovedOvertimes,
       potentialOvertime,
       isOvertime,
-      overtimeDuration:
-        overtimeDuration !== undefined ? overtimeDuration : null,
+      overtimeDuration,
       overtimeStartTime:
         overtimeStartTime instanceof Date
           ? overtimeStartTime
@@ -520,8 +510,10 @@ export class AttendanceService {
 
     cacheService.set(cacheKey, attendanceStatus);
 
+    logMessage(`Final attendance status: ${JSON.stringify(attendanceStatus)}`);
     return attendanceStatus;
   }
+
   private async getUserWithShift(
     employeeId: string,
   ): Promise<(User & { assignedShift: Shift }) | null> {
@@ -558,7 +550,12 @@ export class AttendanceService {
       this.convertExternalToInternal(record),
     );
     const allRecords = [...internalAttendances, ...convertedExternalRecords];
+
+    logMessage(`All records: ${JSON.stringify(allRecords)}`);
+
     const groupedRecords = this.groupRecordsByDate(allRecords, shift);
+
+    logMessage(`Grouped records: ${JSON.stringify(groupedRecords)}`);
 
     const combinedRecords = Object.entries(groupedRecords).map(
       ([date, records]) => {
