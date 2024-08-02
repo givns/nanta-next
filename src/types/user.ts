@@ -77,7 +77,7 @@ export interface AttendanceStatus {
   isDayOff: boolean;
   effectiveShift: ShiftData;
   isOvertime: boolean;
-  overtimeDuration: number;
+  overtimeDuration: number | null;
   overtimeStartTime: Date | null;
   shiftAdjustment: ShiftAdjustment | null;
   futureShiftAdjustments: ShiftAdjustment[];

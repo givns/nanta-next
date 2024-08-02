@@ -450,19 +450,25 @@ export class AttendanceService {
       user.id,
     );
 
-    const potentialOvertime = this.calculatePotentialOvertime(
-      latestAttendance,
-      user.assignedShift,
-    );
-
-    const { status, isOvertime, overtimeDuration, overtimeStartTime } =
-      this.determineStatus(latestAttendance, user.assignedShift, isDayOff, now);
-
     const effectiveShift = shiftAdjustment
       ? shiftAdjustment.requestedShift
       : user.assignedShift;
+    const potentialOvertime = this.calculatePotentialOvertime(
+      latestAttendance,
+      effectiveShift,
+    );
 
-    const attendanceStatus = {
+    const { status, isOvertime, overtimeDuration, overtimeStartTime } =
+      latestAttendance
+        ? {
+            status: latestAttendance.status as AttendanceStatusType,
+            isOvertime: latestAttendance.isOvertime,
+            overtimeDuration: latestAttendance.overtimeDuration,
+            overtimeStartTime: latestAttendance.overtimeStartTime,
+          }
+        : this.determineStatus(null, effectiveShift, isDayOff, now);
+
+    const attendanceStatus: AttendanceStatus = {
       user: this.mapUserData({
         ...user,
         department: { name: user.departmentId },
@@ -471,7 +477,7 @@ export class AttendanceService {
       status,
       isCheckingIn: this.isCheckingIn(latestAttendance),
       isDayOff,
-      effectiveShift, // Add this to clearly show the shift in effect for today
+      effectiveShift,
       shiftAdjustment: shiftAdjustment
         ? {
             id: shiftAdjustment.id,
@@ -502,9 +508,16 @@ export class AttendanceService {
       futureApprovedOvertimes,
       potentialOvertime,
       isOvertime,
-      overtimeDuration,
-      overtimeStartTime: overtimeStartTime ? overtimeStartTime.toDate() : null, // Convert overtimeStartTime to a Date object
+      overtimeDuration:
+        overtimeDuration !== undefined ? overtimeDuration : null,
+      overtimeStartTime:
+        overtimeStartTime instanceof Date
+          ? overtimeStartTime
+          : overtimeStartTime
+            ? overtimeStartTime.toDate()
+            : null,
     };
+
     cacheService.set(cacheKey, attendanceStatus);
 
     return attendanceStatus;
@@ -540,6 +553,7 @@ export class AttendanceService {
     logMessage(
       `Getting latest attendance record for employee ID: ${employeeId}`,
     );
+
     const convertedExternalRecords = externalRecords.map((record) =>
       this.convertExternalToInternal(record),
     );
@@ -558,8 +572,9 @@ export class AttendanceService {
     const latestRecord = sortedRecords[0] || null;
 
     if (latestRecord) {
+      const now = moment().tz(this.TIMEZONE);
       const { status, isOvertime, overtimeDuration, overtimeStartTime } =
-        this.determineStatus(latestRecord, shift, false, moment());
+        this.determineStatus(latestRecord, shift, false, now);
       latestRecord.status = status;
       latestRecord.isOvertime = isOvertime;
       latestRecord.overtimeDuration = overtimeDuration;
@@ -1067,7 +1082,7 @@ export class AttendanceService {
     userId: string,
     checkTime: Date,
     isOvertime: boolean,
-    overtimeHours: number,
+    overtimeDuration: number,
     externalData: ExternalCheckInData,
   ): Promise<Attendance> {
     logMessage(`Creating new attendance record for user ${userId}`);
@@ -1088,7 +1103,7 @@ export class AttendanceService {
     attendanceId: string,
     checkOutTime: Date,
     isOvertime: boolean,
-    overtimeHours: number,
+    overtimeDuration: number,
     externalData: ExternalCheckInData,
   ): Promise<Attendance> {
     logMessage(

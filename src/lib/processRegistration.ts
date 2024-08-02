@@ -13,7 +13,7 @@ import {
   departmentIdNameMap,
 } from './shiftCache';
 
-import { AttendanceService } from '@/services/AttendanceService';
+import { AttendanceService } from '../services/AttendanceService';
 import { Shift, User } from '@prisma/client';
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
