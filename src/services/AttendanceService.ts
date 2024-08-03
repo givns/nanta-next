@@ -105,7 +105,9 @@ export class AttendanceService {
       // Combine and sort all records
       const allRecords = [
         ...internalAttendances,
-        ...externalAttendanceData.records.map(this.convertExternalToInternal),
+        ...externalAttendanceData.records.map((record) =>
+          this.convertExternalToInternal(record),
+        ),
       ].sort((a, b) => moment(b.checkInTime).diff(moment(a.checkInTime)));
 
       const processedAttendance = await this.processAttendanceData(
@@ -464,32 +466,54 @@ export class AttendanceService {
     };
   }
 
+  private ensureAttendanceRecord(record: any): AttendanceRecord {
+    return {
+      id: record.id || record.bh?.toString() || '',
+      userId: record.userId || record.user_serial?.toString() || '',
+      date: record.date ? new Date(record.date) : new Date(),
+      checkInTime: record.checkInTime
+        ? new Date(record.checkInTime)
+        : record.sj
+          ? new Date(record.sj)
+          : null,
+      checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
+      isOvertime: record.isOvertime || false,
+      isDayOff: record.isDayOff || false,
+      overtimeStartTime: record.overtimeStartTime
+        ? new Date(record.overtimeStartTime)
+        : null,
+      overtimeEndTime: record.overtimeEndTime
+        ? new Date(record.overtimeEndTime)
+        : null,
+      checkInLocation: record.checkInLocation || null,
+      checkOutLocation: record.checkOutLocation || null,
+      checkInAddress: record.checkInAddress || null,
+      checkOutAddress: record.checkOutAddress || null,
+      checkInReason: record.checkInReason || null,
+      checkOutReason: record.checkOutReason || null,
+      checkInPhoto: record.checkInPhoto || null,
+      checkOutPhoto: record.checkOutPhoto || null,
+      checkInDeviceSerial:
+        record.checkInDeviceSerial || record.dev_serial || null,
+      checkOutDeviceSerial: record.checkOutDeviceSerial || null,
+      status: record.status || 'checked-in',
+      isManualEntry: record.isManualEntry || false,
+    };
+  }
+
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    const checkInTime = moment(external.sj);
     return this.ensureAttendanceRecord({
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
-      date: checkInTime.toDate(),
-      checkInTime: checkInTime.toDate(),
+      date: new Date(external.date),
+      checkInTime: new Date(external.sj),
       checkOutTime: null,
       isOvertime: false,
       isDayOff: false,
-      overtimeStartTime: null,
-      overtimeEndTime: null,
-      checkInLocation: null,
-      checkOutLocation: null,
-      checkInAddress: null,
-      checkOutAddress: null,
-      checkInReason: null,
-      checkOutReason: null,
-      checkInPhoto: null,
-      checkOutPhoto: null,
-      checkInDeviceSerial: external.dev_serial,
-      checkOutDeviceSerial: null,
       status: 'checked-in',
-      isManualEntry: false,
+      checkInDeviceSerial: external.dev_serial,
     });
   }
 
@@ -1051,31 +1075,6 @@ export class AttendanceService {
     return approvedAttendance;
   }
 
-  private ensureAttendanceRecord(record: any): AttendanceRecord {
-    return {
-      id: record.id,
-      userId: record.userId,
-      date: record.date,
-      checkInTime: record.checkInTime,
-      checkOutTime: record.checkOutTime,
-      isOvertime: record.isOvertime || false,
-      isDayOff: record.isDayOff || false,
-      overtimeStartTime: record.overtimeStartTime,
-      overtimeEndTime: record.overtimeEndTime,
-      checkInLocation: record.checkInLocation,
-      checkOutLocation: record.checkOutLocation,
-      checkInAddress: record.checkInAddress,
-      checkOutAddress: record.checkOutAddress,
-      checkInReason: record.checkInReason,
-      checkOutReason: record.checkOutReason,
-      checkInPhoto: record.checkInPhoto,
-      checkOutPhoto: record.checkOutPhoto,
-      checkInDeviceSerial: record.checkInDeviceSerial,
-      checkOutDeviceSerial: record.checkOutDeviceSerial,
-      status: record.status,
-      isManualEntry: record.isManualEntry || false,
-    };
-  }
   private convertToUserData(user: any): UserData {
     return {
       id: user.id,
