@@ -77,22 +77,15 @@ export default async function handler(
     );
 
     // Convert prisma attendance to AttendanceRecord type
-    const employeeId = user.employeeId;
-
     const attendanceRecords: AttendanceRecord[] = payrollAttendance.map(
       (record) => ({
         ...record,
-        employeeId, // Add this line to include the employeeId
         checkInLocation: record.checkInLocation
           ? JSON.parse(record.checkInLocation as string)
           : null,
         checkOutLocation: record.checkOutLocation
           ? JSON.parse(record.checkOutLocation as string)
           : null,
-        isEarlyCheckIn: record.isEarlyCheckIn || false,
-        isLateCheckIn: record.isLateCheckIn || false,
-        isLateCheckOut: record.isLateCheckOut || false,
-        overtimeHours: record.overtimeDuration || 0, // Use overtimeDuration instead of overtimeHours
       }),
     );
 

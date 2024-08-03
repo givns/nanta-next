@@ -42,15 +42,15 @@ export interface Location {
 export interface AttendanceData {
   userId: string;
   employeeId: string;
-  lineUserId: string | null;
-  checkTime: Date;
+  lineUserId: string;
+  checkTime: string | Date;
   location: string;
   address: string;
   reason?: string;
-  photo: string | null;
+  photo?: string;
   deviceSerial: string;
   isCheckIn: boolean;
-  isOvertime: boolean;
+  isOvertime?: boolean;
   isLate: boolean;
   isFlexibleStart?: boolean;
   isFlexibleEnd?: boolean;
@@ -71,42 +71,44 @@ export interface ApprovedOvertime {
 
 export interface AttendanceStatus {
   user: UserData;
-  latestAttendance: AttendanceRecord | null;
-  status: AttendanceStatusType;
+  latestAttendance: {
+    id: string;
+    userId: string;
+    date: string;
+    checkInTime: string | null;
+    checkOutTime: string | null;
+    checkInDeviceSerial: string;
+    checkOutDeviceSerial: string | null;
+    status: AttendanceStatusType; // Update this line
+    isManualEntry: boolean;
+  } | null;
   isCheckingIn: boolean;
   isDayOff: boolean;
-  effectiveShift: ShiftData;
-  isOvertime: boolean;
-  overtimeDuration: number | null;
-  overtimeStartTime: Date | null;
-  shiftAdjustment: ShiftAdjustment | null;
-  futureShiftAdjustments: ShiftAdjustment[];
+  potentialOvertime: {
+    start: string;
+    end: string;
+  } | null;
+  shiftAdjustment: {
+    date: string;
+    requestedShiftId: string;
+    requestedShift: ShiftData;
+  } | null;
+  futureShiftAdjustments: Array<{
+    date: string;
+    shift: ShiftData;
+  }>;
   approvedOvertime: ApprovedOvertime | null;
   futureApprovedOvertimes: ApprovedOvertime[];
-  potentialOvertime: { start: string; end: string } | null;
 }
 
 export type AttendanceStatusType =
   | 'checked-in'
   | 'checked-out'
-  | 'early-check-in'
-  | 'late-check-in'
-  | 'early-check-out'
-  | 'late-check-out'
   | 'overtime-started'
   | 'overtime-ended'
-  | 'overtime-ongoing'
-  | 'flexible-start'
-  | 'flexible-end'
-  | 'grace-period'
-  | 'absent'
-  | 'day-off'
-  | 'holiday'
-  | 'manual-entry'
-  | 'manual-entry-pending'
-  | 'auto-checked-out'
-  | 'not-checked-in'
-  | 'pending';
+  | 'pending'
+  | 'approved'
+  | 'denied';
 
 export interface potentialOvertime {
   start: string;
@@ -123,21 +125,14 @@ export interface ShiftData {
 }
 
 export interface AttendanceRecord {
-  isOvertime: boolean;
-  employeeId: string;
   id: string;
   userId: string;
   date: Date;
-  isDayOff: boolean;
   checkInTime: Date | null;
   checkOutTime: Date | null;
-  isEarlyCheckIn: boolean;
-  isLateCheckIn: boolean;
-  isLateCheckOut: boolean;
-  overtimeHours: number;
+  isOvertime: boolean;
   overtimeStartTime: Date | null;
   overtimeEndTime: Date | null;
-  overtimeDuration: number | null;
   checkInLocation: Location | null;
   checkOutLocation: Location | null;
   checkInAddress: string | null;
@@ -150,8 +145,6 @@ export interface AttendanceRecord {
   checkOutDeviceSerial: string | null;
   status: string;
   isManualEntry: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface ProcessedAttendance {
@@ -168,13 +161,13 @@ export interface ProcessedAttendance {
 export interface ShiftAdjustment {
   id: string;
   userId: string;
-  date: string;
   requestedShiftId: string;
-  requestedShift: ShiftData;
-  status: string;
+  date: string;
+  status: 'pending' | 'approved' | 'rejected';
   reason: string;
   createdAt: Date;
   updatedAt: Date;
+  requestedShift: Shift;
 }
 
 export interface FutureShiftAdjustment {
