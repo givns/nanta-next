@@ -19,6 +19,7 @@ import {
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
 import { logMessage } from '../utils/inMemoryLogger';
+import { checkIsOnDemandRevalidate } from 'next/dist/server/api-utils';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
@@ -93,13 +94,12 @@ export class AttendanceService {
         this.externalDbService.getDailyAttendanceRecords(employeeId, 3),
       ]);
 
-      console.log(
-        'Internal attendances:',
-        JSON.stringify(internalAttendances, null, 2),
+      logMessage(
+        `Internal attendances: ${JSON.stringify(internalAttendances, null, 2)}`,
       );
-      console.log(
-        'External attendance data:',
-        JSON.stringify(externalAttendanceData, null, 2),
+
+      logMessage(
+        `External attendance data: ${JSON.stringify(externalAttendanceData, null, 2)}`,
       );
 
       // Combine and sort all records
@@ -143,7 +143,7 @@ export class AttendanceService {
         latestAttendance,
         user.assignedShift,
       );
-      console.log('Calculated potential overtime:', potentialOvertime);
+      logMessage(`Calculated potential overtime:, ${potentialOvertime}`);
 
       let isCheckingIn = true;
       if (latestAttendance && latestAttendance.checkOut) {
@@ -180,9 +180,12 @@ export class AttendanceService {
         futureOvertimes,
       };
 
-      console.log(
-        'Final latestAttendance in result:',
-        JSON.stringify(result.latestAttendance, null, 2),
+      logMessage(
+        `Final latestAttendance in result: ${JSON.stringify(
+          result.latestAttendance,
+          null,
+          2,
+        )}`,
       );
 
       return result;
@@ -239,11 +242,12 @@ export class AttendanceService {
           date: currentDate.toDate(),
           status: statusInfo.status,
           checkIn: pair.checkIn.checkInTime
-            ? moment(pair.checkIn.checkInTime).format('HH:mm:ss')
+            ? pair.checkIn.checkInTime.toISOString()
             : undefined,
           checkOut: pair.checkOut?.checkOutTime
-            ? moment(pair.checkOut.checkOutTime).format('HH:mm:ss')
+            ? pair.checkOut.checkOutTime.toISOString()
             : undefined,
+
           isEarlyCheckIn: statusInfo.isEarlyCheckIn,
           isLateCheckIn: statusInfo.isLateCheckIn,
           isLateCheckOut: statusInfo.isLateCheckOut,
@@ -507,7 +511,7 @@ export class AttendanceService {
     return this.ensureAttendanceRecord({
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
-      date: new Date(external.date),
+      date: new Date(external.sj),
       checkInTime: new Date(external.sj),
       checkOutTime: null,
       isOvertime: false,
