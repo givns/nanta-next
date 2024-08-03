@@ -607,8 +607,8 @@ export class AttendanceService {
     return {
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
-      date: checkInTime.startOf('day').toDate(),
-      checkInTime: checkInTime.toDate(), // Use the actual time from sj
+      date: checkInTime.toDate(),
+      checkInTime: checkInTime.toDate(),
       checkOutTime: null,
       isOvertime: false,
       isDayOff: false,

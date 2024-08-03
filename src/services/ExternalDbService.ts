@@ -83,7 +83,7 @@ export class ExternalDbService {
 
         const processedRecords = attendanceResult.map((record) => ({
           ...record,
-          sj: moment.tz(record.sj, 'Asia/Bangkok').format(),
+          sj: moment(record.sj).format(),
         }));
 
         console.log(
