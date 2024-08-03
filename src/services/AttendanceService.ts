@@ -220,48 +220,82 @@ export class AttendanceService {
     );
     const processedAttendance: ProcessedAttendance[] = [];
     const currentDate = moment(startDate);
+    const endMoment = moment(endDate);
 
-    for (const [date, records] of Object.entries(groupedRecords)) {
-      const pairedRecords = this.pairCheckInCheckOut(
-        records,
+    while (currentDate.isSameOrBefore(endMoment)) {
+      const dateStr = currentDate.format('YYYY-MM-DD');
+      const records = groupedRecords[dateStr] || [];
+      const effectiveShift = this.getEffectiveShift(
+        currentDate,
         userData,
         shiftAdjustments,
         shifts,
       );
+      const isWorkDay = effectiveShift.workDays.includes(currentDate.day());
 
-      for (const pair of pairedRecords) {
-        const statusInfo = this.determineStatus(
-          pair.checkIn,
-          pair.checkOut,
-          userData,
-          shiftAdjustments,
-          shifts,
-          approvedOvertimes,
-        );
+      if (records.length === 0) {
         processedAttendance.push({
           date: currentDate.toDate(),
-          status: statusInfo.status,
-          checkIn: pair.checkIn.checkInTime
-            ? pair.checkIn.checkInTime.toISOString()
-            : undefined,
-          checkOut: pair.checkOut?.checkOutTime
-            ? pair.checkOut.checkOutTime.toISOString()
-            : undefined,
-
-          isEarlyCheckIn: statusInfo.isEarlyCheckIn,
-          isLateCheckIn: statusInfo.isLateCheckIn,
-          isLateCheckOut: statusInfo.isLateCheckOut,
-          overtimeHours: statusInfo.overtimeDuration,
-          detailedStatus: statusInfo.detailedStatus,
+          status: isWorkDay ? 'absent' : 'off',
+          checkIn: undefined,
+          checkOut: undefined,
+          isEarlyCheckIn: false,
+          isLateCheckIn: false,
+          isLateCheckOut: false,
+          overtimeHours: 0,
+          detailedStatus: isWorkDay ? 'absent' : 'day-off',
           id: '',
-          userId: '',
+          userId: userData.id,
           isOvertime: false,
           overtimeDuration: 0,
           checkInDeviceSerial: null,
           checkOutDeviceSerial: null,
           isManualEntry: false,
         });
+      } else {
+        const pairedRecords = this.pairCheckInCheckOut(
+          records,
+          userData,
+          shiftAdjustments,
+          shifts,
+        );
+
+        for (const pair of pairedRecords) {
+          const statusInfo = this.determineStatus(
+            pair.checkIn,
+            pair.checkOut,
+            userData,
+            shiftAdjustments,
+            shifts,
+            approvedOvertimes,
+            isWorkDay,
+          );
+          processedAttendance.push({
+            date: currentDate.toDate(),
+            status: statusInfo.status,
+            checkIn: pair.checkIn.checkInTime
+              ? pair.checkIn.checkInTime.toISOString()
+              : undefined,
+            checkOut: pair.checkOut?.checkOutTime
+              ? pair.checkOut.checkOutTime.toISOString()
+              : undefined,
+            isEarlyCheckIn: statusInfo.isEarlyCheckIn,
+            isLateCheckIn: statusInfo.isLateCheckIn,
+            isLateCheckOut: statusInfo.isLateCheckOut,
+            overtimeHours: statusInfo.overtimeDuration,
+            detailedStatus: statusInfo.detailedStatus,
+            id: pair.checkIn.id,
+            userId: pair.checkIn.userId,
+            isOvertime: statusInfo.isOvertime,
+            overtimeDuration: statusInfo.overtimeDuration,
+            checkInDeviceSerial: pair.checkIn.checkInDeviceSerial,
+            checkOutDeviceSerial: pair.checkOut?.checkOutDeviceSerial || null,
+            isManualEntry: pair.checkIn.isManualEntry,
+          });
+        }
       }
+
+      currentDate.add(1, 'day');
     }
 
     return processedAttendance;
@@ -366,98 +400,127 @@ export class AttendanceService {
     shiftAdjustments: ShiftAdjustment[],
     shifts: Map<string, ShiftData>,
     approvedOvertimes: ApprovedOvertime[],
+    isWorkDay: boolean,
   ): {
     status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off';
     isEarlyCheckIn: boolean;
     isLateCheckIn: boolean;
     isLateCheckOut: boolean;
     overtimeDuration: number;
+    isOvertime: boolean;
     detailedStatus: string;
   } {
-    const checkInTime = moment(checkIn.checkInTime);
-    const checkOutTime = checkOut ? moment(checkOut.checkOutTime) : null;
-
-    const effectiveShift = this.getEffectiveShift(
-      checkInTime,
-      userData,
-      shiftAdjustments,
-      shifts,
-    );
-
-    const shiftDate = checkInTime.clone().startOf('day');
-    const shiftStart = shiftDate.clone().set({
-      hour: parseInt(effectiveShift.startTime.split(':')[0]),
-      minute: parseInt(effectiveShift.startTime.split(':')[1]),
-    });
-    let shiftEnd = shiftDate.clone().set({
-      hour: parseInt(effectiveShift.endTime.split(':')[0]),
-      minute: parseInt(effectiveShift.endTime.split(':')[1]),
-    });
-
-    if (shiftEnd.isBefore(shiftStart)) {
-      shiftEnd.add(1, 'day');
-    }
-
-    const allowedCheckInStart = shiftStart.clone().subtract(15, 'minutes');
-    const flexibleCheckInStart = allowedCheckInStart
-      .clone()
-      .subtract(15, 'minutes');
-    const earlyCheckInThreshold = flexibleCheckInStart
-      .clone()
-      .subtract(1, 'minutes');
-    const graceCheckInEnd = shiftStart.clone().add(5, 'minutes');
-
-    const allowedCheckOutEnd = shiftEnd.clone().add(15, 'minutes');
-    const flexibleCheckOutEnd = allowedCheckOutEnd.clone().add(14, 'minutes');
-    const overtimeThreshold = flexibleCheckOutEnd.clone().add(1, 'minutes');
-    const graceCheckOutStart = shiftEnd.clone().subtract(5, 'minutes');
-
     let status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off' =
       'absent';
-    let detailedStatus = '';
-    let isOvertime = false;
-    let overtimeDuration = 0;
     let isEarlyCheckIn = false;
     let isLateCheckIn = false;
     let isLateCheckOut = false;
+    let overtimeDuration = 0;
+    let isOvertime = false;
+    let detailedStatus = '';
 
-    if (checkInTime.isBefore(earlyCheckInThreshold)) {
-      detailedStatus = 'early-check-in';
-      isEarlyCheckIn = true;
-    } else if (
-      checkInTime.isBetween(flexibleCheckInStart, allowedCheckInStart)
-    ) {
-      detailedStatus = 'flexible-start';
-    } else if (checkInTime.isBetween(allowedCheckInStart, graceCheckInEnd)) {
-      detailedStatus = 'on-time';
-    } else {
-      detailedStatus = 'late-check-in';
-      isLateCheckIn = true;
-    }
+    const checkInTime = checkIn.checkInTime
+      ? moment(checkIn.checkInTime)
+      : null;
+    const checkOutTime = checkOut?.checkOutTime
+      ? moment(checkOut.checkOutTime)
+      : null;
 
-    if (checkOutTime) {
-      status = 'present';
-      if (checkOutTime.isBetween(graceCheckOutStart, allowedCheckOutEnd)) {
-        detailedStatus += ' on-time-checkout';
-      } else if (
-        checkOutTime.isBetween(allowedCheckOutEnd, flexibleCheckOutEnd)
-      ) {
-        detailedStatus += ' flexible-end';
-      } else if (checkOutTime.isAfter(overtimeThreshold)) {
-        detailedStatus += ' overtime';
-        isOvertime = true;
-        isLateCheckOut = true;
+    if (!isWorkDay) {
+      status = 'off';
+      if (checkInTime && checkOutTime) {
         overtimeDuration = this.calculateOvertimeDuration(
+          checkInTime,
           checkOutTime,
-          overtimeThreshold,
           approvedOvertimes,
         );
-      } else if (checkOutTime.isBefore(graceCheckOutStart)) {
-        detailedStatus += ' early-checkout';
+        isOvertime = overtimeDuration > 0;
+        detailedStatus = isOvertime ? 'overtime-on-day-off' : 'day-off';
+      } else {
+        detailedStatus = 'day-off';
       }
     } else {
-      status = 'incomplete';
-      detailedStatus += ' no-checkout';
+      const currentDate = checkInTime || moment(); // Use current date if checkInTime is null
+      const effectiveShift = this.getEffectiveShift(
+        currentDate,
+        userData,
+        shiftAdjustments,
+        shifts,
+      );
+      const shiftStart = currentDate.clone().set({
+        hour: parseInt(effectiveShift.startTime.split(':')[0]),
+        minute: parseInt(effectiveShift.startTime.split(':')[1]),
+        second: 0,
+      });
+      const shiftEnd = currentDate.clone().set({
+        hour: parseInt(effectiveShift.endTime.split(':')[0]),
+        minute: parseInt(effectiveShift.endTime.split(':')[1]),
+        second: 0,
+      });
+
+      if (shiftEnd.isBefore(shiftStart)) {
+        shiftEnd.add(1, 'day');
+      }
+
+      const allowedCheckInStart = shiftStart.clone().subtract(15, 'minutes');
+      const flexibleCheckInStart = allowedCheckInStart
+        .clone()
+        .subtract(15, 'minutes');
+      const earlyCheckInThreshold = flexibleCheckInStart
+        .clone()
+        .subtract(1, 'minutes');
+      const graceCheckInEnd = shiftStart.clone().add(5, 'minutes');
+
+      const allowedCheckOutEnd = shiftEnd.clone().add(15, 'minutes');
+      const flexibleCheckOutEnd = allowedCheckOutEnd.clone().add(14, 'minutes');
+      const overtimeThreshold = flexibleCheckOutEnd.clone().add(1, 'minutes');
+      const graceCheckOutStart = shiftEnd.clone().subtract(5, 'minutes');
+
+      if (checkInTime) {
+        if (checkInTime.isBefore(earlyCheckInThreshold)) {
+          detailedStatus = 'early-check-in';
+          isEarlyCheckIn = true;
+        } else if (
+          checkInTime.isBetween(flexibleCheckInStart, allowedCheckInStart)
+        ) {
+          detailedStatus = 'flexible-start';
+        } else if (
+          checkInTime.isBetween(allowedCheckInStart, graceCheckInEnd)
+        ) {
+          detailedStatus = 'on-time';
+        } else {
+          detailedStatus = 'late-check-in';
+          isLateCheckIn = true;
+        }
+
+        if (checkOutTime) {
+          status = 'present';
+          if (checkOutTime.isBetween(graceCheckOutStart, allowedCheckOutEnd)) {
+            detailedStatus += ' on-time-checkout';
+          } else if (
+            checkOutTime.isBetween(allowedCheckOutEnd, flexibleCheckOutEnd)
+          ) {
+            detailedStatus += ' flexible-end';
+          } else if (checkOutTime.isAfter(overtimeThreshold)) {
+            detailedStatus += ' overtime';
+            isOvertime = true;
+            isLateCheckOut = true;
+            overtimeDuration = this.calculateOvertimeDuration(
+              checkOutTime,
+              overtimeThreshold,
+              approvedOvertimes,
+            );
+          } else if (checkOutTime.isBefore(graceCheckOutStart)) {
+            detailedStatus += ' early-checkout';
+          }
+        } else {
+          status = 'incomplete';
+          detailedStatus += ' no-checkout';
+        }
+      } else {
+        status = 'absent';
+        detailedStatus = 'no-check-in';
+      }
     }
 
     return {
@@ -466,6 +529,7 @@ export class AttendanceService {
       isLateCheckIn,
       isLateCheckOut,
       overtimeDuration,
+      isOvertime,
       detailedStatus,
     };
   }
@@ -508,11 +572,12 @@ export class AttendanceService {
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
+    const checkInMoment = moment(external.sj);
     return this.ensureAttendanceRecord({
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
-      date: new Date(external.sj),
-      checkInTime: new Date(external.sj),
+      date: checkInMoment.startOf('day').toDate(),
+      checkInTime: checkInMoment.toDate(),
       checkOutTime: null,
       isOvertime: false,
       isDayOff: false,
@@ -726,32 +791,32 @@ export class AttendanceService {
   }
 
   private calculateOvertimeDuration(
+    checkInTime: moment.Moment,
     checkOutTime: moment.Moment,
-    overtimeThreshold: moment.Moment,
     approvedOvertimes: ApprovedOvertime[],
   ): number {
-    const actualOvertimeMinutes = checkOutTime.diff(
-      overtimeThreshold,
-      'minutes',
-    );
-    const roundedOvertimeMinutes = Math.floor(actualOvertimeMinutes / 30) * 30;
-
     const approvedOvertime = approvedOvertimes.find(
       (ot) =>
-        moment(ot.date).isSame(checkOutTime, 'day') &&
+        moment(ot.date).isSame(checkInTime, 'day') &&
         moment(ot.startTime).isSameOrBefore(checkOutTime) &&
-        moment(ot.endTime).isSameOrAfter(checkOutTime),
+        moment(ot.endTime).isSameOrAfter(checkInTime),
     );
 
     if (approvedOvertime) {
-      const approvedMinutes = moment(approvedOvertime.endTime).diff(
+      const overtimeStart = moment.max(
         moment(approvedOvertime.startTime),
-        'minutes',
+        checkInTime,
       );
-      return Math.min(roundedOvertimeMinutes, approvedMinutes);
+      const overtimeEnd = moment.min(
+        moment(approvedOvertime.endTime),
+        checkOutTime,
+      );
+      return overtimeEnd.diff(overtimeStart, 'hours', true);
     }
 
-    return roundedOvertimeMinutes;
+    // If no approved overtime, calculate potential overtime
+    const workDuration = checkOutTime.diff(checkInTime, 'hours', true);
+    return Math.max(0, workDuration - 8); // Assuming 8 hours is a standard workday
   }
 
   private calculatePotentialOvertime(
@@ -954,7 +1019,6 @@ export class AttendanceService {
       throw error;
     }
   }
-
   private async createAttendance(
     userId: string,
     checkTime: Date,
