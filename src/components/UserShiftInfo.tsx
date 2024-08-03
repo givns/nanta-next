@@ -34,6 +34,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const today = moment().tz('Asia/Bangkok').startOf('day');
 
   const getStatusMessage = (): StatusMessage => {
+    if (isOutsideShift) {
+      return { message: 'ทำงานนอกเวลา', color: 'purple' };
+    }
     if (attendanceStatus.isDayOff) {
       return { message: 'วันหยุด', color: 'blue' };
     }
@@ -64,8 +67,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         ? attendanceStatus.shiftAdjustment
         : null;
 
-    const effectiveShift =
-      todayShiftAdjustment?.requestedShift || userData.assignedShift;
+    const effectiveShift = attendanceStatus.effectiveShift;
 
     if (
       attendanceStatus.isDayOff &&

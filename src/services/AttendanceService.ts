@@ -454,7 +454,7 @@ export class AttendanceService {
 
     logMessage(`Latest attendance: ${JSON.stringify(latestAttendance)}`);
 
-    const isDayOff = await this.isDayOff(user, today.toDate());
+    const isDayOff = await this.isDayOff(user.id, today.toDate());
     const futureShiftAdjustments = await this.getFutureShiftAdjustments(
       user.id,
     );
@@ -570,28 +570,39 @@ export class AttendanceService {
 
     logMessage(`All records: ${JSON.stringify(allRecords)}`);
 
-    const groupedRecords = this.groupRecordsByDate(allRecords, shift);
+    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
+      employeeId,
+      new Date(),
+    );
+    if (!effectiveShift) {
+      console.warn(`No effective shift found for user ${employeeId}`);
+      return null;
+    }
+
+    const groupedRecords = this.groupRecordsByDate(
+      allRecords,
+      effectiveShift.shift,
+    );
 
     logMessage(`Grouped records: ${JSON.stringify(groupedRecords)}`);
 
     const combinedRecords = Object.entries(groupedRecords).map(
       ([date, records]) => {
-        return this.combineRecords(records, shift);
+        return this.combineRecords(records, effectiveShift.shift);
       },
     );
 
-    const sortedRecords = combinedRecords.sort((a, b) => {
-      const aDate = moment(a.checkInTime || a.date).tz(this.TIMEZONE);
-      const bDate = moment(b.checkInTime || b.date).tz(this.TIMEZONE);
-      return bDate.valueOf() - aDate.valueOf();
-    });
-
+    const sortedRecords = combinedRecords.sort((a, b) =>
+      moment(b.date).diff(moment(a.date)),
+    );
     const latestRecord = sortedRecords[0] || null;
 
     if (latestRecord) {
       const now = moment().tz(this.TIMEZONE);
+      const isDayOff = await this.isDayOff(employeeId, latestRecord.date);
+
       const { status, isOvertime, overtimeDuration, overtimeStartTime } =
-        this.determineStatus(latestRecord, shift, false, now);
+        this.determineStatus(latestRecord, effectiveShift.shift, isDayOff, now);
 
       latestRecord.status = status;
       latestRecord.isOvertime = isOvertime;
@@ -599,6 +610,7 @@ export class AttendanceService {
       latestRecord.overtimeStartTime = overtimeStartTime
         ? overtimeStartTime.toDate()
         : null;
+      latestRecord.isDayOff = isDayOff;
 
       // Adjust for shifts spanning midnight
       const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
@@ -657,6 +669,7 @@ export class AttendanceService {
       checkOutDeviceSerial: external.fx === 2 ? external.dev_serial : null,
       status: 'pending',
       isManualEntry: false,
+      isDayOff: false,
       isOvertime: false,
       isEarlyCheckIn: false,
       isLateCheckIn: false,
@@ -833,6 +846,7 @@ export class AttendanceService {
       isEarlyCheckIn: false, // You may need to calculate this based on your business logic
       isLateCheckIn: false, // You may need to calculate this based on your business logic
       isLateCheckOut: false, // You may need to calculate this based on your business logic
+      isDayOff: false, // You may need to calculate this based on your business logic
       createdAt: attendance.createdAt,
       updatedAt: attendance.updatedAt,
     };
@@ -858,7 +872,6 @@ export class AttendanceService {
     record.isLateCheckOut = moment(attendance.checkOutTime).isAfter(
       shiftEnd.add(15, 'minutes'),
     );
-
     // Recalculate overtime if necessary
     if (attendance.isOvertime) {
       record.overtimeStartTime = shiftEnd.toDate();
@@ -867,6 +880,9 @@ export class AttendanceService {
         'minutes',
       );
     }
+    // Calculate isDayOff
+    const attendanceDay = moment(attendance.date).day();
+    record.isDayOff = !shift.workDays.includes(attendanceDay);
 
     return record;
   }
@@ -881,6 +897,7 @@ export class AttendanceService {
       date: record.date || new Date(),
       checkInTime: record.checkInTime || null,
       checkOutTime: record.checkOutTime || null,
+      isDayOff: record.isDayOff || false,
       isOvertime: record.isOvertime || false,
       overtimeStartTime: record.overtimeStartTime || null,
       overtimeEndTime: record.overtimeEndTime || null,
@@ -906,18 +923,20 @@ export class AttendanceService {
     };
   }
 
-  private async isDayOff(
-    user: User & { assignedShift: Shift },
-    date: Date,
-  ): Promise<boolean> {
-    const isWorkDay = await this.holidayService.isWorkingDay(user.id, date);
-    if (!isWorkDay) return true;
-
-    if (user.assignedShift.shiftCode === 'SHIFT104') {
-      return this.shift104HolidayService.isShift104Holiday(date);
+  private async isDayOff(userId: string, date: Date): Promise<boolean> {
+    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
+      userId,
+      date,
+    );
+    if (!effectiveShift) {
+      console.warn(`No effective shift found for user ${userId} on ${date}`);
+      return false;
     }
+    const dayOfWeek = moment(date).day();
+    const isWorkDay = effectiveShift.shift.workDays.includes(dayOfWeek);
+    const isHoliday = await this.holidayService.isHoliday(date);
 
-    return false;
+    return !isWorkDay || isHoliday;
   }
 
   private parseJsonLocation(location: any): Location | null {

@@ -128,6 +128,7 @@ export interface AttendanceRecord {
   id: string;
   userId: string;
   date: Date;
+  isDayOff: boolean;
   checkInTime: Date | null;
   checkOutTime: Date | null;
   isEarlyCheckIn: boolean;
