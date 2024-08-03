@@ -404,7 +404,10 @@ export class AttendanceService {
     }
 
     // Group records by date
-    const recordsByDate = this.groupRecordsByDate(allRecords, shift);
+    const recordsByDate = this.groupRecordsByDate(
+      allRecords as AttendanceRecord[],
+      shift,
+    );
 
     // Get the latest date
     const latestDate = Object.keys(recordsByDate).sort().pop();
@@ -608,6 +611,7 @@ export class AttendanceService {
       checkInTime: checkInTime.toDate(), // Use the actual time from sj
       checkOutTime: null,
       isOvertime: false,
+      isDayOff: false,
       overtimeStartTime: null,
       overtimeEndTime: null,
       checkInLocation: null,

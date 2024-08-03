@@ -86,6 +86,7 @@ export default async function handler(
         checkOutLocation: record.checkOutLocation
           ? JSON.parse(record.checkOutLocation as string)
           : null,
+        isDayOff: false, // Add the missing property 'isDayOff' with a default value
       }),
     );
 

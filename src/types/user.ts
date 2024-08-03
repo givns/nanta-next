@@ -131,6 +131,7 @@ export interface AttendanceRecord {
   checkInTime: Date | null;
   checkOutTime: Date | null;
   isOvertime: boolean;
+  isDayOff: boolean;
   overtimeStartTime: Date | null;
   overtimeEndTime: Date | null;
   checkInLocation: Location | null;
