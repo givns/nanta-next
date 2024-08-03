@@ -16,6 +16,7 @@ interface DashboardData {
   totalAbsent: number;
   overtimeHours: number;
   balanceLeave: number;
+  payrollPeriod: { start: string; end: string };
 }
 
 export default function UserDashboard() {
@@ -74,6 +75,7 @@ export default function UserDashboard() {
     totalAbsent,
     overtimeHours,
     balanceLeave,
+    payrollPeriod,
   } = dashboardData;
 
   return (
@@ -89,17 +91,21 @@ export default function UserDashboard() {
         </Avatar>
         <div className="grid gap-0.5 text-sm">
           <div className="font-medium">{user.name}</div>
-          <div className="text-muted-foreground">{user.department}</div>
+          <div className="text-muted-foreground">{String(user.department)}</div>
         </div>
       </div>
-      <div className="w-full overflow-x-auto">
+      <div className="w-full">
         <h2 className="text-xl font-bold mb-2">Payroll Period Attendance</h2>
-        {dashboardData && (
-          <AttendanceTable
-            attendanceData={dashboardData.payrollAttendance}
-            shift={dashboardData.user.assignedShift}
-          />
-        )}
+        <p className="text-sm text-gray-600 mb-2">
+          {moment(payrollPeriod.start).format('MMMM D, YYYY')} -{' '}
+          {moment(payrollPeriod.end).format('MMMM D, YYYY')}
+        </p>
+        <AttendanceTable
+          attendanceData={payrollAttendance}
+          shift={user.assignedShift}
+          startDate={moment(payrollPeriod.start)}
+          endDate={moment(payrollPeriod.end)}
+        />
       </div>
 
       <div className="flex flex-col w-full space-y-2">

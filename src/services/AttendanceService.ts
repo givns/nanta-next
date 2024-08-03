@@ -9,54 +9,29 @@ import {
   AttendanceData,
   AttendanceStatus,
   AttendanceRecord,
+  ProcessedAttendance,
   ShiftData,
   ShiftAdjustment,
-  FutureShiftAdjustment,
   ApprovedOvertime,
   AttendanceStatusType,
+  UserData,
 } from '../types/user';
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
 import { logMessage } from '../utils/inMemoryLogger';
 
-type PrismaAttendanceRecord = {
-  id: string;
-  userId: string;
-  date: Date;
-  checkInTime: Date | null;
-  checkOutTime: Date | null;
-  isOvertime: boolean;
-  overtimeStartTime: Date | null;
-  overtimeEndTime: Date | null;
-  checkInLocation: any;
-  checkOutLocation: any;
-  checkInAddress: string | null;
-  checkOutAddress: string | null;
-  checkInReason: string | null;
-  checkOutReason: string | null;
-  checkInPhoto: string | null;
-  checkOutPhoto: string | null;
-  checkInDeviceSerial: string | null;
-  checkOutDeviceSerial: string | null;
-  status: string;
-  isManualEntry: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
 const prisma = new PrismaClient();
-const processingService = new AttendanceProcessingService();
 const notificationService = new NotificationService();
 
 export class AttendanceService {
-  private externalDbService: ExternalDbService;
-  private holidayService: HolidayService;
-  private shift104HolidayService: Shift104HolidayService;
+  private processingService = new AttendanceProcessingService();
 
-  constructor() {
-    this.externalDbService = new ExternalDbService();
-    this.holidayService = new HolidayService();
-    this.shift104HolidayService = new Shift104HolidayService();
+  constructor(
+    private externalDbService: ExternalDbService,
+    private holidayService: HolidayService,
+    private shift104HolidayService: Shift104HolidayService,
+  ) {
+    this.processingService = new AttendanceProcessingService();
   }
 
   async getLatestAttendanceStatus(
@@ -77,17 +52,6 @@ export class AttendanceService {
         include: {
           assignedShift: true,
           department: true,
-          approvedOvertimes: {
-            where: {
-              date: {
-                gte: new Date(new Date().setHours(0, 0, 0, 0)),
-              },
-            },
-            orderBy: {
-              startTime: 'desc',
-            },
-            take: 1,
-          },
         },
       });
 
@@ -101,15 +65,21 @@ export class AttendanceService {
         throw new Error('User has no assigned shift');
       }
 
+      const userData = this.convertToUserData(user);
+
       console.log(
         `User found: ${user.id}, Assigned shift: ${user.assignedShift.id}`,
       );
 
-      // Log the time range we're looking at
+      const shifts = await prisma.shift.findMany();
+      const shiftsMap = new Map(
+        shifts.map((shift) => [shift.id, shift as ShiftData]),
+      );
       const threeDaysAgo = moment().subtract(3, 'days').startOf('day');
       console.log(
         `Fetching attendance data from ${threeDaysAgo.format()} to now`,
       );
+      const now = moment();
 
       // Fetch attendance data
       const [internalAttendances, externalAttendanceData] = await Promise.all([
@@ -132,161 +102,50 @@ export class AttendanceService {
         JSON.stringify(externalAttendanceData, null, 2),
       );
 
-      const latestAttendance = this.getLatestAttendanceRecord(
-        internalAttendances,
-        externalAttendanceData.records,
-        user.assignedShift as ShiftData,
+      // Combine and sort all records
+      const allRecords = [
+        ...internalAttendances,
+        ...externalAttendanceData.records.map(this.convertExternalToInternal),
+      ].sort((a, b) => moment(b.checkInTime).diff(moment(a.checkInTime)));
+
+      const processedAttendance = await this.processAttendanceData(
+        allRecords.map((record) => this.ensureAttendanceRecord(record)),
+        userData,
+        threeDaysAgo.toDate(),
+        now.toDate(),
+        shiftsMap,
       );
 
-      console.log(
-        'Latest attendance after getLatestAttendanceRecord:',
-        JSON.stringify(latestAttendance, null, 2),
-      );
-
-      const now = moment().tz('Asia/Bangkok');
-      const today = now.clone().startOf('day');
-      const shift = user.assignedShift;
-      let shiftStart, shiftEnd;
-      if (latestAttendance) {
-        const shiftDate = moment.tz(latestAttendance.date, 'Asia/Bangkok');
-        shiftStart = shiftDate.clone().set({
-          hour: parseInt(shift.startTime.split(':')[0]),
-          minute: parseInt(shift.startTime.split(':')[1]),
-        });
-        shiftEnd = shiftDate.clone().set({
-          hour: parseInt(shift.endTime.split(':')[0]),
-          minute: parseInt(shift.endTime.split(':')[1]),
-        });
-
-        if (shiftEnd.isBefore(shiftStart)) {
-          shiftEnd.add(1, 'day');
-        }
-      } else {
-        // If there's no latest attendance, use current date for shift times
-        const currentDate = moment();
-        shiftStart = currentDate.clone().set({
-          hour: parseInt(shift.startTime.split(':')[0]),
-          minute: parseInt(shift.startTime.split(':')[1]),
-        });
-        shiftEnd = currentDate.clone().set({
-          hour: parseInt(shift.endTime.split(':')[0]),
-          minute: parseInt(shift.endTime.split(':')[1]),
-        });
-
-        if (shiftEnd.isBefore(shiftStart)) {
-          shiftEnd.add(1, 'day');
-        }
-      }
-
-      console.log('Shift start:', shiftStart.format());
-      console.log('Shift end:', shiftEnd.format());
+      const latestAttendance = processedAttendance[0];
 
       const isWorkDay = await this.holidayService.isWorkingDay(
         user.id,
-        today.toDate(),
+        now.toDate(),
       );
+      let isDayOff = !isWorkDay;
 
       console.log('Is work day:', isWorkDay);
-      let isDayOff = !isWorkDay;
 
       // For SHIFT104, check if it's a holiday
       if (user.assignedShift.shiftCode === 'SHIFT104') {
         const isShift104Holiday =
-          await this.shift104HolidayService.isShift104Holiday(today.toDate());
+          await this.shift104HolidayService.isShift104Holiday(now.toDate());
         if (isShift104Holiday) {
           isDayOff = true;
         }
       }
+      const futureShifts = await this.getFutureShifts(user.id);
+      const futureOvertimes = await this.getFutureOvertimes(user.id);
 
-      const shiftAdjustment = await this.getLatestShiftAdjustment(user.id);
-      const futureShiftAdjustments = await this.getFutureShiftAdjustments(
-        user.id,
+      const potentialOvertime = this.calculatePotentialOvertime(
+        latestAttendance,
+        user.assignedShift,
       );
-      const futureApprovedOvertimes = await this.getFutureApprovedOvertimes(
-        user.id,
-      );
-      const approvedOvertime = await prisma.overtimeRequest.findFirst({
-        where: {
-          userId: user.id,
-          date: {
-            gte: today.toDate(),
-            lt: today.clone().add(1, 'day').toDate(),
-          },
-          status: 'approved',
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      console.log(
-        'Approved overtime:',
-        JSON.stringify(approvedOvertime, null, 2),
-      );
-
-      let formattedApprovedOvertime: ApprovedOvertime | null = null;
-
-      if (approvedOvertime) {
-        formattedApprovedOvertime = {
-          id: approvedOvertime.id,
-          userId: approvedOvertime.userId,
-          date: approvedOvertime.date,
-          startTime: approvedOvertime.startTime,
-          endTime: approvedOvertime.endTime,
-          status: approvedOvertime.status,
-          reason: approvedOvertime.reason,
-          approvedBy: approvedOvertime.approverId || '',
-          approvedAt: approvedOvertime.updatedAt,
-        };
-      }
-
-      let potentialOvertime = null;
-      if (latestAttendance && latestAttendance.checkOutTime) {
-        const checkInTime = moment(latestAttendance.checkInTime);
-        const checkOutTime = moment(latestAttendance.checkOutTime);
-
-        const shiftDate = checkInTime.clone().startOf('day');
-        const shiftStart = shiftDate.clone().set({
-          hour: parseInt(shift.startTime.split(':')[0]),
-          minute: parseInt(shift.startTime.split(':')[1]),
-        });
-        let shiftEnd = shiftDate.clone().set({
-          hour: parseInt(shift.endTime.split(':')[0]),
-          minute: parseInt(shift.endTime.split(':')[1]),
-        });
-
-        console.log('Potential overtime calculation:');
-        console.log('Check-in time:', checkInTime.format());
-        console.log('Check-out time:', checkOutTime.format());
-        console.log('Shift start:', shiftStart.format());
-        console.log('Shift end:', shiftEnd.format());
-
-        if (shiftEnd.isBefore(shiftStart)) {
-          shiftEnd.add(1, 'day');
-        }
-
-        const thirtyMinutesBeforeShift = shiftStart
-          .clone()
-          .subtract(30, 'minutes');
-
-        if (
-          checkInTime.isBefore(thirtyMinutesBeforeShift) ||
-          checkOutTime.isAfter(shiftEnd)
-        ) {
-          potentialOvertime = {
-            start: checkInTime.isBefore(thirtyMinutesBeforeShift)
-              ? checkInTime.format('HH:mm')
-              : shiftEnd.format('HH:mm'),
-            end: checkOutTime.format('HH:mm'),
-          };
-        }
-      }
-
       console.log('Calculated potential overtime:', potentialOvertime);
 
       let isCheckingIn = true;
-      if (latestAttendance && latestAttendance.checkOutTime) {
-        const lastCheckOutTime = moment(latestAttendance.checkOutTime).tz(
+      if (latestAttendance && latestAttendance.checkOut) {
+        const lastCheckOutTime = moment(latestAttendance.checkOut).tz(
           'Asia/Bangkok',
         );
         const currentTime = moment().tz('Asia/Bangkok');
@@ -295,37 +154,14 @@ export class AttendanceService {
         isCheckingIn = false;
       }
       const result: AttendanceStatus = {
-        user: {
-          id: user.id,
-          lineUserId: user.lineUserId,
-          name: user.name,
-          nickname: user.nickname,
-          departmentId: user.departmentId,
-          department: user.department.name,
-          employeeId: user.employeeId,
-          role: user.role as UserRole,
-          shiftId: user.shiftId,
-          assignedShift: {
-            id: user.assignedShift.id,
-            shiftCode: user.assignedShift.shiftCode,
-            name: user.assignedShift.name,
-            startTime: user.assignedShift.startTime,
-            endTime: user.assignedShift.endTime,
-            workDays: user.assignedShift.workDays,
-          },
-          profilePictureUrl: user.profilePictureUrl,
-          profilePictureExternal: user.profilePictureExternal,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-        },
+        user: userData,
         latestAttendance: latestAttendance
           ? {
               id: latestAttendance.id,
               userId: latestAttendance.userId,
               date: latestAttendance.date.toISOString(),
-              checkInTime: latestAttendance.checkInTime?.toISOString() ?? null,
-              checkOutTime:
-                latestAttendance.checkOutTime?.toISOString() ?? null,
+              checkInTime: latestAttendance.checkIn?.toString() ?? null,
+              checkOutTime: latestAttendance.checkOut?.toString() ?? null,
               checkInDeviceSerial: latestAttendance.checkInDeviceSerial ?? '',
               checkOutDeviceSerial:
                 latestAttendance.checkOutDeviceSerial ?? null,
@@ -335,24 +171,11 @@ export class AttendanceService {
           : null,
         isCheckingIn: isCheckingIn,
         isDayOff: isDayOff,
-        shiftAdjustment: shiftAdjustment
-          ? {
-              date: shiftAdjustment.date.toString(),
-              requestedShiftId: shiftAdjustment.requestedShiftId,
-              requestedShift: {
-                id: shiftAdjustment.requestedShift.id,
-                shiftCode: shiftAdjustment.requestedShift.shiftCode,
-                name: shiftAdjustment.requestedShift.name,
-                startTime: shiftAdjustment.requestedShift.startTime,
-                endTime: shiftAdjustment.requestedShift.endTime,
-                workDays: shiftAdjustment.requestedShift.workDays,
-              },
-            }
-          : null,
-        futureShiftAdjustments,
-        approvedOvertime: formattedApprovedOvertime,
-        futureApprovedOvertimes,
         potentialOvertime: potentialOvertime,
+        shiftAdjustment: null,
+        approvedOvertime: null,
+        futureShifts,
+        futureOvertimes,
       };
 
       console.log(
@@ -367,6 +190,77 @@ export class AttendanceService {
     }
   }
 
+  async processAttendanceData(
+    attendanceRecords: AttendanceRecord[],
+    userData: UserData,
+    startDate: Date,
+    endDate: Date,
+    shifts: Map<string, ShiftData>,
+  ): Promise<ProcessedAttendance[]> {
+    const shiftAdjustments = await this.getShiftAdjustments(
+      userData.id,
+      startDate,
+      endDate,
+    );
+    const approvedOvertimes = await this.getApprovedOvertimes(
+      userData.id,
+      startDate,
+      endDate,
+    );
+    const groupedRecords = this.groupRecordsByDate(
+      attendanceRecords,
+      userData,
+      shiftAdjustments,
+      shifts,
+    );
+    const processedAttendance: ProcessedAttendance[] = [];
+    const currentDate = moment(startDate);
+
+    for (const [date, records] of Object.entries(groupedRecords)) {
+      const pairedRecords = this.pairCheckInCheckOut(
+        records,
+        userData,
+        shiftAdjustments,
+        shifts,
+      );
+
+      for (const pair of pairedRecords) {
+        const statusInfo = this.determineStatus(
+          pair.checkIn,
+          pair.checkOut,
+          userData,
+          shiftAdjustments,
+          shifts,
+          approvedOvertimes,
+        );
+        processedAttendance.push({
+          date: currentDate.toDate(),
+          status: statusInfo.status,
+          checkIn: pair.checkIn.checkInTime
+            ? moment(pair.checkIn.checkInTime).format('HH:mm:ss')
+            : undefined,
+          checkOut: pair.checkOut?.checkOutTime
+            ? moment(pair.checkOut.checkOutTime).format('HH:mm:ss')
+            : undefined,
+          isEarlyCheckIn: statusInfo.isEarlyCheckIn,
+          isLateCheckIn: statusInfo.isLateCheckIn,
+          isLateCheckOut: statusInfo.isLateCheckOut,
+          overtimeHours: statusInfo.overtimeDuration,
+          detailedStatus: statusInfo.detailedStatus,
+          id: '',
+          userId: '',
+          isOvertime: false,
+          overtimeDuration: 0,
+          checkInDeviceSerial: null,
+          checkOutDeviceSerial: null,
+          isManualEntry: false,
+        });
+      }
+    }
+
+    return processedAttendance;
+  }
+
   private async getInternalAttendanceRecord(
     userId: string,
   ): Promise<AttendanceRecord | null> {
@@ -377,76 +271,24 @@ export class AttendanceService {
     return attendance as AttendanceRecord | null;
   }
 
-  private getLatestAttendanceRecord(
-    internalAttendances: PrismaAttendanceRecord[],
-    externalRecords: ExternalCheckInData[],
-    shift: ShiftData,
-  ): AttendanceRecord | null {
-    logMessage('Starting getLatestAttendanceRecord');
-    logMessage(`Internal attendances: ${JSON.stringify(internalAttendances)}`);
-    logMessage(`External records: ${JSON.stringify(externalRecords)}`);
-
-    const convertedExternalRecords = externalRecords.map(
-      this.convertExternalToInternal,
-    );
-
-    // Combine and sort all records
-    const allRecords = [...internalAttendances, ...convertedExternalRecords];
-    allRecords.sort((a, b) =>
-      moment(a.checkInTime).diff(moment(b.checkInTime)),
-    );
-
-    logMessage(`All sorted records: ${JSON.stringify(allRecords)}`);
-
-    if (allRecords.length === 0) {
-      logMessage('No records found');
-      return null;
-    }
-
-    // Group records by date
-    const recordsByDate = this.groupRecordsByDate(
-      allRecords as AttendanceRecord[],
-      shift,
-    );
-
-    // Get the latest date
-    const latestDate = Object.keys(recordsByDate).sort().pop();
-    if (!latestDate) {
-      logMessage('No valid dates found');
-      return null;
-    }
-
-    const latestRecords = recordsByDate[latestDate];
-    logMessage(
-      `Latest date: ${latestDate}, Records: ${JSON.stringify(latestRecords)}`,
-    );
-
-    // Pair check-ins with check-outs
-    const pairedRecords = this.pairCheckInCheckOut(latestRecords);
-    logMessage(`Paired records: ${JSON.stringify(pairedRecords)}`);
-
-    // Get the latest complete pair or the last pair if no complete pair exists
-    const latestPair = pairedRecords[pairedRecords.length - 1];
-
-    if (!latestPair) {
-      logMessage('No valid attendance pair found');
-      return null;
-    }
-
-    const result = this.processAttendancePair(latestPair, shift);
-    logMessage(`Final result: ${JSON.stringify(result)}`);
-    return result;
-  }
-
   private groupRecordsByDate(
     records: AttendanceRecord[],
-    shift: ShiftData,
+    userData: UserData,
+    shiftAdjustments: ShiftAdjustment[],
+    shifts: Map<string, ShiftData>,
   ): Record<string, AttendanceRecord[]> {
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
-    const shiftStartHour = parseInt(shift.startTime.split(':')[0]);
 
     records.forEach((record) => {
-      let recordDate = moment(record.checkInTime).tz('Asia/Bangkok');
+      const recordDate = moment(record.checkInTime);
+      const effectiveShift = this.getEffectiveShift(
+        recordDate,
+        userData,
+        shiftAdjustments,
+        shifts,
+      );
+      const shiftStartHour = parseInt(effectiveShift.startTime.split(':')[0]);
+
       if (recordDate.hour() < shiftStartHour) {
         recordDate.subtract(1, 'day');
       }
@@ -462,148 +304,171 @@ export class AttendanceService {
 
   private pairCheckInCheckOut(
     records: AttendanceRecord[],
+    userData: UserData,
+    shiftAdjustments: ShiftAdjustment[],
+    shifts: Map<string, ShiftData>,
   ): Array<{ checkIn: AttendanceRecord; checkOut: AttendanceRecord | null }> {
     const pairs: Array<{
       checkIn: AttendanceRecord;
       checkOut: AttendanceRecord | null;
     }> = [];
+    let currentCheckIn: AttendanceRecord | null = null;
 
-    for (let i = 0; i < records.length; i++) {
-      const checkIn = records[i];
-      let checkOut: AttendanceRecord | null = null;
+    records.forEach((record) => {
+      const recordDate = moment(record.checkInTime);
+      const effectiveShift = this.getEffectiveShift(
+        recordDate,
+        userData,
+        shiftAdjustments,
+        shifts,
+      );
 
-      // If this record already has a check-out time, use it
-      if (checkIn.checkOutTime) {
-        checkOut = { ...checkIn, checkInTime: checkIn.checkOutTime };
-      }
-      // Otherwise, look for the next record as a potential check-out
-      else if (i + 1 < records.length) {
-        const nextRecord = records[i + 1];
-        // Use the next record as check-out if it's from the same user
-        if (nextRecord.userId === checkIn.userId) {
-          checkOut = nextRecord;
+      if (!currentCheckIn) {
+        currentCheckIn = record;
+      } else {
+        const currentShiftEnd = moment(currentCheckIn.checkInTime).set({
+          hour: parseInt(effectiveShift.endTime.split(':')[0]),
+          minute: parseInt(effectiveShift.endTime.split(':')[1]),
+        });
+
+        if (
+          moment(record.checkInTime).isAfter(currentShiftEnd) ||
+          !record.checkOutTime
+        ) {
+          pairs.push({
+            checkIn: currentCheckIn,
+            checkOut: currentCheckIn.checkOutTime ? currentCheckIn : null,
+          });
+          currentCheckIn = record;
+        } else if (record.checkOutTime) {
+          currentCheckIn.checkOutTime = record.checkOutTime;
         }
       }
+    });
 
-      pairs.push({ checkIn, checkOut });
-
-      // If we added a check-out from the next record, skip it in the next iteration
-      if (checkOut && checkOut !== checkIn) {
-        i++;
-      }
+    if (currentCheckIn) {
+      pairs.push({ checkIn: currentCheckIn, checkOut: null });
     }
 
     return pairs;
   }
 
-  private processAttendancePair(
-    pair: { checkIn: AttendanceRecord; checkOut: AttendanceRecord | null },
-    shift: ShiftData,
-  ): AttendanceRecord {
-    const timezone = 'Asia/Bangkok';
-    const checkIn = pair.checkIn;
-    const checkOut = pair.checkOut;
-
-    const { status, isOvertime, overtimeDuration } = this.determineStatus(
-      checkIn,
-      checkOut,
-      shift,
-    );
-
-    const shiftEnd = moment(checkIn.checkInTime)
-      .tz(timezone)
-      .startOf('day')
-      .set({
-        hour: parseInt(shift.endTime.split(':')[0]),
-        minute: parseInt(shift.endTime.split(':')[1]),
-        second: 0,
-        millisecond: 0,
-      });
-
-    return {
-      ...checkIn,
-      checkOutTime: checkOut ? checkOut.checkInTime : checkIn.checkOutTime,
-      checkOutLocation: checkOut
-        ? checkOut.checkInLocation
-        : checkIn.checkOutLocation,
-      checkOutAddress: checkOut
-        ? checkOut.checkInAddress
-        : checkIn.checkOutAddress,
-      checkOutDeviceSerial: checkOut
-        ? checkOut.checkInDeviceSerial
-        : checkIn.checkOutDeviceSerial,
-      status,
-      isOvertime,
-      overtimeStartTime: isOvertime ? shiftEnd.toDate() : null,
-      overtimeEndTime:
-        isOvertime && (checkOut || checkIn.checkOutTime)
-          ? checkOut
-            ? checkOut.checkInTime
-            : checkIn.checkOutTime
-          : null,
-    };
-  }
-
   private determineStatus(
     checkIn: AttendanceRecord,
     checkOut: AttendanceRecord | null,
-    shift: ShiftData,
-  ): { status: string; isOvertime: boolean; overtimeDuration: number } {
+    userData: UserData,
+    shiftAdjustments: ShiftAdjustment[],
+    shifts: Map<string, ShiftData>,
+    approvedOvertimes: ApprovedOvertime[],
+  ): {
+    status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off';
+    isEarlyCheckIn: boolean;
+    isLateCheckIn: boolean;
+    isLateCheckOut: boolean;
+    overtimeDuration: number;
+    detailedStatus: string;
+  } {
     const checkInTime = moment(checkIn.checkInTime);
-    const checkOutTime = checkOut
-      ? moment(checkOut.checkInTime)
-      : checkIn.checkOutTime
-        ? moment(checkIn.checkOutTime)
-        : null;
+    const checkOutTime = checkOut ? moment(checkOut.checkOutTime) : null;
+
+    const effectiveShift = this.getEffectiveShift(
+      checkInTime,
+      userData,
+      shiftAdjustments,
+      shifts,
+    );
 
     const shiftDate = checkInTime.clone().startOf('day');
     const shiftStart = shiftDate.clone().set({
-      hour: parseInt(shift.startTime.split(':')[0]),
-      minute: parseInt(shift.startTime.split(':')[1]),
-      second: 0,
-      millisecond: 0,
+      hour: parseInt(effectiveShift.startTime.split(':')[0]),
+      minute: parseInt(effectiveShift.startTime.split(':')[1]),
     });
-
     let shiftEnd = shiftDate.clone().set({
-      hour: parseInt(shift.endTime.split(':')[0]),
-      minute: parseInt(shift.endTime.split(':')[1]),
-      second: 0,
-      millisecond: 0,
+      hour: parseInt(effectiveShift.endTime.split(':')[0]),
+      minute: parseInt(effectiveShift.endTime.split(':')[1]),
     });
 
-    // Handle overnight shift
     if (shiftEnd.isBefore(shiftStart)) {
       shiftEnd.add(1, 'day');
     }
 
-    logMessage(
-      `Determining status: Check-in: ${checkInTime.format()}, Check-out: ${checkOutTime ? checkOutTime.format() : 'N/A'}, Shift start: ${shiftStart.format()}, Shift end: ${shiftEnd.format()}`,
-    );
+    const allowedCheckInStart = shiftStart.clone().subtract(15, 'minutes');
+    const flexibleCheckInStart = allowedCheckInStart
+      .clone()
+      .subtract(15, 'minutes');
+    const earlyCheckInThreshold = flexibleCheckInStart
+      .clone()
+      .subtract(1, 'minutes');
+    const graceCheckInEnd = shiftStart.clone().add(5, 'minutes');
 
-    let status: string;
+    const allowedCheckOutEnd = shiftEnd.clone().add(15, 'minutes');
+    const flexibleCheckOutEnd = allowedCheckOutEnd.clone().add(14, 'minutes');
+    const overtimeThreshold = flexibleCheckOutEnd.clone().add(1, 'minutes');
+    const graceCheckOutStart = shiftEnd.clone().subtract(5, 'minutes');
+
+    let status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off' =
+      'absent';
+    let detailedStatus = '';
     let isOvertime = false;
     let overtimeDuration = 0;
+    let isEarlyCheckIn = false;
+    let isLateCheckIn = false;
+    let isLateCheckOut = false;
 
-    if (!checkOutTime) {
-      status = 'checked-in';
-    } else if (checkOutTime.isAfter(shiftEnd)) {
-      status = 'overtime-ended';
-      isOvertime = true;
-      overtimeDuration = checkOutTime.diff(shiftEnd, 'minutes');
-    } else if (checkInTime.isBefore(shiftStart)) {
-      status = 'early-check-in';
+    if (checkInTime.isBefore(earlyCheckInThreshold)) {
+      detailedStatus = 'early-check-in';
+      isEarlyCheckIn = true;
+    } else if (
+      checkInTime.isBetween(flexibleCheckInStart, allowedCheckInStart)
+    ) {
+      detailedStatus = 'flexible-start';
+    } else if (checkInTime.isBetween(allowedCheckInStart, graceCheckInEnd)) {
+      detailedStatus = 'on-time';
     } else {
-      status = 'checked-out';
+      detailedStatus = 'late-check-in';
+      isLateCheckIn = true;
     }
 
-    return { status, isOvertime, overtimeDuration };
+    if (checkOutTime) {
+      status = 'present';
+      if (checkOutTime.isBetween(graceCheckOutStart, allowedCheckOutEnd)) {
+        detailedStatus += ' on-time-checkout';
+      } else if (
+        checkOutTime.isBetween(allowedCheckOutEnd, flexibleCheckOutEnd)
+      ) {
+        detailedStatus += ' flexible-end';
+      } else if (checkOutTime.isAfter(overtimeThreshold)) {
+        detailedStatus += ' overtime';
+        isOvertime = true;
+        isLateCheckOut = true;
+        overtimeDuration = this.calculateOvertimeDuration(
+          checkOutTime,
+          overtimeThreshold,
+          approvedOvertimes,
+        );
+      } else if (checkOutTime.isBefore(graceCheckOutStart)) {
+        detailedStatus += ' early-checkout';
+      }
+    } else {
+      status = 'incomplete';
+      detailedStatus += ' no-checkout';
+    }
+
+    return {
+      status,
+      isEarlyCheckIn,
+      isLateCheckIn,
+      isLateCheckOut,
+      overtimeDuration,
+      detailedStatus,
+    };
   }
 
   private convertExternalToInternal(
     external: ExternalCheckInData,
   ): AttendanceRecord {
     const checkInTime = moment(external.sj);
-    return {
+    return this.ensureAttendanceRecord({
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
       date: checkInTime.toDate(),
@@ -625,17 +490,7 @@ export class AttendanceService {
       checkOutDeviceSerial: null,
       status: 'checked-in',
       isManualEntry: false,
-    };
-  }
-
-  private isAttendanceFromToday(attendance: AttendanceRecord): boolean {
-    const today = new Date();
-    const attendanceDate = new Date(attendance.date);
-    return (
-      attendanceDate.getDate() === today.getDate() &&
-      attendanceDate.getMonth() === today.getMonth() &&
-      attendanceDate.getFullYear() === today.getFullYear()
-    );
+    });
   }
 
   async getTodayCheckIn(userId: string): Promise<Attendance | null> {
@@ -766,13 +621,233 @@ export class AttendanceService {
     );
   }
 
+  async getApprovedOvertimes(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<ApprovedOvertime[]> {
+    const overtimes = await prisma.overtimeRequest.findMany({
+      where: {
+        userId,
+        status: 'approved',
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    return overtimes.map((ot) => ({
+      id: ot.id,
+      userId: ot.userId,
+      date: ot.date,
+      startTime: ot.startTime,
+      endTime: ot.endTime,
+      status: ot.status,
+      reason: ot.reason,
+      approvedBy: ot.approverId || '',
+      approvedAt: ot.updatedAt,
+    }));
+  }
+
+  async getShiftAdjustments(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<ShiftAdjustment[]> {
+    const adjustments = await prisma.shiftAdjustmentRequest.findMany({
+      where: {
+        userId,
+        status: 'approved',
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      include: { requestedShift: true },
+      orderBy: { date: 'asc' },
+    });
+
+    return adjustments.map((adj) => ({
+      date: adj.date.toISOString().split('T')[0], // Convert to YYYY-MM-DD string
+      requestedShiftId: adj.requestedShiftId,
+      requestedShift: adj.requestedShift as ShiftData,
+    })) as ShiftAdjustment[];
+  }
+
+  private getEffectiveShift(
+    date: moment.Moment,
+    userData: UserData,
+    shiftAdjustments: ShiftAdjustment[],
+    shifts: Map<string, ShiftData>,
+  ): ShiftData {
+    const dateString = date.format('YYYY-MM-DD');
+    const adjustment = shiftAdjustments.find((adj) => adj.date === dateString);
+
+    if (adjustment) {
+      return adjustment.requestedShift;
+    }
+
+    const userShift = shifts.get(userData.shiftId);
+    if (!userShift) {
+      throw new Error(`Shift not found for ID: ${userData.shiftId}`);
+    }
+
+    return userShift;
+  }
+
+  private calculateOvertimeDuration(
+    checkOutTime: moment.Moment,
+    overtimeThreshold: moment.Moment,
+    approvedOvertimes: ApprovedOvertime[],
+  ): number {
+    const actualOvertimeMinutes = checkOutTime.diff(
+      overtimeThreshold,
+      'minutes',
+    );
+    const roundedOvertimeMinutes = Math.floor(actualOvertimeMinutes / 30) * 30;
+
+    const approvedOvertime = approvedOvertimes.find(
+      (ot) =>
+        moment(ot.date).isSame(checkOutTime, 'day') &&
+        moment(ot.startTime).isSameOrBefore(checkOutTime) &&
+        moment(ot.endTime).isSameOrAfter(checkOutTime),
+    );
+
+    if (approvedOvertime) {
+      const approvedMinutes = moment(approvedOvertime.endTime).diff(
+        moment(approvedOvertime.startTime),
+        'minutes',
+      );
+      return Math.min(roundedOvertimeMinutes, approvedMinutes);
+    }
+
+    return roundedOvertimeMinutes;
+  }
+
+  private calculatePotentialOvertime(
+    latestAttendance: ProcessedAttendance | null,
+    assignedShift: ShiftData,
+  ): { start: string; end: string } | null {
+    if (!latestAttendance || !latestAttendance.checkOut) return null;
+
+    const checkInTime = moment(latestAttendance.checkIn);
+    const checkOutTime = moment(latestAttendance.checkOut);
+
+    const shiftDate = checkInTime.clone().startOf('day');
+    const shiftStart = shiftDate.clone().set({
+      hour: parseInt(assignedShift.startTime.split(':')[0]),
+      minute: parseInt(assignedShift.startTime.split(':')[1]),
+    });
+    let shiftEnd = shiftDate.clone().set({
+      hour: parseInt(assignedShift.endTime.split(':')[0]),
+      minute: parseInt(assignedShift.endTime.split(':')[1]),
+    });
+
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd.add(1, 'day');
+    }
+
+    const allowedCheckInStart = shiftStart.clone().subtract(15, 'minutes');
+    const flexibleCheckInStart = allowedCheckInStart
+      .clone()
+      .subtract(15, 'minutes');
+    const allowedCheckOutEnd = shiftEnd.clone().add(15, 'minutes');
+    const flexibleCheckOutEnd = allowedCheckOutEnd.clone().add(14, 'minutes');
+
+    let overtimeStart = null;
+    let overtimeEnd = null;
+
+    if (checkInTime.isBefore(flexibleCheckInStart)) {
+      overtimeStart = checkInTime.format('HH:mm');
+    }
+
+    if (checkOutTime.isAfter(flexibleCheckOutEnd)) {
+      overtimeEnd = checkOutTime.format('HH:mm');
+    }
+
+    if (overtimeStart || overtimeEnd) {
+      return {
+        start: overtimeStart || shiftStart.format('HH:mm'),
+        end: overtimeEnd || shiftEnd.format('HH:mm'),
+      };
+    }
+
+    return null;
+  }
+
   async processAttendance(data: AttendanceData): Promise<Attendance> {
-    const user = await prisma.user.findUnique({ where: { id: data.userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: data.userId },
+      include: { department: true },
+    });
     if (!user) throw new Error('User not found');
 
-    const checkTime = new Date(data.checkTime);
+    const userData: UserData = {
+      ...user,
+      role: user.role as UserRole,
+      assignedShift: {
+        id: '',
+        shiftCode: '',
+        name: '',
+        startTime: '',
+        endTime: '',
+        workDays: [],
+      },
+      department: user.department.name,
+    };
+
+    const checkTime = moment(data.checkTime);
 
     try {
+      const now = moment().tz('Asia/Bangkok');
+      const todayStart = moment(now).startOf('day');
+
+      const shiftAdjustments = await this.getShiftAdjustments(
+        user.id,
+        todayStart.toDate(),
+        now.toDate(),
+      );
+      const shifts = await prisma.shift.findMany();
+      const shiftsMap = new Map(
+        shifts.map((shift) => [shift.id, shift as ShiftData]),
+      );
+
+      const effectiveShift = this.getEffectiveShift(
+        checkTime,
+        userData,
+        shiftAdjustments,
+        shiftsMap,
+      );
+
+      const shiftStart = checkTime.clone().set({
+        hour: parseInt(effectiveShift.startTime.split(':')[0]),
+        minute: parseInt(effectiveShift.startTime.split(':')[1]),
+      });
+      let shiftEnd = checkTime.clone().set({
+        hour: parseInt(effectiveShift.endTime.split(':')[0]),
+        minute: parseInt(effectiveShift.endTime.split(':')[1]),
+      });
+
+      if (shiftEnd.isBefore(shiftStart)) {
+        shiftEnd.add(1, 'day');
+      }
+
+      const allowedCheckInStart = shiftStart.clone().subtract(15, 'minutes');
+      const flexibleCheckInStart = allowedCheckInStart
+        .clone()
+        .subtract(15, 'minutes');
+      const earlyCheckInThreshold = flexibleCheckInStart
+        .clone()
+        .subtract(1, 'minutes');
+      const graceCheckInEnd = shiftStart.clone().add(5, 'minutes');
+
+      const allowedCheckOutEnd = shiftEnd.clone().add(15, 'minutes');
+      const flexibleCheckOutEnd = allowedCheckOutEnd.clone().add(14, 'minutes');
+      const overtimeThreshold = flexibleCheckOutEnd.clone().add(1, 'minutes');
+      const graceCheckOutStart = shiftEnd.clone().subtract(5, 'minutes');
+
       let attendanceType:
         | 'regular'
         | 'flexible-start'
@@ -780,18 +855,27 @@ export class AttendanceService {
         | 'grace-period'
         | 'overtime' = 'regular';
 
-      if (data.isOvertime) {
-        attendanceType = 'overtime';
-      } else if (data.isFlexibleStart) {
-        attendanceType = 'flexible-start';
-      } else if (data.isFlexibleEnd) {
-        attendanceType = 'flexible-end';
-      } else if (data.isWithinGracePeriod) {
-        attendanceType = 'grace-period';
+      if (data.isCheckIn) {
+        if (checkTime.isBefore(earlyCheckInThreshold)) {
+          attendanceType = 'overtime';
+        } else if (
+          checkTime.isBetween(flexibleCheckInStart, allowedCheckInStart)
+        ) {
+          attendanceType = 'flexible-start';
+        } else if (checkTime.isBetween(shiftStart, graceCheckInEnd)) {
+          attendanceType = 'grace-period';
+        }
+      } else {
+        if (checkTime.isAfter(overtimeThreshold)) {
+          attendanceType = 'overtime';
+        } else if (
+          checkTime.isBetween(allowedCheckOutEnd, flexibleCheckOutEnd)
+        ) {
+          attendanceType = 'flexible-end';
+        } else if (checkTime.isBetween(graceCheckOutStart, shiftEnd)) {
+          attendanceType = 'grace-period';
+        }
       }
-
-      const now = moment().tz('Asia/Bangkok');
-      const todayStart = moment(now).startOf('day');
 
       // Check for ongoing overtime from previous day
       const latestAttendance = await this.getInternalAttendanceRecord(user.id);
@@ -804,9 +888,9 @@ export class AttendanceService {
       }
 
       if (data.isCheckIn) {
-        return await processingService.processCheckIn(
+        return await this.processingService.processCheckIn(
           user.id,
-          checkTime,
+          checkTime.toDate(),
           attendanceType,
           {
             location: data.location,
@@ -814,13 +898,15 @@ export class AttendanceService {
             reason: data.reason,
             photo: data.photo,
             deviceSerial: data.deviceSerial,
-            isLate: data.isLate,
+            isLate:
+              attendanceType === 'regular' &&
+              checkTime.isAfter(graceCheckInEnd),
           },
         );
       } else {
-        return await processingService.processCheckOut(
+        return await this.processingService.processCheckOut(
           user.id,
-          checkTime,
+          checkTime.toDate(),
           attendanceType,
           {
             location: data.location,
@@ -839,92 +925,6 @@ export class AttendanceService {
       );
       throw error;
     }
-  }
-
-  private async getFutureApprovedOvertimes(
-    userId: string,
-  ): Promise<ApprovedOvertime[]> {
-    const tomorrow = moment().tz('Asia/Bangkok').startOf('day').add(1, 'day');
-
-    const futureOvertimes = await prisma.overtimeRequest.findMany({
-      where: {
-        userId: userId,
-        date: {
-          gte: tomorrow.toDate(),
-        },
-        status: 'approved',
-      },
-      orderBy: {
-        date: 'asc',
-      },
-    });
-
-    return futureOvertimes.map((overtime) => ({
-      id: overtime.id,
-      userId: overtime.userId,
-      date: overtime.date,
-      startTime: overtime.startTime,
-      endTime: overtime.endTime,
-      status: overtime.status,
-      reason: overtime.reason,
-      approvedBy: overtime.approverId || '',
-      approvedAt: overtime.updatedAt,
-    }));
-  }
-
-  private async getLatestShiftAdjustment(
-    userId: string,
-  ): Promise<ShiftAdjustment | null> {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
-      where: {
-        userId,
-        status: 'approved',
-        date: {
-          gte: today,
-          lt: tomorrow,
-        },
-      },
-      include: { requestedShift: true },
-    });
-
-    if (shiftAdjustment) {
-      return {
-        ...shiftAdjustment,
-        date: shiftAdjustment.date.toISOString().split('T')[0], // Convert to YYYY-MM-DD string
-        status: shiftAdjustment.status as 'pending' | 'approved' | 'rejected',
-        requestedShift: shiftAdjustment.requestedShift as ShiftData,
-      };
-    }
-
-    return null;
-  }
-
-  private async getFutureShiftAdjustments(
-    userId: string,
-  ): Promise<FutureShiftAdjustment[]> {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-
-    const adjustments = await prisma.shiftAdjustmentRequest.findMany({
-      where: {
-        userId,
-        date: { gte: tomorrow },
-        status: 'approved',
-      },
-      include: { requestedShift: true },
-      orderBy: { date: 'asc' },
-    });
-
-    return adjustments.map((adj) => ({
-      date: adj.date.toISOString(),
-      shift: adj.requestedShift,
-    }));
   }
 
   private async createAttendance(
@@ -1049,5 +1049,109 @@ export class AttendanceService {
     );
 
     return approvedAttendance;
+  }
+
+  private ensureAttendanceRecord(record: any): AttendanceRecord {
+    return {
+      id: record.id,
+      userId: record.userId,
+      date: record.date,
+      checkInTime: record.checkInTime,
+      checkOutTime: record.checkOutTime,
+      isOvertime: record.isOvertime || false,
+      isDayOff: record.isDayOff || false,
+      overtimeStartTime: record.overtimeStartTime,
+      overtimeEndTime: record.overtimeEndTime,
+      checkInLocation: record.checkInLocation,
+      checkOutLocation: record.checkOutLocation,
+      checkInAddress: record.checkInAddress,
+      checkOutAddress: record.checkOutAddress,
+      checkInReason: record.checkInReason,
+      checkOutReason: record.checkOutReason,
+      checkInPhoto: record.checkInPhoto,
+      checkOutPhoto: record.checkOutPhoto,
+      checkInDeviceSerial: record.checkInDeviceSerial,
+      checkOutDeviceSerial: record.checkOutDeviceSerial,
+      status: record.status,
+      isManualEntry: record.isManualEntry || false,
+    };
+  }
+  private convertToUserData(user: any): UserData {
+    return {
+      id: user.id,
+      employeeId: user.employeeId,
+      name: user.name,
+      lineUserId: user.lineUserId,
+      nickname: user.nickname,
+      departmentId: user.departmentId,
+      department: user.department.name,
+      role: user.role,
+      profilePictureUrl: user.profilePictureUrl,
+      profilePictureExternal: user.profilePictureExternal,
+      shiftId: user.shiftId,
+      assignedShift: user.assignedShift,
+      overtimeHours: user.overtimeHours,
+      sickLeaveBalance: user.sickLeaveBalance,
+      businessLeaveBalance: user.businessLeaveBalance,
+      annualLeaveBalance: user.annualLeaveBalance,
+      overtimeLeaveBalance: user.overtimeLeaveBalance,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+  private async getFutureShifts(
+    userId: string,
+  ): Promise<Array<{ date: string; shift: ShiftData }>> {
+    const tomorrow = moment().add(1, 'day').startOf('day');
+    const twoWeeksLater = moment().add(2, 'weeks').endOf('day');
+
+    const shiftAdjustments = await prisma.shiftAdjustmentRequest.findMany({
+      where: {
+        userId,
+        status: 'approved',
+        date: {
+          gte: tomorrow.toDate(),
+          lte: twoWeeksLater.toDate(),
+        },
+      },
+      include: { requestedShift: true },
+      orderBy: { date: 'asc' },
+    });
+
+    return shiftAdjustments.map((adj) => ({
+      date: adj.date.toISOString().split('T')[0],
+      shift: adj.requestedShift,
+    }));
+  }
+
+  private async getFutureOvertimes(
+    userId: string,
+  ): Promise<Array<ApprovedOvertime>> {
+    const tomorrow = moment().add(1, 'day').startOf('day');
+    const twoWeeksLater = moment().add(2, 'weeks').endOf('day');
+
+    const overtimes = await prisma.overtimeRequest.findMany({
+      where: {
+        userId,
+        status: 'approved',
+        date: {
+          gte: tomorrow.toDate(),
+          lte: twoWeeksLater.toDate(),
+        },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    return overtimes.map((ot) => ({
+      id: ot.id,
+      userId: ot.userId,
+      date: ot.date,
+      startTime: ot.startTime,
+      endTime: ot.endTime,
+      status: ot.status,
+      reason: ot.reason,
+      approvedBy: ot.approverId || '',
+      approvedAt: ot.updatedAt,
+    }));
   }
 }

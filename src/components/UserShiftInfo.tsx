@@ -1,5 +1,10 @@
 import React from 'react';
-import { UserData, AttendanceStatus, ShiftData } from '../types/user';
+import {
+  AttendanceStatus,
+  ShiftData,
+  UserData,
+  ApprovedOvertime,
+} from '../types/user';
 import { formatTime } from '../utils/dateUtils';
 import { getDeviceType } from '../utils/deviceUtils';
 import moment from 'moment-timezone';
@@ -7,23 +12,21 @@ import 'moment/locale/th';
 moment.locale('th');
 
 interface UserShiftInfoProps {
-  userData: UserData;
   attendanceStatus: AttendanceStatus;
+  userData: UserData;
   departmentName: string;
   isOutsideShift: boolean;
 }
 
 const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
-  userData,
   attendanceStatus,
-  departmentName,
-  isOutsideShift,
+  userData,
 }) => {
   const today = moment().tz('Asia/Bangkok').startOf('day');
-  // Find today's shift adjustment if it exists in futureShiftAdjustments
-  const todayShiftAdjustment = attendanceStatus.futureShiftAdjustments.find(
-    (adjustment) => moment(adjustment.date).isSame(today, 'day'),
-  );
+
+  const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
+  const effectiveShift: ShiftData =
+    todayShiftAdjustment?.requestedShift || attendanceStatus.user.assignedShift;
 
   const getStatusMessage = () => {
     console.log('isDayOff:', attendanceStatus.isDayOff);
@@ -65,17 +68,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   };
 
   const renderTodayInfo = () => {
-    const todayShiftAdjustment =
-      attendanceStatus.shiftAdjustment &&
-      moment(attendanceStatus.shiftAdjustment.date).isSame(
-        moment().startOf('day'),
-        'day',
-      )
-        ? attendanceStatus.shiftAdjustment
-        : null;
-    const effectiveShift =
-      todayShiftAdjustment?.requestedShift || userData.assignedShift;
-
     return (
       <>
         {!attendanceStatus.isDayOff &&
@@ -139,33 +131,33 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         ) : null}
 
         {attendanceStatus.approvedOvertime &&
-        isOvertimeForToday(attendanceStatus.approvedOvertime) ? (
-          <div className="bg-white p-4 rounded-lg mb-4">
-            <h3 className="text-md font-semibold mt-4 mb-1">
-              รายละเอียดการทำงานล่วงเวลาที่ได้รับอนุมัติ:
-            </h3>
-            <p className="text-gray-800">
-              เวลาเริ่ม:{' '}
-              <span className="font-medium">
-                {formatTime(attendanceStatus.approvedOvertime.startTime)}
-              </span>
-            </p>
-            <p className="text-gray-800">
-              เวลาสิ้นสุด:{' '}
-              <span className="font-medium">
-                {formatTime(attendanceStatus.approvedOvertime.endTime)}
-              </span>
-            </p>
-            <p className="text-gray-800">
-              เวลาที่อนุมัติ:{' '}
-              <span className="font-medium">
-                {moment(attendanceStatus.approvedOvertime.approvedAt)
-                  .tz('Asia/Bangkok')
-                  .format('YYYY-MM-DD HH:mm:ss')}
-              </span>
-            </p>
-          </div>
-        ) : null}
+          isOvertimeForToday(attendanceStatus.approvedOvertime) && (
+            <div className="bg-white p-4 rounded-lg mb-4">
+              <h3 className="text-md font-semibold mt-4 mb-1">
+                รายละเอียดการทำงานล่วงเวลาที่ได้รับอนุมัติ:
+              </h3>
+              <p className="text-gray-800">
+                เวลาเริ่ม:{' '}
+                <span className="font-medium">
+                  {formatTime(attendanceStatus.approvedOvertime.startTime)}
+                </span>
+              </p>
+              <p className="text-gray-800">
+                เวลาสิ้นสุด:{' '}
+                <span className="font-medium">
+                  {formatTime(attendanceStatus.approvedOvertime.endTime)}
+                </span>
+              </p>
+              <p className="text-gray-800">
+                เวลาที่อนุมัติ:{' '}
+                <span className="font-medium">
+                  {moment(attendanceStatus.approvedOvertime.approvedAt)
+                    .tz('Asia/Bangkok')
+                    .format('YYYY-MM-DD HH:mm:ss')}
+                </span>
+              </p>
+            </div>
+          )}
 
         {attendanceStatus.isDayOff && attendanceStatus.potentialOvertime && (
           <div className="bg-white p-4 rounded-lg mb-4 mt-2 text-yellow-600">
@@ -187,18 +179,14 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         ? [attendanceStatus.approvedOvertime]
         : [];
 
-    const additionalFutureOvertimes =
-      attendanceStatus.futureApprovedOvertimes || [];
-
     const allFutureOvertimes = [
       ...futureOvertime,
-      ...additionalFutureOvertimes,
+      ...attendanceStatus.futureOvertimes,
     ];
 
-    const futureShiftAdjustments =
-      attendanceStatus.futureShiftAdjustments.filter(
-        (adjustment) => !moment(adjustment.date).isSame(today, 'day'),
-      );
+    const futureShiftAdjustments = attendanceStatus.futureShifts.filter(
+      (adjustment) => !moment(adjustment.date).isSame(today, 'day'),
+    );
 
     if (
       futureShiftAdjustments.length === 0 &&
@@ -214,50 +202,41 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             key={`shift-${index}`}
             className="bg-yellow-300 p-4 rounded-box mb-4"
           >
-            <div className="flex font-semibold justify-between">
-              <p>{moment(adjustment.date).format('DD/MM/YYYY')}</p>
-              <p>เวลาทำงาน</p>
-            </div>
+            <h3 className="font-bold">
+              Shift Adjustment on{' '}
+              {moment(adjustment.date).format('DD MMM YYYY')}
+            </h3>
+            <p>Shift: {adjustment.shift.name}</p>
             <p>
-              {adjustment.shift.name} ({adjustment.shift.startTime} -{' '}
-              {adjustment.shift.endTime})
+              Time: {adjustment.shift.startTime} - {adjustment.shift.endTime}
             </p>
           </div>
         ))}
         {allFutureOvertimes.map((overtime, index) => (
           <div
             key={`overtime-${index}`}
-            className="bg-yellow-300 p-4 rounded-box mb-4"
+            className="bg-green-300 p-4 rounded-box mb-4"
           >
-            <div className="flex font-semibold justify-between">
-              <p>{moment(overtime.date).format('DD/MM/YYYY')}</p>
-              <p>ทำงานล่วงเวลา</p>
-            </div>
+            <h3 className="font-bold">
+              Approved Overtime on {moment(overtime.date).format('DD MMM YYYY')}
+            </h3>
             <p>
-              เวลา: {overtime.startTime} - {overtime.endTime}
+              Time: {overtime.startTime} - {overtime.endTime}
             </p>
-            <p>เหตุผล: {overtime.reason}</p>
-            <p>สถานะ: {overtime.status}</p>
-            {overtime.approvedAt && (
-              <p>
-                เวลาที่อนุมัติ:{' '}
-                {moment(overtime.approvedAt)
-                  .tz('Asia/Bangkok')
-                  .format('YYYY-MM-DD HH:mm:ss')}
-              </p>
-            )}
+            <p>Reason: {overtime.reason}</p>
           </div>
         ))}
       </>
     );
   };
 
-  const isOvertimeForToday = (overtime: any) => {
+  const isOvertimeForToday = (overtime: ApprovedOvertime) => {
     const overtimeDate = moment(overtime.date)
       .tz('Asia/Bangkok')
       .startOf('day');
     return overtimeDate.isSame(today);
   };
+
   const { message, color } = getStatusMessage();
 
   return (
@@ -265,7 +244,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       <div className="bg-white p-4 rounded-box mb-4 text-center">
         <p className="text-2xl font-bold">{userData.name}</p>
         <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
-        <p className="text-gray-600">แผนก: {departmentName}</p>
+        <p className="text-gray-600">แผนก: {String(userData.department)}</p>
 
         {/* Status Message Section */}
         <div className="flex flex-col items-center">
@@ -277,8 +256,10 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       </div>
 
       {renderTodayInfo()}
+      <h2 className="text-xl font-bold mt-8 mb-4">Future Information</h2>
       {renderFutureInfo()}
     </div>
   );
 };
+
 export default UserShiftInfo;

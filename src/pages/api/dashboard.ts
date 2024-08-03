@@ -120,6 +120,11 @@ export default async function handler(
       profilePictureExternal: user.profilePictureExternal
         ? `https://profile-pictures/${user.profilePictureExternal}.jpg`
         : null,
+      overtimeHours: user.overtimeHours || 0,
+      sickLeaveBalance: user.sickLeaveBalance || 0,
+      businessLeaveBalance: user.businessLeaveBalance || 0,
+      annualLeaveBalance: user.annualLeaveBalance || 0,
+      overtimeLeaveBalance: user.overtimeLeaveBalance || 0,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

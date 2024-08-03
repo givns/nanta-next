@@ -25,21 +25,21 @@ export default async function handler(
   const { lineUserId } = req.query;
 
   if (!lineUserId || typeof lineUserId !== 'string') {
-    console.log('API: Invalid lineUserId');
     return res
       .status(400)
       .json({ error: 'Missing or invalid lineUserId parameter' });
   }
 
   try {
-    console.log('API: Fetching user data');
-
     const today = moment().tz('Asia/Bangkok');
-    const startDate = moment(today)
-      .subtract(1, 'month')
-      .date(26)
-      .startOf('day');
-    const endDate = moment(today).date(25).endOf('day');
+    const startDate =
+      moment(today).date() >= 26
+        ? moment(today).date(26).startOf('day')
+        : moment(today).subtract(1, 'month').date(26).startOf('day');
+    const endDate = moment(startDate)
+      .add(1, 'month')
+      .subtract(1, 'day')
+      .endOf('day');
 
     const user = await prisma.user.findUnique({
       where: { lineUserId },
@@ -66,7 +66,6 @@ export default async function handler(
       }),
       holidayService.getHolidays(startDate.toDate(), endDate.toDate()),
     ]);
-
     // Extract just the dates from the holiday data
     const holidays = holidaysData.map((holiday) => holiday.date);
     const totalDaysInPeriod = endDate.diff(startDate, 'days') + 1;
@@ -123,6 +122,11 @@ export default async function handler(
         : null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      overtimeHours: user.overtimeHours || 0,
+      sickLeaveBalance: user.sickLeaveBalance || 0,
+      businessLeaveBalance: user.businessLeaveBalance || 0,
+      annualLeaveBalance: user.annualLeaveBalance || 0,
+      overtimeLeaveBalance: user.overtimeLeaveBalance || 0,
     };
 
     const responseData = {
@@ -133,9 +137,12 @@ export default async function handler(
       totalAbsent,
       overtimeHours,
       balanceLeave,
+      payrollPeriod: {
+        start: startDate.format('YYYY-MM-DD'),
+        end: endDate.format('YYYY-MM-DD'),
+      },
     };
 
-    console.log('API: User data fetched successfully');
     res.status(200).json(responseData);
   } catch (error) {
     console.error('Error fetching user data:', error);

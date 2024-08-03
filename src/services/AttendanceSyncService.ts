@@ -11,16 +11,14 @@ import moment from 'moment-timezone';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
-const attendanceService = new AttendanceService();
 const notificationService = new NotificationService();
 const shiftManagementService = new ShiftManagementService();
 const holidayService = new HolidayService();
 const shift104HolidayService = new Shift104HolidayService();
-const now = new Date();
-const startDate = new Date(
-  now.getFullYear(),
-  now.getMonth(),
-  now.getDate() - 1,
+const attendanceService = new AttendanceService(
+  externalDbService,
+  holidayService,
+  shift104HolidayService,
 );
 
 export class AttendanceSyncService {

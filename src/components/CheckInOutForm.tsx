@@ -100,7 +100,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       // Check for shift adjustment
       const shiftAdjustment =
         attendanceStatus.shiftAdjustment ||
-        attendanceStatus.futureShiftAdjustments.find(
+        attendanceStatus.futureShifts.find(
           (adj) =>
             moment(adj.date).isSame(now, 'day') ||
             moment(adj.date).isSame(yesterday, 'day'),

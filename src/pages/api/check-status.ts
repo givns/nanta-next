@@ -3,8 +3,18 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { logMessage } from '../../utils/inMemoryLogger';
+import { ExternalDbService } from '@/services/ExternalDbService';
+import { HolidayService } from '@/services/HolidayService';
+import { Shift104HolidayService } from '@/services/Shift104HolidayService';
 
-const attendanceService = new AttendanceService();
+const externalDbService = new ExternalDbService();
+const holidayService = new HolidayService();
+const shift104HolidayService = new Shift104HolidayService();
+const attendanceService = new AttendanceService(
+  externalDbService,
+  holidayService,
+  shift104HolidayService,
+);
 
 export default async function handler(
   req: NextApiRequest,

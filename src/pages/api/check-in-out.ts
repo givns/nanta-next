@@ -4,8 +4,18 @@ import { ShiftManagementService } from '@/services/ShiftManagementService';
 import moment from 'moment-timezone';
 import { AttendanceData } from '@/types/user';
 import { notificationService } from '@/services/NotificationService';
+import { ExternalDbService } from '@/services/ExternalDbService';
+import { HolidayService } from '@/services/HolidayService';
+import { Shift104HolidayService } from '@/services/Shift104HolidayService';
 
-const attendanceService = new AttendanceService();
+const externalDbService = new ExternalDbService();
+const holidayService = new HolidayService();
+const shift104HolidayService = new Shift104HolidayService();
+const attendanceService = new AttendanceService(
+  externalDbService,
+  holidayService,
+  shift104HolidayService,
+);
 const shiftService = new ShiftManagementService();
 
 const TIMEZONE = 'Asia/Bangkok'; // Set this to your local timezone

@@ -9,19 +9,31 @@ import { UserRole } from '@/types/enum';
 export type { User, Attendance, Shift, ShiftAdjustmentRequest };
 export interface UserData {
   id: string;
-  lineUserId: string | null;
+  employeeId: string;
   name: string;
+  lineUserId: string | null;
   nickname: string | null;
   departmentId: string;
   department: string;
-  employeeId: string;
   role: UserRole;
-  shiftId: string;
-  assignedShift?: Shift | null | undefined;
   profilePictureUrl: string | null;
   profilePictureExternal: string | null;
+  shiftId: string;
+  assignedShift: {
+    id: string;
+    shiftCode: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    workDays: number[];
+  };
+  overtimeHours: number;
+  sickLeaveBalance: number;
+  businessLeaveBalance: number;
+  annualLeaveBalance: number;
+  overtimeLeaveBalance: number;
   createdAt: Date;
-  updatedAt: Date | null;
+  updatedAt: Date;
 }
 
 export enum CheckType {
@@ -93,12 +105,12 @@ export interface AttendanceStatus {
     requestedShiftId: string;
     requestedShift: ShiftData;
   } | null;
-  futureShiftAdjustments: Array<{
+  approvedOvertime: ApprovedOvertime | null;
+  futureShifts: Array<{
     date: string;
     shift: ShiftData;
   }>;
-  approvedOvertime: ApprovedOvertime | null;
-  futureApprovedOvertimes: ApprovedOvertime[];
+  futureOvertimes: Array<ApprovedOvertime>;
 }
 
 export type AttendanceStatusType =
@@ -148,27 +160,33 @@ export interface AttendanceRecord {
   isManualEntry: boolean;
 }
 
-export interface ProcessedAttendance {
+export type ProcessedAttendance = {
+  id: string;
+  userId: string;
   date: Date;
-  status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off';
   checkIn?: string;
   checkOut?: string;
+  status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off';
   isEarlyCheckIn?: boolean;
   isLateCheckIn?: boolean;
   isLateCheckOut?: boolean;
   overtimeHours?: number;
-}
+  isOvertime: boolean;
+  detailedStatus: string;
+  overtimeDuration: number;
+  checkInDeviceSerial: string | null;
+  checkOutDeviceSerial: string | null;
+  isManualEntry: boolean;
+};
 
 export interface ShiftAdjustment {
-  id: string;
-  userId: string;
-  requestedShiftId: string;
   date: string;
+  requestedShiftId: string;
+  requestedShift: ShiftData;
   status: 'pending' | 'approved' | 'rejected';
   reason: string;
   createdAt: Date;
   updatedAt: Date;
-  requestedShift: Shift;
 }
 
 export interface FutureShiftAdjustment {
