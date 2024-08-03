@@ -19,7 +19,6 @@ import {
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
 import { logMessage } from '../utils/inMemoryLogger';
-import { checkIsOnDemandRevalidate } from 'next/dist/server/api-utils';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
@@ -82,7 +81,6 @@ export class AttendanceService {
       );
       const now = moment();
 
-      // Fetch attendance data
       const [internalAttendances, externalAttendanceData] = await Promise.all([
         prisma.attendance.findMany({
           where: {
@@ -97,12 +95,10 @@ export class AttendanceService {
       logMessage(
         `Internal attendances: ${JSON.stringify(internalAttendances, null, 2)}`,
       );
-
       logMessage(
         `External attendance data: ${JSON.stringify(externalAttendanceData, null, 2)}`,
       );
 
-      // Combine and sort all records
       const allRecords = [
         ...internalAttendances,
         ...externalAttendanceData.records.map((record) =>
@@ -128,7 +124,6 @@ export class AttendanceService {
 
       console.log('Is work day:', isWorkDay);
 
-      // For SHIFT104, check if it's a holiday
       if (user.assignedShift.shiftCode === 'SHIFT104') {
         const isShift104Holiday =
           await this.shift104HolidayService.isShift104Holiday(now.toDate());
@@ -136,6 +131,7 @@ export class AttendanceService {
           isDayOff = true;
         }
       }
+
       const futureShifts = await this.getFutureShifts(user.id);
       const futureOvertimes = await this.getFutureOvertimes(user.id);
 
@@ -143,7 +139,9 @@ export class AttendanceService {
         latestAttendance,
         user.assignedShift,
       );
-      logMessage(`Calculated potential overtime:, ${potentialOvertime}`);
+      logMessage(
+        `Calculated potential overtime: ${JSON.stringify(potentialOvertime)}`,
+      );
 
       let isCheckingIn = true;
       if (latestAttendance && latestAttendance.checkOut) {
@@ -155,6 +153,7 @@ export class AttendanceService {
       } else if (latestAttendance) {
         isCheckingIn = false;
       }
+
       const result: AttendanceStatus = {
         user: userData,
         latestAttendance: latestAttendance
@@ -181,11 +180,7 @@ export class AttendanceService {
       };
 
       logMessage(
-        `Final latestAttendance in result: ${JSON.stringify(
-          result.latestAttendance,
-          null,
-          2,
-        )}`,
+        `Final latestAttendance in result: ${JSON.stringify(result.latestAttendance, null, 2)}`,
       );
 
       return result;
