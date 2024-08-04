@@ -115,6 +115,9 @@ export class AttendanceService {
       );
 
       const latestAttendance = processedAttendance[0];
+      logMessage(
+        `Latest attendance: ${JSON.stringify(latestAttendance, null, 2)}`,
+      );
 
       const isWorkDay = await this.holidayService.isWorkingDay(
         user.id,
@@ -197,6 +200,9 @@ export class AttendanceService {
     endDate: Date,
     shifts: Map<string, ShiftData>,
   ): Promise<ProcessedAttendance[]> {
+    logMessage('Starting processAttendanceData');
+    logMessage(`Input records: ${JSON.stringify(attendanceRecords, null, 2)}`);
+
     const shiftAdjustments = await this.getShiftAdjustments(
       userData.id,
       startDate,
@@ -213,6 +219,9 @@ export class AttendanceService {
       shiftAdjustments,
       shifts,
     );
+
+    logMessage(`Grouped records: ${JSON.stringify(groupedRecords, null, 2)}`);
+
     const processedAttendance: ProcessedAttendance[] = [];
     const currentDate = moment(startDate);
     const endMoment = moment(endDate);
@@ -265,7 +274,7 @@ export class AttendanceService {
             approvedOvertimes,
             isWorkDay,
           );
-          processedAttendance.push({
+          const processedRecord = {
             date: currentDate.toDate(),
             status: statusInfo.status,
             checkIn: pair.checkIn.checkInTime
@@ -286,12 +295,24 @@ export class AttendanceService {
             checkInDeviceSerial: pair.checkIn.checkInDeviceSerial,
             checkOutDeviceSerial: pair.checkOut?.checkOutDeviceSerial || null,
             isManualEntry: pair.checkIn.isManualEntry,
-          });
+          };
+          processedAttendance.push(processedRecord);
+          logMessage(
+            `Processed record: ${JSON.stringify(processedRecord, null, 2)}`,
+          );
         }
       }
 
       currentDate.add(1, 'day');
     }
+
+    processedAttendance.sort((a, b) =>
+      moment(b.checkIn || b.date).diff(moment(a.checkIn || a.date)),
+    );
+
+    logMessage(
+      `Final processed attendance: ${JSON.stringify(processedAttendance, null, 2)}`,
+    );
 
     return processedAttendance;
   }
@@ -343,14 +364,17 @@ export class AttendanceService {
     shiftAdjustments: ShiftAdjustment[],
     shifts: Map<string, ShiftData>,
   ): Array<{ checkIn: AttendanceRecord; checkOut: AttendanceRecord | null }> {
+    logMessage('Starting pairCheckInCheckOut');
+    logMessage(`Input records: ${JSON.stringify(records, null, 2)}`);
+
     const pairs: Array<{
       checkIn: AttendanceRecord;
       checkOut: AttendanceRecord | null;
     }> = [];
     let currentCheckIn: AttendanceRecord | null = null;
 
-    records.forEach((record) => {
-      const recordDate = moment(record.checkInTime);
+    records.forEach((record, index) => {
+      const recordDate = moment(record.date);
       const effectiveShift = this.getEffectiveShift(
         recordDate,
         userData,
@@ -361,30 +385,34 @@ export class AttendanceService {
       if (!currentCheckIn) {
         currentCheckIn = record;
       } else {
-        const currentShiftEnd = moment(currentCheckIn.checkInTime).set({
+        const currentShiftEnd = moment(currentCheckIn.date).set({
           hour: parseInt(effectiveShift.endTime.split(':')[0]),
           minute: parseInt(effectiveShift.endTime.split(':')[1]),
         });
 
+        if (currentShiftEnd.isBefore(moment(currentCheckIn.date))) {
+          currentShiftEnd.add(1, 'day');
+        }
+
         if (
-          moment(record.checkInTime).isAfter(currentShiftEnd) ||
-          !record.checkOutTime
+          (record.checkInTime &&
+            moment(record.checkInTime).isAfter(currentShiftEnd)) ||
+          index === records.length - 1
         ) {
           pairs.push({
             checkIn: currentCheckIn,
-            checkOut: currentCheckIn.checkOutTime ? currentCheckIn : null,
+            checkOut:
+              record.checkInTime &&
+              record.checkInTime <= currentShiftEnd.toDate()
+                ? record
+                : null,
           });
           currentCheckIn = record;
-        } else if (record.checkOutTime) {
-          currentCheckIn.checkOutTime = record.checkOutTime;
         }
       }
     });
 
-    if (currentCheckIn) {
-      pairs.push({ checkIn: currentCheckIn, checkOut: null });
-    }
-
+    logMessage(`Paired records: ${JSON.stringify(pairs, null, 2)}`);
     return pairs;
   }
 
@@ -568,10 +596,11 @@ export class AttendanceService {
     external: ExternalCheckInData,
   ): AttendanceRecord {
     const checkInMoment = moment(external.sj);
+    const recordDate = moment(external.date).startOf('day');
     return this.ensureAttendanceRecord({
       id: external.bh.toString(),
       userId: external.user_serial.toString(),
-      date: checkInMoment.startOf('day').toDate(),
+      date: recordDate.toDate(),
       checkInTime: checkInMoment.toDate(),
       checkOutTime: null,
       isOvertime: false,
