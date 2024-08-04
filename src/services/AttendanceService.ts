@@ -238,24 +238,9 @@ export class AttendanceService {
       const isWorkDay = effectiveShift.workDays.includes(currentDate.day());
 
       if (records.length === 0) {
-        processedAttendance.push({
-          date: currentDate.toDate(),
-          status: isWorkDay ? 'absent' : 'off',
-          checkIn: undefined,
-          checkOut: undefined,
-          isEarlyCheckIn: false,
-          isLateCheckIn: false,
-          isLateCheckOut: false,
-          overtimeHours: 0,
-          detailedStatus: isWorkDay ? 'absent' : 'day-off',
-          id: '',
-          userId: userData.id,
-          isOvertime: false,
-          overtimeDuration: 0,
-          checkInDeviceSerial: null,
-          checkOutDeviceSerial: null,
-          isManualEntry: false,
-        });
+        processedAttendance.push(
+          this.createAbsentRecord(currentDate.toDate(), userData.employeeId),
+        );
       } else {
         const pairedRecords = this.pairCheckInCheckOut(
           records,
@@ -305,16 +290,14 @@ export class AttendanceService {
 
       currentDate.add(1, 'day');
     }
-
-    processedAttendance.sort((a, b) =>
-      moment(b.checkIn || b.date).diff(moment(a.checkIn || a.date)),
-    );
-
     logMessage(
       `Final processed attendance: ${JSON.stringify(processedAttendance, null, 2)}`,
     );
 
     return processedAttendance;
+  }
+  createAbsentRecord(arg0: Date, employeeId: string): ProcessedAttendance {
+    throw new Error('Method not implemented.');
   }
 
   private async getInternalAttendanceRecord(
@@ -354,6 +337,9 @@ export class AttendanceService {
       }
       recordsByDate[dateKey].push(record);
     });
+    logMessage(
+      `Records grouped by date: ${JSON.stringify(recordsByDate, null, 2)}`,
+    );
 
     return recordsByDate;
   }
@@ -372,6 +358,8 @@ export class AttendanceService {
       checkOut: AttendanceRecord | null;
     }> = [];
     let currentCheckIn: AttendanceRecord | null = null;
+
+    records.sort((a, b) => moment(a.checkInTime).diff(moment(b.checkInTime)));
 
     records.forEach((record, index) => {
       const recordDate = moment(record.date);
@@ -442,12 +430,8 @@ export class AttendanceService {
     let isOvertime = false;
     let detailedStatus = '';
 
-    const checkInTime = checkIn.checkInTime
-      ? moment(checkIn.checkInTime)
-      : null;
-    const checkOutTime = checkOut?.checkOutTime
-      ? moment(checkOut.checkOutTime)
-      : null;
+    const checkInTime = moment(checkIn.checkInTime);
+    const checkOutTime = checkOut ? moment(checkOut.checkOutTime) : null;
 
     if (!isWorkDay) {
       status = 'off';
@@ -599,7 +583,7 @@ export class AttendanceService {
     const recordDate = moment(external.date).startOf('day');
     return this.ensureAttendanceRecord({
       id: external.bh.toString(),
-      userId: external.user_serial.toString(),
+      userId: external.user_no.toString(),
       date: recordDate.toDate(),
       checkInTime: checkInMoment.toDate(),
       checkOutTime: null,
