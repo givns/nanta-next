@@ -86,7 +86,6 @@ export class AttendanceService {
             date: { gte: yesterday.toDate() },
           },
           orderBy: { date: 'desc' },
-          take: 2, // Limit to last 2 records
         }),
         this.externalDbService.getDailyAttendanceRecords(employeeId, 2), // Fetch only 2 day of external data
       ]);
@@ -203,7 +202,7 @@ export class AttendanceService {
   ): AttendanceRecord[] {
     const allAttendances = [
       ...internal.map(this.convertInternalToAttendanceRecord),
-      ...external.map(this.convertExternalToAttendanceRecord),
+      ...external.map(this.convertExternalToAttendanceRecord.bind(this)),
     ];
 
     return allAttendances.sort((a, b) =>
@@ -610,13 +609,11 @@ export class AttendanceService {
   private convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    const checkInMoment = moment(external.sj);
-    const recordDate = moment(external.date).startOf('day');
     return this.ensureAttendanceRecord({
       id: external.bh.toString(),
       employeeId: external.user_no.toString(),
-      date: recordDate.toDate(),
-      checkInTime: checkInMoment.toDate(),
+      date: new Date(external.date),
+      checkInTime: new Date(external.time),
       checkOutTime: null,
       isOvertime: false,
       isDayOff: false,
