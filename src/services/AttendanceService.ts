@@ -75,21 +75,20 @@ export class AttendanceService {
       const shiftsMap = new Map(
         shifts.map((shift) => [shift.id, shift as ShiftData]),
       );
-      const threeDaysAgo = moment().subtract(3, 'days').startOf('day');
-      console.log(
-        `Fetching attendance data from ${threeDaysAgo.format()} to now`,
-      );
+      const yesterday = moment().subtract(1, 'days').startOf('day');
+      console.log(`Fetching attendance data from ${yesterday.format()} to now`);
       const now = moment();
 
       const [internalAttendances, externalAttendanceData] = await Promise.all([
         prisma.attendance.findMany({
           where: {
             employeeId: user.employeeId,
-            date: { gte: threeDaysAgo.toDate() },
+            date: { gte: yesterday.toDate() },
           },
           orderBy: { date: 'desc' },
+          take: 2, // Limit to last 2 records
         }),
-        this.externalDbService.getDailyAttendanceRecords(employeeId, 3),
+        this.externalDbService.getDailyAttendanceRecords(employeeId, 2), // Fetch only 2 day of external data
       ]);
 
       logMessage(
@@ -99,26 +98,20 @@ export class AttendanceService {
         `External attendance data: ${JSON.stringify(externalAttendanceData, null, 2)}`,
       );
 
-      const allRecords = [
-        ...internalAttendances,
-        ...externalAttendanceData.records.map((record) =>
-          this.convertExternalToInternal(record),
-        ),
-      ].sort((a, b) => moment(b.checkInTime).diff(moment(a.checkInTime)));
-
-      const processedAttendance = await this.processAttendanceData(
-        allRecords.map((record) => this.ensureAttendanceRecord(record)),
-        userData,
-        threeDaysAgo.toDate(),
-        now.toDate(),
-        shiftsMap,
+      const mergedAttendances = this.mergeAttendances(
+        internalAttendances,
+        externalAttendanceData.records,
       );
 
-      // Get the latest non-absent attendance
-      const latestAttendance =
-        processedAttendance.find(
-          (a) => a.status !== 'absent' && a.status !== 'off',
-        ) || processedAttendance[0];
+      const processedAttendances = await this.processAttendanceData(
+        mergedAttendances,
+        userData,
+        yesterday.toDate(),
+        now.toDate(),
+        new Map([user.assignedShift].map((shift) => [shift.id, shift])),
+      );
+
+      const latestAttendance = processedAttendances[0] || null;
 
       logMessage(
         `Latest attendance: ${JSON.stringify(latestAttendance, null, 2)}`,
@@ -163,7 +156,7 @@ export class AttendanceService {
       }
 
       const result: AttendanceStatus = {
-        user: userData,
+        user: this.convertToUserData(user),
         latestAttendance: latestAttendance
           ? {
               id: latestAttendance.id,
@@ -204,9 +197,23 @@ export class AttendanceService {
     }
   }
 
+  private mergeAttendances(
+    internal: Attendance[],
+    external: ExternalCheckInData[],
+  ): AttendanceRecord[] {
+    const allAttendances = [
+      ...internal.map(this.convertInternalToAttendanceRecord),
+      ...external.map(this.convertExternalToAttendanceRecord),
+    ];
+
+    return allAttendances.sort((a, b) =>
+      moment(b.checkInTime || b.date).diff(moment(a.checkInTime || a.date)),
+    );
+  }
+
   async processAttendanceData(
     attendanceRecords: AttendanceRecord[],
-    userData: UserData,
+    user: UserData,
     startDate: Date,
     endDate: Date,
     shifts: Map<string, ShiftData>,
@@ -215,18 +222,18 @@ export class AttendanceService {
     logMessage(`Input records: ${JSON.stringify(attendanceRecords, null, 2)}`);
 
     const shiftAdjustments = await this.getShiftAdjustments(
-      userData.employeeId,
+      user.employeeId,
       startDate,
       endDate,
     );
     const approvedOvertimes = await this.getApprovedOvertimes(
-      userData.employeeId,
+      user.employeeId,
       startDate,
       endDate,
     );
     const groupedRecords = this.groupRecordsByDate(
       attendanceRecords,
-      userData,
+      user,
       shiftAdjustments,
       shifts,
     );
@@ -242,7 +249,7 @@ export class AttendanceService {
       const records = groupedRecords[dateStr] || [];
       const effectiveShift = this.getEffectiveShift(
         currentDate,
-        userData,
+        user,
         shiftAdjustments,
         shifts,
       );
@@ -252,23 +259,18 @@ export class AttendanceService {
         processedAttendance.push(
           this.createAbsentRecord(
             currentDate.toDate(),
-            userData.employeeId,
+            user.employeeId,
             isWorkDay,
           ),
         );
       } else {
-        const pairedRecords = this.pairCheckInCheckOut(
-          records,
-          userData,
-          shiftAdjustments,
-          shifts,
-        );
+        const pairedRecords = this.pairCheckInCheckOut(records, effectiveShift);
 
         for (const pair of pairedRecords) {
           const statusInfo = this.determineStatus(
             pair.checkIn,
             pair.checkOut,
-            userData,
+            user,
             shiftAdjustments,
             shifts,
             approvedOvertimes,
@@ -306,13 +308,13 @@ export class AttendanceService {
       currentDate.add(1, 'day');
     }
 
-    processedAttendance.sort((a, b) => moment(b.date).diff(moment(a.date)));
-
     logMessage(
       `Final processed attendance: ${JSON.stringify(processedAttendance, null, 2)}`,
     );
 
-    return processedAttendance;
+    return processedAttendance.sort((a, b) =>
+      moment(b.date).diff(moment(a.date)),
+    );
   }
 
   private async getInternalAttendanceRecord(
@@ -361,9 +363,7 @@ export class AttendanceService {
 
   private pairCheckInCheckOut(
     records: AttendanceRecord[],
-    userData: UserData,
-    shiftAdjustments: ShiftAdjustment[],
-    shifts: Map<string, ShiftData>,
+    shift: ShiftData,
   ): Array<{ checkIn: AttendanceRecord; checkOut: AttendanceRecord | null }> {
     logMessage('Starting pairCheckInCheckOut');
     logMessage(`Input records: ${JSON.stringify(records, null, 2)}`);
@@ -376,44 +376,32 @@ export class AttendanceService {
 
     records.sort((a, b) => moment(a.checkInTime).diff(moment(b.checkInTime)));
 
-    records.forEach((record, index) => {
-      const recordDate = moment(record.date);
-      const effectiveShift = this.getEffectiveShift(
-        recordDate,
-        userData,
-        shiftAdjustments,
-        shifts,
-      );
-
+    for (const record of records) {
       if (!currentCheckIn) {
         currentCheckIn = record;
       } else {
-        const currentShiftEnd = moment(currentCheckIn.date).set({
-          hour: parseInt(effectiveShift.endTime.split(':')[0]),
-          minute: parseInt(effectiveShift.endTime.split(':')[1]),
+        const shiftEnd = moment(currentCheckIn.checkInTime).set({
+          hour: parseInt(shift.endTime.split(':')[0]),
+          minute: parseInt(shift.endTime.split(':')[1]),
         });
 
-        if (currentShiftEnd.isBefore(moment(currentCheckIn.date))) {
-          currentShiftEnd.add(1, 'day');
+        if (shiftEnd.isBefore(moment(currentCheckIn.checkInTime))) {
+          shiftEnd.add(1, 'day');
         }
 
-        if (
-          (record.checkInTime &&
-            moment(record.checkInTime).isAfter(currentShiftEnd)) ||
-          index === records.length - 1
-        ) {
-          pairs.push({
-            checkIn: currentCheckIn,
-            checkOut:
-              record.checkInTime &&
-              record.checkInTime <= currentShiftEnd.toDate()
-                ? record
-                : null,
-          });
+        if (moment(record.checkInTime).isAfter(shiftEnd)) {
+          pairs.push({ checkIn: currentCheckIn, checkOut: null });
           currentCheckIn = record;
+        } else {
+          pairs.push({ checkIn: currentCheckIn, checkOut: record });
+          currentCheckIn = null;
         }
       }
-    });
+    }
+
+    if (currentCheckIn) {
+      pairs.push({ checkIn: currentCheckIn, checkOut: null });
+    }
 
     logMessage(`Paired records: ${JSON.stringify(pairs, null, 2)}`);
     return pairs;
@@ -591,7 +579,35 @@ export class AttendanceService {
     };
   }
 
-  private convertExternalToInternal(
+  private convertInternalToAttendanceRecord(
+    internal: Attendance,
+  ): AttendanceRecord {
+    return {
+      id: internal.id,
+      employeeId: internal.employeeId,
+      date: internal.date,
+      checkInTime: internal.checkInTime,
+      checkOutTime: internal.checkOutTime,
+      isOvertime: internal.isOvertime,
+      isDayOff: false,
+      overtimeStartTime: null,
+      overtimeEndTime: null,
+      checkInLocation: null,
+      checkOutLocation: null,
+      checkInAddress: null,
+      checkOutAddress: null,
+      checkInReason: null,
+      checkOutReason: null,
+      checkInPhoto: null,
+      checkOutPhoto: null,
+      checkInDeviceSerial: null,
+      checkOutDeviceSerial: null,
+      status: internal.status,
+      isManualEntry: false,
+    };
+  }
+
+  private convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord {
     const checkInMoment = moment(external.sj);
@@ -607,6 +623,74 @@ export class AttendanceService {
       status: 'checked-in',
       checkInDeviceSerial: external.dev_serial,
     });
+  }
+
+  async getHistoricalAttendance(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<ProcessedAttendance[]> {
+    console.log(
+      `Fetching historical attendance for employeeId: ${employeeId} from ${startDate.toISOString()} to ${endDate.toISOString()}`,
+    );
+
+    const user = await prisma.user.findUnique({
+      where: { employeeId },
+      include: {
+        assignedShift: true,
+        department: true,
+      },
+    });
+
+    if (!user) {
+      console.error(`User not found for employee ID: ${employeeId}`);
+      throw new Error('User not found');
+    }
+
+    const userData = this.convertToUserData(user);
+
+    const shifts = await prisma.shift.findMany();
+    const shiftsMap = new Map(
+      shifts.map((shift) => [shift.id, shift as ShiftData]),
+    );
+
+    const [internalAttendances, externalAttendanceData] = await Promise.all([
+      prisma.attendance.findMany({
+        where: {
+          employeeId: user.employeeId,
+          date: { gte: startDate, lte: endDate },
+        },
+        orderBy: [{ date: 'asc' }, { checkInTime: 'asc' }],
+      }),
+      this.externalDbService.getHistoricalAttendanceRecords(
+        employeeId,
+        startDate,
+        endDate,
+      ),
+    ]);
+
+    console.log(
+      `Found ${internalAttendances.length} internal and ${externalAttendanceData.length} external attendance records`,
+    );
+
+    const allRecords = [
+      ...internalAttendances,
+      ...externalAttendanceData.map((record) =>
+        this.convertExternalToAttendanceRecord(record),
+      ),
+    ].sort((a, b) => moment(a.checkInTime).diff(moment(b.checkInTime)));
+
+    const processedAttendance = await this.processAttendanceData(
+      allRecords.map((record) => this.ensureAttendanceRecord(record)),
+      userData,
+      startDate,
+      endDate,
+      shiftsMap,
+    );
+
+    console.log(`Processed ${processedAttendance.length} attendance records`);
+
+    return processedAttendance;
   }
 
   async getTodayCheckIn(employeeId: string): Promise<Attendance | null> {
@@ -794,7 +878,7 @@ export class AttendanceService {
 
   private getEffectiveShift(
     date: moment.Moment,
-    userData: UserData,
+    user: UserData,
     shiftAdjustments: ShiftAdjustment[],
     shifts: Map<string, ShiftData>,
   ): ShiftData {
@@ -805,9 +889,9 @@ export class AttendanceService {
       return adjustment.requestedShift;
     }
 
-    const userShift = shifts.get(userData.shiftId);
+    const userShift = shifts.get(user.shiftId);
     if (!userShift) {
-      throw new Error(`Shift not found for ID: ${userData.shiftId}`);
+      throw new Error(`Shift not found for ID: ${user.shiftId}`);
     }
 
     return userShift;
