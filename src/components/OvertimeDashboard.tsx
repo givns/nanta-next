@@ -5,13 +5,13 @@ import axios from 'axios';
 import { OvertimeRequest, User } from '@prisma/client';
 
 interface OvertimeDashboardProps {
-  userId: string;
+  employeeId: string;
   userRole: string;
   userDepartmentId: string;
 }
 
 const OvertimeDashboard: React.FC<OvertimeDashboardProps> = ({
-  userId,
+  employeeId,
   userRole,
   userDepartmentId,
 }) => {
@@ -49,7 +49,7 @@ const OvertimeDashboard: React.FC<OvertimeDashboardProps> = ({
     try {
       await axios.post('/api/overtime/batchApprove', {
         requestIds: selectedRequests,
-        approverId: userId,
+        approverId: employeeId,
       });
       fetchPendingRequests();
       setSelectedRequests([]);
@@ -117,7 +117,7 @@ const OvertimeDashboard: React.FC<OvertimeDashboardProps> = ({
                   onChange={() => handleSelectRequest(request.id)}
                 />
               </td>
-              <td className="py-2 px-4 border-b">{request.userId}</td>
+              <td className="py-2 px-4 border-b">{request.employeeId}</td>
               <td className="py-2 px-4 border-b">
                 {new Date(request.date).toLocaleDateString()}
               </td>

@@ -31,7 +31,6 @@ export default async function handler(
   console.log('Received check-in/out request:', req.body);
 
   const {
-    userId,
     employeeId,
     lineUserId,
     checkTime,
@@ -47,7 +46,6 @@ export default async function handler(
 
   // Validate required fields
   if (
-    !userId ||
     !employeeId ||
     !lineUserId ||
     !checkTime ||
@@ -63,8 +61,8 @@ export default async function handler(
   }
 
   try {
-    console.log(`Getting shift for user: ${userId}`);
-    const shift = await shiftService.getUserShift(userId);
+    console.log(`Getting shift for user: ${employeeId}`);
+    const shift = await shiftService.getUserShift(employeeId);
     console.log('User shift:', shift);
 
     console.log(`Getting attendance status for employee: ${employeeId}`);
@@ -73,7 +71,7 @@ export default async function handler(
     console.log('Attendance status:', attendanceStatus);
 
     if (!shift) {
-      console.error(`Shift not found for user: ${userId}`);
+      console.error(`Shift not found for user: ${employeeId}`);
       return res.status(400).json({ message: 'User shift not found' });
     }
 
@@ -82,7 +80,7 @@ export default async function handler(
 
     if (!isCheckIn) {
       // Check if there's a check-in for today
-      const todayCheckIn = await attendanceService.getTodayCheckIn(userId);
+      const todayCheckIn = await attendanceService.getTodayCheckIn(employeeId);
 
       if (!todayCheckIn) {
         // Handle missing check-in
@@ -95,14 +93,14 @@ export default async function handler(
 
         const pendingAttendance =
           await attendanceService.createPendingAttendance(
-            userId,
+            employeeId,
             potentialStartTime.toDate(),
             checkTime.toDate(),
           );
 
         // Notify admins
         await notificationService.notifyAdminsOfMissingCheckIn(
-          userId,
+          employeeId,
           employeeId,
           potentialStartTime.format('HH:mm:ss'),
           checkTime.format('HH:mm:ss'),
@@ -190,7 +188,6 @@ export default async function handler(
     else if (attendanceStatus.approvedOvertime) attendanceType = 'overtime';
 
     const attendanceData: AttendanceData = {
-      userId,
       employeeId,
       lineUserId,
       checkTime: checkTime.toDate(),

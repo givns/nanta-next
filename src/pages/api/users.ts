@@ -56,7 +56,7 @@ export default async function handler(
     const [payrollAttendance, holidaysData] = await Promise.all([
       prisma.attendance.findMany({
         where: {
-          userId: user.id,
+          employeeId: user.employeeId,
           date: {
             gte: startDate.toDate(),
             lte: endDate.toDate(),
@@ -106,7 +106,6 @@ export default async function handler(
     const balanceLeave = await calculateLeaveBalance(user.id);
 
     const userData: UserData & { assignedShift: ShiftData } = {
-      id: user.id,
       lineUserId: user.lineUserId,
       name: user.name,
       nickname: user.nickname || '',

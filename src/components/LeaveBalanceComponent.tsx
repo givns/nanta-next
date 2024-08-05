@@ -10,12 +10,12 @@ interface LeaveBalanceData {
 }
 
 interface LeaveBalanceProps {
-  userId: string;
+  employeeId: string;
   onBalanceLoaded: (balance: LeaveBalanceData) => void;
 }
 
 const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
-  userId,
+  employeeId,
   onBalanceLoaded,
 }) => {
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalanceData | null>(
@@ -28,7 +28,7 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
     const fetchLeaveBalance = async () => {
       try {
         const response = await axios.get<LeaveBalanceData>(
-          `/api/leave-balance?userId=${userId}`,
+          `/api/leave-balance?userId=${employeeId}`,
         );
         setLeaveBalance(response.data);
         onBalanceLoaded(response.data);
@@ -47,7 +47,7 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
     };
 
     fetchLeaveBalance();
-  }, [userId, onBalanceLoaded]);
+  }, [employeeId, onBalanceLoaded]);
 
   if (isLoading) {
     return <div className="text-center">Loading leave balance...</div>;

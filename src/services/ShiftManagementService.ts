@@ -24,7 +24,7 @@ export class ShiftManagementService {
     return shift || null;
   }
 
-  async assignShift(userId: string, departmentId: string) {
+  async assignShift(employeeId: string, departmentId: string) {
     const shift = await this.getDefaultShift(departmentId);
     if (!shift) {
       throw new Error(
@@ -33,20 +33,20 @@ export class ShiftManagementService {
     }
 
     return prisma.user.update({
-      where: { id: userId },
+      where: { id: employeeId },
       data: { shiftId: shift.id, departmentId },
     });
   }
 
   async requestShiftAdjustment(
-    userId: string,
+    employeeId: string,
     requestedShiftId: string,
     date: Date,
     reason: string,
   ): Promise<ShiftAdjustmentRequest> {
     const adjustment = await prisma.shiftAdjustmentRequest.create({
       data: {
-        userId,
+        employeeId,
         requestedShiftId,
         date,
         reason,
@@ -55,7 +55,7 @@ export class ShiftManagementService {
     });
 
     await notificationService.sendNotification(
-      userId,
+      employeeId,
       `Your shift for ${date.toDateString()} has been adjusted.`,
     );
 
@@ -111,12 +111,12 @@ export class ShiftManagementService {
   }
 
   async getEffectiveShift(
-    userId: string,
+    employeeId: string,
     date: Date,
   ): Promise<{ shift: Shift; shiftStart: Date; shiftEnd: Date } | null> {
     try {
       const user = await prisma.user.findUnique({
-        where: { id: userId },
+        where: { id: employeeId },
         include: { assignedShift: true },
       });
 
@@ -135,7 +135,7 @@ export class ShiftManagementService {
 
       const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
         where: {
-          userId,
+          employeeId,
           date: {
             gte: startOfDay,
             lt: endOfDay,

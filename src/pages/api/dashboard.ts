@@ -47,7 +47,7 @@ export default async function handler(
     const [recentAttendance, holidays] = await Promise.all([
       prisma.attendance.findMany({
         where: {
-          userId: user.id,
+          employeeId: user.employeeId,
           date: {
             gte: startDate,
             lte: endDate,
@@ -57,7 +57,7 @@ export default async function handler(
         take: 5,
         select: {
           id: true,
-          userId: true,
+          employeeId: true,
           date: true,
           checkInTime: true,
           checkOutTime: true,
@@ -91,7 +91,7 @@ export default async function handler(
 
     const totalPresent = await prisma.attendance.count({
       where: {
-        userId: user.id,
+        employeeId: user.employeeId,
         date: {
           gte: startDate,
           lte: endDate,
@@ -106,7 +106,6 @@ export default async function handler(
     const balanceLeave = await calculateLeaveBalance(user.id);
 
     const userData: UserData & { assignedShift: ShiftData } = {
-      id: user.id,
       lineUserId: user.lineUserId,
       name: user.name,
       nickname: user.nickname || '',
@@ -169,10 +168,10 @@ function calculateTotalWorkingDays(
   return totalWorkingDays - holidays;
 }
 
-async function calculateLeaveBalance(userId: string): Promise<number> {
+async function calculateLeaveBalance(employeeId: string): Promise<number> {
   // Fetch the user's leave balance from the database
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: employeeId },
     select: {
       annualLeaveBalance: true,
       sickLeaveBalance: true,

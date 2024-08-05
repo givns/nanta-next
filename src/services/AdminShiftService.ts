@@ -21,14 +21,14 @@ export class AdminShiftService {
   }
 
   async createShiftAdjustment(
-    userId: string,
+    employeeId: string,
     shiftId: string,
     date: Date,
     reason: string,
   ): Promise<ShiftAdjustmentRequest> {
     return prisma.shiftAdjustmentRequest.create({
       data: {
-        userId,
+        employeeId,
         requestedShiftId: shiftId,
         date,
         reason,

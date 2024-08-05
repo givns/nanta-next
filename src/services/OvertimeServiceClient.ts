@@ -38,9 +38,9 @@ export class OvertimeServiceClient implements IOvertimeServiceClient {
     return newOvertimeRequest;
   }
 
-  async getOvertimeRequests(userId: string): Promise<OvertimeRequest[]> {
+  async getOvertimeRequests(employeeId: string): Promise<OvertimeRequest[]> {
     return prisma.overtimeRequest.findMany({
-      where: { userId },
+      where: { employeeId },
       orderBy: { date: 'desc' },
     });
   }

@@ -119,9 +119,9 @@ export class LeaveServiceClient implements ILeaveServiceClient {
     return balance;
   }
 
-  async getLeaveRequests(userId: string): Promise<LeaveRequest[]> {
+  async getLeaveRequests(employeeId: string): Promise<LeaveRequest[]> {
     return prisma.leaveRequest.findMany({
-      where: { userId },
+      where: { employeeId },
       orderBy: { createdAt: 'desc' },
     });
   }

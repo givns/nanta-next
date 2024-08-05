@@ -121,7 +121,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     }
 
     let leaveRequestData: any = {
-      userId: user.id,
+      employeeId: user.employeeId,
       leaveType,
       leaveFormat,
       reason,
@@ -240,9 +240,9 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     return leaveRequest;
   }
 
-  async getLeaveRequests(userId: string): Promise<LeaveRequest[]> {
+  async getLeaveRequests(employeeId: string): Promise<LeaveRequest[]> {
     return prisma.leaveRequest.findMany({
-      where: { userId },
+      where: { employeeId: employeeId },
       orderBy: { createdAt: 'desc' },
     });
   }

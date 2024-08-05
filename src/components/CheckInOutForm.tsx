@@ -517,7 +517,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     try {
       const localCheckTime = moment().tz(TIMEZONE);
       const checkInOutData = {
-        userId: userData.id,
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
         checkTime: localCheckTime.toISOString(),

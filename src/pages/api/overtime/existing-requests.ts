@@ -27,7 +27,7 @@ export default async function handler(
 
       const existingRequests = await prisma.overtimeRequest.findMany({
         where: {
-          userId: user.id,
+          employeeId: user.employeeId,
         },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         take: 10, // Limit to the 10 most recent requests

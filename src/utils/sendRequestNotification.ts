@@ -43,11 +43,11 @@ export const sendRequestNotification = async (
 ) => {
   const requestCount = await getRequestCountForAdmin(admin.id);
   const user = await prisma.user.findUnique({
-    where: { id: request.userId },
+    where: { id: request.employeeId },
   });
 
   if (!user) {
-    throw new Error(`User with ID ${request.userId} not found`);
+    throw new Error(`User with ID ${request.employeeId} not found`);
   }
 
   const isLeaveRequest = requestType === 'leave';

@@ -8,7 +8,6 @@ import { UserRole } from '@/types/enum';
 
 export type { User, Attendance, Shift, ShiftAdjustmentRequest };
 export interface UserData {
-  id: string;
   employeeId: string;
   name: string;
   lineUserId: string | null;
@@ -52,7 +51,6 @@ export interface Location {
 }
 
 export interface AttendanceData {
-  userId: string;
   employeeId: string;
   lineUserId: string;
   checkTime: string | Date;
@@ -71,7 +69,7 @@ export interface AttendanceData {
 
 export interface ApprovedOvertime {
   id: string;
-  userId: string;
+  employeeId: string;
   date: Date;
   startTime: string;
   endTime: string;
@@ -82,10 +80,16 @@ export interface ApprovedOvertime {
 }
 
 export interface AttendanceStatus {
+  status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off';
+  isOvertime: boolean;
+  overtimeDuration: number | undefined;
+  detailedStatus: string;
+  isEarlyCheckIn: boolean | undefined;
+  isLateCheckIn: boolean | undefined;
   user: UserData;
   latestAttendance: {
     id: string;
-    userId: string;
+    employeeId: string;
     date: string;
     checkInTime: string | null;
     checkOutTime: string | null;
@@ -138,7 +142,7 @@ export interface ShiftData {
 
 export interface AttendanceRecord {
   id: string;
-  userId: string;
+  employeeId: string;
   date: Date;
   checkInTime: Date | null;
   checkOutTime: Date | null;
@@ -162,7 +166,7 @@ export interface AttendanceRecord {
 
 export type ProcessedAttendance = {
   id: string;
-  userId: string;
+  employeeId: string;
   date: Date;
   checkIn?: string;
   checkOut?: string;
@@ -196,7 +200,7 @@ export interface FutureShiftAdjustment {
 
 export interface OvertimeApproval {
   id: string;
-  userId: string;
+  employeeId: string;
   date: Date;
   status: 'pending' | 'approved' | 'rejected';
   reason: string;
@@ -204,7 +208,7 @@ export interface OvertimeApproval {
 
 export interface ShiftAdjustmentRequestData {
   id: string;
-  userId: string;
+  employeeId: string;
   requestedShiftId: string;
   date: Date;
   reason: string;
@@ -225,7 +229,7 @@ export interface UserResponse {
 }
 
 export interface LeaveRequestData {
-  userId: string;
+  employeeId: string;
   startDate: string;
   endDate: string;
   reason: string;
@@ -238,7 +242,7 @@ export interface WorkHoursCalculation {
 }
 
 export interface ManualEntryData {
-  userId: string;
+  employeeId: string;
   date: string;
   checkInTime: string;
   checkOutTime: string;
@@ -250,7 +254,6 @@ export interface UserWithShift extends User {
 }
 
 export interface CheckInFormData {
-  userId: string;
   employeeId: string;
   checkTime: Date;
   location: {
@@ -269,7 +272,6 @@ export interface CheckOutFormData
 }
 
 export interface ExternalUserInfo {
-  user_serial: number | string;
   user_no: string;
   user_fname?: string;
   user_lname?: string;
@@ -278,7 +280,6 @@ export interface ExternalUserInfo {
 
 export interface ExternalCheckInData {
   sj: string;
-  user_serial: number | string;
   user_no: string;
   user_fname?: string;
   user_lname?: string;
@@ -291,21 +292,10 @@ export interface ExternalCheckInData {
   iden: string | null;
   dev_serial: string;
   dev_state: number;
-  jlzp_serial: number | null;
-  gly_no: string | null;
-  lx: number;
-  shenhe: number;
-  yich: number;
   deal_state: number;
   dev_logic_bh: number | null;
-  healthstatus: number | null;
-  body_temp: string | null;
-  temp_error: string | null;
-  passport_no: string | null;
   date: string;
   time: string;
-  noti: number;
-  flagmax: number;
 }
 
 export interface ExternalCheckInInputData {
@@ -323,7 +313,7 @@ export interface ExternalManualEntryInputData {
 }
 
 export interface CheckInData {
-  userId: string;
+  employeeId: string;
   location: Location;
   address: string;
   reason?: string;

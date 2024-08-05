@@ -61,7 +61,7 @@ export class OvertimeNotificationService {
     const message = `Your overtime request for ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) has been automatically approved as it's less than or equal to 2 hours.`;
 
     await this.sendNotification(
-      overtimeRequest.userId,
+      overtimeRequest.employeeId,
       message,
       overtimeRequest.user.lineUserId,
     );

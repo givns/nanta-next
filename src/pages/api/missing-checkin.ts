@@ -15,11 +15,11 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { userId, checkOutTime } = req.body;
+  const { employeeId, checkOutTime } = req.body;
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: employeeId },
       include: { assignedShift: true },
     });
 
@@ -39,7 +39,7 @@ export default async function handler(
     // Create a pending attendance record
     const pendingAttendance = await prisma.attendance.create({
       data: {
-        userId: user.id,
+        employeeId: user.employeeId,
         date: today,
         checkInTime: potentialStartTime,
         checkOutTime: new Date(checkOutTime),
@@ -53,7 +53,7 @@ export default async function handler(
     const admins = await prisma.user.findMany({ where: { role: 'Admin' } });
     for (const admin of admins) {
       await notificationService.notifyAdminsOfMissingCheckIn(
-        userId,
+        employeeId,
         user.employeeId,
         potentialStartTime.toLocaleTimeString(),
         checkOutTime.toLocaleTimeString(),

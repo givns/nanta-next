@@ -61,7 +61,7 @@ export class AttendanceProcessingService {
   }
 
   async processCheckIn(
-    userId: string,
+    employeeId: string,
     checkInTime: Date,
     attendanceType:
       | 'regular'
@@ -78,11 +78,11 @@ export class AttendanceProcessingService {
       isLate?: boolean;
     },
   ): Promise<Attendance> {
-    const isValidDay = await this.isValidAttendanceDay(userId, checkInTime);
+    const isValidDay = await this.isValidAttendanceDay(employeeId, checkInTime);
     if (!isValidDay) {
       throw new Error('Invalid attendance day');
     }
-    const user = await this.getUserWithShift(userId);
+    const user = await this.getUserWithShift(employeeId);
     if (!user) throw new Error('User not found');
 
     const { shift, shiftStart, shiftEnd } = await this.getEffectiveShift(
@@ -105,7 +105,7 @@ export class AttendanceProcessingService {
     if (checkInTime < twoHoursBeforeShift) {
       console.log('Check-in is more than 2 hours before shift start');
       await notificationService.sendNotification(
-        userId,
+        employeeId,
         `Your check-in for ${checkInTime.toDateString()} at ${checkInTime.toTimeString()} is more than 2 hours before your shift starts. This may not be counted as a valid attendance. Please check your schedule.`,
       );
       throw new Error('Check-in too early');
@@ -144,12 +144,12 @@ export class AttendanceProcessingService {
 
     if (attendanceType === 'regular' && checkInTime < shiftStart) {
       const overtimeRequest = await this.getApprovedOvertimeRequest(
-        userId,
+        employeeId,
         checkInTime,
       );
       if (!overtimeRequest) {
         await notificationService.sendNotification(
-          userId,
+          employeeId,
           'Early check-in detected. Please try again at your shift start time.',
         );
         throw new Error('Early check-in not allowed');
@@ -159,7 +159,7 @@ export class AttendanceProcessingService {
 
     const attendance = await prisma.attendance.create({
       data: {
-        userId,
+        employeeId,
         date: new Date(
           checkInTime.getFullYear(),
           checkInTime.getMonth(),
@@ -177,7 +177,7 @@ export class AttendanceProcessingService {
     });
 
     await notificationService.sendNotification(
-      userId,
+      employeeId,
       `Check-in recorded for ${checkInTime.toDateString()} at ${checkInTime.toTimeString()} using ${getDeviceType(additionalData.deviceSerial)} (${status}).`,
     );
 
@@ -185,7 +185,7 @@ export class AttendanceProcessingService {
   }
 
   async processCheckOut(
-    userId: string,
+    employeeId: string,
     checkOutTime: Date,
     attendanceType:
       | 'regular'
@@ -201,15 +201,18 @@ export class AttendanceProcessingService {
       deviceSerial: string;
     },
   ): Promise<Attendance> {
-    const isValidDay = await this.isValidAttendanceDay(userId, checkOutTime);
+    const isValidDay = await this.isValidAttendanceDay(
+      employeeId,
+      checkOutTime,
+    );
     if (!isValidDay) {
       throw new Error('Invalid attendance day');
     }
-    const user = await this.getUserWithShift(userId);
+    const user = await this.getUserWithShift(employeeId);
     if (!user) throw new Error('User not found');
 
     const latestAttendance = await prisma.attendance.findFirst({
-      where: { userId, checkOutTime: null },
+      where: { employeeId, checkOutTime: null },
       orderBy: { checkInTime: 'desc' },
     });
 
@@ -259,12 +262,12 @@ export class AttendanceProcessingService {
 
     if (attendanceType === 'regular' && checkOutTime > shiftEnd) {
       const overtimeRequest = await this.getApprovedOvertimeRequest(
-        userId,
+        employeeId,
         checkOutTime,
       );
       if (!overtimeRequest) {
         await notificationService.sendNotification(
-          userId,
+          employeeId,
           'Late check-out detected. Please submit an overtime request if needed.',
         );
       } else {
@@ -287,7 +290,7 @@ export class AttendanceProcessingService {
     });
 
     await notificationService.sendNotification(
-      userId,
+      employeeId,
       `Check-out recorded at ${checkOutTime.toLocaleTimeString()} (${status})`,
     );
 
@@ -295,10 +298,10 @@ export class AttendanceProcessingService {
   }
 
   private async getUserWithShift(
-    userId: string,
+    employeeId: string,
   ): Promise<User & { assignedShift: Shift }> {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: employeeId },
       include: { assignedShift: true },
     });
 
@@ -312,7 +315,7 @@ export class AttendanceProcessingService {
   ): Promise<{ shift: Shift; shiftStart: Date; shiftEnd: Date }> {
     const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
       where: {
-        userId: user.id,
+        employeeId: user.employeeId,
         date: {
           equals: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
         },
@@ -344,10 +347,10 @@ export class AttendanceProcessingService {
   }
 
   private async getApprovedOvertimeRequest(
-    userId: string,
+    employeeId: string,
     date: Date,
   ): Promise<ApprovedOvertime | null> {
-    return overtimeService.getApprovedOvertimeRequest(userId, date);
+    return overtimeService.getApprovedOvertimeRequest(employeeId, date);
   }
   async closeOpenAttendances() {
     const fourHoursAgo = moment().subtract(4, 'hours');
@@ -383,16 +386,16 @@ export class AttendanceProcessingService {
     }
   }
 
-  async handleUnapprovedOvertime(userId: string, checkOutTime: Date) {
+  async handleUnapprovedOvertime(employeeId: string, checkOutTime: Date) {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { employeeId },
       include: { assignedShift: true },
     });
 
     if (!user) throw new Error('User not found');
 
     const effectiveShift = await shiftManagementService.getEffectiveShift(
-      userId,
+      employeeId,
       checkOutTime,
     );
     if (!effectiveShift) throw new Error('Effective shift not found');
@@ -420,7 +423,7 @@ export class AttendanceProcessingService {
       // Create time entry for overtime
       await prisma.timeEntry.create({
         data: {
-          userId: user.id,
+          employeeId: user.employeeId,
           date: startOfDay(checkOutTime),
           startTime: adjustedShiftEnd,
           endTime: checkOutTime,
@@ -454,7 +457,7 @@ export class AttendanceProcessingService {
         );
         await prisma.timeEntry.create({
           data: {
-            userId: user.id,
+            employeeId: user.employeeId,
             date: startOfDay(nextDayStart),
             startTime: nextDayStart,
             endTime: checkOutTime,

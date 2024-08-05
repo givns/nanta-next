@@ -34,7 +34,7 @@ export default async function handler(
 
     const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
       where: {
-        userId: user.id,
+        employeeId: user.employeeId,
         date: new Date(date as string),
         status: 'approved',
       },

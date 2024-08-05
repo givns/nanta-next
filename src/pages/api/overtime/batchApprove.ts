@@ -34,7 +34,7 @@ export default async function handler(
           // Create TimeEntry
           await prisma.timeEntry.create({
             data: {
-              userId: request.userId,
+              employeeId: request.employeeId,
               date: request.date,
               startTime: new Date(
                 `${request.date.toISOString().split('T')[0]}T${request.startTime}`,

@@ -3,10 +3,10 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class PayrollService {
-  async calculatePayroll(userId: string, startDate: Date, endDate: Date) {
+  async calculatePayroll(employeeId: string, startDate: Date, endDate: Date) {
     const attendanceRecords = await prisma.attendance.findMany({
       where: {
-        userId,
+        employeeId,
         checkInTime: { gte: startDate },
         checkOutTime: { lte: endDate },
       },
@@ -28,7 +28,7 @@ export class PayrollService {
     const grossPay = totalHours * hourlyRate;
 
     return {
-      userId,
+      employeeId,
       startDate,
       endDate,
       totalHours,

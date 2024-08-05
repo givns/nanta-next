@@ -109,16 +109,16 @@ export class AttendanceSyncService {
 
     for (const session of unclosedSessions) {
       await notificationService.sendNotification(
-        session.userId,
+        session.employeeId,
         `เวลาทำงาน OT ใกล้สิ้นสุดลงแล้ว ระบบได้บันทึกชั่วโมงทำ OT เมื่อมีการลงเวลาออกงาน`,
       );
     }
   }
 
-  private async findExistingAttendance(userId: string, date: Date) {
+  private async findExistingAttendance(employeeId: string, date: Date) {
     return prisma.attendance.findFirst({
       where: {
-        userId,
+        employeeId,
         date: {
           gte: moment(date).startOf('day').toDate(),
           lt: moment(date).endOf('day').toDate(),
@@ -196,7 +196,7 @@ export class AttendanceSyncService {
       if (isWorkDay && !isOnLeave && !isHoliday) {
         const checkIn = await prisma.attendance.findFirst({
           where: {
-            userId: user.id,
+            employeeId: user.employeeId,
             date: today.toDate(),
             checkInTime: { not: null },
           },

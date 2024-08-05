@@ -78,7 +78,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         ...values,
         leaveType:
           leaveTypeMapping[values.leaveType as keyof typeof leaveTypeMapping],
-        userId: userData.id,
+        employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
         resubmitted: isResubmission,
         fullDayCount,
@@ -108,7 +108,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       {renderUserInfo()}
       <div className="rounded-box bg-yellow-200 p-6">
         <LeaveBalanceComponent
-          userId={userData.id}
+          employeeId={userData.employeeId}
           onBalanceLoaded={handleBalanceLoaded}
         />
       </div>

@@ -15,7 +15,7 @@ export class TimeEntryService {
   ): Promise<TimeEntry> {
     return prisma.timeEntry.create({
       data: {
-        userId: overtimeRequest.userId,
+        employeeId: overtimeRequest.employeeId,
         date: overtimeRequest.date,
         startTime: new Date(
           `${overtimeRequest.date.toISOString().split('T')[0]}T${overtimeRequest.startTime}`,
@@ -33,7 +33,7 @@ export class TimeEntryService {
 
   async createOrUpdateTimeEntry(attendance: Attendance): Promise<TimeEntry> {
     const existingEntry = await prisma.timeEntry.findFirst({
-      where: { userId: attendance.userId, date: attendance.date },
+      where: { employeeId: attendance.employeeId, date: attendance.date },
     });
 
     if (existingEntry) {
@@ -49,7 +49,7 @@ export class TimeEntryService {
 
     return prisma.timeEntry.create({
       data: {
-        userId: attendance.userId,
+        employeeId: attendance.employeeId,
         date: attendance.date,
         startTime: startTime,
         endTime: endTime,

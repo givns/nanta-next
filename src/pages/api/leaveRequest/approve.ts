@@ -52,7 +52,7 @@ export default async function handler(
       );
 
       const user = await prisma.user.findUnique({
-        where: { id: deniedRequest.userId },
+        where: { id: deniedRequest.employeeId },
       });
 
       const admin = await prisma.user.findUnique({

@@ -31,10 +31,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     const user = await prisma.user.findUnique({ where: { lineUserId } });
     if (!user) throw new Error('User not found');
 
-    // Convert the date to Bangkok time
-    const bangkokDate = moment.tz(date, 'YYYY-MM-DD', 'Asia/Bangkok');
-    const utcDate = bangkokDate.utc().toDate();
-
     const overtimeRequestData: Prisma.OvertimeRequestCreateInput = {
       user: { connect: { id: user.id } },
       date: new Date(date),
@@ -179,9 +175,9 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     return overtimeRequest;
   }
 
-  async getOvertimeRequests(userId: string): Promise<OvertimeRequest[]> {
+  async getOvertimeRequests(employeeId: string): Promise<OvertimeRequest[]> {
     return prisma.overtimeRequest.findMany({
-      where: { userId },
+      where: { employeeId },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -202,14 +198,14 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   }
 
   async getApprovedOvertimeRequest(
-    userId: string,
+    employeeId: string,
     date: Date,
   ): Promise<ApprovedOvertime | null> {
     const bangkokDate = moment(date).tz('Asia/Bangkok').startOf('day');
 
     const overtimeRequest = await prisma.overtimeRequest.findFirst({
       where: {
-        userId,
+        employeeId,
         date: {
           gte: bangkokDate.toDate(),
           lt: bangkokDate.clone().add(1, 'day').toDate(),
@@ -224,7 +220,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     return {
       id: overtimeRequest.id,
-      userId: overtimeRequest.userId,
+      employeeId: overtimeRequest.employeeId,
       date: overtimeRequest.date,
       startTime: overtimeRequest.startTime, // Don't convert, it's already in the correct format
       endTime: overtimeRequest.endTime, // Don't convert, it's already in the correct format
@@ -236,13 +232,13 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   }
 
   async getFutureApprovedOvertimes(
-    userId: string,
+    employeeId: string,
     startDate: Date,
   ): Promise<ApprovedOvertime[]> {
     try {
       const futureOvertimes = await prisma.approvedOvertime.findMany({
         where: {
-          userId: userId,
+          employeeId: employeeId,
           date: {
             gte: startDate,
           },
@@ -255,7 +251,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
       return futureOvertimes.map((overtime) => ({
         id: overtime.id,
-        userId: overtime.userId,
+        employeeId: overtime.employeeId,
         date: overtime.date,
         startTime: overtime.startTime.toISOString(), // Convert startTime to string
         endTime: overtime.endTime.toISOString(), // Convert endTime to string
@@ -279,14 +275,14 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     });
   }
   async createUnapprovedOvertime(
-    userId: string,
+    employeeId: string,
     startTime: Date,
     endTime: Date,
     overtimeMinutes: number,
   ): Promise<void> {
     const overtimeRequest = await prisma.overtimeRequest.create({
       data: {
-        userId,
+        employeeId,
         date: startTime,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
@@ -304,7 +300,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     for (const admin of admins) {
       await this.notificationService.sendNotification(
         admin.id,
-        `New unapproved overtime request from user ${userId} for ${overtimeMinutes} minutes. Please review.`,
+        `New unapproved overtime request from user ${employeeId} for ${overtimeMinutes} minutes. Please review.`,
       );
     }
   }

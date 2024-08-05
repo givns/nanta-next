@@ -84,7 +84,7 @@ export class AttendanceService {
       const [internalAttendances, externalAttendanceData] = await Promise.all([
         prisma.attendance.findMany({
           where: {
-            userId: user.id,
+            employeeId: user.employeeId,
             date: { gte: threeDaysAgo.toDate() },
           },
           orderBy: { date: 'desc' },
@@ -114,7 +114,12 @@ export class AttendanceService {
         shiftsMap,
       );
 
-      const latestAttendance = processedAttendance[0];
+      // Get the latest non-absent attendance
+      const latestAttendance =
+        processedAttendance.find(
+          (a) => a.status !== 'absent' && a.status !== 'off',
+        ) || processedAttendance[0];
+
       logMessage(
         `Latest attendance: ${JSON.stringify(latestAttendance, null, 2)}`,
       );
@@ -162,7 +167,7 @@ export class AttendanceService {
         latestAttendance: latestAttendance
           ? {
               id: latestAttendance.id,
-              userId: latestAttendance.userId,
+              employeeId: latestAttendance.employeeId,
               date: latestAttendance.date.toISOString(),
               checkInTime: latestAttendance.checkIn?.toString() ?? null,
               checkOutTime: latestAttendance.checkOut?.toString() ?? null,
@@ -180,6 +185,12 @@ export class AttendanceService {
         approvedOvertime: null,
         futureShifts,
         futureOvertimes,
+        status: 'present',
+        isOvertime: false,
+        overtimeDuration: undefined,
+        detailedStatus: '',
+        isEarlyCheckIn: undefined,
+        isLateCheckIn: undefined,
       };
 
       logMessage(
@@ -204,12 +215,12 @@ export class AttendanceService {
     logMessage(`Input records: ${JSON.stringify(attendanceRecords, null, 2)}`);
 
     const shiftAdjustments = await this.getShiftAdjustments(
-      userData.id,
+      userData.employeeId,
       startDate,
       endDate,
     );
     const approvedOvertimes = await this.getApprovedOvertimes(
-      userData.id,
+      userData.employeeId,
       startDate,
       endDate,
     );
@@ -239,7 +250,11 @@ export class AttendanceService {
 
       if (records.length === 0) {
         processedAttendance.push(
-          this.createAbsentRecord(currentDate.toDate(), userData.employeeId),
+          this.createAbsentRecord(
+            currentDate.toDate(),
+            userData.employeeId,
+            isWorkDay,
+          ),
         );
       } else {
         const pairedRecords = this.pairCheckInCheckOut(
@@ -259,7 +274,7 @@ export class AttendanceService {
             approvedOvertimes,
             isWorkDay,
           );
-          const processedRecord = {
+          const processedRecord: ProcessedAttendance = {
             date: currentDate.toDate(),
             status: statusInfo.status,
             checkIn: pair.checkIn.checkInTime
@@ -274,7 +289,7 @@ export class AttendanceService {
             overtimeHours: statusInfo.overtimeDuration,
             detailedStatus: statusInfo.detailedStatus,
             id: pair.checkIn.id,
-            userId: pair.checkIn.userId,
+            employeeId: pair.checkIn.employeeId,
             isOvertime: statusInfo.isOvertime,
             overtimeDuration: statusInfo.overtimeDuration,
             checkInDeviceSerial: pair.checkIn.checkInDeviceSerial,
@@ -290,21 +305,21 @@ export class AttendanceService {
 
       currentDate.add(1, 'day');
     }
+
+    processedAttendance.sort((a, b) => moment(b.date).diff(moment(a.date)));
+
     logMessage(
       `Final processed attendance: ${JSON.stringify(processedAttendance, null, 2)}`,
     );
 
     return processedAttendance;
   }
-  createAbsentRecord(arg0: Date, employeeId: string): ProcessedAttendance {
-    throw new Error('Method not implemented.');
-  }
 
   private async getInternalAttendanceRecord(
-    userId: string,
+    employeeId: string,
   ): Promise<AttendanceRecord | null> {
     const attendance = await prisma.attendance.findFirst({
-      where: { userId },
+      where: { employeeId },
       orderBy: { date: 'desc' },
     });
     return attendance as AttendanceRecord | null;
@@ -544,7 +559,7 @@ export class AttendanceService {
   private ensureAttendanceRecord(record: any): AttendanceRecord {
     return {
       id: record.id || record.bh?.toString() || '',
-      userId: record.userId || record.user_serial?.toString() || '',
+      employeeId: record.employeeId || record.user_no?.toString() || '',
       date: record.date ? new Date(record.date) : new Date(),
       checkInTime: record.checkInTime
         ? new Date(record.checkInTime)
@@ -583,7 +598,7 @@ export class AttendanceService {
     const recordDate = moment(external.date).startOf('day');
     return this.ensureAttendanceRecord({
       id: external.bh.toString(),
-      userId: external.user_no.toString(),
+      employeeId: external.user_no.toString(),
       date: recordDate.toDate(),
       checkInTime: checkInMoment.toDate(),
       checkOutTime: null,
@@ -594,11 +609,11 @@ export class AttendanceService {
     });
   }
 
-  async getTodayCheckIn(userId: string): Promise<Attendance | null> {
+  async getTodayCheckIn(employeeId: string): Promise<Attendance | null> {
     const today = moment().tz('Asia/Bangkok').startOf('day');
     return prisma.attendance.findFirst({
       where: {
-        userId,
+        employeeId,
         date: {
           gte: today.toDate(),
           lt: today.add(1, 'day').toDate(),
@@ -609,13 +624,13 @@ export class AttendanceService {
   }
 
   async createPendingAttendance(
-    userId: string,
+    employeeId: string,
     potentialCheckInTime: Date,
     checkOutTime: Date,
   ): Promise<Attendance> {
     return prisma.attendance.create({
       data: {
-        userId,
+        employeeId,
         date: moment(potentialCheckInTime)
           .tz('Asia/Bangkok')
           .startOf('day')
@@ -670,7 +685,7 @@ export class AttendanceService {
 
     const attendanceRecord = await prisma.attendance.findFirst({
       where: {
-        userId: user.id,
+        employeeId: user.employeeId,
         date: {
           gte: startOfDay,
           lt: endOfDay,
@@ -723,13 +738,13 @@ export class AttendanceService {
   }
 
   async getApprovedOvertimes(
-    userId: string,
+    employeeId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<ApprovedOvertime[]> {
     const overtimes = await prisma.overtimeRequest.findMany({
       where: {
-        userId,
+        employeeId,
         status: 'approved',
         date: {
           gte: startDate,
@@ -741,7 +756,7 @@ export class AttendanceService {
 
     return overtimes.map((ot) => ({
       id: ot.id,
-      userId: ot.userId,
+      employeeId: ot.employeeId,
       date: ot.date,
       startTime: ot.startTime,
       endTime: ot.endTime,
@@ -753,13 +768,13 @@ export class AttendanceService {
   }
 
   async getShiftAdjustments(
-    userId: string,
+    employeeId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<ShiftAdjustment[]> {
     const adjustments = await prisma.shiftAdjustmentRequest.findMany({
       where: {
-        userId,
+        employeeId,
         status: 'approved',
         date: {
           gte: startDate,
@@ -880,7 +895,7 @@ export class AttendanceService {
 
   async processAttendance(data: AttendanceData): Promise<Attendance> {
     const user = await prisma.user.findUnique({
-      where: { id: data.userId },
+      where: { id: data.employeeId },
       include: { department: true },
     });
     if (!user) throw new Error('User not found');
@@ -906,7 +921,7 @@ export class AttendanceService {
       const todayStart = moment(now).startOf('day');
 
       const shiftAdjustments = await this.getShiftAdjustments(
-        user.id,
+        user.employeeId,
         todayStart.toDate(),
         now.toDate(),
       );
@@ -990,7 +1005,7 @@ export class AttendanceService {
 
       if (data.isCheckIn) {
         return await this.processingService.processCheckIn(
-          user.id,
+          user.employeeId,
           checkTime.toDate(),
           attendanceType,
           {
@@ -1006,7 +1021,7 @@ export class AttendanceService {
         );
       } else {
         return await this.processingService.processCheckOut(
-          user.id,
+          user.employeeId,
           checkTime.toDate(),
           attendanceType,
           {
@@ -1021,20 +1036,20 @@ export class AttendanceService {
     } catch (error: any) {
       console.error('Error processing attendance:', error);
       await notificationService.sendNotification(
-        user.id,
+        user.employeeId,
         `Error processing ${data.isCheckIn ? 'check-in' : 'check-out'}: ${error.message}`,
       );
       throw error;
     }
   }
   private async createAttendance(
-    userId: string,
+    employeeId: string,
     checkTime: Date,
     isOvertime: boolean,
   ): Promise<Attendance> {
     return prisma.attendance.create({
       data: {
-        userId,
+        employeeId,
         date: new Date(
           checkTime.getFullYear(),
           checkTime.getMonth(),
@@ -1070,13 +1085,13 @@ export class AttendanceService {
   }
 
   async getAttendanceHistory(
-    userId: string,
+    employeeId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<Attendance[]> {
     return prisma.attendance.findMany({
       where: {
-        userId,
+        employeeId,
         date: {
           gte: startDate,
           lte: endDate,
@@ -1090,18 +1105,18 @@ export class AttendanceService {
   }
 
   async requestManualEntry(
-    userId: string,
+    employeeId: string,
     date: Date,
     checkInTime: Date,
     checkOutTime: Date,
     reason: string,
   ): Promise<Attendance> {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { id: employeeId } });
     if (!user) throw new Error('User not found');
 
     const manualEntry = await prisma.attendance.create({
       data: {
-        userId,
+        employeeId,
         date,
         checkInTime,
         checkOutTime,
@@ -1144,7 +1159,7 @@ export class AttendanceService {
     });
 
     await notificationService.sendNotification(
-      attendance.userId,
+      attendance.employeeId,
       `Your manual entry for ${attendance.date.toDateString()} has been approved.`,
     );
 
@@ -1153,7 +1168,6 @@ export class AttendanceService {
 
   private convertToUserData(user: any): UserData {
     return {
-      id: user.id,
       employeeId: user.employeeId,
       name: user.name,
       lineUserId: user.lineUserId,
@@ -1175,14 +1189,14 @@ export class AttendanceService {
     };
   }
   private async getFutureShifts(
-    userId: string,
+    employeeId: string,
   ): Promise<Array<{ date: string; shift: ShiftData }>> {
     const tomorrow = moment().add(1, 'day').startOf('day');
     const twoWeeksLater = moment().add(2, 'weeks').endOf('day');
 
     const shiftAdjustments = await prisma.shiftAdjustmentRequest.findMany({
       where: {
-        userId,
+        employeeId,
         status: 'approved',
         date: {
           gte: tomorrow.toDate(),
@@ -1200,14 +1214,14 @@ export class AttendanceService {
   }
 
   private async getFutureOvertimes(
-    userId: string,
+    employeeId: string,
   ): Promise<Array<ApprovedOvertime>> {
     const tomorrow = moment().add(1, 'day').startOf('day');
     const twoWeeksLater = moment().add(2, 'weeks').endOf('day');
 
     const overtimes = await prisma.overtimeRequest.findMany({
       where: {
-        userId,
+        employeeId,
         status: 'approved',
         date: {
           gte: tomorrow.toDate(),
@@ -1219,7 +1233,7 @@ export class AttendanceService {
 
     return overtimes.map((ot) => ({
       id: ot.id,
-      userId: ot.userId,
+      employeeId: ot.employeeId,
       date: ot.date,
       startTime: ot.startTime,
       endTime: ot.endTime,
@@ -1228,5 +1242,53 @@ export class AttendanceService {
       approvedBy: ot.approverId || '',
       approvedAt: ot.updatedAt,
     }));
+  }
+  private createAbsentRecord(
+    date: Date,
+    employeeId: string,
+    isWorkDay: boolean,
+  ): ProcessedAttendance {
+    return {
+      date,
+      status: isWorkDay ? 'absent' : 'off',
+      employeeId,
+      isEarlyCheckIn: false,
+      isLateCheckIn: false,
+      isLateCheckOut: false,
+      overtimeHours: 0,
+      isOvertime: false,
+      overtimeDuration: 0,
+      detailedStatus: isWorkDay ? 'absent' : 'day-off',
+      id: '',
+      checkIn: undefined,
+      checkOut: undefined,
+      checkInDeviceSerial: null,
+      checkOutDeviceSerial: null,
+      isManualEntry: false,
+    };
+  }
+  private createProcessedRecord(
+    pair: { checkIn: AttendanceRecord; checkOut: AttendanceRecord | null },
+    status: AttendanceStatus,
+    employeeId: string,
+  ): ProcessedAttendance {
+    return {
+      date: pair.checkIn.date,
+      employeeId: employeeId,
+      status: status.status,
+      checkIn: pair.checkIn.checkInTime?.toISOString() || undefined,
+      checkOut: pair.checkOut?.checkInTime?.toISOString() || undefined,
+      isEarlyCheckIn: status.isEarlyCheckIn,
+      isLateCheckIn: status.isLateCheckIn,
+      isLateCheckOut: status.isLateCheckIn,
+      overtimeHours: status.overtimeDuration,
+      detailedStatus: status.detailedStatus,
+      id: pair.checkIn.id,
+      isOvertime: status.isOvertime,
+      overtimeDuration: status.overtimeDuration || 0,
+      checkInDeviceSerial: pair.checkIn.checkInDeviceSerial,
+      checkOutDeviceSerial: pair.checkOut?.checkInDeviceSerial || null,
+      isManualEntry: pair.checkIn.isManualEntry,
+    };
   }
 }

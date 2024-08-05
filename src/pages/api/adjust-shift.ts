@@ -60,8 +60,7 @@ export default async function handler(
         workDays: number[];
       };
     } & {
-      id: string;
-      userId: string;
+      employeeId: string;
       requestedShiftId: string;
       date: Date;
       reason: string;
@@ -87,7 +86,7 @@ export default async function handler(
           for (const user of users) {
             const shiftAdjustment = await prisma.shiftAdjustmentRequest.create({
               data: {
-                userId: user.id,
+                employeeId: user.employeeId,
                 requestedShiftId: shiftId,
                 date: adjustmentDate,
                 reason: reason,
@@ -118,7 +117,7 @@ export default async function handler(
 
           const shiftAdjustment = await prisma.shiftAdjustmentRequest.create({
             data: {
-              userId: user.id,
+              employeeId: user.employeeId,
               requestedShiftId: shiftId,
               date: adjustmentDate,
               reason: reason,
@@ -129,7 +128,10 @@ export default async function handler(
             },
           });
           shiftAdjustments.push(shiftAdjustment);
-          affectedUsers.set(user.id.toString(), shiftAdjustment.requestedShift);
+          affectedUsers.set(
+            user.employeeId.toString(),
+            shiftAdjustment.requestedShift,
+          );
         }
       } else {
         throw new Error('Invalid target type');
@@ -144,7 +146,7 @@ export default async function handler(
       where: {
         role: 'SuperAdmin',
         NOT: {
-          id: requestingUser.id,
+          id: requestingUser.employeeId,
         },
       },
       select: { id: true, lineUserId: true, name: true },
@@ -170,12 +172,12 @@ export default async function handler(
     const formattedDate = moment(adjustmentDate).format('LL');
 
     // Notify users
-    for (const userId of usersToNotify) {
-      const userInfo = lineUserIdMap.get(userId);
+    for (const employeeId of usersToNotify) {
+      const userInfo = lineUserIdMap.get(employeeId);
       if (userInfo && userInfo.lineUserId) {
         let message;
-        if (affectedUsers.has(userId)) {
-          const shift = affectedUsers.get(userId);
+        if (affectedUsers.has(employeeId)) {
+          const shift = affectedUsers.get(employeeId);
           message = `แจ้งเตือน: การเปลี่ยนแปลงเวลาทำงาน
 
 วันที่: ${formattedDate}
@@ -185,7 +187,10 @@ export default async function handler(
 เหตุผล: ${reason}`;
         }
 
-        if (userInfo.role === 'SuperAdmin' && userId !== requestingUser.id) {
+        if (
+          userInfo.role === 'SuperAdmin' &&
+          employeeId !== requestingUser.id
+        ) {
           message = `แจ้งเตือน: มีการเปลี่ยนแปลงเวลาทำงาน
 
 ผู้ดำเนินการ: ${requestingUser.name}
@@ -198,14 +203,14 @@ export default async function handler(
         if (message) {
           try {
             await notificationService.sendNotification(
-              userId,
+              employeeId,
               message,
               userInfo.lineUserId,
             );
-            console.log(`Notification sent successfully to user ${userId}`);
+            console.log(`Notification sent successfully to user ${employeeId}`);
           } catch (error) {
             console.error(
-              `Failed to send notification to user ${userId}:`,
+              `Failed to send notification to user ${employeeId}:`,
               error,
             );
           }

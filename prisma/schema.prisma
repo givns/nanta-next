@@ -60,8 +60,8 @@ model Shift {
 
 model ShiftAdjustmentRequest {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String   @db.ObjectId
-  user              User     @relation(fields: [userId], references: [id])
+  employeeId            String  
+  user              User @relation(fields: [employeeId], references: [employeeId])
   requestedShiftId  String   @db.ObjectId
   requestedShift    Shift    @relation("RequestedShift", fields: [requestedShiftId], references: [id])
   date              DateTime
@@ -73,8 +73,8 @@ model ShiftAdjustmentRequest {
 
 model LeaveRequest {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String   @db.ObjectId
-  user              User     @relation(fields: [userId], references: [id])
+  employeeId            String   
+  user              User @relation(fields: [employeeId], references: [employeeId])
   leaveType         String
   leaveFormat       String
   reason            String
@@ -93,8 +93,8 @@ model LeaveRequest {
 
 model OvertimeRequest {
   id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId              String   @db.ObjectId
-  user                User     @relation(fields: [userId], references: [id])
+  employeeId              String   
+  user              User @relation(fields: [employeeId], references: [employeeId])
   date                DateTime
   startTime           String // Store as HH:mm
   endTime             String // Store as HH:mm
@@ -114,8 +114,8 @@ model OvertimeRequest {
 
 model ApprovedOvertime {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId     String   @db.ObjectId
-  user       User     @relation(fields: [userId], references: [id])
+  employeeId     String  
+  user              User @relation(fields: [employeeId], references: [employeeId])
   startTime  DateTime
   endTime    DateTime
   status     String
@@ -126,7 +126,7 @@ model ApprovedOvertime {
 
 model Attendance {
   id                   String    @id @default(cuid()) @map("_id")
-  userId               String    @db.ObjectId
+  employeeId               String   
   date                 DateTime
   checkInTime          DateTime?
   checkOutTime         DateTime? 
@@ -153,13 +153,13 @@ model Attendance {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
+  user              User @relation(fields: [employeeId], references: [employeeId])
 }
 
 model TimeEntry {
   id                String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String    @db.ObjectId
-  user              User      @relation(fields: [userId], references: [id])
+  employeeId            String   
+  user              User @relation(fields: [employeeId], references: [employeeId])
   date              DateTime
   startTime         DateTime
   endTime           DateTime
@@ -176,14 +176,14 @@ model TimeEntry {
 
 model CheckPoint {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
+  employeeId    String   @db.ObjectId
   jobTitle  String
   timestamp DateTime @default(now())
   latitude  Float
   longitude Float
   address   String?
 
-  user User @relation(fields: [userId], references: [id])
+  user              User @relation(fields: [employeeId], references: [employeeId])
 }
 
 model PayrollPeriod {

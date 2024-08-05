@@ -66,7 +66,7 @@ const OvertimePage: React.FC<OvertimePageProps> = ({ liffId }) => {
 
   return (
     <OvertimeDashboard
-      userId={userData.id}
+      employeeId={userData.employeeId}
       userRole={userData.role}
       userDepartmentId={userData.departmentId}
     />
