@@ -56,10 +56,10 @@ export class ExternalDbService {
 
         const userInfoQuery = 'SELECT * FROM dt_user WHERE user_no = ?';
         const attendanceQuery = `
-    SELECT kj.sj, kj.user_serial, kj.bh, kj.dev_serial, kj.date, kj.time,
+    SELECT kj.sj, kj.user_no, kj.bh, kj.dev_serial, kj.date, kj.time,
            du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
     FROM kt_jl kj
-    JOIN dt_user du ON kj.user_serial = du.user_serial
+    JOIN dt_user du ON kj.user_no = du.user_no
     LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
     WHERE du.user_no = ? 
     AND kj.date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
