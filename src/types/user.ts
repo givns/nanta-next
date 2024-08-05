@@ -86,6 +86,7 @@ export interface AttendanceStatus {
   detailedStatus: string;
   isEarlyCheckIn: boolean | undefined;
   isLateCheckIn: boolean | undefined;
+  isLateCheckOut: boolean | undefined;
   user: UserData;
   latestAttendance: {
     id: string;
@@ -144,6 +145,7 @@ export interface AttendanceRecord {
   id: string;
   employeeId: string;
   date: Date;
+  attendanceTime: Date;
   checkInTime: Date | null;
   checkOutTime: Date | null;
   isOvertime: boolean;

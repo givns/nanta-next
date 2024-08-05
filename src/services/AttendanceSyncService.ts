@@ -53,23 +53,31 @@ export class AttendanceSyncService {
         );
 
         if (!existingAttendance) {
-          const attendance = await attendanceService.processExternalCheckInOut(
-            record,
-            userInfo,
-            user.assignedShift,
-          );
+          const convertedRecord =
+            attendanceService.convertExternalToAttendanceRecord(record);
+          const processedAttendance =
+            await attendanceService.processAttendanceData(
+              [convertedRecord],
+              attendanceService.convertToUserData(user),
+              new Date(record.date),
+              new Date(record.date),
+              new Map([[user.assignedShift.id, user.assignedShift]]),
+            );
 
-          const message = this.createNotificationMessage(record, attendance);
-          if (user.lineUserId) {
-            await notificationService.sendNotification(
-              user.id,
-              message,
-              user.lineUserId,
-            );
-          } else {
-            console.error(
-              `User ${user.id} does not have a LINE user ID for notifications`,
-            );
+          if (processedAttendance.length > 0) {
+            const attendance = processedAttendance[0];
+            const message = this.createNotificationMessage(record, attendance);
+            if (user.lineUserId) {
+              await notificationService.sendNotification(
+                user.id,
+                message,
+                user.lineUserId,
+              );
+            } else {
+              console.error(
+                `User ${user.id} does not have a LINE user ID for notifications`,
+              );
+            }
           }
         }
       }
