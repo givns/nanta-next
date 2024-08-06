@@ -260,26 +260,28 @@ export class AttendanceService {
           ),
         );
       } else {
-        const processedRecords = this.determineCheckInOutTimes(
+        const pairedRecords = this.determineCheckInOutTimes(
           records,
           effectiveShift,
         );
-        const statusInfo = this.determineStatus(
-          processedRecords[0],
-          processedRecords[processedRecords.length - 1] || null,
-          user,
-          effectiveShift,
-          approvedOvertimes,
-          isWorkDay,
-        );
-        processedAttendance.push(
-          this.createProcessedRecord(
-            processedRecords[0],
-            processedRecords[processedRecords.length - 1] || null,
-            statusInfo,
-            user.employeeId,
-          ),
-        );
+        for (const pair of pairedRecords) {
+          const statusInfo = this.determineStatus(
+            pair.checkIn,
+            pair.checkOut,
+            user,
+            effectiveShift,
+            approvedOvertimes,
+            isWorkDay,
+          );
+          processedAttendance.push(
+            this.createProcessedRecord(
+              pair.checkIn,
+              pair.checkOut,
+              statusInfo,
+              user.employeeId,
+            ),
+          );
+        }
       }
 
       currentDate.add(1, 'day');
@@ -313,7 +315,7 @@ export class AttendanceService {
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
 
     records.forEach((record) => {
-      const recordDate = moment(record.checkInTime);
+      const recordDate = moment(record.attendanceTime).tz('Asia/Bangkok');
       const effectiveShift = this.getEffectiveShift(
         recordDate,
         userData,
@@ -322,9 +324,11 @@ export class AttendanceService {
       );
       const shiftStartHour = parseInt(effectiveShift.startTime.split(':')[0]);
 
+      // If the attendance time is before the shift start hour, it belongs to the previous day's shift
       if (recordDate.hour() < shiftStartHour) {
         recordDate.subtract(1, 'day');
       }
+
       const dateKey = recordDate.format('YYYY-MM-DD');
       if (!recordsByDate[dateKey]) {
         recordsByDate[dateKey] = [];
@@ -340,7 +344,7 @@ export class AttendanceService {
 
   private determineStatus(
     checkIn: AttendanceRecord,
-    checkOut: AttendanceRecord,
+    checkOut: AttendanceRecord | null,
     user: UserData,
     effectiveShift: ShiftData,
     approvedOvertimes: ApprovedOvertime[],
@@ -356,7 +360,7 @@ export class AttendanceService {
     let detailedStatus = '';
 
     const checkInTime = moment(checkIn.checkInTime);
-    const checkOutTime = checkOut.checkOutTime
+    const checkOutTime = checkOut?.checkOutTime
       ? moment(checkOut.checkOutTime)
       : null;
 
@@ -446,6 +450,18 @@ export class AttendanceService {
         status = 'absent';
         detailedStatus = 'no-check-in';
       }
+    }
+    // Check for approved overtime
+    const approvedOvertime = approvedOvertimes.find(
+      (ot) =>
+        moment(ot.date).isSame(checkIn.date, 'day') &&
+        moment(ot.startTime).isSameOrBefore(checkOutTime || checkInTime) &&
+        moment(ot.endTime).isSameOrAfter(checkInTime),
+    );
+
+    if (approvedOvertime) {
+      isOvertime = true;
+      detailedStatus += ' approved-overtime';
     }
 
     return {
@@ -547,11 +563,12 @@ export class AttendanceService {
   public convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    const attendanceTime = new Date(external.sj);
+    const attendanceTime = moment(external.sj).toDate();
+    const date = moment(external.date).startOf('day').toDate();
     return {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      date: new Date(external.date),
+      date: date,
       attendanceTime: attendanceTime,
       checkInTime: null,
       checkOutTime: null,
@@ -576,54 +593,49 @@ export class AttendanceService {
 
   private determineCheckInOutTimes(
     records: AttendanceRecord[],
-    effectiveShift: ShiftData,
-  ): AttendanceRecord[] {
-    records.sort(
-      (a, b) => a.attendanceTime.getTime() - b.attendanceTime.getTime(),
+    shift: ShiftData,
+  ): Array<{ checkIn: AttendanceRecord; checkOut: AttendanceRecord | null }> {
+    const pairs: Array<{
+      checkIn: AttendanceRecord;
+      checkOut: AttendanceRecord | null;
+    }> = [];
+    records.sort((a, b) =>
+      moment(a.attendanceTime).diff(moment(b.attendanceTime)),
     );
 
-    const shiftStart = moment(records[0].date).set({
-      hour: parseInt(effectiveShift.startTime.split(':')[0]),
-      minute: parseInt(effectiveShift.startTime.split(':')[1]),
-    });
-
-    const shiftEnd = moment(records[0].date).set({
-      hour: parseInt(effectiveShift.endTime.split(':')[0]),
-      minute: parseInt(effectiveShift.endTime.split(':')[1]),
-    });
-
-    if (shiftEnd.isBefore(shiftStart)) {
-      shiftEnd.add(1, 'day');
-    }
-
-    let checkIn: Date | null = null;
-    let checkOut: Date | null = null;
+    let currentCheckIn: AttendanceRecord | null = null;
 
     for (const record of records) {
-      const attendanceTime = moment(record.attendanceTime);
+      const recordTime = moment(record.attendanceTime);
+      const shiftStart = moment(record.date).set({
+        hour: parseInt(shift.startTime.split(':')[0]),
+        minute: parseInt(shift.startTime.split(':')[1]),
+      });
+      const shiftEnd = moment(record.date).set({
+        hour: parseInt(shift.endTime.split(':')[0]),
+        minute: parseInt(shift.endTime.split(':')[1]),
+      });
 
-      if (
-        !checkIn ||
-        Math.abs(attendanceTime.diff(shiftStart, 'minutes')) <
-          Math.abs(moment(checkIn).diff(shiftStart, 'minutes'))
-      ) {
-        checkIn = record.attendanceTime;
-      } else if (
-        !checkOut ||
-        Math.abs(attendanceTime.diff(shiftEnd, 'minutes')) <
-          Math.abs(moment(checkOut).diff(shiftEnd, 'minutes'))
-      ) {
-        checkOut = record.attendanceTime;
+      if (shiftEnd.isBefore(shiftStart)) {
+        shiftEnd.add(1, 'day');
+      }
+
+      if (!currentCheckIn || recordTime.isAfter(shiftEnd)) {
+        if (currentCheckIn) {
+          pairs.push({ checkIn: currentCheckIn, checkOut: null });
+        }
+        currentCheckIn = record;
+      } else {
+        pairs.push({ checkIn: currentCheckIn, checkOut: record });
+        currentCheckIn = null;
       }
     }
 
-    return records.map((record) => ({
-      ...record,
-      checkInTime:
-        record.attendanceTime === checkIn ? record.attendanceTime : null,
-      checkOutTime:
-        record.attendanceTime === checkOut ? record.attendanceTime : null,
-    }));
+    if (currentCheckIn) {
+      pairs.push({ checkIn: currentCheckIn, checkOut: null });
+    }
+
+    return pairs;
   }
 
   async getHistoricalAttendance(
@@ -928,6 +940,7 @@ export class AttendanceService {
         shiftAdjustments,
         shiftsMap,
       );
+      const isWorkDay = effectiveShift.workDays.includes(checkTime.day());
 
       const shiftStart = checkTime.clone().set({
         hour: parseInt(effectiveShift.startTime.split(':')[0]),
