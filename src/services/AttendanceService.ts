@@ -110,12 +110,6 @@ export class AttendanceService {
         new Map([user.assignedShift].map((shift) => [shift.id, shift])),
       );
 
-      const latestAttendance = processedAttendances[0] || null;
-
-      logMessage(
-        `Latest attendance: ${JSON.stringify(latestAttendance, null, 2)}`,
-      );
-
       const isWorkDay = await this.holidayService.isWorkingDay(
         user.id,
         now.toDate(),
@@ -131,6 +125,30 @@ export class AttendanceService {
           isDayOff = true;
         }
       }
+
+      let latestAttendance = processedAttendances[0];
+      const currentTime = moment();
+      const todayShiftStart = moment().set({
+        hour: parseInt(user.assignedShift.startTime.split(':')[0]),
+        minute: parseInt(user.assignedShift.startTime.split(':')[1]),
+      });
+
+      if (currentTime.isBefore(todayShiftStart)) {
+        // If current time is before today's shift start, use the latest processed attendance
+      } else {
+        // If current time is after today's shift start, create an 'absent' record if no attendance found for today
+        if (moment(latestAttendance.date).isBefore(moment().startOf('day'))) {
+          latestAttendance = this.createAbsentRecord(
+            new Date(),
+            user.employeeId,
+            isWorkDay,
+          );
+        }
+      }
+
+      logMessage(
+        `Latest attendance: ${JSON.stringify(latestAttendance, null, 2)}`,
+      );
 
       const futureShifts = await this.getFutureShifts(user.id);
       const futureOvertimes = await this.getFutureOvertimes(user.id);
@@ -359,10 +377,8 @@ export class AttendanceService {
     let isOvertime = false;
     let detailedStatus = '';
 
-    const checkInTime = moment(checkIn.checkInTime);
-    const checkOutTime = checkOut?.checkOutTime
-      ? moment(checkOut.checkOutTime)
-      : null;
+    const checkInTime = moment(checkIn.attendanceTime);
+    const checkOutTime = checkOut ? moment(checkOut.attendanceTime) : null;
 
     if (!isWorkDay) {
       status = 'off';
@@ -451,6 +467,7 @@ export class AttendanceService {
         detailedStatus = 'no-check-in';
       }
     }
+
     // Check for approved overtime
     const approvedOvertime = approvedOvertimes.find(
       (ot) =>
@@ -470,8 +487,8 @@ export class AttendanceService {
         id: checkIn.id,
         employeeId: checkIn.employeeId,
         date: checkIn.date.toISOString(),
-        checkInTime: checkIn.checkInTime?.toISOString() || null,
-        checkOutTime: checkOut?.checkOutTime?.toISOString() || null,
+        checkInTime: checkIn.attendanceTime?.toISOString() || null,
+        checkOutTime: checkOut?.attendanceTime?.toISOString() || null,
         checkInDeviceSerial: checkIn.checkInDeviceSerial || '',
         checkOutDeviceSerial: checkOut?.checkOutDeviceSerial || null,
         status: status as AttendanceStatusType,
@@ -603,36 +620,32 @@ export class AttendanceService {
       moment(a.attendanceTime).diff(moment(b.attendanceTime)),
     );
 
-    let currentCheckIn: AttendanceRecord | null = null;
+    for (let i = 0; i < records.length; i++) {
+      const current = records[i];
+      const next = records[i + 1];
 
-    for (const record of records) {
-      const recordTime = moment(record.attendanceTime);
-      const shiftStart = moment(record.date).set({
+      const shiftStart = moment(current.attendanceTime).set({
         hour: parseInt(shift.startTime.split(':')[0]),
         minute: parseInt(shift.startTime.split(':')[1]),
       });
-      const shiftEnd = moment(record.date).set({
+      let shiftEnd = moment(current.attendanceTime).set({
         hour: parseInt(shift.endTime.split(':')[0]),
         minute: parseInt(shift.endTime.split(':')[1]),
       });
+      if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, 'day');
 
-      if (shiftEnd.isBefore(shiftStart)) {
-        shiftEnd.add(1, 'day');
-      }
-
-      if (!currentCheckIn || recordTime.isAfter(shiftEnd)) {
-        if (currentCheckIn) {
-          pairs.push({ checkIn: currentCheckIn, checkOut: null });
-        }
-        currentCheckIn = record;
+      if (
+        !next ||
+        moment(next.attendanceTime).diff(
+          moment(current.attendanceTime),
+          'hours',
+        ) > 12
+      ) {
+        pairs.push({ checkIn: current, checkOut: null });
       } else {
-        pairs.push({ checkIn: currentCheckIn, checkOut: record });
-        currentCheckIn = null;
+        pairs.push({ checkIn: current, checkOut: next });
+        i++; // Skip the next record as it's been used as check-out
       }
-    }
-
-    if (currentCheckIn) {
-      pairs.push({ checkIn: currentCheckIn, checkOut: null });
     }
 
     return pairs;
