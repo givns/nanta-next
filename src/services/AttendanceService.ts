@@ -858,6 +858,8 @@ export class AttendanceService {
             | 'rejected',
           reviewedBy: potentialOvertime.reviewedBy || undefined,
           reviewedAt: potentialOvertime.reviewedAt || undefined,
+          start: '',
+          end: '',
         }
       : null;
   }

@@ -129,6 +129,8 @@ export interface PotentialOvertime {
   id: string;
   employeeId: string;
   date: Date;
+  start: string;
+  end: string;
   type: 'early-check-in' | 'late-check-out' | 'day-off';
   status: 'pending' | 'approved' | 'rejected';
   reviewedBy?: string;

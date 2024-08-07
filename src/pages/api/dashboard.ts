@@ -2,7 +2,12 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
-import { UserData, ShiftData, AttendanceRecord } from '../../types/user';
+import {
+  UserData,
+  ShiftData,
+  AttendanceRecord,
+  PotentialOvertime,
+} from '../../types/user';
 import { HolidayService } from '../../services/HolidayService';
 import { UserRole } from '@/types/enum';
 
@@ -105,7 +110,10 @@ export default async function handler(
     const overtimeHours = user.overtimeHours || 0;
     const balanceLeave = await calculateLeaveBalance(user.id);
 
-    const userData: UserData & { assignedShift: ShiftData } = {
+    const userData: UserData & {
+      assignedShift: ShiftData;
+      potentialOvertimes: number;
+    } = {
       lineUserId: user.lineUserId,
       name: user.name,
       nickname: user.nickname || '',
@@ -124,6 +132,7 @@ export default async function handler(
       businessLeaveBalance: user.businessLeaveBalance || 0,
       annualLeaveBalance: user.annualLeaveBalance || 0,
       overtimeLeaveBalance: user.overtimeLeaveBalance || 0,
+      potentialOvertimes: [] as unknown as PotentialOvertime[] & number, // Change the type of 'potentialOvertimes' to 'PotentialOvertime[] & number'
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
