@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { UserData, ShiftData } from '../../types/user';
+import { UserData, ShiftData, PotentialOvertime } from '../../types/user';
 import { AttendanceService } from '../../services/AttendanceService';
 import { HolidayService } from '../../services/HolidayService';
 import { UserRole } from '@/types/enum';
@@ -81,7 +81,10 @@ export default async function handler(
     );
     const balanceLeave = await calculateLeaveBalance(user.id);
 
-    const userData: UserData & { assignedShift: ShiftData } = {
+    const userData: UserData & {
+      assignedShift: ShiftData;
+      potentialOvertimes: number;
+    } = {
       lineUserId: user.lineUserId,
       name: user.name,
       nickname: user.nickname || '',
@@ -102,6 +105,7 @@ export default async function handler(
       businessLeaveBalance: user.businessLeaveBalance || 0,
       annualLeaveBalance: user.annualLeaveBalance || 0,
       overtimeLeaveBalance: user.overtimeLeaveBalance || 0,
+      potentialOvertimes: [] as unknown as PotentialOvertime[] & number,
     };
 
     const responseData = {
