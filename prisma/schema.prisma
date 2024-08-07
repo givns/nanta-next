@@ -40,6 +40,7 @@ model User {
   overtimeRequests        OvertimeRequest[]
   approvedOvertimeRequests OvertimeRequest[] @relation("OvertimeApprover")
   approvedOvertimes       ApprovedOvertime[]
+  potentialOvertimes PotentialOvertime[]
   checkPoints             CheckPoint[]
   timeEntries             TimeEntry[]
   createdAt               DateTime                 @default(now())
@@ -172,6 +173,19 @@ model TimeEntry {
   overtimeRequest   OvertimeRequest? @relation(fields: [overtimeRequestId], references: [id])
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+model PotentialOvertime {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId String   
+  user       User     @relation(fields: [employeeId], references: [employeeId])
+  date       DateTime
+  type       String
+  status     String
+  reviewedBy String?  @db.ObjectId
+  reviewedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model CheckPoint {

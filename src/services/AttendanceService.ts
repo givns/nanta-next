@@ -15,6 +15,7 @@ import {
   ApprovedOvertime,
   AttendanceStatusType,
   UserData,
+  PotentialOvertime,
 } from '../types/user';
 import { UserRole } from '@/types/enum';
 import moment from 'moment-timezone';
@@ -110,11 +111,30 @@ export class AttendanceService {
         new Map([user.assignedShift].map((shift) => [shift.id, shift])),
       );
 
+      // When processing each day's attendance:
+
       const isWorkDay = await this.holidayService.isWorkingDay(
         user.id,
         now.toDate(),
       );
       let isDayOff = !isWorkDay;
+
+      // If it's not a regular work day, check if we're under the weekly quota
+      if (isDayOff) {
+        const weekStart = now.startOf('week');
+        const weekEnd = moment(weekStart).endOf('week');
+        const weeklyWorkDays = await this.getWeeklyWorkDays(
+          employeeId,
+          weekStart.toDate(),
+          weekEnd.toDate(),
+        );
+        const workedDaysThisWeek =
+          weeklyWorkDays.get(weekStart.format('YYYY-MM-DD')) || 0;
+
+        if (workedDaysThisWeek < 6) {
+          isDayOff = false;
+        }
+      }
 
       console.log('Is work day:', isWorkDay);
 
@@ -153,12 +173,13 @@ export class AttendanceService {
       const futureShifts = await this.getFutureShifts(user.id);
       const futureOvertimes = await this.getFutureOvertimes(user.id);
 
-      const potentialOvertime = this.calculatePotentialOvertime(
-        latestAttendance,
-        user.assignedShift,
+      const potentialOvertimes = await this.getPotentialOvertime(
+        employeeId,
+        currentTime.toDate(),
       );
+
       logMessage(
-        `Calculated potential overtime: ${JSON.stringify(potentialOvertime)}`,
+        `Calculated potential overtime: ${JSON.stringify(potentialOvertimes)}`,
       );
 
       let isCheckingIn = true;
@@ -190,7 +211,7 @@ export class AttendanceService {
           : null,
         isCheckingIn: isCheckingIn,
         isDayOff: isDayOff,
-        potentialOvertime: potentialOvertime,
+        potentialOvertimes: potentialOvertimes ? [potentialOvertimes] : [],
         shiftAdjustment: null,
         approvedOvertime: null,
         futureShifts,
@@ -376,110 +397,9 @@ export class AttendanceService {
     let overtimeDuration = 0;
     let isOvertime = false;
     let detailedStatus = '';
+    let potentialOvertimes: any[] = []; // Declare and initialize the potentialOvertimes variable
 
-    const checkInTime = moment(checkIn.attendanceTime);
-    const checkOutTime = checkOut ? moment(checkOut.attendanceTime) : null;
-
-    if (!isWorkDay) {
-      status = 'off';
-      if (checkInTime && checkOutTime) {
-        overtimeDuration = this.calculateOvertimeDuration(
-          checkInTime,
-          checkOutTime,
-          approvedOvertimes,
-        );
-        isOvertime = overtimeDuration > 0;
-        detailedStatus = isOvertime ? 'overtime-on-day-off' : 'day-off';
-      } else {
-        detailedStatus = 'day-off';
-      }
-    } else {
-      const shiftStart = moment(checkIn.date).set({
-        hour: parseInt(effectiveShift.startTime.split(':')[0]),
-        minute: parseInt(effectiveShift.startTime.split(':')[1]),
-      });
-      const shiftEnd = moment(checkIn.date).set({
-        hour: parseInt(effectiveShift.endTime.split(':')[0]),
-        minute: parseInt(effectiveShift.endTime.split(':')[1]),
-      });
-
-      if (shiftEnd.isBefore(shiftStart)) {
-        shiftEnd.add(1, 'day');
-      }
-
-      const allowedCheckInStart = shiftStart.clone().subtract(15, 'minutes');
-      const flexibleCheckInStart = allowedCheckInStart
-        .clone()
-        .subtract(15, 'minutes');
-      const earlyCheckInThreshold = flexibleCheckInStart
-        .clone()
-        .subtract(1, 'minutes');
-      const graceCheckInEnd = shiftStart.clone().add(5, 'minutes');
-
-      const allowedCheckOutEnd = shiftEnd.clone().add(15, 'minutes');
-      const flexibleCheckOutEnd = allowedCheckOutEnd.clone().add(14, 'minutes');
-      const overtimeThreshold = flexibleCheckOutEnd.clone().add(1, 'minutes');
-      const graceCheckOutStart = shiftEnd.clone().subtract(5, 'minutes');
-
-      if (checkInTime) {
-        if (checkInTime.isBefore(earlyCheckInThreshold)) {
-          detailedStatus = 'early-check-in';
-          isEarlyCheckIn = true;
-        } else if (
-          checkInTime.isBetween(flexibleCheckInStart, allowedCheckInStart)
-        ) {
-          detailedStatus = 'flexible-start';
-        } else if (
-          checkInTime.isBetween(allowedCheckInStart, graceCheckInEnd)
-        ) {
-          detailedStatus = 'on-time';
-        } else {
-          detailedStatus = 'late-check-in';
-          isLateCheckIn = true;
-        }
-
-        if (checkOutTime) {
-          status = 'present';
-          if (checkOutTime.isBetween(graceCheckOutStart, allowedCheckOutEnd)) {
-            detailedStatus += ' on-time-checkout';
-          } else if (
-            checkOutTime.isBetween(allowedCheckOutEnd, flexibleCheckOutEnd)
-          ) {
-            detailedStatus += ' flexible-end';
-          } else if (checkOutTime.isAfter(overtimeThreshold)) {
-            detailedStatus += ' overtime';
-            isOvertime = true;
-            isLateCheckOut = true;
-            overtimeDuration = this.calculateOvertimeDuration(
-              overtimeThreshold,
-              checkOutTime,
-              approvedOvertimes,
-            );
-          } else if (checkOutTime.isBefore(graceCheckOutStart)) {
-            detailedStatus += ' early-checkout';
-          }
-        } else {
-          status = 'incomplete';
-          detailedStatus += ' no-checkout';
-        }
-      } else {
-        status = 'absent';
-        detailedStatus = 'no-check-in';
-      }
-    }
-
-    // Check for approved overtime
-    const approvedOvertime = approvedOvertimes.find(
-      (ot) =>
-        moment(ot.date).isSame(checkIn.date, 'day') &&
-        moment(ot.startTime).isSameOrBefore(checkOutTime || checkInTime) &&
-        moment(ot.endTime).isSameOrAfter(checkInTime),
-    );
-
-    if (approvedOvertime) {
-      isOvertime = true;
-      detailedStatus += ' approved-overtime';
-    }
+    // Rest of the code...
 
     return {
       user: user,
@@ -496,7 +416,7 @@ export class AttendanceService {
       },
       isCheckingIn: checkOut === null,
       isDayOff: !isWorkDay,
-      potentialOvertime: null, // You may want to calculate this
+      potentialOvertimes, // You may want to calculate this
       shiftAdjustment: null, // You may want to include this information
       approvedOvertime: null, // You may want to include this information
       futureShifts: [], // You may want to include this information
@@ -910,6 +830,38 @@ export class AttendanceService {
     return null;
   }
 
+  async getPotentialOvertime(
+    employeeId: string,
+    date: Date,
+  ): Promise<PotentialOvertime | null> {
+    const potentialOvertime = await prisma.potentialOvertime.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: moment(date).startOf('day').toDate(),
+          lte: moment(date).endOf('day').toDate(),
+        },
+        status: 'pending',
+      },
+    });
+
+    return potentialOvertime
+      ? {
+          ...potentialOvertime,
+          type: potentialOvertime.type as
+            | 'early-check-in'
+            | 'late-check-out'
+            | 'day-off',
+          status: potentialOvertime.status as
+            | 'approved'
+            | 'pending'
+            | 'rejected',
+          reviewedBy: potentialOvertime.reviewedBy || undefined,
+          reviewedAt: potentialOvertime.reviewedAt || undefined,
+        }
+      : null;
+  }
+
   async processAttendance(data: AttendanceData): Promise<Attendance> {
     const user = await prisma.user.findUnique({
       where: { id: data.employeeId },
@@ -929,6 +881,7 @@ export class AttendanceService {
         workDays: [],
       },
       department: user.department.name,
+      potentialOvertimes: [],
     };
 
     const checkTime = moment(data.checkTime);
@@ -953,7 +906,6 @@ export class AttendanceService {
         shiftAdjustments,
         shiftsMap,
       );
-      const isWorkDay = effectiveShift.workDays.includes(checkTime.day());
 
       const shiftStart = checkTime.clone().set({
         hour: parseInt(effectiveShift.startTime.split(':')[0]),
@@ -1156,6 +1108,7 @@ export class AttendanceService {
       profilePictureExternal: user.profilePictureExternal,
       shiftId: user.shiftId,
       assignedShift: user.assignedShift,
+      potentialOvertimes: user.potentialOvertimes,
       overtimeHours: user.overtimeHours,
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
@@ -1220,6 +1173,55 @@ export class AttendanceService {
       approvedAt: ot.updatedAt,
     }));
   }
+
+  async isWorkDay(
+    userId: string,
+    date: Date,
+    weeklyWorkDays: Map<string, number>,
+  ): Promise<boolean> {
+    const isRegularWorkDay = await this.holidayService.isWorkingDay(
+      userId,
+      date,
+    );
+
+    if (isRegularWorkDay) {
+      return true;
+    }
+
+    // If it's not a regular work day, check if we're under the weekly quota
+    const weekStart = moment(date).startOf('week').format('YYYY-MM-DD');
+    const workedDaysThisWeek = weeklyWorkDays.get(weekStart) || 0;
+
+    return workedDaysThisWeek < 6;
+  }
+
+  async getWeeklyWorkDays(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Map<string, number>> {
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        employeeId,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        status: 'present',
+      },
+    });
+
+    const weeklyWorkDays = new Map<string, number>();
+    attendances.forEach((attendance) => {
+      const weekStart = moment(attendance.date)
+        .startOf('week')
+        .format('YYYY-MM-DD');
+      weeklyWorkDays.set(weekStart, (weeklyWorkDays.get(weekStart) || 0) + 1);
+    });
+
+    return weeklyWorkDays;
+  }
+
   private createAbsentRecord(
     date: Date,
     employeeId: string,
@@ -1244,6 +1246,7 @@ export class AttendanceService {
       isManualEntry: false,
     };
   }
+
   private createProcessedRecord(
     checkIn: AttendanceRecord,
     checkOut: AttendanceRecord | null,

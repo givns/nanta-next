@@ -27,6 +27,7 @@ export interface UserData {
     workDays: number[];
   };
   overtimeHours: number;
+  potentialOvertimes: PotentialOvertime[];
   sickLeaveBalance: number;
   businessLeaveBalance: number;
   annualLeaveBalance: number;
@@ -101,10 +102,7 @@ export interface AttendanceStatus {
   } | null;
   isCheckingIn: boolean;
   isDayOff: boolean;
-  potentialOvertime: {
-    start: string;
-    end: string;
-  } | null;
+  potentialOvertimes: PotentialOvertime[];
   shiftAdjustment: {
     date: string;
     requestedShiftId: string;
@@ -127,9 +125,14 @@ export type AttendanceStatusType =
   | 'approved'
   | 'denied';
 
-export interface potentialOvertime {
-  start: string;
-  end: string;
+export interface PotentialOvertime {
+  id: string;
+  employeeId: string;
+  date: Date;
+  type: 'early-check-in' | 'late-check-out' | 'day-off';
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string;
+  reviewedAt?: Date;
 }
 
 export interface ShiftData {
