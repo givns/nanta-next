@@ -1,20 +1,28 @@
 import React, { useEffect, useState } from 'react';
-//trigger line notify
+
 const ApprovalDashboard: React.FC = () => {
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [overtimeRequests, setOvertimeRequests] = useState<any[]>([]);
+  const [potentialOvertimes, setPotentialOvertimes] = useState<any[]>([]);
   const [message, setMessage] = useState<string>('');
 
   useEffect(() => {
     const fetchRequests = async () => {
       try {
-        const leaveResponse = await fetch('/api/getLeaveRequests');
-        const leaveData = await leaveResponse.json();
-        setLeaveRequests(leaveData.requests);
+        const [leaveResponse, overtimeResponse, potentialOvertimeResponse] =
+          await Promise.all([
+            fetch('/api/getLeaveRequests'),
+            fetch('/api/getOvertimeRequests'),
+            fetch('/api/getPotentialOvertimes'),
+          ]);
 
-        const overtimeResponse = await fetch('/api/getOvertimeRequests');
+        const leaveData = await leaveResponse.json();
         const overtimeData = await overtimeResponse.json();
+        const potentialOvertimeData = await potentialOvertimeResponse.json();
+
+        setLeaveRequests(leaveData.requests);
         setOvertimeRequests(overtimeData.requests);
+        setPotentialOvertimes(potentialOvertimeData.requests);
       } catch (error) {
         console.error('Error fetching requests:', error);
       }
@@ -40,14 +48,19 @@ const ApprovalDashboard: React.FC = () => {
       if (response.ok) {
         setMessage(`Request ${action}d successfully`);
         // Refresh the request lists
-        const updatedLeaveRequests = leaveRequests.filter(
-          (request) => request._id !== requestId,
-        );
-        setLeaveRequests(updatedLeaveRequests);
-        const updatedOvertimeRequests = overtimeRequests.filter(
-          (request) => request._id !== requestId,
-        );
-        setOvertimeRequests(updatedOvertimeRequests);
+        if (type === 'leave') {
+          setLeaveRequests(
+            leaveRequests.filter((request) => request._id !== requestId),
+          );
+        } else if (type === 'overtime') {
+          setOvertimeRequests(
+            overtimeRequests.filter((request) => request._id !== requestId),
+          );
+        } else if (type === 'potentialOvertime') {
+          setPotentialOvertimes(
+            potentialOvertimes.filter((request) => request._id !== requestId),
+          );
+        }
       } else {
         setMessage('Failed to process the request');
       }
@@ -61,6 +74,7 @@ const ApprovalDashboard: React.FC = () => {
     <div>
       <h1>Approval Dashboard</h1>
       {message && <p>{message}</p>}
+
       <h2>Leave Requests</h2>
       {leaveRequests.length === 0 ? (
         <p>No leave requests</p>
@@ -79,6 +93,7 @@ const ApprovalDashboard: React.FC = () => {
           </div>
         ))
       )}
+
       <h2>Overtime Requests</h2>
       {overtimeRequests.length === 0 ? (
         <p>No overtime requests</p>
@@ -93,6 +108,39 @@ const ApprovalDashboard: React.FC = () => {
             </button>
             <button
               onClick={() => handleAction(request._id, 'overtime', 'deny')}
+            >
+              Deny
+            </button>
+          </div>
+        ))
+      )}
+
+      <h2>Potential Overtime</h2>
+      {potentialOvertimes.length === 0 ? (
+        <p>No potential overtime</p>
+      ) : (
+        potentialOvertimes.map((overtime) => (
+          <div key={overtime._id}>
+            <p>Date: {new Date(overtime.date).toLocaleDateString()}</p>
+            <p>Hours: {overtime.hours}</p>
+            <p>Type: {overtime.type}</p>
+            {overtime.periods &&
+              overtime.periods.map((period: any, index: number) => (
+                <p key={index}>
+                  {period.start} - {period.end}
+                </p>
+              ))}
+            <button
+              onClick={() =>
+                handleAction(overtime._id, 'potentialOvertime', 'approve')
+              }
+            >
+              Approve
+            </button>
+            <button
+              onClick={() =>
+                handleAction(overtime._id, 'potentialOvertime', 'deny')
+              }
             >
               Deny
             </button>

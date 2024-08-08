@@ -4,6 +4,7 @@ import {
   ShiftData,
   UserData,
   ApprovedOvertime,
+  PotentialOvertime,
 } from '../types/user';
 import { formatTime } from '../utils/dateUtils';
 import { getDeviceType } from '../utils/deviceUtils';
@@ -159,15 +160,25 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             </div>
           )}
 
-        {attendanceStatus.isDayOff && attendanceStatus.potentialOvertime && (
-          <div className="bg-white p-4 rounded-lg mb-4 mt-2 text-yellow-600">
-            <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
-            <p className="text-gray-800">
-              {attendanceStatus.potentialOvertime[0].start} -{' '}
-              {attendanceStatus.potentialOvertime[0].end}
-            </p>
-          </div>
-        )}
+        {attendanceStatus.isDayOff &&
+          attendanceStatus.potentialOvertimes &&
+          attendanceStatus.potentialOvertimes.length > 0 && (
+            <div className="bg-white p-4 rounded-lg mb-4 mt-2 text-yellow-600">
+              <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
+              {attendanceStatus.potentialOvertimes.map((overtime, index) => (
+                <p key={index} className="text-gray-800">
+                  {overtime.periods &&
+                    overtime.periods.map((period, periodIndex) => (
+                      <span key={periodIndex}>
+                        {period.start} - {period.end}
+                        {periodIndex < (overtime.periods?.length ?? 0) - 1 &&
+                          ', '}
+                      </span>
+                    ))}
+                </p>
+              ))}
+            </div>
+          )}
       </>
     );
   };
