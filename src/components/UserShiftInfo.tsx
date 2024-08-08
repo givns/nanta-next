@@ -159,12 +159,12 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             </div>
           )}
 
-        {attendanceStatus.isDayOff && attendanceStatus.potentialOvertimes && (
+        {attendanceStatus.isDayOff && attendanceStatus.potentialOvertime && (
           <div className="bg-white p-4 rounded-lg mb-4 mt-2 text-yellow-600">
             <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
             <p className="text-gray-800">
-              {attendanceStatus.potentialOvertimes[0].start} -{' '}
-              {attendanceStatus.potentialOvertimes[0].end}
+              {attendanceStatus.potentialOvertime[0].start} -{' '}
+              {attendanceStatus.potentialOvertime[0].end}
             </p>
           </div>
         )}

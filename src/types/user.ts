@@ -97,12 +97,12 @@ export interface AttendanceStatus {
     checkOutTime: string | null;
     checkInDeviceSerial: string;
     checkOutDeviceSerial: string | null;
-    status: AttendanceStatusType; // Update this line
+    status: AttendanceStatusType;
     isManualEntry: boolean;
   } | null;
   isCheckingIn: boolean;
   isDayOff: boolean;
-  potentialOvertimes: PotentialOvertime[];
+  potentialOvertime: PotentialOvertime[];
   shiftAdjustment: {
     date: string;
     requestedShiftId: string;
