@@ -42,7 +42,12 @@ export default function AttendanceProcessingTest() {
       );
       setResult(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'An error occurred');
+      console.error('Error in attendance processing:', err);
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          'An unknown error occurred',
+      );
     } finally {
       setLoading(false);
     }
