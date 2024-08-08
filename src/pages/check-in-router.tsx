@@ -5,11 +5,11 @@ import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
 import dayjs from 'dayjs';
-import 'dayjs/locale/th'; // Import Thai locale
+import 'dayjs/locale/th';
 
-dayjs.locale('th'); // Set dayjs to use Thai locale
+dayjs.locale('th');
 
-const today = dayjs(); // Get current date
+const today = dayjs();
 const currentDate = dayjs().format('D MMMM YYYY');
 
 const CheckInRouter: React.FC = () => {
@@ -44,24 +44,16 @@ const CheckInRouter: React.FC = () => {
         const profile = await liff.getProfile();
         console.log('User profile:', profile);
 
-        console.log('Fetching user data');
-        const userResponse = await axios.get(
-          `/api/users?lineUserId=${profile.userId}`,
+        console.log('Fetching user data and attendance status');
+        const response = await axios.get(
+          `/api/user-check-in-status?lineUserId=${profile.userId}`,
         );
-        const user = userResponse.data.user;
+        const { user, attendanceStatus } = response.data;
         console.log('User data:', user);
-        setUserData(user);
+        console.log('Attendance status:', attendanceStatus);
 
-        if (user.employeeId) {
-          console.log('Fetching attendance status');
-          const statusResponse = await axios.get(
-            `/api/check-status?employeeId=${user.employeeId}`,
-          );
-          console.log('Attendance status:', statusResponse.data);
-          setAttendanceStatus(statusResponse.data);
-        } else {
-          setError('Employee ID not found');
-        }
+        setUserData(user);
+        setAttendanceStatus(attendanceStatus);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
         setError(
