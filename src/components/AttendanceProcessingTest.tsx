@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import axios from 'axios';
 
 interface TestResult {
@@ -66,7 +66,7 @@ export default function AttendanceProcessingTest() {
 
       {error && (
         <Alert variant="destructive" className="mb-4">
-          <AlertTitle>Error</AlertTitle>
+          <h2 className="text-lg font-semibold">Error</h2>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -75,7 +75,7 @@ export default function AttendanceProcessingTest() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>User Data</CardTitle>
+              <h2 className="text-xl font-semibold">User Data</h2>
             </CardHeader>
             <CardContent>
               <pre className="whitespace-pre-wrap">
@@ -86,7 +86,7 @@ export default function AttendanceProcessingTest() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Payroll Period</CardTitle>
+              <h2 className="text-xl font-semibold">Payroll Period</h2>
             </CardHeader>
             <CardContent>
               <p>Start: {result.payrollPeriod.start}</p>
@@ -96,7 +96,7 @@ export default function AttendanceProcessingTest() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Processed Attendance</CardTitle>
+              <h2 className="text-xl font-semibold">Processed Attendance</h2>
             </CardHeader>
             <CardContent>
               <pre className="whitespace-pre-wrap">
@@ -107,7 +107,7 @@ export default function AttendanceProcessingTest() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Summary</CardTitle>
+              <h2 className="text-xl font-semibold">Summary</h2>
             </CardHeader>
             <CardContent>
               <p>Total Working Days: {result.summary.totalWorkingDays}</p>
@@ -119,7 +119,7 @@ export default function AttendanceProcessingTest() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Leave Balances</CardTitle>
+              <h2 className="text-xl font-semibold">Leave Balances</h2>
             </CardHeader>
             <CardContent>
               <pre className="whitespace-pre-wrap">
@@ -130,7 +130,7 @@ export default function AttendanceProcessingTest() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Shift Adjustments</CardTitle>
+              <h2 className="text-xl font-semibold">Shift Adjustments</h2>
             </CardHeader>
             <CardContent>
               <pre className="whitespace-pre-wrap">
@@ -141,7 +141,7 @@ export default function AttendanceProcessingTest() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Approved Overtimes</CardTitle>
+              <h2 className="text-xl font-semibold">Approved Overtimes</h2>
             </CardHeader>
             <CardContent>
               <pre className="whitespace-pre-wrap">
@@ -152,7 +152,7 @@ export default function AttendanceProcessingTest() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Processing Logs</CardTitle>
+              <h2 className="text-xl font-semibold">Processing Logs</h2>
             </CardHeader>
             <CardContent>
               <div className="bg-gray-100 p-4 rounded-md">
