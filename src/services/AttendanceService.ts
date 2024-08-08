@@ -930,7 +930,7 @@ export class AttendanceService {
       : null;
   }
 
-  private convertToUserData(user: any): UserData {
+  public convertToUserData(user: any): UserData {
     return {
       employeeId: user.employeeId,
       name: user.name,
