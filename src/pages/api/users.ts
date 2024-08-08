@@ -47,6 +47,7 @@ export default async function handler(
       include: {
         assignedShift: true,
         department: true,
+        potentialOvertimes: true,
       },
     });
 
@@ -81,13 +82,10 @@ export default async function handler(
     );
     const balanceLeave = await calculateLeaveBalance(user.id);
 
-    const userData: UserData & {
-      assignedShift: ShiftData;
-      potentialOvertimes: number;
-    } = {
+    const userData: UserData = {
       lineUserId: user.lineUserId,
       name: user.name,
-      nickname: user.nickname || '',
+      nickname: user.nickname,
       departmentId: user.departmentId,
       department: user.department.name,
       employeeId: user.employeeId,
@@ -95,17 +93,27 @@ export default async function handler(
       shiftId: user.shiftId,
       assignedShift: user.assignedShift as ShiftData,
       profilePictureUrl: user.profilePictureUrl,
-      profilePictureExternal: user.profilePictureExternal
-        ? `https://profile-pictures/${user.profilePictureExternal}.jpg`
-        : null,
+      profilePictureExternal: user.profilePictureExternal,
+      overtimeHours: user.overtimeHours,
+      potentialOvertimes: user.potentialOvertimes.map((po) => ({
+        id: po.id,
+        employeeId: po.employeeId,
+        date: po.date,
+        hours: po.hours,
+        type: po.type as 'early-check-in' | 'late-check-out' | 'day-off',
+        status: po.status as 'pending' | 'approved' | 'rejected',
+        periods: po.periods ? JSON.parse(po.periods as string) : undefined,
+        reviewedBy: po.reviewedBy ?? undefined,
+        reviewedAt: po.reviewedAt ?? undefined,
+        createdAt: po.createdAt,
+        updatedAt: po.updatedAt,
+      })),
+      sickLeaveBalance: user.sickLeaveBalance,
+      businessLeaveBalance: user.businessLeaveBalance,
+      annualLeaveBalance: user.annualLeaveBalance,
+      overtimeLeaveBalance: user.overtimeLeaveBalance,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      overtimeHours: user.overtimeHours || 0,
-      sickLeaveBalance: user.sickLeaveBalance || 0,
-      businessLeaveBalance: user.businessLeaveBalance || 0,
-      annualLeaveBalance: user.annualLeaveBalance || 0,
-      overtimeLeaveBalance: user.overtimeLeaveBalance || 0,
-      potentialOvertimes: [] as unknown as PotentialOvertime[] & number,
     };
 
     const responseData = {

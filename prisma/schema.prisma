@@ -180,8 +180,10 @@ model PotentialOvertime {
   employeeId String   
   user       User     @relation(fields: [employeeId], references: [employeeId])
   date       DateTime
-  type       String
-  status     String
+  hours      Float
+  type       String // 'early-check-in', 'late-check-out', 'day-off'
+  status     String // 'pending', 'approved', 'rejected'
+  periods    Json?    // Store the overtime periods as JSON
   reviewedBy String?  @db.ObjectId
   reviewedAt DateTime?
   createdAt  DateTime @default(now())

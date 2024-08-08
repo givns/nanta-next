@@ -102,7 +102,7 @@ export interface AttendanceStatus {
   } | null;
   isCheckingIn: boolean;
   isDayOff: boolean;
-  potentialOvertime: PotentialOvertime[];
+  potentialOvertimes: PotentialOvertime[];
   shiftAdjustment: {
     date: string;
     requestedShiftId: string;
@@ -129,12 +129,14 @@ export interface PotentialOvertime {
   id: string;
   employeeId: string;
   date: Date;
-  start: string;
-  end: string;
+  hours: number;
   type: 'early-check-in' | 'late-check-out' | 'day-off';
   status: 'pending' | 'approved' | 'rejected';
+  periods?: { start: string; end: string }[];
   reviewedBy?: string;
   reviewedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ShiftData {
@@ -157,6 +159,8 @@ export interface AttendanceRecord {
   isDayOff: boolean;
   overtimeStartTime: Date | null;
   overtimeEndTime: Date | null;
+  overtimeHours: number;
+  overtimeDuration: number;
   checkInLocation: any | null;
   checkOutLocation: any | null;
   checkInAddress: string | null;
@@ -178,6 +182,11 @@ export type ProcessedAttendance = {
   checkIn?: string;
   checkOut?: string;
   status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off';
+  regularHours: number;
+  potentialOvertimePeriods: {
+    start: string;
+    end: string;
+  }[];
   isEarlyCheckIn?: boolean;
   isLateCheckIn?: boolean;
   isLateCheckOut?: boolean;
