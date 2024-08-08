@@ -43,15 +43,15 @@ export class AttendanceSyncService {
       const { records, userInfo } =
         await externalDbService.getDailyAttendanceRecords(
           user.employeeId,
-          1, // Replace startDate with the number of days
+          1, // Number of days to sync
         );
-
+  
       for (const record of records) {
         const existingAttendance = await this.findExistingAttendance(
           user.id,
           new Date(record.sj),
         );
-
+  
         if (!existingAttendance) {
           const convertedRecord =
             attendanceService.convertExternalToAttendanceRecord(record);
@@ -60,10 +60,9 @@ export class AttendanceSyncService {
               [convertedRecord],
               attendanceService.convertToUserData(user),
               new Date(record.date),
-              new Date(record.date),
-              new Map([[user.assignedShift.id, user.assignedShift]]),
+              new Date(record.date)
             );
-
+  
           if (processedAttendance.length > 0) {
             const attendance = processedAttendance[0];
             const message = this.createNotificationMessage(record, attendance);
