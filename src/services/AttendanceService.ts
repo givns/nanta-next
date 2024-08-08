@@ -179,13 +179,21 @@ export class AttendanceService {
   }
 
   async processAttendanceData(
-    attendanceRecords: AttendanceRecord[],
+    attendanceRecords: (AttendanceRecord | ExternalCheckInData)[],
     user: UserData,
     startDate: Date,
     endDate: Date,
   ): Promise<ProcessedAttendance[]> {
     logMessage(
       `Processing attendance data for ${user.employeeId} from ${startDate} to ${endDate}`,
+    );
+
+    // Convert external records if necessary
+    const convertedRecords: AttendanceRecord[] = attendanceRecords.map(
+      (record) =>
+        'sj' in record
+          ? this.convertExternalToAttendanceRecord(record)
+          : record,
     );
     const shiftAdjustments = await this.getShiftAdjustments(
       user.employeeId,
@@ -200,7 +208,7 @@ export class AttendanceService {
     const shifts = await this.getAllShifts();
 
     const groupedRecords = this.groupRecordsByDate(
-      attendanceRecords,
+      convertedRecords,
       user,
       shiftAdjustments,
       shifts,
@@ -1054,7 +1062,7 @@ export class AttendanceService {
   }
 
   // Helper methods for converting between different attendance record formats
-  private convertInternalToAttendanceRecord(
+  public convertInternalToAttendanceRecord(
     internal: Attendance,
   ): AttendanceRecord {
     return {

@@ -157,6 +157,28 @@ model Attendance {
   user              User @relation(fields: [employeeId], references: [employeeId])
 }
 
+model ProcessedAttendance {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId         String
+  date               DateTime
+  checkIn            String?
+  checkOut           String?
+  status             String
+  regularHours       Float
+  overtimeHours      Float?
+  isEarlyCheckIn     Boolean?
+  isLateCheckIn      Boolean?
+  isLateCheckOut     Boolean?
+  isOvertime         Boolean
+  detailedStatus     String
+  overtimeDuration   Float
+  checkInDeviceSerial  String?
+  checkOutDeviceSerial String?
+  isManualEntry      Boolean
+
+  @@index([employeeId, date])
+}
+
 model TimeEntry {
   id                String    @id @default(auto()) @map("_id") @db.ObjectId
   employeeId            String   
