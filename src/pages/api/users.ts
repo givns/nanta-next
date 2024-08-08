@@ -55,33 +55,6 @@ export default async function handler(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const processedAttendance = await attendanceService.getHistoricalAttendance(
-      user.employeeId,
-      startDate.toDate(),
-      endDate.toDate(),
-    );
-
-    const holidays = await holidayService.getHolidays(
-      startDate.toDate(),
-      endDate.toDate(),
-    );
-    const totalDaysInPeriod = endDate.diff(startDate, 'days') + 1;
-    const totalWorkingDays = calculateTotalWorkingDays(
-      totalDaysInPeriod,
-      user.assignedShift.workDays,
-      holidays.length,
-    );
-
-    const totalPresent = processedAttendance.filter(
-      (a) => a.status === 'present',
-    ).length;
-    const totalAbsent = totalWorkingDays - totalPresent;
-    const overtimeHours = processedAttendance.reduce(
-      (sum, a) => sum + (a.overtimeHours || 0),
-      0,
-    );
-    const balanceLeave = await calculateLeaveBalance(user.id);
-
     const userData: UserData = {
       lineUserId: user.lineUserId,
       name: user.name,
@@ -115,51 +88,8 @@ export default async function handler(
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
-
-    const responseData = {
-      user: userData,
-      payrollAttendance: processedAttendance,
-      totalWorkingDays,
-      totalPresent,
-      totalAbsent,
-      overtimeHours,
-      balanceLeave,
-      payrollPeriod: {
-        start: startDate.format('YYYY-MM-DD'),
-        end: endDate.format('YYYY-MM-DD'),
-      },
-    };
-
-    res.status(200).json(responseData);
   } catch (error) {
-    console.error('Error fetching user data:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error fetching user:', error);
+    res.status(500).json({ error: 'Error fetching user data' });
   }
-}
-
-function calculateTotalWorkingDays(
-  totalDays: number,
-  workDays: number[],
-  holidays: number,
-): number {
-  const workingDaysPerWeek = workDays.length;
-  const weeks = Math.floor(totalDays / 7);
-  const remainingDays = totalDays % 7;
-
-  let totalWorkingDays = weeks * workingDaysPerWeek;
-
-  for (let i = 0; i < remainingDays; i++) {
-    if (workDays.includes((i + 1) % 7)) {
-      totalWorkingDays++;
-    }
-  }
-
-  return totalWorkingDays - holidays;
-}
-
-async function calculateLeaveBalance(id: string): Promise<number> {
-  // Implement leave balance calculation logic here
-  // This could involve fetching the user's leave requests and calculating the remaining balance
-  // For now, we'll return a placeholder value
-  return 10;
 }
