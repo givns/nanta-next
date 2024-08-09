@@ -71,10 +71,7 @@ export async function processAttendance(job: Job): Promise<any> {
       moment(today).date() >= 26
         ? moment(today).date(26).startOf('day')
         : moment(today).subtract(1, 'month').date(26).startOf('day');
-    const endDate = moment(startDate)
-      .add(1, 'month')
-      .subtract(1, 'day')
-      .endOf('day');
+    const endDate = moment().endOf('day'); // Use current date instead of full period end
 
     logMessage(
       `Payroll period: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`,

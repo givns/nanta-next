@@ -209,9 +209,8 @@ export class AttendanceService {
 
     const processedAttendance: ProcessedAttendance[] = [];
     const currentDate = moment(startDate);
-    const endMoment = moment(endDate);
 
-    while (currentDate.isSameOrBefore(endMoment)) {
+    while (currentDate.isSameOrBefore(moment(), 'day')) {
       const dateStr = currentDate.format('YYYY-MM-DD');
       const records = groupedRecords[dateStr] || [];
       const effectiveShift = this.getEffectiveShift(
@@ -226,13 +225,9 @@ export class AttendanceService {
         effectiveShift,
       );
 
-      if (records.length === 0) {
+      if (records.length === 0 && !isDayOff) {
         processedAttendance.push(
-          this.createAbsentRecord(
-            currentDate.toDate(),
-            user.employeeId,
-            !isDayOff,
-          ),
+          this.createAbsentRecord(currentDate.toDate(), user.employeeId, true),
         );
       } else {
         for (let i = 0; i < records.length; i += chunkSize) {
@@ -264,6 +259,10 @@ export class AttendanceService {
     shift: ShiftData,
     isWorkDay: boolean,
   ): Promise<ProcessedAttendance> {
+    logMessage(
+      `Processing record for ${record.date.toISOString()}, isWorkDay: ${isWorkDay}`,
+    );
+
     const checkInTime = moment(record.checkInTime);
     const checkOutTime = record.checkOutTime
       ? moment(record.checkOutTime)
@@ -271,6 +270,11 @@ export class AttendanceService {
     const shiftStart = moment(shift.startTime, 'HH:mm');
     const shiftEnd = moment(shift.endTime, 'HH:mm');
     if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, 'day');
+
+    logMessage(
+      `Check-in: ${checkInTime.format()}, Check-out: ${checkOutTime ? checkOutTime.format() : 'N/A'}`,
+    );
+    logMessage(`Shift: ${shiftStart.format()} - ${shiftEnd.format()}`);
 
     let status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off' =
       'present';
@@ -306,6 +310,8 @@ export class AttendanceService {
       );
     }
 
+    console.log(`Determined status: ${status}`);
+
     return {
       id: record.id,
       employeeId: record.employeeId,
@@ -340,6 +346,9 @@ export class AttendanceService {
   ): Promise<boolean> {
     const dayOfWeek = moment(date).day();
     if (!shift.workDays.includes(dayOfWeek)) return true;
+    console.log(
+      `Checking day off for ${date.toISOString()}, shift work days: ${shift.workDays}`,
+    );
 
     const isHoliday = await this.holidayService.isHoliday(date);
     if (isHoliday) return true;
