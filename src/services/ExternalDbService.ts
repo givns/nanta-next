@@ -112,45 +112,86 @@ export class ExternalDbService {
     page: number = 1,
     pageSize: number = 100,
   ): Promise<{ records: ExternalCheckInData[]; totalCount: number }> {
-    const offset = (page - 1) * pageSize;
+    return retry(
+      async () => {
+        const offset = (page - 1) * pageSize;
 
-    const attendanceQuery = `
-      SELECT kj.sj, kj.user_serial, kj.bh, kj.dev_serial, kj.date, kj.time, kj.fx,
-             du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
-      FROM kt_jl kj
-      JOIN dt_user du ON kj.user_serial = du.user_serial
-      LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
-      WHERE du.user_no = ? 
-      AND kj.date >= ?
-      AND kj.date <= ?
-      ORDER BY kj.sj ASC
-      LIMIT ? OFFSET ?
-    `;
+        console.log(
+          `Fetching historical attendance records for employeeId: ${employeeId}`,
+        );
+        console.log(
+          `Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`,
+        );
+        console.log(`Page: ${page}, PageSize: ${pageSize}`);
 
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM kt_jl kj
-      JOIN dt_user du ON kj.user_serial = du.user_serial
-      WHERE du.user_no = ? 
-      AND kj.date >= ?
-      AND kj.date <= ?
-    `;
+        const attendanceQuery = `
+          SELECT kj.sj, kj.user_serial, kj.bh, kj.dev_serial, kj.date, kj.time, kj.fx,
+                 du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
+          FROM kt_jl kj
+          JOIN dt_user du ON kj.user_serial = du.user_serial
+          LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
+          WHERE du.user_no = ? 
+          AND kj.date >= ?
+          AND kj.date <= ?
+          ORDER BY kj.sj ASC
+          LIMIT ? OFFSET ?
+        `;
 
-    const [records, [countResult]] = await Promise.all([
-      query<ExternalCheckInData[]>(attendanceQuery, [
-        employeeId,
-        startDate,
-        endDate,
-        pageSize,
-        offset,
-      ]),
-      query<{ total: number }[]>(countQuery, [employeeId, startDate, endDate]),
-    ]);
+        const countQuery = `
+          SELECT COUNT(*) as total
+          FROM kt_jl kj
+          JOIN dt_user du ON kj.user_serial = du.user_serial
+          WHERE du.user_no = ? 
+          AND kj.date >= ?
+          AND kj.date <= ?
+        `;
 
-    return {
-      records,
-      totalCount: countResult.total,
-    };
+        console.log('Executing attendance query:', attendanceQuery);
+        console.log('Query parameters:', [
+          employeeId,
+          startDate,
+          endDate,
+          pageSize,
+          offset,
+        ]);
+
+        const [records, [countResult]] = await Promise.all([
+          query<ExternalCheckInData[]>(attendanceQuery, [
+            employeeId,
+            startDate,
+            endDate,
+            pageSize,
+            offset,
+          ]),
+          query<{ total: number }[]>(countQuery, [
+            employeeId,
+            startDate,
+            endDate,
+          ]),
+        ]);
+
+        console.log(
+          `Raw attendance records: ${JSON.stringify(records, null, 2)}`,
+        );
+        console.log(`Total count: ${countResult.total}`);
+
+        const processedRecords = records.map((record) => ({
+          ...record,
+          sj: moment(record.sj).format(),
+        }));
+
+        console.log(
+          `Processed attendance records: ${JSON.stringify(processedRecords, null, 2)}`,
+        );
+
+        return {
+          records: processedRecords,
+          totalCount: countResult.total,
+        };
+      },
+      3,
+      1000,
+    );
   }
 
   async createManualEntry(data: ExternalManualEntryInputData) {

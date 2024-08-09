@@ -54,7 +54,7 @@ export async function processAttendance(job: Job): Promise<any> {
       shiftId: user.shiftId,
       assignedShift: user.assignedShift,
       overtimeHours: user.overtimeHours,
-      potentialOvertimes: [],
+      potentialOvertimes: [], // This should be populated if needed
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
@@ -81,90 +81,48 @@ export async function processAttendance(job: Job): Promise<any> {
     );
 
     // Fetch attendance records
-    const attendances = await prisma.attendance.findMany({
-      where: {
-        employeeId: user.employeeId,
-        date: {
-          gte: startDate.toDate(),
-          lte: endDate.toDate(),
-        },
-      },
-      orderBy: { date: 'asc' },
-    });
+    logMessage(`Fetching attendance records from external database...`);
+    const { records: externalAttendances, totalCount } =
+      await externalDbService.getHistoricalAttendanceRecords(
+        user.employeeId,
+        startDate.toDate(),
+        endDate.toDate(),
+      );
 
-    logMessage(`Found ${attendances.length} attendance records`);
+    logMessage(
+      `Found ${externalAttendances.length} attendance records out of ${totalCount} total records`,
+    );
 
-    // Process each attendance record
-    const processedAttendance: ProcessedAttendance[] = await Promise.all(
-      attendances.map(async (attendance) => {
-        logMessage(`Processing attendance for date: ${attendance.date}`);
-
-        const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
-          where: {
-            employeeId: user.employeeId,
-            date: attendance.date,
-            status: 'approved',
-          },
-          include: { requestedShift: true },
-        });
-
-        logMessage(
-          `Shift adjustment for ${attendance.date}: ${shiftAdjustment ? 'Found' : 'Not found'}`,
-        );
-
-        const effectiveShift =
-          shiftAdjustment?.requestedShift || user.assignedShift;
-        logMessage(`Effective shift: ${JSON.stringify(effectiveShift)}`);
-
-        // Check if it's a day off
-        const isDayOff = await attendanceService['isDayOff'](
+    if (externalAttendances.length === 0) {
+      logMessage('No attendance records found. Fetching sample records...');
+      const { records: sampleRecords } =
+        await externalDbService.getHistoricalAttendanceRecords(
           user.employeeId,
-          attendance.date,
-          effectiveShift,
+          moment().subtract(3, 'months').toDate(),
+          moment().toDate(),
+          1,
+          5,
         );
-        logMessage(`Is day off: ${isDayOff}`);
+      logMessage('Sample records:'); // Remove the second argument from this line
+    }
 
-        // Convert Attendance to AttendanceRecord
-        const attendanceRecord: AttendanceRecord = {
-          id: attendance.id,
-          employeeId: attendance.employeeId,
-          date: attendance.date,
-          attendanceTime: attendance.checkInTime || attendance.date,
-          checkInTime: attendance.checkInTime,
-          checkOutTime: attendance.checkOutTime,
-          isOvertime: attendance.isOvertime,
-          isDayOff: isDayOff,
-          overtimeStartTime: attendance.overtimeStartTime,
-          overtimeEndTime: attendance.overtimeEndTime,
-          overtimeHours: attendance.overtimeDuration || 0,
-          overtimeDuration: attendance.overtimeDuration || 0,
-          checkInLocation: attendance.checkInLocation as any,
-          checkOutLocation: attendance.checkOutLocation as any,
-          checkInAddress: attendance.checkInAddress,
-          checkOutAddress: attendance.checkOutAddress,
-          checkInReason: attendance.checkInReason,
-          checkOutReason: attendance.checkOutReason,
-          checkInPhoto: attendance.checkInPhoto,
-          checkOutPhoto: attendance.checkOutPhoto,
-          checkInDeviceSerial: attendance.checkInDeviceSerial,
-          checkOutDeviceSerial: attendance.checkOutDeviceSerial,
-          status: attendance.status,
-          isManualEntry: attendance.isManualEntry,
-        };
+    // Convert external attendance records to AttendanceRecord format
+    const attendanceRecords: AttendanceRecord[] = externalAttendances.map(
+      (externalRecord) =>
+        attendanceService.convertExternalToAttendanceRecord(externalRecord),
+    );
 
-        logMessage(
-          `AttendanceRecord prepared: ${JSON.stringify(attendanceRecord)}`,
-        );
+    logMessage(
+      `Converted ${attendanceRecords.length} external records to AttendanceRecord format`,
+    );
 
-        const processedRecord = await attendanceService.processAttendanceRecord(
-          attendanceRecord,
-          effectiveShift,
-          !isDayOff,
-        );
-
-        logMessage(`Processed attendance: ${JSON.stringify(processedRecord)}`);
-        return processedRecord;
-      }),
+    // Process attendance data
+    logMessage('Processing attendance data...');
+    const processedAttendance = await attendanceService.processAttendanceData(
+      attendanceRecords,
+      userData,
+      startDate.toDate(),
+      endDate.toDate(),
     );
 
     logMessage(`Processed ${processedAttendance.length} attendance records`);
@@ -224,6 +182,13 @@ export async function processAttendance(job: Job): Promise<any> {
       success: true,
       message: 'Payroll processed successfully',
       payrollProcessingResultId: payrollProcessingResult.id,
+      summary: {
+        totalWorkingDays,
+        totalPresent,
+        totalAbsent,
+        totalOvertimeHours,
+        totalRegularHours,
+      },
     };
   } catch (error: any) {
     logMessage(`Error processing payroll: ${error.message}`);
