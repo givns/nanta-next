@@ -1,22 +1,7 @@
 // pages/api/test-payroll-processing.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
-import { AttendanceService } from '../../services/AttendanceService';
-import { ExternalDbService } from '../../services/ExternalDbService';
-import { HolidayService } from '../../services/HolidayService';
-import { Shift104HolidayService } from '../../services/Shift104HolidayService';
-import { UserData, AttendanceRecord } from '../../types/user';
-import moment from 'moment-timezone';
 
-const prisma = new PrismaClient();
-const externalDbService = new ExternalDbService();
-const holidayService = new HolidayService();
-const shift104HolidayService = new Shift104HolidayService();
-const attendanceService = new AttendanceService(
-  externalDbService,
-  holidayService,
-  shift104HolidayService,
-);
+import { NextApiRequest, NextApiResponse } from 'next';
+import { getAttendanceProcessingQueue } from '../../lib/queue';
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,83 +18,15 @@ export default async function handler(
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { employeeId },
-      include: {
-        assignedShift: true,
-        department: true,
-        potentialOvertimes: true,
-      },
-    });
+    const queue = getAttendanceProcessingQueue();
+    const job = await queue.add('process-payroll', { employeeId });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const userData: UserData = {
-      employeeId: user.employeeId,
-      name: user.name,
-      lineUserId: user.lineUserId,
-      nickname: user.nickname,
-      departmentId: user.departmentId,
-      department: user.department.name,
-      role: user.role as any, // Cast to UserRole enum if necessary
-      profilePictureUrl: user.profilePictureUrl,
-      profilePictureExternal: user.profilePictureExternal,
-      shiftId: user.shiftId,
-      assignedShift: user.assignedShift,
-      overtimeHours: user.overtimeHours,
-      potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
-        ...overtime,
-        type: overtime.type as 'early-check-in' | 'late-check-out' | 'day-off',
-        status: overtime.status as 'approved' | 'pending' | 'rejected',
-        periods: overtime.periods as
-          | { start: string; end: string }[]
-          | undefined,
-        reviewedBy: overtime.reviewedBy || undefined,
-        reviewedAt: overtime.reviewedAt ?? undefined,
-      })),
-      sickLeaveBalance: user.sickLeaveBalance,
-      businessLeaveBalance: user.businessLeaveBalance,
-      annualLeaveBalance: user.annualLeaveBalance,
-      overtimeLeaveBalance: user.overtimeLeaveBalance,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
-
-    const today = moment().tz('Asia/Bangkok');
-    const startDate = moment(today).subtract(1, 'month').startOf('day');
-    const endDate = moment(today).endOf('day');
-
-    const { records, totalCount } =
-      await externalDbService.getHistoricalAttendanceRecords(
-        employeeId,
-        startDate.toDate(),
-        endDate.toDate(),
-      );
-
-    const attendanceRecords: AttendanceRecord[] = records.map((record) =>
-      attendanceService.convertExternalToAttendanceRecord(record),
-    );
-
-    const processedAttendance = await attendanceService.processAttendanceData(
-      attendanceRecords,
-      userData,
-      startDate.toDate(),
-      endDate.toDate(),
-      50, // Process in chunks of 50 records
-    );
-
-    res.status(200).json({
-      userData,
-      processedAttendance,
-      payrollPeriod: {
-        start: startDate.format('YYYY-MM-DD'),
-        end: endDate.format('YYYY-MM-DD'),
-      },
+    res.status(202).json({
+      message: 'Payroll processing job initiated',
+      jobId: job.id,
     });
   } catch (error: any) {
-    console.error('Error processing attendance data:', error);
+    console.error('Error initiating payroll processing:', error);
     res
       .status(500)
       .json({ error: 'Internal server error', message: error.message });

@@ -17,7 +17,7 @@ export default function AttendanceProcessingTest() {
   const initiateProcessing = async () => {
     try {
       setStatus('processing');
-      const response = await axios.post('/api/initiate-attendance-processing', {
+      const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
       });
       setJobId(response.data.jobId);
@@ -32,7 +32,7 @@ export default function AttendanceProcessingTest() {
       if (jobId && status === 'processing') {
         try {
           const response = await axios.get(
-            `/api/check-attendance-processing?jobId=${jobId}&employeeId=${employeeId}`,
+            `/api/check-payroll-processing?jobId=${jobId}&employeeId=${employeeId}`,
           );
           if (response.data.status === 'completed') {
             setStatus('completed');

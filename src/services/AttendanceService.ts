@@ -259,7 +259,7 @@ export class AttendanceService {
     );
   }
 
-  private async processAttendanceRecord(
+  public async processAttendanceRecord(
     record: AttendanceRecord,
     shift: ShiftData,
     isWorkDay: boolean,
