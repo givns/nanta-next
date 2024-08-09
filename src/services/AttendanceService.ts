@@ -333,7 +333,7 @@ export class AttendanceService {
     };
   }
 
-  private async isDayOff(
+  public async isDayOff(
     employeeId: string,
     date: Date,
     shift: ShiftData,
