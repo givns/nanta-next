@@ -65,7 +65,8 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-// Keep the process alive
-setInterval(() => {
-  console.log('Attendance worker still running...');
+// Log the number of jobs in the queue every minute
+setInterval(async () => {
+  const jobCounts = await queue.getJobCounts();
+  console.log('Current job counts:', jobCounts);
 }, 60000);

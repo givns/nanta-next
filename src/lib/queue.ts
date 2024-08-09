@@ -1,6 +1,7 @@
 // lib/queue.ts
 
 import Queue from 'bull';
+import { logMessage } from '../utils/inMemoryLogger';
 
 let registrationQueue: Queue.Queue | null = null;
 let attendanceProcessingQueue: Queue.Queue | null = null;
@@ -23,8 +24,18 @@ export function getAttendanceProcessingQueue(): Queue.Queue {
     if (!REDIS_URL) {
       throw new Error('REDIS_URL is not defined in the environment variables');
     }
-    attendanceProcessingQueue = createQueue('attendance-processing', REDIS_URL);
-    console.log('Attendance processing queue initialized');
+    attendanceProcessingQueue = new Queue('attendance-processing', REDIS_URL, {
+      redis: {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+      },
+    });
+
+    attendanceProcessingQueue.on('error', (error) => {
+      logMessage(`Attendance processing queue error: ${error.message}`);
+    });
+
+    logMessage('Attendance processing queue initialized');
   }
   return attendanceProcessingQueue;
 }
