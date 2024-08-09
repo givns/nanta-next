@@ -114,14 +114,22 @@ export default async function handler(
     });
 
     // Merge and process attendance data
+    const { records: externalAttendanceRecords, totalCount } =
+      await externalDbService.getHistoricalAttendanceRecords(
+        employeeId,
+        startDate.toDate(),
+        endDate.toDate(),
+      );
+
     const mergedAttendanceData: AttendanceRecord[] = [
-      ...externalAttendanceData.map(
+      ...externalAttendanceRecords.map(
         attendanceService.convertExternalToAttendanceRecord,
       ),
       ...internalAttendanceData.map(
         attendanceService.convertInternalToAttendanceRecord,
       ),
     ];
+
     const processedAttendance = await attendanceService.processAttendanceData(
       mergedAttendanceData,
       userData,

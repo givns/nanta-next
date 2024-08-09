@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
@@ -12,16 +12,12 @@ interface TestResult {
     end: string;
   };
   processedAttendance: any[];
-  summary: {
-    totalWorkingDays: number;
-    totalPresent: number;
-    totalAbsent: number;
-    overtimeHours: number;
+  pagination: {
+    currentPage: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
   };
-  leaveBalances: any;
-  shiftAdjustments: any[];
-  approvedOvertimes: any[];
-  logs: string[];
 }
 
 export default function AttendanceProcessingTest() {
@@ -29,18 +25,27 @@ export default function AttendanceProcessingTest() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const runTest = async () => {
+  const runTest = async (page: number = 1) => {
     setLoading(true);
     setError(null);
-    setResult(null);
 
     try {
       const response = await axios.post<TestResult>(
         '/api/test-payroll-processing',
-        { employeeId },
+        { employeeId, page },
       );
-      setResult(response.data);
+      setResult((prevResult) => ({
+        ...response.data,
+        processedAttendance: prevResult
+          ? [
+              ...prevResult.processedAttendance,
+              ...response.data.processedAttendance,
+            ]
+          : response.data.processedAttendance,
+      }));
+      setCurrentPage(page);
     } catch (err: any) {
       console.error('Error in attendance processing:', err);
       setError(
@@ -53,6 +58,12 @@ export default function AttendanceProcessingTest() {
     }
   };
 
+  useEffect(() => {
+    if (result && currentPage < result.pagination.totalPages) {
+      runTest(currentPage + 1);
+    }
+  }, [result, currentPage]);
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
@@ -64,7 +75,7 @@ export default function AttendanceProcessingTest() {
           placeholder="Enter Employee ID"
           className="max-w-xs"
         />
-        <Button onClick={runTest} disabled={loading}>
+        <Button onClick={() => runTest()} disabled={loading}>
           {loading ? 'Processing...' : 'Run Test'}
         </Button>
       </div>
@@ -104,71 +115,21 @@ export default function AttendanceProcessingTest() {
               <h2 className="text-xl font-semibold">Processed Attendance</h2>
             </CardHeader>
             <CardContent>
+              <p>
+                Showing {result.processedAttendance.length} of{' '}
+                {result.pagination.totalCount} records
+              </p>
               <pre className="whitespace-pre-wrap">
                 {JSON.stringify(result.processedAttendance, null, 2)}
               </pre>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold">Summary</h2>
-            </CardHeader>
-            <CardContent>
-              <p>Total Working Days: {result.summary.totalWorkingDays}</p>
-              <p>Total Present: {result.summary.totalPresent}</p>
-              <p>Total Absent: {result.summary.totalAbsent}</p>
-              <p>Overtime Hours: {result.summary.overtimeHours}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold">Leave Balances</h2>
-            </CardHeader>
-            <CardContent>
-              <pre className="whitespace-pre-wrap">
-                {JSON.stringify(result.leaveBalances, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold">Shift Adjustments</h2>
-            </CardHeader>
-            <CardContent>
-              <pre className="whitespace-pre-wrap">
-                {JSON.stringify(result.shiftAdjustments, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold">Approved Overtimes</h2>
-            </CardHeader>
-            <CardContent>
-              <pre className="whitespace-pre-wrap">
-                {JSON.stringify(result.approvedOvertimes, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold">Processing Logs</h2>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-gray-100 p-4 rounded-md">
-                {result.logs.map((log, index) => (
-                  <p key={index} className="text-sm">
-                    {log}
-                  </p>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {currentPage < result.pagination.totalPages && (
+            <Button onClick={() => runTest(currentPage + 1)} disabled={loading}>
+              Load More
+            </Button>
+          )}
         </div>
       )}
     </div>

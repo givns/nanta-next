@@ -6,7 +6,7 @@ import { AttendanceService } from '../../services/AttendanceService';
 import { ExternalDbService } from '../../services/ExternalDbService';
 import { HolidayService } from '../../services/HolidayService';
 import { Shift104HolidayService } from '../../services/Shift104HolidayService';
-import { UserData } from '../../types/user';
+import { UserData, AttendanceRecord } from '../../types/user';
 import moment from 'moment-timezone';
 
 const prisma = new PrismaClient();
@@ -91,12 +91,23 @@ export default async function handler(
         endDate.toDate(),
       );
 
-    // Process the attendance data
+    const { records, totalCount } =
+      await externalDbService.getHistoricalAttendanceRecords(
+        employeeId,
+        startDate.toDate(),
+        endDate.toDate(),
+      );
+
+    const attendanceRecords: AttendanceRecord[] = records.map((record) =>
+      attendanceService.convertExternalToAttendanceRecord(record),
+    );
+
     const processedAttendance = await attendanceService.processAttendanceData(
-      attendanceData,
+      attendanceRecords,
       userData,
       startDate.toDate(),
       endDate.toDate(),
+      50, // Process in chunks of 50 records
     );
 
     res.status(200).json({

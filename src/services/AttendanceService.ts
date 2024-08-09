@@ -179,21 +179,14 @@ export class AttendanceService {
   }
 
   async processAttendanceData(
-    attendanceRecords: (AttendanceRecord | ExternalCheckInData)[],
+    attendanceRecords: AttendanceRecord[],
     user: UserData,
     startDate: Date,
     endDate: Date,
+    chunkSize: number = 100,
   ): Promise<ProcessedAttendance[]> {
     logMessage(
       `Processing attendance data for ${user.employeeId} from ${startDate} to ${endDate}`,
-    );
-
-    // Convert external records if necessary
-    const convertedRecords: AttendanceRecord[] = attendanceRecords.map(
-      (record) =>
-        'sj' in record
-          ? this.convertExternalToAttendanceRecord(record)
-          : record,
     );
     const shiftAdjustments = await this.getShiftAdjustments(
       user.employeeId,
@@ -208,7 +201,7 @@ export class AttendanceService {
     const shifts = await this.getAllShifts();
 
     const groupedRecords = this.groupRecordsByDate(
-      convertedRecords,
+      attendanceRecords,
       user,
       shiftAdjustments,
       shifts,
@@ -242,14 +235,19 @@ export class AttendanceService {
           ),
         );
       } else {
-        for (const record of records) {
-          const processedRecord = await this.processAttendanceRecord(
-            record,
-            effectiveShift,
-            !isDayOff,
-          );
-          processedAttendance.push(processedRecord);
-          await this.flagPotentialOvertime(processedRecord);
+        for (let i = 0; i < records.length; i += chunkSize) {
+          const chunk = records.slice(i, i + chunkSize);
+          for (const record of chunk) {
+            const processedRecord = await this.processAttendanceRecord(
+              record,
+              effectiveShift,
+              !isDayOff,
+            );
+            processedAttendance.push(processedRecord);
+            await this.flagPotentialOvertime(processedRecord);
+          }
+          // Allow for a brief pause between chunks to prevent timeouts
+          await new Promise((resolve) => setTimeout(resolve, 10));
         }
       }
 
@@ -743,21 +741,19 @@ export class AttendanceService {
     const user = await this.getUser(employeeId);
     const userData = this.convertToUserData(user);
 
-    const [internalAttendances, externalAttendanceData] = await Promise.all([
-      this.getInternalAttendances(employeeId, startDate),
-      this.externalDbService.getHistoricalAttendanceRecords(
+    const { records: externalRecords, totalCount } =
+      await this.externalDbService.getHistoricalAttendanceRecords(
         employeeId,
         startDate,
         endDate,
-      ),
-    ]);
+      );
 
-    const mergedAttendances = this.mergeAttendances(
-      internalAttendances,
-      externalAttendanceData,
+    const attendanceRecords = externalRecords.map(
+      this.convertExternalToAttendanceRecord,
     );
+
     return this.processAttendanceData(
-      mergedAttendances,
+      attendanceRecords,
       userData,
       startDate,
       endDate,
@@ -1097,14 +1093,12 @@ export class AttendanceService {
   public convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord {
-    const attendanceTime = moment(external.sj).toDate();
-    const date = moment(external.date).startOf('day').toDate();
     return {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      date: date,
-      attendanceTime: attendanceTime,
-      checkInTime: null,
+      date: new Date(external.date),
+      attendanceTime: new Date(external.sj),
+      checkInTime: new Date(external.sj),
       checkOutTime: null,
       isOvertime: false,
       isDayOff: false,
@@ -1122,8 +1116,8 @@ export class AttendanceService {
       checkOutDeviceSerial: null,
       status: 'checked-in',
       isManualEntry: false,
-      overtimeHours: 0, // Add the missing 'overtimeHours' property
-      overtimeDuration: 0, // Add the missing 'overtimeDuration' property
+      overtimeHours: 0,
+      overtimeDuration: 0,
     };
   }
 

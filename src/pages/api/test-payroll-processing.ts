@@ -1,12 +1,11 @@
 // pages/api/test-payroll-processing.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ExternalDbService } from '../../services/ExternalDbService';
 import { HolidayService } from '../../services/HolidayService';
 import { Shift104HolidayService } from '../../services/Shift104HolidayService';
-import { UserData } from '../../types/user';
+import { UserData, AttendanceRecord } from '../../types/user';
 import moment from 'moment-timezone';
 
 const prisma = new PrismaClient();
@@ -34,7 +33,6 @@ export default async function handler(
   }
 
   try {
-    // Fetch user data
     const user = await prisma.user.findUnique({
       where: { employeeId },
       include: {
@@ -83,20 +81,23 @@ export default async function handler(
     const startDate = moment(today).subtract(1, 'month').startOf('day');
     const endDate = moment(today).endOf('day');
 
-    // Fetch attendance data
-    const attendanceData =
+    const { records, totalCount } =
       await externalDbService.getHistoricalAttendanceRecords(
         employeeId,
         startDate.toDate(),
         endDate.toDate(),
       );
 
-    // Process the attendance data
+    const attendanceRecords: AttendanceRecord[] = records.map((record) =>
+      attendanceService.convertExternalToAttendanceRecord(record),
+    );
+
     const processedAttendance = await attendanceService.processAttendanceData(
-      attendanceData,
+      attendanceRecords,
       userData,
       startDate.toDate(),
       endDate.toDate(),
+      50, // Process in chunks of 50 records
     );
 
     res.status(200).json({

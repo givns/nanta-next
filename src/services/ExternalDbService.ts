@@ -109,10 +109,10 @@ export class ExternalDbService {
     employeeId: string,
     startDate: Date,
     endDate: Date,
-  ): Promise<ExternalCheckInData[]> {
-    console.log(
-      `Fetching historical attendance records for employeeId: ${employeeId} from ${startDate.toISOString()} to ${endDate.toISOString()}`,
-    );
+    page: number = 1,
+    pageSize: number = 100,
+  ): Promise<{ records: ExternalCheckInData[]; totalCount: number }> {
+    const offset = (page - 1) * pageSize;
 
     const attendanceQuery = `
       SELECT kj.sj, kj.user_serial, kj.bh, kj.dev_serial, kj.date, kj.time, kj.fx,
@@ -124,16 +124,33 @@ export class ExternalDbService {
       AND kj.date >= ?
       AND kj.date <= ?
       ORDER BY kj.sj ASC
+      LIMIT ? OFFSET ?
     `;
 
-    const records = await query<ExternalCheckInData[]>(attendanceQuery, [
-      employeeId,
-      startDate,
-      endDate,
-    ]);
-    console.log(`Found ${records.length} historical attendance records`);
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM kt_jl kj
+      JOIN dt_user du ON kj.user_serial = du.user_serial
+      WHERE du.user_no = ? 
+      AND kj.date >= ?
+      AND kj.date <= ?
+    `;
 
-    return records;
+    const [records, [countResult]] = await Promise.all([
+      query<ExternalCheckInData[]>(attendanceQuery, [
+        employeeId,
+        startDate,
+        endDate,
+        pageSize,
+        offset,
+      ]),
+      query<{ total: number }[]>(countQuery, [employeeId, startDate, endDate]),
+    ]);
+
+    return {
+      records,
+      totalCount: countResult.total,
+    };
   }
 
   async createManualEntry(data: ExternalManualEntryInputData) {
