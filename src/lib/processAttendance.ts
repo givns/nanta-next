@@ -8,6 +8,7 @@ import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, ProcessedAttendance, AttendanceRecord } from '../types/user';
 import moment from 'moment-timezone';
+import { logMessage } from '../utils/inMemoryLogger';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -21,6 +22,7 @@ const attendanceService = new AttendanceService(
 
 export async function processAttendance(job: Job): Promise<any> {
   const { employeeId } = job.data;
+  logMessage(`Starting attendance processing for employee: ${employeeId}`);
 
   try {
     // Fetch user data
@@ -33,8 +35,11 @@ export async function processAttendance(job: Job): Promise<any> {
     });
 
     if (!user) {
+      logMessage(`User not found for employeeId: ${employeeId}`);
       throw new Error('User not found');
     }
+
+    logMessage(`User found: ${user.name}`);
 
     const userData: UserData = {
       employeeId: user.employeeId,
@@ -43,13 +48,13 @@ export async function processAttendance(job: Job): Promise<any> {
       nickname: user.nickname,
       departmentId: user.departmentId,
       department: user.department.name,
-      role: user.role as any, // Assuming role is stored as a string in the database
+      role: user.role as any,
       profilePictureUrl: user.profilePictureUrl,
       profilePictureExternal: user.profilePictureExternal,
       shiftId: user.shiftId,
       assignedShift: user.assignedShift,
       overtimeHours: user.overtimeHours,
-      potentialOvertimes: [], // This should be populated if needed
+      potentialOvertimes: [],
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
@@ -57,6 +62,8 @@ export async function processAttendance(job: Job): Promise<any> {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
+
+    logMessage(`UserData prepared: ${JSON.stringify(userData)}`);
 
     // Calculate payroll period
     const today = moment().tz('Asia/Bangkok');
@@ -68,6 +75,10 @@ export async function processAttendance(job: Job): Promise<any> {
       .add(1, 'month')
       .subtract(1, 'day')
       .endOf('day');
+
+    logMessage(
+      `Payroll period: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`,
+    );
 
     // Fetch attendance records
     const attendances = await prisma.attendance.findMany({
@@ -81,9 +92,13 @@ export async function processAttendance(job: Job): Promise<any> {
       orderBy: { date: 'asc' },
     });
 
+    logMessage(`Found ${attendances.length} attendance records`);
+
     // Process each attendance record
     const processedAttendance: ProcessedAttendance[] = await Promise.all(
       attendances.map(async (attendance) => {
+        logMessage(`Processing attendance for date: ${attendance.date}`);
+
         const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
           where: {
             employeeId: user.employeeId,
@@ -93,8 +108,13 @@ export async function processAttendance(job: Job): Promise<any> {
           include: { requestedShift: true },
         });
 
+        logMessage(
+          `Shift adjustment for ${attendance.date}: ${shiftAdjustment ? 'Found' : 'Not found'}`,
+        );
+
         const effectiveShift =
           shiftAdjustment?.requestedShift || user.assignedShift;
+        logMessage(`Effective shift: ${JSON.stringify(effectiveShift)}`);
 
         // Check if it's a day off
         const isDayOff = await attendanceService['isDayOff'](
@@ -102,6 +122,7 @@ export async function processAttendance(job: Job): Promise<any> {
           attendance.date,
           effectiveShift,
         );
+        logMessage(`Is day off: ${isDayOff}`);
 
         // Convert Attendance to AttendanceRecord
         const attendanceRecord: AttendanceRecord = {
@@ -131,13 +152,22 @@ export async function processAttendance(job: Job): Promise<any> {
           isManualEntry: attendance.isManualEntry,
         };
 
-        return attendanceService.processAttendanceRecord(
+        logMessage(
+          `AttendanceRecord prepared: ${JSON.stringify(attendanceRecord)}`,
+        );
+
+        const processedRecord = await attendanceService.processAttendanceRecord(
           attendanceRecord,
           effectiveShift,
           !isDayOff,
         );
+
+        logMessage(`Processed attendance: ${JSON.stringify(processedRecord)}`);
+        return processedRecord;
       }),
     );
+
+    logMessage(`Processed ${processedAttendance.length} attendance records`);
 
     // Calculate summary statistics
     const totalWorkingDays = processedAttendance.length;
@@ -153,6 +183,13 @@ export async function processAttendance(job: Job): Promise<any> {
       (sum, a) => sum + a.regularHours,
       0,
     );
+
+    logMessage(`Summary statistics calculated:
+      Total Working Days: ${totalWorkingDays}
+      Total Present: ${totalPresent}
+      Total Absent: ${totalAbsent}
+      Total Overtime Hours: ${totalOvertimeHours}
+      Total Regular Hours: ${totalRegularHours}`);
 
     // Store processed data
     const payrollProcessingResult = await prisma.payrollProcessingResult.create(
@@ -171,18 +208,25 @@ export async function processAttendance(job: Job): Promise<any> {
       },
     );
 
+    logMessage(
+      `Payroll processing result stored with ID: ${payrollProcessingResult.id}`,
+    );
+
     // Update user's overtime hours
     await prisma.user.update({
       where: { id: user.id },
       data: { overtimeHours: totalOvertimeHours },
     });
 
+    logMessage(`User's overtime hours updated to: ${totalOvertimeHours}`);
+
     return {
       success: true,
       message: 'Payroll processed successfully',
       payrollProcessingResultId: payrollProcessingResult.id,
     };
-  } catch (error) {
+  } catch (error: any) {
+    logMessage(`Error processing payroll: ${error.message}`);
     console.error('Error processing payroll:', error);
     throw error;
   }
