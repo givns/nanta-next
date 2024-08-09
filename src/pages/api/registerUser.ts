@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import getRegistrationQueue from '../../lib/queue';
-
+import { getRegistrationQueue } from '../../lib/queue';
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,

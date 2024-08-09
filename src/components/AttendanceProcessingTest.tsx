@@ -1,68 +1,57 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import axios from 'axios';
-
-interface TestResult {
-  userData: any;
-  payrollPeriod: {
-    start: string;
-    end: string;
-  };
-  processedAttendance: any[];
-  pagination: {
-    currentPage: number;
-    pageSize: number;
-    totalCount: number;
-    totalPages: number;
-  };
-}
 
 export default function AttendanceProcessingTest() {
   const [employeeId, setEmployeeId] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<TestResult | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [status, setStatus] = useState<
+    'idle' | 'processing' | 'completed' | 'failed'
+  >('idle');
+  const [result, setResult] = useState(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
 
-  const runTest = async (page: number = 1) => {
-    setLoading(true);
-    setError(null);
-
+  const initiateProcessing = async () => {
     try {
-      const response = await axios.post<TestResult>(
-        '/api/test-payroll-processing',
-        { employeeId, page },
-      );
-      setResult((prevResult) => ({
-        ...response.data,
-        processedAttendance: prevResult
-          ? [
-              ...prevResult.processedAttendance,
-              ...response.data.processedAttendance,
-            ]
-          : response.data.processedAttendance,
-      }));
-      setCurrentPage(page);
-    } catch (err: any) {
-      console.error('Error in attendance processing:', err);
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          'An unknown error occurred',
-      );
-    } finally {
-      setLoading(false);
+      setStatus('processing');
+      const response = await axios.post('/api/initiate-attendance-processing', {
+        employeeId,
+      });
+      setJobId(response.data.jobId);
+    } catch (err) {
+      setError('Failed to initiate processing');
+      setStatus('failed');
     }
   };
 
   useEffect(() => {
-    if (result && currentPage < result.pagination.totalPages) {
-      runTest(currentPage + 1);
-    }
-  }, [result, currentPage]);
+    const checkStatus = async () => {
+      if (jobId && status === 'processing') {
+        try {
+          const response = await axios.get(
+            `/api/check-attendance-processing?jobId=${jobId}&employeeId=${employeeId}`,
+          );
+          if (response.data.status === 'completed') {
+            setStatus('completed');
+            setResult(response.data.data);
+          } else if (response.data.status === 'failed') {
+            setStatus('failed');
+            setError('Processing failed');
+          } else {
+            setTimeout(checkStatus, 5000); // Check again after 5 seconds
+          }
+        } catch (err) {
+          setError('Failed to check processing status');
+          setStatus('failed');
+        }
+      }
+    };
+
+    checkStatus();
+  }, [jobId, status, employeeId]);
 
   return (
     <div className="container mx-auto p-4">
@@ -75,62 +64,28 @@ export default function AttendanceProcessingTest() {
           placeholder="Enter Employee ID"
           className="max-w-xs"
         />
-        <Button onClick={() => runTest()} disabled={loading}>
-          {loading ? 'Processing...' : 'Run Test'}
+        <Button onClick={initiateProcessing} disabled={status === 'processing'}>
+          {status === 'processing' ? 'Processing...' : 'Process Attendance'}
         </Button>
       </div>
 
       {error && (
         <Alert variant="destructive" className="mb-4">
-          <h2 className="text-lg font-semibold">Error</h2>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {result && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold">User Data</h2>
-            </CardHeader>
-            <CardContent>
-              <pre className="whitespace-pre-wrap">
-                {JSON.stringify(result.userData, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold">Payroll Period</h2>
-            </CardHeader>
-            <CardContent>
-              <p>Start: {result.payrollPeriod.start}</p>
-              <p>End: {result.payrollPeriod.end}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold">Processed Attendance</h2>
-            </CardHeader>
-            <CardContent>
-              <p>
-                Showing {result.processedAttendance.length} of{' '}
-                {result.pagination.totalCount} records
-              </p>
-              <pre className="whitespace-pre-wrap">
-                {JSON.stringify(result.processedAttendance, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-
-          {currentPage < result.pagination.totalPages && (
-            <Button onClick={() => runTest(currentPage + 1)} disabled={loading}>
-              Load More
-            </Button>
-          )}
-        </div>
+      {status === 'completed' && result && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-xl font-semibold">Processed Attendance</h2>
+          </CardHeader>
+          <CardContent>
+            <pre className="whitespace-pre-wrap">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
