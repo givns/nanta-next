@@ -1,34 +1,36 @@
-// ecosystem.config.js
-
 module.exports = {
   apps: [
     {
       name: 'registration-worker',
-      script: 'dist/workers/worker.js',
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '1G',
+      script: 'npm',
+      args: 'run start:worker',
       env: {
         NODE_ENV: 'development',
       },
       env_production: {
         NODE_ENV: 'production',
       },
+      output: './logs/worker-out.log',
+      error: './logs/worker-error.log',
+      log: './logs/worker-combined.log',
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     },
     {
       name: 'attendance-worker',
-      script: 'dist/workers/attendance-worker.js',
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '1G',
+      script: 'npm',
+      args: 'run start:attendance-worker',
       env: {
         NODE_ENV: 'development',
       },
       env_production: {
         NODE_ENV: 'production',
       },
+      output: './logs/worker-out.log',
+      error: './logs/worker-error.log',
+      log: './logs/worker-combined.log',
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     },
   ],
 };
