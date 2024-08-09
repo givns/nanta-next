@@ -1,17 +1,16 @@
+// utils/inMemoryLogger.ts
+
 let logs: string[] = [];
 
 export function logMessage(message: string) {
   const timestamp = new Date().toISOString();
-  logs.push(`${timestamp}: ${message}`);
-
-  // Keep only the last 1000 log entries to prevent memory issues
-  if (logs.length > 1000) {
-    logs = logs.slice(-1000);
-  }
+  const logEntry = `${timestamp}: ${message}`;
+  console.log(logEntry); // This will log to the console as well
+  logs.push(logEntry);
 }
 
 export function getLogs() {
-  return logs.join('\n');
+  return logs;
 }
 
 export function clearLogs() {

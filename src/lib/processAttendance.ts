@@ -35,11 +35,11 @@ export async function processAttendance(job: Job): Promise<any> {
     });
 
     if (!user) {
-      console.log(`User not found for employeeId: ${employeeId}`);
+      logMessage(`User not found for employeeId: ${employeeId}`);
       throw new Error('User not found');
     }
 
-    console.log(`User found: ${user.name}`);
+    logMessage(`User found: ${user.name}`);
 
     const userData: UserData = {
       employeeId: user.employeeId,
@@ -63,7 +63,7 @@ export async function processAttendance(job: Job): Promise<any> {
       updatedAt: user.updatedAt,
     };
 
-    console.log(`UserData prepared: ${JSON.stringify(userData)}`);
+    logMessage(`UserData prepared: ${JSON.stringify(userData)}`);
 
     // Calculate payroll period
     const today = moment().tz('Asia/Bangkok');
@@ -76,7 +76,7 @@ export async function processAttendance(job: Job): Promise<any> {
       .subtract(1, 'day')
       .endOf('day');
 
-    console.log(
+    logMessage(
       `Payroll period: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`,
     );
 
@@ -92,12 +92,12 @@ export async function processAttendance(job: Job): Promise<any> {
       orderBy: { date: 'asc' },
     });
 
-    console.log(`Found ${attendances.length} attendance records`);
+    logMessage(`Found ${attendances.length} attendance records`);
 
     // Process each attendance record
     const processedAttendance: ProcessedAttendance[] = await Promise.all(
       attendances.map(async (attendance) => {
-        console.log(`Processing attendance for date: ${attendance.date}`);
+        logMessage(`Processing attendance for date: ${attendance.date}`);
 
         const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
           where: {
@@ -108,21 +108,21 @@ export async function processAttendance(job: Job): Promise<any> {
           include: { requestedShift: true },
         });
 
-        console.log(
+        logMessage(
           `Shift adjustment for ${attendance.date}: ${shiftAdjustment ? 'Found' : 'Not found'}`,
         );
 
         const effectiveShift =
           shiftAdjustment?.requestedShift || user.assignedShift;
-        console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
+        logMessage(`Effective shift: ${JSON.stringify(effectiveShift)}`);
 
         // Check if it's a day off
-        const isDayOff = await attendanceService.isDayOff(
+        const isDayOff = await attendanceService['isDayOff'](
           user.employeeId,
           attendance.date,
           effectiveShift,
         );
-        console.log(`Is day off: ${isDayOff}`);
+        logMessage(`Is day off: ${isDayOff}`);
 
         // Convert Attendance to AttendanceRecord
         const attendanceRecord: AttendanceRecord = {
@@ -152,7 +152,7 @@ export async function processAttendance(job: Job): Promise<any> {
           isManualEntry: attendance.isManualEntry,
         };
 
-        console.log(
+        logMessage(
           `AttendanceRecord prepared: ${JSON.stringify(attendanceRecord)}`,
         );
 
@@ -162,12 +162,12 @@ export async function processAttendance(job: Job): Promise<any> {
           !isDayOff,
         );
 
-        console.log(`Processed attendance: ${JSON.stringify(processedRecord)}`);
+        logMessage(`Processed attendance: ${JSON.stringify(processedRecord)}`);
         return processedRecord;
       }),
     );
 
-    console.log(`Processed ${processedAttendance.length} attendance records`);
+    logMessage(`Processed ${processedAttendance.length} attendance records`);
 
     // Calculate summary statistics
     const totalWorkingDays = processedAttendance.length;
@@ -184,7 +184,7 @@ export async function processAttendance(job: Job): Promise<any> {
       0,
     );
 
-    console.log(`Summary statistics calculated:
+    logMessage(`Summary statistics calculated:
       Total Working Days: ${totalWorkingDays}
       Total Present: ${totalPresent}
       Total Absent: ${totalAbsent}
@@ -208,7 +208,7 @@ export async function processAttendance(job: Job): Promise<any> {
       },
     );
 
-    console.log(
+    logMessage(
       `Payroll processing result stored with ID: ${payrollProcessingResult.id}`,
     );
 
@@ -218,14 +218,15 @@ export async function processAttendance(job: Job): Promise<any> {
       data: { overtimeHours: totalOvertimeHours },
     });
 
-    console.log(`User's overtime hours updated to: ${totalOvertimeHours}`);
+    logMessage(`User's overtime hours updated to: ${totalOvertimeHours}`);
 
     return {
       success: true,
       message: 'Payroll processed successfully',
       payrollProcessingResultId: payrollProcessingResult.id,
     };
-  } catch (error) {
+  } catch (error: any) {
+    logMessage(`Error processing payroll: ${error.message}`);
     console.error('Error processing payroll:', error);
     throw error;
   }
