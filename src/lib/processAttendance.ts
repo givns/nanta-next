@@ -90,31 +90,11 @@ export async function processAttendance(job: Job): Promise<any> {
       `Found ${externalAttendances.length} attendance records out of ${totalCount} total records`,
     );
 
-    if (externalAttendances.length === 0) {
-      logMessage('No attendance records found. Fetching sample records...');
-      const { records: sampleRecords } =
-        await externalDbService.getHistoricalAttendanceRecords(
-          user.employeeId,
-          moment().subtract(3, 'months').toDate(),
-          moment().toDate(),
-          1,
-          5,
-        );
-      logMessage('Sample records:'); // Remove the second argument from this line
-    }
-
-    // Convert external attendance records to AttendanceRecord format
     const attendanceRecords: AttendanceRecord[] = externalAttendances.map(
       (externalRecord) =>
         attendanceService.convertExternalToAttendanceRecord(externalRecord),
     );
 
-    logMessage(
-      `Converted ${attendanceRecords.length} external records to AttendanceRecord format`,
-    );
-
-    // Process attendance data
-    logMessage('Processing attendance data...');
     const processedAttendance = await attendanceService.processAttendanceData(
       attendanceRecords,
       userData,
@@ -127,7 +107,7 @@ export async function processAttendance(job: Job): Promise<any> {
     // Calculate summary statistics
     const totalWorkingDays = processedAttendance.length;
     const totalPresent = processedAttendance.filter(
-      (a) => a.status === 'present',
+      (a) => a.status === 'present' || a.status === 'incomplete',
     ).length;
     const totalAbsent = totalWorkingDays - totalPresent;
     const totalOvertimeHours = processedAttendance.reduce(

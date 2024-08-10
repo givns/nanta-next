@@ -278,9 +278,13 @@ export class AttendanceService {
 
     let status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off' =
       'present';
-    let isEarlyCheckIn = false;
-    let isLateCheckIn = false;
-    let isLateCheckOut = false;
+    const isEarlyCheckIn = checkInTime.isBefore(shiftStart);
+    const isLateCheckIn = checkInTime.isAfter(
+      shiftStart.clone().add(15, 'minutes'),
+    );
+    const isLateCheckOut = checkOutTime
+      ? checkOutTime.isAfter(shiftEnd.clone().add(15, 'minutes'))
+      : undefined;
     let regularHours = 0;
     let overtimeInfo = {
       duration: 0,
@@ -292,25 +296,23 @@ export class AttendanceService {
     } else if (!checkOutTime) {
       status = 'incomplete';
     } else {
-      regularHours = Math.min(
-        checkOutTime.diff(checkInTime, 'hours', true),
-        shiftEnd.diff(shiftStart, 'hours', true),
+      regularHours = Math.max(
+        0,
+        Math.min(
+          checkOutTime.diff(checkInTime, 'hours', true),
+          shiftEnd.diff(shiftStart, 'hours', true),
+        ),
       );
       overtimeInfo = this.calculatePotentialOvertime(
         checkInTime,
         checkOutTime,
         shift,
       );
-      isEarlyCheckIn = checkInTime.isBefore(shiftStart);
-      isLateCheckIn = checkInTime.isAfter(
-        shiftStart.clone().add(15, 'minutes'),
-      );
-      isLateCheckOut = checkOutTime.isAfter(
-        shiftEnd.clone().add(15, 'minutes'),
-      );
     }
 
-    console.log(`Determined status: ${status}`);
+    logMessage(
+      `Processed status: ${status}, regularHours: ${regularHours}, overtimeHours: ${overtimeInfo.duration}`,
+    );
 
     return {
       id: record.id,
@@ -331,7 +333,7 @@ export class AttendanceService {
         status,
         isEarlyCheckIn,
         isLateCheckIn,
-        isLateCheckOut,
+        isLateCheckOut ?? false,
       ),
       checkInDeviceSerial: record.checkInDeviceSerial,
       checkOutDeviceSerial: record.checkOutDeviceSerial,
@@ -345,26 +347,40 @@ export class AttendanceService {
     shift: ShiftData,
   ): Promise<boolean> {
     const dayOfWeek = moment(date).day();
-    if (!shift.workDays.includes(dayOfWeek)) return true;
-    console.log(
+    logMessage(
       `Checking day off for ${date.toISOString()}, shift work days: ${shift.workDays}`,
     );
 
+    if (!shift.workDays.includes(dayOfWeek)) {
+      logMessage(`${date.toISOString()} is a day off (not in work days)`);
+      return true;
+    }
+
     const isHoliday = await this.holidayService.isHoliday(date);
-    if (isHoliday) return true;
+    if (isHoliday) {
+      logMessage(`${date.toISOString()} is a holiday`);
+      return true;
+    }
 
     const isShift104 = shift.shiftCode === 'SHIFT104';
     if (isShift104) {
       const isShift104Holiday =
         await this.shift104HolidayService.isShift104Holiday(date);
-      if (isShift104Holiday) return true;
+      if (isShift104Holiday) {
+        logMessage(`${date.toISOString()} is a Shift104 holiday`);
+        return true;
+      }
     }
 
     const weeklyWorkDayCount = await this.getWeeklyWorkDayCount(
       employeeId,
       date,
     );
-    return weeklyWorkDayCount >= 6;
+    const isDayOff = weeklyWorkDayCount >= 6;
+    logMessage(
+      `${date.toISOString()} weekly work day count: ${weeklyWorkDayCount}, is day off: ${isDayOff}`,
+    );
+    return isDayOff;
   }
 
   private async getWeeklyWorkDayCount(
@@ -451,7 +467,7 @@ export class AttendanceService {
     status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off',
     isEarlyCheckIn: boolean,
     isLateCheckIn: boolean,
-    isLateCheckOut: boolean,
+    isLateCheckOut: boolean | undefined,
   ): string {
     if (status !== 'present') return status;
 
