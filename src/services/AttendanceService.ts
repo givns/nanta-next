@@ -210,7 +210,7 @@ export class AttendanceService {
     const processedAttendance: ProcessedAttendance[] = [];
     const currentDate = moment(startDate);
 
-    while (currentDate.isSameOrBefore(moment(), 'day')) {
+    while (currentDate.isSameOrBefore(moment(endDate), 'day')) {
       const dateStr = currentDate.format('YYYY-MM-DD');
       const records = groupedRecords[dateStr] || [];
       const effectiveShift = this.getEffectiveShift(
@@ -230,19 +230,18 @@ export class AttendanceService {
           this.createAbsentRecord(currentDate.toDate(), user.employeeId, true),
         );
       } else {
-        for (let i = 0; i < records.length; i += chunkSize) {
-          const chunk = records.slice(i, i + chunkSize);
-          for (const record of chunk) {
-            const processedRecord = await this.processAttendanceRecord(
-              record,
-              effectiveShift,
-              !isDayOff,
-            );
-            processedAttendance.push(processedRecord);
-            await this.flagPotentialOvertime(processedRecord);
-          }
-          // Allow for a brief pause between chunks to prevent timeouts
-          await new Promise((resolve) => setTimeout(resolve, 10));
+        for (let i = 0; i < records.length; i += 2) {
+          const checkIn = records[i];
+          const checkOut = records[i + 1];
+          const processedRecord = await this.processAttendanceRecord(
+            checkIn,
+            checkOut,
+            effectiveShift,
+            !isDayOff,
+            approvedOvertimes,
+          );
+          processedAttendance.push(processedRecord);
+          await this.flagPotentialOvertime(processedRecord);
         }
       }
 
@@ -255,18 +254,18 @@ export class AttendanceService {
   }
 
   public async processAttendanceRecord(
-    record: AttendanceRecord,
+    checkIn: AttendanceRecord,
+    checkOut: AttendanceRecord | undefined,
     shift: ShiftData,
     isWorkDay: boolean,
+    approvedOvertimes: ApprovedOvertime[],
   ): Promise<ProcessedAttendance> {
     logMessage(
-      `Processing record for ${record.date.toISOString()}, isWorkDay: ${isWorkDay}`,
+      `Processing record for ${checkIn.date.toISOString()}, isWorkDay: ${isWorkDay}`,
     );
 
-    const checkInTime = moment(record.checkInTime);
-    const checkOutTime = record.checkOutTime
-      ? moment(record.checkOutTime)
-      : null;
+    const checkInTime = moment(checkIn.checkInTime);
+    const checkOutTime = checkOut ? moment(checkOut.checkOutTime) : null;
     const shiftStart = moment(shift.startTime, 'HH:mm');
     const shiftEnd = moment(shift.endTime, 'HH:mm');
     if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, 'day');
@@ -285,6 +284,7 @@ export class AttendanceService {
     const isLateCheckOut = checkOutTime
       ? checkOutTime.isAfter(shiftEnd.clone().add(15, 'minutes'))
       : undefined;
+
     let regularHours = 0;
     let overtimeInfo = {
       duration: 0,
@@ -296,17 +296,18 @@ export class AttendanceService {
     } else if (!checkOutTime) {
       status = 'incomplete';
     } else {
-      regularHours = Math.max(
-        0,
-        Math.min(
-          checkOutTime.diff(checkInTime, 'hours', true),
-          shiftEnd.diff(shiftStart, 'hours', true),
-        ),
-      );
-      overtimeInfo = this.calculatePotentialOvertime(
+      regularHours = this.calculateRegularHours(
         checkInTime,
         checkOutTime,
-        shift,
+        shiftStart,
+        shiftEnd,
+      );
+      overtimeInfo = this.calculateOvertime(
+        checkInTime,
+        checkOutTime,
+        shiftStart,
+        shiftEnd,
+        approvedOvertimes,
       );
     }
 
@@ -315,9 +316,9 @@ export class AttendanceService {
     );
 
     return {
-      id: record.id,
-      employeeId: record.employeeId,
-      date: record.date,
+      id: checkIn.id,
+      employeeId: checkIn.employeeId,
+      date: checkIn.date,
       checkIn: checkInTime.format(),
       checkOut: checkOutTime ? checkOutTime.format() : undefined,
       status,
@@ -335,10 +336,116 @@ export class AttendanceService {
         isLateCheckIn,
         isLateCheckOut ?? false,
       ),
-      checkInDeviceSerial: record.checkInDeviceSerial,
-      checkOutDeviceSerial: record.checkOutDeviceSerial,
-      isManualEntry: record.isManualEntry,
+      checkInDeviceSerial: checkIn.checkInDeviceSerial,
+      checkOutDeviceSerial: checkOut?.checkOutDeviceSerial ?? null,
+      isManualEntry:
+        checkIn.isManualEntry || (checkOut?.isManualEntry ?? false),
     };
+  }
+
+  private calculateRegularHours(
+    checkIn: moment.Moment,
+    checkOut: moment.Moment,
+    shiftStart: moment.Moment,
+    shiftEnd: moment.Moment,
+  ): number {
+    const effectiveStart = moment.max(checkIn, shiftStart);
+    const effectiveEnd = moment.min(checkOut, shiftEnd);
+    return Math.max(0, effectiveEnd.diff(effectiveStart, 'hours', true));
+  }
+
+  private calculateOvertime(
+    checkIn: moment.Moment,
+    checkOut: moment.Moment,
+    shiftStart: moment.Moment,
+    shiftEnd: moment.Moment,
+    approvedOvertimes: ApprovedOvertime[],
+  ): { duration: number; periods: { start: string; end: string }[] } {
+    let overtimeDuration = 0;
+    const periods: { start: string; end: string }[] = [];
+
+    // Early check-in
+    if (checkIn.isBefore(shiftStart)) {
+      const earlyMinutes = shiftStart.diff(checkIn, 'minutes');
+      const roundedEarlyMinutes = Math.floor(earlyMinutes / 30) * 30;
+      if (roundedEarlyMinutes > 0) {
+        overtimeDuration += roundedEarlyMinutes;
+        periods.push({
+          start: checkIn.format('HH:mm'),
+          end: shiftStart.format('HH:mm'),
+        });
+      }
+    }
+
+    // Late check-out
+    if (checkOut.isAfter(shiftEnd)) {
+      const lateMinutes = checkOut.diff(shiftEnd, 'minutes');
+      const roundedLateMinutes = Math.ceil(lateMinutes / 30) * 30;
+      if (roundedLateMinutes > 0) {
+        overtimeDuration += roundedLateMinutes;
+        periods.push({
+          start: shiftEnd.format('HH:mm'),
+          end: checkOut.format('HH:mm'),
+        });
+      }
+    }
+
+    // Check if overtime is approved
+    const isApproved = approvedOvertimes.some(
+      (overtime) =>
+        moment(overtime.date).isSame(checkIn, 'day') &&
+        moment(overtime.startTime).isSameOrBefore(checkIn) &&
+        moment(overtime.endTime).isSameOrAfter(checkOut),
+    );
+
+    return {
+      duration: isApproved ? overtimeDuration / 60 : 0,
+      periods: isApproved ? periods : [],
+    };
+  }
+
+  private groupRecordsByDate(
+    records: AttendanceRecord[],
+    userData: UserData,
+    shiftAdjustments: ShiftAdjustment[],
+    shifts: Map<string, ShiftData>,
+  ): Record<string, AttendanceRecord[]> {
+    const recordsByDate: Record<string, AttendanceRecord[]> = {};
+
+    records.forEach((record) => {
+      const recordDate = moment(record.attendanceTime).tz('Asia/Bangkok');
+      const effectiveShift = this.getEffectiveShift(
+        recordDate,
+        userData,
+        shiftAdjustments,
+        shifts,
+      );
+      const shiftStartHour = parseInt(effectiveShift.startTime.split(':')[0]);
+
+      // If the attendance time is before the shift start hour, it belongs to the previous day's shift
+      if (recordDate.hour() < shiftStartHour) {
+        recordDate.subtract(1, 'day');
+      }
+
+      const dateKey = recordDate.format('YYYY-MM-DD');
+      if (!recordsByDate[dateKey]) {
+        recordsByDate[dateKey] = [];
+      }
+      recordsByDate[dateKey].push(record);
+    });
+
+    // Sort records for each day
+    Object.keys(recordsByDate).forEach((date) => {
+      recordsByDate[date].sort((a, b) =>
+        moment(a.attendanceTime).diff(moment(b.attendanceTime)),
+      );
+    });
+
+    logMessage(
+      `Records grouped by date: ${JSON.stringify(recordsByDate, null, 2)}`,
+    );
+
+    return recordsByDate;
   }
 
   public async isDayOff(
@@ -420,6 +527,30 @@ export class AttendanceService {
     }
 
     return workDayCount;
+  }
+
+  private calculateOvertimeHours(
+    start: Date,
+    end: Date,
+    shiftStart: Date,
+    shiftEnd: Date,
+  ): number {
+    let overtimeHours = 0;
+    if (start < shiftStart) {
+      overtimeHours +=
+        (shiftStart.getTime() - start.getTime()) / (1000 * 60 * 60);
+    }
+    if (end > shiftEnd) {
+      overtimeHours += (end.getTime() - shiftEnd.getTime()) / (1000 * 60 * 60);
+    }
+    return overtimeHours;
+  }
+
+  private combineDateAndTime(date: Date, time: string): Date {
+    const [hours, minutes] = time.split(':').map(Number);
+    const combined = new Date(date);
+    combined.setHours(hours, minutes, 0, 0);
+    return combined;
   }
 
   private calculatePotentialOvertime(
@@ -1144,42 +1275,6 @@ export class AttendanceService {
       overtimeHours: 0,
       overtimeDuration: 0,
     };
-  }
-
-  private groupRecordsByDate(
-    records: AttendanceRecord[],
-    userData: UserData,
-    shiftAdjustments: ShiftAdjustment[],
-    shifts: Map<string, ShiftData>,
-  ): Record<string, AttendanceRecord[]> {
-    const recordsByDate: Record<string, AttendanceRecord[]> = {};
-
-    records.forEach((record) => {
-      const recordDate = moment(record.attendanceTime).tz('Asia/Bangkok');
-      const effectiveShift = this.getEffectiveShift(
-        recordDate,
-        userData,
-        shiftAdjustments,
-        shifts,
-      );
-      const shiftStartHour = parseInt(effectiveShift.startTime.split(':')[0]);
-
-      // If the attendance time is before the shift start hour, it belongs to the previous day's shift
-      if (recordDate.hour() < shiftStartHour) {
-        recordDate.subtract(1, 'day');
-      }
-
-      const dateKey = recordDate.format('YYYY-MM-DD');
-      if (!recordsByDate[dateKey]) {
-        recordsByDate[dateKey] = [];
-      }
-      recordsByDate[dateKey].push(record);
-    });
-    logMessage(
-      `Records grouped by date: ${JSON.stringify(recordsByDate, null, 2)}`,
-    );
-
-    return recordsByDate;
   }
 
   private getEffectiveShift(

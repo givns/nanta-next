@@ -1,5 +1,3 @@
-// pages/api/check-payroll-processing.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAttendanceProcessingQueue } from '../../lib/queue';
 import prisma from '../../lib/prisma';
@@ -69,13 +67,13 @@ export default async function handler(
         nickname: user.nickname,
         departmentId: user.departmentId,
         department: user.department.name,
-        role: user.role as any, // Assuming role is stored as a string in the database
+        role: user.role as any,
         profilePictureUrl: user.profilePictureUrl,
         profilePictureExternal: user.profilePictureExternal,
         shiftId: user.shiftId,
         assignedShift: user.assignedShift,
         overtimeHours: user.overtimeHours,
-        potentialOvertimes: [], // This should be populated if needed
+        potentialOvertimes: [],
         sickLeaveBalance: user.sickLeaveBalance,
         businessLeaveBalance: user.businessLeaveBalance,
         annualLeaveBalance: user.annualLeaveBalance,
@@ -84,99 +82,24 @@ export default async function handler(
         updatedAt: user.updatedAt,
       };
 
-      const today = moment().tz('Asia/Bangkok');
-      const startDate =
-        moment(today).date() >= 26
-          ? moment(today).date(26).startOf('day')
-          : moment(today).subtract(1, 'month').date(26).startOf('day');
-      const endDate = moment(startDate)
-        .add(1, 'month')
-        .subtract(1, 'day')
-        .endOf('day');
-
-      const attendances = await prisma.attendance.findMany({
-        where: {
-          employeeId: employeeId as string,
-          date: {
-            gte: startDate.toDate(),
-            lte: endDate.toDate(),
+      const payrollProcessingResult =
+        await prisma.payrollProcessingResult.findFirst({
+          where: {
+            employeeId: employeeId as string,
           },
-        },
-        orderBy: { date: 'asc' },
-      });
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
 
-      const processedAttendance: ProcessedAttendance[] = await Promise.all(
-        attendances.map(async (attendance) => {
-          const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst(
-            {
-              where: {
-                employeeId: userData.employeeId,
-                date: attendance.date,
-                status: 'approved',
-              },
-              include: { requestedShift: true },
-            },
-          );
+      if (!payrollProcessingResult) {
+        return res
+          .status(404)
+          .json({ error: 'Payroll processing result not found' });
+      }
 
-          const effectiveShift =
-            shiftAdjustment?.requestedShift || userData.assignedShift;
-
-          // Use the isDayOff method from AttendanceService
-          const isDayOff = await attendanceService['isDayOff'](
-            userData.employeeId,
-            attendance.date,
-            effectiveShift,
-          );
-
-          // Convert Attendance to AttendanceRecord
-          const attendanceRecord: AttendanceRecord = {
-            id: attendance.id,
-            employeeId: attendance.employeeId,
-            date: attendance.date,
-            attendanceTime: attendance.checkInTime || attendance.date,
-            checkInTime: attendance.checkInTime,
-            checkOutTime: attendance.checkOutTime,
-            isOvertime: attendance.isOvertime,
-            isDayOff: isDayOff,
-            overtimeStartTime: attendance.overtimeStartTime,
-            overtimeEndTime: attendance.overtimeEndTime,
-            overtimeHours: attendance.overtimeDuration || 0,
-            overtimeDuration: attendance.overtimeDuration || 0,
-            checkInLocation: attendance.checkInLocation,
-            checkOutLocation: attendance.checkOutLocation,
-            checkInAddress: attendance.checkInAddress,
-            checkOutAddress: attendance.checkOutAddress,
-            checkInReason: attendance.checkInReason,
-            checkOutReason: attendance.checkOutReason,
-            checkInPhoto: attendance.checkInPhoto,
-            checkOutPhoto: attendance.checkOutPhoto,
-            checkInDeviceSerial: attendance.checkInDeviceSerial,
-            checkOutDeviceSerial: attendance.checkOutDeviceSerial,
-            status: attendance.status,
-            isManualEntry: attendance.isManualEntry,
-          };
-
-          return attendanceService.processAttendanceRecord(
-            attendanceRecord,
-            effectiveShift,
-            !isDayOff,
-          );
-        }),
-      );
-
-      // Calculate summary statistics
-      const totalWorkingDays = processedAttendance.length;
-      const totalPresent = processedAttendance.filter(
-        (a) => a.status === 'present',
-      ).length;
-      const totalAbsent = totalWorkingDays - totalPresent;
-      const totalOvertimeHours = processedAttendance.reduce(
-        (sum, a) => sum + (a.overtimeHours || 0),
-        0,
-      );
-      const totalRegularHours = processedAttendance.reduce(
-        (sum, a) => sum + a.regularHours,
-        0,
+      const processedAttendance: ProcessedAttendance[] = JSON.parse(
+        payrollProcessingResult.processedData as string,
       );
 
       res.status(200).json({
@@ -185,15 +108,15 @@ export default async function handler(
           userData,
           processedAttendance,
           summary: {
-            totalWorkingDays,
-            totalPresent,
-            totalAbsent,
-            totalOvertimeHours,
-            totalRegularHours,
+            totalWorkingDays: payrollProcessingResult.totalWorkingDays,
+            totalPresent: payrollProcessingResult.totalPresent,
+            totalAbsent: payrollProcessingResult.totalAbsent,
+            totalOvertimeHours: payrollProcessingResult.totalOvertimeHours,
+            totalRegularHours: payrollProcessingResult.totalRegularHours,
           },
           payrollPeriod: {
-            start: startDate.format('YYYY-MM-DD'),
-            end: endDate.format('YYYY-MM-DD'),
+            start: payrollProcessingResult.periodStart,
+            end: payrollProcessingResult.periodEnd,
           },
         },
       });

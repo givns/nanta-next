@@ -89,10 +89,6 @@ export class AttendanceProcessingService {
       user,
       checkInTime,
     );
-    console.log(`Shift: ${shift.name}`);
-    console.log(`Shift start: ${shiftStart.toISOString()}`);
-    console.log(`Shift end: ${shiftEnd.toISOString()}`);
-    console.log(`Check-in time: ${checkInTime.toISOString()}`);
 
     let status: string;
     let isOvertime = false;
@@ -100,10 +96,8 @@ export class AttendanceProcessingService {
     const twoHoursBeforeShift = new Date(
       shiftStart.getTime() - 2 * 60 * 60 * 1000,
     );
-    console.log(`Two hours before shift: ${twoHoursBeforeShift.toISOString()}`);
 
     if (checkInTime < twoHoursBeforeShift) {
-      console.log('Check-in is more than 2 hours before shift start');
       await notificationService.sendNotification(
         employeeId,
         `Your check-in for ${checkInTime.toDateString()} at ${checkInTime.toTimeString()} is more than 2 hours before your shift starts. This may not be counted as a valid attendance. Please check your schedule.`,
@@ -224,7 +218,6 @@ export class AttendanceProcessingService {
       user,
       checkOutTime,
     );
-    console.log(shift);
 
     let status: string;
     let isOvertime = latestAttendance.isOvertime;
@@ -275,6 +268,20 @@ export class AttendanceProcessingService {
       }
     }
 
+    const regularHours = this.calculateRegularHours(
+      latestAttendance.checkInTime || new Date(), // Provide a default value for checkInTime
+      checkOutTime,
+      shiftStart,
+      shiftEnd,
+    );
+
+    const overtimeHours = this.calculateOvertimeHours(
+      latestAttendance.checkInTime || new Date(), // Provide a default value for checkInTime
+      checkOutTime,
+      shiftStart,
+      shiftEnd,
+    );
+
     const updatedAttendance = await prisma.attendance.update({
       where: { id: latestAttendance.id },
       data: {
@@ -295,6 +302,38 @@ export class AttendanceProcessingService {
     );
 
     return updatedAttendance;
+  }
+
+  private calculateRegularHours(
+    checkInTime: Date,
+    checkOutTime: Date,
+    shiftStart: Date,
+    shiftEnd: Date,
+  ): number {
+    const effectiveStart = Math.max(
+      checkInTime.getTime(),
+      shiftStart.getTime(),
+    );
+    const effectiveEnd = Math.min(checkOutTime.getTime(), shiftEnd.getTime());
+    return Math.max(0, (effectiveEnd - effectiveStart) / (1000 * 60 * 60));
+  }
+
+  private calculateOvertimeHours(
+    checkInTime: Date,
+    checkOutTime: Date,
+    shiftStart: Date,
+    shiftEnd: Date,
+  ): number {
+    let overtimeHours = 0;
+    if (checkInTime < shiftStart) {
+      overtimeHours +=
+        (shiftStart.getTime() - checkInTime.getTime()) / (1000 * 60 * 60);
+    }
+    if (checkOutTime > shiftEnd) {
+      overtimeHours +=
+        (checkOutTime.getTime() - shiftEnd.getTime()) / (1000 * 60 * 60);
+    }
+    return overtimeHours;
   }
 
   private async getUserWithShift(
