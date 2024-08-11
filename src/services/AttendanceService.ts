@@ -40,6 +40,10 @@ export class AttendanceService {
     logMessage('AttendanceService initialized');
   }
 
+  private parseDate(date: Date | string): moment.Moment {
+    return moment.tz(date, 'Asia/Bangkok');
+  }
+
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatus> {
@@ -191,9 +195,6 @@ export class AttendanceService {
     startDate: Date,
     endDate: Date,
   ): Promise<ProcessedAttendance[]> {
-    logMessage(
-      `Processing attendance data for user ${user.employeeId} from ${startDate} to ${endDate}`,
-    );
     const shiftAdjustments = await this.getShiftAdjustments(
       user.employeeId,
       startDate,
@@ -204,7 +205,7 @@ export class AttendanceService {
       startDate,
       endDate,
     );
-    const leaveRequest = await this.leaveServiceServer.getLeaveRequests(
+    const leaveRequests = await this.leaveServiceServer.getLeaveRequests(
       user.employeeId,
     );
     const shifts = await this.getAllShifts();
@@ -233,11 +234,8 @@ export class AttendanceService {
         currentDate.toDate(),
         effectiveShift,
       );
-      const isLeave = leaveRequest.some(
-        (leave: {
-          startDate: moment.MomentInput;
-          endDate: moment.MomentInput;
-        }) =>
+      const isLeave = leaveRequests.some(
+        (leave) =>
           moment(leave.startDate).isSameOrBefore(currentDate, 'day') &&
           moment(leave.endDate).isSameOrAfter(currentDate, 'day'),
       );
@@ -251,30 +249,23 @@ export class AttendanceService {
           this.createLeaveRecord(currentDate.toDate(), user.employeeId),
         );
       } else {
-        for (const [dateStr, records] of Object.entries(groupedRecords)) {
-          const pairedRecords = this.pairCheckInCheckOut(records);
-          for (const pair of pairedRecords) {
-            const processedRecord = await this.processAttendanceRecord(
-              pair.checkIn,
-              pair.checkOut,
-              this.getEffectiveShift(
-                moment(dateStr),
-                user,
-                shiftAdjustments,
-                shifts,
-              ),
-              !(await this.isDayOff(
-                user.employeeId,
-                new Date(dateStr),
-                shifts.get(user.shiftId)!,
-              )),
-              approvedOvertimes,
-            );
-            processedAttendance.push(processedRecord);
+        const pairedRecords = this.pairCheckInCheckOut(records);
+        for (const pair of pairedRecords) {
+          const processedRecord = await this.processAttendanceRecord(
+            pair.checkIn,
+            pair.checkOut,
+            effectiveShift,
+            !isDayOff,
+            approvedOvertimes,
+          );
+          processedAttendance.push(processedRecord);
+        }
+        for (const record of records) {
+          if (!this.validateAttendanceRecord(record)) {
+            continue;
           }
         }
       }
-
       currentDate.add(1, 'day');
     }
 
@@ -290,26 +281,36 @@ export class AttendanceService {
       checkOut: AttendanceRecord | undefined;
     }> = [];
 
-    records.sort(
-      (a, b) => a.attendanceTime.getTime() - b.attendanceTime.getTime(),
+    let currentCheckIn: AttendanceRecord | undefined;
+
+    records.sort((a, b) =>
+      this.parseDate(a.attendanceTime).diff(this.parseDate(b.attendanceTime)),
     );
 
-    for (let i = 0; i < records.length; i += 2) {
-      const checkIn = records[i];
-      const checkOut = records[i + 1];
-
-      if (checkOut) {
-        checkOut.checkInTime = null;
-        checkOut.checkOutTime = checkOut.attendanceTime;
-        paired.push({ checkIn, checkOut });
+    for (const record of records) {
+      if (
+        !currentCheckIn ||
+        this.parseDate(record.attendanceTime).diff(
+          this.parseDate(currentCheckIn.attendanceTime),
+          'hours',
+        ) >= 24
+      ) {
+        if (currentCheckIn) {
+          paired.push({ checkIn: currentCheckIn, checkOut: undefined });
+        }
+        currentCheckIn = record;
       } else {
-        paired.push({ checkIn, checkOut: undefined });
+        paired.push({ checkIn: currentCheckIn, checkOut: record });
+        currentCheckIn = undefined;
       }
+    }
+
+    if (currentCheckIn) {
+      paired.push({ checkIn: currentCheckIn, checkOut: undefined });
     }
 
     return paired;
   }
-
   public async processAttendanceRecord(
     checkIn: AttendanceRecord,
     checkOut: AttendanceRecord | undefined,
@@ -445,9 +446,9 @@ export class AttendanceService {
     // Check if overtime is approved
     const isApproved = approvedOvertimes.some(
       (overtime) =>
-        moment(overtime.date).isSame(checkIn, 'day') &&
-        moment(overtime.startTime).isSameOrBefore(checkIn) &&
-        moment(overtime.endTime).isSameOrAfter(checkOut),
+        this.parseDate(overtime.date).isSame(checkIn, 'day') &&
+        this.parseDate(overtime.startTime).isSameOrBefore(checkIn) &&
+        this.parseDate(overtime.endTime).isSameOrAfter(checkOut),
     );
 
     return {
@@ -481,7 +482,7 @@ export class AttendanceService {
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
 
     records.forEach((record) => {
-      const recordDate = moment(record.attendanceTime).tz('Asia/Bangkok');
+      const recordDate = this.parseDate(record.attendanceTime);
       const effectiveShift = this.getEffectiveShift(
         recordDate,
         userData,
@@ -505,7 +506,7 @@ export class AttendanceService {
     // Sort records for each day
     Object.keys(recordsByDate).forEach((date) => {
       recordsByDate[date].sort((a, b) =>
-        moment(a.attendanceTime).diff(moment(b.attendanceTime)),
+        this.parseDate(a.attendanceTime).diff(this.parseDate(b.attendanceTime)),
       );
     });
 
@@ -1492,5 +1493,17 @@ export class AttendanceService {
       }
       return record;
     });
+  }
+
+  private validateAttendanceRecord(record: AttendanceRecord): boolean {
+    if (!record.employeeId || !record.attendanceTime) {
+      console.error(`Invalid record: missing employeeId or attendanceTime`);
+      return false;
+    }
+    if (!this.parseDate(record.attendanceTime).isValid()) {
+      console.error(`Invalid attendanceTime: ${record.attendanceTime}`);
+      return false;
+    }
+    return true;
   }
 }
