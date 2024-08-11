@@ -9,15 +9,18 @@ import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, ProcessedAttendance, AttendanceRecord } from '../types/user';
 import moment from 'moment-timezone';
 import { logMessage } from '../utils/inMemoryLogger';
+import { leaveServiceServer } from '@/services/LeaveServiceServer';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
 const holidayService = new HolidayService();
 const shift104HolidayService = new Shift104HolidayService();
+
 const attendanceService = new AttendanceService(
   externalDbService,
   holidayService,
   shift104HolidayService,
+  leaveServiceServer,
 );
 
 export async function processAttendance(job: Job): Promise<any> {

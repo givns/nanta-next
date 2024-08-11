@@ -268,3 +268,4 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     }
   }
 }
+export const leaveServiceServer = new LeaveServiceServer();
