@@ -251,16 +251,27 @@ export class AttendanceService {
           this.createLeaveRecord(currentDate.toDate(), user.employeeId),
         );
       } else {
-        const pairedRecords = this.pairCheckInCheckOut(records);
-        for (const pair of pairedRecords) {
-          const processedRecord = await this.processAttendanceRecord(
-            pair.checkIn,
-            pair.checkOut,
-            effectiveShift,
-            !isDayOff,
-            approvedOvertimes,
-          );
-          processedAttendance.push(processedRecord);
+        for (const [dateStr, records] of Object.entries(groupedRecords)) {
+          const pairedRecords = this.pairCheckInCheckOut(records);
+          for (const pair of pairedRecords) {
+            const processedRecord = await this.processAttendanceRecord(
+              pair.checkIn,
+              pair.checkOut,
+              this.getEffectiveShift(
+                moment(dateStr),
+                user,
+                shiftAdjustments,
+                shifts,
+              ),
+              !(await this.isDayOff(
+                user.employeeId,
+                new Date(dateStr),
+                shifts.get(user.shiftId)!,
+              )),
+              approvedOvertimes,
+            );
+            processedAttendance.push(processedRecord);
+          }
         }
       }
 
@@ -278,18 +289,24 @@ export class AttendanceService {
       checkIn: AttendanceRecord;
       checkOut: AttendanceRecord | undefined;
     }> = [];
+
+    records.sort(
+      (a, b) => a.attendanceTime.getTime() - b.attendanceTime.getTime(),
+    );
+
     for (let i = 0; i < records.length; i += 2) {
       const checkIn = records[i];
       const checkOut = records[i + 1];
-      paired.push({
-        checkIn,
-        checkOut:
-          checkOut &&
-          moment(checkOut.attendanceTime).isAfter(checkIn.attendanceTime)
-            ? checkOut
-            : undefined,
-      });
+
+      if (checkOut) {
+        checkOut.checkInTime = null;
+        checkOut.checkOutTime = checkOut.attendanceTime;
+        paired.push({ checkIn, checkOut });
+      } else {
+        paired.push({ checkIn, checkOut: undefined });
+      }
     }
+
     return paired;
   }
 
@@ -491,10 +508,6 @@ export class AttendanceService {
         moment(a.attendanceTime).diff(moment(b.attendanceTime)),
       );
     });
-
-    logMessage(
-      `Records grouped by date: ${JSON.stringify(recordsByDate, null, 2)}`,
-    );
 
     return recordsByDate;
   }
@@ -1336,10 +1349,8 @@ export class AttendanceService {
   public convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord | undefined {
-    const attendanceTime = parseDateSafely(external.sj, 'YYYY-MM-DD HH:mm:ss');
-    const date = parseDateSafely(external.date, 'YYYY-MM-DD');
-
-    if (!attendanceTime || !date) {
+    const attendanceTime = moment(external.sj, 'YYYY-MM-DD HH:mm:ss');
+    if (!attendanceTime.isValid()) {
       logMessage(
         `Invalid date in external record: ${JSON.stringify(external)}`,
       );
@@ -1349,7 +1360,7 @@ export class AttendanceService {
     return {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      date: date.toDate(),
+      date: attendanceTime.startOf('day').toDate(),
       attendanceTime: attendanceTime.toDate(),
       checkInTime: attendanceTime.toDate(),
       checkOutTime: null,
