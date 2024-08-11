@@ -152,7 +152,7 @@ export interface AttendanceRecord {
   id: string;
   employeeId: string;
   date: Date;
-  attendanceTime: Date;
+  attendanceTime: string | Date;
   checkInTime: Date | null;
   checkOutTime: Date | null;
   isOvertime: boolean;
