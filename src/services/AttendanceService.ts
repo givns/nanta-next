@@ -40,7 +40,10 @@ export class AttendanceService {
     logMessage('AttendanceService initialized');
   }
 
-  private parseDate(date: Date | string): moment.Moment {
+  private parseDate(date: Date | string | moment.Moment): moment.Moment {
+    if (moment.isMoment(date)) {
+      return date.clone().tz('Asia/Bangkok');
+    }
     return moment.tz(date, 'Asia/Bangkok');
   }
 
@@ -1350,7 +1353,7 @@ export class AttendanceService {
   public convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord | undefined {
-    const attendanceTime = moment(external.sj, 'YYYY-MM-DD HH:mm:ss');
+    const attendanceTime = this.parseDate(external.sj);
     if (!attendanceTime.isValid()) {
       logMessage(
         `Invalid date in external record: ${JSON.stringify(external)}`,
