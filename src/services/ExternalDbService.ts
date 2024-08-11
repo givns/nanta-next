@@ -177,7 +177,8 @@ export class ExternalDbService {
 
         const processedRecords = records.map((record) => ({
           ...record,
-          sj: moment(record.sj).format(),
+          sj: moment(record.sj, 'YYYY-MM-DD HH:mm:ss').format(),
+          date: moment(record.date, 'YYYY-MM-DD').format('YYYY-MM-DD'),
         }));
 
         console.log(
