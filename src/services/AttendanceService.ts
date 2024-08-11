@@ -40,18 +40,6 @@ export class AttendanceService {
     logMessage('AttendanceService initialized');
   }
 
-  private parseDateSafely(
-    dateString: string,
-    format: string,
-  ): moment.Moment | null {
-    const parsedDate = moment.tz(dateString, format, 'Asia/Bangkok');
-    if (!parsedDate.isValid()) {
-      logMessage(`Invalid date encountered: ${dateString}, Format: ${format}`);
-      return null;
-    }
-    return parsedDate;
-  }
-
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatus> {
@@ -277,18 +265,6 @@ export class AttendanceService {
       }
 
       currentDate.add(1, 'day');
-    }
-    for (const record of attendanceRecords) {
-      const recordDate = this.parseDateSafely(
-        record.date.toISOString(),
-        moment.ISO_8601.toString(),
-      );
-      if (!recordDate) {
-        logMessage(
-          `Invalid date in attendance record: ${JSON.stringify(record)}`,
-        );
-        continue;
-      }
     }
 
     return this.validateAndCorrectAttendance(processedAttendance);
@@ -1367,7 +1343,6 @@ export class AttendanceService {
       logMessage(
         `Invalid date in external record: ${JSON.stringify(external)}`,
       );
-      logMessage(`Attendance Time: ${external.sj}, Date: ${external.date}`);
       return undefined;
     }
 
