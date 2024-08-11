@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { UserData, ShiftData, PotentialOvertime } from '../../types/user';
 import { AttendanceService } from '../../services/AttendanceService';
 import { HolidayService } from '../../services/HolidayService';
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../../types/enum';
 import moment from 'moment-timezone';
 import { PrismaClient } from '@prisma/client';
 import { ExternalDbService } from '../../services/ExternalDbService';

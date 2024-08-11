@@ -9,7 +9,7 @@ import {
   PotentialOvertime,
 } from '../../types/user';
 import { HolidayService } from '../../services/HolidayService';
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../../types/enum';
 
 const holidayService = new HolidayService();
 

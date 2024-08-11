@@ -19,7 +19,7 @@ import {
   PotentialOvertime,
   ManualEntryData,
 } from '../types/user';
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../types/enum';
 import moment from 'moment-timezone';
 import { logMessage } from '../utils/inMemoryLogger';
 import { ILeaveServiceServer } from '@/types/LeaveService';

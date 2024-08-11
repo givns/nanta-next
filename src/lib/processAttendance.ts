@@ -9,7 +9,7 @@ import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, ProcessedAttendance, AttendanceRecord } from '../types/user';
 import moment from 'moment-timezone';
 import { logMessage } from '../utils/inMemoryLogger';
-import { leaveServiceServer } from '@/services/LeaveServiceServer';
+import { leaveServiceServer } from '../services/LeaveServiceServer';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();

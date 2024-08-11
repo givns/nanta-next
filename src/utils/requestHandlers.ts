@@ -7,7 +7,7 @@ import {
   sendDenyNotification,
 } from './sendNotifications';
 import { sendRequestNotification } from './sendRequestNotification';
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../types/enum';
 
 const prisma = new PrismaClient();
 const client = new Client({

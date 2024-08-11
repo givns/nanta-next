@@ -4,7 +4,7 @@ import {
   Attendance,
   ShiftAdjustmentRequest,
 } from '@prisma/client';
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../types/enum';
 
 export type { User, Attendance, Shift, ShiftAdjustmentRequest };
 export interface UserData {

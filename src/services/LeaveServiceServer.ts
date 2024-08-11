@@ -7,7 +7,7 @@ import {
   sendDenyNotification,
 } from '../utils/sendNotifications';
 import { sendRequestNotification } from '../utils/sendRequestNotification';
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../types/enum';
 import { ILeaveServiceServer, LeaveBalanceData } from '@/types/LeaveService';
 
 const prisma = new PrismaClient();

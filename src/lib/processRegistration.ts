@@ -13,7 +13,7 @@ import {
   departmentIdNameMap,
 } from './shiftCache';
 import { Shift, User } from '@prisma/client';
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../types/enum';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
