@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { ExternalDbService } from '../../services/ExternalDbService';
 import { Shift104HolidayService } from '../../services/Shift104HolidayService';
 import { NotificationService } from '../../services/NotificationService';
+import { leaveServiceServer } from '@/services/LeaveServiceServer';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -18,6 +19,7 @@ const attendanceService = new AttendanceService(
   externalDbService,
   holidayService,
   shift104HolidayService,
+  leaveServiceServer,
 );
 export default async function handler(
   req: NextApiRequest,

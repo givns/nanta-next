@@ -268,9 +268,7 @@ export class AttendanceService {
     return this.validateAndCorrectAttendance(processedAttendance);
   }
 
-  private pairCheckInCheckOut(
-    records: AttendanceRecord[],
-  ): Array<{
+  private pairCheckInCheckOut(records: AttendanceRecord[]): Array<{
     checkIn: AttendanceRecord;
     checkOut: AttendanceRecord | undefined;
   }> {

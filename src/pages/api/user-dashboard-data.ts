@@ -14,6 +14,7 @@ import {
   AttendanceRecord,
 } from '../../types/user';
 import moment from 'moment-timezone';
+import { leaveServiceServer } from '@/services/LeaveServiceServer';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -23,6 +24,7 @@ const attendanceService = new AttendanceService(
   externalDbService,
   holidayService,
   shift104HolidayService,
+  leaveServiceServer,
 );
 
 export default async function handler(

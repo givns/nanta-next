@@ -8,6 +8,7 @@ import { HolidayService } from '../../services/HolidayService';
 import { Shift104HolidayService } from '../../services/Shift104HolidayService';
 import { UserData, AttendanceRecord } from '../../types/user';
 import moment from 'moment-timezone';
+import { leaveServiceServer } from '@/services/LeaveServiceServer';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -17,6 +18,7 @@ const attendanceService = new AttendanceService(
   externalDbService,
   holidayService,
   shift104HolidayService,
+  leaveServiceServer,
 );
 
 export default async function handler(
@@ -107,7 +109,6 @@ export default async function handler(
       userData,
       startDate.toDate(),
       endDate.toDate(),
-      50, // Process in chunks of 50 records
     );
 
     res.status(200).json({

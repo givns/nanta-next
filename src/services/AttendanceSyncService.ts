@@ -8,6 +8,7 @@ import { ShiftManagementService } from './ShiftManagementService';
 import { HolidayService } from './HolidayService';
 import { Shift104HolidayService } from './Shift104HolidayService';
 import moment from 'moment-timezone';
+import { leaveServiceServer } from './LeaveServiceServer';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -19,6 +20,7 @@ const attendanceService = new AttendanceService(
   externalDbService,
   holidayService,
   shift104HolidayService,
+  leaveServiceServer,
 );
 
 export class AttendanceSyncService {

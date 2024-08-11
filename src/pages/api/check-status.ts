@@ -6,6 +6,7 @@ import { logMessage } from '../../utils/inMemoryLogger';
 import { ExternalDbService } from '@/services/ExternalDbService';
 import { HolidayService } from '@/services/HolidayService';
 import { Shift104HolidayService } from '@/services/Shift104HolidayService';
+import { leaveServiceServer } from '@/services/LeaveServiceServer';
 
 const externalDbService = new ExternalDbService();
 const holidayService = new HolidayService();
@@ -14,6 +15,7 @@ const attendanceService = new AttendanceService(
   externalDbService,
   holidayService,
   shift104HolidayService,
+  leaveServiceServer,
 );
 
 export default async function handler(
