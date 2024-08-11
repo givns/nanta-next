@@ -120,7 +120,16 @@ export default async function handler(
       employeeId: user.employeeId,
       role: user.role as UserRole,
       shiftId: user.shiftId,
-      assignedShift: user.assignedShift as ShiftData,
+      assignedShift: {
+        id: user.assignedShift.id,
+        shiftCode: user.assignedShift.shiftCode,
+        name: user.assignedShift.name,
+        startTime: user.assignedShift.startTime,
+        endTime: user.assignedShift.endTime,
+        workDays: Array.isArray(user.assignedShift.workDays)
+          ? user.assignedShift.workDays
+          : String(user.assignedShift.workDays).split(',').map(Number),
+      } as ShiftData,
       profilePictureUrl: user.profilePictureUrl,
       profilePictureExternal: user.profilePictureExternal,
       overtimeHours: user.overtimeHours,
