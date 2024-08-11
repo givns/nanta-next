@@ -25,7 +25,6 @@ export async function processAttendance(job: Job): Promise<any> {
   logMessage(`Starting attendance processing for employee: ${employeeId}`);
 
   try {
-    // Fetch user data
     const user = await prisma.user.findUnique({
       where: { employeeId },
       include: {
@@ -35,7 +34,6 @@ export async function processAttendance(job: Job): Promise<any> {
     });
 
     if (!user) {
-      logMessage(`User not found for employeeId: ${employeeId}`);
       throw new Error('User not found');
     }
 
@@ -115,7 +113,7 @@ export async function processAttendance(job: Job): Promise<any> {
       0,
     );
     const totalRegularHours = processedAttendance.reduce(
-      (sum, a) => sum + a.regularHours,
+      (sum, a) => sum + (a.regularHours || 0),
       0,
     );
 
@@ -136,8 +134,8 @@ export async function processAttendance(job: Job): Promise<any> {
           totalWorkingDays,
           totalPresent,
           totalAbsent,
-          totalOvertimeHours,
-          totalRegularHours,
+          totalOvertimeHours: Math.round(totalOvertimeHours * 100) / 100,
+          totalRegularHours: Math.round(totalRegularHours * 100) / 100,
           processedData: JSON.stringify(processedAttendance),
         },
       },
@@ -150,7 +148,7 @@ export async function processAttendance(job: Job): Promise<any> {
     // Update user's overtime hours
     await prisma.user.update({
       where: { id: user.id },
-      data: { overtimeHours: totalOvertimeHours },
+      data: { overtimeHours: Math.round(totalOvertimeHours * 100) / 100 },
     });
 
     logMessage(`User's overtime hours updated to: ${totalOvertimeHours}`);
@@ -163,8 +161,8 @@ export async function processAttendance(job: Job): Promise<any> {
         totalWorkingDays,
         totalPresent,
         totalAbsent,
-        totalOvertimeHours,
-        totalRegularHours,
+        totalOvertimeHours: Math.round(totalOvertimeHours * 100) / 100,
+        totalRegularHours: Math.round(totalRegularHours * 100) / 100,
       },
     };
   } catch (error: any) {
