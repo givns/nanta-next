@@ -141,11 +141,11 @@ export interface PotentialOvertime {
 
 export interface ShiftData {
   id: string;
-  shiftCode: string;
   name: string;
   startTime: string;
   endTime: string;
   workDays: number[];
+  shiftCode: string;
 }
 
 export interface AttendanceRecord {

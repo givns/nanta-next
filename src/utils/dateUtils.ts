@@ -1,4 +1,19 @@
 // utils/dateUtils.ts
+import moment from 'moment-timezone';
+import { logMessage } from './inMemoryLogger';
+
+export const parseDateSafely = (
+  dateString: string,
+  format: string,
+  timezone: string = 'Asia/Bangkok',
+) => {
+  const parsed = moment.tz(dateString, format, timezone);
+  if (!parsed.isValid()) {
+    logMessage(`Invalid date encountered: ${dateString}`);
+    return null;
+  }
+  return parsed;
+};
 
 export const formatTime = (time: Date | string | null | undefined): string => {
   if (!time) return 'N/A';

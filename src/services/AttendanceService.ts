@@ -3,7 +3,7 @@ import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { ExternalDbService } from './ExternalDbService';
 import { NotificationService } from './NotificationService';
 import { HolidayService } from './HolidayService';
-import { LeaveServiceServer } from './LeaveServiceServer';
+import { parseDateSafely } from '../utils/dateUtils';
 import { Shift104HolidayService } from './Shift104HolidayService';
 import {
   ExternalCheckInData,
@@ -175,11 +175,13 @@ export class AttendanceService {
     );
     const allAttendances = [
       ...internal.map(this.convertInternalToAttendanceRecord),
-      ...external.map(this.convertExternalToAttendanceRecord.bind(this)),
+      ...external
+        .map(this.convertExternalToAttendanceRecord)
+        .filter((record): record is AttendanceRecord => record !== undefined),
     ];
 
     return allAttendances.sort((a, b) =>
-      moment(b.attendanceTime).diff(moment(a.attendanceTime)),
+      a && b ? moment(b.attendanceTime).diff(moment(a.attendanceTime)) : 0,
     );
   }
 
@@ -497,24 +499,27 @@ export class AttendanceService {
     return recordsByDate;
   }
 
-  public async isDayOff(
+  private async isDayOff(
     employeeId: string,
     date: Date,
     shift: ShiftData,
   ): Promise<boolean> {
-    const dayOfWeek = moment(date).day();
+    const momentDate = moment(date).tz('Asia/Bangkok');
+    const dayOfWeek = momentDate.day();
     logMessage(
-      `Checking day off for ${date.toISOString()}, shift work days: ${shift.workDays}`,
+      `Checking day off for ${momentDate.format('YYYY-MM-DD')}, day of week: ${dayOfWeek}, shift work days: ${shift.workDays}`,
     );
 
     if (!shift.workDays.includes(dayOfWeek)) {
-      logMessage(`${date.toISOString()} is a day off (not in work days)`);
+      logMessage(
+        `${momentDate.format('YYYY-MM-DD')} is a day off (not in work days)`,
+      );
       return true;
     }
 
     const isHoliday = await this.holidayService.isHoliday(date);
     if (isHoliday) {
-      logMessage(`${date.toISOString()} is a holiday`);
+      logMessage(`${momentDate.format('YYYY-MM-DD')} is a holiday`);
       return true;
     }
 
@@ -523,7 +528,7 @@ export class AttendanceService {
       const isShift104Holiday =
         await this.shift104HolidayService.isShift104Holiday(date);
       if (isShift104Holiday) {
-        logMessage(`${date.toISOString()} is a Shift104 holiday`);
+        logMessage(`${momentDate.format('YYYY-MM-DD')} is a Shift104 holiday`);
         return true;
       }
     }
@@ -534,7 +539,7 @@ export class AttendanceService {
     );
     const isDayOff = weeklyWorkDayCount >= 6;
     logMessage(
-      `${date.toISOString()} weekly work day count: ${weeklyWorkDayCount}, is day off: ${isDayOff}`,
+      `${momentDate.format('YYYY-MM-DD')} weekly work day count: ${weeklyWorkDayCount}, is day off: ${isDayOff}`,
     );
     return isDayOff;
   }
@@ -543,8 +548,8 @@ export class AttendanceService {
     employeeId: string,
     date: Date,
   ): Promise<number> {
-    const startOfWeek = moment(date).startOf('week');
-    const endOfWeek = moment(date).endOf('week');
+    const startOfWeek = moment(date).tz('Asia/Bangkok').startOf('week');
+    const endOfWeek = moment(date).tz('Asia/Bangkok').endOf('week');
 
     const attendances = await prisma.attendance.findMany({
       where: {
@@ -986,9 +991,9 @@ export class AttendanceService {
         endDate,
       );
 
-    const attendanceRecords = externalRecords.map(
-      this.convertExternalToAttendanceRecord,
-    );
+    const attendanceRecords = externalRecords
+      .map(this.convertExternalToAttendanceRecord)
+      .filter((record) => record !== undefined) as AttendanceRecord[];
 
     return this.processAttendanceData(
       attendanceRecords,
@@ -1330,9 +1335,16 @@ export class AttendanceService {
 
   public convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
-  ): AttendanceRecord {
-    const attendanceTime = moment.tz(external.sj, 'Asia/Bangkok');
-    const date = moment.tz(external.date, 'YYYY-MM-DD', 'Asia/Bangkok');
+  ): AttendanceRecord | undefined {
+    const attendanceTime = parseDateSafely(external.sj, 'YYYY-MM-DD HH:mm:ss');
+    const date = parseDateSafely(external.date, 'YYYY-MM-DD');
+
+    if (!attendanceTime || !date) {
+      logMessage(
+        `Invalid date in external record: ${JSON.stringify(external)}`,
+      );
+      return undefined;
+    }
 
     return {
       id: external.bh.toString(),

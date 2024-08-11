@@ -59,7 +59,7 @@ export class AttendanceSyncService {
             attendanceService.convertExternalToAttendanceRecord(record);
           const processedAttendance =
             await attendanceService.processAttendanceData(
-              [convertedRecord],
+              convertedRecord ? [convertedRecord] : [],
               attendanceService.convertToUserData(user),
               new Date(record.date),
               new Date(record.date),

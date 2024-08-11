@@ -124,7 +124,14 @@ export default async function handler(
       );
       if (adjustmentDate.isSame(checkTime, 'day')) {
         console.log('Using adjusted shift');
-        effectiveShift = attendanceStatus.shiftAdjustment.requestedShift;
+        effectiveShift = attendanceStatus.shiftAdjustment.requestedShift as {
+          id: string;
+          shiftCode: string;
+          name: string;
+          startTime: string;
+          endTime: string;
+          workDays: number[];
+        };
       }
     }
 

@@ -124,9 +124,9 @@ export default async function handler(
       );
 
     const mergedAttendanceData: AttendanceRecord[] = [
-      ...externalAttendanceRecords.map(
-        attendanceService.convertExternalToAttendanceRecord,
-      ),
+      ...externalAttendanceRecords
+        .map(attendanceService.convertExternalToAttendanceRecord)
+        .filter((record): record is AttendanceRecord => record !== undefined),
       ...internalAttendanceData.map(
         attendanceService.convertInternalToAttendanceRecord,
       ),

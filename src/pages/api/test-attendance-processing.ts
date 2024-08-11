@@ -100,9 +100,11 @@ export default async function handler(
         endDate.toDate(),
       );
 
-    const attendanceRecords: AttendanceRecord[] = records.map((record) =>
-      attendanceService.convertExternalToAttendanceRecord(record),
-    );
+    const attendanceRecords: AttendanceRecord[] = records
+      .map((record) =>
+        attendanceService.convertExternalToAttendanceRecord(record),
+      )
+      .filter((record): record is AttendanceRecord => record !== undefined);
 
     const processedAttendance = await attendanceService.processAttendanceData(
       attendanceRecords,

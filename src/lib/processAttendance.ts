@@ -91,10 +91,11 @@ export async function processAttendance(job: Job): Promise<any> {
       `Found ${externalAttendances.length} attendance records out of ${totalCount} total records`,
     );
 
-    const attendanceRecords: AttendanceRecord[] = externalAttendances.map(
-      (externalRecord) =>
+    const attendanceRecords: AttendanceRecord[] = externalAttendances
+      .map((externalRecord) =>
         attendanceService.convertExternalToAttendanceRecord(externalRecord),
-    );
+      )
+      .filter((record): record is AttendanceRecord => record !== undefined);
 
     const processedAttendance = await attendanceService.processAttendanceData(
       attendanceRecords,
