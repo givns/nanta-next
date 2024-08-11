@@ -1331,12 +1331,15 @@ export class AttendanceService {
   public convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord {
+    const attendanceTime = moment.tz(external.sj, 'Asia/Bangkok');
+    const date = moment.tz(external.date, 'YYYY-MM-DD', 'Asia/Bangkok');
+
     return {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      date: new Date(external.date),
-      attendanceTime: new Date(external.sj),
-      checkInTime: new Date(external.sj),
+      date: date.toDate(),
+      attendanceTime: attendanceTime.toDate(),
+      checkInTime: attendanceTime.toDate(),
       checkOutTime: null,
       isOvertime: false,
       isDayOff: false,
