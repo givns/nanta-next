@@ -23,6 +23,7 @@ import { UserRole } from '../types/enum';
 import moment from 'moment-timezone';
 import { logMessage } from '../utils/inMemoryLogger';
 import { ILeaveServiceServer } from '@/types/LeaveService';
+import { time } from 'console';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
@@ -1356,8 +1357,12 @@ export class AttendanceService {
       date: internal.date,
       attendanceTime:
         internal.checkInTime || internal.checkOutTime || internal.date,
-      checkInTime: internal.checkInTime,
-      checkOutTime: internal.checkOutTime,
+      checkInTime: internal.checkInTime
+        ? internal.checkInTime.toISOString()
+        : '',
+      checkOutTime: internal.checkOutTime
+        ? internal.checkOutTime.toISOString()
+        : null,
       isOvertime: internal.isOvertime,
       overtimeDuration: internal.overtimeDuration ?? 0,
       overtimeHours: internal.overtimeDuration ?? 0, // Use overtimeDuration if overtimeHours doesn't exist
@@ -1386,22 +1391,24 @@ export class AttendanceService {
     console.log(`Raw date value: ${external.date}`);
     console.log(`Raw time value: ${external.time}`);
 
-    const attendanceTime = this.parseDate(external.sj);
-    console.log(`Parsed attendanceTime: ${attendanceTime.format()}`);
+    const attendanceMoment = this.parseDate(external.sj);
+    console.log(`Parsed attendanceTime: ${attendanceMoment.format()}`);
 
-    if (!attendanceTime.isValid()) {
+    if (!attendanceMoment.isValid()) {
       console.log(
         `Invalid date in external record: ${JSON.stringify(external)}`,
       );
       return undefined;
     }
+    const dateOnly = attendanceMoment.clone().startOf('day').toDate();
+    const timeOnly = attendanceMoment.format('HH:mm:ss');
 
     const result = {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      date: attendanceTime.clone().startOf('day').toDate(),
-      attendanceTime: attendanceTime.toDate(),
-      checkInTime: attendanceTime.toDate(),
+      date: dateOnly,
+      attendanceTime: timeOnly,
+      checkInTime: timeOnly,
       checkOutTime: null,
       isOvertime: false,
       isDayOff: false,

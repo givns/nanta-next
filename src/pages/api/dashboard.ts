@@ -156,7 +156,14 @@ export default async function handler(
 
     const responseData = {
       user: userData,
-      recentAttendance: recentAttendance as AttendanceRecord[],
+      recentAttendance: recentAttendance.map((attendance) => ({
+        ...attendance,
+        attendanceTime: null,
+        isOvertime: false,
+        isDayOff: false,
+        overtimeHours: 0,
+        overtimeDuration: null,
+      })),
       totalWorkingDays,
       totalPresent,
       totalAbsent,
