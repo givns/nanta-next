@@ -151,9 +151,8 @@ export interface ShiftData {
 export interface AttendanceRecord {
   id: string;
   employeeId: string;
-  date: string;
-  attendanceTime: string | Date;
-  checkInTime: string;
+  attendanceTime: string;
+  checkInTime: string | null;
   checkOutTime: string | null;
   isOvertime: boolean;
   isDayOff: boolean;

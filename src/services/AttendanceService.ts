@@ -57,20 +57,6 @@ export class AttendanceService {
     return moment.tz(date, 'Asia/Bangkok');
   }
 
-  private parseAttendanceDateTime(record: any): moment.Moment {
-    const dateStr = `${record.date} ${record.attendanceTime}`;
-    const parsedDate = moment.tz(
-      dateStr,
-      'YYYY-MM-DD HH:mm:ss',
-      'Asia/Bangkok',
-    );
-    if (!parsedDate.isValid()) {
-      console.error(`Invalid date: ${dateStr}`);
-      throw new Error(`Invalid date: ${dateStr}`);
-    }
-    return parsedDate;
-  }
-
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatus> {
@@ -225,7 +211,7 @@ export class AttendanceService {
     console.log(`Processing ${attendanceRecords.length} attendance records`);
     console.log(`Start date: ${startDate}, End date: ${endDate}`);
 
-    const groupedRecords = this.groupAndPairRecords(attendanceRecords);
+    const shifts = await this.getAllShifts();
     const shiftAdjustments = await this.getShiftAdjustments(
       user.employeeId,
       startDate,
@@ -239,7 +225,16 @@ export class AttendanceService {
     const leaveRequests = await this.leaveServiceServer.getLeaveRequests(
       user.employeeId,
     );
-    const shifts = await this.getAllShifts();
+
+    const defaultShift = shifts.get(user.shiftId);
+    if (!defaultShift) {
+      throw new Error(`No default shift found for user ${user.employeeId}`);
+    }
+
+    const groupedRecords = this.groupAndPairRecords(
+      attendanceRecords,
+      defaultShift,
+    );
 
     const processedAttendance: ProcessedAttendance[] = [];
     const currentDate = moment(startDate);
@@ -291,6 +286,7 @@ export class AttendanceService {
 
   private groupAndPairRecords(
     records: AttendanceRecord[],
+    shift: ShiftData,
   ): Record<string, AttendanceRecord[]> {
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
 
@@ -306,24 +302,42 @@ export class AttendanceService {
       recordsByDate[dateKey].push(record);
     }
 
-    // Pair check-ins with check-outs
+    // Pair records based on shift times
     Object.keys(recordsByDate).forEach((date) => {
       const dayRecords = recordsByDate[date];
       const pairedRecords: AttendanceRecord[] = [];
+      let currentPair: Partial<AttendanceRecord> = {};
 
-      for (let i = 0; i < dayRecords.length; i += 2) {
-        const checkIn = dayRecords[i];
-        const checkOut = dayRecords[i + 1];
+      const shiftStart = moment(date + 'T' + shift.startTime + shift);
+      const shiftEnd = moment(date + 'T' + shift.endTime + shift);
+      if (shiftEnd.isBefore(shiftStart)) {
+        shiftEnd.add(1, 'day');
+      }
 
-        if (checkOut) {
-          pairedRecords.push({
-            ...checkIn,
-            checkOutTime: checkOut.attendanceTime.toString(), // Convert checkOutTime to string
-            checkOutDeviceSerial: checkOut.checkInDeviceSerial,
-          });
+      for (const record of dayRecords) {
+        const recordTime = moment(record.attendanceTime);
+
+        if (recordTime.isBefore(shiftStart) || currentPair.checkInTime) {
+          // This is a check-out for the previous day or current day
+          if (currentPair.checkInTime) {
+            currentPair.checkOutTime = record.attendanceTime;
+            currentPair.checkOutDeviceSerial = record.checkInDeviceSerial;
+            pairedRecords.push(currentPair as AttendanceRecord);
+            currentPair = {};
+          }
         } else {
-          pairedRecords.push(checkIn);
+          // This is a check-in
+          currentPair = {
+            ...record,
+            checkInTime: record.attendanceTime,
+            checkOutTime: null,
+          };
         }
+      }
+
+      // Add any unpaired check-in
+      if (currentPair.checkInTime) {
+        pairedRecords.push(currentPair as AttendanceRecord);
       }
 
       recordsByDate[date] = pairedRecords;
@@ -355,11 +369,11 @@ export class AttendanceService {
       );
     }
 
-    const shiftStart = moment(record.date).set({
+    const shiftStart = moment(record.attendanceTime).set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
     });
-    const shiftEnd = moment(record.date).set({
+    const shiftEnd = moment(record.attendanceTime).set({
       hour: parseInt(shift.endTime.split(':')[0]),
       minute: parseInt(shift.endTime.split(':')[1]),
     });
@@ -406,7 +420,7 @@ export class AttendanceService {
     return {
       id: record.id,
       employeeId: record.employeeId,
-      date: new Date(record.date),
+      date: new Date(record.attendanceTime),
       checkIn: checkInTime.format(),
       checkOut: checkOutTime ? checkOutTime.format() : undefined,
       status,
@@ -808,36 +822,7 @@ export class AttendanceService {
       orderBy: { date: 'asc' },
     });
 
-    return attendances.map(this.convertToAttendanceRecord);
-  }
-
-  private convertToAttendanceRecord(attendance: Attendance): AttendanceRecord {
-    return {
-      id: attendance.id,
-      employeeId: attendance.employeeId,
-      date: attendance.date.toISOString().split('T')[0],
-      attendanceTime: attendance.checkInTime?.toISOString() || '',
-      checkInTime: attendance.checkInTime?.toISOString() || '',
-      checkOutTime: attendance.checkOutTime?.toISOString() || null,
-      checkInDeviceSerial: attendance.checkInDeviceSerial || '',
-      checkOutDeviceSerial: attendance.checkOutDeviceSerial || null,
-      isManualEntry: attendance.isManualEntry,
-      isOvertime: false,
-      isDayOff: false,
-      overtimeStartTime: null,
-      overtimeEndTime: null,
-      overtimeHours: 0,
-      overtimeDuration: 0,
-      checkInLocation: '',
-      checkOutLocation: '',
-      checkInAddress: '',
-      checkOutAddress: '',
-      checkInReason: '',
-      checkOutReason: '',
-      checkInPhoto: '',
-      checkOutPhoto: '',
-      status: '',
-    };
+    return attendances.map(this.convertInternalToAttendanceRecord);
   }
 
   private calculateOvertimeHours(
@@ -1414,15 +1399,12 @@ export class AttendanceService {
     return {
       id: internal.id,
       employeeId: internal.employeeId,
-      date: internal.date.toISOString(),
       attendanceTime:
-        internal.checkInTime || internal.checkOutTime || internal.date,
-      checkInTime: internal.checkInTime
-        ? internal.checkInTime.toISOString()
-        : '',
-      checkOutTime: internal.checkOutTime
-        ? internal.checkOutTime.toISOString()
-        : null,
+        internal.checkInTime?.toISOString() ||
+        internal.checkOutTime?.toISOString() ||
+        internal.date.toISOString(),
+      checkInTime: internal.checkInTime?.toISOString() || null,
+      checkOutTime: internal.checkOutTime?.toISOString() || null,
       isOvertime: internal.isOvertime,
       overtimeDuration: internal.overtimeDuration ?? 0,
       overtimeHours: internal.overtimeDuration ?? 0, // Use overtimeDuration if overtimeHours doesn't exist
@@ -1451,25 +1433,21 @@ export class AttendanceService {
     console.log(`Raw date value: ${external.date}`);
     console.log(`Raw time value: ${external.time}`);
 
-    const attendanceMoment = this.parseDate(external.sj);
-    console.log(`Parsed attendanceTime: ${attendanceMoment.format()}`);
+    const attendanceTime = this.parseDate(external.sj);
+    console.log(`Parsed attendanceTime: ${attendanceTime.format()}`);
 
-    if (!attendanceMoment.isValid()) {
+    if (!attendanceTime.isValid()) {
       console.log(
         `Invalid date in external record: ${JSON.stringify(external)}`,
       );
       return undefined;
     }
-    const dateOnly = attendanceMoment.format('YYYY-MM-DD');
-    const timeOnly = attendanceMoment.format('HH:mm:ss');
-    const fullAttendanceTime = attendanceMoment.format('YYYY-MM-DD HH:mm:ss');
 
     const result: AttendanceRecord = {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      date: dateOnly,
-      attendanceTime: fullAttendanceTime, // Use the full datetime string
-      checkInTime: fullAttendanceTime, // Use the full datetime string for checkInTime as well
+      attendanceTime: attendanceTime.format(), // Use the full datetime string
+      checkInTime: null,
       checkOutTime: null,
       isOvertime: false,
       isDayOff: false,
