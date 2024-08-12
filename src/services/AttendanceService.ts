@@ -198,8 +198,8 @@ export class AttendanceService {
     startDate: Date,
     endDate: Date,
   ): Promise<ProcessedAttendance[]> {
-    logMessage(`Processing ${attendanceRecords.length} attendance records`);
-    logMessage(`Start date: ${startDate}, End date: ${endDate}`);
+    console.log(`Processing ${attendanceRecords.length} attendance records`);
+    console.log(`Start date: ${startDate}, End date: ${endDate}`);
 
     const shiftAdjustments = await this.getShiftAdjustments(
       user.employeeId,
@@ -274,7 +274,7 @@ export class AttendanceService {
       }
       currentDate.add(1, 'day');
     }
-    logMessage(`Processed ${processedAttendance.length} attendance records`);
+    console.log(`Processed ${processedAttendance.length} attendance records`);
 
     return this.validateAndCorrectAttendance(processedAttendance);
   }
@@ -486,7 +486,7 @@ export class AttendanceService {
     shiftAdjustments: ShiftAdjustment[],
     shifts: Map<string, ShiftData>,
   ): Record<string, AttendanceRecord[]> {
-    logMessage(`Grouping ${records.length} records by date`);
+    console.log(`Grouping ${records.length} records by date`);
 
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
 
@@ -1359,15 +1359,15 @@ export class AttendanceService {
   public convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord | undefined {
-    logMessage(`Raw sj value: ${external.sj}`);
-    logMessage(`Raw date value: ${external.date}`);
-    logMessage(`Raw time value: ${external.time}`);
+    console.log(`Raw sj value: ${external.sj}`);
+    console.log(`Raw date value: ${external.date}`);
+    console.log(`Raw time value: ${external.time}`);
 
     const attendanceTime = this.parseDate(external.sj);
-    logMessage(`Parsed attendanceTime: ${attendanceTime.format()}`);
+    console.log(`Parsed attendanceTime: ${attendanceTime.format()}`);
 
     if (!attendanceTime.isValid()) {
-      logMessage(
+      console.log(
         `Invalid date in external record: ${JSON.stringify(external)}`,
       );
       return undefined;
@@ -1399,7 +1399,7 @@ export class AttendanceService {
       overtimeHours: 0,
       overtimeDuration: 0,
     };
-    logMessage(`Converted record: ${JSON.stringify(result, null, 2)}`);
+    console.log(`Converted record: ${JSON.stringify(result, null, 2)}`);
     return result;
   }
 
