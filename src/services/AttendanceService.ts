@@ -302,6 +302,19 @@ export class AttendanceService {
   ): Record<string, AttendanceRecord[]> {
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
 
+    records = records.filter((record) => {
+      const validDate = moment(
+        record.attendanceTime,
+        'YYYY-MM-DD HH:mm:ss',
+        true,
+      );
+      if (!validDate.isValid()) {
+        console.error(`Invalid date encountered: ${record.attendanceTime}`);
+        return false;
+      }
+      return true;
+    });
+
     records.sort((a, b) =>
       moment(a.attendanceTime).diff(moment(b.attendanceTime)),
     );
@@ -319,6 +332,7 @@ export class AttendanceService {
       );
       const shiftStartHour = parseInt(effectiveShift.startTime.split(':')[0]);
 
+      // If the attendance time is before the shift start hour, it belongs to the previous day's shift
       if (recordDate.hour() < shiftStartHour) {
         recordDate.subtract(1, 'day');
       }
@@ -326,6 +340,7 @@ export class AttendanceService {
       const dateKey = recordDate.format('YYYY-MM-DD');
 
       if (dateKey !== currentDate) {
+        // New day, add any unpaired check-in to the previous day
         if (currentCheckIn) {
           if (!recordsByDate[currentDate]) {
             recordsByDate[currentDate] = [];
@@ -339,6 +354,7 @@ export class AttendanceService {
       if (!currentCheckIn) {
         currentCheckIn = record;
       } else {
+        // Pair the current check-in with this record as check-out
         const pairedRecord: AttendanceRecord = {
           ...currentCheckIn,
           checkOutTime:
@@ -355,6 +371,7 @@ export class AttendanceService {
       }
     }
 
+    // Handle any remaining unpaired check-in
     if (currentCheckIn) {
       if (!recordsByDate[currentDate]) {
         recordsByDate[currentDate] = [];
