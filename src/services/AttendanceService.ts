@@ -238,20 +238,20 @@ export class AttendanceService {
 
     while (currentDate.isSameOrBefore(moment(endDate), 'day')) {
       const dateStr = currentDate.format('YYYY-MM-DD');
-let formattedDateStr = new Date(dateStr).toISOString();
-let momentObj = moment(formattedDateStr);
-const records = groupedRecords[momentObj.toString()] || [];
-const effectiveShift = this.getEffectiveShift(
-  currentDate,
-  user,
-  shiftAdjustments,
-  shifts,
-);
-const isDayOff = await this.isDayOff(
-  user.employeeId,
-  currentDate.toDate(),
-  effectiveShift,
-);
+      let formattedDateStr = new Date(dateStr).toISOString();
+      let momentObj = moment(formattedDateStr);
+      const records = groupedRecords[momentObj.toString()] || [];
+      const effectiveShift = this.getEffectiveShift(
+        currentDate,
+        user,
+        shiftAdjustments,
+        shifts,
+      );
+      const isDayOff = await this.isDayOff(
+        user.employeeId,
+        currentDate.toDate(),
+        effectiveShift,
+      );
       const isLeave = leaveRequests.some(
         (leave) =>
           moment(leave.startDate).isSameOrBefore(currentDate, 'day') &&
