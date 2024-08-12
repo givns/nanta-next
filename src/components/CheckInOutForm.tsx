@@ -121,10 +121,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             'Unexpected shiftAdjustment structure:',
             shiftAdjustment,
           );
-          shift = userData.assignedShift!;
+          shift = {
+            ...userData.assignedShift!,
+            timezone: 'BANGKOK',
+          };
         }
       } else {
-        shift = userData.assignedShift!;
+        shift = {
+          ...userData.assignedShift!,
+          timezone: 'BANGKOK',
+        };
       }
 
       if (!shift) {

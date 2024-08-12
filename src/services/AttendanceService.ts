@@ -308,8 +308,12 @@ export class AttendanceService {
       const pairedRecords: AttendanceRecord[] = [];
       let currentPair: Partial<AttendanceRecord> = {};
 
-      const shiftStart = moment(date + 'T' + shift.startTime + shift);
-      const shiftEnd = moment(date + 'T' + shift.endTime + shift);
+      // Fix: Construct shift start and end times correctly
+      const shiftStart = moment.tz(
+        `${date}T${shift.startTime}`,
+        shift.timezone,
+      );
+      const shiftEnd = moment.tz(`${date}T${shift.endTime}`, shift.timezone);
       if (shiftEnd.isBefore(shiftStart)) {
         shiftEnd.add(1, 'day');
       }

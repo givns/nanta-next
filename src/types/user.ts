@@ -145,6 +145,7 @@ export interface ShiftData {
   startTime: string;
   endTime: string;
   workDays: number[];
+  timezone: string;
   shiftCode: string;
 }
 
