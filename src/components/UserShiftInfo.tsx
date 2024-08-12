@@ -27,7 +27,16 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
   const effectiveShift: ShiftData =
-    todayShiftAdjustment?.requestedShift || attendanceStatus.user.assignedShift;
+    {
+      ...todayShiftAdjustment?.requestedShift,
+      timezone: '',
+      id: '',
+      name: '',
+      startTime: '',
+      endTime: '',
+      workDays: [],
+      shiftCode: '',
+    } || attendanceStatus.user.assignedShift;
 
   const getStatusMessage = () => {
     console.log('isDayOff:', attendanceStatus.isDayOff);

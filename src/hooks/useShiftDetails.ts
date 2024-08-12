@@ -38,7 +38,17 @@ export const useShiftDetails = (attendanceStatus: AttendanceStatus | null) => {
       return;
     }
 
-    updateShiftStatus(shift, now);
+    const shiftData: ShiftData = {
+      id: shift.id,
+      name: shift.name,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      workDays: shift.workDays,
+      timezone: '', // Add the timezone property here
+      shiftCode: shift.shiftCode,
+    };
+
+    updateShiftStatus(shiftData, now);
   }, [attendanceStatus]);
 
   const updateShiftStatus = (shift: ShiftData, now: Date) => {
