@@ -238,9 +238,7 @@ export class AttendanceService {
 
     while (currentDate.isSameOrBefore(moment(endDate), 'day')) {
       const dateStr = currentDate.format('YYYY-MM-DD');
-      let formattedDateStr = new Date(dateStr).toISOString();
-      let momentObj = moment(formattedDateStr);
-      const records = groupedRecords[momentObj.toString()] || [];
+      const records = groupedRecords[dateStr.toString()] || [];
       const effectiveShift = this.getEffectiveShift(
         currentDate,
         user,
@@ -272,8 +270,7 @@ export class AttendanceService {
           const processedRecord = await this.processAttendanceRecord(
             pair.checkIn,
             pair.checkOut,
-            pair.checkIn, // Replace 'effectiveShift' with 'pair.checkIn'
-            effectiveShift, // Add 'effectiveShift' as an argument
+            effectiveShift,
             !isDayOff,
             approvedOvertimes,
           );
@@ -334,22 +331,19 @@ export class AttendanceService {
   public async processAttendanceRecord(
     checkIn: AttendanceRecord,
     checkOut: AttendanceRecord | undefined,
-    record: AttendanceRecord,
     shift: ShiftData,
     isWorkDay: boolean,
     approvedOvertimes: ApprovedOvertime[] = [],
   ): Promise<ProcessedAttendance> {
-    const checkInTime = record.checkInTime ? moment(record.checkInTime) : null;
-    const checkOutTime = record.checkOutTime
-      ? moment(record.checkOutTime)
-      : null;
+    const checkInTime = moment(checkIn.checkInTime);
+    const checkOutTime = checkOut ? moment(checkOut.checkOutTime) : null;
     if (checkInTime && !checkInTime.isValid()) {
-      console.error(`Invalid check-in time: ${record.checkInTime}`);
+      console.error(`Invalid check-in time: ${checkInTime}`);
       throw new Error('Invalid check-in time');
     }
 
     if (checkOutTime && !checkOutTime.isValid()) {
-      console.error(`Invalid check-out time: ${record.checkOutTime}`);
+      console.error(`Invalid check-out time: ${checkOutTime}`);
       throw new Error('Invalid check-out time');
     }
 
@@ -1405,7 +1399,7 @@ export class AttendanceService {
     const result = {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      date: attendanceTime.startOf('day').toDate(),
+      date: attendanceTime.clone().startOf('day').toDate(),
       attendanceTime: attendanceTime.toDate(),
       checkInTime: attendanceTime.toDate(),
       checkOutTime: null,
