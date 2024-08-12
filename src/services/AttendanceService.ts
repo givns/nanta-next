@@ -44,6 +44,16 @@ export class AttendanceService {
     if (moment.isMoment(date)) {
       return date.clone().tz('Asia/Bangkok');
     }
+    if (typeof date === 'string') {
+      // Try parsing with different formats
+      const formats = ['YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD', moment.ISO_8601];
+      for (const format of formats) {
+        const parsed = moment.tz(date, format, 'Asia/Bangkok');
+        if (parsed.isValid()) {
+          return parsed;
+        }
+      }
+    }
     return moment.tz(date, 'Asia/Bangkok');
   }
 
@@ -260,7 +270,8 @@ export class AttendanceService {
           const processedRecord = await this.processAttendanceRecord(
             pair.checkIn,
             pair.checkOut,
-            effectiveShift,
+            pair.checkIn, // Replace 'effectiveShift' with 'pair.checkIn'
+            effectiveShift, // Add 'effectiveShift' as an argument
             !isDayOff,
             approvedOvertimes,
           );
@@ -321,12 +332,25 @@ export class AttendanceService {
   public async processAttendanceRecord(
     checkIn: AttendanceRecord,
     checkOut: AttendanceRecord | undefined,
+    record: AttendanceRecord,
     shift: ShiftData,
     isWorkDay: boolean,
-    approvedOvertimes: ApprovedOvertime[],
+    approvedOvertimes: ApprovedOvertime[] = [],
   ): Promise<ProcessedAttendance> {
-    const checkInTime = moment(checkIn.checkInTime);
-    const checkOutTime = checkOut ? moment(checkOut.checkOutTime) : null;
+    const checkInTime = record.checkInTime ? moment(record.checkInTime) : null;
+    const checkOutTime = record.checkOutTime
+      ? moment(record.checkOutTime)
+      : null;
+    if (checkInTime && !checkInTime.isValid()) {
+      console.error(`Invalid check-in time: ${record.checkInTime}`);
+      throw new Error('Invalid check-in time');
+    }
+
+    if (checkOutTime && !checkOutTime.isValid()) {
+      console.error(`Invalid check-out time: ${record.checkOutTime}`);
+      throw new Error('Invalid check-out time');
+    }
+
     const shiftStart = moment(checkIn.date).set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
@@ -339,12 +363,12 @@ export class AttendanceService {
 
     let status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off' =
       'present';
-    const isEarlyCheckIn = checkInTime.isBefore(
-      shiftStart.clone().subtract(30, 'minutes'),
-    );
-    const isLateCheckIn = checkInTime.isAfter(
-      shiftStart.clone().add(15, 'minutes'),
-    );
+    const isEarlyCheckIn = checkInTime
+      ? checkInTime.isBefore(shiftStart.clone().subtract(30, 'minutes'))
+      : false;
+    const isLateCheckIn = checkInTime
+      ? checkInTime.isAfter(shiftStart.clone().add(15, 'minutes'))
+      : false;
     const isLateCheckOut = checkOutTime
       ? checkOutTime.isAfter(shiftEnd.clone().add(15, 'minutes'))
       : undefined;
@@ -360,26 +384,29 @@ export class AttendanceService {
     } else if (!checkOutTime) {
       status = 'incomplete';
     } else {
-      regularHours = this.calculateRegularHours(
-        checkInTime,
+      regularHours = await this.calculateRegularHours(
+        checkInTime || moment(),
         checkOutTime,
         shiftStart,
         shiftEnd,
       );
-      overtimeInfo = this.calculateOvertime(
-        checkInTime,
+      overtimeInfo = await this.calculateOvertime(
+        checkInTime || moment(),
         checkOutTime,
         shiftStart,
         shiftEnd,
         approvedOvertimes,
       );
+      if (!approvedOvertimes) {
+        throw new Error('approvedOvertimes is required');
+      }
     }
 
     return {
       id: checkIn.id,
       employeeId: checkIn.employeeId,
       date: checkIn.date,
-      checkIn: checkInTime.format(),
+      checkIn: checkInTime ? checkInTime.format() : undefined,
       checkOut: checkOutTime ? checkOutTime.format() : undefined,
       status,
       isEarlyCheckIn,
