@@ -57,6 +57,20 @@ export class AttendanceService {
     return moment.tz(date, 'Asia/Bangkok');
   }
 
+  private parseAttendanceDateTime(record: any): moment.Moment {
+    const dateStr = `${record.date} ${record.attendanceTime}`;
+    const parsedDate = moment.tz(
+      dateStr,
+      'YYYY-MM-DD HH:mm:ss',
+      'Asia/Bangkok',
+    );
+    if (!parsedDate.isValid()) {
+      console.error(`Invalid date: ${dateStr}`);
+      throw new Error(`Invalid date: ${dateStr}`);
+    }
+    return parsedDate;
+  }
+
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatus> {
@@ -211,173 +225,109 @@ export class AttendanceService {
     console.log(`Processing ${attendanceRecords.length} attendance records`);
     console.log(`Start date: ${startDate}, End date: ${endDate}`);
 
-    try {
-      const shiftAdjustments = await this.getShiftAdjustments(
-        user.employeeId,
-        startDate,
-        endDate,
-      );
-      const approvedOvertimes = await this.getApprovedOvertimes(
-        user.employeeId,
-        startDate,
-        endDate,
-      );
-      const leaveRequests = await this.leaveServiceServer.getLeaveRequests(
-        user.employeeId,
-      );
-      const shifts = await this.getAllShifts();
+    const groupedRecords = this.groupAndPairRecords(attendanceRecords);
+    const shiftAdjustments = await this.getShiftAdjustments(
+      user.employeeId,
+      startDate,
+      endDate,
+    );
+    const approvedOvertimes = await this.getApprovedOvertimes(
+      user.employeeId,
+      startDate,
+      endDate,
+    );
+    const leaveRequests = await this.leaveServiceServer.getLeaveRequests(
+      user.employeeId,
+    );
+    const shifts = await this.getAllShifts();
 
-      const groupedAndPairedRecords = this.groupAndPairRecords(
-        attendanceRecords,
+    const processedAttendance: ProcessedAttendance[] = [];
+    const currentDate = moment(startDate);
+
+    while (currentDate.isSameOrBefore(moment(endDate), 'day')) {
+      const dateStr = currentDate.format('YYYY-MM-DD');
+      const records = groupedRecords[dateStr] || [];
+      const effectiveShift = this.getEffectiveShift(
+        currentDate,
         user,
         shiftAdjustments,
         shifts,
       );
+      const isDayOff = await this.isDayOff(
+        user.employeeId,
+        currentDate.toDate(),
+        effectiveShift,
+      );
+      const isLeave = this.isOnLeave(currentDate.toDate(), leaveRequests);
 
-      const processedAttendance: ProcessedAttendance[] = [];
-      const currentDate = moment(startDate);
-
-      while (currentDate.isSameOrBefore(moment(endDate), 'day')) {
-        const dateStr = currentDate.format('YYYY-MM-DD');
-        const records = groupedAndPairedRecords[dateStr] || [];
-        const effectiveShift = this.getEffectiveShift(
-          currentDate,
-          user,
-          shiftAdjustments,
-          shifts,
+      if (records.length === 0 && !isDayOff && !isLeave) {
+        processedAttendance.push(
+          this.createAbsentRecord(currentDate.toDate(), user.employeeId, true),
         );
-        const isDayOff = await this.isDayOff(
-          user.employeeId,
-          currentDate.toDate(),
-          effectiveShift,
+      } else if (isDayOff) {
+        processedAttendance.push(
+          this.createAbsentRecord(currentDate.toDate(), user.employeeId, false),
         );
-        const isLeave = this.isOnLeave(currentDate.toDate(), leaveRequests);
-
-        if (records.length === 0 && !isDayOff && !isLeave) {
-          processedAttendance.push(
-            this.createAbsentRecord(
-              currentDate.toDate(),
-              user.employeeId,
-              true,
-            ),
+      } else if (isLeave) {
+        processedAttendance.push(
+          this.createLeaveRecord(currentDate.toDate(), user.employeeId),
+        );
+      } else {
+        for (const record of records) {
+          const processedRecord = await this.processAttendanceRecord(
+            record,
+            effectiveShift,
+            !isDayOff,
+            approvedOvertimes,
           );
-        } else if (isDayOff) {
-          processedAttendance.push(
-            this.createAbsentRecord(
-              currentDate.toDate(),
-              user.employeeId,
-              false,
-            ),
-          );
-        } else if (isLeave) {
-          processedAttendance.push(
-            this.createLeaveRecord(currentDate.toDate(), user.employeeId),
-          );
-        } else {
-          for (const record of records) {
-            const processedRecord = await this.processAttendanceRecord(
-              record,
-              effectiveShift,
-              !isDayOff,
-              approvedOvertimes,
-            );
-            processedAttendance.push(processedRecord);
-          }
+          processedAttendance.push(processedRecord);
         }
-        currentDate.add(1, 'day');
       }
-
-      return this.validateAndCorrectAttendance(processedAttendance);
-    } catch (error: any) {
-      console.error('Error processing attendance data:', error);
-      throw new Error(`Failed to process attendance data: ${error.message}`);
+      currentDate.add(1, 'day');
     }
+
+    return this.validateAndCorrectAttendance(processedAttendance);
   }
 
   private groupAndPairRecords(
     records: AttendanceRecord[],
-    userData: UserData,
-    shiftAdjustments: ShiftAdjustment[],
-    shifts: Map<string, ShiftData>,
   ): Record<string, AttendanceRecord[]> {
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
-
-    records = records.filter((record) => {
-      const validDate = moment(
-        record.attendanceTime,
-        'YYYY-MM-DD HH:mm:ss',
-        true,
-      );
-      if (!validDate.isValid()) {
-        console.error(`Invalid date encountered: ${record.attendanceTime}`);
-        return false;
-      }
-      return true;
-    });
 
     records.sort((a, b) =>
       moment(a.attendanceTime).diff(moment(b.attendanceTime)),
     );
 
-    let currentDate = '';
-    let currentCheckIn: AttendanceRecord | null = null;
-
     for (const record of records) {
-      const recordDate = moment(record.attendanceTime);
-      const effectiveShift = this.getEffectiveShift(
-        recordDate,
-        userData,
-        shiftAdjustments,
-        shifts,
-      );
-      const shiftStartHour = parseInt(effectiveShift.startTime.split(':')[0]);
-
-      // If the attendance time is before the shift start hour, it belongs to the previous day's shift
-      if (recordDate.hour() < shiftStartHour) {
-        recordDate.subtract(1, 'day');
+      const dateKey = moment(record.attendanceTime).format('YYYY-MM-DD');
+      if (!recordsByDate[dateKey]) {
+        recordsByDate[dateKey] = [];
       }
-
-      const dateKey = recordDate.format('YYYY-MM-DD');
-
-      if (dateKey !== currentDate) {
-        // New day, add any unpaired check-in to the previous day
-        if (currentCheckIn) {
-          if (!recordsByDate[currentDate]) {
-            recordsByDate[currentDate] = [];
-          }
-          recordsByDate[currentDate].push(currentCheckIn);
-        }
-        currentDate = dateKey;
-        currentCheckIn = null;
-      }
-
-      if (!currentCheckIn) {
-        currentCheckIn = record;
-      } else {
-        // Pair the current check-in with this record as check-out
-        const pairedRecord: AttendanceRecord = {
-          ...currentCheckIn,
-          checkOutTime:
-            typeof record.attendanceTime === 'string'
-              ? record.attendanceTime
-              : record.attendanceTime.toISOString(),
-          checkOutDeviceSerial: record.checkInDeviceSerial,
-        };
-        if (!recordsByDate[dateKey]) {
-          recordsByDate[dateKey] = [];
-        }
-        recordsByDate[dateKey].push(pairedRecord);
-        currentCheckIn = null;
-      }
+      recordsByDate[dateKey].push(record);
     }
 
-    // Handle any remaining unpaired check-in
-    if (currentCheckIn) {
-      if (!recordsByDate[currentDate]) {
-        recordsByDate[currentDate] = [];
+    // Pair check-ins with check-outs
+    Object.keys(recordsByDate).forEach((date) => {
+      const dayRecords = recordsByDate[date];
+      const pairedRecords: AttendanceRecord[] = [];
+
+      for (let i = 0; i < dayRecords.length; i += 2) {
+        const checkIn = dayRecords[i];
+        const checkOut = dayRecords[i + 1];
+
+        if (checkOut) {
+          pairedRecords.push({
+            ...checkIn,
+            checkOutTime: checkOut.attendanceTime.toString(), // Convert checkOutTime to string
+            checkOutDeviceSerial: checkOut.checkInDeviceSerial,
+          });
+        } else {
+          pairedRecords.push(checkIn);
+        }
       }
-      recordsByDate[currentDate].push(currentCheckIn);
-    }
+
+      recordsByDate[date] = pairedRecords;
+    });
 
     return recordsByDate;
   }
