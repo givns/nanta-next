@@ -133,12 +133,10 @@ export default async function handler(
         });
       } catch (dataError: any) {
         console.error('Error retrieving or processing data:', dataError);
-        res
-          .status(500)
-          .json({
-            error: 'Error retrieving or processing data',
-            message: dataError.message,
-          });
+        res.status(500).json({
+          error: 'Error retrieving or processing data',
+          message: dataError.message,
+        });
       }
     } else if (jobStatus === 'failed') {
       res.status(500).json({
