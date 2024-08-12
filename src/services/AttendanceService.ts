@@ -198,6 +198,9 @@ export class AttendanceService {
     startDate: Date,
     endDate: Date,
   ): Promise<ProcessedAttendance[]> {
+    logMessage(`Processing ${attendanceRecords.length} attendance records`);
+    logMessage(`Start date: ${startDate}, End date: ${endDate}`);
+
     const shiftAdjustments = await this.getShiftAdjustments(
       user.employeeId,
       startDate,
@@ -271,6 +274,7 @@ export class AttendanceService {
       }
       currentDate.add(1, 'day');
     }
+    logMessage(`Processed ${processedAttendance.length} attendance records`);
 
     return this.validateAndCorrectAttendance(processedAttendance);
   }
@@ -482,6 +486,8 @@ export class AttendanceService {
     shiftAdjustments: ShiftAdjustment[],
     shifts: Map<string, ShiftData>,
   ): Record<string, AttendanceRecord[]> {
+    logMessage(`Grouping ${records.length} records by date`);
+
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
 
     records.forEach((record) => {
@@ -512,7 +518,7 @@ export class AttendanceService {
         this.parseDate(a.attendanceTime).diff(this.parseDate(b.attendanceTime)),
       );
     });
-
+    console.log(`Grouped records: ${JSON.stringify(recordsByDate, null, 2)}`);
     return recordsByDate;
   }
 
@@ -1353,7 +1359,13 @@ export class AttendanceService {
   public convertExternalToAttendanceRecord(
     external: ExternalCheckInData,
   ): AttendanceRecord | undefined {
+    logMessage(`Raw sj value: ${external.sj}`);
+    logMessage(`Raw date value: ${external.date}`);
+    logMessage(`Raw time value: ${external.time}`);
+
     const attendanceTime = this.parseDate(external.sj);
+    logMessage(`Parsed attendanceTime: ${attendanceTime.format()}`);
+
     if (!attendanceTime.isValid()) {
       logMessage(
         `Invalid date in external record: ${JSON.stringify(external)}`,
@@ -1361,7 +1373,7 @@ export class AttendanceService {
       return undefined;
     }
 
-    return {
+    const result = {
       id: external.bh.toString(),
       employeeId: external.user_no,
       date: attendanceTime.startOf('day').toDate(),
@@ -1387,6 +1399,8 @@ export class AttendanceService {
       overtimeHours: 0,
       overtimeDuration: 0,
     };
+    logMessage(`Converted record: ${JSON.stringify(result, null, 2)}`);
+    return result;
   }
 
   private getEffectiveShift(
