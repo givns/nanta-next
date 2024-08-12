@@ -1462,13 +1462,14 @@ export class AttendanceService {
     }
     const dateOnly = attendanceMoment.format('YYYY-MM-DD');
     const timeOnly = attendanceMoment.format('HH:mm:ss');
+    const fullAttendanceTime = attendanceMoment.format('YYYY-MM-DD HH:mm:ss');
 
-    const result = {
+    const result: AttendanceRecord = {
       id: external.bh.toString(),
       employeeId: external.user_no,
       date: dateOnly,
-      attendanceTime: timeOnly,
-      checkInTime: timeOnly,
+      attendanceTime: fullAttendanceTime, // Use the full datetime string
+      checkInTime: fullAttendanceTime, // Use the full datetime string for checkInTime as well
       checkOutTime: null,
       isOvertime: false,
       isDayOff: false,
