@@ -402,7 +402,7 @@ export class AttendanceService {
     return {
       id: checkIn.id,
       employeeId: checkIn.employeeId,
-      date: checkIn.date,
+      date: new Date(checkIn.date),
       checkIn: checkInTime ? checkInTime.format() : undefined,
       checkOut: checkOutTime ? checkOutTime.format() : undefined,
       status,
@@ -529,7 +529,7 @@ export class AttendanceService {
         recordDate.subtract(1, 'day');
       }
 
-      const dateKey = recordDate.format('YYYY-MM-DD');
+      const dateKey = record.date;
       if (!recordsByDate[dateKey]) {
         recordsByDate[dateKey] = [];
       }
@@ -1354,7 +1354,7 @@ export class AttendanceService {
     return {
       id: internal.id,
       employeeId: internal.employeeId,
-      date: internal.date,
+      date: internal.date.toISOString(),
       attendanceTime:
         internal.checkInTime || internal.checkOutTime || internal.date,
       checkInTime: internal.checkInTime
@@ -1400,7 +1400,7 @@ export class AttendanceService {
       );
       return undefined;
     }
-    const dateOnly = attendanceMoment.clone().startOf('day').toDate();
+    const dateOnly = attendanceMoment.format('YYYY-MM-DD');
     const timeOnly = attendanceMoment.format('HH:mm:ss');
 
     const result = {
