@@ -1,3 +1,4 @@
+//api/check-payroll-processing.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAttendanceProcessingQueue } from '../../lib/queue';
 import prisma from '../../lib/prisma';
@@ -43,7 +44,7 @@ export default async function handler(
     }
 
     const jobStatus = await job.getState();
-    const logs = getLogs(); // Implement this function to retrieve logs
+    const logs = getLogs(); // Ensure getLogs() is properly implemented to retrieve logs
 
     if (jobStatus === 'completed') {
       const payrollProcessingResult =
@@ -66,7 +67,7 @@ export default async function handler(
         payrollProcessingResult.processedData as string,
       );
 
-      res.status(200).json({
+      return res.status(200).json({
         status: 'completed',
         data: {
           userData: processedData.userData,
@@ -77,13 +78,13 @@ export default async function handler(
         logs,
       });
     } else if (jobStatus === 'failed') {
-      res.status(500).json({
+      return res.status(500).json({
         status: 'failed',
         error: 'Job processing failed',
         logs,
       });
     } else {
-      res.status(202).json({
+      return res.status(202).json({
         status: jobStatus,
         message: 'Job is still processing',
         logs,
@@ -91,7 +92,7 @@ export default async function handler(
     }
   } catch (error: any) {
     console.error('Error checking payroll processing status:', error);
-    res
+    return res
       .status(500)
       .json({ error: 'Internal server error', message: error.message });
   }
