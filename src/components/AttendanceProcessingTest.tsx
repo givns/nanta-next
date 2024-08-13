@@ -6,12 +6,14 @@ import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function AttendanceProcessingTest() {
-  const [employeeId, setEmployeeId] = useState('');
+  const [employeeId, setEmployeeId] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<
     'idle' | 'processing' | 'completed' | 'failed'
   >('idle');
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const initiateProcessing = async () => {
@@ -19,6 +21,8 @@ export default function AttendanceProcessingTest() {
       setStatus('processing');
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
+        startDate,
+        endDate,
       });
       setJobId(response.data.jobId);
     } catch (err) {
@@ -56,7 +60,7 @@ export default function AttendanceProcessingTest() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
-      <div className="flex space-x-2 mb-4">
+      <div className="flex flex-col space-y-2 mb-4">
         <Input
           type="text"
           value={employeeId}
@@ -64,7 +68,26 @@ export default function AttendanceProcessingTest() {
           placeholder="Enter Employee ID"
           className="max-w-xs"
         />
-        <Button onClick={initiateProcessing} disabled={status === 'processing'}>
+        <Input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          placeholder="Start Date"
+          className="max-w-xs"
+        />
+        <Input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          placeholder="End Date"
+          className="max-w-xs"
+        />
+        <Button
+          onClick={initiateProcessing}
+          disabled={
+            status === 'processing' || !employeeId || !startDate || !endDate
+          }
+        >
           {status === 'processing' ? 'Processing...' : 'Process Attendance'}
         </Button>
       </div>
