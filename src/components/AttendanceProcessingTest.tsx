@@ -38,7 +38,7 @@ export default function AttendanceProcessingTest() {
       if (jobId && status === 'processing') {
         try {
           const response = await axios.get(
-            `/api/check-payroll-processing?jobId=${jobId}&employeeId=${employeeId}`,
+            `/api/check-payroll-processing?jobId=${jobId}`,
           );
           if (response.data.status === 'completed') {
             setStatus('completed');

@@ -32,8 +32,7 @@ export default async function handler(
       startDate,
       endDate,
     });
-
-    logMessage('Job added to queue with ID: ${job.id}');
+    logMessage(`Job added to queue with ID: ${job.id}`);
 
     res.status(202).json({
       message: 'Payroll processing job initiated',
