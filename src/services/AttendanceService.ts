@@ -163,16 +163,23 @@ export class AttendanceService {
     const user = await this.getUser(employeeId);
     const userData = this.convertToUserData(user);
 
+    const payrollStartDate = moment(startDate)
+      .subtract(1, 'month')
+      .date(26)
+      .startOf('day')
+      .toDate();
+    const payrollEndDate = moment(endDate).date(25).endOf('day').toDate();
+
     const attendanceRecords = await this.getAttendanceRecords(
       employeeId,
-      startDate,
-      endDate,
+      payrollStartDate,
+      payrollEndDate,
     );
     const processedAttendance = await this.processAttendanceData(
       attendanceRecords,
       userData,
-      startDate,
-      endDate,
+      payrollStartDate,
+      payrollEndDate,
     );
 
     const summary = this.calculateSummary(processedAttendance);
@@ -181,7 +188,7 @@ export class AttendanceService {
       userData,
       processedAttendance,
       summary,
-      payrollPeriod: { start: startDate, end: endDate },
+      payrollPeriod: { start: payrollStartDate, end: payrollEndDate },
     };
   }
 
@@ -253,14 +260,24 @@ export class AttendanceService {
   ): Promise<ProcessedAttendance[]> {
     logMessage(`Processing ${records.length} attendance records`);
     logMessage(`Start date: ${startDate}, End date: ${endDate}`);
+
     const shift: ShiftData = {
       ...userData.assignedShift,
       timezone: 'asia/bangkok',
     };
     if (!shift) throw new Error('User has no assigned shift');
 
-    const groupedRecords = this.groupAndPairRecords(records, shift);
-    logMessage(`Grouped and paired records: ${JSON.stringify(groupedRecords)}`);
+    const { recordsByDate, unpairedRecords } = this.groupAndPairRecords(
+      records,
+      shift,
+    );
+
+    if (unpairedRecords.length > 0) {
+      logMessage(
+        `Flagging ${unpairedRecords.length} unpaired records for admin review`,
+      );
+      await this.flagUnpairedRecordsForAdminReview(unpairedRecords);
+    }
 
     const shiftAdjustments = await this.getShiftAdjustments(
       userData.employeeId,
@@ -289,7 +306,7 @@ export class AttendanceService {
       const dateStr = currentDate.format('YYYY-MM-DD');
       logMessage(`Processing date: ${dateStr}`);
 
-      const dayRecords = groupedRecords[dateStr] || [];
+      const dayRecords = recordsByDate[dateStr] || [];
       const shifts = await this.getAllShifts();
       const effectiveShift = this.getEffectiveShift(
         currentDate,
@@ -356,8 +373,12 @@ export class AttendanceService {
   private groupAndPairRecords(
     records: AttendanceRecord[],
     shift: ShiftData,
-  ): Record<string, AttendanceRecord[]> {
+  ): {
+    recordsByDate: Record<string, AttendanceRecord[]>;
+    unpairedRecords: AttendanceRecord[];
+  } {
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
+    const unpairedRecords: AttendanceRecord[] = [];
 
     records.sort((a, b) =>
       moment(a.attendanceTime).diff(moment(b.attendanceTime)),
@@ -371,6 +392,7 @@ export class AttendanceService {
 
       const lastRecord =
         recordsByDate[dateKey][recordsByDate[dateKey].length - 1];
+
       if (!lastRecord || lastRecord.checkOutTime) {
         // Start a new pair
         recordsByDate[dateKey].push({
@@ -384,10 +406,19 @@ export class AttendanceService {
       }
     }
 
-    return recordsByDate;
+    // Collect unpaired records for admin review
+    Object.keys(recordsByDate).forEach((date) => {
+      recordsByDate[date].forEach((record) => {
+        if (!record.checkOutTime) {
+          unpairedRecords.push(record);
+        }
+      });
+    });
+
+    return { recordsByDate, unpairedRecords };
   }
 
-  public processAttendanceRecord(
+  private processAttendanceRecord(
     record: AttendanceRecord,
     shift: ShiftData,
     isDayOff: boolean,
@@ -395,17 +426,24 @@ export class AttendanceService {
   ): ProcessedAttendance {
     const checkIn = moment(record.checkInTime);
     const checkOut = record.checkOutTime ? moment(record.checkOutTime) : null;
+
+    // Adjust shiftStart and shiftEnd to handle check-outs after midnight
     const shiftStart = moment(record.checkInTime).set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
       second: 0,
     });
-    const shiftEnd = moment(record.checkInTime).set({
+    let shiftEnd = moment(record.checkInTime).set({
       hour: parseInt(shift.endTime.split(':')[0]),
       minute: parseInt(shift.endTime.split(':')[1]),
       second: 0,
     });
     if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, 'day');
+
+    // Adjust checkOut to belong to the same payroll period if it's after midnight
+    if (checkOut && checkOut.isAfter(shiftEnd)) {
+      shiftEnd.add(1, 'day');
+    }
 
     const isEarlyCheckIn = checkIn.isBefore(
       shiftStart.clone().subtract(30, 'minutes'),
@@ -991,6 +1029,21 @@ export class AttendanceService {
     );
   }
 
+  private async flagUnpairedRecordsForAdminReview(
+    unpairedRecords: AttendanceRecord[],
+  ): Promise<void> {
+    if (unpairedRecords.length > 0) {
+      // Notify admins of unpaired records
+      const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+      for (const admin of admins) {
+        await notificationService.sendNotification(
+          admin.id,
+          `${unpairedRecords.length} unpaired attendance records detected. Please review.`,
+        );
+      }
+    }
+  }
+
   private async flagPotentialOvertime(
     processedAttendance: ProcessedAttendance,
   ): Promise<void> {
@@ -1496,16 +1549,21 @@ export class AttendanceService {
   ): ProcessedAttendance[] {
     logMessage('Starting validation and correction of attendance records');
 
-    return records.map((record, index) => {
+    const unpairedRecords: ProcessedAttendance[] = [];
+
+    const validatedRecords = records.map((record, index) => {
       let correctedRecord = { ...record };
 
-      // Check for missing check-in or check-out
+      /// Check for missing check-in or check-out
       if (!correctedRecord.checkIn || !correctedRecord.checkOut) {
         logMessage(`Record ${record.id}: Missing check-in or check-out`);
         correctedRecord.status = 'incomplete';
         correctedRecord.detailedStatus = correctedRecord.checkIn
           ? 'missing-checkout'
           : 'missing-checkin';
+
+        // Add to unpaired records for flagging
+        unpairedRecords.push(correctedRecord);
       }
 
       // Validate check-in and check-out times
@@ -1564,8 +1622,26 @@ export class AttendanceService {
         correctedRecord.status = 'invalid' as AttendanceStatusValue;
       }
 
+      // Add a flag for unpaired records
+      if (
+        correctedRecord.status === 'incomplete' &&
+        !correctedRecord.checkOut
+      ) {
+        logMessage(
+          `Record ${record.id}: Unpaired record flagged for admin review`,
+        );
+        correctedRecord.detailedStatus = 'unpaired-for-review';
+      }
+
       return correctedRecord;
     });
+
+    // Flag unpaired records for review
+    this.flagUnpairedRecordsForAdminReview(
+      unpairedRecords as unknown as AttendanceRecord[],
+    );
+
+    return validatedRecords;
   }
 
   private isValidAttendanceStatus(
