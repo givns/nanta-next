@@ -789,7 +789,7 @@ export class AttendanceService {
     };
   }
 
-  private calculateSummary(processedAttendance: ProcessedAttendance[]) {
+  public calculateSummary(processedAttendance: ProcessedAttendance[]) {
     return processedAttendance.reduce(
       (summary, record) => {
         summary.totalWorkingDays++;
