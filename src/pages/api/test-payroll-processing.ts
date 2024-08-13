@@ -9,9 +9,12 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
+  console.log('Received request body:', req.body);
+
   const { employeeId, startDate, endDate } = req.body;
 
   if (!employeeId || !startDate || !endDate) {
+    console.log('Missing required fields:', { employeeId, startDate, endDate });
     return res
       .status(400)
       .json({ error: 'Employee ID, start date, and end date are required' });
@@ -19,11 +22,17 @@ export default async function handler(
 
   try {
     const queue = getAttendanceProcessingQueue();
+    if (!queue) {
+      throw new Error('Failed to initialize attendance processing queue');
+    }
+
     const job = await queue.add('process-payroll', {
       employeeId,
       startDate,
       endDate,
     });
+
+    console.log('Job added to queue:', job.id);
 
     res.status(202).json({
       message: 'Payroll processing job initiated',
