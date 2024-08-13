@@ -1,10 +1,9 @@
-// workers/attendance-worker.ts
-
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { getAttendanceProcessingQueue } from '../lib/queue';
 import { processAttendance } from '../lib/processAttendance';
 import { logMessage } from '../utils/inMemoryLogger';
+import { Job } from 'bull';
 
 logMessage('Starting attendance worker');
 
@@ -14,35 +13,35 @@ console.log('__dirname:', __dirname);
 dotenv.config({ path: resolve(__dirname, '../../.env.local') });
 
 logMessage('Environment variables loaded');
-logMessage('REDIS_URL: ' + (process.env.REDIS_URL ? 'Set' : 'Not set')); // Remove the second argument
+logMessage('REDIS_URL: ' + (process.env.REDIS_URL ? 'Set' : 'Not set'));
 
 const queue = getAttendanceProcessingQueue();
 
 logMessage('Attendance worker connected to queue');
 
-queue.on('error', (error) => {
+queue.on('error', (error: Error) => {
   logMessage(`Queue error: ${error.message}`);
   console.error('Queue error:', error);
 });
 
-queue.on('waiting', (jobId) => {
+queue.on('waiting', (jobId: string) => {
   logMessage(`Job waiting to be processed: ${jobId}`);
 });
 
-queue.on('active', (job) => {
+queue.on('active', (job: Job) => {
   logMessage(`Job starting to be processed: ${job.id}`);
 });
 
-queue.on('completed', (job, result) => {
+queue.on('completed', (job: Job, result: any) => {
   logMessage(`Job completed: ${job.id}, Result: ${JSON.stringify(result)}`);
 });
 
-queue.on('failed', (job, err) => {
+queue.on('failed', (job: Job, err: Error) => {
   logMessage(`Job failed: ${job.id}, Error: ${err.message}`);
   console.error('Job failed:', job.id, 'Error:', err);
 });
 
-queue.process('process-payroll', async (job) => {
+queue.process('process-payroll', async (job: Job) => {
   logMessage(`Processing payroll job: ${job.id}`);
   try {
     const result = await processAttendance(job);

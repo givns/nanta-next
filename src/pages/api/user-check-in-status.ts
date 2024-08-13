@@ -6,12 +6,7 @@ import { AttendanceService } from '../../services/AttendanceService';
 import { ExternalDbService } from '@/services/ExternalDbService';
 import { HolidayService } from '@/services/HolidayService';
 import { Shift104HolidayService } from '@/services/Shift104HolidayService';
-import {
-  UserData,
-  AttendanceStatus,
-  ShiftAdjustment,
-  ApprovedOvertime,
-} from '../../types/user';
+import { UserData, ShiftAdjustment, ApprovedOvertime } from '../../types/user';
 import moment from 'moment-timezone';
 import { leaveServiceServer } from '@/services/LeaveServiceServer';
 

@@ -2,15 +2,9 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getAttendanceProcessingQueue } from '../../lib/queue';
 import prisma from '../../lib/prisma';
 import { AttendanceService } from '../../services/AttendanceService';
+import { ExternalDbService } from '../../services/ExternalDbService';
 import { HolidayService } from '../../services/HolidayService';
 import { Shift104HolidayService } from '../../services/Shift104HolidayService';
-import { ExternalDbService } from '../../services/ExternalDbService';
-import {
-  ProcessedAttendance,
-  UserData,
-  AttendanceRecord,
-} from '../../types/user';
-import moment from 'moment-timezone';
 import { leaveServiceServer } from '@/services/LeaveServiceServer';
 
 const externalDbService = new ExternalDbService();
@@ -50,94 +44,35 @@ export default async function handler(
     const jobStatus = await job.getState();
 
     if (jobStatus === 'completed') {
-      try {
-        const user = await prisma.user.findUnique({
-          where: { employeeId: employeeId as string },
-          include: {
-            assignedShift: true,
-            department: true,
+      const payrollProcessingResult =
+        await prisma.payrollProcessingResult.findFirst({
+          where: {
+            employeeId: employeeId as string,
+          },
+          orderBy: {
+            createdAt: 'desc',
           },
         });
 
-        if (!user) {
-          return res.status(404).json({ error: 'User not found' });
-        }
-
-        const userData: UserData = {
-          employeeId: user.employeeId,
-          name: user.name,
-          lineUserId: user.lineUserId,
-          nickname: user.nickname,
-          departmentId: user.departmentId,
-          department: user.department.name,
-          role: user.role as any,
-          profilePictureUrl: user.profilePictureUrl,
-          profilePictureExternal: user.profilePictureExternal,
-          shiftId: user.shiftId,
-          assignedShift: user.assignedShift,
-          overtimeHours: user.overtimeHours,
-          potentialOvertimes: [],
-          sickLeaveBalance: user.sickLeaveBalance,
-          businessLeaveBalance: user.businessLeaveBalance,
-          annualLeaveBalance: user.annualLeaveBalance,
-          overtimeLeaveBalance: user.overtimeLeaveBalance,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-        };
-
-        const payrollProcessingResult =
-          await prisma.payrollProcessingResult.findFirst({
-            where: {
-              employeeId: employeeId as string,
-            },
-            orderBy: {
-              createdAt: 'desc',
-            },
-          });
-
-        if (!payrollProcessingResult) {
-          return res
-            .status(404)
-            .json({ error: 'Payroll processing result not found' });
-        }
-
-        let processedAttendance: ProcessedAttendance[];
-        try {
-          processedAttendance = JSON.parse(
-            payrollProcessingResult.processedData as string,
-          );
-        } catch (parseError) {
-          console.error('Error parsing processedData:', parseError);
-          return res
-            .status(500)
-            .json({ error: 'Error parsing processed data' });
-        }
-
-        res.status(200).json({
-          status: 'completed',
-          data: {
-            userData,
-            processedAttendance,
-            summary: {
-              totalWorkingDays: payrollProcessingResult.totalWorkingDays,
-              totalPresent: payrollProcessingResult.totalPresent,
-              totalAbsent: payrollProcessingResult.totalAbsent,
-              totalOvertimeHours: payrollProcessingResult.totalOvertimeHours,
-              totalRegularHours: payrollProcessingResult.totalRegularHours,
-            },
-            payrollPeriod: {
-              start: payrollProcessingResult.periodStart,
-              end: payrollProcessingResult.periodEnd,
-            },
-          },
-        });
-      } catch (dataError: any) {
-        console.error('Error retrieving or processing data:', dataError);
-        res.status(500).json({
-          error: 'Error retrieving or processing data',
-          message: dataError.message,
-        });
+      if (!payrollProcessingResult) {
+        return res
+          .status(404)
+          .json({ error: 'Payroll processing result not found' });
       }
+
+      const processedData = JSON.parse(
+        payrollProcessingResult.processedData as string,
+      );
+
+      res.status(200).json({
+        status: 'completed',
+        data: {
+          userData: processedData.userData,
+          processedAttendance: processedData.processedAttendance,
+          summary: processedData.summary,
+          payrollPeriod: processedData.payrollPeriod,
+        },
+      });
     } else if (jobStatus === 'failed') {
       res.status(500).json({
         status: 'failed',

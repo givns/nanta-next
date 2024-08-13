@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Webcam from 'react-webcam';
 import '@tensorflow/tfjs-backend-webgl';
-import { AttendanceStatus, UserData, ShiftData } from '../types/user';
+import { AttendanceStatusInfo, UserData, ShiftData } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 import { useFaceDetection } from '../hooks/useFaceDetection';
@@ -16,7 +16,7 @@ const TIMEZONE = 'Asia/Bangkok';
 
 interface CheckInOutFormProps {
   userData: UserData;
-  initialAttendanceStatus: AttendanceStatus;
+  initialAttendanceStatus: AttendanceStatusInfo;
   onStatusChange: (newStatus: boolean) => void;
 }
 

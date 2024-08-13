@@ -1,5 +1,3 @@
-// lib/queue.ts
-
 import Queue from 'bull';
 import { logMessage } from '../utils/inMemoryLogger';
 
@@ -31,7 +29,7 @@ export function getAttendanceProcessingQueue(): Queue.Queue {
       },
     });
 
-    attendanceProcessingQueue.on('error', (error) => {
+    attendanceProcessingQueue.on('error', (error: Error) => {
       logMessage(`Attendance processing queue error: ${error.message}`);
     });
 
@@ -58,7 +56,7 @@ function createQueue(name: string, redisUrl: string): Queue.Queue {
       },
     },
   });
-  queue.on('error', (error) => {
+  queue.on('error', (error: Error) => {
     console.error(`${name} queue error:`, error);
   });
   return queue;

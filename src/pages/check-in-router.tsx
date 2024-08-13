@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
-import { UserData, AttendanceStatus } from '../types/user';
+import { UserData, AttendanceStatusInfo } from '../types/user';
 import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -15,7 +15,7 @@ const currentDate = dayjs().format('D MMMM YYYY');
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [attendanceStatus, setAttendanceStatus] =
-    useState<AttendanceStatus | null>(null);
+    useState<AttendanceStatusInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>(

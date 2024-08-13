@@ -3,12 +3,11 @@ import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { ExternalDbService } from './ExternalDbService';
 import { NotificationService } from './NotificationService';
 import { HolidayService } from './HolidayService';
-import { parseDateSafely } from '../utils/dateUtils';
 import { Shift104HolidayService } from './Shift104HolidayService';
 import {
   ExternalCheckInData,
   AttendanceData,
-  AttendanceStatus,
+  AttendanceStatusInfo,
   AttendanceRecord,
   ProcessedAttendance,
   ShiftData,
@@ -18,11 +17,12 @@ import {
   UserData,
   PotentialOvertime,
   ManualEntryData,
+  AttendanceStatusValue,
+  FutureShiftAdjustment,
 } from '../types/user';
-import { UserRole } from '../types/enum';
 import moment from 'moment-timezone';
 import { logMessage } from '../utils/inMemoryLogger';
-import { ILeaveServiceServer } from '@/types/LeaveService';
+import { ILeaveServiceServer } from '..//types/LeaveService';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
@@ -59,11 +59,7 @@ export class AttendanceService {
 
   async getLatestAttendanceStatus(
     employeeId: string,
-  ): Promise<AttendanceStatus> {
-    logMessage(
-      `Getting latest attendance status for employee ID: ${employeeId}`,
-    );
-
+  ): Promise<AttendanceStatusInfo> {
     if (!employeeId) {
       throw new Error('Employee ID is required');
     }
@@ -76,7 +72,11 @@ export class AttendanceService {
       const now = moment();
 
       const [internalAttendances, externalAttendanceData] = await Promise.all([
-        this.getInternalAttendances(employeeId, yesterday.toDate()),
+        this.getInternalAttendances(
+          employeeId,
+          yesterday.toDate(),
+          now.toDate(),
+        ),
         this.externalDbService.getDailyAttendanceRecords(employeeId, 2),
       ]);
 
@@ -126,7 +126,7 @@ export class AttendanceService {
         now.toDate(),
       );
 
-      const result = this.createAttendanceStatus(
+      return this.createAttendanceStatusInfo(
         userData,
         latestAttendance,
         isCheckingIn,
@@ -137,15 +137,52 @@ export class AttendanceService {
         futureShifts,
         futureOvertimes,
       );
-      logMessage(
-        `Final latestAttendance in result: ${JSON.stringify(result.latestAttendance, null, 2)}`,
-      );
-
-      return result;
     } catch (error) {
       console.error('Error in getLatestAttendanceStatus:', error);
       throw error;
     }
+  }
+
+  private mergeAttendances(
+    internal: Attendance[],
+    external: ExternalCheckInData[],
+  ): AttendanceRecord[] {
+    const internalRecords = internal.map(
+      this.convertInternalToAttendanceRecord,
+    );
+    const externalRecords = external
+      .map(this.convertExternalToAttendanceRecord)
+      .filter((record): record is AttendanceRecord => record !== undefined);
+
+    return [...internalRecords, ...externalRecords].sort((a, b) =>
+      moment(b.attendanceTime).diff(moment(a.attendanceTime)),
+    );
+  }
+
+  async processPayroll(employeeId: string, startDate: Date, endDate: Date) {
+    const user = await this.getUser(employeeId);
+    const userData = this.convertToUserData(user);
+
+    const attendanceRecords = await this.getAttendanceRecords(
+      employeeId,
+      startDate,
+      endDate,
+    );
+    const processedAttendance = await this.processAttendanceData(
+      attendanceRecords,
+      userData,
+      startDate,
+      endDate,
+    );
+
+    const summary = this.calculateSummary(processedAttendance);
+
+    return {
+      userData,
+      processedAttendance,
+      summary,
+      payrollPeriod: { start: startDate, end: endDate },
+    };
   }
 
   private async getUser(employeeId: string) {
@@ -170,118 +207,126 @@ export class AttendanceService {
     return this.convertToUserData(user);
   }
 
+  private async getAttendanceRecords(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<AttendanceRecord[]> {
+    const [internalRecords, externalRecords] = await Promise.all([
+      this.getInternalAttendances(employeeId, startDate, endDate),
+      this.externalDbService.getHistoricalAttendanceRecords(
+        employeeId,
+        startDate,
+        endDate,
+      ),
+    ]);
+
+    const convertedInternalRecords = internalRecords.map(
+      this.convertInternalToAttendanceRecord.bind(this),
+    );
+    const convertedExternalRecords = externalRecords.records
+      .map(this.convertExternalToAttendanceRecord.bind(this))
+      .filter((record): record is AttendanceRecord => record !== undefined);
+
+    return [...convertedInternalRecords, ...convertedExternalRecords];
+  }
+
   private async getInternalAttendances(
     employeeId: string,
     startDate: Date,
+    endDate: Date,
   ): Promise<Attendance[]> {
     return prisma.attendance.findMany({
       where: {
         employeeId,
-        date: { gte: startDate },
+        date: { gte: startDate, lte: endDate },
       },
       orderBy: { date: 'desc' },
     });
   }
 
-  private mergeAttendances(
-    internal: Attendance[],
-    external: ExternalCheckInData[],
-  ): AttendanceRecord[] {
-    logMessage(
-      `Merging ${internal.length} internal and ${external.length} external attendance records`,
-    );
-    const allAttendances = [
-      ...internal.map(this.convertInternalToAttendanceRecord),
-      ...external
-        .map(this.convertExternalToAttendanceRecord)
-        .filter((record): record is AttendanceRecord => record !== undefined),
-    ];
-
-    return allAttendances.sort((a, b) =>
-      a && b ? moment(b.attendanceTime).diff(moment(a.attendanceTime)) : 0,
-    );
-  }
-
-  async processAttendanceData(
-    attendanceRecords: AttendanceRecord[],
-    user: UserData,
+  public async processAttendanceData(
+    records: AttendanceRecord[],
+    userData: UserData,
     startDate: Date,
     endDate: Date,
   ): Promise<ProcessedAttendance[]> {
-    console.log(`Processing ${attendanceRecords.length} attendance records`);
-    console.log(`Start date: ${startDate}, End date: ${endDate}`);
+    const shift: ShiftData = {
+      ...userData.assignedShift,
+      timezone: 'asia/bangkok',
+    };
+    if (!shift) throw new Error('User has no assigned shift');
 
-    const shifts = await this.getAllShifts();
+    const groupedRecords = this.groupAndPairRecords(records, shift);
     const shiftAdjustments = await this.getShiftAdjustments(
-      user.employeeId,
-      startDate,
-      endDate,
-    );
-    const approvedOvertimes = await this.getApprovedOvertimes(
-      user.employeeId,
+      userData.employeeId,
       startDate,
       endDate,
     );
     const leaveRequests = await this.leaveServiceServer.getLeaveRequests(
-      user.employeeId,
+      userData.employeeId,
     );
-
-    const defaultShift = shifts.get(user.shiftId);
-    if (!defaultShift) {
-      throw new Error(`No default shift found for user ${user.employeeId}`);
-    }
-
-    const groupedRecords = this.groupAndPairRecords(
-      attendanceRecords,
-      defaultShift,
+    const approvedOvertimes = await this.getApprovedOvertimes(
+      userData.employeeId,
+      startDate,
+      endDate,
     );
 
     const processedAttendance: ProcessedAttendance[] = [];
-    const currentDate = moment(startDate);
+    let currentDate = moment(startDate).startOf('day');
+    const endMoment = moment(endDate).endOf('day');
 
-    while (currentDate.isSameOrBefore(moment(endDate), 'day')) {
+    while (currentDate.isSameOrBefore(endMoment, 'day')) {
       const dateStr = currentDate.format('YYYY-MM-DD');
-      const records = groupedRecords[dateStr] || [];
+      const dayRecords = groupedRecords[dateStr] || [];
+      const shifts = await this.getAllShifts();
       const effectiveShift = this.getEffectiveShift(
         currentDate,
-        user,
+        userData,
         shiftAdjustments,
         shifts,
       );
       const isDayOff = await this.isDayOff(
-        user.employeeId,
+        userData.employeeId,
         currentDate.toDate(),
         effectiveShift,
       );
       const isLeave = this.isOnLeave(currentDate.toDate(), leaveRequests);
 
-      if (records.length === 0 && !isDayOff && !isLeave) {
-        processedAttendance.push(
-          this.createAbsentRecord(currentDate.toDate(), user.employeeId, true),
-        );
-      } else if (isDayOff) {
-        processedAttendance.push(
-          this.createAbsentRecord(currentDate.toDate(), user.employeeId, false),
-        );
-      } else if (isLeave) {
-        processedAttendance.push(
-          this.createLeaveRecord(currentDate.toDate(), user.employeeId),
-        );
+      if (dayRecords.length === 0) {
+        if (isDayOff) {
+          processedAttendance.push(
+            this.createDayOffRecord(currentDate.toDate(), userData.employeeId),
+          );
+        } else if (isLeave) {
+          processedAttendance.push(
+            this.createLeaveRecord(currentDate.toDate(), userData.employeeId),
+          );
+        } else {
+          processedAttendance.push(
+            this.createAbsentRecord(
+              currentDate.toDate(),
+              userData.employeeId,
+              isDayOff,
+            ),
+          );
+        }
       } else {
-        for (const record of records) {
-          const processedRecord = await this.processAttendanceRecord(
+        for (const record of dayRecords) {
+          const processed = this.processAttendanceRecord(
             record,
             effectiveShift,
-            !isDayOff,
+            isDayOff,
             approvedOvertimes,
           );
-          processedAttendance.push(processedRecord);
+          processedAttendance.push(processed);
         }
       }
+
       currentDate.add(1, 'day');
     }
 
-    return this.validateAndCorrectAttendance(processedAttendance);
+    return processedAttendance;
   }
 
   private groupAndPairRecords(
@@ -299,134 +344,79 @@ export class AttendanceService {
       if (!recordsByDate[dateKey]) {
         recordsByDate[dateKey] = [];
       }
-      recordsByDate[dateKey].push(record);
+
+      const lastRecord =
+        recordsByDate[dateKey][recordsByDate[dateKey].length - 1];
+      if (!lastRecord || lastRecord.checkOutTime) {
+        // Start a new pair
+        recordsByDate[dateKey].push({
+          ...record,
+          checkOutTime: null,
+        });
+      } else {
+        // Complete the pair
+        lastRecord.checkOutTime = record.attendanceTime;
+        lastRecord.checkOutDeviceSerial = record.checkInDeviceSerial;
+      }
     }
-
-    // Pair records based on shift times
-    Object.keys(recordsByDate).forEach((date) => {
-      const dayRecords = recordsByDate[date];
-      const pairedRecords: AttendanceRecord[] = [];
-      let currentPair: Partial<AttendanceRecord> = {};
-
-      // Fix: Construct shift start and end times correctly
-      const shiftStart = moment.tz(
-        `${date}T${shift.startTime}`,
-        shift.timezone,
-      );
-      const shiftEnd = moment.tz(`${date}T${shift.endTime}`, shift.timezone);
-      if (shiftEnd.isBefore(shiftStart)) {
-        shiftEnd.add(1, 'day');
-      }
-
-      for (const record of dayRecords) {
-        const recordTime = moment(record.attendanceTime);
-
-        if (recordTime.isBefore(shiftStart) || currentPair.checkInTime) {
-          // This is a check-out for the previous day or current day
-          if (currentPair.checkInTime) {
-            currentPair.checkOutTime = record.attendanceTime;
-            currentPair.checkOutDeviceSerial = record.checkInDeviceSerial;
-            pairedRecords.push(currentPair as AttendanceRecord);
-            currentPair = {};
-          }
-        } else {
-          // This is a check-in
-          currentPair = {
-            ...record,
-            checkInTime: record.attendanceTime,
-            checkOutTime: null,
-          };
-        }
-      }
-
-      // Add any unpaired check-in
-      if (currentPair.checkInTime) {
-        pairedRecords.push(currentPair as AttendanceRecord);
-      }
-
-      recordsByDate[date] = pairedRecords;
-    });
 
     return recordsByDate;
   }
 
-  private async processAttendanceRecord(
+  public processAttendanceRecord(
     record: AttendanceRecord,
     shift: ShiftData,
-    isWorkDay: boolean,
+    isDayOff: boolean,
     approvedOvertimes: ApprovedOvertime[],
-  ): Promise<ProcessedAttendance> {
-    const checkInTime = moment(record.checkInTime);
-    const checkOutTime = record.checkOutTime
-      ? moment(record.checkOutTime)
-      : null;
-
-    if (!checkInTime.isValid()) {
-      throw new Error(
-        `Invalid check-in time for record ID ${record.id}: ${record.checkInTime}`,
-      );
-    }
-
-    if (checkOutTime && !checkOutTime.isValid()) {
-      throw new Error(
-        `Invalid check-out time for record ID ${record.id}: ${record.checkOutTime}`,
-      );
-    }
-
-    const shiftStart = moment(record.attendanceTime).set({
+  ): ProcessedAttendance {
+    const checkIn = moment(record.checkInTime);
+    const checkOut = record.checkOutTime ? moment(record.checkOutTime) : null;
+    const shiftStart = moment(record.checkInTime).set({
       hour: parseInt(shift.startTime.split(':')[0]),
       minute: parseInt(shift.startTime.split(':')[1]),
+      second: 0,
     });
-    const shiftEnd = moment(record.attendanceTime).set({
+    const shiftEnd = moment(record.checkInTime).set({
       hour: parseInt(shift.endTime.split(':')[0]),
       minute: parseInt(shift.endTime.split(':')[1]),
+      second: 0,
     });
     if (shiftEnd.isBefore(shiftStart)) shiftEnd.add(1, 'day');
 
-    let status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off' =
-      'present';
-    const isEarlyCheckIn = checkInTime.isBefore(
+    const isEarlyCheckIn = checkIn.isBefore(
       shiftStart.clone().subtract(30, 'minutes'),
     );
-    const isLateCheckIn = checkInTime.isAfter(
+    const isLateCheckIn = checkIn.isAfter(
       shiftStart.clone().add(15, 'minutes'),
     );
-    const isLateCheckOut = checkOutTime
-      ? checkOutTime.isAfter(shiftEnd.clone().add(15, 'minutes'))
+    const isLateCheckOut = checkOut
+      ? checkOut.isAfter(shiftEnd.clone().add(15, 'minutes'))
       : false;
 
-    let regularHours = 0;
-    let overtimeInfo = {
-      duration: 0,
-      periods: [] as { start: string; end: string }[],
-    };
+    let status: AttendanceStatusValue = 'present';
+    if (isDayOff) status = 'off';
+    else if (!checkOut) status = 'incomplete';
 
-    if (!isWorkDay) {
-      status = 'off';
-    } else if (!checkOutTime) {
-      status = 'incomplete';
-    } else {
-      regularHours = this.calculateRegularHours(
-        checkInTime,
-        checkOutTime,
-        shiftStart,
-        shiftEnd,
-      );
-      overtimeInfo = this.calculateOvertime(
-        checkInTime,
-        checkOutTime,
-        shiftStart,
-        shiftEnd,
-        approvedOvertimes,
-      );
-    }
+    const regularHours = this.calculateRegularHours(
+      checkIn,
+      checkOut,
+      shiftStart,
+      shiftEnd,
+    );
+    const overtimeInfo = this.calculateOvertime(
+      checkIn,
+      checkOut,
+      shiftStart,
+      shiftEnd,
+      approvedOvertimes,
+    );
 
     return {
       id: record.id,
       employeeId: record.employeeId,
-      date: new Date(record.attendanceTime),
-      checkIn: checkInTime.format(),
-      checkOut: checkOutTime ? checkOutTime.format() : undefined,
+      date: checkIn.toDate(),
+      checkIn: record.checkInTime ?? undefined,
+      checkOut: record.checkOutTime || undefined,
       status,
       isEarlyCheckIn,
       isLateCheckIn,
@@ -450,10 +440,11 @@ export class AttendanceService {
 
   private calculateRegularHours(
     checkIn: moment.Moment,
-    checkOut: moment.Moment,
+    checkOut: moment.Moment | null,
     shiftStart: moment.Moment,
     shiftEnd: moment.Moment,
   ): number {
+    if (!checkOut) return 0;
     const effectiveStart = moment.max(checkIn, shiftStart);
     const effectiveEnd = moment.min(checkOut, shiftEnd);
     return Math.max(0, effectiveEnd.diff(effectiveStart, 'hours', true));
@@ -461,11 +452,13 @@ export class AttendanceService {
 
   private calculateOvertime(
     checkIn: moment.Moment,
-    checkOut: moment.Moment,
+    checkOut: moment.Moment | null,
     shiftStart: moment.Moment,
     shiftEnd: moment.Moment,
     approvedOvertimes: ApprovedOvertime[],
   ): { duration: number; periods: { start: string; end: string }[] } {
+    if (!checkOut) return { duration: 0, periods: [] };
+
     let overtimeDuration = 0;
     const periods: { start: string; end: string }[] = [];
 
@@ -498,9 +491,9 @@ export class AttendanceService {
     // Check if overtime is approved
     const isApproved = approvedOvertimes.some(
       (overtime) =>
-        this.parseDate(overtime.date).isSame(checkIn, 'day') &&
-        this.parseDate(overtime.startTime).isSameOrBefore(checkIn) &&
-        this.parseDate(overtime.endTime).isSameOrAfter(checkOut),
+        moment(overtime.date).isSame(checkIn, 'day') &&
+        moment(overtime.startTime).isSameOrBefore(checkIn) &&
+        moment(overtime.endTime).isSameOrAfter(checkOut),
     );
 
     return {
@@ -514,24 +507,16 @@ export class AttendanceService {
     date: Date,
     shift: ShiftData,
   ): Promise<boolean> {
-    const momentDate = moment(date);
-    const dayOfWeek = momentDate.day();
-
-    if (!shift.workDays.includes(dayOfWeek)) {
-      return true;
-    }
+    const dayOfWeek = moment(date).day();
+    if (!shift.workDays.includes(dayOfWeek)) return true;
 
     const isHoliday = await this.holidayService.isHoliday(date);
-    if (isHoliday) {
-      return true;
-    }
+    if (isHoliday) return true;
 
     if (shift.shiftCode === 'SHIFT104') {
       const isShift104Holiday =
         await this.shift104HolidayService.isShift104Holiday(date);
-      if (isShift104Holiday) {
-        return true;
-      }
+      if (isShift104Holiday) return true;
     }
 
     const weeklyWorkDayCount = await this.getWeeklyWorkDayCount(
@@ -563,32 +548,21 @@ export class AttendanceService {
   }
 
   private isOnLeave(date: Date, leaveRequests: any[]): boolean {
-    return leaveRequests.some(
-      (leave) =>
-        moment(leave.startDate).isSameOrBefore(date, 'day') &&
-        moment(leave.endDate).isSameOrAfter(date, 'day'),
+    return leaveRequests.some((leave) =>
+      moment(date).isBetween(leave.startDate, leave.endDate, 'day', '[]'),
     );
   }
 
   private getEffectiveShift(
     date: moment.Moment,
-    user: UserData,
-    shiftAdjustments: ShiftAdjustment[],
+    userData: UserData,
+    shiftAdjustments: any[],
     shifts: Map<string, ShiftData>,
   ): ShiftData {
-    const dateString = date.format('YYYY-MM-DD');
-    const adjustment = shiftAdjustments.find((adj) => adj.date === dateString);
-
-    if (adjustment) {
-      return adjustment.requestedShift;
-    }
-
-    const userShift = shifts.get(user.shiftId);
-    if (!userShift) {
-      throw new Error(`Shift not found for ID: ${user.shiftId}`);
-    }
-
-    return userShift;
+    const adjustment = shiftAdjustments.find((adj) =>
+      moment(adj.date).isSame(date, 'day'),
+    );
+    return adjustment ? adjustment.requestedShift : userData.assignedShift;
   }
 
   private async getShiftAdjustments(
@@ -652,13 +626,13 @@ export class AttendanceService {
   private createAbsentRecord(
     date: Date,
     employeeId: string,
-    isWorkDay: boolean,
+    isDayOff: boolean,
   ): ProcessedAttendance {
     return {
       id: `absent-${date.toISOString()}-${employeeId}`,
       employeeId,
       date,
-      status: isWorkDay ? 'absent' : 'off',
+      status: isDayOff ? 'absent' : 'off',
       isEarlyCheckIn: false,
       isLateCheckIn: false,
       isLateCheckOut: false,
@@ -667,7 +641,31 @@ export class AttendanceService {
       overtimeDuration: 0,
       potentialOvertimePeriods: [],
       isOvertime: false,
-      detailedStatus: isWorkDay ? 'absent' : 'off',
+      detailedStatus: isDayOff ? 'absent' : 'off',
+      checkInDeviceSerial: null,
+      checkOutDeviceSerial: null,
+      isManualEntry: false,
+    };
+  }
+
+  private createDayOffRecord(
+    date: Date,
+    employeeId: string,
+  ): ProcessedAttendance {
+    return {
+      id: `off-${date.toISOString()}-${employeeId}`,
+      employeeId,
+      date,
+      status: 'off',
+      isEarlyCheckIn: false,
+      isLateCheckIn: false,
+      isLateCheckOut: false,
+      regularHours: 0,
+      overtimeHours: 0,
+      overtimeDuration: 0,
+      potentialOvertimePeriods: [],
+      isOvertime: false,
+      detailedStatus: 'off',
       checkInDeviceSerial: null,
       checkOutDeviceSerial: null,
       isManualEntry: false,
@@ -698,8 +696,33 @@ export class AttendanceService {
     };
   }
 
+  private calculateSummary(processedAttendance: ProcessedAttendance[]) {
+    return processedAttendance.reduce(
+      (summary, record) => {
+        summary.totalWorkingDays++;
+        if (record.status === 'present') summary.totalPresent++;
+        if (record.status === 'absent') summary.totalAbsent++;
+        if (record.status === 'off' && record.detailedStatus === 'leave')
+          summary.totalLeave++;
+        if (record.status === 'incomplete') summary.totalIncomplete++;
+        summary.totalOvertimeHours += record.overtimeHours ?? 0;
+        summary.totalRegularHours += record.regularHours;
+        return summary;
+      },
+      {
+        totalWorkingDays: 0,
+        totalPresent: 0,
+        totalAbsent: 0,
+        totalLeave: 0,
+        totalIncomplete: 0,
+        totalOvertimeHours: 0,
+        totalRegularHours: 0,
+      },
+    );
+  }
+
   private generateDetailedStatus(
-    status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off',
+    status: AttendanceStatusValue,
     isEarlyCheckIn: boolean,
     isLateCheckIn: boolean,
     isLateCheckOut: boolean,
@@ -714,25 +737,48 @@ export class AttendanceService {
     return details.length > 0 ? details.join('-') : 'on-time';
   }
 
-  private validateAndCorrectAttendance(
-    records: ProcessedAttendance[],
-  ): ProcessedAttendance[] {
-    return records.map((record) => {
-      if (record.checkIn && record.checkOut) {
-        const checkInTime = moment(record.checkIn);
-        const checkOutTime = moment(record.checkOut);
+  private determineAttendanceStatus(
+    latestAttendance: ProcessedAttendance,
+    isDayOff: boolean,
+  ): AttendanceStatusValue {
+    if (isDayOff) return 'off';
+    if (!latestAttendance.checkIn) return 'absent';
+    if (!latestAttendance.checkOut) return 'incomplete';
+    return 'present';
+  }
 
-        if (checkOutTime.isBefore(checkInTime)) {
-          // Invalid check-out time, set status to incomplete
-          record.status = 'incomplete';
-          record.detailedStatus = 'invalid-checkout';
-          record.checkOut = undefined;
-          record.regularHours = 0;
-          record.overtimeHours = 0;
-        }
-      }
-      return record;
-    });
+  private convertToLatestAttendance(
+    processedAttendance: ProcessedAttendance,
+  ): AttendanceStatusInfo['latestAttendance'] {
+    return {
+      id: processedAttendance.id,
+      employeeId: processedAttendance.employeeId,
+      date: processedAttendance.date.toISOString(),
+      checkInTime: processedAttendance.checkIn || null,
+      checkOutTime: processedAttendance.checkOut || null,
+      checkInDeviceSerial: processedAttendance.checkInDeviceSerial || '',
+      checkOutDeviceSerial: processedAttendance.checkOutDeviceSerial || null,
+      status: this.convertToAttendanceStatusType(processedAttendance.status),
+      isManualEntry: processedAttendance.isManualEntry,
+    };
+  }
+
+  private convertToAttendanceStatusType(
+    status: AttendanceStatusValue,
+  ): AttendanceStatusType {
+    switch (status) {
+      case 'present':
+        return 'checked-out';
+      case 'incomplete':
+        return 'checked-in';
+      case 'absent':
+        return 'pending';
+      case 'off':
+      case 'holiday':
+        return 'approved';
+      default:
+        return 'pending';
+    }
   }
   // Public methods for external use
 
@@ -813,22 +859,6 @@ export class AttendanceService {
       : null;
   }
 
-  private async getAttendanceRecords(
-    employeeId: string,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<AttendanceRecord[]> {
-    const attendances = await prisma.attendance.findMany({
-      where: {
-        employeeId,
-        date: { gte: startDate, lte: endDate },
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    return attendances.map(this.convertInternalToAttendanceRecord);
-  }
-
   private calculateOvertimeHours(
     start: Date,
     end: Date,
@@ -895,7 +925,7 @@ export class AttendanceService {
       hours: po.hours,
       type: po.type as 'early-check-in' | 'late-check-out' | 'day-off',
       status: po.status as 'pending' | 'approved' | 'rejected',
-      periods: po.periods ? JSON.parse(po.periods as string) : undefined,
+      periods: po.periods ? JSON.parse(po.periods) : undefined,
       reviewedBy: po.reviewedBy ?? undefined,
       reviewedAt: po.reviewedAt ?? undefined,
       createdAt: po.createdAt,
@@ -970,7 +1000,7 @@ export class AttendanceService {
     return 'day-off';
   }
 
-  private createAttendanceStatus(
+  private createAttendanceStatusInfo(
     userData: UserData,
     latestAttendance: ProcessedAttendance,
     isCheckingIn: boolean,
@@ -978,38 +1008,26 @@ export class AttendanceService {
     potentialOvertimes: PotentialOvertime[],
     shiftAdjustment: ShiftAdjustment | null,
     approvedOvertime: ApprovedOvertime | null,
-    futureShifts: Array<{ date: string; shift: ShiftData }>,
-    futureOvertimes: Array<ApprovedOvertime>,
-  ): AttendanceStatus {
+    futureShifts: FutureShiftAdjustment[],
+    futureOvertimes: ApprovedOvertime[],
+  ): AttendanceStatusInfo {
     return {
-      user: userData,
-      latestAttendance: latestAttendance
-        ? {
-            id: latestAttendance.id,
-            employeeId: latestAttendance.employeeId,
-            date: latestAttendance.date.toISOString(),
-            checkInTime: latestAttendance.checkIn?.toString() ?? null,
-            checkOutTime: latestAttendance.checkOut?.toString() ?? null,
-            checkInDeviceSerial: latestAttendance.checkInDeviceSerial ?? '',
-            checkOutDeviceSerial: latestAttendance.checkOutDeviceSerial ?? null,
-            status: latestAttendance.status as AttendanceStatusType,
-            isManualEntry: latestAttendance.isManualEntry,
-          }
-        : null,
-      isCheckingIn,
-      isDayOff,
-      potentialOvertimes: potentialOvertimes,
-      shiftAdjustment,
-      approvedOvertime,
-      futureShifts,
-      futureOvertimes,
-      status: latestAttendance.status,
+      status: this.determineAttendanceStatus(latestAttendance, isDayOff),
       isOvertime: latestAttendance.isOvertime,
-      overtimeDuration: latestAttendance.overtimeHours,
+      overtimeDuration: latestAttendance.overtimeDuration,
       detailedStatus: latestAttendance.detailedStatus,
       isEarlyCheckIn: latestAttendance.isEarlyCheckIn,
       isLateCheckIn: latestAttendance.isLateCheckIn,
       isLateCheckOut: latestAttendance.isLateCheckOut,
+      user: userData,
+      latestAttendance: this.convertToLatestAttendance(latestAttendance),
+      isCheckingIn,
+      isDayOff,
+      potentialOvertimes,
+      shiftAdjustment,
+      approvedOvertime,
+      futureShifts,
+      futureOvertimes,
     };
   }
 
@@ -1031,7 +1049,7 @@ export class AttendanceService {
     return this.createAbsentRecord(
       now.toDate(),
       processedAttendances[0].employeeId,
-      true,
+      false,
     );
   }
 
@@ -1308,13 +1326,13 @@ export class AttendanceService {
       date: overtime.date,
       type: overtime.type as 'early-check-in' | 'late-check-out' | 'day-off',
       status: overtime.status as 'approved' | 'pending' | 'rejected',
-      reviewedBy: overtime.reviewedBy || undefined, // Update the type to allow for null values
-      reviewedAt: overtime.reviewedAt || undefined, // Update the type to allow for null values
+      reviewedBy: overtime.reviewedBy || undefined,
+      reviewedAt: overtime.reviewedAt || undefined,
       createdAt: overtime.createdAt,
       updatedAt: overtime.updatedAt,
-      start: '', // Add the missing 'start' property
-      end: '', // Add the missing 'end' property
-      hours: 0, // Add the missing 'hours' property
+      start: '',
+      end: '',
+      hours: 0,
     }));
   }
 
@@ -1353,40 +1371,15 @@ export class AttendanceService {
       nickname: user.nickname,
       departmentId: user.departmentId,
       department: user.department.name,
-      role: user.role as UserRole,
+      role: user.role,
       profilePictureUrl: user.profilePictureUrl,
       profilePictureExternal: user.profilePictureExternal,
       shiftId: user.shiftId,
       assignedShift: user.assignedShift,
       overtimeHours: user.overtimeHours,
-      potentialOvertimes:
-        user.potentialOvertimes?.map(
-          (po: {
-            id: any;
-            employeeId: any;
-            date: any;
-            hours: any;
-            type: string;
-            status: string;
-            periods: string;
-            reviewedBy: any;
-            reviewedAt: any;
-            createdAt: any;
-            updatedAt: any;
-          }) => ({
-            id: po.id,
-            employeeId: po.employeeId,
-            date: po.date,
-            hours: po.hours,
-            type: po.type as 'early-check-in' | 'late-check-out' | 'day-off',
-            status: po.status as 'pending' | 'approved' | 'rejected',
-            periods: po.periods ? JSON.parse(po.periods as string) : undefined,
-            reviewedBy: po.reviewedBy ?? undefined,
-            reviewedAt: po.reviewedAt ?? undefined,
-            createdAt: po.createdAt,
-            updatedAt: po.updatedAt,
-          }),
-        ) ?? [],
+      potentialOvertimes: user.potentialOvertimes.map(
+        this.convertPotentialOvertime,
+      ),
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
@@ -1404,17 +1397,15 @@ export class AttendanceService {
       id: internal.id,
       employeeId: internal.employeeId,
       attendanceTime:
-        internal.checkInTime?.toISOString() ||
-        internal.checkOutTime?.toISOString() ||
-        internal.date.toISOString(),
+        internal.checkInTime?.toISOString() || internal.date.toISOString(),
       checkInTime: internal.checkInTime?.toISOString() || null,
       checkOutTime: internal.checkOutTime?.toISOString() || null,
       isOvertime: internal.isOvertime,
-      overtimeDuration: internal.overtimeDuration ?? 0,
-      overtimeHours: internal.overtimeDuration ?? 0, // Use overtimeDuration if overtimeHours doesn't exist
-      isDayOff: false,
+      isDayOff: false, // Assuming this is not stored in the internal record
       overtimeStartTime: null,
       overtimeEndTime: null,
+      overtimeHours: internal.overtimeDuration || 0,
+      overtimeDuration: internal.overtimeDuration || 0,
       checkInLocation: null,
       checkOutLocation: null,
       checkInAddress: null,
@@ -1423,10 +1414,10 @@ export class AttendanceService {
       checkOutReason: null,
       checkInPhoto: null,
       checkOutPhoto: null,
-      checkInDeviceSerial: null,
-      checkOutDeviceSerial: null,
-      status: internal.status,
-      isManualEntry: false,
+      checkInDeviceSerial: internal.checkInDeviceSerial || null,
+      checkOutDeviceSerial: internal.checkOutDeviceSerial || null,
+      status: internal.status as AttendanceStatusType,
+      isManualEntry: internal.isManualEntry,
     };
   }
 

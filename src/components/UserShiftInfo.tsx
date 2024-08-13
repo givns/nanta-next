@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  AttendanceStatus,
+  AttendanceStatusInfo,
   ShiftData,
   UserData,
   ApprovedOvertime,
@@ -13,7 +13,7 @@ import 'moment/locale/th';
 moment.locale('th');
 
 interface UserShiftInfoProps {
-  attendanceStatus: AttendanceStatus;
+  attendanceStatus: AttendanceStatusInfo;
   userData: UserData;
   departmentName: string;
   isOutsideShift: boolean;

@@ -1,10 +1,12 @@
 // hooks/useShiftDetails.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import { AttendanceStatus, ShiftData } from '../types/user';
+import { AttendanceStatusInfo, ShiftData } from '../types/user';
 import axios from 'axios';
 
-export const useShiftDetails = (attendanceStatus: AttendanceStatus | null) => {
+export const useShiftDetails = (
+  attendanceStatus: AttendanceStatusInfo | null,
+) => {
   const [isWithinShift, setIsWithinShift] = useState(false);
   const [isBeforeShift, setIsBeforeShift] = useState(false);
   const [isAfterShift, setIsAfterShift] = useState(false);

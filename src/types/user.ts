@@ -80,8 +80,8 @@ export interface ApprovedOvertime {
   approvedAt: Date;
 }
 
-export interface AttendanceStatus {
-  status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off';
+export interface AttendanceStatusInfo {
+  status: AttendanceStatusValue;
   isOvertime: boolean;
   overtimeDuration: number | undefined;
   detailedStatus: string;
@@ -115,6 +115,13 @@ export interface AttendanceStatus {
   }>;
   futureOvertimes: Array<ApprovedOvertime>;
 }
+
+export type AttendanceStatusValue =
+  | 'present'
+  | 'absent'
+  | 'incomplete'
+  | 'holiday'
+  | 'off';
 
 export type AttendanceStatusType =
   | 'checked-in'
@@ -157,8 +164,8 @@ export interface AttendanceRecord {
   checkOutTime: string | null;
   isOvertime: boolean;
   isDayOff: boolean;
-  overtimeStartTime: Date | null;
-  overtimeEndTime: Date | null;
+  overtimeStartTime: string | null;
+  overtimeEndTime: string | null;
   overtimeHours: number;
   overtimeDuration: number;
   checkInLocation: any | null;
@@ -171,7 +178,7 @@ export interface AttendanceRecord {
   checkOutPhoto: string | null;
   checkInDeviceSerial: string | null;
   checkOutDeviceSerial: string | null;
-  status: string;
+  status: AttendanceStatusType;
   isManualEntry: boolean;
 }
 
@@ -181,7 +188,7 @@ export type ProcessedAttendance = {
   date: Date;
   checkIn?: string;
   checkOut?: string;
-  status: 'present' | 'absent' | 'incomplete' | 'holiday' | 'off';
+  status: AttendanceStatusValue;
   regularHours: number;
   potentialOvertimePeriods: {
     start: string;
@@ -235,7 +242,7 @@ export interface ShiftAdjustmentRequestData {
 
 export interface UserResponse {
   user: UserData;
-  attendanceStatus: AttendanceStatus;
+  attendanceStatus: AttendanceStatusInfo;
   recentAttendance: AttendanceRecord[];
   totalWorkingDays: number;
   totalPresent: number;
