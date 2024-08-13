@@ -1,5 +1,3 @@
-// lib/processAttendance.ts
-
 import { Job } from 'bull';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../services/AttendanceService';
@@ -7,9 +5,9 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, ProcessedAttendance, AttendanceRecord } from '../types/user';
-import moment from 'moment-timezone';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
+import { addMinutes, subMinutes, format, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -68,16 +66,24 @@ export async function processAttendance(job: Job): Promise<any> {
 
     logMessage(`UserData prepared: ${JSON.stringify(userData)}`);
 
-    // Calculate payroll period
-    const today = moment().tz('Asia/Bangkok');
-    const startDate =
-      moment(today).date() >= 26
-        ? moment(today).date(26).startOf('day')
-        : moment(today).subtract(1, 'month').date(26).startOf('day');
-    const endDate = moment().endOf('day'); // Use current date instead of full period end
+    // Calculate payroll period using date-fns
+    const today = new Date();
+    const payrollStartDate =
+      today.getDate() >= 26
+        ? subMinutes(
+            parseISO(
+              `${today.getFullYear()}-${today.getMonth() + 1}-26T00:00:00Z`,
+            ),
+            0,
+          )
+        : subMinutes(
+            parseISO(`${today.getFullYear()}-${today.getMonth()}-26T00:00:00Z`),
+            0,
+          );
+    const payrollEndDate = addMinutes(today, 0); // Use current date instead of full period end
 
     logMessage(
-      `Payroll period: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`,
+      `Payroll period: ${format(payrollStartDate, 'yyyy-MM-dd')} to ${format(payrollEndDate, 'yyyy-MM-dd')}`,
     );
 
     // Fetch attendance records
@@ -85,8 +91,8 @@ export async function processAttendance(job: Job): Promise<any> {
     const { records: externalAttendances, totalCount } =
       await externalDbService.getHistoricalAttendanceRecords(
         user.employeeId,
-        startDate.toDate(),
-        endDate.toDate(),
+        payrollStartDate,
+        payrollEndDate,
       );
 
     logMessage(
@@ -99,11 +105,12 @@ export async function processAttendance(job: Job): Promise<any> {
       )
       .filter((record): record is AttendanceRecord => record !== undefined);
 
+    // Process attendance data (including potential overtime calculation and flagging)
     const processedAttendance = await attendanceService.processAttendanceData(
       attendanceRecords,
       userData,
-      startDate.toDate(),
-      endDate.toDate(),
+      payrollStartDate,
+      payrollEndDate,
     );
 
     logMessage(`Processed ${processedAttendance.length} attendance records`);
@@ -135,8 +142,8 @@ export async function processAttendance(job: Job): Promise<any> {
       {
         data: {
           employeeId: user.employeeId,
-          periodStart: startDate.toDate(),
-          periodEnd: endDate.toDate(),
+          periodStart: payrollStartDate,
+          periodEnd: payrollEndDate,
           totalWorkingDays,
           totalPresent,
           totalAbsent,
