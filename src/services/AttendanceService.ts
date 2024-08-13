@@ -40,6 +40,7 @@ import {
   endOfWeek,
   subDays,
   isSameDay,
+  isValid,
   compareAsc,
   addDays,
 } from 'date-fns';
@@ -1556,22 +1557,24 @@ export class AttendanceService {
     console.log(`Raw date value: ${external.date}`);
     console.log(`Raw time value: ${external.time}`);
 
-    const attendanceTime = this.parseDate(external.sj);
-    console.log(
-      `Parsed attendanceTime: ${format(attendanceTime, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
+    const attendanceTime = parseISO(external.sj);
+    console.log(`Parsed attendanceTime: ${attendanceTime}`);
 
-    if (!attendanceTime) {
+    if (!isValid(attendanceTime)) {
       console.log(
         `Invalid date in external record: ${JSON.stringify(external)}`,
       );
       return undefined;
     }
 
+    const formattedAttendanceTime = isValid(attendanceTime)
+      ? format(attendanceTime, 'yyyy-MM-dd HH:mm:ss')
+      : '';
+
     const result: AttendanceRecord = {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      attendanceTime: format(attendanceTime, 'yyyy-MM-dd HH:mm:ss'), // Use the full datetime string
+      attendanceTime: formattedAttendanceTime || '', // Ensure a valid string
       checkInTime: null,
       checkOutTime: null,
       isOvertime: false,
@@ -1593,6 +1596,7 @@ export class AttendanceService {
       overtimeHours: 0,
       overtimeDuration: 0,
     };
+
     console.log(`Converted record: ${JSON.stringify(result, null, 2)}`);
     return result;
   }
