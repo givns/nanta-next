@@ -1,3 +1,5 @@
+// src/lib/processAttendance.ts
+
 import { Job } from 'bull';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../services/AttendanceService';
@@ -113,50 +115,12 @@ export async function processAttendance(job: Job): Promise<any> {
 
     logMessage(`Summary statistics calculated: ${JSON.stringify(summary)}`);
 
-    // Store processed data
-    const payrollProcessingResult = await prisma.payrollProcessingResult.create(
-      {
-        data: {
-          employeeId: user.employeeId,
-          periodStart: parseISO(startDate),
-          periodEnd: parseISO(endDate),
-          totalWorkingDays: summary.totalWorkingDays,
-          totalPresent: summary.totalPresent,
-          totalAbsent: summary.totalAbsent,
-          totalOvertimeHours:
-            Math.round(summary.totalOvertimeHours * 100) / 100,
-          totalRegularHours: Math.round(summary.totalRegularHours * 100) / 100,
-          processedData: JSON.stringify({
-            userData,
-            processedAttendance,
-            summary,
-            payrollPeriod: { start: startDate, end: endDate },
-          }),
-        },
-      },
-    );
-
-    logMessage(
-      `Payroll processing result stored with ID: ${payrollProcessingResult.id}`,
-    );
-
-    // Update user's overtime hours
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        overtimeHours: Math.round(summary.totalOvertimeHours * 100) / 100,
-      },
-    });
-
-    logMessage(
-      `User's overtime hours updated to: ${summary.totalOvertimeHours}`,
-    );
-
     return {
       success: true,
-      message: 'Payroll processed successfully',
-      payrollProcessingResultId: payrollProcessingResult.id,
       summary,
+      userData,
+      processedAttendance,
+      payrollPeriod: { start: startDate, end: endDate },
     };
   } catch (error: any) {
     logMessage(`Error processing payroll: ${error.message}`);

@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAttendanceProcessingQueue } from '../../lib/queue';
-import prisma from '../../lib/prisma';
+import { getLogs } from '../../utils/inMemoryLogger';
 
 export default async function handler(
   req: NextApiRequest,
@@ -29,33 +29,37 @@ export default async function handler(
     }
 
     const jobStatus = await job.getState();
+    const logs = getLogs();
 
     if (jobStatus === 'completed') {
-      const processedAttendance = await prisma.processedAttendance.findMany({
-        where: {
-          employeeId: employeeId as string,
-        },
-        orderBy: { date: 'desc' },
-      });
+      const result = await job.returnvalue;
 
-      res.status(200).json({
+      return res.status(200).json({
         status: 'completed',
-        data: processedAttendance,
+        data: {
+          userData: result.userData,
+          processedAttendance: result.processedAttendance,
+          summary: result.summary,
+          payrollPeriod: result.payrollPeriod,
+        },
+        logs,
       });
     } else if (jobStatus === 'failed') {
-      res.status(500).json({
+      return res.status(500).json({
         status: 'failed',
         error: 'Job processing failed',
+        logs,
       });
     } else {
-      res.status(202).json({
+      return res.status(202).json({
         status: jobStatus,
         message: 'Job is still processing',
+        logs,
       });
     }
   } catch (error: any) {
     console.error('Error checking attendance processing status:', error);
-    res
+    return res
       .status(500)
       .json({ error: 'Internal server error', message: error.message });
   }

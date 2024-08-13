@@ -1,3 +1,4 @@
+//Components/AttendanceProcessingTest.tsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -7,8 +8,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function AttendanceProcessingTest() {
   const [employeeId, setEmployeeId] = useState<string>('');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<
     'idle' | 'processing' | 'completed' | 'failed'
@@ -23,8 +22,6 @@ export default function AttendanceProcessingTest() {
       setLogs([]);
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
-        startDate,
-        endDate,
       });
       setJobId(response.data.jobId);
     } catch (err) {
@@ -73,25 +70,9 @@ export default function AttendanceProcessingTest() {
           placeholder="Enter Employee ID"
           className="max-w-xs"
         />
-        <Input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          placeholder="Start Date"
-          className="max-w-xs"
-        />
-        <Input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          placeholder="End Date"
-          className="max-w-xs"
-        />
         <Button
           onClick={initiateProcessing}
-          disabled={
-            status === 'processing' || !employeeId || !startDate || !endDate
-          }
+          disabled={status === 'processing' || !employeeId}
         >
           {status === 'processing' ? 'Processing...' : 'Process Attendance'}
         </Button>

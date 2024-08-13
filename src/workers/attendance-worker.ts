@@ -1,3 +1,5 @@
+// workers/attendance-worker.ts
+
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { getAttendanceProcessingQueue } from '../lib/queue';
@@ -7,13 +9,9 @@ import { Job } from 'bull';
 
 logMessage('Starting attendance worker');
 
-console.log('Current working directory:', process.cwd());
-console.log('__dirname:', __dirname);
-
 dotenv.config({ path: resolve(__dirname, '../../.env.local') });
 
 logMessage('Environment variables loaded');
-logMessage('REDIS_URL: ' + (process.env.REDIS_URL ? 'Set' : 'Not set'));
 
 const queue = getAttendanceProcessingQueue();
 
