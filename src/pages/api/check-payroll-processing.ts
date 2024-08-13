@@ -7,7 +7,7 @@ import { ExternalDbService } from '../../services/ExternalDbService';
 import { HolidayService } from '../../services/HolidayService';
 import { Shift104HolidayService } from '../../services/Shift104HolidayService';
 import { leaveServiceServer } from '@/services/LeaveServiceServer';
-import { getLogs } from '../../utils/inMemoryLogger';
+import { getLogs, logMessage } from '../../utils/inMemoryLogger';
 
 const externalDbService = new ExternalDbService();
 const holidayService = new HolidayService();
@@ -28,6 +28,7 @@ export default async function handler(
   }
 
   const { jobId, employeeId } = req.query;
+  logMessage(`Checking status for job ID: ${jobId}`);
 
   if (!jobId || !employeeId) {
     return res

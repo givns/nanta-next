@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAttendanceProcessingQueue } from '../../lib/queue';
+import { logMessage } from '../../utils/inMemoryLogger';
 
 export default async function handler(
   req: NextApiRequest,
@@ -32,7 +33,7 @@ export default async function handler(
       endDate,
     });
 
-    console.log('Job added to queue:', job.id);
+    logMessage('Job added to queue with ID: ${job.id}');
 
     res.status(202).json({
       message: 'Payroll processing job initiated',
