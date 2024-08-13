@@ -15,10 +15,12 @@ export default function AttendanceProcessingTest() {
   >('idle');
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
 
   const initiateProcessing = async () => {
     try {
       setStatus('processing');
+      setLogs([]);
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
         startDate,
@@ -41,10 +43,13 @@ export default function AttendanceProcessingTest() {
           if (response.data.status === 'completed') {
             setStatus('completed');
             setResult(response.data.data);
+            setLogs(response.data.logs || []);
           } else if (response.data.status === 'failed') {
             setStatus('failed');
             setError('Processing failed');
+            setLogs(response.data.logs || []);
           } else {
+            setLogs(response.data.logs || []);
             setTimeout(checkStatus, 5000); // Check again after 5 seconds
           }
         } catch (err) {

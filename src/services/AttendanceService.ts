@@ -251,6 +251,8 @@ export class AttendanceService {
     startDate: Date,
     endDate: Date,
   ): Promise<ProcessedAttendance[]> {
+    logMessage(`Processing ${records.length} attendance records`);
+    logMessage(`Start date: ${startDate}, End date: ${endDate}`);
     const shift: ShiftData = {
       ...userData.assignedShift,
       timezone: 'asia/bangkok',
@@ -258,19 +260,26 @@ export class AttendanceService {
     if (!shift) throw new Error('User has no assigned shift');
 
     const groupedRecords = this.groupAndPairRecords(records, shift);
+    logMessage(`Grouped and paired records: ${JSON.stringify(groupedRecords)}`);
+
     const shiftAdjustments = await this.getShiftAdjustments(
       userData.employeeId,
       startDate,
       endDate,
     );
+    logMessage(`Shift adjustments: ${JSON.stringify(shiftAdjustments)}`);
+
     const leaveRequests = await this.leaveServiceServer.getLeaveRequests(
       userData.employeeId,
     );
+    logMessage(`Leave requests: ${JSON.stringify(leaveRequests)}`);
+
     const approvedOvertimes = await this.getApprovedOvertimes(
       userData.employeeId,
       startDate,
       endDate,
     );
+    logMessage(`Approved overtimes: ${JSON.stringify(approvedOvertimes)}`);
 
     const processedAttendance: ProcessedAttendance[] = [];
     let currentDate = moment(startDate).startOf('day');
@@ -278,6 +287,8 @@ export class AttendanceService {
 
     while (currentDate.isSameOrBefore(endMoment, 'day')) {
       const dateStr = currentDate.format('YYYY-MM-DD');
+      logMessage(`Processing date: ${dateStr}`);
+
       const dayRecords = groupedRecords[dateStr] || [];
       const shifts = await this.getAllShifts();
       const effectiveShift = this.getEffectiveShift(
@@ -292,16 +303,19 @@ export class AttendanceService {
         effectiveShift,
       );
       const isLeave = this.isOnLeave(currentDate.toDate(), leaveRequests);
+      logMessage(`Day off: ${isDayOff}, Leave: ${isLeave}`);
 
       if (dayRecords.length === 0) {
         if (isDayOff) {
           processedAttendance.push(
             this.createDayOffRecord(currentDate.toDate(), userData.employeeId),
           );
+          logMessage(`Created day off record for ${dateStr}`);
         } else if (isLeave) {
           processedAttendance.push(
             this.createLeaveRecord(currentDate.toDate(), userData.employeeId),
           );
+          logMessage(`Created leave record for ${dateStr}`);
         } else {
           processedAttendance.push(
             this.createAbsentRecord(
@@ -310,6 +324,7 @@ export class AttendanceService {
               isDayOff,
             ),
           );
+          logMessage(`Created absent record for ${dateStr}`);
         }
       } else {
         for (const record of dayRecords) {
@@ -320,13 +335,22 @@ export class AttendanceService {
             approvedOvertimes,
           );
           processedAttendance.push(processed);
+          logMessage(
+            `Processed attendance record for ${dateStr}: ${JSON.stringify(processed)}`,
+          );
         }
       }
 
       currentDate.add(1, 'day');
     }
 
-    return processedAttendance;
+    const validatedAttendance =
+      this.validateAndCorrectAttendance(processedAttendance);
+    logMessage(
+      `Validated and corrected attendance: ${JSON.stringify(validatedAttendance)}`,
+    );
+
+    return validatedAttendance;
   }
 
   private groupAndPairRecords(
@@ -1465,5 +1489,95 @@ export class AttendanceService {
     };
     console.log(`Converted record: ${JSON.stringify(result, null, 2)}`);
     return result;
+  }
+
+  private validateAndCorrectAttendance(
+    records: ProcessedAttendance[],
+  ): ProcessedAttendance[] {
+    logMessage('Starting validation and correction of attendance records');
+
+    return records.map((record, index) => {
+      let correctedRecord = { ...record };
+
+      // Check for missing check-in or check-out
+      if (!correctedRecord.checkIn || !correctedRecord.checkOut) {
+        logMessage(`Record ${record.id}: Missing check-in or check-out`);
+        correctedRecord.status = 'incomplete';
+        correctedRecord.detailedStatus = correctedRecord.checkIn
+          ? 'missing-checkout'
+          : 'missing-checkin';
+      }
+
+      // Validate check-in and check-out times
+      if (correctedRecord.checkIn && correctedRecord.checkOut) {
+        const checkInTime = moment(correctedRecord.checkIn);
+        const checkOutTime = moment(correctedRecord.checkOut);
+
+        if (checkOutTime.isBefore(checkInTime)) {
+          logMessage(
+            `Record ${record.id}: Invalid check-out time (before check-in)`,
+          );
+          correctedRecord.status = 'invalid' as AttendanceStatusValue;
+          correctedRecord.detailedStatus = 'invalid-checkout';
+          correctedRecord.checkOut = undefined;
+        }
+
+        // Check for unreasonably long shifts (e.g., more than 24 hours)
+        const shiftDuration = checkOutTime.diff(checkInTime, 'hours');
+        if (shiftDuration > 24) {
+          logMessage(
+            `Record ${record.id}: Unreasonably long shift (${shiftDuration} hours)`,
+          );
+          correctedRecord.status = 'invalid' as AttendanceStatusValue;
+          correctedRecord.detailedStatus = 'unreasonable-duration';
+        }
+      }
+
+      // Validate regular hours and overtime
+      if (correctedRecord.regularHours < 0) {
+        logMessage(`Record ${record.id}: Negative regular hours`);
+        correctedRecord.regularHours = 0;
+      }
+      if (correctedRecord.overtimeHours ?? 0 < 0) {
+        logMessage(`Record ${record.id}: Negative overtime hours`);
+        correctedRecord.overtimeHours = 0;
+      }
+
+      // Check for consecutive days off
+      if (index > 0) {
+        const prevRecord = records[index - 1];
+        if (prevRecord.status === 'off' && correctedRecord.status === 'off') {
+          const prevDate = moment(prevRecord.date);
+          const currentDate = moment(correctedRecord.date);
+          if (currentDate.diff(prevDate, 'days') === 1) {
+            logMessage(`Record ${record.id}: Consecutive days off detected`);
+            correctedRecord.detailedStatus = 'consecutive-days-off';
+          }
+        }
+      }
+
+      // Ensure status is a valid AttendanceStatusValue
+      if (!this.isValidAttendanceStatus(correctedRecord.status)) {
+        logMessage(
+          `Record ${record.id}: Invalid status ${correctedRecord.status}`,
+        );
+        correctedRecord.status = 'invalid' as AttendanceStatusValue;
+      }
+
+      return correctedRecord;
+    });
+  }
+
+  private isValidAttendanceStatus(
+    status: any,
+  ): status is AttendanceStatusValue {
+    return [
+      'present',
+      'absent',
+      'incomplete',
+      'holiday',
+      'off',
+      'invalid',
+    ].includes(status);
   }
 }

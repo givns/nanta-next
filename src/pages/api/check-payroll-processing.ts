@@ -6,6 +6,7 @@ import { ExternalDbService } from '../../services/ExternalDbService';
 import { HolidayService } from '../../services/HolidayService';
 import { Shift104HolidayService } from '../../services/Shift104HolidayService';
 import { leaveServiceServer } from '@/services/LeaveServiceServer';
+import { getLogs } from '../../utils/inMemoryLogger';
 
 const externalDbService = new ExternalDbService();
 const holidayService = new HolidayService();
@@ -42,6 +43,7 @@ export default async function handler(
     }
 
     const jobStatus = await job.getState();
+    const logs = getLogs(); // Implement this function to retrieve logs
 
     if (jobStatus === 'completed') {
       const payrollProcessingResult =
@@ -72,16 +74,19 @@ export default async function handler(
           summary: processedData.summary,
           payrollPeriod: processedData.payrollPeriod,
         },
+        logs,
       });
     } else if (jobStatus === 'failed') {
       res.status(500).json({
         status: 'failed',
         error: 'Job processing failed',
+        logs,
       });
     } else {
       res.status(202).json({
         status: jobStatus,
         message: 'Job is still processing',
+        logs,
       });
     }
   } catch (error: any) {
