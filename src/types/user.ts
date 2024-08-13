@@ -190,15 +190,15 @@ export type ProcessedAttendance = {
   checkOut?: string;
   status: AttendanceStatusValue;
   regularHours: number;
-  potentialOvertimePeriods: {
+  overtimeHours?: number;
+  isOvertime: boolean;
+  potentialOvertimePeriods?: {
     start: string;
     end: string;
   }[];
   isEarlyCheckIn?: boolean;
   isLateCheckIn?: boolean;
   isLateCheckOut?: boolean;
-  overtimeHours?: number;
-  isOvertime: boolean;
   detailedStatus: string;
   overtimeDuration: number;
   checkInDeviceSerial: string | null;
