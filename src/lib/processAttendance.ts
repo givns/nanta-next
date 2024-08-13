@@ -24,8 +24,10 @@ const attendanceService = new AttendanceService(
 );
 
 export async function processAttendance(job: Job): Promise<any> {
-  const { employeeId } = job.data;
-  logMessage(`Starting attendance processing for employee: ${employeeId}`);
+  const { employeeId, startDate, endDate } = job.data;
+  logMessage(
+    `Starting attendance processing for employee: ${employeeId} from ${startDate} to ${endDate}`,
+  );
 
   try {
     const user = await prisma.user.findUnique({
