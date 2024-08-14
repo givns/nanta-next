@@ -383,40 +383,61 @@ export class AttendanceService {
     const recordsByDate: Record<string, AttendanceRecord[]> = {};
     const unpairedRecords: AttendanceRecord[] = [];
 
-    records.sort((a, b) =>
-      compareAsc(
-        parse(a.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date()),
-        parse(b.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date()),
-      ),
+    // Sort records by date and time
+    records.sort(
+      (a, b) =>
+        new Date(a.attendanceTime).getTime() -
+        new Date(b.attendanceTime).getTime(),
     );
 
+    let currentPair: Partial<AttendanceRecord> = {};
+    let previousDate: string | null = null;
+
     for (const record of records) {
-      const dateKey = format(
-        parse(record.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date()),
-        'yyyy-MM-dd',
-      );
+      const recordDate = format(new Date(record.attendanceTime), 'yyyy-MM-dd');
 
-      if (!recordsByDate[dateKey]) {
-        recordsByDate[dateKey] = [];
+      if (!recordsByDate[recordDate]) {
+        recordsByDate[recordDate] = [];
       }
 
-      const lastRecord =
-        recordsByDate[dateKey][recordsByDate[dateKey].length - 1];
+      // Handle overnight shifts
+      if (
+        previousDate &&
+        recordDate !== previousDate &&
+        !currentPair.checkOutTime
+      ) {
+        recordsByDate[previousDate].push(currentPair as AttendanceRecord);
+        currentPair = {};
+      }
 
-      if (!lastRecord || lastRecord.checkOutTime) {
+      if (!currentPair.checkInTime) {
         // Start a new pair
-        recordsByDate[dateKey].push({ ...record, checkOutTime: null });
-      } else {
+        currentPair = { ...record, checkOutTime: null };
+      } else if (!currentPair.checkOutTime) {
         // Complete the pair
-        lastRecord.checkOutTime = record.attendanceTime;
-        lastRecord.checkOutDeviceSerial = record.checkInDeviceSerial;
+        currentPair.checkOutTime = record.attendanceTime;
+        currentPair.checkOutDeviceSerial = record.checkInDeviceSerial;
+        recordsByDate[recordDate].push(currentPair as AttendanceRecord);
+        currentPair = {};
+      } else {
+        // Multiple check-ins/check-outs in a day
+        recordsByDate[recordDate].push(currentPair as AttendanceRecord);
+        currentPair = { ...record, checkOutTime: null };
       }
+
+      previousDate = recordDate;
     }
 
-    // Collect unpaired records for admin review
-    Object.keys(recordsByDate).forEach((date) => {
-      recordsByDate[date].forEach((record) => {
-        if (!record.checkOutTime) {
+    // Handle any remaining unpaired record
+    if (currentPair.checkInTime) {
+      const lastDate = format(new Date(currentPair.checkInTime), 'yyyy-MM-dd');
+      recordsByDate[lastDate].push(currentPair as AttendanceRecord);
+    }
+
+    // Collect unpaired records
+    Object.values(recordsByDate).forEach((dateRecords) => {
+      dateRecords.forEach((record) => {
+        if (!record.checkInTime || !record.checkOutTime) {
           unpairedRecords.push(record);
         }
       });
