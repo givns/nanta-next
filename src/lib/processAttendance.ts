@@ -139,13 +139,34 @@ export async function processAttendance(job: Job): Promise<any> {
 
     logMessage(`Summary statistics calculated: ${JSON.stringify(summary)}`);
 
-    return {
+    const result = {
       success: true,
       summary,
       userData,
       processedAttendance,
       payrollPeriod: { start: startDate, end: endDate },
     };
+
+    // Store the result in the database
+    await prisma.payrollProcessingResult.create({
+      data: {
+        employeeId,
+        periodStart: new Date(startDate),
+        periodEnd: new Date(endDate),
+        totalWorkingDays: summary.totalWorkingDays,
+        totalPresent: summary.totalPresent,
+        totalAbsent: summary.totalAbsent,
+        totalOvertimeHours: summary.totalOvertimeHours,
+        totalRegularHours: summary.totalRegularHours,
+        processedData: JSON.stringify(result),
+      },
+    });
+
+    logMessage(
+      `Payroll processing completed for job: ${job.id}, Result: ${JSON.stringify(result)}`,
+    );
+
+    return result;
   } catch (error: any) {
     logMessage(`Error processing payroll: ${error.message}`);
     console.error('Error processing payroll:', error);
