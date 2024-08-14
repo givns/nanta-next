@@ -7,8 +7,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function AttendanceProcessingTest() {
   const [employeeId, setEmployeeId] = useState<string>('');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<
     'idle' | 'processing' | 'completed' | 'failed'

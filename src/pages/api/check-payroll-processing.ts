@@ -27,32 +27,17 @@ export default async function handler(
     const job = await queue.getJob(jobId as string);
 
     if (!job) {
-      // Check if we have a result in the database even if the job is not found
-      const payrollProcessingResult =
-        await prisma.payrollProcessingResult.findFirst({
-          where: {
-            employeeId: employeeId as string,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        });
-
-      if (payrollProcessingResult) {
-        const processedData = JSON.parse(
-          payrollProcessingResult.processedData as string,
-        );
-        return res.status(200).json({
-          status: 'completed',
-          data: processedData,
-        });
+      logMessage(
+        `Job ${jobId} not found in queue. Checking database for results.`,
+      );
+      const result = await checkDatabaseForResults(employeeId as string);
+      if (result) {
+        return res.status(200).json(result);
       }
-
       return res
         .status(404)
         .json({ error: 'Job not found and no results available' });
     }
-
     const jobStatus = await job.getState();
 
     if (jobStatus === 'completed') {
@@ -97,5 +82,31 @@ export default async function handler(
     return res
       .status(500)
       .json({ error: 'Internal server error', message: error.message });
+  }
+  async function checkDatabaseForResults(employeeId: string) {
+    const payrollProcessingResult =
+      await prisma.payrollProcessingResult.findFirst({
+        where: { employeeId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+    if (payrollProcessingResult) {
+      return {
+        status: 'completed',
+        data: {
+          employeeId: payrollProcessingResult.employeeId,
+          periodStart: payrollProcessingResult.periodStart,
+          periodEnd: payrollProcessingResult.periodEnd,
+          totalWorkingDays: payrollProcessingResult.totalWorkingDays,
+          totalPresent: payrollProcessingResult.totalPresent,
+          totalAbsent: payrollProcessingResult.totalAbsent,
+          totalOvertimeHours: payrollProcessingResult.totalOvertimeHours,
+          totalRegularHours: payrollProcessingResult.totalRegularHours,
+          processedData: JSON.parse(payrollProcessingResult.processedData),
+        },
+      };
+    }
+
+    return null;
   }
 }

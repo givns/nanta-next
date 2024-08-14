@@ -167,10 +167,13 @@ export class AttendanceService {
     const user = await this.getUser(employeeId);
     const userData = this.convertToUserData(user);
 
-    const payrollStartDate = subMinutes(addDays(new Date(startDate), 26), 1);
-    const payrollEndDate = endOfDay(
-      subMinutes(addDays(new Date(endDate), 25), 1),
+    const currentDate = new Date();
+    const payrollStartDate = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() - 1,
+      26,
     );
+    const payrollEndDate = currentDate;
 
     const attendanceRecords = await this.getAttendanceRecords(
       employeeId,
