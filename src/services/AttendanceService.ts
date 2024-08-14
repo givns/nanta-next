@@ -163,17 +163,12 @@ export class AttendanceService {
     );
   }
 
-  async processPayroll(employeeId: string, startDate: Date, endDate: Date) {
+  async processPayroll(employeeId: string) {
     const user = await this.getUser(employeeId);
     const userData = this.convertToUserData(user);
 
-    const currentDate = new Date();
-    const payrollStartDate = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() - 1,
-      26,
-    );
-    const payrollEndDate = currentDate;
+    const { startDate: payrollStartDate, endDate: payrollEndDate } =
+      this.calculatePayrollPeriod();
 
     const attendanceRecords = await this.getAttendanceRecords(
       employeeId,
@@ -195,6 +190,33 @@ export class AttendanceService {
       summary,
       payrollPeriod: { start: payrollStartDate, end: payrollEndDate },
     };
+  }
+
+  private calculatePayrollPeriod(): { startDate: Date; endDate: Date } {
+    const currentDate = new Date();
+    let startDate = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() - 1,
+      26,
+    );
+
+    // If current date is before the 26th, start from two months ago
+    if (currentDate.getDate() < 26) {
+      startDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() - 2,
+        26,
+      );
+    }
+
+    // Set the time to 00:00:00 for the start date
+    startDate.setHours(0, 0, 0, 0);
+
+    // Set the time to 23:59:59 for the end date
+    const endDate = new Date(currentDate);
+    endDate.setHours(23, 59, 59, 999);
+
+    return { startDate, endDate };
   }
 
   private async getUser(employeeId: string) {
@@ -224,6 +246,10 @@ export class AttendanceService {
     startDate: Date,
     endDate: Date,
   ): Promise<AttendanceRecord[]> {
+    logMessage(
+      `Fetching historical attendance records for employeeId: ${employeeId}`,
+    );
+    logMessage(`Date range: ${startDate} to ${endDate}`);
     const [internalRecords, externalRecords] = await Promise.all([
       this.getInternalAttendances(employeeId, startDate, endDate),
       this.externalDbService.getHistoricalAttendanceRecords(
@@ -901,26 +927,33 @@ export class AttendanceService {
 
   async getHistoricalAttendance(
     employeeId: string,
-    startDate: Date,
-    endDate: Date,
+    startDate?: Date,
+    endDate?: Date,
   ): Promise<ProcessedAttendance[]> {
+    let start: Date;
+    let end: Date;
+
+    if (!startDate || !endDate) {
+      const payrollPeriod = this.calculatePayrollPeriod();
+      start = payrollPeriod.startDate;
+      end = payrollPeriod.endDate;
+    } else {
+      start = startDate;
+      end = endDate;
+    }
+
     logMessage(
-      `Fetching historical attendance for ${employeeId} from ${startDate} to ${endDate}`,
+      `Fetching historical attendance for ${employeeId} from ${start.toISOString()} to ${end.toISOString()}`,
     );
     const user = await this.getUser(employeeId);
     const userData = this.convertToUserData(user);
 
     const attendanceRecords = await this.getAttendanceRecords(
       employeeId,
-      startDate,
-      endDate,
+      start,
+      end,
     );
-    return this.processAttendanceData(
-      attendanceRecords,
-      userData,
-      startDate,
-      endDate,
-    );
+    return this.processAttendanceData(attendanceRecords, userData, start, end);
   }
 
   async processManualEntry(
