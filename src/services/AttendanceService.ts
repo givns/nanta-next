@@ -298,6 +298,13 @@ export class AttendanceService {
     };
     if (!shift) throw new Error('User has no assigned shift');
 
+    // Sort records by date and time
+    records.sort(
+      (a, b) =>
+        new Date(a.attendanceTime).getTime() -
+        new Date(b.attendanceTime).getTime(),
+    );
+
     const { recordsByDate, unpairedRecords } = this.groupAndPairRecords(
       records,
       shift,
@@ -330,20 +337,15 @@ export class AttendanceService {
     logMessage(`Approved overtimes: ${JSON.stringify(approvedOvertimes)}`);
 
     const processedAttendance: ProcessedAttendance[] = [];
-    let currentDate = startOfDay(startDate);
-    const endMoment = endOfDay(endDate);
 
-    while (currentDate <= endMoment) {
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
-      logMessage(`Processing date: ${dateStr}`);
-
-      const dayRecords = recordsByDate[dateStr] || [];
-      const shifts = await this.getAllShifts();
+    for (const dateStr in recordsByDate) {
+      const dayRecords = recordsByDate[dateStr];
+      const currentDate = new Date(dateStr);
       const effectiveShift = this.getEffectiveShift(
         currentDate,
         userData,
         shiftAdjustments,
-        shifts,
+        await this.getAllShifts(),
       );
       const isDayOff = await this.isDayOff(
         userData.employeeId,
@@ -351,52 +353,33 @@ export class AttendanceService {
         effectiveShift,
       );
       const isLeave = this.isOnLeave(currentDate, leaveRequests);
-      logMessage(`Day off: ${isDayOff}, Leave: ${isLeave}`);
 
       if (dayRecords.length === 0) {
-        if (isDayOff) {
-          processedAttendance.push(
-            this.createDayOffRecord(currentDate, userData.employeeId),
-          );
-          logMessage(`Created day off record for ${dateStr}`);
-        } else if (isLeave) {
-          processedAttendance.push(
-            this.createLeaveRecord(currentDate, userData.employeeId),
-          );
-          logMessage(`Created leave record for ${dateStr}`);
-        } else {
-          processedAttendance.push(
-            this.createAbsentRecord(currentDate, userData.employeeId, isDayOff),
-          );
-          logMessage(`Created absent record for ${dateStr}`);
-        }
+        processedAttendance.push(
+          this.createAbsentOrOffRecord(
+            currentDate,
+            userData.employeeId,
+            isDayOff,
+            isLeave,
+          ),
+        );
       } else {
-        for (const record of dayRecords) {
-          const processed = this.processAttendanceRecord(
-            record,
+        for (let i = 0; i < dayRecords.length; i += 2) {
+          const checkIn = dayRecords[i];
+          const checkOut = i + 1 < dayRecords.length ? dayRecords[i + 1] : null;
+          const processed = await this.processAttendanceRecord(
+            checkIn,
+            checkOut,
             effectiveShift,
             isDayOff,
             approvedOvertimes,
           );
-          processedAttendance.push(await processed);
-          logMessage(
-            `Processed attendance record for ${dateStr}: ${JSON.stringify(
-              processed,
-            )}`,
-          );
+          processedAttendance.push(processed);
         }
       }
-
-      currentDate = addDays(currentDate, 1);
     }
 
-    const validatedAttendance =
-      this.validateAndCorrectAttendance(processedAttendance);
-    logMessage(
-      `Validated and corrected attendance: ${JSON.stringify(validatedAttendance)}`,
-    );
-
-    return validatedAttendance;
+    return this.validateAndCorrectAttendance(processedAttendance);
   }
 
   private groupAndPairRecords(
@@ -432,8 +415,31 @@ export class AttendanceService {
         recordDate !== previousDate &&
         !currentPair.checkOutTime
       ) {
-        recordsByDate[previousDate].push(currentPair as AttendanceRecord);
-        currentPair = {};
+        const shiftEndTime = parse(
+          shift.endTime,
+          'HH:mm',
+          new Date(currentPair.checkInTime!),
+        );
+        if (
+          isBefore(
+            shiftEndTime,
+            parse(shift.startTime, 'HH:mm', new Date(currentPair.checkInTime!)),
+          )
+        ) {
+          shiftEndTime.setDate(shiftEndTime.getDate() + 1);
+        }
+
+        if (isBefore(new Date(record.attendanceTime), shiftEndTime)) {
+          // This is likely a check-out for an overnight shift
+          currentPair.checkOutTime = record.attendanceTime;
+          recordsByDate[previousDate].push(currentPair as AttendanceRecord);
+          currentPair = {};
+          continue;
+        } else {
+          // The previous shift is incomplete, add it to unpaired records
+          unpairedRecords.push(currentPair as AttendanceRecord);
+          currentPair = {};
+        }
       }
 
       if (!currentPair.checkInTime) {
@@ -442,7 +448,6 @@ export class AttendanceService {
       } else if (!currentPair.checkOutTime) {
         // Complete the pair
         currentPair.checkOutTime = record.attendanceTime;
-        currentPair.checkOutDeviceSerial = record.checkInDeviceSerial;
         recordsByDate[recordDate].push(currentPair as AttendanceRecord);
         currentPair = {};
       } else {
@@ -456,76 +461,50 @@ export class AttendanceService {
 
     // Handle any remaining unpaired record
     if (currentPair.checkInTime) {
-      const lastDate = format(new Date(currentPair.checkInTime), 'yyyy-MM-dd');
-      recordsByDate[lastDate].push(currentPair as AttendanceRecord);
+      unpairedRecords.push(currentPair as AttendanceRecord);
     }
-
-    // Collect unpaired records
-    Object.values(recordsByDate).forEach((dateRecords) => {
-      dateRecords.forEach((record) => {
-        if (!record.checkInTime || !record.checkOutTime) {
-          unpairedRecords.push(record);
-        }
-      });
-    });
 
     return { recordsByDate, unpairedRecords };
   }
 
   private async processAttendanceRecord(
-    record: AttendanceRecord,
+    checkIn: AttendanceRecord,
+    checkOut: AttendanceRecord | null,
     shift: ShiftData,
     isDayOff: boolean,
     approvedOvertimes: ApprovedOvertime[],
   ): Promise<ProcessedAttendance> {
-    const checkIn = parse(
-      record.checkInTime ?? '',
+    const checkInTime = parse(
+      checkIn.attendanceTime,
       'yyyy-MM-dd HH:mm:ss',
       new Date(),
     );
-    const checkOut = record.checkOutTime
-      ? parse(record.checkOutTime, 'yyyy-MM-dd HH:mm:ss', new Date())
+    const checkOutTime = checkOut
+      ? parse(checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
       : null;
 
-    // Adjust shiftStart and shiftEnd to handle check-outs after midnight
-    const shiftStart = subMinutes(
-      parse(record.checkInTime ?? '', 'yyyy-MM-dd HH:mm:ss', new Date()),
-      0,
-    );
-    let shiftEnd = addMinutes(
-      shiftStart,
-      differenceInMinutes(
-        parse(shift.endTime, 'HH:mm', new Date()),
-        parse(shift.startTime, 'HH:mm', new Date()),
-      ),
-    );
-
+    const shiftStart = parse(shift.startTime, 'HH:mm', checkInTime);
+    let shiftEnd = parse(shift.endTime, 'HH:mm', checkInTime);
     if (isBefore(shiftEnd, shiftStart)) shiftEnd = addMinutes(shiftEnd, 1440); // Add 24 hours if end time is before start time (crossing midnight)
 
-    // Adjust checkOut to belong to the same payroll period if it's after midnight
-    if (checkOut && isAfter(checkOut, shiftEnd)) {
-      shiftEnd = addMinutes(shiftEnd, 1440); // Consider it in the next day if check-out is after midnight
-    }
-
-    const isEarlyCheckIn = isBefore(checkIn, subMinutes(shiftStart, 30));
-    const isLateCheckIn = isAfter(checkIn, addMinutes(shiftStart, 15));
-    const isLateCheckOut = checkOut
-      ? isAfter(checkOut, addMinutes(shiftEnd, 15))
+    const isEarlyCheckIn = isBefore(checkInTime, subMinutes(shiftStart, 30));
+    const isLateCheckIn = isAfter(checkInTime, addMinutes(shiftStart, 15));
+    const isLateCheckOut = checkOutTime
+      ? isAfter(checkOutTime, addMinutes(shiftEnd, 15))
       : false;
 
-    let status: AttendanceStatusValue = 'present';
-    if (isDayOff) status = 'off';
-    else if (!checkOut) status = 'incomplete';
+    let status: AttendanceStatusValue = isDayOff ? 'off' : 'present';
+    if (!checkOutTime) status = 'incomplete';
 
     const regularHours = this.calculateRegularHours(
-      checkIn,
-      checkOut,
+      checkInTime,
+      checkOutTime,
       shiftStart,
       shiftEnd,
     );
     const overtimeInfo = this.calculateOvertime(
-      checkIn,
-      checkOut,
+      checkInTime,
+      checkOutTime,
       shiftStart,
       shiftEnd,
       approvedOvertimes,
@@ -533,30 +512,30 @@ export class AttendanceService {
 
     // Calculate potential overtime
     const potentialOvertimeInfo = this.calculatePotentialOvertime(
-      checkIn,
-      checkOut ?? new Date(),
+      checkInTime,
+      checkOutTime ?? new Date(),
       shift,
     );
 
     // Flag potential overtime if any is detected
     if (potentialOvertimeInfo.duration > 0) {
       await this.flagPotentialOvertime({
-        ...record,
+        ...checkIn,
         overtimeHours: potentialOvertimeInfo.duration,
         potentialOvertimePeriods: potentialOvertimeInfo.periods,
         status: 'present',
-        date: record.checkInTime ? new Date(record.checkInTime) : new Date(),
+        date: new Date(checkIn.attendanceTime),
         regularHours: 0,
         detailedStatus: '',
       });
     }
 
     return {
-      id: record.id,
-      employeeId: record.employeeId,
-      date: checkIn,
-      checkIn: record.checkInTime ?? undefined,
-      checkOut: record.checkOutTime || undefined,
+      id: checkIn.id,
+      employeeId: checkIn.employeeId,
+      date: checkInTime,
+      checkIn: checkIn.attendanceTime,
+      checkOut: checkOut?.attendanceTime,
       status,
       isEarlyCheckIn,
       isLateCheckIn,
@@ -572,9 +551,10 @@ export class AttendanceService {
         isLateCheckIn,
         isLateCheckOut,
       ),
-      checkInDeviceSerial: record.checkInDeviceSerial,
-      checkOutDeviceSerial: record.checkOutDeviceSerial,
-      isManualEntry: record.isManualEntry,
+      checkInDeviceSerial: checkIn.checkInDeviceSerial,
+      checkOutDeviceSerial: checkOut?.checkInDeviceSerial ?? null,
+      isManualEntry:
+        checkIn.isManualEntry || (checkOut?.isManualEntry ?? false),
     };
   }
 
@@ -766,10 +746,11 @@ export class AttendanceService {
     return new Map(shifts.map((shift) => [shift.id, shift as ShiftData]));
   }
 
-  private createAbsentRecord(
+  private createAbsentOrOffRecord(
     date: Date,
     employeeId: string,
     isDayOff: boolean,
+    isLeave: boolean,
   ): ProcessedAttendance {
     return {
       id: `absent-${date.toISOString()}-${employeeId}`,
@@ -1223,9 +1204,10 @@ export class AttendanceService {
     if (yesterdayAttendance && !yesterdayAttendance.checkOut)
       return yesterdayAttendance;
 
-    return this.createAbsentRecord(
+    return this.createAbsentOrOffRecord(
       now,
       processedAttendances[0].employeeId,
+      false,
       false,
     );
   }
@@ -1648,7 +1630,7 @@ export class AttendanceService {
       checkOutPhoto: null,
       checkInDeviceSerial: external.dev_serial,
       checkOutDeviceSerial: null,
-      status: 'checked-in',
+      status: 'pending',
       isManualEntry: false,
       overtimeHours: 0,
       overtimeDuration: 0,
@@ -1663,21 +1645,14 @@ export class AttendanceService {
   ): ProcessedAttendance[] {
     logMessage('Starting validation and correction of attendance records');
 
-    const unpairedRecords: ProcessedAttendance[] = [];
-
     const validatedRecords = records.map((record, index) => {
       let correctedRecord = { ...record };
 
-      /// Check for missing check-in or check-out
-      if (!correctedRecord.checkIn || !correctedRecord.checkOut) {
-        logMessage(`Record ${record.id}: Missing check-in or check-out`);
+      // Check for missing check-out
+      if (!correctedRecord.checkOut) {
+        logMessage(`Record ${record.id}: Missing check-out`);
         correctedRecord.status = 'incomplete';
-        correctedRecord.detailedStatus = correctedRecord.checkIn
-          ? 'missing-checkout'
-          : 'missing-checkin';
-
-        // Add to unpaired records for flagging
-        unpairedRecords.push(correctedRecord);
+        correctedRecord.detailedStatus = 'missing-checkout';
       }
 
       // Validate check-in and check-out times
@@ -1715,19 +1690,6 @@ export class AttendanceService {
         correctedRecord.overtimeHours = 0;
       }
 
-      // Check for consecutive days off
-      if (index > 0) {
-        const prevRecord = records[index - 1];
-        if (prevRecord.status === 'off' && correctedRecord.status === 'off') {
-          const prevDate = moment(prevRecord.date);
-          const currentDate = moment(correctedRecord.date);
-          if (currentDate.diff(prevDate, 'days') === 1) {
-            logMessage(`Record ${record.id}: Consecutive days off detected`);
-            correctedRecord.detailedStatus = 'consecutive-days-off';
-          }
-        }
-      }
-
       // Ensure status is a valid AttendanceStatusValue
       if (!this.isValidAttendanceStatus(correctedRecord.status)) {
         logMessage(
@@ -1736,24 +1698,8 @@ export class AttendanceService {
         correctedRecord.status = 'invalid' as AttendanceStatusValue;
       }
 
-      // Add a flag for unpaired records
-      if (
-        correctedRecord.status === 'incomplete' &&
-        !correctedRecord.checkOut
-      ) {
-        logMessage(
-          `Record ${record.id}: Unpaired record flagged for admin review`,
-        );
-        correctedRecord.detailedStatus = 'unpaired-for-review';
-      }
-
       return correctedRecord;
     });
-
-    // Flag unpaired records for review
-    this.flagUnpairedRecordsForAdminReview(
-      unpairedRecords as unknown as AttendanceRecord[],
-    );
 
     return validatedRecords;
   }
