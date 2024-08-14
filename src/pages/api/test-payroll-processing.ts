@@ -1,3 +1,5 @@
+// pages/api/test-payroll-processing.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAttendanceProcessingQueue } from '../../lib/queue';
 import { logMessage } from '../../utils/inMemoryLogger';
@@ -12,13 +14,13 @@ export default async function handler(
 
   console.log('Received request body:', req.body);
 
-  const { employeeId, startDate, endDate } = req.body;
+  const { employeeId, payrollPeriod } = req.body;
 
-  if (!employeeId || !startDate || !endDate) {
-    console.log('Missing required fields:', { employeeId, startDate, endDate });
+  if (!employeeId || !payrollPeriod) {
+    console.log('Missing required fields:', { employeeId, payrollPeriod });
     return res
       .status(400)
-      .json({ error: 'Employee ID, start date, and end date are required' });
+      .json({ error: 'Employee ID and payroll period are required' });
   }
 
   try {
@@ -29,8 +31,7 @@ export default async function handler(
 
     const job = await queue.add('process-payroll', {
       employeeId,
-      startDate,
-      endDate,
+      payrollPeriod,
     });
     logMessage(`Job added to queue with ID: ${job.id}`);
 

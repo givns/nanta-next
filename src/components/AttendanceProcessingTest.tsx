@@ -16,6 +16,7 @@ export default function AttendanceProcessingTest() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [payrollPeriod, setPayrollPeriod] = useState<string>('current');
 
   const initiateProcessing = async () => {
     try {
@@ -23,8 +24,7 @@ export default function AttendanceProcessingTest() {
       setLogs([]);
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
-        startDate,
-        endDate,
+        payrollPeriod,
       });
       setJobId(response.data.jobId);
     } catch (err) {
@@ -38,8 +38,9 @@ export default function AttendanceProcessingTest() {
       if (jobId && status === 'processing') {
         try {
           const response = await axios.get(
-            `/api/check-payroll-processing?jobId=${jobId}`,
+            `/api/check-payroll-processing?jobId=${jobId}&employeeId=${employeeId}`,
           );
+
           if (response.data.status === 'completed') {
             setStatus('completed');
             setResult(response.data.data);
@@ -66,32 +67,25 @@ export default function AttendanceProcessingTest() {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
       <div className="flex flex-col space-y-2 mb-4">
-        <Input
+        <input
           type="text"
           value={employeeId}
           onChange={(e) => setEmployeeId(e.target.value)}
           placeholder="Enter Employee ID"
-          className="max-w-xs"
+          className="max-w-xs p-2 border rounded"
         />
-        <Input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          placeholder="Enter Start Date"
-          className="max-w-xs"
-        />
-        <Input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          placeholder="Enter End Date"
-          className="max-w-xs"
-        />
+        <select
+          value={payrollPeriod}
+          onChange={(e) => setPayrollPeriod(e.target.value)}
+          className="max-w-xs p-2 border rounded"
+        >
+          <option value="current">Current Period</option>
+          <option value="previous">Previous Period</option>
+          <option value="next">Next Period</option>
+        </select>
         <Button
           onClick={initiateProcessing}
-          disabled={
-            status === 'processing' || !employeeId || !startDate || !endDate
-          }
+          disabled={status === 'processing' || !employeeId}
         >
           {status === 'processing' ? 'Processing...' : 'Process Attendance'}
         </Button>

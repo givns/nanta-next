@@ -7,7 +7,7 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, AttendanceRecord } from '../types/user';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subMonths, addMonths } from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
 
@@ -23,8 +23,32 @@ const attendanceService = new AttendanceService(
   leaveServiceServer,
 );
 
+function calculatePayrollDates(payrollPeriod: string): {
+  startDate: string;
+  endDate: string;
+} {
+  const now = new Date();
+  let startDate = new Date(now.getFullYear(), now.getMonth(), 26);
+  let endDate = new Date(now.getFullYear(), now.getMonth() + 1, 25);
+
+  if (payrollPeriod === 'previous') {
+    startDate = subMonths(startDate, 1);
+    endDate = subMonths(endDate, 1);
+  } else if (payrollPeriod === 'next') {
+    startDate = addMonths(startDate, 1);
+    endDate = addMonths(endDate, 1);
+  }
+
+  return {
+    startDate: format(startDate, 'yyyy-MM-dd'),
+    endDate: format(endDate, 'yyyy-MM-dd'),
+  };
+}
+
 export async function processAttendance(job: Job): Promise<any> {
-  const { employeeId, startDate, endDate } = job.data;
+  const { employeeId, payrollPeriod } = job.data;
+  const { startDate, endDate } = calculatePayrollDates(payrollPeriod);
+
   logMessage(
     `Starting attendance processing for employee: ${employeeId} from ${startDate} to ${endDate}`,
   );
