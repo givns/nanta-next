@@ -1636,7 +1636,14 @@ export class AttendanceService {
       overtimeDuration: 0,
     };
 
-    console.log(`Converted record: ${JSON.stringify(result, null, 2)}`);
+    // Filter out null or undefined properties
+    const filteredResult = Object.fromEntries(
+      Object.entries(result).filter(
+        ([_, value]) => value !== null && value !== undefined,
+      ),
+    );
+
+    console.log(`Converted record: ${JSON.stringify(filteredResult, null, 2)}`);
     return result;
   }
 
