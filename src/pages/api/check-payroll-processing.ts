@@ -1,23 +1,9 @@
-//api/check-payroll-processing.ts
+// pages/api/check-payroll-processing.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAttendanceProcessingQueue } from '../../lib/queue';
 import prisma from '../../lib/prisma';
-import { AttendanceService } from '../../services/AttendanceService';
-import { ExternalDbService } from '../../services/ExternalDbService';
-import { HolidayService } from '../../services/HolidayService';
-import { Shift104HolidayService } from '../../services/Shift104HolidayService';
-import { leaveServiceServer } from '@/services/LeaveServiceServer';
-import { getLogs, logMessage } from '../../utils/inMemoryLogger';
-
-const externalDbService = new ExternalDbService();
-const holidayService = new HolidayService();
-const shift104HolidayService = new Shift104HolidayService();
-const attendanceService = new AttendanceService(
-  externalDbService,
-  holidayService,
-  shift104HolidayService,
-  leaveServiceServer,
-);
+import { logMessage } from '../../utils/inMemoryLogger';
 
 export default async function handler(
   req: NextApiRequest,
@@ -41,11 +27,33 @@ export default async function handler(
     const job = await queue.getJob(jobId as string);
 
     if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
+      // Check if we have a result in the database even if the job is not found
+      const payrollProcessingResult =
+        await prisma.payrollProcessingResult.findFirst({
+          where: {
+            employeeId: employeeId as string,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
+
+      if (payrollProcessingResult) {
+        const processedData = JSON.parse(
+          payrollProcessingResult.processedData as string,
+        );
+        return res.status(200).json({
+          status: 'completed',
+          data: processedData,
+        });
+      }
+
+      return res
+        .status(404)
+        .json({ error: 'Job not found and no results available' });
     }
 
     const jobStatus = await job.getState();
-    const logs = getLogs(); // Ensure getLogs() is properly implemented to retrieve logs
 
     if (jobStatus === 'completed') {
       const payrollProcessingResult =
@@ -70,25 +78,18 @@ export default async function handler(
 
       return res.status(200).json({
         status: 'completed',
-        data: {
-          userData: processedData.userData,
-          processedAttendance: processedData.processedAttendance,
-          summary: processedData.summary,
-          payrollPeriod: processedData.payrollPeriod,
-        },
-        logs,
+        data: processedData,
       });
     } else if (jobStatus === 'failed') {
+      const jobError = job.failedReason;
       return res.status(500).json({
         status: 'failed',
-        error: 'Job processing failed',
-        logs,
+        error: jobError || 'Job processing failed',
       });
     } else {
       return res.status(202).json({
         status: jobStatus,
         message: 'Job is still processing',
-        logs,
       });
     }
   } catch (error: any) {
