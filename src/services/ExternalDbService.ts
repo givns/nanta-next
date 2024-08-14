@@ -56,7 +56,7 @@ export class ExternalDbService {
 
         const userInfoQuery = 'SELECT * FROM dt_user WHERE user_no = ?';
         const attendanceQuery = `
-    SELECT kj.sj, kj.dev_serial, kj.date, kj.time,
+    SELECT kj.sj, kj.bh, kj.dev_serial, kj.date, kj.time,
            du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
     FROM kt_jl kj
     JOIN dt_user du ON kj.user_serial = du.user_serial
@@ -125,7 +125,7 @@ export class ExternalDbService {
         console.log(`Page: ${page}, PageSize: ${pageSize}`);
 
         const attendanceQuery = `
-    SELECT kj.sj, kj.dev_serial, kj.date, kj.time,
+    SELECT kj.sj, kj.bh, kj.dev_serial, kj.date, kj.time,
            du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
     FROM kt_jl kj
     JOIN dt_user du ON kj.user_serial = du.user_serial
