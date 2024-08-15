@@ -27,7 +27,6 @@ export class NotificationService {
       }
     } catch (error) {
       console.error('Error sending notification:', error);
-      throw new Error('Failed to send notification');
     }
   }
 

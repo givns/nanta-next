@@ -339,44 +339,48 @@ export class AttendanceService {
     const processedAttendance: ProcessedAttendance[] = [];
 
     for (const pair of pairedRecords) {
-      const currentDate = new Date(pair.checkIn.attendanceTime);
-      const effectiveShift = this.getEffectiveShift(
-        currentDate,
-        userData,
-        shiftAdjustments,
-        await this.getAllShifts(),
-      );
-      const isDayOff = await this.isDayOff(
-        userData.employeeId,
-        currentDate,
-        effectiveShift,
-      );
-      const isLeave = this.isOnLeave(currentDate, leaveRequests);
-
-      const processed = await this.processAttendancePair(
-        pair,
-        effectiveShift,
-        isDayOff,
-        approvedOvertimes,
-      );
-
-      // Detect potential shift adjustment
-      const potentialShiftAdjustment =
-        await this.detectPotentialShiftAdjustment(
+      try {
+        const currentDate = new Date(pair.checkIn.attendanceTime);
+        const effectiveShift = this.getEffectiveShift(
+          currentDate,
+          userData,
+          shiftAdjustments,
+          await this.getAllShifts(),
+        );
+        const isDayOff = await this.isDayOff(
+          userData.employeeId,
+          currentDate,
           effectiveShift,
-          new Date(pair.checkIn.attendanceTime),
-          new Date(
-            pair.checkOut?.attendanceTime || pair.checkIn.attendanceTime,
-          ),
+        );
+        const isLeave = this.isOnLeave(currentDate, leaveRequests);
+
+        const processed = await this.processAttendancePair(
+          pair,
+          effectiveShift,
+          isDayOff,
+          approvedOvertimes,
         );
 
-      if (potentialShiftAdjustment) {
-        await this.flagPotentialShiftAdjustment(processed, effectiveShift);
+        // Detect potential shift adjustment
+        const potentialShiftAdjustment =
+          await this.detectPotentialShiftAdjustment(
+            effectiveShift,
+            new Date(pair.checkIn.attendanceTime),
+            new Date(
+              pair.checkOut?.attendanceTime || pair.checkIn.attendanceTime,
+            ),
+          );
+
+        if (potentialShiftAdjustment) {
+          await this.flagPotentialShiftAdjustment(processed, effectiveShift);
+        }
+
+        processedAttendance.push(processed);
+      } catch (error) {
+        console.error('Error processing attendance pair:', error);
+        // Continue processing other pairs even if one fails
       }
-
-      processedAttendance.push(processed);
     }
-
     for (const record of unpairedRecords) {
       const processed = await this.processUnpairedRecord(
         record,
@@ -386,7 +390,6 @@ export class AttendanceService {
       );
       processedAttendance.push(processed);
     }
-
     return this.validateAndCorrectAttendance(processedAttendance);
   }
 
@@ -1238,21 +1241,25 @@ export class AttendanceService {
     processedAttendance: ProcessedAttendance,
     scheduledShift: ShiftData,
   ): Promise<void> {
-    await prisma.shiftAdjustmentRequest.create({
-      data: {
-        employeeId: processedAttendance.employeeId,
-        requestedShiftId: scheduledShift.id,
-        date: processedAttendance.date,
-        reason: 'Potential shift adjustment detected',
-        status: 'approved', // Auto-approve as per requirement
-      },
-    });
+    try {
+      await prisma.shiftAdjustmentRequest.create({
+        data: {
+          employeeId: processedAttendance.employeeId,
+          requestedShiftId: scheduledShift.id,
+          date: processedAttendance.date,
+          reason: 'Potential shift adjustment detected',
+          status: 'pending', // Change to 'pending' instead of 'approved'
+        },
+      });
 
-    // Notify relevant parties
-    await notificationService.sendNotification(
-      processedAttendance.employeeId,
-      `A shift adjustment has been automatically approved for ${format(processedAttendance.date, 'yyyy-MM-dd')}.`,
-    );
+      // Log the potential shift adjustment instead of sending a notification
+      console.log(
+        `Potential shift adjustment flagged for employee ${processedAttendance.employeeId} on ${format(processedAttendance.date, 'yyyy-MM-dd')}`,
+      );
+    } catch (error) {
+      console.error('Error flagging potential shift adjustment:', error);
+      // We're not throwing an error here, just logging it
+    }
   }
 
   private determineOvertimeType(
