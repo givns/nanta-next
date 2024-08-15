@@ -462,60 +462,41 @@ export class AttendanceService {
     );
     const checkOutTime = pair.checkOut
       ? parse(pair.checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
-      : null;
+      : checkInTime; // Use checkInTime as fallback if no checkout
 
-    if (!checkOutTime) {
-      return this.createIncompleteAttendanceRecord(pair, shift, isDayOff);
-    }
-
-    let { regularHours, overtimeHours, roundedCheckIn, roundedCheckOut } =
-      this.calculateEffectiveHours(checkInTime, checkOutTime, shift);
+    const { regularHours, overtimeHours, potentialOvertimePeriods } =
+      this.calculateEffectiveHours(checkInTime, checkOutTime, shift, isDayOff);
 
     const isEarlyCheckIn = isBefore(
-      roundedCheckIn,
-      parse(shift.startTime, 'HH:mm', roundedCheckIn),
+      checkInTime,
+      parse(shift.startTime, 'HH:mm', checkInTime),
     );
     const isLateCheckIn = isAfter(
-      roundedCheckIn,
-      addMinutes(parse(shift.startTime, 'HH:mm', roundedCheckIn), 15),
+      checkInTime,
+      parse(shift.startTime, 'HH:mm', checkInTime),
     );
     const isLateCheckOut = isAfter(
-      roundedCheckOut,
-      parse(shift.endTime, 'HH:mm', roundedCheckOut),
+      checkOutTime,
+      parse(shift.endTime, 'HH:mm', checkOutTime),
     );
 
     let status: AttendanceStatusValue = isDayOff ? 'off' : 'present';
-
-    // Handle day off and holiday attendance
-    if (isDayOff) {
-      status = 'off';
-      // Consider all hours worked on a day off as overtime
-      overtimeHours += regularHours;
-      regularHours = 0;
-    }
-
-    const overtimeInfo = this.calculateOvertime(
-      roundedCheckIn,
-      roundedCheckOut,
-      parse(shift.startTime, 'HH:mm', roundedCheckIn),
-      parse(shift.endTime, 'HH:mm', roundedCheckIn),
-      approvedOvertimes,
-    );
+    if (!pair.checkOut) status = 'incomplete';
 
     return {
       id: pair.checkIn.id,
       employeeId: pair.checkIn.employeeId,
       date: checkInTime,
-      checkIn: format(roundedCheckIn, 'yyyy-MM-dd HH:mm:ss'),
-      checkOut: format(roundedCheckOut, 'yyyy-MM-dd HH:mm:ss'),
+      checkIn: pair.checkIn.attendanceTime,
+      checkOut: pair.checkOut?.attendanceTime,
       status,
       isEarlyCheckIn,
       isLateCheckIn,
       isLateCheckOut,
       regularHours,
       overtimeHours,
-      overtimeDuration: overtimeInfo.duration,
-      potentialOvertimePeriods: overtimeInfo.periods,
+      overtimeDuration: overtimeHours,
+      potentialOvertimePeriods,
       isOvertime: overtimeHours > 0,
       detailedStatus: this.generateDetailedStatus(
         status,
@@ -618,45 +599,71 @@ export class AttendanceService {
     };
   }
 
-  private roundDownToNearestThirtyMinutes(date: Date): Date {
-    const minutes = getMinutes(date);
-    const roundedMinutes = Math.floor(minutes / 30) * 30;
-    return setMinutes(date, roundedMinutes);
-  }
-
   private calculateEffectiveHours(
     checkIn: Date,
     checkOut: Date,
     shift: ShiftData,
+    isDayOff: boolean,
   ): {
     regularHours: number;
     overtimeHours: number;
-    roundedCheckIn: Date;
-    roundedCheckOut: Date;
+    potentialOvertimePeriods: { start: string; end: string }[];
   } {
-    const roundedCheckIn = this.roundDownToNearestThirtyMinutes(checkIn);
-    const roundedCheckOut = this.roundDownToNearestThirtyMinutes(checkOut);
-
-    const shiftStart = parse(shift.startTime, 'HH:mm', roundedCheckIn);
-    let shiftEnd = parse(shift.endTime, 'HH:mm', roundedCheckIn);
+    const shiftStart = parse(shift.startTime, 'HH:mm', checkIn);
+    let shiftEnd = parse(shift.endTime, 'HH:mm', checkIn);
     if (isBefore(shiftEnd, shiftStart)) shiftEnd = addDays(shiftEnd, 1);
 
-    let regularHours = differenceInMinutes(shiftEnd, shiftStart) / 60;
+    let regularHours = 0;
     let overtimeHours = 0;
+    const potentialOvertimePeriods: { start: string; end: string }[] = [];
 
-    // Early check-in
-    if (isBefore(roundedCheckIn, shiftStart)) {
-      const earlyMinutes = differenceInMinutes(shiftStart, roundedCheckIn);
-      overtimeHours += Math.floor(earlyMinutes / 30) * 0.5;
+    if (isDayOff) {
+      // All hours on a day off are considered overtime
+      overtimeHours = this.roundToNearestHalfHour(
+        differenceInMinutes(checkOut, checkIn) / 60,
+      );
+      potentialOvertimePeriods.push({
+        start: format(checkIn, 'HH:mm'),
+        end: format(checkOut, 'HH:mm'),
+      });
+    } else {
+      // Early check-in
+      if (isBefore(checkIn, shiftStart)) {
+        const earlyMinutes = differenceInMinutes(shiftStart, checkIn);
+        const earlyHours = this.roundToNearestHalfHour(earlyMinutes / 60);
+        overtimeHours += earlyHours;
+        potentialOvertimePeriods.push({
+          start: format(checkIn, 'HH:mm'),
+          end: format(shiftStart, 'HH:mm'),
+        });
+      }
+
+      // Regular hours
+      const effectiveStart = isBefore(checkIn, shiftStart)
+        ? shiftStart
+        : checkIn;
+      const effectiveEnd = isAfter(checkOut, shiftEnd) ? shiftEnd : checkOut;
+      regularHours = this.roundToNearestHalfHour(
+        differenceInMinutes(effectiveEnd, effectiveStart) / 60,
+      );
+
+      // Late check-out
+      if (isAfter(checkOut, shiftEnd)) {
+        const lateMinutes = differenceInMinutes(checkOut, shiftEnd);
+        const lateHours = this.roundToNearestHalfHour(lateMinutes / 60);
+        overtimeHours += lateHours;
+        potentialOvertimePeriods.push({
+          start: format(shiftEnd, 'HH:mm'),
+          end: format(checkOut, 'HH:mm'),
+        });
+      }
     }
 
-    // Late check-out
-    if (isAfter(roundedCheckOut, shiftEnd)) {
-      const lateMinutes = differenceInMinutes(roundedCheckOut, shiftEnd);
-      overtimeHours += Math.floor(lateMinutes / 30) * 0.5;
-    }
+    return { regularHours, overtimeHours, potentialOvertimePeriods };
+  }
 
-    return { regularHours, overtimeHours, roundedCheckIn, roundedCheckOut };
+  private roundToNearestHalfHour(hours: number): number {
+    return Math.round(hours * 2) / 2;
   }
 
   private async detectPotentialShiftAdjustment(
