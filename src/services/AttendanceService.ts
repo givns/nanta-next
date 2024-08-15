@@ -43,6 +43,9 @@ import {
   isValid,
   compareAsc,
   addDays,
+  setMinutes,
+  getMinutes,
+  getHours,
 } from 'date-fns';
 
 const prisma = new PrismaClient();
@@ -199,26 +202,33 @@ export class AttendanceService {
 
   private calculatePayrollPeriod(): { startDate: Date; endDate: Date } {
     const currentDate = new Date();
-    let startDate = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() - 1,
-      26,
-    );
+    let startDate: Date;
+    let endDate: Date;
 
-    // If current date is before the 26th, start from two months ago
     if (currentDate.getDate() < 26) {
+      // Current date is before the 26th, so the period started last month
       startDate = new Date(
         currentDate.getFullYear(),
-        currentDate.getMonth() - 2,
+        currentDate.getMonth() - 1,
         26,
+      );
+      endDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 25);
+    } else {
+      // Current date is on or after the 26th, so the period started this month
+      startDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        26,
+      );
+      endDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + 1,
+        25,
       );
     }
 
-    // Set the time to 00:00:00 for the start date
+    // Set the time to 00:00:00 for the start date and 23:59:59 for the end date
     startDate.setHours(0, 0, 0, 0);
-
-    // Set the time to 23:59:59 for the end date
-    const endDate = new Date(currentDate);
     endDate.setHours(23, 59, 59, 999);
 
     return { startDate, endDate };
@@ -349,6 +359,21 @@ export class AttendanceService {
         isDayOff,
         approvedOvertimes,
       );
+
+      // Detect potential shift adjustment
+      const potentialShiftAdjustment =
+        await this.detectPotentialShiftAdjustment(
+          effectiveShift,
+          new Date(pair.checkIn.attendanceTime),
+          new Date(
+            pair.checkOut?.attendanceTime || pair.checkIn.attendanceTime,
+          ),
+        );
+
+      if (potentialShiftAdjustment) {
+        await this.flagPotentialShiftAdjustment(processed, effectiveShift);
+      }
+
       processedAttendance.push(processed);
     }
 
@@ -436,68 +461,59 @@ export class AttendanceService {
       ? parse(pair.checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
       : null;
 
-    const shiftStart = parse(shift.startTime, 'HH:mm', checkInTime);
-    let shiftEnd = parse(shift.endTime, 'HH:mm', checkInTime);
-    if (isBefore(shiftEnd, shiftStart)) shiftEnd = addMinutes(shiftEnd, 1440); // Add 24 hours if end time is before start time (crossing midnight)
+    if (!checkOutTime) {
+      return this.createIncompleteAttendanceRecord(pair, shift, isDayOff);
+    }
 
-    const isEarlyCheckIn = isBefore(checkInTime, subMinutes(shiftStart, 30));
-    const isLateCheckIn = isAfter(checkInTime, addMinutes(shiftStart, 15));
-    const isLateCheckOut = checkOutTime
-      ? isAfter(checkOutTime, addMinutes(shiftEnd, 15))
-      : false;
+    let { regularHours, overtimeHours, roundedCheckIn, roundedCheckOut } =
+      this.calculateEffectiveHours(checkInTime, checkOutTime, shift);
+
+    const isEarlyCheckIn = isBefore(
+      roundedCheckIn,
+      parse(shift.startTime, 'HH:mm', roundedCheckIn),
+    );
+    const isLateCheckIn = isAfter(
+      roundedCheckIn,
+      addMinutes(parse(shift.startTime, 'HH:mm', roundedCheckIn), 15),
+    );
+    const isLateCheckOut = isAfter(
+      roundedCheckOut,
+      parse(shift.endTime, 'HH:mm', roundedCheckOut),
+    );
 
     let status: AttendanceStatusValue = isDayOff ? 'off' : 'present';
-    if (!checkOutTime) status = 'incomplete';
 
-    const regularHours = this.calculateRegularHours(
-      checkInTime,
-      checkOutTime,
-      shiftStart,
-      shiftEnd,
-    );
+    // Handle day off and holiday attendance
+    if (isDayOff) {
+      status = 'off';
+      // Consider all hours worked on a day off as overtime
+      overtimeHours += regularHours;
+      regularHours = 0;
+    }
+
     const overtimeInfo = this.calculateOvertime(
-      checkInTime,
-      checkOutTime,
-      shiftStart,
-      shiftEnd,
+      roundedCheckIn,
+      roundedCheckOut,
+      parse(shift.startTime, 'HH:mm', roundedCheckIn),
+      parse(shift.endTime, 'HH:mm', roundedCheckIn),
       approvedOvertimes,
     );
-
-    // Calculate potential overtime
-    const potentialOvertimeInfo = this.calculatePotentialOvertime(
-      checkInTime,
-      checkOutTime ?? new Date(),
-      shift,
-    );
-
-    // Flag potential overtime if any is detected
-    if (potentialOvertimeInfo.duration > 0) {
-      await this.flagPotentialOvertime({
-        ...pair.checkIn,
-        overtimeHours: potentialOvertimeInfo.duration,
-        potentialOvertimePeriods: potentialOvertimeInfo.periods,
-        status: 'present',
-        date: checkInTime,
-        regularHours: 0,
-        detailedStatus: '',
-      });
-    }
 
     return {
       id: pair.checkIn.id,
       employeeId: pair.checkIn.employeeId,
       date: checkInTime,
-      checkIn: pair.checkIn.attendanceTime,
-      checkOut: pair.checkOut?.attendanceTime,
+      checkIn: format(roundedCheckIn, 'yyyy-MM-dd HH:mm:ss'),
+      checkOut: format(roundedCheckOut, 'yyyy-MM-dd HH:mm:ss'),
       status,
       isEarlyCheckIn,
       isLateCheckIn,
       isLateCheckOut,
       regularHours,
-      overtimeHours: overtimeInfo.duration,
+      overtimeHours,
       overtimeDuration: overtimeInfo.duration,
       potentialOvertimePeriods: overtimeInfo.periods,
-      isOvertime: overtimeInfo.duration > 0,
+      isOvertime: overtimeHours > 0,
       detailedStatus: this.generateDetailedStatus(
         status,
         isEarlyCheckIn,
@@ -597,6 +613,77 @@ export class AttendanceService {
       checkOutDeviceSerial: null,
       isManualEntry: record.isManualEntry,
     };
+  }
+
+  private roundDownToNearestThirtyMinutes(date: Date): Date {
+    const minutes = getMinutes(date);
+    const roundedMinutes = Math.floor(minutes / 30) * 30;
+    return setMinutes(date, roundedMinutes);
+  }
+
+  private calculateEffectiveHours(
+    checkIn: Date,
+    checkOut: Date,
+    shift: ShiftData,
+  ): {
+    regularHours: number;
+    overtimeHours: number;
+    roundedCheckIn: Date;
+    roundedCheckOut: Date;
+  } {
+    const roundedCheckIn = this.roundDownToNearestThirtyMinutes(checkIn);
+    const roundedCheckOut = this.roundDownToNearestThirtyMinutes(checkOut);
+
+    const shiftStart = parse(shift.startTime, 'HH:mm', roundedCheckIn);
+    let shiftEnd = parse(shift.endTime, 'HH:mm', roundedCheckIn);
+    if (isBefore(shiftEnd, shiftStart)) shiftEnd = addDays(shiftEnd, 1);
+
+    let regularHours = 0;
+    let overtimeHours = 0;
+
+    // Calculate regular hours
+    if (
+      isAfter(roundedCheckIn, shiftStart) &&
+      isBefore(roundedCheckOut, shiftEnd)
+    ) {
+      regularHours = differenceInHours(roundedCheckOut, roundedCheckIn);
+    } else if (isAfter(roundedCheckIn, shiftStart)) {
+      regularHours = differenceInHours(shiftEnd, roundedCheckIn);
+    } else if (isBefore(roundedCheckOut, shiftEnd)) {
+      regularHours = differenceInHours(roundedCheckOut, shiftStart);
+    } else {
+      regularHours = differenceInHours(shiftEnd, shiftStart);
+    }
+
+    // Calculate overtime hours
+    if (isBefore(roundedCheckIn, shiftStart)) {
+      overtimeHours += differenceInHours(shiftStart, roundedCheckIn);
+    }
+    if (isAfter(roundedCheckOut, shiftEnd)) {
+      overtimeHours += differenceInHours(roundedCheckOut, shiftEnd);
+    }
+
+    // Round overtime to nearest 30 minutes
+    overtimeHours = Math.floor(overtimeHours * 2) / 2;
+
+    return { regularHours, overtimeHours, roundedCheckIn, roundedCheckOut };
+  }
+
+  private async detectPotentialShiftAdjustment(
+    scheduledShift: ShiftData,
+    actualCheckIn: Date,
+    actualCheckOut: Date,
+  ): Promise<boolean> {
+    const shiftStart = parse(scheduledShift.startTime, 'HH:mm', actualCheckIn);
+    const shiftEnd = parse(scheduledShift.endTime, 'HH:mm', actualCheckIn);
+
+    const earlyThreshold = subMinutes(shiftStart, 30);
+    const lateThreshold = addMinutes(shiftStart, 30);
+
+    return (
+      isBefore(actualCheckIn, earlyThreshold) ||
+      isAfter(actualCheckIn, lateThreshold)
+    );
   }
 
   private calculateRegularHours(
@@ -813,6 +900,39 @@ export class AttendanceService {
     };
   }
 
+  private createIncompleteAttendanceRecord(
+    pair: PairedAttendance,
+    shift: ShiftData,
+    isDayOff: boolean,
+  ): ProcessedAttendance {
+    const checkInTime = parse(
+      pair.checkIn.attendanceTime,
+      'yyyy-MM-dd HH:mm:ss',
+      new Date(),
+    );
+
+    return {
+      id: pair.checkIn.id,
+      employeeId: pair.checkIn.employeeId,
+      date: checkInTime,
+      checkIn: pair.checkIn.attendanceTime,
+      checkOut: undefined,
+      status: isDayOff ? 'off' : 'incomplete',
+      isEarlyCheckIn: false,
+      isLateCheckIn: false,
+      isLateCheckOut: false,
+      regularHours: 0,
+      overtimeHours: 0,
+      overtimeDuration: 0,
+      potentialOvertimePeriods: [],
+      isOvertime: false,
+      detailedStatus: isDayOff ? 'off' : 'incomplete',
+      checkInDeviceSerial: pair.checkIn.checkInDeviceSerial,
+      checkOutDeviceSerial: null,
+      isManualEntry: pair.checkIn.isManualEntry,
+    };
+  }
+
   public calculateSummary(processedAttendance: ProcessedAttendance[]) {
     return processedAttendance.reduce(
       (summary, record) => {
@@ -983,23 +1103,6 @@ export class AttendanceService {
       : null;
   }
 
-  private calculateOvertimeHours(
-    start: Date,
-    end: Date,
-    shiftStart: Date,
-    shiftEnd: Date,
-  ): number {
-    let overtimeHours = 0;
-    if (start < shiftStart) {
-      overtimeHours +=
-        (shiftStart.getTime() - start.getTime()) / (1000 * 60 * 60);
-    }
-    if (end > shiftEnd) {
-      overtimeHours += (end.getTime() - shiftEnd.getTime()) / (1000 * 60 * 60);
-    }
-    return overtimeHours;
-  }
-
   private convertPotentialOvertime(po: any): PotentialOvertime {
     return {
       id: po.id,
@@ -1129,6 +1232,27 @@ export class AttendanceService {
         );
       }
     }
+  }
+
+  private async flagPotentialShiftAdjustment(
+    processedAttendance: ProcessedAttendance,
+    scheduledShift: ShiftData,
+  ): Promise<void> {
+    await prisma.shiftAdjustmentRequest.create({
+      data: {
+        employeeId: processedAttendance.employeeId,
+        requestedShiftId: scheduledShift.id,
+        date: processedAttendance.date,
+        reason: 'Potential shift adjustment detected',
+        status: 'approved', // Auto-approve as per requirement
+      },
+    });
+
+    // Notify relevant parties
+    await notificationService.sendNotification(
+      processedAttendance.employeeId,
+      `A shift adjustment has been automatically approved for ${format(processedAttendance.date, 'yyyy-MM-dd')}.`,
+    );
   }
 
   private determineOvertimeType(

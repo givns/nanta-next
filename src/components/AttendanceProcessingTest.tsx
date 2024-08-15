@@ -141,8 +141,11 @@ export default function AttendanceProcessingTest() {
   };
 
   const getOvertimeFlag = (date: string) => {
-    return result?.userData?.potentialOvertimes.some((ot: any) =>
-      ot.date.startsWith(date.split('T')[0]),
+    if (!result || !result.userData || !result.userData.potentialOvertimes) {
+      return false;
+    }
+    return result.userData.potentialOvertimes.some(
+      (ot: any) => ot.date && ot.date.startsWith(date.split('T')[0]),
     );
   };
 
@@ -215,18 +218,37 @@ export default function AttendanceProcessingTest() {
                 </tr>
               </thead>
               <tbody>
-                {result.processedAttendance.map((record: any) => (
-                  <tr key={record.id}>
-                    <td>{formatDate(record.date)}</td>
-                    <td>{record.checkIn.split(' ')[1]}</td>
-                    <td>{record.checkOut.split(' ')[1]}</td>
-                    <td>{record.status}</td>
-                    <td>{record.regularHours.toFixed(2)}</td>
-                    <td>{record.overtimeHours}</td>
-                    <td>{getOvertimeFlag(record.date) ? 'Yes' : 'No'}</td>
-                    <td>{record.detailedStatus}</td>
-                  </tr>
-                ))}
+                {result.processedAttendance &&
+                  result.processedAttendance.map((record: any) => (
+                    <tr key={record.id}>
+                      <td>{record.date ? formatDate(record.date) : 'N/A'}</td>
+                      <td>
+                        {record.checkIn ? record.checkIn.split(' ')[1] : 'N/A'}
+                      </td>
+                      <td>
+                        {record.checkOut
+                          ? record.checkOut.split(' ')[1]
+                          : 'N/A'}
+                      </td>
+                      <td>{record.status || 'N/A'}</td>
+                      <td>
+                        {record.regularHours !== undefined
+                          ? record.regularHours.toFixed(2)
+                          : 'N/A'}
+                      </td>
+                      <td>
+                        {record.overtimeHours !== undefined
+                          ? record.overtimeHours
+                          : 'N/A'}
+                      </td>
+                      <td>
+                        {record.date && getOvertimeFlag(record.date)
+                          ? 'Yes'
+                          : 'No'}
+                      </td>
+                      <td>{record.detailedStatus || 'N/A'}</td>
+                    </tr>
+                  ))}
               </tbody>
             </Table>
           </CardContent>
