@@ -48,6 +48,11 @@ import {
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
 
+interface PairedAttendance {
+  checkIn: AttendanceRecord;
+  checkOut: AttendanceRecord | null;
+}
+
 export class AttendanceService {
   private processingService: AttendanceProcessingService;
 
@@ -298,22 +303,12 @@ export class AttendanceService {
     };
     if (!shift) throw new Error('User has no assigned shift');
 
-    // Sort records by date and time
-    records.sort(
-      (a, b) =>
-        new Date(a.attendanceTime).getTime() -
-        new Date(b.attendanceTime).getTime(),
-    );
-
-    const { recordsByDate, unpairedRecords } = this.groupAndPairRecords(
+    const { pairedRecords, unpairedRecords } = this.groupAndPairRecords(
       records,
       shift,
     );
 
     if (unpairedRecords.length > 0) {
-      logMessage(
-        `Flagging ${unpairedRecords.length} unpaired records for admin review`,
-      );
       await this.flagUnpairedRecordsForAdminReview(unpairedRecords);
     }
 
@@ -322,25 +317,19 @@ export class AttendanceService {
       startDate,
       endDate,
     );
-    logMessage(`Shift adjustments: ${JSON.stringify(shiftAdjustments)}`);
-
     const leaveRequests = await this.leaveServiceServer.getLeaveRequests(
       userData.employeeId,
     );
-    logMessage(`Leave requests: ${JSON.stringify(leaveRequests)}`);
-
     const approvedOvertimes = await this.getApprovedOvertimes(
       userData.employeeId,
       startDate,
       endDate,
     );
-    logMessage(`Approved overtimes: ${JSON.stringify(approvedOvertimes)}`);
 
     const processedAttendance: ProcessedAttendance[] = [];
 
-    for (const date in recordsByDate) {
-      const dayRecords = recordsByDate[date];
-      const currentDate = new Date(date);
+    for (const pair of pairedRecords) {
+      const currentDate = new Date(pair.checkIn.attendanceTime);
       const effectiveShift = this.getEffectiveShift(
         currentDate,
         userData,
@@ -352,42 +341,25 @@ export class AttendanceService {
         currentDate,
         effectiveShift,
       );
+      const isLeave = this.isOnLeave(currentDate, leaveRequests);
 
-      if (dayRecords.length === 0) {
-        processedAttendance.push(
-          this.createAbsentOrOffRecord(
-            currentDate,
-            userData.employeeId,
-            isDayOff,
-            false,
-          ),
-        );
-      } else {
-        for (let i = 0; i < dayRecords.length; i += 2) {
-          const checkIn = dayRecords[i];
-          const checkOut = i + 1 < dayRecords.length ? dayRecords[i + 1] : null;
-          const processed = await this.processAttendancePair(
-            checkIn,
-            checkOut,
-            effectiveShift,
-            isDayOff,
-            approvedOvertimes,
-          );
-          processedAttendance.push(processed);
-        }
-      }
+      const processed = await this.processAttendancePair(
+        pair,
+        effectiveShift,
+        isDayOff,
+        approvedOvertimes,
+      );
+      processedAttendance.push(processed);
     }
 
-    // Handle unpaired records
     for (const record of unpairedRecords) {
-      processedAttendance.push(
-        await this.processUnpairedRecord(
-          record,
-          userData,
-          shiftAdjustments,
-          approvedOvertimes,
-        ),
+      const processed = await this.processUnpairedRecord(
+        record,
+        userData,
+        shiftAdjustments,
+        approvedOvertimes,
       );
+      processedAttendance.push(processed);
     }
 
     return this.validateAndCorrectAttendance(processedAttendance);
@@ -397,101 +369,71 @@ export class AttendanceService {
     records: AttendanceRecord[],
     shift: ShiftData,
   ): {
-    recordsByDate: Record<string, AttendanceRecord[]>;
+    pairedRecords: PairedAttendance[];
     unpairedRecords: AttendanceRecord[];
   } {
-    const recordsByDate: Record<string, AttendanceRecord[]> = {};
-    const unpairedRecords: AttendanceRecord[] = [];
-
-    // Sort records by date and time
     records.sort(
       (a, b) =>
         new Date(a.attendanceTime).getTime() -
         new Date(b.attendanceTime).getTime(),
     );
 
-    let currentPair: Partial<AttendanceRecord> = {};
-    let previousDate: string | null = null;
+    const pairedRecords: PairedAttendance[] = [];
+    const unpairedRecords: AttendanceRecord[] = [];
+    let currentPair: Partial<PairedAttendance> = {};
 
     for (const record of records) {
-      const recordDate = format(new Date(record.attendanceTime), 'yyyy-MM-dd');
+      const recordTime = new Date(record.attendanceTime);
+      const shiftStartTime = new Date(record.attendanceTime);
+      shiftStartTime.setHours(
+        parseInt(shift.startTime.split(':')[0]),
+        parseInt(shift.startTime.split(':')[1]),
+      );
 
-      if (!recordsByDate[recordDate]) {
-        recordsByDate[recordDate] = [];
-      }
-
-      // Handle overnight shifts
       if (
-        previousDate &&
-        recordDate !== previousDate &&
-        !currentPair.checkOutTime
+        !currentPair.checkIn ||
+        recordTime.getTime() -
+          new Date(currentPair.checkIn!.attendanceTime).getTime() >
+          16 * 60 * 60 * 1000
       ) {
-        const shiftEndTime = parse(
-          shift.endTime,
-          'HH:mm',
-          new Date(currentPair.checkInTime!),
-        );
-        if (
-          isBefore(
-            shiftEndTime,
-            parse(shift.startTime, 'HH:mm', new Date(currentPair.checkInTime!)),
-          )
-        ) {
-          shiftEndTime.setDate(shiftEndTime.getDate() + 1);
+        // If there's no current pair or the time difference is more than 16 hours, start a new pair
+        if (currentPair.checkIn) {
+          if (currentPair.checkOut) {
+            pairedRecords.push(currentPair as PairedAttendance);
+          } else {
+            unpairedRecords.push(currentPair.checkIn);
+          }
         }
-
-        if (isBefore(new Date(record.attendanceTime), shiftEndTime)) {
-          // This is likely a check-out for an overnight shift
-          currentPair.checkOutTime = record.attendanceTime;
-          recordsByDate[previousDate].push(currentPair as AttendanceRecord);
-          currentPair = {};
-          continue;
-        } else {
-          // The previous shift is incomplete, add it to unpaired records
-          unpairedRecords.push(currentPair as AttendanceRecord);
-          currentPair = {};
-        }
-      }
-
-      if (!currentPair.checkInTime) {
-        // Start a new pair
-        currentPair = { ...record, checkOutTime: null };
-      } else if (!currentPair.checkOutTime) {
-        // Complete the pair
-        currentPair.checkOutTime = record.attendanceTime;
-        recordsByDate[recordDate].push(currentPair as AttendanceRecord);
-        currentPair = {};
+        currentPair = { checkIn: record };
       } else {
-        // Multiple check-ins/check-outs in a day
-        recordsByDate[recordDate].push(currentPair as AttendanceRecord);
-        currentPair = { ...record, checkOutTime: null };
+        // This is a check-out for the current pair
+        currentPair.checkOut = record;
+        pairedRecords.push(currentPair as PairedAttendance);
+        currentPair = {};
       }
-
-      previousDate = recordDate;
     }
 
-    // Handle any remaining unpaired record
-    if (currentPair.checkInTime) {
-      unpairedRecords.push(currentPair as AttendanceRecord);
+    // Handle any remaining unpaired check-in
+    if (currentPair.checkIn) {
+      unpairedRecords.push(currentPair.checkIn);
     }
 
-    return { recordsByDate, unpairedRecords };
+    return { pairedRecords, unpairedRecords };
   }
 
   private async processAttendancePair(
-    checkIn: AttendanceRecord,
-    checkOut: AttendanceRecord | null,
+    pair: PairedAttendance,
     shift: ShiftData,
     isDayOff: boolean,
     approvedOvertimes: ApprovedOvertime[],
   ): Promise<ProcessedAttendance> {
     const checkInTime = parse(
-      checkIn.attendanceTime,
+      pair.checkIn.attendanceTime,
       'yyyy-MM-dd HH:mm:ss',
       new Date(),
     );
-    const checkOutTime = checkOut
-      ? parse(checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
+    const checkOutTime = pair.checkOut
+      ? parse(pair.checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
       : null;
 
     const shiftStart = parse(shift.startTime, 'HH:mm', checkInTime);
@@ -531,7 +473,7 @@ export class AttendanceService {
     // Flag potential overtime if any is detected
     if (potentialOvertimeInfo.duration > 0) {
       await this.flagPotentialOvertime({
-        ...checkIn,
+        ...pair.checkIn,
         overtimeHours: potentialOvertimeInfo.duration,
         potentialOvertimePeriods: potentialOvertimeInfo.periods,
         status: 'present',
@@ -542,11 +484,11 @@ export class AttendanceService {
     }
 
     return {
-      id: checkIn.id,
-      employeeId: checkIn.employeeId,
+      id: pair.checkIn.id,
+      employeeId: pair.checkIn.employeeId,
       date: checkInTime,
-      checkIn: checkIn.attendanceTime,
-      checkOut: checkOut?.attendanceTime,
+      checkIn: pair.checkIn.attendanceTime,
+      checkOut: pair.checkOut?.attendanceTime,
       status,
       isEarlyCheckIn,
       isLateCheckIn,
@@ -562,10 +504,10 @@ export class AttendanceService {
         isLateCheckIn,
         isLateCheckOut,
       ),
-      checkInDeviceSerial: checkIn.checkInDeviceSerial,
-      checkOutDeviceSerial: checkOut?.checkInDeviceSerial ?? null,
+      checkInDeviceSerial: pair.checkIn.checkInDeviceSerial,
+      checkOutDeviceSerial: pair.checkOut?.checkInDeviceSerial ?? null,
       isManualEntry:
-        checkIn.isManualEntry || (checkOut?.isManualEntry ?? false),
+        pair.checkIn.isManualEntry || (pair.checkOut?.isManualEntry ?? false),
     };
   }
 
@@ -654,97 +596,6 @@ export class AttendanceService {
       checkInDeviceSerial: record.checkInDeviceSerial,
       checkOutDeviceSerial: null,
       isManualEntry: record.isManualEntry,
-    };
-  }
-
-  private async processAttendanceRecord(
-    checkIn: AttendanceRecord,
-    checkOut: AttendanceRecord | null,
-    shift: ShiftData,
-    isDayOff: boolean,
-    approvedOvertimes: ApprovedOvertime[],
-  ): Promise<ProcessedAttendance> {
-    const checkInTime = parse(
-      checkIn.attendanceTime,
-      'yyyy-MM-dd HH:mm:ss',
-      new Date(),
-    );
-    const checkOutTime = checkOut
-      ? parse(checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
-      : null;
-
-    const shiftStart = parse(shift.startTime, 'HH:mm', checkInTime);
-    let shiftEnd = parse(shift.endTime, 'HH:mm', checkInTime);
-    if (isBefore(shiftEnd, shiftStart)) shiftEnd = addMinutes(shiftEnd, 1440); // Add 24 hours if end time is before start time (crossing midnight)
-
-    const isEarlyCheckIn = isBefore(checkInTime, subMinutes(shiftStart, 30));
-    const isLateCheckIn = isAfter(checkInTime, addMinutes(shiftStart, 15));
-    const isLateCheckOut = checkOutTime
-      ? isAfter(checkOutTime, addMinutes(shiftEnd, 15))
-      : false;
-
-    let status: AttendanceStatusValue = isDayOff ? 'off' : 'present';
-    if (!checkOutTime) status = 'incomplete';
-
-    const regularHours = this.calculateRegularHours(
-      checkInTime,
-      checkOutTime,
-      shiftStart,
-      shiftEnd,
-    );
-    const overtimeInfo = this.calculateOvertime(
-      checkInTime,
-      checkOutTime,
-      shiftStart,
-      shiftEnd,
-      approvedOvertimes,
-    );
-
-    // Calculate potential overtime
-    const potentialOvertimeInfo = this.calculatePotentialOvertime(
-      checkInTime,
-      checkOutTime ?? new Date(),
-      shift,
-    );
-
-    // Flag potential overtime if any is detected
-    if (potentialOvertimeInfo.duration > 0) {
-      await this.flagPotentialOvertime({
-        ...checkIn,
-        overtimeHours: potentialOvertimeInfo.duration,
-        potentialOvertimePeriods: potentialOvertimeInfo.periods,
-        status: 'present',
-        date: new Date(checkIn.attendanceTime),
-        regularHours: 0,
-        detailedStatus: '',
-      });
-    }
-
-    return {
-      id: checkIn.id,
-      employeeId: checkIn.employeeId,
-      date: checkInTime,
-      checkIn: checkIn.attendanceTime,
-      checkOut: checkOut?.attendanceTime,
-      status,
-      isEarlyCheckIn,
-      isLateCheckIn,
-      isLateCheckOut,
-      regularHours,
-      overtimeHours: overtimeInfo.duration,
-      overtimeDuration: overtimeInfo.duration,
-      potentialOvertimePeriods: overtimeInfo.periods,
-      isOvertime: overtimeInfo.duration > 0,
-      detailedStatus: this.generateDetailedStatus(
-        status,
-        isEarlyCheckIn,
-        isLateCheckIn,
-        isLateCheckOut,
-      ),
-      checkInDeviceSerial: checkIn.checkInDeviceSerial,
-      checkOutDeviceSerial: checkOut?.checkInDeviceSerial ?? null,
-      isManualEntry:
-        checkIn.isManualEntry || (checkOut?.isManualEntry ?? false),
     };
   }
 
@@ -962,54 +813,6 @@ export class AttendanceService {
     };
   }
 
-  private createDayOffRecord(
-    date: Date,
-    employeeId: string,
-  ): ProcessedAttendance {
-    return {
-      id: `off-${date.toISOString()}-${employeeId}`,
-      employeeId,
-      date,
-      status: 'off',
-      isEarlyCheckIn: false,
-      isLateCheckIn: false,
-      isLateCheckOut: false,
-      regularHours: 0,
-      overtimeHours: 0,
-      overtimeDuration: 0,
-      potentialOvertimePeriods: [],
-      isOvertime: false,
-      detailedStatus: 'off',
-      checkInDeviceSerial: null,
-      checkOutDeviceSerial: null,
-      isManualEntry: false,
-    };
-  }
-
-  private createLeaveRecord(
-    date: Date,
-    employeeId: string,
-  ): ProcessedAttendance {
-    return {
-      id: `leave-${date.toISOString()}-${employeeId}`,
-      employeeId,
-      date,
-      status: 'off',
-      isEarlyCheckIn: false,
-      isLateCheckIn: false,
-      isLateCheckOut: false,
-      regularHours: 0,
-      overtimeHours: 0,
-      overtimeDuration: 0,
-      potentialOvertimePeriods: [],
-      isOvertime: false,
-      detailedStatus: 'leave',
-      checkInDeviceSerial: null,
-      checkOutDeviceSerial: null,
-      isManualEntry: false,
-    };
-  }
-
   public calculateSummary(processedAttendance: ProcessedAttendance[]) {
     return processedAttendance.reduce(
       (summary, record) => {
@@ -1174,8 +977,8 @@ export class AttendanceService {
     return overtime
       ? {
           ...overtime,
-          approvedBy: '', // Add the missing 'approvedBy' property
-          approvedAt: new Date(), // Add the missing 'approvedAt' property
+          approvedBy: '',
+          approvedAt: new Date(),
         }
       : null;
   }
