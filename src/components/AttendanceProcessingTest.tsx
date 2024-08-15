@@ -4,6 +4,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Table } from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+interface PayrollPeriod {
+  start: string;
+  end: string;
+}
+
+interface PayrollPeriods {
+  current: PayrollPeriod;
+  previous: PayrollPeriod;
+  next: PayrollPeriod;
+}
 
 export default function AttendanceProcessingTest() {
   const [employeeId, setEmployeeId] = useState<string>('');
@@ -14,7 +33,57 @@ export default function AttendanceProcessingTest() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const [payrollPeriod, setPayrollPeriod] = useState<string>('current');
+  const [payrollPeriod, setPayrollPeriod] =
+    useState<keyof PayrollPeriods>('current');
+  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriods>({
+    current: { start: '', end: '' },
+    previous: { start: '', end: '' },
+    next: { start: '', end: '' },
+  });
+
+  useEffect(() => {
+    const calculatePayrollPeriods = () => {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      const currentStart = new Date(currentYear, currentMonth, 26);
+      if (now.getDate() < 26) {
+        currentStart.setMonth(currentStart.getMonth() - 1);
+      }
+      const currentEnd = new Date(currentStart);
+      currentEnd.setMonth(currentEnd.getMonth() + 1);
+      currentEnd.setDate(25);
+
+      const previousStart = new Date(currentStart);
+      previousStart.setMonth(previousStart.getMonth() - 1);
+      const previousEnd = new Date(currentStart);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+
+      const nextStart = new Date(currentEnd);
+      nextStart.setDate(nextStart.getDate() + 1);
+      const nextEnd = new Date(nextStart);
+      nextEnd.setMonth(nextEnd.getMonth() + 1);
+      nextEnd.setDate(25);
+
+      setPayrollPeriods({
+        current: {
+          start: currentStart.toISOString().split('T')[0],
+          end: currentEnd.toISOString().split('T')[0],
+        },
+        previous: {
+          start: previousStart.toISOString().split('T')[0],
+          end: previousEnd.toISOString().split('T')[0],
+        },
+        next: {
+          start: nextStart.toISOString().split('T')[0],
+          end: nextEnd.toISOString().split('T')[0],
+        },
+      });
+    };
+
+    calculatePayrollPeriods();
+  }, []);
 
   const initiateProcessing = async () => {
     try {
@@ -23,6 +92,7 @@ export default function AttendanceProcessingTest() {
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
         payrollPeriod,
+        periodDates: payrollPeriods[payrollPeriod],
       });
       setJobId(response.data.jobId);
     } catch (err) {
@@ -61,26 +131,56 @@ export default function AttendanceProcessingTest() {
     checkStatus();
   }, [jobId, status, employeeId]);
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  };
+
+  const getOvertimeFlag = (date: string) => {
+    return result?.userData?.potentialOvertimes.some((ot: any) =>
+      ot.date.startsWith(date.split('T')[0]),
+    );
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
       <div className="flex flex-col space-y-2 mb-4">
-        <input
+        <Input
           type="text"
           value={employeeId}
           onChange={(e) => setEmployeeId(e.target.value)}
           placeholder="Enter Employee ID"
-          className="max-w-xs p-2 border rounded"
+          className="max-w-xs"
         />
-        <select
+        <Select
           value={payrollPeriod}
-          onChange={(e) => setPayrollPeriod(e.target.value)}
-          className="max-w-xs p-2 border rounded"
+          onValueChange={(value: keyof PayrollPeriods) =>
+            setPayrollPeriod(value)
+          }
         >
-          <option value="current">Current Period</option>
-          <option value="previous">Previous Period</option>
-          <option value="next">Next Period</option>
-        </select>
+          <SelectTrigger className="max-w-xs">
+            <SelectValue placeholder="Select payroll period" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="current">
+              Current Period ({payrollPeriods.current.start} to{' '}
+              {payrollPeriods.current.end})
+            </SelectItem>
+            <SelectItem value="previous">
+              Previous Period ({payrollPeriods.previous.start} to{' '}
+              {payrollPeriods.previous.end})
+            </SelectItem>
+            <SelectItem value="next">
+              Next Period ({payrollPeriods.next.start} to{' '}
+              {payrollPeriods.next.end})
+            </SelectItem>
+          </SelectContent>
+        </Select>
         <Button
           onClick={initiateProcessing}
           disabled={status === 'processing' || !employeeId}
@@ -98,12 +198,37 @@ export default function AttendanceProcessingTest() {
       {status === 'completed' && result && (
         <Card>
           <CardHeader>
-            <h2 className="text-xl font-semibold">Processed Attendance</h2>
+            <h2 className="text-xl font-semibold">Attendance Summary</h2>
           </CardHeader>
           <CardContent>
-            <pre className="whitespace-pre-wrap">
-              {JSON.stringify(result, null, 2)}
-            </pre>
+            <Table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Check-In Time</th>
+                  <th>Check-Out Time</th>
+                  <th>Status</th>
+                  <th>Regular Hours</th>
+                  <th>Overtime Hours</th>
+                  <th>Potential Overtime Flag</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.processedAttendance.map((record: any) => (
+                  <tr key={record.id}>
+                    <td>{formatDate(record.date)}</td>
+                    <td>{record.checkIn.split(' ')[1]}</td>
+                    <td>{record.checkOut.split(' ')[1]}</td>
+                    <td>{record.status}</td>
+                    <td>{record.regularHours.toFixed(2)}</td>
+                    <td>{record.overtimeHours}</td>
+                    <td>{getOvertimeFlag(record.date) ? 'Yes' : 'No'}</td>
+                    <td>{record.detailedStatus}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
           </CardContent>
         </Card>
       )}
