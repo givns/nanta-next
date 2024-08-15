@@ -641,33 +641,20 @@ export class AttendanceService {
     let shiftEnd = parse(shift.endTime, 'HH:mm', roundedCheckIn);
     if (isBefore(shiftEnd, shiftStart)) shiftEnd = addDays(shiftEnd, 1);
 
-    let regularHours = 0;
+    let regularHours = differenceInMinutes(shiftEnd, shiftStart) / 60;
     let overtimeHours = 0;
 
-    // Calculate regular hours
-    if (
-      isAfter(roundedCheckIn, shiftStart) &&
-      isBefore(roundedCheckOut, shiftEnd)
-    ) {
-      regularHours = differenceInHours(roundedCheckOut, roundedCheckIn);
-    } else if (isAfter(roundedCheckIn, shiftStart)) {
-      regularHours = differenceInHours(shiftEnd, roundedCheckIn);
-    } else if (isBefore(roundedCheckOut, shiftEnd)) {
-      regularHours = differenceInHours(roundedCheckOut, shiftStart);
-    } else {
-      regularHours = differenceInHours(shiftEnd, shiftStart);
-    }
-
-    // Calculate overtime hours
+    // Early check-in
     if (isBefore(roundedCheckIn, shiftStart)) {
-      overtimeHours += differenceInHours(shiftStart, roundedCheckIn);
-    }
-    if (isAfter(roundedCheckOut, shiftEnd)) {
-      overtimeHours += differenceInHours(roundedCheckOut, shiftEnd);
+      const earlyMinutes = differenceInMinutes(shiftStart, roundedCheckIn);
+      overtimeHours += Math.floor(earlyMinutes / 30) * 0.5;
     }
 
-    // Round overtime to nearest 30 minutes
-    overtimeHours = Math.floor(overtimeHours * 2) / 2;
+    // Late check-out
+    if (isAfter(roundedCheckOut, shiftEnd)) {
+      const lateMinutes = differenceInMinutes(roundedCheckOut, shiftEnd);
+      overtimeHours += Math.floor(lateMinutes / 30) * 0.5;
+    }
 
     return { regularHours, overtimeHours, roundedCheckIn, roundedCheckOut };
   }

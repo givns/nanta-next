@@ -149,6 +149,19 @@ export default function AttendanceProcessingTest() {
     );
   };
 
+  const getShiftAdjustmentFlag = (date: string) => {
+    if (!result?.shiftAdjustments) return false;
+    return result.shiftAdjustments.some((adj: any) =>
+      adj.date.startsWith(date.split('T')[0]),
+    );
+  };
+
+  const formatTime = (timeString: string) => {
+    if (!timeString) return 'N/A';
+    const [datePart, timePart] = timeString.split(' ');
+    return timePart || 'N/A';
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
@@ -213,42 +226,27 @@ export default function AttendanceProcessingTest() {
                   <th>Status</th>
                   <th>Regular Hours</th>
                   <th>Overtime Hours</th>
-                  <th>Potential Overtime Flag</th>
+                  <th>Potential Overtime</th>
+                  <th>Shift Adjustment</th>
                   <th>Details</th>
                 </tr>
               </thead>
               <tbody>
-                {result.processedAttendance &&
-                  result.processedAttendance.map((record: any) => (
-                    <tr key={record.id}>
-                      <td>{record.date ? formatDate(record.date) : 'N/A'}</td>
-                      <td>
-                        {record.checkIn ? record.checkIn.split(' ')[1] : 'N/A'}
-                      </td>
-                      <td>
-                        {record.checkOut
-                          ? record.checkOut.split(' ')[1]
-                          : 'N/A'}
-                      </td>
-                      <td>{record.status || 'N/A'}</td>
-                      <td>
-                        {record.regularHours !== undefined
-                          ? record.regularHours.toFixed(2)
-                          : 'N/A'}
-                      </td>
-                      <td>
-                        {record.overtimeHours !== undefined
-                          ? record.overtimeHours
-                          : 'N/A'}
-                      </td>
-                      <td>
-                        {record.date && getOvertimeFlag(record.date)
-                          ? 'Yes'
-                          : 'No'}
-                      </td>
-                      <td>{record.detailedStatus || 'N/A'}</td>
-                    </tr>
-                  ))}
+                {result.processedAttendance.map((record: any) => (
+                  <tr key={record.id}>
+                    <td>{formatDate(record.date)}</td>
+                    <td>{formatTime(record.checkIn)}</td>
+                    <td>{formatTime(record.checkOut)}</td>
+                    <td>{record.status}</td>
+                    <td>{record.regularHours.toFixed(2)}</td>
+                    <td>{record.overtimeHours.toFixed(2)}</td>
+                    <td>{getOvertimeFlag(record.date) ? 'Yes' : 'No'}</td>
+                    <td>
+                      {getShiftAdjustmentFlag(record.date) ? 'Yes' : 'No'}
+                    </td>
+                    <td>{record.detailedStatus}</td>
+                  </tr>
+                ))}
               </tbody>
             </Table>
           </CardContent>
