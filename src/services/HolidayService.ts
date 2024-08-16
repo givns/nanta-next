@@ -18,7 +18,7 @@ export class HolidayService {
     try {
       console.log(`Fetching holidays for year ${year}`);
       const response = await axios.get(
-        `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`
+        `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`,
       );
       console.log('Raw API response:', JSON.stringify(response.data));
 
@@ -43,8 +43,8 @@ export class HolidayService {
           !existingHolidays.some(
             (dbHoliday) =>
               dbHoliday.date.toISOString().split('T')[0] === apiHoliday.date &&
-              dbHoliday.name === apiHoliday.name
-          )
+              dbHoliday.name === apiHoliday.name,
+          ),
       );
 
       if (holidaysToCreate.length > 0) {

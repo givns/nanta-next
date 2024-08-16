@@ -6,7 +6,7 @@ const holidayService = new HolidayService();
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<Holiday[] | { error: string }>
+  res: NextApiResponse<Holiday[] | { error: string }>,
 ) {
   const { year, shiftType } = req.query;
 
@@ -19,10 +19,12 @@ export default async function handler(
     console.log(`API: Fetching holidays for year ${yearNumber}`);
     const holidays = await holidayService.getHolidaysForYear(
       yearNumber,
-      shiftType === 'shift104' ? 'shift104' : 'regular'
+      shiftType === 'shift104' ? 'shift104' : 'regular',
     );
 
-    console.log(`API: Fetched ${holidays.length} holidays for year ${yearNumber}`);
+    console.log(
+      `API: Fetched ${holidays.length} holidays for year ${yearNumber}`,
+    );
     res.status(200).json(holidays);
   } catch (error) {
     console.error('API: Error fetching holidays:', error);
