@@ -162,6 +162,28 @@ export default function AttendanceProcessingTest() {
     return timePart || 'N/A';
   };
 
+  const calculateSummary = (processedAttendance: any[]) => {
+    return processedAttendance.reduce(
+      (summary, record) => {
+        summary.totalWorkingDays++;
+        if (record.status === 'present') summary.totalPresent++;
+        if (record.status === 'holiday') summary.totalHoliday++;
+        if (record.status === 'off') summary.totalDayOff++;
+        summary.totalApprovedOvertime += record.overtimeHours || 0;
+        summary.totalPotentialOvertime += record.overtimeDuration || 0;
+        return summary;
+      },
+      {
+        totalWorkingDays: 0,
+        totalPresent: 0,
+        totalHoliday: 0,
+        totalDayOff: 0,
+        totalApprovedOvertime: 0,
+        totalPotentialOvertime: 0,
+      },
+    );
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
@@ -225,7 +247,7 @@ export default function AttendanceProcessingTest() {
                   <th>Check-Out Time</th>
                   <th>Status</th>
                   <th>Regular Hours</th>
-                  <th>Overtime Hours</th>
+                  <th>Approved Overtime</th>
                   <th>Potential Overtime</th>
                   <th>Shift Adjustment</th>
                   <th>Details</th>
@@ -240,15 +262,38 @@ export default function AttendanceProcessingTest() {
                     <td>{record.status}</td>
                     <td>{record.regularHours.toFixed(2)}</td>
                     <td>{record.overtimeHours.toFixed(2)}</td>
-                    <td>{getOvertimeFlag(record.date) ? 'Yes' : 'No'}</td>
-                    <td>
-                      {getShiftAdjustmentFlag(record.date) ? 'Yes' : 'No'}
-                    </td>
+                    <td>{record.overtimeDuration.toFixed(2)}</td>
+                    <td>{record.shiftAdjustment ? 'Yes' : 'No'}</td>
                     <td>{record.detailedStatus}</td>
                   </tr>
                 ))}
               </tbody>
             </Table>
+
+            {/* Summary Section */}
+            {result.processedAttendance && (
+              <div className="mt-4">
+                <h3 className="text-lg font-semibold mb-2">Period Summary</h3>
+                {(() => {
+                  const summary = calculateSummary(result.processedAttendance);
+                  return (
+                    <ul>
+                      <li>Total Working Days: {summary.totalWorkingDays}</li>
+                      <li>Total Present: {summary.totalPresent}</li>
+                      <li>Total Holiday: {summary.totalHoliday}</li>
+                      <li>Total Day Off: {summary.totalDayOff}</li>
+                      <li>
+                        Total Approved Overtime:{' '}
+                        {summary.totalApprovedOvertime.toFixed(2)} hours
+                        {summary.totalPotentialOvertime >
+                          summary.totalApprovedOvertime &&
+                          ` (Potential: ${summary.totalPotentialOvertime.toFixed(2)} hours)`}
+                      </li>
+                    </ul>
+                  );
+                })()}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
