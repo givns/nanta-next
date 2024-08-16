@@ -162,6 +162,10 @@ export default function AttendanceProcessingTest() {
     return timePart || 'N/A';
   };
 
+  const formatNumber = (value: number | undefined | null) => {
+    return value !== undefined && value !== null ? value.toFixed(2) : 'N/A';
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
@@ -233,24 +237,31 @@ export default function AttendanceProcessingTest() {
                 </tr>
               </thead>
               <tbody>
-                {result.processedAttendance.map((record: any) => (
-                  <tr key={record.id}>
-                    <td>{formatDate(record.date)}</td>
-                    <td>{formatTime(record.checkIn)}</td>
-                    <td>{formatTime(record.checkOut)}</td>
-                    <td>{record.status}</td>
-                    <td>{record.regularHours.toFixed(2)}</td>
-                    <td>{record.overtimeHours.toFixed(2)}</td>
-                    <td>{record.overtimeDuration.toFixed(2)}</td>
-                    <td>
-                      {record.potentialOvertimePeriods
-                        .map((period: any) => `${period.start} - ${period.end}`)
-                        .join(', ')}
-                    </td>
-                    <td>{record.shiftAdjustment ? 'Yes' : 'No'}</td>
-                    <td>{record.detailedStatus}</td>
-                  </tr>
-                ))}
+                {result.processedAttendance &&
+                  result.processedAttendance.map((record: any) => (
+                    <tr key={record.id}>
+                      <td>{formatDate(record.date)}</td>
+                      <td>{formatTime(record.checkIn)}</td>
+                      <td>{formatTime(record.checkOut)}</td>
+                      <td>{record.status || 'N/A'}</td>
+                      <td>{formatNumber(record.regularHours)}</td>
+                      <td>{formatNumber(record.overtimeHours)}</td>
+                      <td>{formatNumber(record.overtimeDuration)}</td>
+                      <td>
+                        {record.potentialOvertimePeriods &&
+                        record.potentialOvertimePeriods.length > 0
+                          ? record.potentialOvertimePeriods
+                              .map(
+                                (period: any) =>
+                                  `${period.start} - ${period.end}`,
+                              )
+                              .join(', ')
+                          : 'N/A'}
+                      </td>
+                      <td>{record.shiftAdjustment ? 'Yes' : 'No'}</td>
+                      <td>{record.detailedStatus || 'N/A'}</td>
+                    </tr>
+                  ))}
               </tbody>
             </Table>
 
@@ -259,16 +270,19 @@ export default function AttendanceProcessingTest() {
               <div className="mt-4">
                 <h3 className="text-lg font-semibold mb-2">Period Summary</h3>
                 <ul>
-                  <li>Total Working Days: {result.summary.totalWorkingDays}</li>
-                  <li>Total Present: {result.summary.totalPresent}</li>
-                  <li>Total Holiday: {result.summary.totalHoliday}</li>
-                  <li>Total Day Off: {result.summary.totalDayOff}</li>
+                  <li>
+                    Total Working Days:{' '}
+                    {result.summary.totalWorkingDays || 'N/A'}
+                  </li>
+                  <li>Total Present: {result.summary.totalPresent || 'N/A'}</li>
+                  <li>Total Holiday: {result.summary.totalHoliday || 'N/A'}</li>
+                  <li>Total Day Off: {result.summary.totalDayOff || 'N/A'}</li>
                   <li>
                     Total Approved Overtime:{' '}
-                    {result.summary.totalApprovedOvertime.toFixed(2)} hours
+                    {formatNumber(result.summary.totalApprovedOvertime)} hours
                     {result.summary.totalPotentialOvertime >
                       result.summary.totalApprovedOvertime &&
-                      ` (Potential: ${result.summary.totalPotentialOvertime.toFixed(2)} hours)`}
+                      ` (Potential: ${formatNumber(result.summary.totalPotentialOvertime)} hours)`}
                   </li>
                 </ul>
               </div>
