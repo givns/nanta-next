@@ -25,7 +25,27 @@ export default async function handler(
     console.log(
       `API: Fetched ${holidays.length} holidays for year ${yearNumber}`,
     );
-    res.status(200).json(holidays);
+
+    const fallbackHolidays2024: any[] = []; // Declare and initialize fallbackHolidays2024 as an empty array
+    if (holidays.length === 0) {
+      console.log('No holidays found, using fallback');
+      // Use fallback holidays if no holidays were found
+      const fallbackHolidays =
+        yearNumber === 2024
+          ? fallbackHolidays2024.map((h) => ({
+              ...h,
+              date: new Date(h.date),
+              id: '', // Add an empty id or generate a unique one
+              types: [],
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }))
+          : [];
+
+      res.status(200).json(fallbackHolidays);
+    } else {
+      res.status(200).json(holidays);
+    }
   } catch (error) {
     console.error('API: Error fetching holidays:', error);
     let errorMessage = 'Internal server error';

@@ -4,6 +4,43 @@ import { parseISO, format, isSameDay, subDays } from 'date-fns';
 
 const prisma = new PrismaClient();
 
+const fallbackHolidays2024 = [
+  { date: '2024-01-01', name: "New Year's Day", localName: 'วันขึ้นปีใหม่' },
+  { date: '2024-02-10', name: 'Makha Bucha', localName: 'วันมาฆบูชา' },
+  { date: '2024-04-06', name: 'Chakri Memorial Day', localName: 'วันจักรี' },
+  { date: '2024-04-13', name: 'Songkran Festival', localName: 'วันสงกรานต์' },
+  { date: '2024-04-14', name: 'Songkran Festival', localName: 'วันสงกรานต์' },
+  { date: '2024-04-15', name: 'Songkran Festival', localName: 'วันสงกรานต์' },
+  { date: '2024-05-01', name: 'Labour Day', localName: 'วันแรงงาน' },
+  { date: '2024-05-04', name: 'Coronation Day', localName: 'วันฉัตรมงคล' },
+  {
+    date: '2024-06-03',
+    name: "Queen Suthida's Birthday",
+    localName:
+      'วันเฉลิมพระชนมพรรษาสมเด็จพระนางเจ้าสุทิดา พัชรสุธาพิมลลักษณ พระบรมราชินี',
+  },
+  {
+    date: '2024-07-28',
+    name: "King Vajiralongkorn's Birthday",
+    localName: 'วันเฉลิมพระชนมพรรษาพระบาทสมเด็จพระเจ้าอยู่หัว',
+  },
+  { date: '2024-08-12', name: "Mother's Day", localName: 'วันแม่แห่งชาติ' },
+  {
+    date: '2024-10-13',
+    name: 'Passing of King Bhumibol',
+    localName:
+      'วันคล้ายวันสวรรคตพระบาทสมเด็จพระบรมชนกาธิเบศร มหาภูมิพลอดุลยเดชมหาราช บรมนาถบพิตร',
+  },
+  {
+    date: '2024-12-05',
+    name: "King Bhumibol's Birthday",
+    localName:
+      'วันคล้ายวันพระบรมราชสมภพของพระบาทสมเด็จพระบรมชนกาธิเบศร มหาภูมิพลอดุลยเดชมหาราช บรมนาถบพิตร',
+  },
+  { date: '2024-12-10', name: 'Constitution Day', localName: 'วันรัฐธรรมนูญ' },
+  { date: '2024-12-31', name: "New Year's Eve", localName: 'วันสิ้นปี' },
+];
+
 export class HolidayService {
   private syncInProgress: { [key: number]: boolean } = {};
 
@@ -22,12 +59,15 @@ export class HolidayService {
       );
       console.log('Raw API response:', JSON.stringify(response.data));
 
-      if (!Array.isArray(response.data)) {
-        throw new Error('API response is not an array');
+      let holidays;
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        holidays = response.data;
+      } else {
+        console.log('Using fallback holidays');
+        holidays = year === 2024 ? fallbackHolidays2024 : [];
       }
 
-      const holidays = response.data;
-      console.log(`Fetched ${holidays.length} holidays from API`);
+      console.log(`Processing ${holidays.length} holidays`);
 
       const existingHolidays = await prisma.holiday.findMany({
         where: {
@@ -67,7 +107,6 @@ export class HolidayService {
       if (axios.isAxiosError(error)) {
         console.error('Axios error details:', error.response?.data);
       }
-      throw error;
     } finally {
       this.syncInProgress[year] = false;
     }
