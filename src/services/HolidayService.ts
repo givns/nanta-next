@@ -7,12 +7,15 @@ const prisma = new PrismaClient();
 export class HolidayService {
   async syncHolidays(year: number): Promise<void> {
     try {
+      console.log(`Fetching holidays for year ${year}`);
       const response = await axios.get(
         `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`,
       );
       const holidays = response.data;
+      console.log(`Fetched ${holidays.length} holidays from API`);
 
       for (const holiday of holidays) {
+        console.log(`Processing holiday: ${holiday.name} on ${holiday.date}`);
         const existingHoliday = await prisma.holiday.findFirst({
           where: {
             date: new Date(holiday.date),
@@ -21,6 +24,7 @@ export class HolidayService {
         });
 
         if (existingHoliday) {
+          console.log(`Updating existing holiday: ${holiday.name}`);
           await prisma.holiday.update({
             where: { id: existingHoliday.id },
             data: {
@@ -29,6 +33,7 @@ export class HolidayService {
             },
           });
         } else {
+          console.log(`Creating new holiday: ${holiday.name}`);
           await prisma.holiday.create({
             data: {
               date: new Date(holiday.date),

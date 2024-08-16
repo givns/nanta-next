@@ -15,15 +15,22 @@ export default async function handler(
   }
 
   try {
+    const yearNumber = parseInt(year);
+    console.log(`API: Syncing holidays for year ${yearNumber}`);
+    await holidayService.syncHolidays(yearNumber);
+
+    console.log(`API: Fetching holidays for year ${yearNumber}`);
     const holidays = await holidayService.getHolidaysForYear(
-      parseInt(year),
+      yearNumber,
       shiftType === 'shift104' ? 'shift104' : 'regular',
     );
 
-    console.log(`Fetched ${holidays.length} holidays for year ${year}`);
+    console.log(
+      `API: Fetched ${holidays.length} holidays for year ${yearNumber}`,
+    );
     res.status(200).json(holidays);
   } catch (error) {
-    console.error('Error fetching holidays:', error);
+    console.error('API: Error fetching holidays:', error);
     res.status(500).json([]);
   }
 }
