@@ -18,8 +18,14 @@ export class HolidayService {
     try {
       console.log(`Fetching holidays for year ${year}`);
       const response = await axios.get(
-        `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`,
+        `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`
       );
+      console.log('Raw API response:', JSON.stringify(response.data));
+
+      if (!Array.isArray(response.data)) {
+        throw new Error('API response is not an array');
+      }
+
       const holidays = response.data;
       console.log(`Fetched ${holidays.length} holidays from API`);
 
@@ -33,30 +39,23 @@ export class HolidayService {
       });
 
       const holidaysToCreate = holidays.filter(
-        (apiHoliday: { date: string; name: string }) =>
+        (apiHoliday) =>
           !existingHolidays.some(
             (dbHoliday) =>
               dbHoliday.date.toISOString().split('T')[0] === apiHoliday.date &&
-              dbHoliday.name === apiHoliday.name,
-          ),
+              dbHoliday.name === apiHoliday.name
+          )
       );
 
       if (holidaysToCreate.length > 0) {
         console.log(`Creating ${holidaysToCreate.length} new holidays`);
         await prisma.holiday.createMany({
-          data: holidaysToCreate.map(
-            (holiday: {
-              date: string | number | Date;
-              name: any;
-              localName: any;
-              types: any;
-            }) => ({
-              date: new Date(holiday.date),
-              name: holiday.name,
-              localName: holiday.localName,
-              types: holiday.types,
-            }),
-          ),
+          data: holidaysToCreate.map((holiday) => ({
+            date: new Date(holiday.date),
+            name: holiday.name,
+            localName: holiday.localName,
+            types: holiday.types || [],
+          })),
         });
       } else {
         console.log('No new holidays to create');
@@ -65,6 +64,9 @@ export class HolidayService {
       console.log(`Synced holidays for year ${year}`);
     } catch (error) {
       console.error('Error syncing holidays:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error details:', error.response?.data);
+      }
       throw error;
     } finally {
       this.syncInProgress[year] = false;
