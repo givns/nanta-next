@@ -307,18 +307,22 @@ export default function AttendanceProcessingTest() {
             </CardHeader>
             <CardContent>
               <ul>
+                <li>Total Days in Period: {result.summary.totalDays}</li>
                 <li>Total Working Days: {result.summary.totalWorkingDays}</li>
                 <li>Total Present: {result.summary.totalPresent}</li>
-                <li>Total Absent: {result.summary.totalAbsent}</li>
-                <li>Total Leave: {result.summary.totalLeave}</li>
-                <li>Total Incomplete: {result.summary.totalIncomplete}</li>
+                <li>Total Holiday: {result.summary.totalHoliday}</li>
+                <li>Total Day Off: {result.summary.totalDayOff}</li>
                 <li>
-                  Total Overtime Hours:{' '}
-                  {formatNumber(result.summary.totalOvertimeHours)}
+                  Attendance Rate: {formatNumber(result.summary.attendanceRate)}
+                  %
                 </li>
                 <li>
-                  Total Regular Hours:{' '}
-                  {formatNumber(result.summary.totalRegularHours)}
+                  Total Approved Overtime:{' '}
+                  {formatNumber(result.summary.totalApprovedOvertime)} hours
+                </li>
+                <li>
+                  Total Potential Overtime:{' '}
+                  {formatNumber(result.summary.totalPotentialOvertime)} hours
                 </li>
               </ul>
             </CardContent>
