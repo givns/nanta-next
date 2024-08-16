@@ -1,6 +1,6 @@
 import { PrismaClient, Holiday } from '@prisma/client';
 import axios from 'axios';
-import { parseISO, format, isSameDay } from 'date-fns';
+import { parseISO, format, isSameDay, subDays } from 'date-fns';
 
 const prisma = new PrismaClient();
 
@@ -50,21 +50,8 @@ export class HolidayService {
     }
   }
 
-  async isHoliday(date: Date): Promise<boolean> {
-    const formattedDate = format(date, 'yyyy-MM-dd');
-    const holiday = await prisma.holiday.findFirst({
-      where: {
-        date: {
-          equals: parseISO(formattedDate),
-        },
-      },
-    });
-
-    return !!holiday;
-  }
-
   async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
-    return prisma.holiday.findMany({
+    const holidays = await prisma.holiday.findMany({
       where: {
         date: {
           gte: startDate,
@@ -72,6 +59,22 @@ export class HolidayService {
         },
       },
     });
+
+    console.log(
+      `Fetched ${holidays.length} holidays between ${startDate} and ${endDate}`,
+    );
+    return holidays;
+  }
+
+  async isHoliday(date: Date, isShift104: boolean = false): Promise<boolean> {
+    const checkDate = isShift104 ? subDays(date, 1) : date;
+    const holiday = await prisma.holiday.findFirst({
+      where: {
+        date: checkDate,
+      },
+    });
+
+    return !!holiday;
   }
 
   async isWorkingDay(userId: string, date: Date): Promise<boolean> {

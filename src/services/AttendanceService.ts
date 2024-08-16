@@ -336,6 +336,7 @@ export class AttendanceService {
       endDate,
     );
     const holidays = await this.holidayService.getHolidays(startDate, endDate);
+    const isShift104 = userData.assignedShift.shiftCode === 'SHIFT104';
 
     const processedAttendance: ProcessedAttendance[] = [];
 
@@ -353,9 +354,11 @@ export class AttendanceService {
           currentDate,
           effectiveShift,
         );
-        const isHoliday = holidays.some((holiday) =>
-          isSameDay(holiday.date, currentDate),
+        const isHoliday = await this.holidayService.isHoliday(
+          currentDate,
+          isShift104,
         );
+
         const isLeave = this.isOnLeave(currentDate, leaveRequests);
 
         const processed = await this.processAttendancePair(
