@@ -599,6 +599,16 @@ export class AttendanceService {
     };
   }
 
+  private roundToNearestThirtyMinutes(date: Date): Date {
+    const minutes = date.getMinutes();
+    const roundedMinutes = Math.round(minutes / 30) * 30;
+    const newDate = new Date(date);
+    newDate.setMinutes(roundedMinutes);
+    newDate.setSeconds(0);
+    newDate.setMilliseconds(0);
+    return newDate;
+  }
+
   private calculateEffectiveHours(
     checkIn: Date,
     checkOut: Date,
@@ -609,8 +619,11 @@ export class AttendanceService {
     overtimeHours: number;
     potentialOvertimePeriods: { start: string; end: string }[];
   } {
-    const shiftStart = parse(shift.startTime, 'HH:mm', checkIn);
-    let shiftEnd = parse(shift.endTime, 'HH:mm', checkIn);
+    const roundedCheckIn = this.roundToNearestThirtyMinutes(checkIn);
+    const roundedCheckOut = this.roundToNearestThirtyMinutes(checkOut);
+
+    const shiftStart = parse(shift.startTime, 'HH:mm', roundedCheckIn);
+    let shiftEnd = parse(shift.endTime, 'HH:mm', roundedCheckIn);
     if (isBefore(shiftEnd, shiftStart)) shiftEnd = addDays(shiftEnd, 1);
 
     let regularHours = 0;
@@ -619,51 +632,46 @@ export class AttendanceService {
 
     if (isDayOff) {
       // All hours on a day off are considered overtime
-      overtimeHours = this.roundToNearestHalfHour(
-        differenceInMinutes(checkOut, checkIn) / 60,
-      );
+      overtimeHours = differenceInHours(roundedCheckOut, roundedCheckIn);
+      if (overtimeHours > 4) {
+        overtimeHours -= 1; // Deduct 1 hour for break time
+      }
       potentialOvertimePeriods.push({
-        start: format(checkIn, 'HH:mm'),
-        end: format(checkOut, 'HH:mm'),
+        start: format(roundedCheckIn, 'HH:mm'),
+        end: format(roundedCheckOut, 'HH:mm'),
       });
     } else {
       // Early check-in
-      if (isBefore(checkIn, shiftStart)) {
-        const earlyMinutes = differenceInMinutes(shiftStart, checkIn);
-        const earlyHours = this.roundToNearestHalfHour(earlyMinutes / 60);
+      if (isBefore(roundedCheckIn, shiftStart)) {
+        const earlyHours = differenceInHours(shiftStart, roundedCheckIn);
         overtimeHours += earlyHours;
         potentialOvertimePeriods.push({
-          start: format(checkIn, 'HH:mm'),
+          start: format(roundedCheckIn, 'HH:mm'),
           end: format(shiftStart, 'HH:mm'),
         });
       }
 
       // Regular hours
-      const effectiveStart = isBefore(checkIn, shiftStart)
+      const effectiveStart = isBefore(roundedCheckIn, shiftStart)
         ? shiftStart
-        : checkIn;
-      const effectiveEnd = isAfter(checkOut, shiftEnd) ? shiftEnd : checkOut;
-      regularHours = this.roundToNearestHalfHour(
-        differenceInMinutes(effectiveEnd, effectiveStart) / 60,
-      );
+        : roundedCheckIn;
+      const effectiveEnd = isAfter(roundedCheckOut, shiftEnd)
+        ? shiftEnd
+        : roundedCheckOut;
+      regularHours = differenceInHours(effectiveEnd, effectiveStart);
 
       // Late check-out
-      if (isAfter(checkOut, shiftEnd)) {
-        const lateMinutes = differenceInMinutes(checkOut, shiftEnd);
-        const lateHours = this.roundToNearestHalfHour(lateMinutes / 60);
+      if (isAfter(roundedCheckOut, shiftEnd)) {
+        const lateHours = differenceInHours(roundedCheckOut, shiftEnd);
         overtimeHours += lateHours;
         potentialOvertimePeriods.push({
           start: format(shiftEnd, 'HH:mm'),
-          end: format(checkOut, 'HH:mm'),
+          end: format(roundedCheckOut, 'HH:mm'),
         });
       }
     }
 
     return { regularHours, overtimeHours, potentialOvertimePeriods };
-  }
-
-  private roundToNearestHalfHour(hours: number): number {
-    return Math.round(hours * 2) / 2;
   }
 
   private async detectPotentialShiftAdjustment(
@@ -681,18 +689,6 @@ export class AttendanceService {
       isBefore(actualCheckIn, earlyThreshold) ||
       isAfter(actualCheckIn, lateThreshold)
     );
-  }
-
-  private calculateRegularHours(
-    checkIn: Date,
-    checkOut: Date | null,
-    shiftStart: Date,
-    shiftEnd: Date,
-  ): number {
-    if (!checkOut) return 0;
-    const effectiveStart = checkIn > shiftStart ? checkIn : shiftStart;
-    const effectiveEnd = checkOut < shiftEnd ? checkOut : shiftEnd;
-    return Math.max(0, differenceInMinutes(effectiveEnd, effectiveStart) / 60);
   }
 
   private calculateOvertime(
