@@ -132,12 +132,13 @@ export default async function handler(
       ),
     ];
 
-    const processedAttendance = await attendanceService.processAttendanceData(
-      mergedAttendanceData,
-      userData,
-      startDate.toDate(),
-      endDate.toDate(),
-    );
+    const { processedAttendance, summary } =
+      await attendanceService.processAttendanceData(
+        mergedAttendanceData,
+        userData,
+        startDate.toDate(),
+        endDate.toDate(),
+      );
 
     // Fetch time entries
     const timeEntries = await prisma.timeEntry.findMany({

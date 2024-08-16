@@ -166,26 +166,11 @@ export default function AttendanceProcessingTest() {
     return value !== undefined && value !== null ? value.toFixed(2) : 'N/A';
   };
 
-  const calculateSummary = (processedAttendance: any[]) => {
-    return processedAttendance.reduce(
-      (summary, record) => {
-        summary.totalWorkingDays++;
-        if (record.status === 'present') summary.totalPresent++;
-        if (record.status === 'holiday') summary.totalHoliday++;
-        if (record.status === 'off') summary.totalDayOff++;
-        summary.totalApprovedOvertime += record.overtimeHours || 0;
-        summary.totalPotentialOvertime += record.overtimeDuration || 0;
-        return summary;
-      },
-      {
-        totalWorkingDays: 0,
-        totalPresent: 0,
-        totalHoliday: 0,
-        totalDayOff: 0,
-        totalApprovedOvertime: 0,
-        totalPotentialOvertime: 0,
-      },
-    );
+  const formatOvertimePeriods = (periods: any[]) => {
+    if (!periods || periods.length === 0) return 'N/A';
+    return periods
+      .map((period) => `${period.start} - ${period.end}`)
+      .join(', ');
   };
 
   return (
@@ -292,7 +277,9 @@ export default function AttendanceProcessingTest() {
                       <td>{formatDate(record.date)}</td>
                       <td>{formatNumber(record.overtimeHours)}</td>
                       <td>{formatNumber(record.overtimeDuration)}</td>
-                      <td>{record.potentialOvertimePeriods.join(', ')}</td>
+                      <td>
+                        {formatOvertimePeriods(record.potentialOvertimePeriods)}
+                      </td>
                       <td>{record.status === 'off' ? 'Yes' : 'No'}</td>
                     </tr>
                   ))}
@@ -307,11 +294,15 @@ export default function AttendanceProcessingTest() {
             </CardHeader>
             <CardContent>
               <ul>
-                <li>Total Days in Period: {result.summary.totalDays}</li>
-                <li>Total Working Days: {result.summary.totalWorkingDays}</li>
-                <li>Total Present: {result.summary.totalPresent}</li>
-                <li>Total Holiday: {result.summary.totalHoliday}</li>
-                <li>Total Day Off: {result.summary.totalDayOff}</li>
+                <li>
+                  Total Days in Period: {result.summary.totalDays || 'N/A'}
+                </li>
+                <li>
+                  Total Working Days: {result.summary.totalWorkingDays || 'N/A'}
+                </li>
+                <li>Total Present: {result.summary.totalPresent || 'N/A'}</li>
+                <li>Total Holiday: {result.summary.totalHoliday || 'N/A'}</li>
+                <li>Total Day Off: {result.summary.totalDayOff || 'N/A'}</li>
                 <li>
                   Attendance Rate: {formatNumber(result.summary.attendanceRate)}
                   %

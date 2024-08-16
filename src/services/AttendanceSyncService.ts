@@ -65,8 +65,8 @@ export class AttendanceSyncService {
               new Date(record.date),
             );
 
-          if (processedAttendance.length > 0) {
-            const attendance = processedAttendance[0];
+          if (processedAttendance.processedAttendance.length > 0) {
+            const attendance = processedAttendance.processedAttendance[0];
             const message = this.createNotificationMessage(record, attendance);
             if (user.lineUserId) {
               await notificationService.sendNotification(

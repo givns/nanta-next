@@ -125,19 +125,15 @@ export async function processAttendance(job: Job): Promise<any> {
       )
       .filter((record): record is AttendanceRecord => record !== undefined);
 
-    const processedAttendance = await attendanceService.processAttendanceData(
-      attendanceRecords,
-      userData,
-      parseISO(startDate),
-      parseISO(endDate),
-    );
+    const { processedAttendance, summary } =
+      await attendanceService.processAttendanceData(
+        attendanceRecords,
+        userData,
+        parseISO(startDate),
+        parseISO(endDate),
+      );
 
     logMessage(`Processed ${processedAttendance.length} attendance records`);
-
-    // Calculate summary statistics
-    const summary = attendanceService.calculateSummary(processedAttendance);
-
-    logMessage(`Summary statistics calculated: ${JSON.stringify(summary)}`);
 
     const result = {
       success: true,

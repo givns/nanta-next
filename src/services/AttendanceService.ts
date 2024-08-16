@@ -190,7 +190,11 @@ export class AttendanceService {
       payrollEndDate,
     );
 
-    const summary = this.calculateSummary(processedAttendance);
+    const summary = this.calculateSummary(
+      processedAttendance.processedAttendance, // Fix: Pass the processedAttendance array from the processedAttendance object
+      payrollStartDate,
+      payrollEndDate,
+    );
 
     return {
       userData,
@@ -303,7 +307,7 @@ export class AttendanceService {
     userData: UserData,
     startDate: Date,
     endDate: Date,
-  ): Promise<ProcessedAttendance[]> {
+  ): Promise<{ processedAttendance: ProcessedAttendance[]; summary: any }> {
     logMessage(`Processing ${records.length} attendance records`);
     logMessage(`Start date: ${startDate}, End date: ${endDate}`);
 
@@ -399,7 +403,15 @@ export class AttendanceService {
       processedAttendance.push(processed);
     }
 
-    return this.validateAndCorrectAttendance(processedAttendance);
+    const validatedAttendance =
+      this.validateAndCorrectAttendance(processedAttendance);
+    const summary = this.calculateSummary(
+      validatedAttendance,
+      startDate,
+      endDate,
+    );
+
+    return { processedAttendance: validatedAttendance, summary };
   }
 
   private groupAndPairRecords(
@@ -950,18 +962,22 @@ export class AttendanceService {
     };
   }
 
-  public calculateSummary(processedAttendance: ProcessedAttendance[]) {
-    return processedAttendance.reduce(
-      (summary, record) => {
-        summary.totalWorkingDays++;
-        if (record.status === 'present') summary.totalPresent++;
-        if (record.status === 'absent') summary.totalAbsent++;
+  public calculateSummary(
+    processedAttendance: ProcessedAttendance[],
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const summary = processedAttendance.reduce(
+      (acc, record) => {
+        acc.totalWorkingDays++;
+        if (record.status === 'present') acc.totalPresent++;
+        if (record.status === 'absent') acc.totalAbsent++;
         if (record.status === 'off' && record.detailedStatus === 'leave')
-          summary.totalLeave++;
-        if (record.status === 'incomplete') summary.totalIncomplete++;
-        summary.totalOvertimeHours += record.overtimeHours ?? 0;
-        summary.totalRegularHours += record.regularHours;
-        return summary;
+          acc.totalLeave++;
+        if (record.status === 'incomplete') acc.totalIncomplete++;
+        acc.totalOvertimeHours += record.overtimeHours || 0;
+        acc.totalRegularHours += record.regularHours;
+        return acc;
       },
       {
         totalWorkingDays: 0,
@@ -973,6 +989,19 @@ export class AttendanceService {
         totalRegularHours: 0,
       },
     );
+
+    const totalDays =
+      Math.round(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      ) + 1;
+    const attendanceRate =
+      (summary.totalPresent / summary.totalWorkingDays) * 100;
+
+    return {
+      ...summary,
+      totalDays,
+      attendanceRate: Number(attendanceRate.toFixed(2)),
+    };
   }
 
   private generateDetailedStatus(
@@ -1064,7 +1093,13 @@ export class AttendanceService {
       start,
       end,
     );
-    return this.processAttendanceData(attendanceRecords, userData, start, end);
+    const processedAttendance = await this.processAttendanceData(
+      attendanceRecords,
+      userData,
+      start,
+      end,
+    );
+    return processedAttendance.processedAttendance;
   }
 
   async processManualEntry(
@@ -1328,23 +1363,26 @@ export class AttendanceService {
   }
 
   private getLatestAttendance(
-    processedAttendances: ProcessedAttendance[],
+    processedAttendances: {
+      processedAttendance: ProcessedAttendance[];
+      summary: any;
+    },
     now: Date,
   ): ProcessedAttendance {
-    const todayAttendance = processedAttendances.find((a) =>
+    const todayAttendance = processedAttendances.processedAttendance.find((a) =>
       isSameDay(a.date, now),
     );
     if (todayAttendance) return todayAttendance;
 
-    const yesterdayAttendance = processedAttendances.find((a) =>
-      isSameDay(a.date, subDays(now, 1)),
+    const yesterdayAttendance = processedAttendances.processedAttendance.find(
+      (a) => isSameDay(a.date, subDays(now, 1)),
     );
     if (yesterdayAttendance && !yesterdayAttendance.checkOut)
       return yesterdayAttendance;
 
     return this.createAbsentOrOffRecord(
       now,
-      processedAttendances[0].employeeId,
+      processedAttendances.processedAttendance[0].employeeId,
       false,
       false,
     );
