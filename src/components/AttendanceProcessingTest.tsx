@@ -166,6 +166,28 @@ export default function AttendanceProcessingTest() {
     return value !== undefined && value !== null ? value.toFixed(2) : 'N/A';
   };
 
+  const calculateSummary = (processedAttendance: any[]) => {
+    return processedAttendance.reduce(
+      (summary, record) => {
+        summary.totalWorkingDays++;
+        if (record.status === 'present') summary.totalPresent++;
+        if (record.status === 'holiday') summary.totalHoliday++;
+        if (record.status === 'off') summary.totalDayOff++;
+        summary.totalApprovedOvertime += record.overtimeHours || 0;
+        summary.totalPotentialOvertime += record.overtimeDuration || 0;
+        return summary;
+      },
+      {
+        totalWorkingDays: 0,
+        totalPresent: 0,
+        totalHoliday: 0,
+        totalDayOff: 0,
+        totalApprovedOvertime: 0,
+        totalPotentialOvertime: 0,
+      },
+    );
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
@@ -266,25 +288,28 @@ export default function AttendanceProcessingTest() {
             </Table>
 
             {/* Summary Section */}
-            {result.summary && (
+            {result.processedAttendance && (
               <div className="mt-4">
                 <h3 className="text-lg font-semibold mb-2">Period Summary</h3>
-                <ul>
-                  <li>
-                    Total Working Days:{' '}
-                    {result.summary.totalWorkingDays || 'N/A'}
-                  </li>
-                  <li>Total Present: {result.summary.totalPresent || 'N/A'}</li>
-                  <li>Total Holiday: {result.summary.totalHoliday || 'N/A'}</li>
-                  <li>Total Day Off: {result.summary.totalDayOff || 'N/A'}</li>
-                  <li>
-                    Total Approved Overtime:{' '}
-                    {formatNumber(result.summary.totalApprovedOvertime)} hours
-                    {result.summary.totalPotentialOvertime >
-                      result.summary.totalApprovedOvertime &&
-                      ` (Potential: ${formatNumber(result.summary.totalPotentialOvertime)} hours)`}
-                  </li>
-                </ul>
+                {(() => {
+                  const summary = calculateSummary(result.processedAttendance);
+                  return (
+                    <ul>
+                      <li>Total Working Days: {summary.totalWorkingDays}</li>
+                      <li>Total Present: {summary.totalPresent}</li>
+                      <li>Total Holiday: {summary.totalHoliday}</li>
+                      <li>Total Day Off: {summary.totalDayOff}</li>
+                      <li>
+                        Total Approved Overtime:{' '}
+                        {formatNumber(summary.totalApprovedOvertime)} hours
+                      </li>
+                      <li>
+                        Total Potential Overtime:{' '}
+                        {formatNumber(summary.totalPotentialOvertime)} hours
+                      </li>
+                    </ul>
+                  );
+                })()}
               </div>
             )}
           </CardContent>
