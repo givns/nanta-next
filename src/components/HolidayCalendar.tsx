@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import {
   Select,
   SelectContent,
@@ -11,9 +11,9 @@ import { Table } from '@/components/ui/table';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 
 interface Holiday {
-  id: string;
-  date: Date;
+  date: string;
   name: string;
+  localName: string;
 }
 
 const HolidayCalendar: React.FC = () => {
@@ -24,22 +24,26 @@ const HolidayCalendar: React.FC = () => {
   useEffect(() => {
     const fetchHolidays = async () => {
       try {
+        console.log(
+          `Fetching holidays for year: ${year}, shiftType: ${shiftType}`,
+        );
         const response = await fetch(
           `/api/holidays?year=${year}&shiftType=${shiftType}`,
         );
         if (!response.ok) {
-          throw new Error('Failed to fetch holidays');
+          throw new Error(
+            `Failed to fetch holidays: ${response.status} ${response.statusText}`,
+          );
         }
         const data = await response.json();
-        console.log('Fetched holiday data:', data); // Log fetched data
+        console.log('Received holiday data:', data);
 
-        const processedHolidays = data.map((holiday: any) => ({
-          ...holiday,
-          date: new Date(holiday.date),
-        }));
-        console.log('Processed holidays:', processedHolidays); // Log processed holidays
-
-        setHolidays(processedHolidays);
+        if (Array.isArray(data) && data.length > 0) {
+          setHolidays(data);
+        } else {
+          console.log('No holidays received or empty array');
+          setHolidays([]);
+        }
       } catch (error) {
         console.error('Error fetching holidays:', error);
       }
@@ -47,8 +51,6 @@ const HolidayCalendar: React.FC = () => {
 
     fetchHolidays();
   }, [year, shiftType]);
-
-  console.log('Current holidays state:', holidays); // Log current state
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
@@ -91,19 +93,21 @@ const HolidayCalendar: React.FC = () => {
             <tr>
               <th>Date</th>
               <th>Holiday Name</th>
+              <th>Local Name</th>
             </tr>
           </thead>
           <tbody>
             {holidays.length > 0 ? (
-              holidays.map((holiday) => (
-                <tr key={holiday.id}>
-                  <td>{format(holiday.date, 'dd/MM/yyyy')}</td>
+              holidays.map((holiday, index) => (
+                <tr key={index}>
+                  <td>{format(parseISO(holiday.date), 'dd/MM/yyyy')}</td>
                   <td>{holiday.name}</td>
+                  <td>{holiday.localName}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={2}>No holidays found</td>
+                <td colSpan={3}>No holidays found</td>
               </tr>
             )}
           </tbody>
