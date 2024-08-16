@@ -13,34 +13,31 @@ export class HolidayService {
       const holidays = response.data;
 
       for (const holiday of holidays) {
-        await prisma.holiday.upsert({
+        const existingHoliday = await prisma.holiday.findFirst({
           where: {
-            date_date: {
-              date: new Date(holiday.date),
-              name: holiday.name,
-            },
-          },
-          update: {
-            localName: holiday.localName,
-            countryCode: holiday.countryCode,
-            fixed: holiday.fixed,
-            global: holiday.global,
-            counties: holiday.counties ? holiday.counties.join(',') : null,
-            launchYear: holiday.launchYear,
-            types: holiday.types, // Directly assign the array
-          },
-          create: {
             date: new Date(holiday.date),
             name: holiday.name,
-            localName: holiday.localName,
-            countryCode: holiday.countryCode,
-            fixed: holiday.fixed,
-            global: holiday.global,
-            counties: holiday.counties ? holiday.counties.join(',') : null,
-            launchYear: holiday.launchYear,
-            types: holiday.types, // Directly assign the array
           },
         });
+
+        if (existingHoliday) {
+          await prisma.holiday.update({
+            where: { id: existingHoliday.id },
+            data: {
+              localName: holiday.localName,
+              types: holiday.types,
+            },
+          });
+        } else {
+          await prisma.holiday.create({
+            data: {
+              date: new Date(holiday.date),
+              name: holiday.name,
+              localName: holiday.localName,
+              types: holiday.types,
+            },
+          });
+        }
       }
 
       console.log(`Synced holidays for year ${year}`);
@@ -60,6 +57,12 @@ export class HolidayService {
       },
     });
 
+    if (holidays.length === 0) {
+      const year = startDate.getFullYear();
+      await this.syncHolidays(year);
+      return this.getHolidays(startDate, endDate);
+    }
+
     console.log(
       `Fetched ${holidays.length} holidays between ${startDate} and ${endDate}`,
     );
@@ -73,6 +76,12 @@ export class HolidayService {
         date: checkDate,
       },
     });
+
+    if (!holiday) {
+      const year = date.getFullYear();
+      await this.syncHolidays(year);
+      return this.isHoliday(date, isShift104);
+    }
 
     return !!holiday;
   }
@@ -97,5 +106,25 @@ export class HolidayService {
     } else {
       return isRegularWorkday && !(await this.isHoliday(date));
     }
+  }
+
+  async getHolidaysForYear(
+    year: number,
+    shiftType: 'regular' | 'shift104',
+  ): Promise<Holiday[]> {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31);
+
+    let holidays = await this.getHolidays(startDate, endDate);
+
+    if (shiftType === 'shift104') {
+      holidays = holidays.map((holiday) => ({
+        ...holiday,
+        date: subDays(holiday.date, 1),
+        name: `Shift 104 - ${holiday.name}`,
+      }));
+    }
+
+    return holidays;
   }
 }

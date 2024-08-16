@@ -257,11 +257,6 @@ model Holiday {
   date        DateTime
   name        String
   localName   String?
-  countryCode String
-  fixed       Boolean
-  global      Boolean
-  counties    String?
-  launchYear  Int?
   types       String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())

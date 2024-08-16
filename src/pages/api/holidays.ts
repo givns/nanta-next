@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import axios from 'axios';
-import { Holiday } from '../../lib/holidayUtils';
-import { subDays } from 'date-fns';
+import { HolidayService } from '../../services/HolidayService';
+import { Holiday } from '@prisma/client';
+
+const holidayService = new HolidayService();
 
 export default async function handler(
   req: NextApiRequest,
@@ -14,40 +15,13 @@ export default async function handler(
   }
 
   try {
-    const response = await axios.get(
-      `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`,
+    const holidays = await holidayService.getHolidaysForYear(
+      parseInt(year),
+      shiftType === 'shift104' ? 'shift104' : 'regular',
     );
 
-    if (Array.isArray(response.data)) {
-      let holidays: Holiday[] = response.data.map((item: any) => ({
-        date: item.date,
-        localName: item.localName,
-        name: item.name,
-        countryCode: item.countryCode,
-        fixed: item.fixed,
-        global: item.global,
-        counties: item.counties || null,
-        launchYear: item.launchYear || null,
-        types: item.types || [],
-      }));
-
-      if (shiftType === 'shift104') {
-        holidays = holidays.map((holiday) => ({
-          ...holiday,
-          date: subDays(new Date(holiday.date), 1).toISOString().split('T')[0],
-          name: `Shift 104 - ${holiday.name}`,
-        }));
-      }
-
-      console.log(`Fetched ${holidays.length} holidays for year ${year}`);
-      res.status(200).json(holidays);
-    } else {
-      console.error(
-        'Unexpected response format from Nager.Date API:',
-        response.data,
-      );
-      res.status(200).json([]);
-    }
+    console.log(`Fetched ${holidays.length} holidays for year ${year}`);
+    res.status(200).json(holidays);
   } catch (error) {
     console.error('Error fetching holidays:', error);
     res.status(500).json([]);
