@@ -30,6 +30,8 @@ export default async function handler(
       },
     });
 
+    console.log('Fetched holidays:', holidays); // Log fetched holidays
+
     if (shiftType === 'shift104') {
       holidays = holidays.map((holiday) => ({
         ...holiday,
@@ -37,6 +39,8 @@ export default async function handler(
         name: `Shift 104 - ${holiday.name}`,
       }));
     }
+
+    console.log('Processed holidays:', holidays); // Log processed holidays
 
     res.status(200).json(holidays);
   } catch (error) {
