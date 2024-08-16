@@ -1,44 +1,46 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import axios from 'axios';
-import { Holiday } from '../../lib/holidayUtils';
+import { PrismaClient } from '@prisma/client';
+import { subDays } from 'date-fns';
+
+const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<Holiday[]>,
+  res: NextApiResponse,
 ) {
-  const { year } = req.query;
+  const { year, shiftType } = req.query;
 
   if (!year || typeof year !== 'string') {
-    return res.status(400).json([]);
+    return res.status(400).json({ error: 'Invalid year parameter' });
   }
 
   try {
-    const response = await axios.get(
-      `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`,
-    );
+    const startDate = new Date(`${year}-01-01`);
+    const endDate = new Date(`${year}-12-31`);
 
-    if (Array.isArray(response.data)) {
-      const holidays: Holiday[] = response.data.map((item: any) => ({
-        date: item.date,
-        localName: item.localName,
-        name: item.name,
-        countryCode: item.countryCode,
-        fixed: item.fixed,
-        global: item.global,
-        counties: item.counties || null,
-        launchYear: item.launchYear || null,
-        types: item.types || [],
+    let holidays = await prisma.holiday.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      orderBy: {
+        date: 'asc',
+      },
+    });
+
+    if (shiftType === 'shift104') {
+      holidays = holidays.map((holiday) => ({
+        ...holiday,
+        date: subDays(holiday.date, 1),
+        name: `Shift 104 - ${holiday.name}`,
       }));
-      res.status(200).json(holidays);
-    } else {
-      console.error(
-        'Unexpected response format from Nager.Date API:',
-        response.data,
-      );
-      res.status(200).json([]);
     }
+
+    res.status(200).json(holidays);
   } catch (error) {
     console.error('Error fetching holidays:', error);
-    res.status(500).json([]);
+    res.status(500).json({ error: 'Error fetching holidays' });
   }
 }

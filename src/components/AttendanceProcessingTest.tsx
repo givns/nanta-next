@@ -238,82 +238,96 @@ export default function AttendanceProcessingTest() {
       )}
 
       {status === 'completed' && result && (
-        <Card>
-          <CardHeader>
-            <h2 className="text-xl font-semibold">Attendance Summary</h2>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Check-In Time</th>
-                  <th>Check-Out Time</th>
-                  <th>Status</th>
-                  <th>Regular Hours</th>
-                  <th>Approved Overtime</th>
-                  <th>Potential Overtime</th>
-                  <th>Potential Overtime Periods</th>
-                  <th>Shift Adjustment</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.processedAttendance &&
-                  result.processedAttendance.map((record: any) => (
+        <>
+          <Card className="mb-4">
+            <CardHeader>
+              <h2 className="text-xl font-semibold">Regular Attendance</h2>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Check-In Time</th>
+                    <th>Check-Out Time</th>
+                    <th>Status</th>
+                    <th>Regular Hours</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.processedAttendance.map((record: any) => (
                     <tr key={record.id}>
                       <td>{formatDate(record.date)}</td>
                       <td>{formatTime(record.checkIn)}</td>
                       <td>{formatTime(record.checkOut)}</td>
-                      <td>{record.status || 'N/A'}</td>
+                      <td>{record.status}</td>
                       <td>{formatNumber(record.regularHours)}</td>
-                      <td>{formatNumber(record.overtimeHours)}</td>
-                      <td>{formatNumber(record.overtimeDuration)}</td>
-                      <td>
-                        {record.potentialOvertimePeriods &&
-                        record.potentialOvertimePeriods.length > 0
-                          ? record.potentialOvertimePeriods
-                              .map(
-                                (period: any) =>
-                                  `${period.start} - ${period.end}`,
-                              )
-                              .join(', ')
-                          : 'N/A'}
-                      </td>
-                      <td>{record.shiftAdjustment ? 'Yes' : 'No'}</td>
-                      <td>{record.detailedStatus || 'N/A'}</td>
+                      <td>{record.detailedStatus}</td>
                     </tr>
                   ))}
-              </tbody>
-            </Table>
+                </tbody>
+              </Table>
+            </CardContent>
+          </Card>
 
-            {/* Summary Section */}
-            {result.processedAttendance && (
-              <div className="mt-4">
-                <h3 className="text-lg font-semibold mb-2">Period Summary</h3>
-                {(() => {
-                  const summary = calculateSummary(result.processedAttendance);
-                  return (
-                    <ul>
-                      <li>Total Working Days: {summary.totalWorkingDays}</li>
-                      <li>Total Present: {summary.totalPresent}</li>
-                      <li>Total Holiday: {summary.totalHoliday}</li>
-                      <li>Total Day Off: {summary.totalDayOff}</li>
-                      <li>
-                        Total Approved Overtime:{' '}
-                        {formatNumber(summary.totalApprovedOvertime)} hours
-                      </li>
-                      <li>
-                        Total Potential Overtime:{' '}
-                        {formatNumber(summary.totalPotentialOvertime)} hours
-                      </li>
-                    </ul>
-                  );
-                })()}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          <Card className="mb-4">
+            <CardHeader>
+              <h2 className="text-xl font-semibold">Overtime Summary</h2>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Approved Overtime</th>
+                    <th>Potential Overtime</th>
+                    <th>Potential Overtime Periods</th>
+                    <th>Off-Day Work</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.processedAttendance.map((record: any) => (
+                    <tr key={record.id}>
+                      <td>{formatDate(record.date)}</td>
+                      <td>{formatNumber(record.overtimeHours)}</td>
+                      <td>{formatNumber(record.overtimeDuration)}</td>
+                      <td>{record.potentialOvertimePeriods.join(', ')}</td>
+                      <td>{record.status === 'off' ? 'Yes' : 'No'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h2 className="text-xl font-semibold">Period Summary</h2>
+            </CardHeader>
+            <CardContent>
+              <ul>
+                <li>Total Days in Period: {result.summary.totalDays}</li>
+                <li>Total Working Days: {result.summary.totalWorkingDays}</li>
+                <li>Total Present: {result.summary.totalPresent}</li>
+                <li>Total Holiday: {result.summary.totalHoliday}</li>
+                <li>Total Day Off: {result.summary.totalDayOff}</li>
+                <li>
+                  Attendance Rate: {formatNumber(result.summary.attendanceRate)}
+                  %
+                </li>
+                <li>
+                  Total Approved Overtime:{' '}
+                  {formatNumber(result.summary.totalApprovedOvertime)} hours
+                </li>
+                <li>
+                  Total Potential Overtime:{' '}
+                  {formatNumber(result.summary.totalPotentialOvertime)} hours
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );

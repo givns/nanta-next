@@ -1,4 +1,4 @@
-import { PrismaClient, Attendance } from '@prisma/client';
+import { PrismaClient, Attendance, Holiday } from '@prisma/client';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { ExternalDbService } from './ExternalDbService';
 import { NotificationService } from './NotificationService';
@@ -335,6 +335,7 @@ export class AttendanceService {
       startDate,
       endDate,
     );
+    const holidays = await this.holidayService.getHolidays(startDate, endDate);
 
     const processedAttendance: ProcessedAttendance[] = [];
 
@@ -352,16 +353,19 @@ export class AttendanceService {
           currentDate,
           effectiveShift,
         );
+        const isHoliday = holidays.some((holiday) =>
+          isSameDay(holiday.date, currentDate),
+        );
         const isLeave = this.isOnLeave(currentDate, leaveRequests);
 
         const processed = await this.processAttendancePair(
           pair,
           effectiveShift,
           isDayOff,
+          isHoliday,
           approvedOvertimes,
         );
 
-        // Detect potential shift adjustment
         const potentialShiftAdjustment =
           await this.detectPotentialShiftAdjustment(
             effectiveShift,
@@ -378,18 +382,20 @@ export class AttendanceService {
         processedAttendance.push(processed);
       } catch (error) {
         console.error('Error processing attendance pair:', error);
-        // Continue processing other pairs even if one fails
       }
     }
+
     for (const record of unpairedRecords) {
       const processed = await this.processUnpairedRecord(
         record,
         userData,
         shiftAdjustments,
         approvedOvertimes,
+        holidays,
       );
       processedAttendance.push(processed);
     }
+
     return this.validateAndCorrectAttendance(processedAttendance);
   }
 
@@ -453,6 +459,7 @@ export class AttendanceService {
     pair: PairedAttendance,
     shift: ShiftData,
     isDayOff: boolean,
+    isHoliday: boolean,
     approvedOvertimes: ApprovedOvertime[],
   ): Promise<ProcessedAttendance> {
     const checkInTime = parse(
@@ -462,10 +469,15 @@ export class AttendanceService {
     );
     const checkOutTime = pair.checkOut
       ? parse(pair.checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
-      : checkInTime; // Use checkInTime as fallback if no checkout
+      : checkInTime;
 
     const { regularHours, overtimeHours, potentialOvertimePeriods } =
-      this.calculateEffectiveHours(checkInTime, checkOutTime, shift, isDayOff);
+      this.calculateEffectiveHours(
+        checkInTime,
+        checkOutTime,
+        shift,
+        isDayOff || isHoliday,
+      );
 
     const isEarlyCheckIn = isBefore(
       checkInTime,
@@ -480,7 +492,11 @@ export class AttendanceService {
       parse(shift.endTime, 'HH:mm', checkOutTime),
     );
 
-    let status: AttendanceStatusValue = isDayOff ? 'off' : 'present';
+    let status: AttendanceStatusValue = isHoliday
+      ? 'holiday'
+      : isDayOff
+        ? 'off'
+        : 'present';
     if (!pair.checkOut) status = 'incomplete';
 
     return {
@@ -516,6 +532,7 @@ export class AttendanceService {
     userData: UserData,
     shiftAdjustments: ShiftAdjustment[],
     approvedOvertimes: ApprovedOvertime[],
+    holidays: Holiday[],
   ): Promise<ProcessedAttendance> {
     const attendanceTime = parse(
       record.attendanceTime,
@@ -533,6 +550,9 @@ export class AttendanceService {
       attendanceTime,
       effectiveShift,
     );
+    const isHoliday = holidays.some((holiday) =>
+      isSameDay(holiday.date, attendanceTime),
+    );
 
     const shiftStart = parse(effectiveShift.startTime, 'HH:mm', attendanceTime);
     let shiftEnd = parse(effectiveShift.endTime, 'HH:mm', attendanceTime);
@@ -541,9 +561,12 @@ export class AttendanceService {
     const isEarlyCheckIn = isBefore(attendanceTime, subMinutes(shiftStart, 30));
     const isLateCheckIn = isAfter(attendanceTime, addMinutes(shiftStart, 15));
 
-    let status: AttendanceStatusValue = isDayOff ? 'off' : 'incomplete';
+    let status: AttendanceStatusValue = isHoliday
+      ? 'holiday'
+      : isDayOff
+        ? 'off'
+        : 'incomplete';
 
-    // Assume it's a check-in for unpaired records
     const overtimeInfo = this.calculateOvertime(
       attendanceTime,
       null,
@@ -552,14 +575,12 @@ export class AttendanceService {
       approvedOvertimes,
     );
 
-    // Calculate potential overtime
     const potentialOvertimeInfo = this.calculatePotentialOvertime(
       attendanceTime,
       new Date(),
       effectiveShift,
     );
 
-    // Flag potential overtime if any is detected
     if (potentialOvertimeInfo.duration > 0) {
       await this.flagPotentialOvertime({
         ...record,
