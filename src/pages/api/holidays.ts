@@ -6,19 +6,16 @@ const holidayService = new HolidayService();
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<Holiday[]>,
+  res: NextApiResponse<Holiday[] | { error: string }>,
 ) {
   const { year, shiftType } = req.query;
 
   if (!year || typeof year !== 'string') {
-    return res.status(400).json([]);
+    return res.status(400).json({ error: 'Invalid year parameter' });
   }
 
   try {
     const yearNumber = parseInt(year);
-    console.log(`API: Syncing holidays for year ${yearNumber}`);
-    await holidayService.syncHolidays(yearNumber);
-
     console.log(`API: Fetching holidays for year ${yearNumber}`);
     const holidays = await holidayService.getHolidaysForYear(
       yearNumber,
@@ -31,6 +28,6 @@ export default async function handler(
     res.status(200).json(holidays);
   } catch (error) {
     console.error('API: Error fetching holidays:', error);
-    res.status(500).json([]);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }

@@ -5,7 +5,16 @@ import { parseISO, format, isSameDay, subDays } from 'date-fns';
 const prisma = new PrismaClient();
 
 export class HolidayService {
+  private syncInProgress: { [key: number]: boolean } = {};
+
   async syncHolidays(year: number): Promise<void> {
+    if (this.syncInProgress[year]) {
+      console.log(`Sync already in progress for year ${year}`);
+      return;
+    }
+
+    this.syncInProgress[year] = true;
+
     try {
       console.log(`Fetching holidays for year ${year}`);
       const response = await axios.get(
@@ -14,41 +23,51 @@ export class HolidayService {
       const holidays = response.data;
       console.log(`Fetched ${holidays.length} holidays from API`);
 
-      for (const holiday of holidays) {
-        console.log(`Processing holiday: ${holiday.name} on ${holiday.date}`);
-        const existingHoliday = await prisma.holiday.findFirst({
-          where: {
-            date: new Date(holiday.date),
-            name: holiday.name,
+      const existingHolidays = await prisma.holiday.findMany({
+        where: {
+          date: {
+            gte: new Date(`${year}-01-01`),
+            lte: new Date(`${year}-12-31`),
           },
-        });
+        },
+      });
 
-        if (existingHoliday) {
-          console.log(`Updating existing holiday: ${holiday.name}`);
-          await prisma.holiday.update({
-            where: { id: existingHoliday.id },
-            data: {
-              localName: holiday.localName,
-              types: holiday.types,
-            },
-          });
-        } else {
-          console.log(`Creating new holiday: ${holiday.name}`);
-          await prisma.holiday.create({
-            data: {
+      const holidaysToCreate = holidays.filter(
+        (apiHoliday: { date: string; name: string }) =>
+          !existingHolidays.some(
+            (dbHoliday) =>
+              dbHoliday.date.toISOString().split('T')[0] === apiHoliday.date &&
+              dbHoliday.name === apiHoliday.name,
+          ),
+      );
+
+      if (holidaysToCreate.length > 0) {
+        console.log(`Creating ${holidaysToCreate.length} new holidays`);
+        await prisma.holiday.createMany({
+          data: holidaysToCreate.map(
+            (holiday: {
+              date: string | number | Date;
+              name: any;
+              localName: any;
+              types: any;
+            }) => ({
               date: new Date(holiday.date),
               name: holiday.name,
               localName: holiday.localName,
               types: holiday.types,
-            },
-          });
-        }
+            }),
+          ),
+        });
+      } else {
+        console.log('No new holidays to create');
       }
 
       console.log(`Synced holidays for year ${year}`);
     } catch (error) {
       console.error('Error syncing holidays:', error);
       throw error;
+    } finally {
+      this.syncInProgress[year] = false;
     }
   }
 
@@ -62,15 +81,42 @@ export class HolidayService {
       },
     });
 
-    if (holidays.length === 0) {
-      const year = startDate.getFullYear();
-      await this.syncHolidays(year);
-      return this.getHolidays(startDate, endDate);
-    }
-
     console.log(
       `Fetched ${holidays.length} holidays between ${startDate} and ${endDate}`,
     );
+    return holidays;
+  }
+
+  async getHolidaysForYear(
+    year: number,
+    shiftType: 'regular' | 'shift104',
+  ): Promise<Holiday[]> {
+    console.log(`Getting holidays for year ${year}, shiftType: ${shiftType}`);
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31);
+
+    console.log(`Fetching holidays between ${startDate} and ${endDate}`);
+    let holidays = await this.getHolidays(startDate, endDate);
+
+    console.log(`Found ${holidays.length} holidays initially`);
+    if (holidays.length === 0) {
+      console.log(`No holidays found for year ${year}, syncing now`);
+      await this.syncHolidays(year);
+      console.log(`Sync complete, fetching holidays again`);
+      holidays = await this.getHolidays(startDate, endDate);
+      console.log(`Found ${holidays.length} holidays after sync`);
+    }
+
+    if (shiftType === 'shift104') {
+      console.log(`Adjusting holidays for Shift 104`);
+      holidays = holidays.map((holiday) => ({
+        ...holiday,
+        date: subDays(holiday.date, 1),
+        name: `Shift 104 - ${holiday.name}`,
+      }));
+    }
+
+    console.log(`Returning ${holidays.length} holidays`);
     return holidays;
   }
 
@@ -111,25 +157,5 @@ export class HolidayService {
     } else {
       return isRegularWorkday && !(await this.isHoliday(date));
     }
-  }
-
-  async getHolidaysForYear(
-    year: number,
-    shiftType: 'regular' | 'shift104',
-  ): Promise<Holiday[]> {
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31);
-
-    let holidays = await this.getHolidays(startDate, endDate);
-
-    if (shiftType === 'shift104') {
-      holidays = holidays.map((holiday) => ({
-        ...holiday,
-        date: subDays(holiday.date, 1),
-        name: `Shift 104 - ${holiday.name}`,
-      }));
-    }
-
-    return holidays;
   }
 }
