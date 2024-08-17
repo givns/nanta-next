@@ -1,5 +1,3 @@
-// services/AttendanceSyncService.ts
-
 import { PrismaClient, User, Shift, Holiday } from '@prisma/client';
 import { ExternalDbService } from './ExternalDbService';
 import { AttendanceService } from './AttendanceService';
@@ -7,8 +5,19 @@ import { NotificationService } from './NotificationService';
 import { ShiftManagementService } from './ShiftManagementService';
 import { HolidayService } from './HolidayService';
 import { Shift104HolidayService } from './Shift104HolidayService';
-import moment from 'moment-timezone';
 import { leaveServiceServer } from './LeaveServiceServer';
+import {
+  startOfDay,
+  endOfDay,
+  subMinutes,
+  addHours,
+  isAfter,
+  parseISO,
+  format,
+  setHours,
+  setMinutes,
+  addDays,
+} from 'date-fns';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -57,12 +66,18 @@ export class AttendanceSyncService {
         if (!existingAttendance) {
           const convertedRecord =
             attendanceService.convertExternalToAttendanceRecord(record);
+          const recordDate = new Date(record.date);
+          const holidays = await holidayService.getHolidays(
+            recordDate,
+            recordDate,
+          );
           const processedAttendance =
             await attendanceService.processAttendanceData(
               convertedRecord ? [convertedRecord] : [],
               attendanceService.convertToUserData(user),
-              new Date(record.date),
-              new Date(record.date),
+              recordDate,
+              recordDate,
+              holidays,
             );
 
           if (processedAttendance.processedAttendance.length > 0) {
@@ -92,7 +107,7 @@ export class AttendanceSyncService {
 
   async checkUnclosedOvertimeSessions(): Promise<void> {
     const currentTime = new Date();
-    const fifteenMinutesAgo = new Date(currentTime.getTime() - 15 * 60000);
+    const fifteenMinutesAgo = subMinutes(currentTime, 15);
 
     const unclosedSessions = await prisma.overtimeRequest.findMany({
       where: {
@@ -125,12 +140,14 @@ export class AttendanceSyncService {
   }
 
   private async findExistingAttendance(employeeId: string, date: Date) {
+    const startOfDayDate = startOfDay(date);
+    const endOfDayDate = endOfDay(date);
     return prisma.attendance.findFirst({
       where: {
         employeeId,
         date: {
-          gte: moment(date).startOf('day').toDate(),
-          lt: moment(date).endOf('day').toDate(),
+          gte: startOfDayDate,
+          lt: endOfDayDate,
         },
         OR: [{ checkInTime: date }, { checkOutTime: date }],
       },
@@ -138,10 +155,7 @@ export class AttendanceSyncService {
   }
 
   private createNotificationMessage(record: any, attendance: any): string {
-    const time = new Date(record.sj).toLocaleTimeString('th-TH', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const time = format(new Date(record.sj), 'HH:mm');
     let action: string;
 
     switch (record.fx) {
@@ -168,7 +182,7 @@ export class AttendanceSyncService {
   }
 
   async checkMissingCheckIns(): Promise<void> {
-    const today = moment().tz('Asia/Bangkok').startOf('day');
+    const today = startOfDay(new Date());
     const users = await prisma.user.findMany({
       where: {
         role: { not: 'ADMIN' },
@@ -177,47 +191,45 @@ export class AttendanceSyncService {
         assignedShift: true,
         leaveRequests: {
           where: {
-            startDate: { lte: today.toDate() },
-            endDate: { gte: today.toDate() },
+            startDate: { lte: today },
+            endDate: { gte: today },
             status: 'APPROVED',
           },
         },
       },
     });
 
-    const holidays = await holidayService.getHolidays(
-      today.toDate(),
-      today.toDate(),
-    );
+    const holidays = await holidayService.getHolidays(today, today);
 
     for (const user of users) {
       const effectiveShift = await shiftManagementService.getEffectiveShift(
         user.id,
-        today.toDate(),
+        today,
       );
 
       if (!effectiveShift) continue;
 
-      const isWorkDay = effectiveShift.shift.workDays.includes(today.day());
+      const isWorkDay = effectiveShift.shift.workDays.includes(today.getDay());
       const isOnLeave = user.leaveRequests.length > 0;
-      const isHoliday = this.isHolidayForUser(user, holidays, today.toDate());
+      const isHoliday = this.isHolidayForUser(user, holidays, today);
 
       if (isWorkDay && !isOnLeave && !isHoliday) {
         const checkIn = await prisma.attendance.findFirst({
           where: {
             employeeId: user.employeeId,
-            date: today.toDate(),
+            date: today,
             checkInTime: { not: null },
           },
         });
 
         if (!checkIn) {
-          const shiftStartTime = moment(today).set({
-            hour: parseInt(effectiveShift.shift.startTime.split(':')[0]),
-            minute: parseInt(effectiveShift.shift.startTime.split(':')[1]),
-          });
+          const [hours, minutes] = effectiveShift.shift.startTime
+            .split(':')
+            .map(Number);
+          const shiftStartTime = setMinutes(setHours(today, hours), minutes);
+          const oneHourAfterShiftStart = addHours(shiftStartTime, 1);
 
-          if (moment().isAfter(shiftStartTime.add(1, 'hour'))) {
+          if (isAfter(new Date(), oneHourAfterShiftStart)) {
             await this.sendMissingCheckInNotification(
               user,
               effectiveShift.shift,
@@ -234,8 +246,7 @@ export class AttendanceSyncService {
     date: Date,
   ): boolean {
     if (user.assignedShift.shiftCode === 'SHIFT104') {
-      const shiftedDate = new Date(date);
-      shiftedDate.setDate(shiftedDate.getDate() + 1);
+      const shiftedDate = addDays(date, 1);
       return holidays.some(
         (holiday) => holiday.date.getTime() === shiftedDate.getTime(),
       );
