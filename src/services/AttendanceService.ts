@@ -521,7 +521,9 @@ export class AttendanceService {
       ? 'holiday'
       : isDayOff
         ? 'off'
-        : 'present';
+        : pair.checkIn && pair.checkOut
+          ? 'present'
+          : 'absent';
     if (!pair.checkOut) status = 'incomplete';
 
     return {
@@ -990,10 +992,20 @@ export class AttendanceService {
     const summary = processedAttendance.reduce(
       (acc, record) => {
         acc.totalWorkingDays++;
-        if (record.status === 'present') acc.totalPresent++;
-        if (record.status === 'absent') acc.totalAbsent++;
-        if (record.status === 'holiday') acc.totalHoliday++;
-        if (record.status === 'off') acc.totalDayOff++;
+        switch (record.status) {
+          case 'present':
+            acc.totalPresent++;
+            break;
+          case 'absent':
+            acc.totalAbsent++;
+            break;
+          case 'holiday':
+            acc.totalHoliday++;
+            break;
+          case 'off':
+            acc.totalDayOff++;
+            break;
+        }
         acc.totalOvertimeHours += record.overtimeHours || 0;
         acc.totalPotentialOvertimeHours += record.overtimeDuration || 0;
         acc.totalRegularHours += record.regularHours;
