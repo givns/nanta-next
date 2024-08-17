@@ -163,7 +163,9 @@ export class HolidayService {
         name: `Shift 104 - ${holiday.name}`,
       }));
     }
-
+    console.log(
+      `Retrieved ${holidays.length} holidays${shiftType === 'shift104' ? ' (adjusted for Shift 104)' : ''}`,
+    );
     return holidays;
   }
 

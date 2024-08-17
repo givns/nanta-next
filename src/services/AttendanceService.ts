@@ -796,7 +796,7 @@ export class AttendanceService {
     holidays: Holiday[],
     isShift104: boolean,
   ): boolean {
-    const checkDate = isShift104 ? subDays(date, 1) : date;
+    const checkDate = isShift104 ? addDays(date, 1) : date;
     return holidays.some((holiday) => isSameDay(holiday.date, checkDate));
   }
 
