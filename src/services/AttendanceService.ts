@@ -991,20 +991,14 @@ export class AttendanceService {
   ) {
     const summary = processedAttendance.reduce(
       (acc, record) => {
-        acc.totalWorkingDays++;
-        switch (record.status) {
-          case 'present':
-            acc.totalPresent++;
-            break;
-          case 'absent':
-            acc.totalAbsent++;
-            break;
-          case 'holiday':
-            acc.totalHoliday++;
-            break;
-          case 'off':
-            acc.totalDayOff++;
-            break;
+        if (record.status === 'present') {
+          acc.totalWorkingDays++;
+          acc.totalPresent++;
+        } else if (record.status === 'off') {
+          acc.totalDayOff++;
+        } else if (record.status === 'absent') {
+          acc.totalWorkingDays++;
+          acc.totalAbsent++;
         }
         acc.totalOvertimeHours += record.overtimeHours || 0;
         acc.totalPotentialOvertimeHours += record.overtimeDuration || 0;
@@ -1015,7 +1009,6 @@ export class AttendanceService {
         totalWorkingDays: 0,
         totalPresent: 0,
         totalAbsent: 0,
-        totalHoliday: 0,
         totalDayOff: 0,
         totalOvertimeHours: 0,
         totalPotentialOvertimeHours: 0,
