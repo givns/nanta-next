@@ -303,21 +303,38 @@ export default function AttendanceProcessingTest() {
                 <li>Total Present: {result.summary.totalPresent || 'N/A'}</li>
                 <li>Total Holiday: {result.summary.totalHoliday || 'N/A'}</li>
                 <li>Total Day Off: {result.summary.totalDayOff || 'N/A'}</li>
+                <li>Total Absent: {result.summary.totalAbsent || 'N/A'}</li>
                 <li>
                   Attendance Rate: {formatNumber(result.summary.attendanceRate)}
                   %
                 </li>
                 <li>
                   Total Approved Overtime:{' '}
-                  {formatNumber(result.summary.totalApprovedOvertime)} hours
+                  {formatNumber(result.summary.totalOvertimeHours)} hours
                 </li>
                 <li>
                   Total Potential Overtime:{' '}
-                  {formatNumber(result.summary.totalPotentialOvertime)} hours
+                  {formatNumber(result.summary.totalPotentialOvertimeHours)}{' '}
+                  hours
                 </li>
               </ul>
             </CardContent>
           </Card>
+
+          {result.absentDays && result.absentDays.length > 0 && (
+            <Card className="mt-4">
+              <CardHeader>
+                <h2 className="text-xl font-semibold">Absent Days</h2>
+              </CardHeader>
+              <CardContent>
+                <ul>
+                  {result.absentDays.map((date: string) => (
+                    <li key={date}>{formatDate(date)}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

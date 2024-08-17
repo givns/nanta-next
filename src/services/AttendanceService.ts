@@ -992,10 +992,10 @@ export class AttendanceService {
         acc.totalWorkingDays++;
         if (record.status === 'present') acc.totalPresent++;
         if (record.status === 'absent') acc.totalAbsent++;
-        if (record.status === 'off' && record.detailedStatus === 'leave')
-          acc.totalLeave++;
-        if (record.status === 'incomplete') acc.totalIncomplete++;
+        if (record.status === 'holiday') acc.totalHoliday++;
+        if (record.status === 'off') acc.totalDayOff++;
         acc.totalOvertimeHours += record.overtimeHours || 0;
+        acc.totalPotentialOvertimeHours += record.overtimeDuration || 0;
         acc.totalRegularHours += record.regularHours;
         return acc;
       },
@@ -1003,9 +1003,10 @@ export class AttendanceService {
         totalWorkingDays: 0,
         totalPresent: 0,
         totalAbsent: 0,
-        totalLeave: 0,
-        totalIncomplete: 0,
+        totalHoliday: 0,
+        totalDayOff: 0,
         totalOvertimeHours: 0,
+        totalPotentialOvertimeHours: 0,
         totalRegularHours: 0,
       },
     );
@@ -1022,6 +1023,12 @@ export class AttendanceService {
       totalDays,
       attendanceRate: Number(attendanceRate.toFixed(2)),
     };
+  }
+
+  public getAbsentDays(processedAttendance: ProcessedAttendance[]): string[] {
+    return processedAttendance
+      .filter((record) => record.status === 'absent')
+      .map((record) => format(record.date, 'yyyy-MM-dd'));
   }
 
   private generateDetailedStatus(
