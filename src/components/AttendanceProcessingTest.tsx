@@ -295,15 +295,15 @@ export default function AttendanceProcessingTest() {
             <CardContent>
               <ul>
                 <li>
-                  Total Days in Period: {result.summary.totalDays || 'N/A'}
+                  Total Working Days in Period:{' '}
+                  {result.summary.totalWorkingDays}
                 </li>
                 <li>
-                  Total Working Days: {result.summary.totalWorkingDays || 'N/A'}
+                  Days Present: {result.summary.totalPresent} /{' '}
+                  {result.summary.totalWorkingDays}
                 </li>
-                <li>Total Present: {result.summary.totalPresent || 'N/A'}</li>
-                <li>Total Holiday: {result.summary.totalHoliday || 'N/A'}</li>
-                <li>Total Day Off: {result.summary.totalDayOff || 'N/A'}</li>
-                <li>Total Absent: {result.summary.totalAbsent || 'N/A'}</li>
+                <li>Days Absent: {result.summary.totalAbsent}</li>
+                <li>Days Off: {result.summary.totalDayOff}</li>
                 <li>
                   Attendance Rate: {formatNumber(result.summary.attendanceRate)}
                   %

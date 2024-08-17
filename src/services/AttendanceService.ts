@@ -59,6 +59,7 @@ interface PairedAttendance {
 export class AttendanceService {
   private processingService: AttendanceProcessingService;
   private holidayService: HolidayService;
+  private shift: ShiftData;
 
   constructor(
     private externalDbService: ExternalDbService,
@@ -69,6 +70,18 @@ export class AttendanceService {
     this.processingService = new AttendanceProcessingService();
     logMessage('AttendanceService initialized');
     this.holidayService = holidayService;
+    this.shift = {
+      id: '',
+      name: '',
+      startTime: '',
+      endTime: '',
+      workDays: [],
+      timezone: '',
+      shiftCode: '',
+    };
+  }
+  public setShift(shift: ShiftData) {
+    this.shift = shift;
   }
 
   private parseDate(date: Date | string): Date {
@@ -989,6 +1002,20 @@ export class AttendanceService {
     startDate: Date,
     endDate: Date,
   ) {
+    return this.calculateSummaryWithShift(
+      processedAttendance,
+      startDate,
+      endDate,
+      this.shift,
+    );
+  }
+
+  public calculateSummaryWithShift(
+    processedAttendance: ProcessedAttendance[],
+    startDate: Date,
+    endDate: Date,
+    shift: ShiftData,
+  ) {
     const summary = processedAttendance.reduce(
       (acc, record) => {
         if (record.status === 'present') {
@@ -1016,18 +1043,38 @@ export class AttendanceService {
       },
     );
 
-    const totalDays =
-      Math.round(
-        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-      ) + 1;
+    const totalWorkingDays = this.calculateTotalWorkingDays(
+      startDate,
+      endDate,
+      shift,
+    );
+
     const attendanceRate =
       (summary.totalPresent / summary.totalWorkingDays) * 100;
 
     return {
       ...summary,
-      totalDays,
+      totalWorkingDays,
       attendanceRate: Number(attendanceRate.toFixed(2)),
     };
+  }
+
+  private calculateTotalWorkingDays(
+    startDate: Date,
+    endDate: Date,
+    shift: ShiftData,
+  ): number {
+    let totalWorkingDays = 0;
+    let currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+      if (shift.workDays.includes(currentDate.getDay())) {
+        totalWorkingDays++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return totalWorkingDays;
   }
 
   public getAbsentDays(processedAttendance: ProcessedAttendance[]): string[] {
