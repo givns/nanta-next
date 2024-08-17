@@ -17,6 +17,8 @@ import {
   setHours,
   setMinutes,
   addDays,
+  subDays,
+  isSameDay,
 } from 'date-fns';
 
 const prisma = new PrismaClient();
@@ -246,14 +248,10 @@ export class AttendanceSyncService {
     date: Date,
   ): boolean {
     if (user.assignedShift.shiftCode === 'SHIFT104') {
-      const shiftedDate = addDays(date, 1);
-      return holidays.some(
-        (holiday) => holiday.date.getTime() === shiftedDate.getTime(),
-      );
+      const shiftedDate = subDays(date, 1); // Change this from addDays to subDays
+      return holidays.some((holiday) => isSameDay(holiday.date, shiftedDate));
     }
-    return holidays.some(
-      (holiday) => holiday.date.getTime() === date.getTime(),
-    );
+    return holidays.some((holiday) => isSameDay(holiday.date, date));
   }
 
   private async sendMissingCheckInNotification(

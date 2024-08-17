@@ -1,6 +1,6 @@
 import { PrismaClient, Holiday } from '@prisma/client';
 import axios from 'axios';
-import { parseISO, format, isSameDay, subDays } from 'date-fns';
+import { isSameDay, subDays, addDays } from 'date-fns';
 
 const prisma = new PrismaClient();
 
@@ -44,6 +44,7 @@ const fallbackHolidays2024 = [
 export class HolidayService {
   private syncInProgress: { [key: number]: boolean } = {};
   private holidayCache: { [key: number]: Holiday[] } = {};
+  prisma: any;
 
   async syncHolidays(year: number): Promise<void> {
     if (this.syncInProgress[year]) {
@@ -167,18 +168,12 @@ export class HolidayService {
   }
 
   async isHoliday(date: Date, isShift104: boolean = false): Promise<boolean> {
-    const checkDate = isShift104 ? subDays(date, 1) : date;
-    const holiday = await prisma.holiday.findFirst({
+    const checkDate = isShift104 ? addDays(date, 1) : date;
+    const holiday = await this.prisma.holiday.findFirst({
       where: {
         date: checkDate,
       },
     });
-
-    if (!holiday) {
-      const year = date.getFullYear();
-      await this.syncHolidays(year);
-      return this.isHoliday(date, isShift104);
-    }
 
     return !!holiday;
   }
