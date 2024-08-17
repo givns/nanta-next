@@ -125,12 +125,20 @@ export async function processAttendance(job: Job): Promise<any> {
       )
       .filter((record): record is AttendanceRecord => record !== undefined);
 
+    // Fetch holidays only once for the entire period
+    const holidays = await holidayService.getHolidays(
+      parseISO(startDate),
+      parseISO(endDate),
+    );
+    logMessage(`Fetched ${holidays.length} holidays for the payroll period`);
+
     const { processedAttendance, summary } =
       await attendanceService.processAttendanceData(
         attendanceRecords,
         userData,
         parseISO(startDate),
         parseISO(endDate),
+        holidays,
       );
 
     logMessage(`Processed ${processedAttendance.length} attendance records`);

@@ -58,15 +58,17 @@ interface PairedAttendance {
 
 export class AttendanceService {
   private processingService: AttendanceProcessingService;
+  private holidayService: HolidayService;
 
   constructor(
     private externalDbService: ExternalDbService,
-    private holidayService: HolidayService,
+    holidayService: HolidayService,
     private shift104HolidayService: Shift104HolidayService,
     private leaveServiceServer: ILeaveServiceServer,
   ) {
     this.processingService = new AttendanceProcessingService();
     logMessage('AttendanceService initialized');
+    this.holidayService = holidayService;
   }
 
   private parseDate(date: Date | string): Date {
@@ -99,11 +101,15 @@ export class AttendanceService {
         internalAttendances,
         externalAttendanceData.records,
       );
+
+      const holidays = await this.holidayService.getHolidays(yesterday, now);
+
       const processedAttendances = await this.processAttendanceData(
         mergedAttendances,
         userData,
         yesterday,
         now,
+        holidays,
       );
       const shiftAdjustments = await this.getShiftAdjustments(
         employeeId,
@@ -117,7 +123,7 @@ export class AttendanceService {
         shiftAdjustments,
         shifts,
       );
-      const isDayOff = await this.isDayOff(employeeId, now, shift);
+      const isDayOff = await this.isDayOff(employeeId, now, shift, holidays); // Added 'holidays' as the fourth argument
       const latestAttendance = this.getLatestAttendance(
         processedAttendances,
         now,
@@ -183,11 +189,17 @@ export class AttendanceService {
       payrollStartDate,
       payrollEndDate,
     );
+    const holidays = await this.holidayService.getHolidays(
+      payrollStartDate,
+      payrollEndDate,
+    );
+
     const processedAttendance = await this.processAttendanceData(
       attendanceRecords,
       userData,
       payrollStartDate,
       payrollEndDate,
+      holidays,
     );
 
     const summary = this.calculateSummary(
@@ -302,11 +314,12 @@ export class AttendanceService {
     });
   }
 
-  public async processAttendanceData(
+  async processAttendanceData(
     records: AttendanceRecord[],
     userData: UserData,
     startDate: Date,
     endDate: Date,
+    holidays: Holiday[],
   ): Promise<{ processedAttendance: ProcessedAttendance[]; summary: any }> {
     logMessage(`Processing ${records.length} attendance records`);
     logMessage(`Start date: ${startDate}, End date: ${endDate}`);
@@ -339,7 +352,6 @@ export class AttendanceService {
       startDate,
       endDate,
     );
-    const holidays = await this.holidayService.getHolidays(startDate, endDate);
     const isShift104 = userData.assignedShift.shiftCode === 'SHIFT104';
 
     const processedAttendance: ProcessedAttendance[] = [];
@@ -357,11 +369,9 @@ export class AttendanceService {
           userData.employeeId,
           currentDate,
           effectiveShift,
+          holidays,
         );
-        const isHoliday = await this.holidayService.isHoliday(
-          currentDate,
-          isShift104,
-        );
+        const isHoliday = this.isHoliday(currentDate, holidays, isShift104);
 
         const isLeave = this.isOnLeave(currentDate, leaveRequests);
 
@@ -564,6 +574,7 @@ export class AttendanceService {
       userData.employeeId,
       attendanceTime,
       effectiveShift,
+      holidays,
     );
     const isHoliday = holidays.some((holiday) =>
       isSameDay(holiday.date, attendanceTime),
@@ -779,22 +790,31 @@ export class AttendanceService {
     };
   }
 
+  // Update other methods that use holidays
+  private isHoliday(
+    date: Date,
+    holidays: Holiday[],
+    isShift104: boolean,
+  ): boolean {
+    const checkDate = isShift104 ? subDays(date, 1) : date;
+    return holidays.some((holiday) => isSameDay(holiday.date, checkDate));
+  }
+
   private async isDayOff(
     employeeId: string,
     date: Date,
     shift: ShiftData,
+    holidays: Holiday[],
   ): Promise<boolean> {
     const dayOfWeek = date.getDay();
     if (!shift.workDays.includes(dayOfWeek)) return true;
 
-    const isHoliday = await this.holidayService.isHoliday(date);
+    const isHoliday = this.isHoliday(
+      date,
+      holidays,
+      shift.shiftCode === 'SHIFT104',
+    );
     if (isHoliday) return true;
-
-    if (shift.shiftCode === 'SHIFT104') {
-      const isShift104Holiday =
-        await this.shift104HolidayService.isShift104Holiday(date);
-      if (isShift104Holiday) return true;
-    }
 
     const weeklyWorkDayCount = await this.getWeeklyWorkDayCount(
       employeeId,
@@ -1093,12 +1113,15 @@ export class AttendanceService {
       start,
       end,
     );
+    const holidays = await this.holidayService.getHolidays(start, end);
     const processedAttendance = await this.processAttendanceData(
       attendanceRecords,
       userData,
       start,
       end,
+      holidays,
     );
+
     return processedAttendance.processedAttendance;
   }
 

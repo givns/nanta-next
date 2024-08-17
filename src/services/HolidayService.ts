@@ -43,6 +43,7 @@ const fallbackHolidays2024 = [
 
 export class HolidayService {
   private syncInProgress: { [key: number]: boolean } = {};
+  private holidayCache: { [key: number]: Holiday[] } = {};
 
   async syncHolidays(year: number): Promise<void> {
     if (this.syncInProgress[year]) {
@@ -53,6 +54,22 @@ export class HolidayService {
     this.syncInProgress[year] = true;
 
     try {
+      // Check if holidays already exist for this year
+      const existingHolidays = await prisma.holiday.findMany({
+        where: {
+          date: {
+            gte: new Date(`${year}-01-01`),
+            lte: new Date(`${year}-12-31`),
+          },
+        },
+      });
+
+      if (existingHolidays.length > 0) {
+        console.log(`Holidays already exist for year ${year}. Skipping sync.`);
+        this.holidayCache[year] = existingHolidays;
+        return;
+      }
+
       console.log(`Fetching holidays for year ${year}`);
       const response = await axios.get(
         `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`,
@@ -69,36 +86,27 @@ export class HolidayService {
 
       console.log(`Processing ${holidays.length} holidays`);
 
-      const existingHolidays = await prisma.holiday.findMany({
-        where: {
-          date: {
-            gte: new Date(`${year}-01-01`),
-            lte: new Date(`${year}-12-31`),
-          },
-        },
-      });
-
-      const holidaysToCreate = holidays.filter(
-        (apiHoliday) =>
-          !existingHolidays.some(
-            (dbHoliday) =>
-              dbHoliday.date.toISOString().split('T')[0] === apiHoliday.date &&
-              dbHoliday.name === apiHoliday.name,
-          ),
-      );
-
-      if (holidaysToCreate.length > 0) {
-        console.log(`Creating ${holidaysToCreate.length} new holidays`);
-        await prisma.holiday.createMany({
-          data: holidaysToCreate.map((holiday) => ({
+      if (holidays.length > 0) {
+        console.log(`Creating ${holidays.length} new holidays`);
+        const createdHolidays = await prisma.holiday.createMany({
+          data: holidays.map((holiday) => ({
             date: new Date(holiday.date),
             name: holiday.name,
             localName: holiday.localName,
             types: holiday.types || [],
           })),
         });
+        console.log(`Created ${createdHolidays.count} holidays`);
+        this.holidayCache[year] = await prisma.holiday.findMany({
+          where: {
+            date: {
+              gte: new Date(`${year}-01-01`),
+              lte: new Date(`${year}-12-31`),
+            },
+          },
+        });
       } else {
-        console.log('No new holidays to create');
+        console.log('No holidays to create');
       }
 
       console.log(`Synced holidays for year ${year}`);
@@ -113,14 +121,20 @@ export class HolidayService {
   }
 
   async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
-    const holidays = await prisma.holiday.findMany({
-      where: {
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-    });
+    const startYear = startDate.getFullYear();
+    const endYear = endDate.getFullYear();
+
+    for (let year = startYear; year <= endYear; year++) {
+      if (!this.holidayCache[year]) {
+        await this.syncHolidays(year);
+      }
+    }
+
+    const holidays = Object.values(this.holidayCache)
+      .flat()
+      .filter(
+        (holiday) => holiday.date >= startDate && holiday.date <= endDate,
+      );
 
     console.log(
       `Fetched ${holidays.length} holidays between ${startDate} and ${endDate}`,
@@ -132,24 +146,16 @@ export class HolidayService {
     year: number,
     shiftType: 'regular' | 'shift104',
   ): Promise<Holiday[]> {
-    console.log(`Getting holidays for year ${year}, shiftType: ${shiftType}`);
     const startDate = new Date(year, 0, 1);
     const endDate = new Date(year, 11, 31);
 
-    console.log(`Fetching holidays between ${startDate} and ${endDate}`);
-    let holidays = await this.getHolidays(startDate, endDate);
-
-    console.log(`Found ${holidays.length} holidays initially`);
-    if (holidays.length === 0) {
-      console.log(`No holidays found for year ${year}, syncing now`);
+    if (!this.holidayCache[year]) {
       await this.syncHolidays(year);
-      console.log(`Sync complete, fetching holidays again`);
-      holidays = await this.getHolidays(startDate, endDate);
-      console.log(`Found ${holidays.length} holidays after sync`);
     }
 
+    let holidays = this.holidayCache[year] || [];
+
     if (shiftType === 'shift104') {
-      console.log(`Adjusting holidays for Shift 104`);
       holidays = holidays.map((holiday) => ({
         ...holiday,
         date: subDays(holiday.date, 1),
@@ -157,7 +163,6 @@ export class HolidayService {
       }));
     }
 
-    console.log(`Returning ${holidays.length} holidays`);
     return holidays;
   }
 

@@ -9,6 +9,7 @@ import { Shift104HolidayService } from '../../services/Shift104HolidayService';
 import { UserData, AttendanceRecord } from '../../types/user';
 import moment from 'moment-timezone';
 import { leaveServiceServer } from '@/services/LeaveServiceServer';
+import { startOfDay, endOfDay, subMonths, format } from 'date-fns';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -81,23 +82,25 @@ export default async function handler(
       updatedAt: user.updatedAt,
     };
 
-    const today = moment().tz('Asia/Bangkok');
-    const startDate = moment(today).subtract(1, 'month').startOf('day');
-    const endDate = moment(today).endOf('day');
+    const today = new Date();
+
+    // Calculate the start and end dates
+    const startDate = startOfDay(subMonths(today, 1));
+    const endDate = endOfDay(today);
 
     // Fetch attendance data (you might need to implement this method in your ExternalDbService)
     const attendanceData =
       await externalDbService.getHistoricalAttendanceRecords(
         employeeId,
-        startDate.toDate(),
-        endDate.toDate(),
+        startDate,
+        endDate,
       );
 
     const { records, totalCount } =
       await externalDbService.getHistoricalAttendanceRecords(
         employeeId,
-        startDate.toDate(),
-        endDate.toDate(),
+        startDate,
+        endDate,
       );
 
     const attendanceRecords: AttendanceRecord[] = records
@@ -106,19 +109,21 @@ export default async function handler(
       )
       .filter((record): record is AttendanceRecord => record !== undefined);
 
+    const holidays = await holidayService.getHolidays(startDate, endDate);
+
     const processedAttendance = await attendanceService.processAttendanceData(
       attendanceRecords,
       userData,
-      startDate.toDate(),
-      endDate.toDate(),
+      startDate,
+      endDate,
+      holidays,
     );
-
     res.status(200).json({
       userData,
       processedAttendance,
       payrollPeriod: {
-        start: startDate.format('YYYY-MM-DD'),
-        end: endDate.format('YYYY-MM-DD'),
+        start: format(startDate, 'yyyy-MM-dd'),
+        end: format(endDate, 'yyyy-MM-dd'),
       },
       // Add other necessary data here
     });

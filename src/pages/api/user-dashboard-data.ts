@@ -13,7 +13,7 @@ import {
   ApprovedOvertime,
   AttendanceRecord,
 } from '../../types/user';
-import moment from 'moment-timezone';
+import { startOfDay, endOfDay, subMonths, format } from 'date-fns';
 import { leaveServiceServer } from '@/services/LeaveServiceServer';
 
 const prisma = new PrismaClient();
@@ -86,22 +86,18 @@ export default async function handler(
       updatedAt: user.updatedAt,
     };
 
-    const today = moment().tz('Asia/Bangkok');
-    const startDate =
-      moment(today).date() >= 26
-        ? moment(today).date(26).startOf('day')
-        : moment(today).subtract(1, 'month').date(26).startOf('day');
-    const endDate = moment(startDate)
-      .add(1, 'month')
-      .subtract(1, 'day')
-      .endOf('day');
+    const today = new Date();
+
+    // Calculate the start and end dates
+    const startDate = startOfDay(subMonths(today, 1));
+    const endDate = endOfDay(today);
 
     // Fetch external attendance data
     const externalAttendanceData =
       await externalDbService.getHistoricalAttendanceRecords(
         employeeId,
-        startDate.toDate(),
-        endDate.toDate(),
+        startDate,
+        endDate,
       );
 
     // Fetch internal attendance data
@@ -109,8 +105,8 @@ export default async function handler(
       where: {
         employeeId,
         date: {
-          gte: startDate.toDate(),
-          lte: endDate.toDate(),
+          gte: startDate,
+          lte: endDate,
         },
       },
     });
@@ -119,8 +115,8 @@ export default async function handler(
     const { records: externalAttendanceRecords, totalCount } =
       await externalDbService.getHistoricalAttendanceRecords(
         employeeId,
-        startDate.toDate(),
-        endDate.toDate(),
+        startDate,
+        endDate,
       );
 
     const mergedAttendanceData: AttendanceRecord[] = [
@@ -132,12 +128,15 @@ export default async function handler(
       ),
     ];
 
+    const holidays = await holidayService.getHolidays(startDate, endDate);
+
     const { processedAttendance, summary } =
       await attendanceService.processAttendanceData(
         mergedAttendanceData,
         userData,
-        startDate.toDate(),
-        endDate.toDate(),
+        startDate,
+        endDate,
+        holidays,
       );
 
     // Fetch time entries
@@ -145,8 +144,8 @@ export default async function handler(
       where: {
         employeeId,
         date: {
-          gte: startDate.toDate(),
-          lte: endDate.toDate(),
+          gte: startDate,
+          lte: endDate,
         },
       },
       orderBy: { date: 'asc' },
@@ -157,8 +156,8 @@ export default async function handler(
       where: {
         employeeId,
         date: {
-          gte: startDate.toDate(),
-          lte: endDate.toDate(),
+          gte: startDate,
+          lte: endDate,
         },
         status: 'approved',
       },
@@ -170,8 +169,8 @@ export default async function handler(
       where: {
         employeeId,
         date: {
-          gte: startDate.toDate(),
-          lte: endDate.toDate(),
+          gte: startDate,
+          lte: endDate,
         },
       },
     });
@@ -194,8 +193,8 @@ export default async function handler(
     const responseData = {
       user: userData,
       payrollPeriod: {
-        start: startDate.format('YYYY-MM-DD'),
-        end: endDate.format('YYYY-MM-DD'),
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
       },
       processedAttendance,
       timeEntries,
