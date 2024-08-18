@@ -295,7 +295,6 @@ export class AttendanceService {
     );
     logMessage(`Date range: ${startDate} to ${endDate}`);
 
-    
     const [internalRecords, externalRecords] = await Promise.all([
       this.getInternalAttendances(employeeId, startDate, endDate),
       this.externalDbService.getHistoricalAttendanceRecords(
