@@ -21,7 +21,6 @@ interface PayrollPeriod {
 interface PayrollPeriods {
   current: PayrollPeriod;
   previous: PayrollPeriod;
-  next: PayrollPeriod;
 }
 
 export default function AttendanceProcessingTest() {
@@ -38,7 +37,6 @@ export default function AttendanceProcessingTest() {
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriods>({
     current: { start: '', end: '' },
     previous: { start: '', end: '' },
-    next: { start: '', end: '' },
   });
 
   useEffect(() => {
@@ -60,12 +58,6 @@ export default function AttendanceProcessingTest() {
       const previousEnd = new Date(currentStart);
       previousEnd.setDate(previousEnd.getDate() - 1);
 
-      const nextStart = new Date(currentEnd);
-      nextStart.setDate(nextStart.getDate() + 1);
-      const nextEnd = new Date(nextStart);
-      nextEnd.setMonth(nextEnd.getMonth() + 1);
-      nextEnd.setDate(25);
-
       setPayrollPeriods({
         current: {
           start: currentStart.toISOString().split('T')[0],
@@ -74,10 +66,6 @@ export default function AttendanceProcessingTest() {
         previous: {
           start: previousStart.toISOString().split('T')[0],
           end: previousEnd.toISOString().split('T')[0],
-        },
-        next: {
-          start: nextStart.toISOString().split('T')[0],
-          end: nextEnd.toISOString().split('T')[0],
         },
       });
     };
@@ -201,10 +189,6 @@ export default function AttendanceProcessingTest() {
             <SelectItem value="previous">
               Previous Period ({payrollPeriods.previous.start} to{' '}
               {payrollPeriods.previous.end})
-            </SelectItem>
-            <SelectItem value="next">
-              Next Period ({payrollPeriods.next.start} to{' '}
-              {payrollPeriods.next.end})
             </SelectItem>
           </SelectContent>
         </Select>
