@@ -1,48 +1,66 @@
-// pages/api/test-payroll-processing.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getAttendanceProcessingQueue } from '../../lib/queue';
-import { logMessage } from '../../utils/inMemoryLogger';
+import { AttendanceService } from '../../services/AttendanceService';
+import { ExternalDbService } from '../../services/ExternalDbService';
+import { HolidayService } from '../../services/HolidayService';
+import { Shift104HolidayService } from '../../services/Shift104HolidayService';
+import { leaveServiceServer } from '../../services/LeaveServiceServer';
+
+const externalDbService = new ExternalDbService();
+const holidayService = new HolidayService();
+const shift104HolidayService = new Shift104HolidayService();
+
+const attendanceService = new AttendanceService(
+  externalDbService,
+  holidayService,
+  shift104HolidayService,
+  leaveServiceServer,
+);
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
-  console.log('Received request body:', req.body);
+  const { employeeId, payrollPeriod, periodDates } = req.body;
 
-  const { employeeId, payrollPeriod } = req.body;
-
-  if (!employeeId || !payrollPeriod) {
-    console.log('Missing required fields:', { employeeId, payrollPeriod });
-    return res
-      .status(400)
-      .json({ error: 'Employee ID and payroll period are required' });
+  if (!employeeId || !payrollPeriod || !periodDates) {
+    return res.status(400).json({ message: 'Missing required parameters' });
   }
+
+  console.log('Received payroll processing request:', {
+    employeeId,
+    payrollPeriod,
+    periodDates,
+  });
 
   try {
-    const queue = getAttendanceProcessingQueue();
-    if (!queue) {
-      throw new Error('Failed to initialize attendance processing queue');
-    }
+    const startDate = new Date(periodDates.start);
+    const endDate = new Date(periodDates.end);
 
-    const job = await queue.add('process-payroll', {
+    // Adjust endDate to include the full last day
+    endDate.setHours(23, 59, 59, 999);
+
+    console.log(
+      `Processing payroll for employee ${employeeId} from ${startDate.toISOString()} to ${endDate.toISOString()}`,
+    );
+
+    const result = await attendanceService.processPayroll(
       employeeId,
-      payrollPeriod,
-    });
-    logMessage(`Job added to queue with ID: ${job.id}`);
+      startDate,
+      endDate,
+    );
 
-    res.status(202).json({
-      message: 'Payroll processing job initiated',
-      jobId: job.id,
-    });
-  } catch (error: any) {
-    console.error('Error initiating payroll processing:', error);
+    console.log('Payroll processing completed successfully');
+    res
+      .status(200)
+      .json({ success: true, jobId: Date.now().toString(), data: result });
+  } catch (error) {
+    console.error('Error processing payroll:', error);
     res
       .status(500)
-      .json({ error: 'Internal server error', message: error.message });
+      .json({ success: false, message: 'Error processing payroll' });
   }
 }

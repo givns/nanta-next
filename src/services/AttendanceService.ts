@@ -190,42 +190,44 @@ export class AttendanceService {
     );
   }
 
-  async processPayroll(employeeId: string) {
+  async processPayroll(employeeId: string, startDate: Date, endDate: Date) {
+    console.log(
+      `Processing payroll for employee ${employeeId} from ${startDate.toISOString()} to ${endDate.toISOString()}`,
+    );
+
     const user = await this.getUser(employeeId);
     const userData = this.convertToUserData(user);
 
-    const { startDate: payrollStartDate, endDate: payrollEndDate } =
-      this.calculatePayrollPeriod();
+    const extendedEndDate = addDays(endDate, 1);
+    extendedEndDate.setHours(0, 0, 0, 0);
 
     const attendanceRecords = await this.getAttendanceRecords(
       employeeId,
-      payrollStartDate,
-      payrollEndDate,
+      startDate,
+      extendedEndDate,
     );
-    const holidays = await this.holidayService.getHolidays(
-      payrollStartDate,
-      payrollEndDate,
-    );
+
+    const holidays = await this.holidayService.getHolidays(startDate, endDate);
 
     const processedAttendance = await this.processAttendanceData(
       attendanceRecords,
       userData,
-      payrollStartDate,
-      payrollEndDate,
+      startDate,
+      endDate,
       holidays,
     );
 
     const summary = this.calculateSummary(
-      processedAttendance.processedAttendance, // Fix: Pass the processedAttendance array from the processedAttendance object
-      payrollStartDate,
-      payrollEndDate,
+      processedAttendance.processedAttendance,
+      startDate,
+      endDate,
     );
 
     return {
       userData,
-      processedAttendance,
+      processedAttendance: processedAttendance.processedAttendance,
       summary,
-      payrollPeriod: { start: payrollStartDate, end: payrollEndDate },
+      payrollPeriod: { start: startDate, end: endDate },
     };
   }
 
@@ -294,12 +296,19 @@ export class AttendanceService {
       `Fetching historical attendance records for employeeId: ${employeeId}`,
     );
     logMessage(`Date range: ${startDate} to ${endDate}`);
+
+    // Adjust the date range to include the full days
+    const queryStartDate = new Date(startDate);
+    queryStartDate.setHours(0, 0, 0, 0);
+    const queryEndDate = new Date(endDate);
+    queryEndDate.setHours(23, 59, 59, 999);
+
     const [internalRecords, externalRecords] = await Promise.all([
-      this.getInternalAttendances(employeeId, startDate, endDate),
+      this.getInternalAttendances(employeeId, queryStartDate, queryEndDate),
       this.externalDbService.getHistoricalAttendanceRecords(
         employeeId,
-        startDate,
-        endDate,
+        queryStartDate,
+        queryEndDate,
       ),
     ]);
 

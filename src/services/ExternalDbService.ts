@@ -125,17 +125,17 @@ export class ExternalDbService {
         console.log(`Page: ${page}, PageSize: ${pageSize}`);
 
         const attendanceQuery = `
-    SELECT kj.sj, kj.bh, kj.dev_serial, kj.date, kj.time,
-           du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
-    FROM kt_jl kj
-    JOIN dt_user du ON kj.user_serial = du.user_serial
-    LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
-    WHERE du.user_no = ? 
-    AND kj.date >= ?
-    AND kj.date <= ?
-    ORDER BY kj.sj ASC
-    LIMIT ? OFFSET ?
-  `;
+          SELECT kj.sj, kj.bh, kj.dev_serial, kj.date, kj.time,
+                 du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
+          FROM kt_jl kj
+          JOIN dt_user du ON kj.user_serial = du.user_serial
+          LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial
+          WHERE du.user_no = ? 
+          AND kj.date >= ?
+          AND kj.date < ?
+          ORDER BY kj.sj ASC
+          LIMIT ? OFFSET ?
+        `;
 
         const countQuery = `
           SELECT COUNT(*) as total
@@ -143,7 +143,7 @@ export class ExternalDbService {
           JOIN dt_user du ON kj.user_serial = du.user_serial
           WHERE du.user_no = ? 
           AND kj.date >= ?
-          AND kj.date <= ?
+          AND kj.date < ?
         `;
 
         console.log('Executing attendance query:', attendanceQuery);
@@ -177,8 +177,8 @@ export class ExternalDbService {
 
         const processedRecords = records.map((record) => ({
           ...record,
-          sj: moment(record.sj, 'YYYY-MM-DD HH:mm:ss').format(),
-          date: moment(record.date, 'YYYY-MM-DD').format('YYYY-MM-DD'),
+          sj: moment(record.sj).format(),
+          date: moment(record.date).format('YYYY-MM-DD'),
         }));
 
         console.log(
