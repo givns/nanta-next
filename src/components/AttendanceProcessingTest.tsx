@@ -23,7 +23,7 @@ export default function AttendanceProcessingTest() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('Current');
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('current');
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([]);
 
   useEffect(() => {
@@ -35,12 +35,13 @@ export default function AttendanceProcessingTest() {
     try {
       setStatus('processing');
       setLogs([]);
-      const period = payrollPeriods.find((p) => p.label === selectedPeriod);
+      const period = payrollPeriods.find((p) => p.value === selectedPeriod);
       if (!period) {
         throw new Error('Invalid period selected');
       }
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
+        payrollPeriod: selectedPeriod,
         periodDates: {
           start: period.start,
           end: period.end,
@@ -147,7 +148,7 @@ export default function AttendanceProcessingTest() {
           </SelectTrigger>
           <SelectContent>
             {payrollPeriods.map((period) => (
-              <SelectItem key={period.label} value={period.label}>
+              <SelectItem key={period.value} value={period.value}>
                 {period.label} ({period.start} to {period.end})
               </SelectItem>
             ))}

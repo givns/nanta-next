@@ -1,7 +1,14 @@
-import { addMonths, format, startOfYear, endOfMonth } from 'date-fns';
+import {
+  addMonths,
+  format,
+  startOfYear,
+  endOfMonth,
+  subMonths,
+} from 'date-fns';
 
 export interface PayrollPeriod {
   label: string;
+  value: string;
   start: string;
   end: string;
 }
@@ -13,15 +20,17 @@ export function generatePayrollPeriods(
   const periods: PayrollPeriod[] = [];
 
   let startDate = startOfYear(currentDate);
-  startDate.setMonth(startDate.getMonth() - 1); // Start from December of previous year
+  startDate = subMonths(startDate, 1); // Start from December of previous year
   startDate.setDate(26);
 
   while (startDate <= currentDate) {
     const endDate = endOfMonth(addMonths(startDate, 1));
     endDate.setDate(25);
 
+    const periodLabel = format(addMonths(startDate, 1), 'MMMM yyyy');
     const period: PayrollPeriod = {
-      label: format(startDate, 'MMMM yyyy'),
+      label: periodLabel,
+      value: periodLabel.toLowerCase().replace(' ', '-'),
       start: formatDate(startDate),
       end: formatDate(endDate),
     };
@@ -35,6 +44,7 @@ export function generatePayrollPeriods(
   const currentPeriod = periods[periods.length - 1];
   periods.push({
     label: 'Current',
+    value: 'current',
     start: currentPeriod.start,
     end: currentPeriod.end,
   });
@@ -68,6 +78,7 @@ export function getCurrentPayrollPeriod(
 
   return {
     label: 'Current',
+    value: 'current', // Add the missing 'value' property
     start: formatDate(startDate),
     end: formatDate(endDate),
   };

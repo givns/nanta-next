@@ -7,14 +7,7 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, AttendanceRecord } from '../types/user';
-import {
-  format,
-  parseISO,
-  subDays,
-  subMonths,
-  addMonths,
-  endOfMonth,
-} from 'date-fns';
+import { parseISO } from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
 
@@ -31,11 +24,11 @@ const attendanceService = new AttendanceService(
 );
 
 export async function processAttendance(job: Job): Promise<any> {
-  const { employeeId, periodDates } = job.data;
+  const { employeeId, payrollPeriod, periodDates } = job.data;
   const { start: startDate, end: endDate } = periodDates;
 
   logMessage(
-    `Starting attendance processing for employee: ${employeeId} from ${startDate} to ${endDate}`,
+    `Starting attendance processing for employee: ${employeeId} for period: ${payrollPeriod} (${startDate} to ${endDate})`,
   );
 
   try {
@@ -133,7 +126,7 @@ export async function processAttendance(job: Job): Promise<any> {
       summary,
       userData,
       processedAttendance,
-      payrollPeriod: { start: startDate, end: endDate },
+      payrollPeriod: { period: payrollPeriod, start: startDate, end: endDate },
     };
 
     // Store the result in the database
