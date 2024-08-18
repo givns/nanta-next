@@ -12,17 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { addMonths, subMonths, endOfMonth, format } from 'date-fns';
-
-interface PayrollPeriod {
-  start: string;
-  end: string;
-}
-
-interface PayrollPeriods {
-  current: PayrollPeriod;
-  previous: PayrollPeriod;
-}
+import { generatePayrollPeriods, PayrollPeriod } from '../utils/payrollUtils';
 
 export default function AttendanceProcessingTest() {
   const [employeeId, setEmployeeId] = useState<string>('');
@@ -33,15 +23,11 @@ export default function AttendanceProcessingTest() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const [payrollPeriod, setPayrollPeriod] =
-    useState<keyof PayrollPeriods>('current');
-  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriods>({
-    current: { start: '', end: '' },
-    previous: { start: '', end: '' },
-  });
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('Current');
+  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([]);
 
   useEffect(() => {
-    const periods = calculatePayrollPeriods();
+    const periods = generatePayrollPeriods();
     setPayrollPeriods(periods);
   }, []);
 
@@ -49,10 +35,16 @@ export default function AttendanceProcessingTest() {
     try {
       setStatus('processing');
       setLogs([]);
+      const period = payrollPeriods.find((p) => p.label === selectedPeriod);
+      if (!period) {
+        throw new Error('Invalid period selected');
+      }
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
-        payrollPeriod,
-        periodDates: payrollPeriods[payrollPeriod],
+        periodDates: {
+          start: period.start,
+          end: period.end,
+        },
       });
       setJobId(response.data.jobId);
     } catch (err) {
@@ -90,48 +82,6 @@ export default function AttendanceProcessingTest() {
 
     checkStatus();
   }, [jobId, status, employeeId]);
-
-  function calculatePayrollPeriods(currentDate = new Date()): {
-    current: { start: string; end: string };
-    previous: { start: string; end: string };
-  } {
-    const formatDate = (date: Date) => format(date, 'yyyy-MM-dd');
-
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const day = currentDate.getDate();
-
-    let currentStart: Date;
-    let currentEnd: Date;
-
-    if (day < 26) {
-      // Current period started last month
-      currentStart = new Date(year, month - 1, 26);
-      currentEnd = new Date(year, month, 25);
-    } else {
-      // Current period starts this month
-      currentStart = new Date(year, month, 26);
-      currentEnd = new Date(year, month + 1, 25);
-    }
-
-    // Ensure end date is valid (handle cases where next month has fewer days)
-    currentEnd =
-      endOfMonth(currentEnd) < currentEnd ? endOfMonth(currentEnd) : currentEnd;
-
-    const previousStart = subMonths(currentStart, 1);
-    const previousEnd = subMonths(currentEnd, 1);
-
-    return {
-      current: {
-        start: formatDate(currentStart),
-        end: formatDate(currentEnd),
-      },
-      previous: {
-        start: formatDate(previousStart),
-        end: formatDate(previousEnd),
-      },
-    };
-  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -191,32 +141,16 @@ export default function AttendanceProcessingTest() {
           placeholder="Enter Employee ID"
           className="max-w-xs"
         />
-        <Select
-          value={payrollPeriod}
-          onValueChange={(value: keyof PayrollPeriods) =>
-            setPayrollPeriod(value)
-          }
-        >
+        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
           <SelectTrigger className="max-w-xs">
             <SelectValue placeholder="Select payroll period" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="current">
-              Current Period (
-              {displayDateRange(
-                payrollPeriods.current.start,
-                payrollPeriods.current.end,
-              )}
-              )
-            </SelectItem>
-            <SelectItem value="previous">
-              Previous Period (
-              {displayDateRange(
-                payrollPeriods.previous.start,
-                payrollPeriods.previous.end,
-              )}
-              )
-            </SelectItem>
+            {payrollPeriods.map((period) => (
+              <SelectItem key={period.label} value={period.label}>
+                {period.label} ({period.start} to {period.end})
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button

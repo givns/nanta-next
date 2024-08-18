@@ -30,60 +30,9 @@ const attendanceService = new AttendanceService(
   leaveServiceServer,
 );
 
-function calculatePayrollPeriods(currentDate = new Date()): {
-  current: { start: string; end: string };
-  previous: { start: string; end: string };
-} {
-  const formatDate = (date: Date) => format(date, 'yyyy-MM-dd');
-
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const day = currentDate.getDate();
-
-  let currentStart: Date;
-  let currentEnd: Date;
-
-  if (day < 26) {
-    // Current period started last month
-    currentStart = new Date(year, month - 1, 26);
-    currentEnd = new Date(year, month, 25);
-  } else {
-    // Current period starts this month
-    currentStart = new Date(year, month, 26);
-    currentEnd = new Date(year, month + 1, 25);
-  }
-
-  // Ensure end date is valid (handle cases where next month has fewer days)
-  currentEnd =
-    endOfMonth(currentEnd) < currentEnd ? endOfMonth(currentEnd) : currentEnd;
-
-  const previousStart = subMonths(currentStart, 1);
-  const previousEnd = subMonths(currentEnd, 1);
-
-  return {
-    current: {
-      start: formatDate(currentStart),
-      end: formatDate(currentEnd),
-    },
-    previous: {
-      start: formatDate(previousStart),
-      end: formatDate(previousEnd),
-    },
-  };
-}
-
 export async function processAttendance(job: Job): Promise<any> {
-  const { employeeId, payrollPeriod } = job.data;
-
-  // Calculate payroll periods
-  const periods = calculatePayrollPeriods();
-
-  // Determine the correct date range based on payrollPeriod
-  const { start: startDate, end: endDate } =
-    payrollPeriod === 'current' ? periods.current : periods.previous;
-
-  // Adjust endDate to include the full last day
-  const adjustedEndDate = subDays(parseISO(endDate), 1);
+  const { employeeId, periodDates } = job.data;
+  const { start: startDate, end: endDate } = periodDates;
 
   logMessage(
     `Starting attendance processing for employee: ${employeeId} from ${startDate} to ${endDate}`,
