@@ -39,8 +39,6 @@ export default async function handler(
   try {
     const startDate = new Date(periodDates.start);
     const endDate = new Date(periodDates.end);
-
-    // Adjust endDate to include the full last day
     endDate.setHours(23, 59, 59, 999);
 
     console.log(
@@ -59,8 +57,10 @@ export default async function handler(
       .json({ success: true, jobId: Date.now().toString(), data: result });
   } catch (error) {
     console.error('Error processing payroll:', error);
-    res
-      .status(500)
-      .json({ success: false, message: 'Error processing payroll' });
+    res.status(500).json({
+      success: false,
+      message: 'Error processing payroll',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 }

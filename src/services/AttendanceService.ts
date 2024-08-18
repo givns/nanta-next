@@ -1247,6 +1247,16 @@ export class AttendanceService {
   }
 
   private convertPotentialOvertime(po: any): PotentialOvertime {
+    let periods = po.periods;
+    if (typeof periods === 'string') {
+      try {
+        periods = JSON.parse(periods);
+      } catch (error) {
+        console.error('Error parsing periods:', error);
+        periods = [];
+      }
+    }
+
     return {
       id: po.id,
       employeeId: po.employeeId,
@@ -1254,7 +1264,7 @@ export class AttendanceService {
       hours: po.hours,
       type: po.type as 'early-check-in' | 'late-check-out' | 'day-off',
       status: po.status as 'pending' | 'approved' | 'rejected',
-      periods: po.periods ? JSON.parse(po.periods) : undefined,
+      periods: Array.isArray(periods) ? periods : [],
       reviewedBy: po.reviewedBy ?? undefined,
       reviewedAt: po.reviewedAt ?? undefined,
       createdAt: po.createdAt,
@@ -1812,9 +1822,9 @@ export class AttendanceService {
       shiftId: user.shiftId,
       assignedShift: user.assignedShift,
       overtimeHours: user.overtimeHours,
-      potentialOvertimes: user.potentialOvertimes.map(
-        this.convertPotentialOvertime,
-      ),
+      potentialOvertimes: Array.isArray(user.potentialOvertimes)
+        ? user.potentialOvertimes.map(this.convertPotentialOvertime)
+        : [],
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
