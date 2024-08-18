@@ -7,7 +7,14 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, AttendanceRecord } from '../types/user';
-import { format, parseISO, subDays, subMonths, addMonths } from 'date-fns';
+import {
+  format,
+  parseISO,
+  subDays,
+  subMonths,
+  addMonths,
+  endOfMonth,
+} from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
 
@@ -27,6 +34,8 @@ function calculatePayrollPeriods(currentDate = new Date()): {
   current: { start: string; end: string };
   previous: { start: string; end: string };
 } {
+  const formatDate = (date: Date) => format(date, 'yyyy-MM-dd');
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const day = currentDate.getDate();
@@ -44,19 +53,21 @@ function calculatePayrollPeriods(currentDate = new Date()): {
     currentEnd = new Date(year, month + 1, 25);
   }
 
-  const previousStart = new Date(currentStart);
-  previousStart.setMonth(previousStart.getMonth() - 1);
-  const previousEnd = new Date(currentStart);
-  previousEnd.setDate(previousEnd.getDate() - 1);
+  // Ensure end date is valid (handle cases where next month has fewer days)
+  currentEnd =
+    endOfMonth(currentEnd) < currentEnd ? endOfMonth(currentEnd) : currentEnd;
+
+  const previousStart = subMonths(currentStart, 1);
+  const previousEnd = subMonths(currentEnd, 1);
 
   return {
     current: {
-      start: currentStart.toISOString().split('T')[0],
-      end: currentEnd.toISOString().split('T')[0],
+      start: formatDate(currentStart),
+      end: formatDate(currentEnd),
     },
     previous: {
-      start: previousStart.toISOString().split('T')[0],
-      end: previousEnd.toISOString().split('T')[0],
+      start: formatDate(previousStart),
+      end: formatDate(previousEnd),
     },
   };
 }
@@ -162,7 +173,7 @@ export async function processAttendance(job: Job): Promise<any> {
         attendanceRecords,
         userData,
         parseISO(startDate),
-        adjustedEndDate,
+        parseISO(endDate),
         holidays,
       );
 

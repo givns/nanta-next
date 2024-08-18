@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { addMonths, subMonths, endOfMonth, format } from 'date-fns';
 
 interface PayrollPeriod {
   start: string;
@@ -94,6 +95,8 @@ export default function AttendanceProcessingTest() {
     current: { start: string; end: string };
     previous: { start: string; end: string };
   } {
+    const formatDate = (date: Date) => format(date, 'yyyy-MM-dd');
+
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const day = currentDate.getDate();
@@ -111,19 +114,21 @@ export default function AttendanceProcessingTest() {
       currentEnd = new Date(year, month + 1, 25);
     }
 
-    const previousStart = new Date(currentStart);
-    previousStart.setMonth(previousStart.getMonth() - 1);
-    const previousEnd = new Date(currentStart);
-    previousEnd.setDate(previousEnd.getDate() - 1);
+    // Ensure end date is valid (handle cases where next month has fewer days)
+    currentEnd =
+      endOfMonth(currentEnd) < currentEnd ? endOfMonth(currentEnd) : currentEnd;
+
+    const previousStart = subMonths(currentStart, 1);
+    const previousEnd = subMonths(currentEnd, 1);
 
     return {
       current: {
-        start: currentStart.toISOString().split('T')[0],
-        end: currentEnd.toISOString().split('T')[0],
+        start: formatDate(currentStart),
+        end: formatDate(currentEnd),
       },
       previous: {
-        start: previousStart.toISOString().split('T')[0],
-        end: previousEnd.toISOString().split('T')[0],
+        start: formatDate(previousStart),
+        end: formatDate(previousEnd),
       },
     };
   }
@@ -170,11 +175,9 @@ export default function AttendanceProcessingTest() {
       .join(', ');
   };
 
-  // Function to display date range (adjust the end date for display)
+  // Function to display date range
   const displayDateRange = (start: string, end: string) => {
-    const endDate = new Date(end);
-    endDate.setDate(endDate.getDate() - 1);
-    return `${start} to ${endDate.toISOString().split('T')[0]}`;
+    return `${start} to ${end}`;
   };
 
   return (
