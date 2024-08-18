@@ -190,44 +190,42 @@ export class AttendanceService {
     );
   }
 
-  async processPayroll(employeeId: string, startDate: Date, endDate: Date) {
-    console.log(
-      `Processing payroll for employee ${employeeId} from ${startDate.toISOString()} to ${endDate.toISOString()}`,
-    );
-
+  async processPayroll(employeeId: string) {
     const user = await this.getUser(employeeId);
     const userData = this.convertToUserData(user);
 
-    const extendedEndDate = addDays(endDate, 1);
-    extendedEndDate.setHours(0, 0, 0, 0);
+    const { startDate: payrollStartDate, endDate: payrollEndDate } =
+      this.calculatePayrollPeriod();
 
     const attendanceRecords = await this.getAttendanceRecords(
       employeeId,
-      startDate,
-      extendedEndDate,
+      payrollStartDate,
+      payrollEndDate,
     );
-
-    const holidays = await this.holidayService.getHolidays(startDate, endDate);
+    const holidays = await this.holidayService.getHolidays(
+      payrollStartDate,
+      payrollEndDate,
+    );
 
     const processedAttendance = await this.processAttendanceData(
       attendanceRecords,
       userData,
-      startDate,
-      endDate,
+      payrollStartDate,
+      payrollEndDate,
       holidays,
     );
 
     const summary = this.calculateSummary(
-      processedAttendance.processedAttendance,
-      startDate,
-      endDate,
+      processedAttendance.processedAttendance, // Fix: Pass the processedAttendance array from the processedAttendance object
+      payrollStartDate,
+      payrollEndDate,
     );
 
     return {
       userData,
-      processedAttendance: processedAttendance.processedAttendance,
+      processedAttendance,
       summary,
-      payrollPeriod: { start: startDate, end: endDate },
+      payrollPeriod: { start: payrollStartDate, end: payrollEndDate },
     };
   }
 
@@ -297,18 +295,13 @@ export class AttendanceService {
     );
     logMessage(`Date range: ${startDate} to ${endDate}`);
 
-    // Adjust the date range to include the full days
-    const queryStartDate = new Date(startDate);
-    queryStartDate.setHours(0, 0, 0, 0);
-    const queryEndDate = new Date(endDate);
-    queryEndDate.setHours(23, 59, 59, 999);
-
+    
     const [internalRecords, externalRecords] = await Promise.all([
-      this.getInternalAttendances(employeeId, queryStartDate, queryEndDate),
+      this.getInternalAttendances(employeeId, startDate, endDate),
       this.externalDbService.getHistoricalAttendanceRecords(
         employeeId,
-        queryStartDate,
-        queryEndDate,
+        startDate,
+        endDate,
       ),
     ]);
 
@@ -1247,16 +1240,6 @@ export class AttendanceService {
   }
 
   private convertPotentialOvertime(po: any): PotentialOvertime {
-    let periods = po.periods;
-    if (typeof periods === 'string') {
-      try {
-        periods = JSON.parse(periods);
-      } catch (error) {
-        console.error('Error parsing periods:', error);
-        periods = [];
-      }
-    }
-
     return {
       id: po.id,
       employeeId: po.employeeId,
@@ -1264,7 +1247,7 @@ export class AttendanceService {
       hours: po.hours,
       type: po.type as 'early-check-in' | 'late-check-out' | 'day-off',
       status: po.status as 'pending' | 'approved' | 'rejected',
-      periods: Array.isArray(periods) ? periods : [],
+      periods: po.periods ? JSON.parse(po.periods) : undefined,
       reviewedBy: po.reviewedBy ?? undefined,
       reviewedAt: po.reviewedAt ?? undefined,
       createdAt: po.createdAt,
@@ -1822,9 +1805,9 @@ export class AttendanceService {
       shiftId: user.shiftId,
       assignedShift: user.assignedShift,
       overtimeHours: user.overtimeHours,
-      potentialOvertimes: Array.isArray(user.potentialOvertimes)
-        ? user.potentialOvertimes.map(this.convertPotentialOvertime)
-        : [],
+      potentialOvertimes: user.potentialOvertimes.map(
+        this.convertPotentialOvertime,
+      ),
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
