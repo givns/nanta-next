@@ -40,37 +40,8 @@ export default function AttendanceProcessingTest() {
   });
 
   useEffect(() => {
-    const calculatePayrollPeriods = () => {
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth();
-
-      const currentStart = new Date(currentYear, currentMonth, 26);
-      if (now.getDate() < 26) {
-        currentStart.setMonth(currentStart.getMonth() - 1);
-      }
-      const currentEnd = new Date(currentStart);
-      currentEnd.setMonth(currentEnd.getMonth() + 1);
-      currentEnd.setDate(25);
-
-      const previousStart = new Date(currentStart);
-      previousStart.setMonth(previousStart.getMonth() - 1);
-      const previousEnd = new Date(currentStart);
-      previousEnd.setDate(previousEnd.getDate() - 1);
-
-      setPayrollPeriods({
-        current: {
-          start: currentStart.toISOString().split('T')[0],
-          end: currentEnd.toISOString().split('T')[0],
-        },
-        previous: {
-          start: previousStart.toISOString().split('T')[0],
-          end: previousEnd.toISOString().split('T')[0],
-        },
-      });
-    };
-
-    calculatePayrollPeriods();
+    const periods = calculatePayrollPeriods();
+    setPayrollPeriods(periods);
   }, []);
 
   const initiateProcessing = async () => {
@@ -118,6 +89,44 @@ export default function AttendanceProcessingTest() {
 
     checkStatus();
   }, [jobId, status, employeeId]);
+
+  function calculatePayrollPeriods(currentDate = new Date()): {
+    current: { start: string; end: string };
+    previous: { start: string; end: string };
+  } {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const day = currentDate.getDate();
+
+    let currentStart: Date;
+    let currentEnd: Date;
+
+    if (day < 26) {
+      // Current period started last month
+      currentStart = new Date(year, month - 1, 26);
+      currentEnd = new Date(year, month, 25);
+    } else {
+      // Current period starts this month
+      currentStart = new Date(year, month, 26);
+      currentEnd = new Date(year, month + 1, 25);
+    }
+
+    const previousStart = new Date(currentStart);
+    previousStart.setMonth(previousStart.getMonth() - 1);
+    const previousEnd = new Date(currentStart);
+    previousEnd.setDate(previousEnd.getDate() - 1);
+
+    return {
+      current: {
+        start: currentStart.toISOString().split('T')[0],
+        end: currentEnd.toISOString().split('T')[0],
+      },
+      previous: {
+        start: previousStart.toISOString().split('T')[0],
+        end: previousEnd.toISOString().split('T')[0],
+      },
+    };
+  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

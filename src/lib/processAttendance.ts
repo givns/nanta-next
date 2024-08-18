@@ -23,31 +23,53 @@ const attendanceService = new AttendanceService(
   leaveServiceServer,
 );
 
-function calculatePayrollDates(payrollPeriod: string): {
-  startDate: string;
-  endDate: string;
+function calculatePayrollPeriods(currentDate = new Date()): {
+  current: { start: string; end: string };
+  previous: { start: string; end: string };
 } {
-  const now = new Date();
-  let startDate = new Date(now.getFullYear(), now.getMonth(), 26);
-  let endDate = new Date(now.getFullYear(), now.getMonth() + 1, 25);
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const day = currentDate.getDate();
 
-  if (payrollPeriod === 'previous') {
-    startDate = subMonths(startDate, 1);
-    endDate = subMonths(endDate, 1);
-  } else if (payrollPeriod === 'next') {
-    startDate = addMonths(startDate, 1);
-    endDate = addMonths(endDate, 1);
+  let currentStart: Date;
+  let currentEnd: Date;
+
+  if (day < 26) {
+    // Current period started last month
+    currentStart = new Date(year, month - 1, 26);
+    currentEnd = new Date(year, month, 25);
+  } else {
+    // Current period starts this month
+    currentStart = new Date(year, month, 26);
+    currentEnd = new Date(year, month + 1, 25);
   }
 
+  const previousStart = new Date(currentStart);
+  previousStart.setMonth(previousStart.getMonth() - 1);
+  const previousEnd = new Date(currentStart);
+  previousEnd.setDate(previousEnd.getDate() - 1);
+
   return {
-    startDate: format(startDate, 'yyyy-MM-dd'),
-    endDate: format(endDate, 'yyyy-MM-dd'),
+    current: {
+      start: currentStart.toISOString().split('T')[0],
+      end: currentEnd.toISOString().split('T')[0],
+    },
+    previous: {
+      start: previousStart.toISOString().split('T')[0],
+      end: previousEnd.toISOString().split('T')[0],
+    },
   };
 }
 
 export async function processAttendance(job: Job): Promise<any> {
   const { employeeId, payrollPeriod } = job.data;
-  const { startDate, endDate } = calculatePayrollDates(payrollPeriod);
+
+  // Calculate payroll periods
+  const periods = calculatePayrollPeriods();
+
+  // Determine the correct date range based on payrollPeriod
+  const { start: startDate, end: endDate } =
+    payrollPeriod === 'current' ? periods.current : periods.previous;
 
   logMessage(
     `Starting attendance processing for employee: ${employeeId} from ${startDate} to ${endDate}`,
@@ -125,7 +147,7 @@ export async function processAttendance(job: Job): Promise<any> {
       )
       .filter((record): record is AttendanceRecord => record !== undefined);
 
-    // Fetch holidays only once for the entire period
+    // Fetch holidays
     const holidays = await holidayService.getHolidays(
       parseISO(startDate),
       parseISO(endDate),
