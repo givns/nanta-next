@@ -1,5 +1,4 @@
 // workers/attendance-worker.ts
-
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { getAttendanceProcessingQueue } from '../lib/queue';
@@ -28,6 +27,7 @@ queue.on('waiting', (jobId: string) => {
 
 queue.on('active', (job: Job) => {
   logMessage(`Job starting to be processed: ${job.id}`);
+  logMessage(`Job data: ${JSON.stringify(job.data)}`);
 });
 
 queue.on('completed', (job: Job, result: any) => {
@@ -41,6 +41,7 @@ queue.on('failed', (job: Job, err: Error) => {
 
 queue.process('process-payroll', async (job: Job) => {
   logMessage(`Processing payroll job: ${job.id}`);
+  logMessage(`Job data: ${JSON.stringify(job.data)}`);
   try {
     const result = await processAttendance(job);
     logMessage(`Payroll processing completed for job: ${job.id}`);

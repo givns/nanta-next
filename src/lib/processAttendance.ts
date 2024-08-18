@@ -7,7 +7,13 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, AttendanceRecord } from '../types/user';
-import { parseISO } from 'date-fns';
+import {
+  parseISO,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  format,
+} from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
 
@@ -23,12 +29,36 @@ const attendanceService = new AttendanceService(
   leaveServiceServer,
 );
 
+function calculateDefaultPeriod() {
+  const now = new Date();
+  const startDate = startOfMonth(subMonths(now, 1));
+  const endDate = endOfMonth(subMonths(now, 1));
+  return {
+    start: format(startDate, 'yyyy-MM-dd'),
+    end: format(endDate, 'yyyy-MM-dd'),
+  };
+}
+
 export async function processAttendance(job: Job): Promise<any> {
+  logMessage(`Processing job data: ${JSON.stringify(job.data)}`);
+
   const { employeeId, payrollPeriod, periodDates } = job.data;
-  const { start: startDate, end: endDate } = periodDates;
+
+  if (!employeeId) {
+    throw new Error('Employee ID is required');
+  }
+
+  let startDate: string, endDate: string;
+
+  if (periodDates && periodDates.start && periodDates.end) {
+    ({ start: startDate, end: endDate } = periodDates);
+  } else {
+    logMessage('periodDates not provided or invalid, using default period');
+    ({ start: startDate, end: endDate } = calculateDefaultPeriod());
+  }
 
   logMessage(
-    `Starting attendance processing for employee: ${employeeId} for period: ${payrollPeriod} (${startDate} to ${endDate})`,
+    `Starting attendance processing for employee: ${employeeId} for period: ${payrollPeriod || 'Default'} (${startDate} to ${endDate})`,
   );
 
   try {
@@ -126,7 +156,11 @@ export async function processAttendance(job: Job): Promise<any> {
       summary,
       userData,
       processedAttendance,
-      payrollPeriod: { period: payrollPeriod, start: startDate, end: endDate },
+      payrollPeriod: {
+        period: payrollPeriod || 'Default',
+        start: startDate,
+        end: endDate,
+      },
     };
 
     // Store the result in the database
