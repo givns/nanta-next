@@ -170,6 +170,13 @@ export default function AttendanceProcessingTest() {
       .join(', ');
   };
 
+  // Function to display date range (adjust the end date for display)
+  const displayDateRange = (start: string, end: string) => {
+    const endDate = new Date(end);
+    endDate.setDate(endDate.getDate() - 1);
+    return `${start} to ${endDate.toISOString().split('T')[0]}`;
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
@@ -192,12 +199,20 @@ export default function AttendanceProcessingTest() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="current">
-              Current Period ({payrollPeriods.current.start} to{' '}
-              {payrollPeriods.current.end})
+              Current Period (
+              {displayDateRange(
+                payrollPeriods.current.start,
+                payrollPeriods.current.end,
+              )}
+              )
             </SelectItem>
             <SelectItem value="previous">
-              Previous Period ({payrollPeriods.previous.start} to{' '}
-              {payrollPeriods.previous.end})
+              Previous Period (
+              {displayDateRange(
+                payrollPeriods.previous.start,
+                payrollPeriods.previous.end,
+              )}
+              )
             </SelectItem>
           </SelectContent>
         </Select>

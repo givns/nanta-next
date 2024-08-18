@@ -7,7 +7,7 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, AttendanceRecord } from '../types/user';
-import { format, parseISO, subMonths, addMonths } from 'date-fns';
+import { format, parseISO, subDays, subMonths, addMonths } from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
 
@@ -70,6 +70,9 @@ export async function processAttendance(job: Job): Promise<any> {
   // Determine the correct date range based on payrollPeriod
   const { start: startDate, end: endDate } =
     payrollPeriod === 'current' ? periods.current : periods.previous;
+
+  // Adjust endDate to include the full last day
+  const adjustedEndDate = subDays(parseISO(endDate), 1);
 
   logMessage(
     `Starting attendance processing for employee: ${employeeId} from ${startDate} to ${endDate}`,
@@ -159,7 +162,7 @@ export async function processAttendance(job: Job): Promise<any> {
         attendanceRecords,
         userData,
         parseISO(startDate),
-        parseISO(endDate),
+        adjustedEndDate,
         holidays,
       );
 
