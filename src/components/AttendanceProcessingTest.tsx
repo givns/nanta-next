@@ -42,10 +42,6 @@ export default function AttendanceProcessingTest() {
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
         payrollPeriod: selectedPeriod,
-        periodDates: {
-          start: period.start,
-          end: period.end,
-        },
       });
       setJobId(response.data.jobId);
     } catch (err) {

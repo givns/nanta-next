@@ -7,13 +7,7 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData, AttendanceRecord } from '../types/user';
-import {
-  parseISO,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-  format,
-} from 'date-fns';
+import { parseISO, format, parse, addMonths, subMonths } from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
 
@@ -29,10 +23,38 @@ const attendanceService = new AttendanceService(
   leaveServiceServer,
 );
 
-function calculateDefaultPeriod() {
-  const now = new Date();
-  const startDate = startOfMonth(subMonths(now, 1));
-  const endDate = endOfMonth(subMonths(now, 1));
+function calculatePeriodDates(payrollPeriod: string): {
+  start: string;
+  end: string;
+} {
+  if (payrollPeriod === 'current') {
+    const now = new Date();
+    const currentDay = now.getDate();
+    let startDate: Date, endDate: Date;
+
+    if (currentDay < 26) {
+      // Current period started last month
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 26);
+      endDate = new Date(now.getFullYear(), now.getMonth(), 25);
+    } else {
+      // Current period starts this month
+      startDate = new Date(now.getFullYear(), now.getMonth(), 26);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 25);
+    }
+
+    return {
+      start: format(startDate, 'yyyy-MM-dd'),
+      end: format(endDate, 'yyyy-MM-dd'),
+    };
+  }
+
+  const [month, year] = payrollPeriod.split('-');
+  const periodDate = parse(`${month} ${year}`, 'MMMM yyyy', new Date());
+  const startDate = subMonths(periodDate, 1);
+  startDate.setDate(26);
+  const endDate = addMonths(startDate, 1);
+  endDate.setDate(25);
+
   return {
     start: format(startDate, 'yyyy-MM-dd'),
     end: format(endDate, 'yyyy-MM-dd'),
@@ -42,23 +64,21 @@ function calculateDefaultPeriod() {
 export async function processAttendance(job: Job): Promise<any> {
   logMessage(`Processing job data: ${JSON.stringify(job.data)}`);
 
-  const { employeeId, payrollPeriod, periodDates } = job.data;
+  const { employeeId, payrollPeriod } = job.data;
 
   if (!employeeId) {
     throw new Error('Employee ID is required');
   }
 
-  let startDate: string, endDate: string;
-
-  if (periodDates && periodDates.start && periodDates.end) {
-    ({ start: startDate, end: endDate } = periodDates);
-  } else {
-    logMessage('periodDates not provided or invalid, using default period');
-    ({ start: startDate, end: endDate } = calculateDefaultPeriod());
+  if (!payrollPeriod) {
+    throw new Error('Payroll period is required');
   }
 
+  const { start: startDate, end: endDate } =
+    calculatePeriodDates(payrollPeriod);
+
   logMessage(
-    `Starting attendance processing for employee: ${employeeId} for period: ${payrollPeriod || 'Default'} (${startDate} to ${endDate})`,
+    `Starting attendance processing for employee: ${employeeId} for period: ${payrollPeriod} (${startDate} to ${endDate})`,
   );
 
   try {
