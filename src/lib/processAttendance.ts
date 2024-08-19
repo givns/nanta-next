@@ -6,7 +6,7 @@ import { AttendanceService } from '../services/AttendanceService';
 import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
-import { UserData, AttendanceRecord } from '../types/user';
+import { UserData, AttendanceRecord, ShiftData } from '../types/user';
 import { parseISO, format, parse, addMonths, subMonths } from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
@@ -138,42 +138,46 @@ export async function processAttendance(job: Job): Promise<any> {
 
     logMessage(`UserData prepared: ${JSON.stringify(userData)}`);
 
-    // Fetch attendance records
-    logMessage(`Fetching attendance records from external database...`);
-    const { records: externalAttendances, totalCount } =
-      await externalDbService.getHistoricalAttendanceRecords(
-        user.employeeId,
-        parseISO(startDate),
-        queryEndDate,
-      );
+    const attendanceRecords: AttendanceRecord[] = []; // Declare the variable attendanceRecords
 
-    logMessage(
-      `Found ${externalAttendances.length} attendance records out of ${totalCount} total records`,
+    const holidays = await attendanceService.getHolidaysForDateRange(
+      new Date(startDate),
+      new Date(endDate),
+    );
+    const noWorkDays = await attendanceService.getNoWorkDaysForDateRange(
+      new Date(startDate),
+      new Date(endDate),
     );
 
-    const attendanceRecords: AttendanceRecord[] = externalAttendances
-      .map((externalRecord) =>
-        attendanceService.convertExternalToAttendanceRecord(externalRecord),
-      )
-      .filter((record): record is AttendanceRecord => record !== undefined);
-
-    // Fetch holidays
-    const holidays = await holidayService.getHolidays(
-      parseISO(startDate),
-      parseISO(endDate),
+    const processedAttendance = await attendanceService.processAttendanceData(
+      attendanceRecords,
+      userData,
+      new Date(startDate),
+      new Date(endDate),
+      holidays,
     );
-    logMessage(`Fetched ${holidays.length} holidays for the payroll period`);
-
-    const { processedAttendance, summary } =
-      await attendanceService.processAttendanceData(
-        attendanceRecords,
-        userData,
-        parseISO(startDate),
-        parseISO(endDate),
-        holidays,
-      );
 
     logMessage(`Processed ${processedAttendance.length} attendance records`);
+
+    const summary = attendanceService.calculateSummary(
+      processedAttendance.processedAttendance,
+      new Date(startDate),
+      new Date(endDate),
+    );
+
+    const isShift104 = userData.assignedShift.shiftCode === 'SHIFT104';
+
+    const totalWorkingDays = attendanceService.calculateTotalWorkingDays(
+      new Date(startDate),
+      new Date(endDate),
+      {
+        ...userData.assignedShift,
+        timezone: 'asia/Bangkok',
+      },
+      holidays,
+      noWorkDays,
+      isShift104,
+    );
 
     const result = {
       success: true,
@@ -194,11 +198,11 @@ export async function processAttendance(job: Job): Promise<any> {
         employeeId,
         periodStart: new Date(startDate),
         periodEnd: new Date(endDate),
-        totalWorkingDays: summary.totalWorkingDays,
-        totalPresent: summary.totalPresent,
-        totalAbsent: summary.totalAbsent,
-        totalOvertimeHours: summary.totalOvertimeHours,
-        totalRegularHours: summary.totalRegularHours,
+        totalWorkingDays,
+        totalPresent: (await summary).totalPresent || 0,
+        totalAbsent: (await summary).totalAbsent || 0,
+        totalOvertimeHours: (await summary).totalOvertimeHours || 0,
+        totalRegularHours: (await summary).totalRegularHours || 0,
         processedData: JSON.stringify(result),
       },
     });

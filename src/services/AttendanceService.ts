@@ -336,7 +336,11 @@ export class AttendanceService {
     startDate: Date,
     endDate: Date,
     holidays: Holiday[],
-  ): Promise<{ processedAttendance: ProcessedAttendance[]; summary: any }> {
+  ): Promise<{
+    length: any;
+    processedAttendance: ProcessedAttendance[];
+    summary: any;
+  }> {
     logMessage(`Processing ${records.length} attendance records`);
     logMessage(`Start date: ${startDate}, End date: ${endDate}`);
 
@@ -444,7 +448,11 @@ export class AttendanceService {
       endDate,
     );
 
-    return { processedAttendance: validatedAttendance, summary };
+    return {
+      length: processedAttendance.length,
+      processedAttendance: validatedAttendance,
+      summary,
+    };
   }
 
   private groupAndPairRecords(
@@ -840,7 +848,7 @@ export class AttendanceService {
     return !!noWorkDay;
   }
 
-  private async getHolidaysForDateRange(
+  public async getHolidaysForDateRange(
     startDate: Date,
     endDate: Date,
   ): Promise<Holiday[]> {
@@ -854,7 +862,7 @@ export class AttendanceService {
     });
   }
 
-  private async getNoWorkDaysForDateRange(
+  public async getNoWorkDaysForDateRange(
     startDate: Date,
     endDate: Date,
   ): Promise<NoWorkDay[]> {
@@ -1118,6 +1126,10 @@ export class AttendanceService {
       noWorkDays,
       isShift104,
     );
+    if (summary.totalWorkingDays === undefined) {
+      console.error('totalWorkingDays is undefined. Summary:', summary);
+      throw new Error('totalWorkingDays is missing from the summary');
+    }
 
     const expectedRegularHours =
       totalWorkingDays * this.getShiftDuration(shift);
@@ -1143,7 +1155,7 @@ export class AttendanceService {
     };
   }
 
-  private calculateTotalWorkingDays(
+  public calculateTotalWorkingDays(
     startDate: Date,
     endDate: Date,
     shift: ShiftData,
