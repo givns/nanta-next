@@ -46,6 +46,7 @@ import {
   setMinutes,
   getMinutes,
   getHours,
+  addHours,
 } from 'date-fns';
 
 const prisma = new PrismaClient();
@@ -389,13 +390,20 @@ export class AttendanceService {
 
         const isLeave = this.isOnLeave(currentDate, leaveRequests);
 
-        const processed = await this.processAttendancePair(
+        let processed = await this.processAttendancePair(
           pair,
           effectiveShift,
           isDayOff,
           isHoliday,
           approvedOvertimes,
         );
+
+        if (isHoliday) {
+          processed.status = 'holiday';
+          processed.detailedStatus = 'Holiday';
+          processed.regularHours = 0;
+          processed.overtimeHours = 0;
+        }
 
         const potentialShiftAdjustment =
           await this.detectPotentialShiftAdjustment(
@@ -509,6 +517,14 @@ export class AttendanceService {
     const checkOutTime = pair.checkOut
       ? parse(pair.checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
       : checkInTime;
+
+    // Handle late night check-outs
+    if (isAfter(checkOutTime, addHours(checkInTime, 16))) {
+      const adjustedCheckOut = endOfDay(checkInTime);
+      console.log(
+        `Adjusted late night check-out from ${checkOutTime} to ${adjustedCheckOut}`,
+      );
+    }
 
     const { regularHours, overtimeHours, potentialOvertimePeriods } =
       this.calculateEffectiveHours(
@@ -687,14 +703,13 @@ export class AttendanceService {
 
     const shiftStart = parse(shift.startTime, 'HH:mm', roundedCheckIn);
     let shiftEnd = parse(shift.endTime, 'HH:mm', roundedCheckIn);
-    if (isBefore(shiftEnd, shiftStart)) shiftEnd = addDays(shiftEnd, 1);
+    if (isBefore(shiftEnd, shiftStart)) shiftEnd = addMinutes(shiftEnd, 1440); // Add 24 hours
 
     let regularHours = 0;
     let overtimeHours = 0;
     const potentialOvertimePeriods: { start: string; end: string }[] = [];
 
     if (isDayOff) {
-      // All hours on a day off are considered overtime
       overtimeHours = differenceInHours(roundedCheckOut, roundedCheckIn);
       if (overtimeHours > 4) {
         overtimeHours -= 1; // Deduct 1 hour for break time
@@ -1011,39 +1026,6 @@ export class AttendanceService {
       checkInDeviceSerial: null,
       checkOutDeviceSerial: null,
       isManualEntry: false,
-    };
-  }
-
-  private createIncompleteAttendanceRecord(
-    pair: PairedAttendance,
-    shift: ShiftData,
-    isDayOff: boolean,
-  ): ProcessedAttendance {
-    const checkInTime = parse(
-      pair.checkIn.attendanceTime,
-      'yyyy-MM-dd HH:mm:ss',
-      new Date(),
-    );
-
-    return {
-      id: pair.checkIn.id,
-      employeeId: pair.checkIn.employeeId,
-      date: checkInTime,
-      checkIn: pair.checkIn.attendanceTime,
-      checkOut: undefined,
-      status: isDayOff ? 'off' : 'incomplete',
-      isEarlyCheckIn: false,
-      isLateCheckIn: false,
-      isLateCheckOut: false,
-      regularHours: 0,
-      overtimeHours: 0,
-      overtimeDuration: 0,
-      potentialOvertimePeriods: [],
-      isOvertime: false,
-      detailedStatus: isDayOff ? 'off' : 'incomplete',
-      checkInDeviceSerial: pair.checkIn.checkInDeviceSerial,
-      checkOutDeviceSerial: null,
-      isManualEntry: pair.checkIn.isManualEntry,
     };
   }
 

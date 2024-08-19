@@ -169,15 +169,13 @@ export class HolidayService {
     return holidays;
   }
 
-  async isHoliday(date: Date, isShift104: boolean = false): Promise<boolean> {
+  public isHoliday(
+    date: Date,
+    holidays: Holiday[],
+    isShift104: boolean,
+  ): boolean {
     const checkDate = isShift104 ? addDays(date, 1) : date;
-    const holiday = await this.prisma.holiday.findFirst({
-      where: {
-        date: checkDate,
-      },
-    });
-
-    return !!holiday;
+    return holidays.some((holiday) => isSameDay(holiday.date, checkDate));
   }
 
   async isWorkingDay(userId: string, date: Date): Promise<boolean> {
@@ -196,9 +194,15 @@ export class HolidayService {
     if (user.assignedShift.shiftCode === 'SHIFT104') {
       const nextDay = new Date(date);
       nextDay.setDate(nextDay.getDate() + 1);
-      return isRegularWorkday && !(await this.isHoliday(nextDay));
+      return (
+        isRegularWorkday &&
+        !this.isHoliday(nextDay, this.holidayCache[nextDay.getFullYear()], true)
+      );
     } else {
-      return isRegularWorkday && !(await this.isHoliday(date));
+      return (
+        isRegularWorkday &&
+        !this.isHoliday(date, this.holidayCache[date.getFullYear()], false)
+      );
     }
   }
 }

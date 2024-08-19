@@ -454,9 +454,21 @@ export class AttendanceProcessingService {
 
       // Check if it's a holiday
       const checkDate = startOfDay(checkOutTime);
-      const isHoliday = await this.holidayService.isHoliday(checkDate);
+      const isShift104 = user.assignedShift.shiftCode === 'SHIFT104';
+
+      // Fetch holidays for the check date
+      const holidays = await this.holidayService.getHolidays(
+        checkDate,
+        checkDate,
+      );
+
+      const isHoliday = this.holidayService.isHoliday(
+        checkDate,
+        holidays,
+        isShift104,
+      );
       const isShift104Holiday =
-        user.assignedShift.shiftCode === 'SHIFT104' &&
+        isShift104 &&
         (await this.shift104HolidayService.isShift104Holiday(checkDate));
 
       // Create time entry for overtime

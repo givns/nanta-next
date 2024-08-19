@@ -10,6 +10,7 @@ import { UserData, AttendanceRecord } from '../types/user';
 import { parseISO, format, parse, addMonths, subMonths } from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
+import { addDays } from 'date-fns';
 
 const prisma = new PrismaClient();
 const externalDbService = new ExternalDbService();
@@ -76,6 +77,7 @@ export async function processAttendance(job: Job): Promise<any> {
 
   const { start: startDate, end: endDate } =
     calculatePeriodDates(payrollPeriod);
+  const queryEndDate = addDays(parseISO(endDate), 1); // Add one day to include the full last day
 
   logMessage(
     `Starting attendance processing for employee: ${employeeId} for period: ${payrollPeriod} (${startDate} to ${endDate})`,
@@ -140,7 +142,7 @@ export async function processAttendance(job: Job): Promise<any> {
       await externalDbService.getHistoricalAttendanceRecords(
         user.employeeId,
         parseISO(startDate),
-        parseISO(endDate),
+        queryEndDate,
       );
 
     logMessage(

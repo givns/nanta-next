@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { generatePayrollPeriods, PayrollPeriod } from '../utils/payrollUtils';
 import { AttendanceRecord } from '../types/user';
+import { format, parseISO, startOfWeek, endOfWeek, addDays } from 'date-fns';
 
 type Column = {
   title: string;
@@ -136,6 +137,33 @@ export default function AttendanceProcessingTest() {
     { title: 'Details', dataIndex: 'detailedStatus', key: 'detailedStatus' },
   ];
 
+  const getWeeks = (attendanceData: any[]) => {
+    if (!attendanceData || attendanceData.length === 0) return [];
+
+    const sortedData = [...attendanceData].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+    const firstDate = parseISO(sortedData[0].date);
+    const lastDate = parseISO(sortedData[sortedData.length - 1].date);
+
+    const weeks = [];
+    let currentStart = startOfWeek(firstDate, { weekStartsOn: 1 }); // Assuming week starts on Monday
+
+    while (currentStart <= lastDate) {
+      const currentEnd = endOfWeek(currentStart, { weekStartsOn: 1 });
+      weeks.push({
+        start: format(currentStart, 'yyyy-MM-dd'),
+        end: format(
+          currentEnd > lastDate ? lastDate : currentEnd,
+          'yyyy-MM-dd',
+        ),
+      });
+      currentStart = addDays(currentEnd, 1);
+    }
+
+    return weeks;
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
@@ -174,67 +202,61 @@ export default function AttendanceProcessingTest() {
       )}
 
       {status === 'completed' && result && (
-        <>
-          <Card className="mb-4">
-            <CardHeader>
-              <h2 className="text-xl font-semibold">Regular Attendance</h2>
-            </CardHeader>
-            <CardContent>
-              <Table
-                columns={attendanceColumns}
-                dataSource={result.processedAttendance}
-              />
-            </CardContent>
-          </Card>
+        <div className="space-y-8">
+          {getWeeks(result.processedAttendance).map((week, index) => (
+            <Card key={index} className="mb-4">
+              <CardHeader>
+                <h3 className="text-lg font-semibold">
+                  Week {index + 1} ({formatDate(week.start)} -{' '}
+                  {formatDate(week.end)})
+                </h3>
+              </CardHeader>
+              <CardContent>
+                <Table
+                  columns={attendanceColumns}
+                  dataSource={result.processedAttendance.filter(
+                    (row: any) =>
+                      row.date >= week.start && row.date <= week.end,
+                  )}
+                />
+              </CardContent>
+            </Card>
+          ))}
 
           <Card>
             <CardHeader>
-              <h2 className="text-xl font-semibold">Period Summary</h2>
+              <h3 className="text-lg font-semibold">
+                Total Summary for{' '}
+                {format(parseISO(result.payrollPeriod.start), 'MMMM yyyy')}{' '}
+                Payroll Period
+              </h3>
             </CardHeader>
             <CardContent>
-              <ul>
+              <ul className="list-disc list-inside">
+                <li>Total Working Days: {result.summary.totalWorkingDays}</li>
+                <li>Total Present Days: {result.summary.totalPresent}</li>
+                <li>Total Absent Days: {result.summary.totalAbsent}</li>
                 <li>
-                  Total Working Days in Period:{' '}
-                  {result.summary.totalWorkingDays}
+                  Total Incomplete Days: {result.summary.totalIncomplete || 0}
+                </li>
+                <li>Total Holidays: {result.summary.totalHolidays || 0}</li>
+                <li>Total Day Off: {result.summary.totalDayOff || 0}</li>
+                <li>
+                  Total Regular Hours:{' '}
+                  {formatNumber(result.summary.totalRegularHours)}
                 </li>
                 <li>
-                  Days Present: {result.summary.totalPresent} /{' '}
-                  {result.summary.totalWorkingDays}
+                  Total Overtime Hours:{' '}
+                  {formatNumber(result.summary.totalOvertimeHours)}
                 </li>
-                <li>Days Absent: {result.summary.totalAbsent}</li>
-                <li>Days Off: {result.summary.totalDayOff}</li>
                 <li>
                   Attendance Rate: {formatNumber(result.summary.attendanceRate)}
                   %
                 </li>
-                <li>
-                  Total Approved Overtime:{' '}
-                  {formatNumber(result.summary.totalOvertimeHours)} hours
-                </li>
-                <li>
-                  Total Potential Overtime:{' '}
-                  {formatNumber(result.summary.totalPotentialOvertimeHours)}{' '}
-                  hours
-                </li>
               </ul>
             </CardContent>
           </Card>
-        </>
-      )}
-
-      {logs.length > 0 && (
-        <Card className="mt-4">
-          <CardHeader>
-            <h2 className="text-xl font-semibold">Processing Logs</h2>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc pl-5">
-              {logs.map((log, index) => (
-                <li key={index}>{log}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        </div>
       )}
     </div>
   );
