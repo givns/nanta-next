@@ -138,7 +138,13 @@ export async function processAttendance(job: Job): Promise<any> {
 
     logMessage(`UserData prepared: ${JSON.stringify(userData)}`);
 
-    const attendanceRecords: AttendanceRecord[] = []; // Declare the variable attendanceRecords
+    const attendanceRecords = await attendanceService.getAttendanceRecords(
+      employeeId,
+      new Date(startDate),
+      queryEndDate, // Use queryEndDate to include the full last day
+    );
+
+    logMessage(`Fetched ${attendanceRecords.length} attendance records`);
 
     const holidays = await attendanceService.getHolidaysForDateRange(
       new Date(startDate),

@@ -287,7 +287,7 @@ export class AttendanceService {
     return this.convertToUserData(user);
   }
 
-  private async getAttendanceRecords(
+  public async getAttendanceRecords(
     employeeId: string,
     startDate: Date,
     endDate: Date,
