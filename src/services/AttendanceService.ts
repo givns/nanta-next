@@ -48,6 +48,7 @@ import {
   getHours,
   addHours,
 } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
@@ -1379,14 +1380,42 @@ export class AttendanceService {
     processedAttendance: ProcessedAttendance,
   ): Promise<void> {
     if ((processedAttendance.overtimeHours ?? 0) > 0) {
+      const timezone = 'Asia/Bangkok'; // Replace with your local timezone
+
+      // Convert the date to the local timezone
+      const localDate = toZonedTime(processedAttendance.date, timezone);
+      const localDateStart = startOfDay(localDate);
+
+      // Convert periods to local timezone
+      const localPeriods = processedAttendance.potentialOvertimePeriods?.map(
+        (period) => {
+          const startTime = new Date(
+            `${format(localDateStart, 'yyyy-MM-dd')}T${period.start}`,
+          );
+          const endTime = new Date(
+            `${format(localDateStart, 'yyyy-MM-dd')}T${period.end}`,
+          );
+          return {
+            start: format(
+              toZonedTime(startTime, timezone),
+              "yyyy-MM-dd'T'HH:mm:ssXXX",
+            ),
+            end: format(
+              toZonedTime(endTime, timezone),
+              "yyyy-MM-dd'T'HH:mm:ssXXX",
+            ),
+          };
+        },
+      );
+
       await prisma.potentialOvertime.create({
         data: {
           employeeId: processedAttendance.employeeId,
-          date: processedAttendance.date,
+          date: toZonedTime(localDateStart, timezone), // Store the local date as UTC
           hours: processedAttendance.overtimeHours || 0,
           type: this.determineOvertimeType(processedAttendance),
           status: 'pending',
-          periods: JSON.stringify(processedAttendance.potentialOvertimePeriods),
+          periods: JSON.stringify(localPeriods),
         },
       });
 
@@ -1394,7 +1423,7 @@ export class AttendanceService {
       for (const admin of admins) {
         await notificationService.sendNotification(
           admin.id,
-          `Potential overtime detected for ${processedAttendance.employeeId} on ${processedAttendance.date.toDateString()}. Please review.`,
+          `Potential overtime detected for ${processedAttendance.employeeId} on ${format(localDate, 'yyyy-MM-dd')}. Please review.`,
         );
       }
     }
