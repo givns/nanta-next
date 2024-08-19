@@ -162,6 +162,7 @@ export interface AttendanceRecord {
   attendanceTime: string;
   checkInTime: string | null;
   checkOutTime: string | null;
+  regularHours: number;
   isOvertime: boolean;
   isDayOff: boolean;
   overtimeStartTime: string | null;

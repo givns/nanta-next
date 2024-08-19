@@ -13,6 +13,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { generatePayrollPeriods, PayrollPeriod } from '../utils/payrollUtils';
+import { AttendanceRecord } from '../types/user';
+
+type Column = {
+  title: string;
+  dataIndex: string;
+  key: string;
+  render?: (text: string, record: AttendanceRecord) => React.ReactNode;
+};
 
 export default function AttendanceProcessingTest() {
   const [employeeId, setEmployeeId] = useState<string>('');
@@ -89,22 +97,6 @@ export default function AttendanceProcessingTest() {
     });
   };
 
-  const getOvertimeFlag = (date: string) => {
-    if (!result || !result.userData || !result.userData.potentialOvertimes) {
-      return false;
-    }
-    return result.userData.potentialOvertimes.some(
-      (ot: any) => ot.date && ot.date.startsWith(date.split('T')[0]),
-    );
-  };
-
-  const getShiftAdjustmentFlag = (date: string) => {
-    if (!result?.shiftAdjustments) return false;
-    return result.shiftAdjustments.some((adj: any) =>
-      adj.date.startsWith(date.split('T')[0]),
-    );
-  };
-
   const formatTime = (timeString: string) => {
     if (!timeString) return 'N/A';
     const [datePart, timePart] = timeString.split(' ');
@@ -115,17 +107,34 @@ export default function AttendanceProcessingTest() {
     return value !== undefined && value !== null ? value.toFixed(2) : 'N/A';
   };
 
-  const formatOvertimePeriods = (periods: any[]) => {
-    if (!periods || periods.length === 0) return 'N/A';
-    return periods
-      .map((period) => `${period.start} - ${period.end}`)
-      .join(', ');
-  };
-
-  // Function to display date range
-  const displayDateRange = (start: string, end: string) => {
-    return `${start} to ${end}`;
-  };
+  const attendanceColumns: Column[] = [
+    {
+      title: 'Date',
+      dataIndex: 'date',
+      key: 'date',
+      render: (text) => formatDate(text),
+    },
+    {
+      title: 'Check-In Time',
+      dataIndex: 'checkIn',
+      key: 'checkIn',
+      render: (text) => formatTime(text),
+    },
+    {
+      title: 'Check-Out Time',
+      dataIndex: 'checkOut',
+      key: 'checkOut',
+      render: (text) => formatTime(text),
+    },
+    { title: 'Status', dataIndex: 'status', key: 'status' },
+    {
+      title: 'Regular Hours',
+      dataIndex: 'regularHours',
+      key: 'regularHours',
+      render: (text, record) => formatNumber(record.regularHours),
+    },
+    { title: 'Details', dataIndex: 'detailedStatus', key: 'detailedStatus' },
+  ];
 
   return (
     <div className="container mx-auto p-4">
@@ -171,62 +180,10 @@ export default function AttendanceProcessingTest() {
               <h2 className="text-xl font-semibold">Regular Attendance</h2>
             </CardHeader>
             <CardContent>
-              <Table columns={[]} dataSource={[]}>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Check-In Time</th>
-                    <th>Check-Out Time</th>
-                    <th>Status</th>
-                    <th>Regular Hours</th>
-                    <th>Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.processedAttendance.map((record: any) => (
-                    <tr key={record.id}>
-                      <td>{formatDate(record.date)}</td>
-                      <td>{formatTime(record.checkIn)}</td>
-                      <td>{formatTime(record.checkOut)}</td>
-                      <td>{record.status}</td>
-                      <td>{formatNumber(record.regularHours)}</td>
-                      <td>{record.detailedStatus}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <Card className="mb-4">
-            <CardHeader>
-              <h2 className="text-xl font-semibold">Overtime Summary</h2>
-            </CardHeader>
-            <CardContent>
-              <Table columns={[]} dataSource={[]}>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Approved Overtime</th>
-                    <th>Potential Overtime</th>
-                    <th>Potential Overtime Periods</th>
-                    <th>Off-Day Work</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.processedAttendance.map((record: any) => (
-                    <tr key={record.id}>
-                      <td>{formatDate(record.date)}</td>
-                      <td>{formatNumber(record.overtimeHours)}</td>
-                      <td>{formatNumber(record.overtimeDuration)}</td>
-                      <td>
-                        {formatOvertimePeriods(record.potentialOvertimePeriods)}
-                      </td>
-                      <td>{record.status === 'off' ? 'Yes' : 'No'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+              <Table
+                columns={attendanceColumns}
+                dataSource={result.processedAttendance}
+              />
             </CardContent>
           </Card>
 
@@ -262,22 +219,22 @@ export default function AttendanceProcessingTest() {
               </ul>
             </CardContent>
           </Card>
-
-          {result.absentDays && result.absentDays.length > 0 && (
-            <Card className="mt-4">
-              <CardHeader>
-                <h2 className="text-xl font-semibold">Absent Days</h2>
-              </CardHeader>
-              <CardContent>
-                <ul>
-                  {result.absentDays.map((date: string) => (
-                    <li key={date}>{formatDate(date)}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
         </>
+      )}
+
+      {logs.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader>
+            <h2 className="text-xl font-semibold">Processing Logs</h2>
+          </CardHeader>
+          <CardContent>
+            <ul className="list-disc pl-5">
+              {logs.map((log, index) => (
+                <li key={index}>{log}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

@@ -1882,6 +1882,7 @@ export class AttendanceService {
       overtimeEndTime: null,
       overtimeHours: internal.overtimeDuration || 0,
       overtimeDuration: internal.overtimeDuration || 0,
+      regularHours: 0, // Add the missing property 'regularHours'
       checkInLocation: null,
       checkOutLocation: null,
       checkInAddress: null,
@@ -1942,6 +1943,7 @@ export class AttendanceService {
       isManualEntry: false,
       overtimeHours: 0,
       overtimeDuration: 0,
+      regularHours: 0,
     };
 
     // Filter out null or undefined properties
