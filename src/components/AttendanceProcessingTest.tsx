@@ -239,16 +239,33 @@ export default function AttendanceProcessingTest() {
   );
 
   function isValidResult(result: any): result is ProcessedAttendanceResult {
-    return (
-      result &&
-      Array.isArray(result.processedAttendance) &&
-      typeof result.summary === 'object' &&
-      result.summary !== null &&
-      typeof result.payrollPeriod === 'object' &&
-      result.payrollPeriod !== null &&
-      typeof result.payrollPeriod.start === 'string' &&
-      typeof result.payrollPeriod.end === 'string'
-    );
+    if (!result) {
+      console.log('Result is null or undefined');
+      return false;
+    }
+    if (!Array.isArray(result.processedAttendance)) {
+      console.log('processedAttendance is not an array');
+      return false;
+    }
+    if (typeof result.summary !== 'object' || result.summary === null) {
+      console.log('summary is not an object or is null');
+      return false;
+    }
+    if (
+      typeof result.payrollPeriod !== 'object' ||
+      result.payrollPeriod === null
+    ) {
+      console.log('payrollPeriod is not an object or is null');
+      return false;
+    }
+    if (
+      typeof result.payrollPeriod.start !== 'string' ||
+      typeof result.payrollPeriod.end !== 'string'
+    ) {
+      console.log('payrollPeriod start or end is not a string');
+      return false;
+    }
+    return true;
   }
 
   return (
