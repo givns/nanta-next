@@ -284,3 +284,11 @@ model Department {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }
+
+model NoWorkDay {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  date      DateTime @unique
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

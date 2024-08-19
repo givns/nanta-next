@@ -1,4 +1,4 @@
-import { PrismaClient, Attendance, Holiday } from '@prisma/client';
+import { PrismaClient, Attendance, Holiday, NoWorkDay } from '@prisma/client';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { ExternalDbService } from './ExternalDbService';
 import { NotificationService } from './NotificationService';
@@ -816,6 +816,20 @@ export class AttendanceService {
     return holidays.some((holiday) => isSameDay(holiday.date, checkDate));
   }
 
+  async isNoWorkDay(date: Date): Promise<boolean> {
+    const holiday = await prisma.holiday.findFirst({
+      where: { date: date },
+    });
+
+    if (holiday) return true;
+
+    const noWorkDay = await prisma.noWorkDay.findFirst({
+      where: { date: date },
+    });
+
+    return !!noWorkDay;
+  }
+
   private async isDayOff(
     employeeId: string,
     date: Date,
@@ -831,6 +845,9 @@ export class AttendanceService {
       shift.shiftCode === 'SHIFT104',
     );
     if (isHoliday) return true;
+
+    const isNoWorkDay = await this.isNoWorkDay(date);
+    if (isNoWorkDay) return true;
 
     const weeklyWorkDayCount = await this.getWeeklyWorkDayCount(
       employeeId,
@@ -932,6 +949,38 @@ export class AttendanceService {
       approvedBy: ot.approverId || '',
       approvedAt: ot.updatedAt,
     }));
+  }
+
+  async approvePotentialOvertime(
+    overtimeId: string,
+    action: 'approve' | 'deny',
+  ): Promise<void> {
+    const potentialOvertime = await prisma.potentialOvertime.findUnique({
+      where: { id: overtimeId },
+    });
+
+    if (!potentialOvertime) {
+      throw new Error('Potential overtime not found');
+    }
+
+    if (action === 'approve') {
+      await prisma.approvedOvertime.create({
+        data: {
+          employeeId: potentialOvertime.employeeId,
+          date: potentialOvertime.date,
+          startTime: new Date(potentialOvertime.date),
+          endTime: new Date(potentialOvertime.date),
+          status: 'approved',
+          approvedBy: 'Admin',
+          approvedAt: new Date(),
+        },
+      });
+    }
+
+    await prisma.potentialOvertime.update({
+      where: { id: overtimeId },
+      data: { status: action === 'approve' ? 'approved' : 'rejected' },
+    });
   }
 
   private async getAllShifts(): Promise<Map<string, ShiftData>> {
