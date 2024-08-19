@@ -171,7 +171,7 @@ export default function AttendanceProcessingTest() {
               <h2 className="text-xl font-semibold">Regular Attendance</h2>
             </CardHeader>
             <CardContent>
-              <Table>
+              <Table columns={[]} dataSource={[]}>
                 <thead>
                   <tr>
                     <th>Date</th>
@@ -203,7 +203,7 @@ export default function AttendanceProcessingTest() {
               <h2 className="text-xl font-semibold">Overtime Summary</h2>
             </CardHeader>
             <CardContent>
-              <Table>
+              <Table columns={[]} dataSource={[]}>
                 <thead>
                   <tr>
                     <th>Date</th>
