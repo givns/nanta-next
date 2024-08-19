@@ -1102,6 +1102,7 @@ export class AttendanceService {
         totalAbsent: 0,
         totalDayOff: 0,
         totalHolidays: 0,
+        totalWorkingDays: 0,
         totalIncomplete: 0,
         totalOvertimeHours: 0,
         totalPotentialOvertimeHours: 0,

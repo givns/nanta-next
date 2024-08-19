@@ -12,7 +12,9 @@ import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
 import { addDays } from 'date-fns';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+});
 const externalDbService = new ExternalDbService();
 const holidayService = new HolidayService();
 const shift104HolidayService = new Shift104HolidayService();
@@ -184,6 +186,7 @@ export async function processAttendance(job: Job): Promise<any> {
         end: endDate,
       },
     };
+    logMessage(`Summary object: ${JSON.stringify(summary)}`);
 
     // Store the result in the database
     await prisma.payrollProcessingResult.create({
