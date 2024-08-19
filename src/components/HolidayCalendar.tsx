@@ -88,7 +88,7 @@ const HolidayCalendar: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
+        <Table columns={[]} dataSource={[]}>
           <thead>
             <tr>
               <th>Date</th>
