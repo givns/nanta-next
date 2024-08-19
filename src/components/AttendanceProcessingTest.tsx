@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { FixedSizeList as List } from 'react-window';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,27 @@ type Column = {
   key: string;
   render?: (text: string, record: AttendanceRecord) => React.ReactNode;
 };
+
+interface ProcessedAttendanceResult {
+  processedAttendance: any[];
+  summary: {
+    totalWorkingDays: number;
+    totalPresent: number;
+    totalAbsent: number;
+    totalIncomplete: number;
+    totalHolidays: number;
+    totalDayOff: number;
+    totalRegularHours: number;
+    expectedRegularHours: number;
+    totalOvertimeHours: number;
+    totalPotentialOvertimeHours: number;
+    attendanceRate: number;
+  };
+  payrollPeriod: {
+    start: string;
+    end: string;
+  };
+}
 
 export default function AttendanceProcessingTest() {
   const [employeeId, setEmployeeId] = useState<string>('');
@@ -90,6 +112,7 @@ export default function AttendanceProcessingTest() {
   }, [jobId, status, employeeId]);
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -108,90 +131,125 @@ export default function AttendanceProcessingTest() {
     return value !== undefined && value !== null ? value.toFixed(2) : 'N/A';
   };
 
-  const attendanceColumns: Column[] = [
-    {
-      title: 'Date',
-      dataIndex: 'date',
-      key: 'date',
-      render: (text: string) => formatDate(text),
-    },
-    {
-      title: 'Check-In',
-      dataIndex: 'checkIn',
-      key: 'checkIn',
-      render: (text: string) => formatTime(text),
-    },
-    {
-      title: 'Check-Out',
-      dataIndex: 'checkOut',
-      key: 'checkOut',
-      render: (text: string) => formatTime(text),
-    },
-    { title: 'Status', dataIndex: 'status', key: 'status' },
-    {
-      title: 'Regular Hours',
-      dataIndex: 'regularHours',
-      key: 'regularHours',
-      render: (text: string) => formatNumber(parseFloat(text)),
-    },
-    {
-      title: 'Overtime Hours',
-      dataIndex: 'overtimeHours',
-      key: 'overtimeHours',
-      render: (value: string) => formatNumber(parseFloat(value)),
-    },
-    { title: 'Notes', dataIndex: 'detailedStatus', key: 'notes' },
-  ];
-
-  const getWeeks = (attendanceData: any[]) => {
-    if (!attendanceData || attendanceData.length === 0) return [];
-
-    const sortedData = [...attendanceData].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+  const Row = ({
+    index,
+    style,
+    data,
+  }: {
+    index: number;
+    style: React.CSSProperties;
+    data: any[];
+  }) => {
+    const record = data[index];
+    return (
+      <div style={style} className="flex items-center border-b">
+        <div className="flex-1 p-2">{formatDate(record.date)}</div>
+        <div className="flex-1 p-2">{formatTime(record.checkIn)}</div>
+        <div className="flex-1 p-2">{formatTime(record.checkOut)}</div>
+        <div className="flex-1 p-2">{record.status}</div>
+        <div className="flex-1 p-2">{formatNumber(record.regularHours)}</div>
+        <div className="flex-1 p-2">{formatNumber(record.overtimeHours)}</div>
+        <div className="flex-1 p-2">{record.detailedStatus}</div>
+      </div>
     );
-    const firstDate = parseISO(sortedData[0].date);
-    const lastDate = parseISO(sortedData[sortedData.length - 1].date);
-
-    const weeks = [];
-    let currentStart = startOfWeek(firstDate, { weekStartsOn: 1 });
-
-    while (currentStart <= lastDate) {
-      const currentEnd = endOfWeek(currentStart, { weekStartsOn: 1 });
-      weeks.push({
-        start: format(currentStart, 'yyyy-MM-dd'),
-        end: format(
-          currentEnd > lastDate ? lastDate : currentEnd,
-          'yyyy-MM-dd',
-        ),
-      });
-      currentStart = addDays(currentEnd, 1);
-    }
-
-    return weeks;
   };
 
-  const calculateWeeklySummary = (weekData: any[]) => {
-    const workingDays = weekData.filter(
-      (day) => day.status !== 'off' && day.status !== 'holiday',
-    ).length;
-    const presentDays = weekData.filter(
-      (day) => day.status === 'present',
-    ).length;
-    const totalRegularHours = weekData.reduce(
-      (sum, day) => sum + (day.regularHours || 0),
-      0,
+  const VirtualizedTable = ({ data }: { data: any[] }) => {
+    return (
+      <List
+        height={400}
+        itemCount={data.length}
+        itemSize={35}
+        width="100%"
+        itemData={data}
+      >
+        {Row}
+      </List>
     );
-    const totalOvertimeHours = weekData.reduce(
-      (sum, day) => sum + (day.overtimeHours || 0),
-      0,
-    );
-    const totalPotentialOvertimeHours = weekData.reduce(
-      (sum, day) => sum + (day.overtimeDuration || 0),
-      0,
-    );
-
-    return `${workingDays} working days, ${presentDays} present, ${formatNumber(totalRegularHours)} regular hours, ${formatNumber(totalOvertimeHours)} overtime hours, ${formatNumber(totalPotentialOvertimeHours)} potential overtime hours`;
   };
+
+  const getWeeks = useMemo(
+    () => (attendanceData: any[]) => {
+      if (
+        !attendanceData ||
+        !Array.isArray(attendanceData) ||
+        attendanceData.length === 0
+      ) {
+        console.warn('Invalid or empty attendance data');
+        return [];
+      }
+
+      const sortedData = [...attendanceData].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      );
+
+      const firstDate = parseISO(sortedData[0].date);
+      const lastDate = parseISO(sortedData[sortedData.length - 1].date);
+
+      const weeks = [];
+      let currentStart = startOfWeek(firstDate, { weekStartsOn: 1 });
+
+      while (currentStart <= lastDate) {
+        const currentEnd = endOfWeek(currentStart, { weekStartsOn: 1 });
+        weeks.push({
+          start: format(currentStart, 'yyyy-MM-dd'),
+          end: format(
+            currentEnd > lastDate ? lastDate : currentEnd,
+            'yyyy-MM-dd',
+          ),
+        });
+        currentStart = addDays(currentEnd, 1);
+      }
+
+      return weeks;
+    },
+    [],
+  );
+
+  const calculateWeeklySummary = useMemo(
+    () => (weekData: any[]) => {
+      if (!weekData || !Array.isArray(weekData) || weekData.length === 0) {
+        console.warn('Invalid or empty week data');
+        return 'No data available';
+      }
+
+      const workingDays = weekData.filter(
+        (day) => day && day.status !== 'off' && day.status !== 'holiday',
+      ).length;
+      const presentDays = weekData.filter(
+        (day) => day && day.status === 'present',
+      ).length;
+      const totalRegularHours = weekData.reduce(
+        (sum, day) => sum + (day && day.regularHours ? day.regularHours : 0),
+        0,
+      );
+      const totalOvertimeHours = weekData.reduce(
+        (sum, day) => sum + (day && day.overtimeHours ? day.overtimeHours : 0),
+        0,
+      );
+      const totalPotentialOvertimeHours = weekData.reduce(
+        (sum, day) =>
+          sum + (day && day.overtimeDuration ? day.overtimeDuration : 0),
+        0,
+      );
+
+      return `${workingDays} working days, ${presentDays} present, ${formatNumber(totalRegularHours)} regular hours, ${formatNumber(totalOvertimeHours)} overtime hours, ${formatNumber(totalPotentialOvertimeHours)} potential overtime hours`;
+    },
+    [],
+  );
+
+  function isValidResult(result: any): result is ProcessedAttendanceResult {
+    return (
+      result &&
+      Array.isArray(result.processedAttendance) &&
+      typeof result.summary === 'object' &&
+      result.summary !== null &&
+      typeof result.payrollPeriod === 'object' &&
+      result.payrollPeriod !== null &&
+      typeof result.payrollPeriod.start === 'string' &&
+      typeof result.payrollPeriod.end === 'string'
+    );
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -230,36 +288,39 @@ export default function AttendanceProcessingTest() {
         </Alert>
       )}
 
-      {status === 'completed' && result && (
+      {status === 'completed' && result && isValidResult(result) && (
         <div className="space-y-8">
-          {getWeeks(result.processedAttendance).map((week, index) => (
-            <Card key={index} className="mb-4">
-              <CardHeader>
-                <h3 className="text-base font-bold">
-                  Week {index + 1} ({formatDate(week.start)} -{' '}
-                  {formatDate(week.end)})
-                </h3>
-              </CardHeader>
-              <CardContent>
-                <Table
-                  columns={attendanceColumns}
-                  dataSource={result.processedAttendance.filter(
-                    (row: any) =>
-                      row.date >= week.start && row.date <= week.end,
-                  )}
-                />
-                <p className="mt-2 text-sm font-semibold">
-                  Weekly Summary:{' '}
-                  {calculateWeeklySummary(
-                    result.processedAttendance.filter(
-                      (row: any) =>
-                        row.date >= week.start && row.date <= week.end,
-                    ),
-                  )}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+          {getWeeks(result.processedAttendance).map((week, index) => {
+            const weekData = result.processedAttendance.filter(
+              (row: any) => row.date >= week.start && row.date <= week.end,
+            );
+
+            return (
+              <Card key={index} className="mb-4">
+                <CardHeader>
+                  <h3 className="text-base font-bold">
+                    Week {index + 1} ({formatDate(week.start)} -{' '}
+                    {formatDate(week.end)})
+                  </h3>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex font-bold mb-2">
+                    <div className="flex-1 p-2">Date</div>
+                    <div className="flex-1 p-2">Check-In</div>
+                    <div className="flex-1 p-2">Check-Out</div>
+                    <div className="flex-1 p-2">Status</div>
+                    <div className="flex-1 p-2">Regular Hours</div>
+                    <div className="flex-1 p-2">Overtime Hours</div>
+                    <div className="flex-1 p-2">Notes</div>
+                  </div>
+                  <VirtualizedTable data={weekData} />
+                  <p className="mt-2 text-sm font-semibold">
+                    Weekly Summary: {calculateWeeklySummary(weekData)}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
 
           <Card>
             <CardHeader>
