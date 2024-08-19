@@ -113,28 +113,34 @@ export default function AttendanceProcessingTest() {
       title: 'Date',
       dataIndex: 'date',
       key: 'date',
-      render: (text) => formatDate(text),
+      render: (text: string) => formatDate(text),
     },
     {
-      title: 'Check-In Time',
+      title: 'Check-In',
       dataIndex: 'checkIn',
       key: 'checkIn',
-      render: (text) => formatTime(text),
+      render: (text: string) => formatTime(text),
     },
     {
-      title: 'Check-Out Time',
+      title: 'Check-Out',
       dataIndex: 'checkOut',
       key: 'checkOut',
-      render: (text) => formatTime(text),
+      render: (text: string) => formatTime(text),
     },
     { title: 'Status', dataIndex: 'status', key: 'status' },
     {
       title: 'Regular Hours',
       dataIndex: 'regularHours',
       key: 'regularHours',
-      render: (text, record) => formatNumber(record.regularHours),
+      render: (text: string) => formatNumber(parseFloat(text)),
     },
-    { title: 'Details', dataIndex: 'detailedStatus', key: 'detailedStatus' },
+    {
+      title: 'Overtime Hours',
+      dataIndex: 'overtimeHours',
+      key: 'overtimeHours',
+      render: (value: string) => formatNumber(parseFloat(value)),
+    },
+    { title: 'Notes', dataIndex: 'detailedStatus', key: 'notes' },
   ];
 
   const getWeeks = (attendanceData: any[]) => {
@@ -147,7 +153,7 @@ export default function AttendanceProcessingTest() {
     const lastDate = parseISO(sortedData[sortedData.length - 1].date);
 
     const weeks = [];
-    let currentStart = startOfWeek(firstDate, { weekStartsOn: 1 }); // Assuming week starts on Monday
+    let currentStart = startOfWeek(firstDate, { weekStartsOn: 1 });
 
     while (currentStart <= lastDate) {
       const currentEnd = endOfWeek(currentStart, { weekStartsOn: 1 });
@@ -162,6 +168,29 @@ export default function AttendanceProcessingTest() {
     }
 
     return weeks;
+  };
+
+  const calculateWeeklySummary = (weekData: any[]) => {
+    const workingDays = weekData.filter(
+      (day) => day.status !== 'off' && day.status !== 'holiday',
+    ).length;
+    const presentDays = weekData.filter(
+      (day) => day.status === 'present',
+    ).length;
+    const totalRegularHours = weekData.reduce(
+      (sum, day) => sum + (day.regularHours || 0),
+      0,
+    );
+    const totalOvertimeHours = weekData.reduce(
+      (sum, day) => sum + (day.overtimeHours || 0),
+      0,
+    );
+    const totalPotentialOvertimeHours = weekData.reduce(
+      (sum, day) => sum + (day.overtimeDuration || 0),
+      0,
+    );
+
+    return `${workingDays} working days, ${presentDays} present, ${formatNumber(totalRegularHours)} regular hours, ${formatNumber(totalOvertimeHours)} overtime hours, ${formatNumber(totalPotentialOvertimeHours)} potential overtime hours`;
   };
 
   return (
@@ -206,7 +235,7 @@ export default function AttendanceProcessingTest() {
           {getWeeks(result.processedAttendance).map((week, index) => (
             <Card key={index} className="mb-4">
               <CardHeader>
-                <h3 className="text-lg font-semibold">
+                <h3 className="text-base font-bold">
                   Week {index + 1} ({formatDate(week.start)} -{' '}
                   {formatDate(week.end)})
                 </h3>
@@ -219,6 +248,15 @@ export default function AttendanceProcessingTest() {
                       row.date >= week.start && row.date <= week.end,
                   )}
                 />
+                <p className="mt-2 text-sm font-semibold">
+                  Weekly Summary:{' '}
+                  {calculateWeeklySummary(
+                    result.processedAttendance.filter(
+                      (row: any) =>
+                        row.date >= week.start && row.date <= week.end,
+                    ),
+                  )}
+                </p>
               </CardContent>
             </Card>
           ))}
@@ -234,7 +272,10 @@ export default function AttendanceProcessingTest() {
             <CardContent>
               <ul className="list-disc list-inside">
                 <li>Total Working Days: {result.summary.totalWorkingDays}</li>
-                <li>Total Present Days: {result.summary.totalPresent}</li>
+                <li>
+                  Total Present Days: {result.summary.totalPresent} /{' '}
+                  {result.summary.totalWorkingDays}
+                </li>
                 <li>Total Absent Days: {result.summary.totalAbsent}</li>
                 <li>
                   Total Incomplete Days: {result.summary.totalIncomplete || 0}
@@ -243,11 +284,16 @@ export default function AttendanceProcessingTest() {
                 <li>Total Day Off: {result.summary.totalDayOff || 0}</li>
                 <li>
                   Total Regular Hours:{' '}
-                  {formatNumber(result.summary.totalRegularHours)}
+                  {formatNumber(result.summary.totalRegularHours)} /{' '}
+                  {formatNumber(result.summary.expectedRegularHours)}
                 </li>
                 <li>
                   Total Overtime Hours:{' '}
                   {formatNumber(result.summary.totalOvertimeHours)}
+                </li>
+                <li>
+                  Total Potential Overtime Hours:{' '}
+                  {formatNumber(result.summary.totalPotentialOvertimeHours)}
                 </li>
                 <li>
                   Attendance Rate: {formatNumber(result.summary.attendanceRate)}

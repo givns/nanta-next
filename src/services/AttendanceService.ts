@@ -822,28 +822,50 @@ export class AttendanceService {
     };
   }
 
-  // Update other methods that use holidays
   private isHoliday(
     date: Date,
     holidays: Holiday[],
     isShift104: boolean,
   ): boolean {
     const checkDate = isShift104 ? addDays(date, 1) : date;
-    return holidays.some((holiday) => isSameDay(holiday.date, checkDate));
+    return holidays.some((holiday) =>
+      isSameDay(new Date(holiday.date), checkDate),
+    );
   }
 
-  async isNoWorkDay(date: Date): Promise<boolean> {
-    const holiday = await prisma.holiday.findFirst({
-      where: { date: date },
-    });
-
-    if (holiday) return true;
-
+  private async isNoWorkDay(date: Date): Promise<boolean> {
     const noWorkDay = await prisma.noWorkDay.findFirst({
       where: { date: date },
     });
-
     return !!noWorkDay;
+  }
+
+  private async getHolidaysForDateRange(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Holiday[]> {
+    return prisma.holiday.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
+  }
+
+  private async getNoWorkDaysForDateRange(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<NoWorkDay[]> {
+    return prisma.noWorkDay.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
   }
 
   private async isDayOff(
@@ -1030,35 +1052,45 @@ export class AttendanceService {
     };
   }
 
-  public calculateSummary(
+  public async calculateSummary(
     processedAttendance: ProcessedAttendance[],
     startDate: Date,
     endDate: Date,
   ) {
+    const holidays = await this.getHolidaysForDateRange(startDate, endDate);
+    const noWorkDays = await this.getNoWorkDaysForDateRange(startDate, endDate);
     return this.calculateSummaryWithShift(
       processedAttendance,
       startDate,
       endDate,
       this.shift,
+      holidays,
+      noWorkDays,
     );
   }
 
-  public calculateSummaryWithShift(
+  private calculateSummaryWithShift(
     processedAttendance: ProcessedAttendance[],
     startDate: Date,
     endDate: Date,
     shift: ShiftData,
+    holidays: Holiday[],
+    noWorkDays: NoWorkDay[],
   ) {
+    const isShift104 = shift.shiftCode === 'SHIFT104';
+
     const summary = processedAttendance.reduce(
       (acc, record) => {
         if (record.status === 'present') {
-          acc.totalWorkingDays++;
           acc.totalPresent++;
         } else if (record.status === 'off') {
           acc.totalDayOff++;
         } else if (record.status === 'absent') {
-          acc.totalWorkingDays++;
           acc.totalAbsent++;
+        } else if (record.status === 'holiday') {
+          acc.totalHolidays++;
+        } else if (record.status === 'incomplete') {
+          acc.totalIncomplete++;
         }
         acc.totalOvertimeHours += record.overtimeHours || 0;
         acc.totalPotentialOvertimeHours += record.overtimeDuration || 0;
@@ -1066,10 +1098,11 @@ export class AttendanceService {
         return acc;
       },
       {
-        totalWorkingDays: 0,
         totalPresent: 0,
         totalAbsent: 0,
         totalDayOff: 0,
+        totalHolidays: 0,
+        totalIncomplete: 0,
         totalOvertimeHours: 0,
         totalPotentialOvertimeHours: 0,
         totalRegularHours: 0,
@@ -1080,14 +1113,31 @@ export class AttendanceService {
       startDate,
       endDate,
       shift,
+      holidays,
+      noWorkDays,
+      isShift104,
     );
 
-    const attendanceRate =
-      (summary.totalPresent / summary.totalWorkingDays) * 100;
+    const expectedRegularHours =
+      totalWorkingDays * this.getShiftDuration(shift);
+
+    const currentDate = new Date();
+    const workingDaysUpToToday = this.calculateTotalWorkingDays(
+      startDate,
+      currentDate < endDate ? currentDate : endDate,
+      shift,
+      holidays,
+      noWorkDays,
+      isShift104,
+    );
+
+    const attendanceRate = (summary.totalPresent / workingDaysUpToToday) * 100;
 
     return {
       ...summary,
       totalWorkingDays,
+      expectedRegularHours,
+      workingDaysUpToToday,
       attendanceRate: Number(attendanceRate.toFixed(2)),
     };
   }
@@ -1096,12 +1146,21 @@ export class AttendanceService {
     startDate: Date,
     endDate: Date,
     shift: ShiftData,
+    holidays: Holiday[],
+    noWorkDays: NoWorkDay[],
+    isShift104: boolean,
   ): number {
     let totalWorkingDays = 0;
     let currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-      if (shift.workDays.includes(currentDate.getDay())) {
+      if (
+        shift.workDays.includes(currentDate.getDay()) &&
+        !this.isHoliday(currentDate, holidays, isShift104) &&
+        !noWorkDays.some((noWorkDay) =>
+          isSameDay(new Date(noWorkDay.date), currentDate),
+        )
+      ) {
         totalWorkingDays++;
       }
       currentDate.setDate(currentDate.getDate() + 1);
@@ -1110,10 +1169,15 @@ export class AttendanceService {
     return totalWorkingDays;
   }
 
-  public getAbsentDays(processedAttendance: ProcessedAttendance[]): string[] {
-    return processedAttendance
-      .filter((record) => record.status === 'absent')
-      .map((record) => format(record.date, 'yyyy-MM-dd'));
+  private getShiftDuration(shift: ShiftData): number {
+    const startTime = this.parseTime(shift.startTime);
+    const endTime = this.parseTime(shift.endTime);
+    return (endTime - startTime) / (60 * 60 * 1000); // Convert milliseconds to hours
+  }
+
+  private parseTime(timeString: string): number {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return hours * 60 * 60 * 1000 + minutes * 60 * 1000;
   }
 
   private generateDetailedStatus(
