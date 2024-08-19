@@ -100,7 +100,7 @@
     "tar": "^7.4.0",
     "trim-newlines": "^5.0.0",
     "tunnel-agent": "^0.6.0",
-    "undici": "^6.19.2",
+    "undici": "^6.19.3",
     "url": "^0.11.3",
     "vercel": "^32.3.0",
     "winston": "^3.13.1",
