@@ -131,6 +131,41 @@ export default function AttendanceProcessingTest() {
     return value !== undefined && value !== null ? value.toFixed(2) : 'N/A';
   };
 
+  const attendanceColumns: Column[] = [
+    {
+      title: 'Date',
+      dataIndex: 'date',
+      key: 'date',
+      render: (text: string) => formatDate(text),
+    },
+    {
+      title: 'Check-In',
+      dataIndex: 'checkIn',
+      key: 'checkIn',
+      render: (text: string) => formatTime(text),
+    },
+    {
+      title: 'Check-Out',
+      dataIndex: 'checkOut',
+      key: 'checkOut',
+      render: (text: string) => formatTime(text),
+    },
+    { title: 'Status', dataIndex: 'status', key: 'status' },
+    {
+      title: 'Regular Hours',
+      dataIndex: 'regularHours',
+      key: 'regularHours',
+      render: (text: string) => formatNumber(parseFloat(text)),
+    },
+    {
+      title: 'Overtime Hours',
+      dataIndex: 'overtimeHours',
+      key: 'overtimeHours',
+      render: (value: string) => formatNumber(parseFloat(value)),
+    },
+    { title: 'Notes', dataIndex: 'detailedStatus', key: 'notes' },
+  ];
+
   const Row = ({
     index,
     style,
@@ -305,39 +340,43 @@ export default function AttendanceProcessingTest() {
         </Alert>
       )}
 
-      {status === 'completed' && result && isValidResult(result) && (
+      {status === 'completed' && result && (
         <div className="space-y-8">
-          {getWeeks(result.processedAttendance).map((week, index) => {
-            const weekData = result.processedAttendance.filter(
-              (row: any) => row.date >= week.start && row.date <= week.end,
-            );
-
-            return (
-              <Card key={index} className="mb-4">
-                <CardHeader>
-                  <h3 className="text-base font-bold">
-                    Week {index + 1} ({formatDate(week.start)} -{' '}
-                    {formatDate(week.end)})
-                  </h3>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex font-bold mb-2">
-                    <div className="flex-1 p-2">Date</div>
-                    <div className="flex-1 p-2">Check-In</div>
-                    <div className="flex-1 p-2">Check-Out</div>
-                    <div className="flex-1 p-2">Status</div>
-                    <div className="flex-1 p-2">Regular Hours</div>
-                    <div className="flex-1 p-2">Overtime Hours</div>
-                    <div className="flex-1 p-2">Notes</div>
-                  </div>
-                  <VirtualizedTable data={weekData} />
-                  <p className="mt-2 text-sm font-semibold">
-                    Weekly Summary: {calculateWeeklySummary(weekData)}
-                  </p>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {isValidResult(result) ? (
+            getWeeks(result.processedAttendance).map((week, index) => {
+              const weekData = result.processedAttendance.filter(
+                (row: any) => row.date >= week.start && row.date <= week.end,
+              );
+              console.log(`Week ${index + 1} data:`, weekData);
+              return (
+                <Card key={index} className="mb-4">
+                  <CardHeader>
+                    <h3 className="text-base font-bold">
+                      Week {index + 1} ({formatDate(week.start)} -{' '}
+                      {formatDate(week.end)})
+                    </h3>
+                  </CardHeader>
+                  <CardContent>
+                    {weekData.length > 0 ? (
+                      <>
+                        <Table
+                          columns={attendanceColumns}
+                          dataSource={weekData}
+                        />
+                        <p className="mt-2 text-sm font-semibold">
+                          Weekly Summary: {calculateWeeklySummary(weekData)}
+                        </p>
+                      </>
+                    ) : (
+                      <p>No data available for this week</p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
+          ) : (
+            <p>Invalid result format</p>
+          )}
 
           <Card>
             <CardHeader>
