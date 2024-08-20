@@ -51,7 +51,7 @@ export default function AttendanceProcessingTest() {
   const [status, setStatus] = useState<
     'idle' | 'processing' | 'completed' | 'failed'
   >('idle');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ProcessedAttendanceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('current');
@@ -274,32 +274,38 @@ export default function AttendanceProcessingTest() {
   );
 
   function isValidResult(result: any): result is ProcessedAttendanceResult {
-    if (!result) {
-      console.log('Result is null or undefined');
+    if (!result) return false;
+    if (
+      !result.processedAttendance ||
+      typeof result.processedAttendance !== 'object'
+    )
       return false;
-    }
-    if (!Array.isArray(result.processedAttendance)) {
-      console.log('processedAttendance is not an array');
+    if (!Array.isArray(result.processedAttendance)) return false;
+    if (typeof result.summary !== 'object' || result.summary === null)
       return false;
-    }
-    if (typeof result.summary !== 'object' || result.summary === null) {
-      console.log('summary is not an object or is null');
-      return false;
-    }
     if (
       typeof result.payrollPeriod !== 'object' ||
       result.payrollPeriod === null
-    ) {
-      console.log('payrollPeriod is not an object or is null');
+    )
       return false;
-    }
     if (
       typeof result.payrollPeriod.start !== 'string' ||
       typeof result.payrollPeriod.end !== 'string'
-    ) {
-      console.log('payrollPeriod start or end is not a string');
+    )
       return false;
+
+    // Check for required summary properties
+    const requiredSummaryProps = [
+      'totalWorkingDays',
+      'totalPresent',
+      'totalAbsent',
+      'totalRegularHours',
+      'totalOvertimeHours',
+    ];
+    for (const prop of requiredSummaryProps) {
+      if (typeof result.summary[prop] !== 'number') return false;
     }
+
     return true;
   }
 
@@ -387,36 +393,40 @@ export default function AttendanceProcessingTest() {
               </h3>
             </CardHeader>
             <CardContent>
-              <ul className="list-disc list-inside">
-                <li>Total Working Days: {result.summary.totalWorkingDays}</li>
-                <li>
-                  Total Present Days: {result.summary.totalPresent} /{' '}
-                  {result.summary.totalWorkingDays}
-                </li>
-                <li>Total Absent Days: {result.summary.totalAbsent}</li>
-                <li>
-                  Total Incomplete Days: {result.summary.totalIncomplete || 0}
-                </li>
-                <li>Total Holidays: {result.summary.totalHolidays || 0}</li>
-                <li>Total Day Off: {result.summary.totalDayOff || 0}</li>
-                <li>
-                  Total Regular Hours:{' '}
-                  {formatNumber(result.summary.totalRegularHours)} /{' '}
-                  {formatNumber(result.summary.expectedRegularHours)}
-                </li>
-                <li>
-                  Total Overtime Hours:{' '}
-                  {formatNumber(result.summary.totalOvertimeHours)}
-                </li>
-                <li>
-                  Total Potential Overtime Hours:{' '}
-                  {formatNumber(result.summary.totalPotentialOvertimeHours)}
-                </li>
-                <li>
-                  Attendance Rate: {formatNumber(result.summary.attendanceRate)}
-                  %
-                </li>
-              </ul>
+              {isValidResult(result) ? (
+                <ul className="list-disc list-inside">
+                  <li>Total Working Days: {result.summary.totalWorkingDays}</li>
+                  <li>
+                    Total Present Days: {result.summary.totalPresent} /{' '}
+                    {result.summary.totalWorkingDays}
+                  </li>
+                  <li>Total Absent Days: {result.summary.totalAbsent}</li>
+                  <li>
+                    Total Incomplete Days: {result.summary.totalIncomplete || 0}
+                  </li>
+                  <li>Total Holidays: {result.summary.totalHolidays || 0}</li>
+                  <li>Total Day Off: {result.summary.totalDayOff || 0}</li>
+                  <li>
+                    Total Regular Hours:{' '}
+                    {formatNumber(result.summary.totalRegularHours)} /{' '}
+                    {formatNumber(result.summary.expectedRegularHours)}
+                  </li>
+                  <li>
+                    Total Overtime Hours:{' '}
+                    {formatNumber(result.summary.totalOvertimeHours)}
+                  </li>
+                  <li>
+                    Total Potential Overtime Hours:{' '}
+                    {formatNumber(result.summary.totalPotentialOvertimeHours)}
+                  </li>
+                  <li>
+                    Attendance Rate:{' '}
+                    {formatNumber(result.summary.attendanceRate)}%
+                  </li>
+                </ul>
+              ) : (
+                <p>No valid summary available.</p>
+              )}
             </CardContent>
           </Card>
         </div>
