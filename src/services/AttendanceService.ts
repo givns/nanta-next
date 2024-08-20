@@ -356,6 +356,7 @@ export class AttendanceService {
     );
 
     if (unpairedRecords.length > 0) {
+      logMessage(`Unpaired records found: ${unpairedRecords.length}`);
       await this.flagUnpairedRecordsForAdminReview(unpairedRecords);
     }
 
@@ -395,6 +396,8 @@ export class AttendanceService {
 
         const isLeave = this.isOnLeave(currentDate, leaveRequests);
 
+        logMessage(`Processing attendance pair on date: ${currentDate}`);
+
         let processed = await this.processAttendancePair(
           pair,
           effectiveShift,
@@ -404,6 +407,7 @@ export class AttendanceService {
         );
 
         if (isHoliday) {
+          logMessage(`Marking record as holiday: ${currentDate}`);
           processed.status = 'holiday';
           processed.detailedStatus = 'Holiday';
           processed.regularHours = 0;
@@ -420,16 +424,23 @@ export class AttendanceService {
           );
 
         if (potentialShiftAdjustment) {
+          logMessage(
+            `Potential shift adjustment detected for date: ${currentDate}`,
+          );
           await this.flagPotentialShiftAdjustment(processed, effectiveShift);
         }
 
         processedAttendance.push(processed);
-      } catch (error) {
+      } catch (error: any) {
+        logMessage(`Error processing attendance pair: ${error.message}`);
         console.error('Error processing attendance pair:', error);
       }
     }
 
     for (const record of unpairedRecords) {
+      logMessage(
+        `Processing unpaired record for date: ${record.attendanceTime}`,
+      );
       const processed = await this.processUnpairedRecord(
         record,
         userData,
@@ -474,19 +485,16 @@ export class AttendanceService {
 
     for (const record of records) {
       const recordTime = new Date(record.attendanceTime);
-      const shiftStartTime = new Date(record.attendanceTime);
-      shiftStartTime.setHours(
-        parseInt(shift.startTime.split(':')[0]),
-        parseInt(shift.startTime.split(':')[1]),
-      );
+      const shiftStartTime = parse(shift.startTime, 'HH:mm', recordTime);
+      const shiftEndTime = parse(shift.endTime, 'HH:mm', recordTime);
 
       if (
         !currentPair.checkIn ||
         recordTime.getTime() -
           new Date(currentPair.checkIn!.attendanceTime).getTime() >
-          16 * 60 * 60 * 1000
+          differenceInHours(shiftEndTime, shiftStartTime) * 60 * 60 * 1000
       ) {
-        // If there's no current pair or the time difference is more than 16 hours, start a new pair
+        // If there's no current pair or the time difference exceeds shift duration, start a new pair
         if (currentPair.checkIn) {
           if (currentPair.checkOut) {
             pairedRecords.push(currentPair as PairedAttendance);
@@ -543,6 +551,9 @@ export class AttendanceService {
         isDayOff || isHoliday,
       );
 
+    // Validation: Clamp overtime hours to reasonable limits
+    const validatedOvertimeHours = Math.min(Math.max(overtimeHours, 0), 12);
+
     const isEarlyCheckIn = isBefore(
       checkInTime,
       parse(shift.startTime, 'HH:mm', checkInTime),
@@ -576,10 +587,10 @@ export class AttendanceService {
       isLateCheckIn,
       isLateCheckOut,
       regularHours,
-      overtimeHours,
-      overtimeDuration: overtimeHours,
+      overtimeHours: validatedOvertimeHours, // Use validated overtime hours
+      overtimeDuration: validatedOvertimeHours,
       potentialOvertimePeriods,
-      isOvertime: overtimeHours > 0,
+      isOvertime: validatedOvertimeHours > 0,
       detailedStatus: this.generateDetailedStatus(
         status,
         isEarlyCheckIn,
@@ -772,10 +783,14 @@ export class AttendanceService {
     const earlyThreshold = subMinutes(shiftStart, 30);
     const lateThreshold = addMinutes(shiftStart, 30);
 
-    return (
+    // Adjusting to consider shifts that might start earlier or later
+    const isPotentialShiftAdjustment =
       isBefore(actualCheckIn, earlyThreshold) ||
-      isAfter(actualCheckIn, lateThreshold)
-    );
+      isAfter(actualCheckIn, lateThreshold) ||
+      isBefore(actualCheckOut, shiftStart) ||
+      isAfter(actualCheckOut, shiftEnd);
+
+    return isPotentialShiftAdjustment;
   }
 
   private calculateOvertime(
@@ -1084,15 +1099,31 @@ export class AttendanceService {
     shift: ShiftData,
     holidays: Holiday[],
     noWorkDays: NoWorkDay[],
-  ) {
+  ): {
+    totalPresent: number;
+    totalAbsent: number;
+    totalDayOff: number;
+    totalHolidays: number;
+    totalWorkingDays: number;
+    totalIncomplete: number;
+    totalOvertimeHours: number;
+    totalPotentialOvertimeHours: number;
+    totalRegularHours: number;
+    expectedRegularHours: number;
+    workingDaysUpToToday: number;
+    attendanceRate: number;
+  } {
+    logMessage(
+      `Starting summary calculation for period: ${startDate} to ${endDate}`,
+    );
     const isShift104 = shift.shiftCode === 'SHIFT104';
 
     const summary = processedAttendance.reduce(
       (acc, record) => {
+        logMessage(`Processing record for date: ${record.date}`);
+
         if (record.status === 'present') {
           acc.totalPresent++;
-        } else if (record.status === 'off') {
-          acc.totalDayOff++;
         } else if (record.status === 'absent') {
           acc.totalAbsent++;
         } else if (record.status === 'holiday') {
@@ -1100,9 +1131,15 @@ export class AttendanceService {
         } else if (record.status === 'incomplete') {
           acc.totalIncomplete++;
         }
+
+        logMessage(
+          `Accumulating hours: Regular - ${record.regularHours}, Overtime - ${record.overtimeHours}`,
+        );
+
         acc.totalOvertimeHours += record.overtimeHours || 0;
         acc.totalPotentialOvertimeHours += record.overtimeDuration || 0;
         acc.totalRegularHours += record.regularHours;
+
         return acc;
       },
       {
@@ -1126,10 +1163,8 @@ export class AttendanceService {
       noWorkDays,
       isShift104,
     );
-    if (summary.totalWorkingDays === undefined) {
-      console.error('totalWorkingDays is undefined. Summary:', summary);
-      throw new Error('totalWorkingDays is missing from the summary');
-    }
+
+    logMessage(`Calculated total working days: ${totalWorkingDays}`);
 
     const expectedRegularHours =
       totalWorkingDays * this.getShiftDuration(shift);
@@ -1144,7 +1179,11 @@ export class AttendanceService {
       isShift104,
     );
 
+    logMessage(`Working days up to today: ${workingDaysUpToToday}`);
+
     const attendanceRate = (summary.totalPresent / workingDaysUpToToday) * 100;
+
+    logMessage(`Final attendance rate: ${attendanceRate}%`);
 
     return {
       ...summary,
