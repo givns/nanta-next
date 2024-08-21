@@ -6,15 +6,16 @@ import { AttendanceService } from '../services/AttendanceService';
 import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
-import { UserData, AttendanceRecord, ShiftData } from '../types/user';
-import { parseISO, format, parse, addMonths, subMonths } from 'date-fns';
+import { UserData } from '../types/user';
+import { parseISO, addDays } from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
-import { addDays } from 'date-fns';
+import { format, parse, subMonths, addMonths } from 'date-fns';
 
 const prisma = new PrismaClient({
   log: ['query', 'info', 'warn', 'error'],
 });
+
 const externalDbService = new ExternalDbService();
 const holidayService = new HolidayService();
 const shift104HolidayService = new Shift104HolidayService();
@@ -65,7 +66,8 @@ function calculatePeriodDates(payrollPeriod: string): {
 }
 
 export async function processAttendance(job: Job): Promise<any> {
-  logMessage(`Processing job data: ${JSON.stringify(job.data)}`);
+  logMessage(`Starting attendance processing for job: ${job.id}`);
+  logMessage(`Job data: ${JSON.stringify(job.data)}`);
 
   const { employeeId, payrollPeriod } = job.data;
 
@@ -77,15 +79,15 @@ export async function processAttendance(job: Job): Promise<any> {
     throw new Error('Payroll period is required');
   }
 
-  const { start: startDate, end: endDate } =
-    calculatePeriodDates(payrollPeriod);
-  const queryEndDate = addDays(parseISO(endDate), 1); // Add one day to include the full last day
-
-  logMessage(
-    `Starting attendance processing for employee: ${employeeId} for period: ${payrollPeriod} (${startDate} to ${endDate})`,
-  );
-
   try {
+    const { start: startDate, end: endDate } =
+      calculatePeriodDates(payrollPeriod);
+    const queryEndDate = addDays(parseISO(endDate), 1); // Add one day to include the full last day
+
+    logMessage(
+      `Processing attendance for employee: ${employeeId} for period: ${payrollPeriod} (${startDate} to ${endDate})`,
+    );
+
     const user = await prisma.user.findUnique({
       where: { employeeId },
       include: {
@@ -96,61 +98,18 @@ export async function processAttendance(job: Job): Promise<any> {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error(`User not found for employeeId: ${employeeId}`);
     }
 
-    logMessage(`User found: ${user.name}`);
-
-    const userData: UserData = {
-      employeeId: user.employeeId,
-      name: user.name,
-      lineUserId: user.lineUserId,
-      nickname: user.nickname,
-      departmentId: user.departmentId,
-      department: user.department.name,
-      role: user.role as any,
-      profilePictureUrl: user.profilePictureUrl,
-      profilePictureExternal: user.profilePictureExternal,
-      shiftId: user.shiftId,
-      assignedShift: user.assignedShift,
-      overtimeHours: user.overtimeHours,
-      potentialOvertimes:
-        user.potentialOvertimes.map((overtime) => ({
-          ...overtime,
-          type: overtime.type as
-            | 'early-check-in'
-            | 'late-check-out'
-            | 'day-off',
-          status: overtime.status as 'pending' | 'approved' | 'rejected',
-          periods: overtime.periods as
-            | { start: string; end: string }[]
-            | undefined,
-          reviewedBy: overtime.reviewedBy || undefined,
-          reviewedAt: overtime.reviewedAt || undefined,
-        })) || [],
-      sickLeaveBalance: user.sickLeaveBalance,
-      businessLeaveBalance: user.businessLeaveBalance,
-      annualLeaveBalance: user.annualLeaveBalance,
-      overtimeLeaveBalance: user.overtimeLeaveBalance,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
-
-    logMessage(`UserData prepared: ${JSON.stringify(userData)}`);
+    const userData: UserData = attendanceService.convertToUserData(user);
 
     const attendanceRecords = await attendanceService.getAttendanceRecords(
       employeeId,
       new Date(startDate),
-      queryEndDate, // Use queryEndDate to include the full last day
+      queryEndDate,
     );
-
-    logMessage(`Fetched ${attendanceRecords.length} attendance records`);
 
     const holidays = await attendanceService.getHolidaysForDateRange(
-      new Date(startDate),
-      new Date(endDate),
-    );
-    const noWorkDays = await attendanceService.getNoWorkDaysForDateRange(
       new Date(startDate),
       new Date(endDate),
     );
@@ -163,26 +122,10 @@ export async function processAttendance(job: Job): Promise<any> {
       holidays,
     );
 
-    logMessage(`Processed ${processedAttendance.length} attendance records`);
-
-    const summary = attendanceService.calculateSummary(
+    const summary = await attendanceService.calculateSummary(
       processedAttendance.processedAttendance,
       new Date(startDate),
       new Date(endDate),
-    );
-
-    const isShift104 = userData.assignedShift.shiftCode === 'SHIFT104';
-
-    const totalWorkingDays = attendanceService.calculateTotalWorkingDays(
-      new Date(startDate),
-      new Date(endDate),
-      {
-        ...userData.assignedShift,
-        timezone: 'asia/Bangkok',
-      },
-      holidays,
-      noWorkDays,
-      isShift104,
     );
 
     const result = {
@@ -191,36 +134,31 @@ export async function processAttendance(job: Job): Promise<any> {
       userData,
       processedAttendance,
       payrollPeriod: {
-        period: payrollPeriod || 'Default',
+        period: payrollPeriod,
         start: startDate,
         end: endDate,
       },
     };
-    logMessage(`Summary object: ${JSON.stringify(summary)}`);
 
-    // Store the result in the database
     await prisma.payrollProcessingResult.create({
       data: {
         employeeId,
         periodStart: new Date(startDate),
         periodEnd: new Date(endDate),
-        totalWorkingDays,
-        totalPresent: (await summary).totalPresent || 0,
-        totalAbsent: (await summary).totalAbsent || 0,
-        totalOvertimeHours: (await summary).totalOvertimeHours || 0,
-        totalRegularHours: (await summary).totalRegularHours || 0,
+        totalWorkingDays: summary.totalWorkingDays,
+        totalPresent: summary.totalPresent,
+        totalAbsent: summary.totalAbsent,
+        totalOvertimeHours: summary.totalOvertimeHours,
+        totalRegularHours: summary.totalRegularHours,
         processedData: JSON.stringify(result),
       },
     });
 
-    logMessage(
-      `Payroll processing completed for job: ${job.id}, Result: ${JSON.stringify(result)}`,
-    );
-
+    logMessage(`Attendance processing completed for job: ${job.id}`);
     return result;
   } catch (error: any) {
-    logMessage(`Error processing payroll: ${error.message}`);
-    console.error('Error processing payroll:', error);
+    logMessage(`Error processing attendance: ${error.message}`);
+    console.error('Error processing attendance:', error);
     throw error;
   }
 }

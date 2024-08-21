@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -62,7 +62,7 @@ export default function AttendanceProcessingTest() {
     setPayrollPeriods(periods);
   }, []);
 
-  const initiateProcessing = async () => {
+  const initiateProcessing = useCallback(async () => {
     try {
       setStatus('processing');
       setLogs([]);
@@ -79,7 +79,7 @@ export default function AttendanceProcessingTest() {
       setError('Failed to initiate processing');
       setStatus('failed');
     }
-  };
+  }, [employeeId, selectedPeriod, payrollPeriods]);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -111,7 +111,7 @@ export default function AttendanceProcessingTest() {
     checkStatus();
   }, [jobId, status, employeeId]);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = useCallback((dateString: string) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -119,89 +119,98 @@ export default function AttendanceProcessingTest() {
       month: '2-digit',
       day: '2-digit',
     });
-  };
+  }, []);
 
-  const formatTime = (timeString: string) => {
+  const formatTime = useCallback((timeString: string) => {
     if (!timeString) return 'N/A';
     const [datePart, timePart] = timeString.split(' ');
     return timePart || 'N/A';
-  };
+  }, []);
 
-  const formatNumber = (value: number | undefined | null) => {
+  const formatNumber = useCallback((value: number | undefined | null) => {
     return value !== undefined && value !== null ? value.toFixed(2) : 'N/A';
-  };
+  }, []);
 
-  const attendanceColumns: Column[] = [
-    {
-      title: 'Date',
-      dataIndex: 'date',
-      key: 'date',
-      render: (text: string) => formatDate(text),
-    },
-    {
-      title: 'Check-In',
-      dataIndex: 'checkIn',
-      key: 'checkIn',
-      render: (text: string) => formatTime(text),
-    },
-    {
-      title: 'Check-Out',
-      dataIndex: 'checkOut',
-      key: 'checkOut',
-      render: (text: string) => formatTime(text),
-    },
-    { title: 'Status', dataIndex: 'status', key: 'status' },
-    {
-      title: 'Regular Hours',
-      dataIndex: 'regularHours',
-      key: 'regularHours',
-      render: (text: string) => formatNumber(parseFloat(text)),
-    },
-    {
-      title: 'Overtime Hours',
-      dataIndex: 'overtimeHours',
-      key: 'overtimeHours',
-      render: (value: string) => formatNumber(parseFloat(value)),
-    },
-    { title: 'Notes', dataIndex: 'detailedStatus', key: 'notes' },
-  ];
+  const attendanceColumns = useMemo(
+    () => [
+      {
+        title: 'Date',
+        dataIndex: 'date',
+        key: 'date',
+        render: (text: string) => formatDate(text),
+      },
+      {
+        title: 'Check-In',
+        dataIndex: 'checkIn',
+        key: 'checkIn',
+        render: (text: string) => formatTime(text),
+      },
+      {
+        title: 'Check-Out',
+        dataIndex: 'checkOut',
+        key: 'checkOut',
+        render: (text: string) => formatTime(text),
+      },
+      { title: 'Status', dataIndex: 'status', key: 'status' },
+      {
+        title: 'Regular Hours',
+        dataIndex: 'regularHours',
+        key: 'regularHours',
+        render: (text: string) => formatNumber(parseFloat(text)),
+      },
+      {
+        title: 'Overtime Hours',
+        dataIndex: 'overtimeHours',
+        key: 'overtimeHours',
+        render: (value: string) => formatNumber(parseFloat(value)),
+      },
+      { title: 'Notes', dataIndex: 'detailedStatus', key: 'notes' },
+    ],
+    [formatDate, formatTime, formatNumber],
+  );
 
-  const Row = ({
-    index,
-    style,
-    data,
-  }: {
-    index: number;
-    style: React.CSSProperties;
-    data: any[];
-  }) => {
-    const record = data[index];
-    return (
-      <div style={style} className="flex items-center border-b">
-        <div className="flex-1 p-2">{formatDate(record.date)}</div>
-        <div className="flex-1 p-2">{formatTime(record.checkIn)}</div>
-        <div className="flex-1 p-2">{formatTime(record.checkOut)}</div>
-        <div className="flex-1 p-2">{record.status}</div>
-        <div className="flex-1 p-2">{formatNumber(record.regularHours)}</div>
-        <div className="flex-1 p-2">{formatNumber(record.overtimeHours)}</div>
-        <div className="flex-1 p-2">{record.detailedStatus}</div>
-      </div>
-    );
-  };
+  const Row = useCallback(
+    ({
+      index,
+      style,
+      data,
+    }: {
+      index: number;
+      style: React.CSSProperties;
+      data: any[];
+    }) => {
+      const record = data[index];
+      return (
+        <div style={style} className="flex items-center border-b">
+          <div className="flex-1 p-2">{formatDate(record.date)}</div>
+          <div className="flex-1 p-2">{formatTime(record.checkIn)}</div>
+          <div className="flex-1 p-2">{formatTime(record.checkOut)}</div>
+          <div className="flex-1 p-2">{record.status}</div>
+          <div className="flex-1 p-2">{formatNumber(record.regularHours)}</div>
+          <div className="flex-1 p-2">{formatNumber(record.overtimeHours)}</div>
+          <div className="flex-1 p-2">{record.detailedStatus}</div>
+        </div>
+      );
+    },
+    [formatDate, formatTime, formatNumber],
+  );
 
-  const VirtualizedTable = ({ data }: { data: any[] }) => {
-    return (
-      <List
-        height={400}
-        itemCount={data.length}
-        itemSize={35}
-        width="100%"
-        itemData={data}
-      >
-        {Row}
-      </List>
-    );
-  };
+  const VirtualizedTable = useCallback(
+    ({ data }: { data: any[] }) => {
+      return (
+        <List
+          height={400}
+          itemCount={data.length}
+          itemSize={35}
+          width="100%"
+          itemData={data}
+        >
+          {Row}
+        </List>
+      );
+    },
+    [Row],
+  );
 
   const getWeeks = useMemo(
     () => (attendanceData: any[]) => {
@@ -241,8 +250,8 @@ export default function AttendanceProcessingTest() {
     [],
   );
 
-  const calculateWeeklySummary = useMemo(
-    () => (weekData: any[]) => {
+  const calculateWeeklySummary = useCallback(
+    (weekData: any[]) => {
       if (!weekData || !Array.isArray(weekData) || weekData.length === 0) {
         console.warn('Invalid or empty week data');
         return 'No data available';
@@ -268,46 +277,88 @@ export default function AttendanceProcessingTest() {
         0,
       );
 
-      return `${workingDays} working days, ${presentDays} present, ${formatNumber(totalRegularHours)} regular hours, ${formatNumber(totalOvertimeHours)} overtime hours, ${formatNumber(totalPotentialOvertimeHours)} potential overtime hours`;
+      return `${workingDays} working days, ${presentDays} present, ${formatNumber(
+        totalRegularHours,
+      )} regular hours, ${formatNumber(totalOvertimeHours)} overtime hours, ${formatNumber(
+        totalPotentialOvertimeHours,
+      )} potential overtime hours`;
     },
-    [],
+    [formatNumber],
   );
 
-  function isValidResult(result: any): result is ProcessedAttendanceResult {
-    if (!result) return false;
-    if (
-      !result.processedAttendance ||
-      typeof result.processedAttendance !== 'object'
-    )
-      return false;
-    if (!Array.isArray(result.processedAttendance)) return false;
-    if (typeof result.summary !== 'object' || result.summary === null)
-      return false;
-    if (
-      typeof result.payrollPeriod !== 'object' ||
-      result.payrollPeriod === null
-    )
-      return false;
-    if (
-      typeof result.payrollPeriod.start !== 'string' ||
-      typeof result.payrollPeriod.end !== 'string'
-    )
-      return false;
+  // Memoize the rendering of week data
+  const renderWeekData = useCallback(
+    (week: any, index: number, weekData: any[]) => (
+      <Card key={index} className="mb-4">
+        <CardHeader>
+          <h3 className="text-base font-bold">
+            Week {index + 1} ({formatDate(week.start)} - {formatDate(week.end)})
+          </h3>
+        </CardHeader>
+        <CardContent>
+          {weekData.length > 0 ? (
+            <>
+              <VirtualizedTable data={weekData} />
+              <p className="mt-2 text-sm font-semibold">
+                Weekly Summary: {calculateWeeklySummary(weekData)}
+              </p>
+            </>
+          ) : (
+            <p>No data available for this week</p>
+          )}
+        </CardContent>
+      </Card>
+    ),
+    [formatDate, VirtualizedTable, calculateWeeklySummary],
+  );
 
-    // Check for required summary properties
-    const requiredSummaryProps = [
-      'totalWorkingDays',
-      'totalPresent',
-      'totalAbsent',
-      'totalRegularHours',
-      'totalOvertimeHours',
-    ];
-    for (const prop of requiredSummaryProps) {
-      if (typeof result.summary[prop] !== 'number') return false;
-    }
+  // Memoize the rendering of the summary card
+  const renderSummaryCard = useMemo(() => {
+    if (!result || !result.summary) return null;
 
-    return true;
-  }
+    return (
+      <Card>
+        <CardHeader>
+          <h3 className="text-lg font-semibold">
+            Total Summary for{' '}
+            {format(parseISO(result.payrollPeriod.start), 'MMMM yyyy')} Payroll
+            Period
+          </h3>
+        </CardHeader>
+        <CardContent>
+          <ul className="list-disc list-inside">
+            <li>Total Working Days: {result.summary.totalWorkingDays}</li>
+            <li>
+              Total Present Days: {result.summary.totalPresent} /{' '}
+              {result.summary.totalWorkingDays}
+            </li>
+            <li>Total Absent Days: {result.summary.totalAbsent}</li>
+            <li>
+              Total Incomplete Days: {result.summary.totalIncomplete || 0}
+            </li>
+            <li>Total Holidays: {result.summary.totalHolidays || 0}</li>
+            <li>Total Day Off: {result.summary.totalDayOff || 0}</li>
+            <li>
+              Total Regular Hours:{' '}
+              {formatNumber(result.summary.totalRegularHours)} /{' '}
+              {formatNumber(result.summary.expectedRegularHours)}
+            </li>
+            <li>
+              Total Overtime Hours:{' '}
+              {formatNumber(result.summary.totalOvertimeHours)}
+            </li>
+            <li>
+              Total Potential Overtime Hours:{' '}
+              {formatNumber(result.summary.totalPotentialOvertimeHours)}
+            </li>
+            <li>
+              Attendance Rate: {formatNumber(result.summary.attendanceRate)}%
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+    );
+  }, [result, formatNumber]);
 
   return (
     <div className="container mx-auto p-4">
@@ -348,87 +399,13 @@ export default function AttendanceProcessingTest() {
 
       {status === 'completed' && result && (
         <div className="space-y-8">
-          {isValidResult(result) ? (
-            getWeeks(result.processedAttendance).map((week, index) => {
-              const weekData = result.processedAttendance.filter(
-                (row: any) => row.date >= week.start && row.date <= week.end,
-              );
-              console.log(`Week ${index + 1} data:`, weekData);
-              return (
-                <Card key={index} className="mb-4">
-                  <CardHeader>
-                    <h3 className="text-base font-bold">
-                      Week {index + 1} ({formatDate(week.start)} -{' '}
-                      {formatDate(week.end)})
-                    </h3>
-                  </CardHeader>
-                  <CardContent>
-                    {weekData.length > 0 ? (
-                      <>
-                        <Table
-                          columns={attendanceColumns}
-                          dataSource={weekData}
-                        />
-                        <p className="mt-2 text-sm font-semibold">
-                          Weekly Summary: {calculateWeeklySummary(weekData)}
-                        </p>
-                      </>
-                    ) : (
-                      <p>No data available for this week</p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })
-          ) : (
-            <p>Invalid result format</p>
-          )}
-
-          <Card>
-            <CardHeader>
-              <h3 className="text-lg font-semibold">
-                Total Summary for{' '}
-                {format(parseISO(result.payrollPeriod.start), 'MMMM yyyy')}{' '}
-                Payroll Period
-              </h3>
-            </CardHeader>
-            <CardContent>
-              {isValidResult(result) ? (
-                <ul className="list-disc list-inside">
-                  <li>Total Working Days: {result.summary.totalWorkingDays}</li>
-                  <li>
-                    Total Present Days: {result.summary.totalPresent} /{' '}
-                    {result.summary.totalWorkingDays}
-                  </li>
-                  <li>Total Absent Days: {result.summary.totalAbsent}</li>
-                  <li>
-                    Total Incomplete Days: {result.summary.totalIncomplete || 0}
-                  </li>
-                  <li>Total Holidays: {result.summary.totalHolidays || 0}</li>
-                  <li>Total Day Off: {result.summary.totalDayOff || 0}</li>
-                  <li>
-                    Total Regular Hours:{' '}
-                    {formatNumber(result.summary.totalRegularHours)} /{' '}
-                    {formatNumber(result.summary.expectedRegularHours)}
-                  </li>
-                  <li>
-                    Total Overtime Hours:{' '}
-                    {formatNumber(result.summary.totalOvertimeHours)}
-                  </li>
-                  <li>
-                    Total Potential Overtime Hours:{' '}
-                    {formatNumber(result.summary.totalPotentialOvertimeHours)}
-                  </li>
-                  <li>
-                    Attendance Rate:{' '}
-                    {formatNumber(result.summary.attendanceRate)}%
-                  </li>
-                </ul>
-              ) : (
-                <p>No valid summary available.</p>
-              )}
-            </CardContent>
-          </Card>
+          {getWeeks(result.processedAttendance).map((week, index) => {
+            const weekData = result.processedAttendance.filter(
+              (row: any) => row.date >= week.start && row.date <= week.end,
+            );
+            return renderWeekData(week, index, weekData);
+          })}
+          {renderSummaryCard}
         </div>
       )}
     </div>
