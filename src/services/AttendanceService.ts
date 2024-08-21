@@ -508,34 +508,50 @@ export class AttendanceService {
     pairedRecords: PairedAttendance[];
     unpairedRecords: AttendanceRecord[];
   } {
-    records.sort(
-      (a, b) =>
-        new Date(a.attendanceTime).getTime() -
-        new Date(b.attendanceTime).getTime(),
+    const timezone = 'Asia/Bangkok';
+    records.sort((a, b) =>
+      compareAsc(
+        toZonedTime(new Date(a.attendanceTime), timezone),
+        toZonedTime(new Date(b.attendanceTime), timezone),
+      ),
     );
 
     const pairedRecords: PairedAttendance[] = [];
     const unpairedRecords: AttendanceRecord[] = [];
     let currentPair: Partial<PairedAttendance> = {};
 
+    const getShiftEndTime = (startTime: Date) => {
+      let endTime = parse(shift.endTime, 'HH:mm', startTime);
+      if (isBefore(endTime, startTime)) {
+        endTime = addDays(endTime, 1);
+      }
+      return endTime;
+    };
+
     for (const record of records) {
-      const recordTime = new Date(record.attendanceTime);
-      const shiftStartTime = parse(shift.startTime, 'HH:mm', recordTime);
-      const shiftEndTime = parse(shift.endTime, 'HH:mm', recordTime);
+      const recordTime = toZonedTime(new Date(record.attendanceTime), timezone);
+
+      if (!currentPair.checkIn) {
+        currentPair.checkIn = record;
+        continue;
+      }
+
+      const currentPairStartTime = toZonedTime(
+        new Date(currentPair.checkIn!.attendanceTime),
+        timezone,
+      );
+      const shiftEndTime = getShiftEndTime(currentPairStartTime);
 
       if (
-        !currentPair.checkIn ||
-        recordTime.getTime() -
-          new Date(currentPair.checkIn!.attendanceTime).getTime() >
-          differenceInHours(shiftEndTime, shiftStartTime) * 60 * 60 * 1000
+        isAfter(recordTime, shiftEndTime) ||
+        differenceInHours(recordTime, currentPairStartTime) > 16
       ) {
-        // If there's no current pair or the time difference exceeds shift duration, start a new pair
-        if (currentPair.checkIn) {
-          if (currentPair.checkOut) {
-            pairedRecords.push(currentPair as PairedAttendance);
-          } else {
-            unpairedRecords.push(currentPair.checkIn);
-          }
+        // If this record is after the expected shift end or more than 16 hours from the check-in,
+        // close the current pair and start a new one
+        if (currentPair.checkOut) {
+          pairedRecords.push(currentPair as PairedAttendance);
+        } else {
+          unpairedRecords.push(currentPair.checkIn!);
         }
         currentPair = { checkIn: record };
       } else {
