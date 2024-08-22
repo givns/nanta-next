@@ -508,61 +508,36 @@ export class AttendanceService {
     pairedRecords: PairedAttendance[];
     unpairedRecords: AttendanceRecord[];
   } {
-    const timezone = 'Asia/Bangkok';
-    records.sort((a, b) =>
-      compareAsc(
-        toZonedTime(new Date(a.attendanceTime), timezone),
-        toZonedTime(new Date(b.attendanceTime), timezone),
-      ),
-    );
-
     const pairedRecords: PairedAttendance[] = [];
     const unpairedRecords: AttendanceRecord[] = [];
     let currentPair: Partial<PairedAttendance> = {};
 
-    const getShiftEndTime = (startTime: Date) => {
-      let endTime = parse(shift.endTime, 'HH:mm', startTime);
-      if (isBefore(endTime, startTime)) {
-        endTime = addDays(endTime, 1);
-      }
-      return endTime;
+    const isValidCheckOut = (checkIn: Date, checkOut: Date) => {
+      const maxShiftDuration = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      return (
+        checkOut > checkIn &&
+        checkOut.getTime() - checkIn.getTime() <= maxShiftDuration
+      );
     };
 
     for (const record of records) {
-      const recordTime = toZonedTime(new Date(record.attendanceTime), timezone);
+      const recordTime = new Date(record.attendanceTime);
 
       if (!currentPair.checkIn) {
         currentPair.checkIn = record;
-        continue;
-      }
-
-      const currentPairStartTime = toZonedTime(
-        new Date(currentPair.checkIn!.attendanceTime),
-        timezone,
-      );
-      const shiftEndTime = getShiftEndTime(currentPairStartTime);
-
-      if (
-        isAfter(recordTime, shiftEndTime) ||
-        differenceInHours(recordTime, currentPairStartTime) > 16
-      ) {
-        // If this record is after the expected shift end or more than 16 hours from the check-in,
-        // close the current pair and start a new one
-        if (currentPair.checkOut) {
+      } else {
+        const currentCheckIn = new Date(currentPair.checkIn!.attendanceTime);
+        if (isValidCheckOut(currentCheckIn, recordTime)) {
+          currentPair.checkOut = record;
           pairedRecords.push(currentPair as PairedAttendance);
+          currentPair = {};
         } else {
           unpairedRecords.push(currentPair.checkIn!);
+          currentPair = { checkIn: record };
         }
-        currentPair = { checkIn: record };
-      } else {
-        // This is a check-out for the current pair
-        currentPair.checkOut = record;
-        pairedRecords.push(currentPair as PairedAttendance);
-        currentPair = {};
       }
     }
 
-    // Handle any remaining unpaired check-in
     if (currentPair.checkIn) {
       unpairedRecords.push(currentPair.checkIn);
     }
