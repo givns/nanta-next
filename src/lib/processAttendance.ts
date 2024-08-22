@@ -1,5 +1,3 @@
-// src/lib/processAttendance.ts
-
 import { Job } from 'bull';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../services/AttendanceService';
@@ -7,10 +5,9 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData } from '../types/user';
-import { parseISO, addDays } from 'date-fns';
+import { parseISO, addDays, startOfDay, endOfDay } from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
-import { format, parse, subMonths, addMonths } from 'date-fns';
 
 const prisma = new PrismaClient({
   log: ['query', 'info', 'warn', 'error'],
@@ -28,8 +25,8 @@ const attendanceService = new AttendanceService(
 );
 
 function calculatePeriodDates(payrollPeriod: string): {
-  start: string;
-  end: string;
+  start: Date;
+  end: Date;
 } {
   if (payrollPeriod === 'current') {
     const now = new Date();
@@ -47,22 +44,23 @@ function calculatePeriodDates(payrollPeriod: string): {
     }
 
     return {
-      start: format(startDate, 'yyyy-MM-dd'),
-      end: format(endDate, 'yyyy-MM-dd'),
+      start: startOfDay(startDate),
+      end: endOfDay(endDate),
     };
   }
 
-  const { start: startDate, end: endDate } =
-    calculatePeriodDates(payrollPeriod);
-  const parsedStartDate = new Date(startDate);
-  parsedStartDate.setHours(0, 0, 0, 0);
-
-  const parsedEndDate = new Date(endDate);
-  parsedEndDate.setHours(23, 59, 59, 999);
+  const [month, year] = payrollPeriod.split('-');
+  const periodDate = parseISO(`${year}-${month}-01`);
+  const startDate = new Date(
+    periodDate.getFullYear(),
+    periodDate.getMonth() - 1,
+    26,
+  );
+  const endDate = new Date(periodDate.getFullYear(), periodDate.getMonth(), 25);
 
   return {
-    start: format(startDate, 'yyyy-MM-dd'),
-    end: format(endDate, 'yyyy-MM-dd'),
+    start: startOfDay(startDate),
+    end: endOfDay(endDate),
   };
 }
 
@@ -83,10 +81,9 @@ export async function processAttendance(job: Job): Promise<any> {
   try {
     const { start: startDate, end: endDate } =
       calculatePeriodDates(payrollPeriod);
-    const queryEndDate = addDays(parseISO(endDate), 1); // Add one day to include the full last day
 
     logMessage(
-      `Processing attendance for employee: ${employeeId} for period: ${payrollPeriod} (${startDate} to ${endDate})`,
+      `Processing attendance for employee: ${employeeId} for period: ${payrollPeriod} (${startDate.toISOString()} to ${endDate.toISOString()})`,
     );
 
     const user = await prisma.user.findUnique({
@@ -106,27 +103,29 @@ export async function processAttendance(job: Job): Promise<any> {
 
     const attendanceRecords = await attendanceService.getAttendanceRecords(
       employeeId,
-      new Date(startDate),
-      queryEndDate,
+      startDate,
+      endDate,
     );
 
+    logMessage(`Retrieved ${attendanceRecords.length} attendance records`);
+
     const holidays = await attendanceService.getHolidaysForDateRange(
-      new Date(startDate),
-      new Date(endDate),
+      startDate,
+      endDate,
     );
 
     const processedAttendance = await attendanceService.processAttendanceData(
       attendanceRecords,
       userData,
-      new Date(startDate),
-      new Date(endDate),
+      startDate,
+      endDate,
       holidays,
     );
 
     const summary = await attendanceService.calculateSummary(
       processedAttendance.processedAttendance,
-      new Date(startDate),
-      new Date(endDate),
+      startDate,
+      endDate,
     );
 
     const result = {
@@ -136,16 +135,16 @@ export async function processAttendance(job: Job): Promise<any> {
       processedAttendance,
       payrollPeriod: {
         period: payrollPeriod,
-        start: startDate,
-        end: endDate,
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
       },
     };
 
     await prisma.payrollProcessingResult.create({
       data: {
         employeeId,
-        periodStart: new Date(startDate),
-        periodEnd: new Date(endDate),
+        periodStart: startDate,
+        periodEnd: endDate,
         totalWorkingDays: summary.totalWorkingDays,
         totalPresent: summary.totalPresent,
         totalAbsent: summary.totalAbsent,
