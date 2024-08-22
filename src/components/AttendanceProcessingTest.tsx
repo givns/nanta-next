@@ -47,11 +47,13 @@ export default function AttendanceProcessingTest() {
   const initiateProcessing = useCallback(async () => {
     try {
       setStatus('processing');
-      setResult(null); // Clear previous results
+      setResult(null);
+      setError(null);
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
         payrollPeriod: selectedPeriod,
       });
+      console.log('Initiate processing response:', response.data);
       setJobId(response.data.jobId);
     } catch (err) {
       console.error('Error initiating processing:', err);
@@ -72,10 +74,19 @@ export default function AttendanceProcessingTest() {
 
           if (response.data.status === 'completed') {
             setStatus('completed');
-            setResult(response.data.data);
+            if (response.data.data) {
+              console.log('Completed job data:', response.data.data);
+              setResult(response.data.data);
+            } else {
+              console.error('Completed job has no data');
+              setError('Completed job returned no data');
+            }
           } else if (response.data.status === 'failed') {
             setStatus('failed');
-            setError('Processing failed');
+            setError(
+              'Processing failed: ' +
+                (response.data.message || 'Unknown error'),
+            );
           } else {
             // Still processing, check again after a delay
             setTimeout(checkStatus, 5000);
@@ -199,11 +210,26 @@ export default function AttendanceProcessingTest() {
                 dataSource={result.processedAttendance}
               />
             ) : (
-              <p>No attendance data available.</p>
+              <p>
+                No attendance data available. Please check the console for more
+                details.
+              </p>
             )}
           </CardContent>
         </Card>
       )}
+
+      {status === 'completed' &&
+        (!result ||
+          !result.processedAttendance ||
+          result.processedAttendance.length === 0) && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>
+              Processing completed, but no attendance data was returned. Please
+              check the console for more details.
+            </AlertDescription>
+          </Alert>
+        )}
     </div>
   );
 }
