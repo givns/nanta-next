@@ -1,5 +1,3 @@
-// pages/api/check-payroll-processing.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAttendanceProcessingQueue } from '../../lib/queue';
 import prisma from '../../lib/prisma';
@@ -14,7 +12,9 @@ export default async function handler(
   }
 
   const { jobId, employeeId } = req.query;
-  logMessage(`Checking status for job ID: ${jobId}`);
+  logMessage(
+    `Checking status for job ID: ${jobId}, Employee ID: ${employeeId}`,
+  );
 
   if (!jobId || !employeeId) {
     return res
@@ -24,7 +24,14 @@ export default async function handler(
 
   try {
     const queue = getAttendanceProcessingQueue();
-    const job = await queue.getJob(jobId as string);
+    let job;
+
+    try {
+      job = await queue.getJob(jobId as string);
+    } catch (queueError) {
+      logMessage(`Error getting job from queue: ${queueError}`);
+      // Continue execution to check database for results
+    }
 
     if (!job) {
       logMessage(
@@ -38,18 +45,21 @@ export default async function handler(
         .status(404)
         .json({ error: 'Job not found and no results available' });
     }
-    const jobStatus = await job.getState();
+
+    let jobStatus;
+    try {
+      jobStatus = await job.getState();
+    } catch (stateError) {
+      logMessage(`Error getting job state: ${stateError}`);
+      return res.status(500).json({ error: 'Error retrieving job state' });
+    }
+
+    logMessage(`Job status: ${jobStatus}`);
 
     if (jobStatus === 'completed') {
-      const payrollProcessingResult =
-        await prisma.payrollProcessingResult.findFirst({
-          where: {
-            employeeId: employeeId as string,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        });
+      const payrollProcessingResult = await getPrismaResult(
+        employeeId as string,
+      );
 
       if (!payrollProcessingResult) {
         return res
@@ -57,9 +67,15 @@ export default async function handler(
           .json({ error: 'Payroll processing result not found' });
       }
 
-      const processedData = JSON.parse(
-        payrollProcessingResult.processedData as string,
-      );
+      let processedData;
+      try {
+        processedData = JSON.parse(
+          payrollProcessingResult.processedData as string,
+        );
+      } catch (parseError) {
+        logMessage(`Error parsing processed data: ${parseError}`);
+        return res.status(500).json({ error: 'Error parsing processed data' });
+      }
 
       return res.status(200).json({
         status: 'completed',
@@ -78,17 +94,17 @@ export default async function handler(
       });
     }
   } catch (error: any) {
+    logMessage(`Unhandled error in check-payroll-processing: ${error}`);
     console.error('Error checking payroll processing status:', error);
     return res
       .status(500)
       .json({ error: 'Internal server error', message: error.message });
   }
-  async function checkDatabaseForResults(employeeId: string) {
-    const payrollProcessingResult =
-      await prisma.payrollProcessingResult.findFirst({
-        where: { employeeId },
-        orderBy: { createdAt: 'desc' },
-      });
+}
+
+async function checkDatabaseForResults(employeeId: string) {
+  try {
+    const payrollProcessingResult = await getPrismaResult(employeeId);
 
     if (payrollProcessingResult) {
       return {
@@ -108,5 +124,20 @@ export default async function handler(
     }
 
     return null;
+  } catch (error) {
+    logMessage(`Error checking database for results: ${error}`);
+    throw error;
+  }
+}
+
+async function getPrismaResult(employeeId: string) {
+  try {
+    return await prisma.payrollProcessingResult.findFirst({
+      where: { employeeId },
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch (prismaError) {
+    logMessage(`Prisma error: ${prismaError}`);
+    throw prismaError;
   }
 }
