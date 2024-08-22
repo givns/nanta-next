@@ -53,6 +53,7 @@ export default function AttendanceProcessingTest() {
       });
       setJobId(response.data.jobId);
     } catch (err) {
+      console.error('Error initiating processing:', err);
       setError('Failed to initiate processing');
       setStatus('failed');
     }
@@ -66,6 +67,8 @@ export default function AttendanceProcessingTest() {
             `/api/check-payroll-processing?jobId=${jobId}&employeeId=${employeeId}`,
           );
 
+          console.log('API response:', response.data);
+
           if (response.data.status === 'completed') {
             setStatus('completed');
             setResult(response.data.data);
@@ -76,6 +79,7 @@ export default function AttendanceProcessingTest() {
             setTimeout(checkStatus, 5000); // Check again after 5 seconds
           }
         } catch (err) {
+          console.error('Error checking processing status:', err);
           setError('Failed to check processing status');
           setStatus('failed');
         }
@@ -180,7 +184,15 @@ export default function AttendanceProcessingTest() {
             <h2 className="text-xl font-semibold">Processed Attendance</h2>
           </CardHeader>
           <CardContent>
-            <Table columns={columns} dataSource={result.processedAttendance} />
+            {result.processedAttendance &&
+            result.processedAttendance.length > 0 ? (
+              <Table
+                columns={columns}
+                dataSource={result.processedAttendance}
+              />
+            ) : (
+              <p>No attendance data available.</p>
+            )}
           </CardContent>
         </Card>
       )}
