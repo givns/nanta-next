@@ -10,6 +10,7 @@ import {
   addDays,
   isValid,
   format,
+  parse,
   startOfMonth,
   endOfMonth,
 } from 'date-fns';
@@ -35,10 +36,70 @@ function calculatePeriodDates(payrollPeriod: string): {
   start: string;
   end: string;
 } {
+  logMessage(`Calculating period dates for payroll period: ${payrollPeriod}`);
+
+  if (payrollPeriod === 'current') {
+    const now = new Date();
+    const currentDay = now.getDate();
+    let startDate: Date, endDate: Date;
+
+    if (currentDay < 26) {
+      // Current period started last month
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 26);
+      endDate = new Date(now.getFullYear(), now.getMonth(), 25);
+    } else {
+      // Current period starts this month
+      startDate = new Date(now.getFullYear(), now.getMonth(), 26);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 25);
+    }
+
+    return {
+      start: format(startDate, 'yyyy-MM-dd'),
+      end: format(endDate, 'yyyy-MM-dd'),
+    };
+  }
+
   const [month, year] = payrollPeriod.split('-');
-  const date = new Date(parseInt(year), parseInt(month) - 1);
+  if (!month || !year) {
+    throw new Error(`Invalid payroll period format: ${payrollPeriod}`);
+  }
+
+  const monthIndex = [
+    'january',
+    'february',
+    'march',
+    'april',
+    'may',
+    'june',
+    'july',
+    'august',
+    'september',
+    'october',
+    'november',
+    'december',
+  ].indexOf(month.toLowerCase());
+
+  if (monthIndex === -1) {
+    throw new Error(`Invalid month in payroll period: ${month}`);
+  }
+
+  const yearNumber = parseInt(year, 10);
+  if (isNaN(yearNumber)) {
+    throw new Error(`Invalid year in payroll period: ${year}`);
+  }
+
+  const date = new Date(yearNumber, monthIndex);
+  if (!isValid(date)) {
+    throw new Error(
+      `Invalid date created from payroll period: ${payrollPeriod}`,
+    );
+  }
+
   const start = startOfMonth(date);
   const end = endOfMonth(date);
+
+  logMessage(`Calculated start date: ${format(start, 'yyyy-MM-dd')}`);
+  logMessage(`Calculated end date: ${format(end, 'yyyy-MM-dd')}`);
 
   return {
     start: format(start, 'yyyy-MM-dd'),
