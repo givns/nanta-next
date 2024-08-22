@@ -190,8 +190,9 @@ export class ExternalDbService {
           totalCount: countResult.total,
         };
       },
-      3,
-      1000,
+      5,
+      2000,
+      2,
     );
   }
 
