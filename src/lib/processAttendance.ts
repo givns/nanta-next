@@ -5,7 +5,14 @@ import { ExternalDbService } from '../services/ExternalDbService';
 import { HolidayService } from '../services/HolidayService';
 import { Shift104HolidayService } from '../services/Shift104HolidayService';
 import { UserData } from '../types/user';
-import { parseISO, addDays, startOfDay, endOfDay } from 'date-fns';
+import {
+  parseISO,
+  addDays,
+  isValid,
+  format,
+  startOfMonth,
+  endOfMonth,
+} from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
 
@@ -25,42 +32,17 @@ const attendanceService = new AttendanceService(
 );
 
 function calculatePeriodDates(payrollPeriod: string): {
-  start: Date;
-  end: Date;
+  start: string;
+  end: string;
 } {
-  if (payrollPeriod === 'current') {
-    const now = new Date();
-    const currentDay = now.getDate();
-    let startDate: Date, endDate: Date;
-
-    if (currentDay < 26) {
-      // Current period started last month
-      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 26);
-      endDate = new Date(now.getFullYear(), now.getMonth(), 25);
-    } else {
-      // Current period starts this month
-      startDate = new Date(now.getFullYear(), now.getMonth(), 26);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 25);
-    }
-
-    return {
-      start: startOfDay(startDate),
-      end: endOfDay(endDate),
-    };
-  }
-
   const [month, year] = payrollPeriod.split('-');
-  const periodDate = parseISO(`${year}-${month}-01`);
-  const startDate = new Date(
-    periodDate.getFullYear(),
-    periodDate.getMonth() - 1,
-    26,
-  );
-  const endDate = new Date(periodDate.getFullYear(), periodDate.getMonth(), 25);
+  const date = new Date(parseInt(year), parseInt(month) - 1);
+  const start = startOfMonth(date);
+  const end = endOfMonth(date);
 
   return {
-    start: startOfDay(startDate),
-    end: endOfDay(endDate),
+    start: format(start, 'yyyy-MM-dd'),
+    end: format(end, 'yyyy-MM-dd'),
   };
 }
 
@@ -81,9 +63,10 @@ export async function processAttendance(job: Job): Promise<any> {
   try {
     const { start: startDate, end: endDate } =
       calculatePeriodDates(payrollPeriod);
+    const queryEndDate = addDays(parseISO(endDate), 1); // Add one day to include the full last day
 
     logMessage(
-      `Processing attendance for employee: ${employeeId} for period: ${payrollPeriod} (${startDate.toISOString()} to ${endDate.toISOString()})`,
+      `Processing attendance for employee: ${employeeId} for period: ${payrollPeriod} (${startDate} to ${endDate})`,
     );
 
     const user = await prisma.user.findUnique({
@@ -103,29 +86,27 @@ export async function processAttendance(job: Job): Promise<any> {
 
     const attendanceRecords = await attendanceService.getAttendanceRecords(
       employeeId,
-      startDate,
-      endDate,
+      new Date(startDate),
+      queryEndDate,
     );
 
-    logMessage(`Retrieved ${attendanceRecords.length} attendance records`);
-
     const holidays = await attendanceService.getHolidaysForDateRange(
-      startDate,
-      endDate,
+      new Date(startDate),
+      new Date(endDate),
     );
 
     const processedAttendance = await attendanceService.processAttendanceData(
       attendanceRecords,
       userData,
-      startDate,
-      endDate,
+      new Date(startDate),
+      new Date(endDate),
       holidays,
     );
 
     const summary = await attendanceService.calculateSummary(
       processedAttendance.processedAttendance,
-      startDate,
-      endDate,
+      new Date(startDate),
+      new Date(endDate),
     );
 
     const result = {
@@ -135,16 +116,16 @@ export async function processAttendance(job: Job): Promise<any> {
       processedAttendance,
       payrollPeriod: {
         period: payrollPeriod,
-        start: startDate.toISOString(),
-        end: endDate.toISOString(),
+        start: startDate,
+        end: endDate,
       },
     };
 
     await prisma.payrollProcessingResult.create({
       data: {
         employeeId,
-        periodStart: startDate,
-        periodEnd: endDate,
+        periodStart: new Date(startDate),
+        periodEnd: new Date(endDate),
         totalWorkingDays: summary.totalWorkingDays,
         totalPresent: summary.totalPresent,
         totalAbsent: summary.totalAbsent,

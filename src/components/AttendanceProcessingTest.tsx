@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { FixedSizeList as List } from 'react-window';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Table } from '@/components/ui/table';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Table,
+  TableHead,
+  TableRow,
+  TableHeader,
+  TableBody,
+  TableCell,
+} from '@/components/ui/table';
 import {
   Select,
   SelectContent,
@@ -13,19 +21,36 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { generatePayrollPeriods, PayrollPeriod } from '../utils/payrollUtils';
-import { ProcessedAttendance, AttendanceStatusInfo } from '../types/user';
-import { format, parseISO } from 'date-fns';
+import { AttendanceRecord, ProcessedAttendance } from '../types/user';
+import {
+  format,
+  parseISO,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  isValid,
+  isSameDay,
+} from 'date-fns';
 
 interface ProcessedAttendanceResult {
   processedAttendance: ProcessedAttendance[];
-  summary: AttendanceStatusInfo;
-}
-
-interface Column {
-  title: string;
-  dataIndex: string;
-  key: string;
-  render?: (text: string, record: any) => React.ReactNode;
+  summary: {
+    totalWorkingDays: number;
+    totalPresent: number;
+    totalAbsent: number;
+    totalIncomplete: number;
+    totalHolidays: number;
+    totalDayOff: number;
+    totalRegularHours: number;
+    expectedRegularHours: number;
+    totalOvertimeHours: number;
+    totalPotentialOvertimeHours: number;
+    attendanceRate: number;
+  };
+  payrollPeriod: {
+    start: string;
+    end: string;
+  };
 }
 
 export default function AttendanceProcessingTest() {
@@ -36,6 +61,7 @@ export default function AttendanceProcessingTest() {
   >('idle');
   const [result, setResult] = useState<ProcessedAttendanceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('current');
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([]);
 
@@ -47,20 +73,22 @@ export default function AttendanceProcessingTest() {
   const initiateProcessing = useCallback(async () => {
     try {
       setStatus('processing');
-      setResult(null);
+      setLogs([]);
       setError(null);
+      const period = payrollPeriods.find((p) => p.value === selectedPeriod);
+      if (!period) {
+        throw new Error('Invalid period selected');
+      }
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
         payrollPeriod: selectedPeriod,
       });
-      console.log('Initiate processing response:', response.data);
       setJobId(response.data.jobId);
     } catch (err) {
-      console.error('Error initiating processing:', err);
       setError('Failed to initiate processing');
       setStatus('failed');
     }
-  }, [employeeId, selectedPeriod]);
+  }, [employeeId, selectedPeriod, payrollPeriods]);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -70,29 +98,19 @@ export default function AttendanceProcessingTest() {
             `/api/check-payroll-processing?jobId=${jobId}&employeeId=${employeeId}`,
           );
 
-          console.log('API response:', response.data);
-
           if (response.data.status === 'completed') {
             setStatus('completed');
-            if (response.data.data) {
-              console.log('Completed job data:', response.data.data);
-              setResult(response.data.data);
-            } else {
-              console.error('Completed job has no data');
-              setError('Completed job returned no data');
-            }
+            setResult(response.data.data);
+            setLogs(response.data.logs || []);
           } else if (response.data.status === 'failed') {
             setStatus('failed');
-            setError(
-              'Processing failed: ' +
-                (response.data.message || 'Unknown error'),
-            );
+            setError(response.data.error || 'Processing failed');
+            setLogs(response.data.logs || []);
           } else {
-            // Still processing, check again after a delay
-            setTimeout(checkStatus, 5000);
+            setLogs(response.data.logs || []);
+            setTimeout(checkStatus, 5000); // Check again after 5 seconds
           }
         } catch (err) {
-          console.error('Error checking processing status:', err);
           setError('Failed to check processing status');
           setStatus('failed');
         }
@@ -104,55 +122,246 @@ export default function AttendanceProcessingTest() {
 
   const formatDate = useCallback((dateString: string) => {
     if (!dateString) return 'N/A';
-    return format(parseISO(dateString), 'yyyy-MM-dd');
+    const date = parseISO(dateString);
+    return isValid(date) ? format(date, 'yyyy-MM-dd') : 'Invalid Date';
   }, []);
 
-  const formatTime = useCallback((timeString: string | undefined) => {
+  const formatTime = useCallback((timeString: string) => {
     if (!timeString) return 'N/A';
-    return format(parseISO(timeString), 'HH:mm:ss');
+    const date = parseISO(timeString);
+    return isValid(date) ? format(date, 'HH:mm:ss') : 'Invalid Time';
   }, []);
 
   const formatNumber = useCallback((value: number | undefined | null) => {
     return value !== undefined && value !== null ? value.toFixed(2) : 'N/A';
   }, []);
 
-  const columns: Column[] = useMemo(
+  const attendanceColumns = useMemo(
     () => [
       {
         title: 'Date',
         dataIndex: 'date',
         key: 'date',
-        render: (text) => formatDate(text),
+        render: (text: string) => formatDate(text),
       },
       {
         title: 'Check-In',
         dataIndex: 'checkIn',
         key: 'checkIn',
-        render: (text) => formatTime(text),
+        render: (text: string) => formatTime(text),
       },
       {
         title: 'Check-Out',
         dataIndex: 'checkOut',
         key: 'checkOut',
-        render: (text) => formatTime(text),
+        render: (text: string) => formatTime(text),
       },
       { title: 'Status', dataIndex: 'status', key: 'status' },
       {
         title: 'Regular Hours',
         dataIndex: 'regularHours',
         key: 'regularHours',
-        render: (text) => formatNumber(parseFloat(text)),
+        render: (text: string) => formatNumber(parseFloat(text)),
       },
       {
         title: 'Overtime Hours',
         dataIndex: 'overtimeHours',
         key: 'overtimeHours',
-        render: (text) => formatNumber(parseFloat(text)),
+        render: (value: string) => formatNumber(parseFloat(value)),
       },
       { title: 'Notes', dataIndex: 'detailedStatus', key: 'notes' },
     ],
     [formatDate, formatTime, formatNumber],
   );
+
+  const Row = useCallback(
+    ({ index, style }: { index: number; style: React.CSSProperties }) => {
+      const record = result?.processedAttendance[index];
+      if (!record) return null;
+      return (
+        <div style={style} className="flex items-center border-b">
+          <div className="flex-1 p-2">{formatDate(record.date.toString())}</div>
+          <div className="flex-1 p-2">{formatTime(record.checkIn || '')}</div>
+          <div className="flex-1 p-2">{formatTime(record.checkOut || '')}</div>
+          <div className="flex-1 p-2">{record.status}</div>
+          <div className="flex-1 p-2">{formatNumber(record.regularHours)}</div>
+          <div className="flex-1 p-2">{formatNumber(record.overtimeHours)}</div>
+          <div className="flex-1 p-2">{record.detailedStatus}</div>
+        </div>
+      );
+    },
+    [result, formatDate, formatTime, formatNumber],
+  );
+
+  const VirtualizedTable = useCallback(
+    ({ itemCount }: { itemCount: number }) => {
+      return (
+        <List height={400} itemCount={itemCount} itemSize={35} width="100%">
+          {Row}
+        </List>
+      );
+    },
+    [Row],
+  );
+
+  const getWeeks = useMemo(
+    () => (attendanceData: ProcessedAttendance[]) => {
+      if (!attendanceData || attendanceData.length === 0) {
+        console.warn('Invalid or empty attendance data');
+        return [];
+      }
+
+      const sortedData = [...attendanceData].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      );
+
+      const firstDate = new Date(sortedData[0].date);
+      const lastDate = new Date(sortedData[sortedData.length - 1].date);
+
+      const weeks = [];
+      let currentStart = startOfWeek(firstDate, { weekStartsOn: 1 });
+
+      while (currentStart <= lastDate) {
+        const currentEnd = endOfWeek(currentStart, { weekStartsOn: 1 });
+        weeks.push({
+          start: format(currentStart, 'yyyy-MM-dd'),
+          end: format(
+            currentEnd > lastDate ? lastDate : currentEnd,
+            'yyyy-MM-dd',
+          ),
+        });
+        currentStart = addDays(currentEnd, 1);
+      }
+
+      return weeks;
+    },
+    [],
+  );
+
+  const calculateWeeklySummary = useCallback(
+    (weekData: ProcessedAttendance[]) => {
+      if (!weekData || weekData.length === 0) {
+        return 'No data available';
+      }
+
+      const workingDays = weekData.filter(
+        (day) => day.status !== 'off' && day.status !== 'holiday',
+      ).length;
+      const presentDays = weekData.filter(
+        (day) => day.status === 'present',
+      ).length;
+      const totalRegularHours = weekData.reduce(
+        (sum, day) => sum + (day.regularHours || 0),
+        0,
+      );
+      const totalOvertimeHours = weekData.reduce(
+        (sum, day) => sum + (day.overtimeHours || 0),
+        0,
+      );
+
+      return `${workingDays} working days, ${presentDays} present, ${formatNumber(
+        totalRegularHours,
+      )} regular hours, ${formatNumber(totalOvertimeHours)} overtime hours`;
+    },
+    [formatNumber],
+  );
+
+  const renderWeekData = useCallback(
+    (
+      week: { start: string; end: string },
+      index: number,
+      weekData: ProcessedAttendance[],
+    ) => (
+      <Card key={index} className="mb-4">
+        <CardHeader>
+          <h3 className="text-base font-bold">
+            Week {index + 1} ({formatDate(week.start)} - {formatDate(week.end)})
+          </h3>
+        </CardHeader>
+        <CardContent>
+          {weekData.length > 0 ? (
+            <>
+              <VirtualizedTable itemCount={weekData.length} />
+              <p className="mt-2 text-sm font-semibold">
+                Weekly Summary: {calculateWeeklySummary(weekData)}
+              </p>
+            </>
+          ) : (
+            <p>No data available for this week</p>
+          )}
+        </CardContent>
+      </Card>
+    ),
+    [formatDate, VirtualizedTable, calculateWeeklySummary],
+  );
+
+  const renderSummaryCard = useMemo(() => {
+    if (!result || !result.summary) return null;
+
+    return (
+      <Card>
+        <CardHeader>
+          <h3 className="text-lg font-semibold">
+            Total Summary for{' '}
+            {format(parseISO(result.payrollPeriod.start), 'MMMM yyyy')} Payroll
+            Period
+          </h3>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span>Total Working Days:</span>
+              <span>{result.summary.totalWorkingDays}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Present Days:</span>
+              <span>
+                {result.summary.totalPresent} /{' '}
+                {result.summary.totalWorkingDays}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Absent Days:</span>
+              <span>{result.summary.totalAbsent}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Incomplete Days:</span>
+              <span>{result.summary.totalIncomplete || 0}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Holidays:</span>
+              <span>{result.summary.totalHolidays || 0}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Day Off:</span>
+              <span>{result.summary.totalDayOff || 0}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Regular Hours:</span>
+              <span>
+                {formatNumber(result.summary.totalRegularHours)} /{' '}
+                {formatNumber(result.summary.expectedRegularHours)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Overtime Hours:</span>
+              <span>{formatNumber(result.summary.totalOvertimeHours)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Potential Overtime Hours:</span>
+              <span>
+                {formatNumber(result.summary.totalPotentialOvertimeHours)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Attendance Rate:</span>
+              <span>{formatNumber(result.summary.attendanceRate)}%</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }, [result, formatNumber]);
 
   return (
     <div className="container mx-auto p-4">
@@ -187,49 +396,51 @@ export default function AttendanceProcessingTest() {
 
       {error && (
         <Alert variant="destructive" className="mb-4">
+          <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {status === 'processing' && (
-        <Alert className="mb-4">
-          <AlertDescription>Processing attendance data...</AlertDescription>
-        </Alert>
+        <div className="mt-4">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+            <p>Processing attendance data... This may take a few minutes.</p>
+          </div>
+          <div className="mt-2 max-h-40 overflow-y-auto">
+            {logs.map((log, index) => (
+              <p key={index} className="text-sm text-gray-600">
+                {log}
+              </p>
+            ))}
+          </div>
+        </div>
       )}
 
       {status === 'completed' && result && (
-        <Card>
-          <CardHeader>
-            <h2 className="text-xl font-semibold">Processed Attendance</h2>
-          </CardHeader>
-          <CardContent>
-            {result.processedAttendance &&
-            result.processedAttendance.length > 0 ? (
-              <Table
-                columns={columns}
-                dataSource={result.processedAttendance}
-              />
-            ) : (
-              <p>
-                No attendance data available. Please check the console for more
-                details.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="space-y-8">
+          {getWeeks(result.processedAttendance).map((week, index) => {
+            const weekData = result.processedAttendance.filter((row) => {
+              const rowDate = new Date(row.date);
+              return (
+                rowDate >= new Date(week.start) && rowDate <= new Date(week.end)
+              );
+            });
+            return renderWeekData(week, index, weekData);
+          })}
+          {renderSummaryCard}
+        </div>
       )}
 
-      {status === 'completed' &&
-        (!result ||
-          !result.processedAttendance ||
-          result.processedAttendance.length === 0) && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertDescription>
-              Processing completed, but no attendance data was returned. Please
-              check the console for more details.
-            </AlertDescription>
-          </Alert>
-        )}
+      {status === 'failed' && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertTitle>Processing Failed</AlertTitle>
+          <AlertDescription>
+            There was an error processing the attendance data. Please try again
+            or contact support if the issue persists.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }

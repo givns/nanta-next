@@ -43,9 +43,6 @@ import {
   isValid,
   compareAsc,
   addDays,
-  setMinutes,
-  getMinutes,
-  getHours,
   addHours,
 } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
@@ -60,6 +57,7 @@ interface PairedAttendance {
 }
 
 export class AttendanceService {
+  private timezone: string = 'Asia/Bangkok';
   private processingService: AttendanceProcessingService;
   private holidayService: HolidayService;
   private shift: ShiftData;
@@ -87,11 +85,22 @@ export class AttendanceService {
     this.shift = shift;
   }
 
-  private parseDate(date: Date | string): Date {
-    if (typeof date === 'string') {
-      return parse(date, 'yyyy-MM-dd HH:mm:ss', new Date());
+  private parseDate(dateString: string): Date {
+    const parsedDate = parseISO(dateString);
+    if (!isValid(parsedDate)) {
+      throw new Error(`Invalid date: ${dateString}`);
     }
-    return date;
+    return parsedDate;
+  }
+
+  private formatDate(date: Date): string {
+    return format(date, 'yyyy-MM-dd HH:mm:ss');
+  }
+
+  // Use this method when you need to compare dates across timezones
+  private toComparableDate(date: Date | string): Date {
+    const parsedDate = typeof date === 'string' ? this.parseDate(date) : date;
+    return zonedTimeToUtc(parsedDate, this.timezone);
   }
 
   async getLatestAttendanceStatus(
@@ -343,16 +352,28 @@ export class AttendanceService {
     summary: any;
   }> {
     logMessage(`Processing ${records.length} attendance records`);
-    logMessage(`Start date: ${startDate}, End date: ${endDate}`);
+    logMessage(
+      `Start date: ${this.formatDate(startDate)}, End date: ${this.formatDate(endDate)}`,
+    );
 
     const shift: ShiftData = {
       ...userData.assignedShift,
-      timezone: 'Asia/Bangkok',
+      timezone: this.timezone,
     };
     if (!shift) throw new Error('User has no assigned shift');
 
+    const validRecords = records.filter((record) => {
+      try {
+        this.parseDate(record.attendanceTime);
+        return true;
+      } catch (error) {
+        logMessage(`Invalid date encountered: ${record.attendanceTime}`);
+        return false;
+      }
+    });
+
     const { pairedRecords, unpairedRecords } = this.groupAndPairRecords(
-      records,
+      validRecords,
       shift,
     );
 
@@ -508,6 +529,11 @@ export class AttendanceService {
     pairedRecords: PairedAttendance[];
     unpairedRecords: AttendanceRecord[];
   } {
+    records.sort(
+      (a, b) =>
+        this.toComparableDate(a.attendanceTime).getTime() -
+        this.toComparableDate(b.attendanceTime).getTime(),
+    );
     const pairedRecords: PairedAttendance[] = [];
     const unpairedRecords: AttendanceRecord[] = [];
     let currentPair: Partial<PairedAttendance> = {};
@@ -757,9 +783,15 @@ export class AttendanceService {
     const roundedCheckIn = this.roundToNearestThirtyMinutes(checkIn);
     const roundedCheckOut = this.roundToNearestThirtyMinutes(checkOut);
 
-    const shiftStart = parse(shift.startTime, 'HH:mm', roundedCheckIn);
-    let shiftEnd = parse(shift.endTime, 'HH:mm', roundedCheckIn);
-    if (isBefore(shiftEnd, shiftStart)) shiftEnd = addMinutes(shiftEnd, 1440); // Add 24 hours
+    const shiftStart = this.parseDate(
+      `${format(checkIn, 'yyyy-MM-dd')} ${shift.startTime}`,
+    );
+    let shiftEnd = this.parseDate(
+      `${format(checkIn, 'yyyy-MM-dd')} ${shift.endTime}`,
+    );
+    if (shiftEnd < shiftStart) {
+      shiftEnd = addDays(shiftEnd, 1);
+    }
 
     let regularHours = 0;
     let overtimeHours = 0;
@@ -805,7 +837,14 @@ export class AttendanceService {
       }
     }
 
-    return { regularHours, overtimeHours, potentialOvertimePeriods };
+    return {
+      regularHours,
+      overtimeHours,
+      potentialOvertimePeriods: potentialOvertimePeriods.map((period) => ({
+        start: this.formatDate(new Date(period.start)),
+        end: this.formatDate(new Date(period.end)),
+      })),
+    };
   }
 
   private async detectPotentialShiftAdjustment(
@@ -2181,4 +2220,7 @@ export class AttendanceService {
       'invalid',
     ].includes(status);
   }
+}
+function zonedTimeToUtc(parsedDate: Date, timezone: string): Date {
+  throw new Error('Function not implemented.');
 }
