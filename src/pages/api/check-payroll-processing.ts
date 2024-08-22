@@ -37,7 +37,7 @@ export default async function handler(
 
     let job;
     try {
-      job = await queue.getJob(jobId as string);
+      job = await queue.getJob(`process-payroll:${jobId}`);
       logMessage(`Job retrieved: ${job ? 'Yes' : 'No'}`);
     } catch (jobError) {
       logMessage(`Error getting job from queue: ${jobError}`);
