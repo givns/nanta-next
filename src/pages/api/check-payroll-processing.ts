@@ -29,12 +29,10 @@ export default async function handler(
       logMessage('Queue retrieved successfully');
     } catch (queueError) {
       logMessage(`Error getting queue: ${queueError}`);
-      return res
-        .status(500)
-        .json({
-          error: 'Error retrieving queue',
-          details: (queueError as Error).message,
-        });
+      return res.status(500).json({
+        error: 'Error retrieving queue',
+        details: (queueError as Error).message,
+      });
     }
 
     let job;
@@ -60,12 +58,10 @@ export default async function handler(
           .json({ error: 'Job not found and no results available' });
       } catch (dbError) {
         logMessage(`Error checking database for results: ${dbError}`);
-        return res
-          .status(500)
-          .json({
-            error: 'Error checking database for results',
-            details: (dbError as Error).message,
-          });
+        return res.status(500).json({
+          error: 'Error checking database for results',
+          details: (dbError as Error).message,
+        });
       }
     }
 
@@ -99,12 +95,10 @@ export default async function handler(
         } catch (parseError) {
           logMessage(`Error parsing processed data: ${parseError}`);
           const error: Error = parseError as Error;
-          return res
-            .status(500)
-            .json({
-              error: 'Error parsing processed data',
-              details: error.message,
-            });
+          return res.status(500).json({
+            error: 'Error parsing processed data',
+            details: error.message,
+          });
         }
 
         return res.status(200).json({
@@ -113,12 +107,10 @@ export default async function handler(
         });
       } catch (prismaError) {
         logMessage(`Prisma error: ${prismaError}`);
-        return res
-          .status(500)
-          .json({
-            error: 'Database error',
-            details: (prismaError as Error).message,
-          });
+        return res.status(500).json({
+          error: 'Database error',
+          details: (prismaError as Error).message,
+        });
       }
     } else if (jobStatus === 'failed') {
       const jobError = job.failedReason;
@@ -135,13 +127,11 @@ export default async function handler(
   } catch (error: any) {
     logMessage(`Unhandled error in check-payroll-processing: ${error}`);
     console.error('Error checking payroll processing status:', error);
-    return res
-      .status(500)
-      .json({
-        error: 'Internal server error',
-        message: error.message,
-        stack: error.stack,
-      });
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      stack: error.stack,
+    });
   }
 }
 
