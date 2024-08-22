@@ -47,6 +47,7 @@ export default function AttendanceProcessingTest() {
   const initiateProcessing = useCallback(async () => {
     try {
       setStatus('processing');
+      setResult(null); // Clear previous results
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
         payrollPeriod: selectedPeriod,
@@ -76,7 +77,8 @@ export default function AttendanceProcessingTest() {
             setStatus('failed');
             setError('Processing failed');
           } else {
-            setTimeout(checkStatus, 5000); // Check again after 5 seconds
+            // Still processing, check again after a delay
+            setTimeout(checkStatus, 5000);
           }
         } catch (err) {
           console.error('Error checking processing status:', err);
@@ -175,6 +177,12 @@ export default function AttendanceProcessingTest() {
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {status === 'processing' && (
+        <Alert className="mb-4">
+          <AlertDescription>Processing attendance data...</AlertDescription>
         </Alert>
       )}
 

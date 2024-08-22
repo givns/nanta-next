@@ -52,12 +52,13 @@ function calculatePeriodDates(payrollPeriod: string): {
     };
   }
 
-  const [month, year] = payrollPeriod.split('-');
-  const periodDate = parse(`${month} ${year}`, 'MMMM yyyy', new Date());
-  const startDate = subMonths(periodDate, 1);
-  startDate.setDate(26);
-  const endDate = addMonths(startDate, 1);
-  endDate.setDate(25);
+  const { start: startDate, end: endDate } =
+    calculatePeriodDates(payrollPeriod);
+  const parsedStartDate = new Date(startDate);
+  parsedStartDate.setHours(0, 0, 0, 0);
+
+  const parsedEndDate = new Date(endDate);
+  parsedEndDate.setHours(23, 59, 59, 999);
 
   return {
     start: format(startDate, 'yyyy-MM-dd'),
