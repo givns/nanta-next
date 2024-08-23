@@ -29,7 +29,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const effectiveShift: ShiftData =
     {
       ...todayShiftAdjustment?.requestedShift,
-      timezone: '',
       id: '',
       name: '',
       startTime: '',

@@ -46,7 +46,6 @@ export const useShiftDetails = (
       startTime: shift.startTime,
       endTime: shift.endTime,
       workDays: shift.workDays,
-      timezone: '', // Add the timezone property here
       shiftCode: shift.shiftCode,
     };
 
