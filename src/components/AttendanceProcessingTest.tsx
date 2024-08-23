@@ -12,7 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { generatePayrollPeriods, PayrollPeriod } from '../utils/payrollUtils';
+
+interface PayrollPeriod {
+  start: string;
+  end: string;
+}
+
+interface PayrollPeriods {
+  current: PayrollPeriod;
+  previous: PayrollPeriod;
+  next: PayrollPeriod;
+}
 
 export default function AttendanceProcessingTest() {
   const [employeeId, setEmployeeId] = useState<string>('');
@@ -23,29 +33,66 @@ export default function AttendanceProcessingTest() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('current');
-  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([]);
+  const [payrollPeriod, setPayrollPeriod] =
+    useState<keyof PayrollPeriods>('current');
+  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriods>({
+    current: { start: '', end: '' },
+    previous: { start: '', end: '' },
+    next: { start: '', end: '' },
+  });
 
   useEffect(() => {
-    const periods = generatePayrollPeriods();
-    setPayrollPeriods(periods);
+    const calculatePayrollPeriods = () => {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      const currentStart = new Date(currentYear, currentMonth, 26);
+      if (now.getDate() < 26) {
+        currentStart.setMonth(currentStart.getMonth() - 1);
+      }
+      const currentEnd = new Date(currentStart);
+      currentEnd.setMonth(currentEnd.getMonth() + 1);
+      currentEnd.setDate(25);
+
+      const previousStart = new Date(currentStart);
+      previousStart.setMonth(previousStart.getMonth() - 1);
+      const previousEnd = new Date(currentStart);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+
+      const nextStart = new Date(currentEnd);
+      nextStart.setDate(nextStart.getDate() + 1);
+      const nextEnd = new Date(nextStart);
+      nextEnd.setMonth(nextEnd.getMonth() + 1);
+      nextEnd.setDate(25);
+
+      setPayrollPeriods({
+        current: {
+          start: currentStart.toISOString().split('T')[0],
+          end: currentEnd.toISOString().split('T')[0],
+        },
+        previous: {
+          start: previousStart.toISOString().split('T')[0],
+          end: previousEnd.toISOString().split('T')[0],
+        },
+        next: {
+          start: nextStart.toISOString().split('T')[0],
+          end: nextEnd.toISOString().split('T')[0],
+        },
+      });
+    };
+
+    calculatePayrollPeriods();
   }, []);
 
   const initiateProcessing = async () => {
     try {
       setStatus('processing');
       setLogs([]);
-      const period = payrollPeriods.find((p) => p.value === selectedPeriod);
-      if (!period) {
-        throw new Error('Invalid period selected');
-      }
       const response = await axios.post('/api/test-payroll-processing', {
         employeeId,
-        payrollPeriod: selectedPeriod,
-        periodDates: {
-          start: period.start,
-          end: period.end,
-        },
+        payrollPeriod,
+        periodDates: payrollPeriods[payrollPeriod],
       });
       setJobId(response.data.jobId);
     } catch (err) {
@@ -126,11 +173,6 @@ export default function AttendanceProcessingTest() {
       .join(', ');
   };
 
-  // Function to display date range
-  const displayDateRange = (start: string, end: string) => {
-    return `${start} to ${end}`;
-  };
-
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Attendance Processing Test</h1>
@@ -142,16 +184,28 @@ export default function AttendanceProcessingTest() {
           placeholder="Enter Employee ID"
           className="max-w-xs"
         />
-        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+        <Select
+          value={payrollPeriod}
+          onValueChange={(value: keyof PayrollPeriods) =>
+            setPayrollPeriod(value)
+          }
+        >
           <SelectTrigger className="max-w-xs">
             <SelectValue placeholder="Select payroll period" />
           </SelectTrigger>
           <SelectContent>
-            {payrollPeriods.map((period) => (
-              <SelectItem key={period.value} value={period.value}>
-                {period.label} ({period.start} to {period.end})
-              </SelectItem>
-            ))}
+            <SelectItem value="current">
+              Current Period ({payrollPeriods.current.start} to{' '}
+              {payrollPeriods.current.end})
+            </SelectItem>
+            <SelectItem value="previous">
+              Previous Period ({payrollPeriods.previous.start} to{' '}
+              {payrollPeriods.previous.end})
+            </SelectItem>
+            <SelectItem value="next">
+              Next Period ({payrollPeriods.next.start} to{' '}
+              {payrollPeriods.next.end})
+            </SelectItem>
           </SelectContent>
         </Select>
         <Button
@@ -241,46 +295,29 @@ export default function AttendanceProcessingTest() {
             <CardContent>
               <ul>
                 <li>
-                  Total Working Days in Period:{' '}
-                  {result.summary.totalWorkingDays}
+                  Total Days in Period: {result.summary.totalDays || 'N/A'}
                 </li>
                 <li>
-                  Days Present: {result.summary.totalPresent} /{' '}
-                  {result.summary.totalWorkingDays}
+                  Total Working Days: {result.summary.totalWorkingDays || 'N/A'}
                 </li>
-                <li>Days Absent: {result.summary.totalAbsent}</li>
-                <li>Days Off: {result.summary.totalDayOff}</li>
+                <li>Total Present: {result.summary.totalPresent || 'N/A'}</li>
+                <li>Total Holiday: {result.summary.totalHoliday || 'N/A'}</li>
+                <li>Total Day Off: {result.summary.totalDayOff || 'N/A'}</li>
                 <li>
                   Attendance Rate: {formatNumber(result.summary.attendanceRate)}
                   %
                 </li>
                 <li>
                   Total Approved Overtime:{' '}
-                  {formatNumber(result.summary.totalOvertimeHours)} hours
+                  {formatNumber(result.summary.totalApprovedOvertime)} hours
                 </li>
                 <li>
                   Total Potential Overtime:{' '}
-                  {formatNumber(result.summary.totalPotentialOvertimeHours)}{' '}
-                  hours
+                  {formatNumber(result.summary.totalPotentialOvertime)} hours
                 </li>
               </ul>
             </CardContent>
           </Card>
-
-          {result.absentDays && result.absentDays.length > 0 && (
-            <Card className="mt-4">
-              <CardHeader>
-                <h2 className="text-xl font-semibold">Absent Days</h2>
-              </CardHeader>
-              <CardContent>
-                <ul>
-                  {result.absentDays.map((date: string) => (
-                    <li key={date}>{formatDate(date)}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
         </>
       )}
     </div>
