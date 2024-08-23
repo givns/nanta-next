@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { generatePayrollPeriods, PayrollPeriod } from '../utils/payrollUtils';
 import { AttendanceRecord, ProcessedAttendance } from '../types/user';
 import {
   format,
@@ -30,6 +29,10 @@ import {
   addDays,
   isValid,
   isSameDay,
+  parse,
+  setDate,
+  addMonths,
+  subMonths,
 } from 'date-fns';
 
 interface ProcessedAttendanceResult {
@@ -53,6 +56,13 @@ interface ProcessedAttendanceResult {
   };
 }
 
+interface PayrollPeriod {
+  value: string;
+  label: string;
+  start: string;
+  end: string;
+}
+
 export default function AttendanceProcessingTest() {
   const [employeeId, setEmployeeId] = useState<string>('');
   const [jobId, setJobId] = useState<string | null>(null);
@@ -65,10 +75,45 @@ export default function AttendanceProcessingTest() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('current');
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([]);
 
+  const generatePayrollPeriods = useCallback(() => {
+    const periods: PayrollPeriod[] = [];
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(currentYear, currentMonth - i, 1);
+      const periodStart = setDate(subMonths(date, 1), 26);
+      const periodEnd = setDate(date, 25);
+
+      periods.push({
+        value: format(date, 'MMMM-yyyy').toLowerCase(),
+        label: format(date, 'MMMM yyyy'),
+        start: format(periodStart, 'yyyy-MM-dd'),
+        end: format(periodEnd, 'yyyy-MM-dd'),
+      });
+    }
+
+    periods.unshift({
+      value: 'current',
+      label: 'Current Period',
+      start: format(
+        now.getDate() < 26 ? setDate(subMonths(now, 1), 26) : setDate(now, 26),
+        'yyyy-MM-dd',
+      ),
+      end: format(
+        now.getDate() < 26 ? setDate(now, 25) : setDate(addMonths(now, 1), 25),
+        'yyyy-MM-dd',
+      ),
+    });
+
+    return periods;
+  }, []);
+
   useEffect(() => {
     const periods = generatePayrollPeriods();
     setPayrollPeriods(periods);
-  }, []);
+  }, [generatePayrollPeriods]);
 
   const initiateProcessing = useCallback(async () => {
     try {
@@ -419,6 +464,72 @@ export default function AttendanceProcessingTest() {
 
       {status === 'completed' && result && (
         <div className="space-y-8">
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold">
+                Payroll Period: {formatDate(result.payrollPeriod.start)} to{' '}
+                {formatDate(result.payrollPeriod.end)}
+              </h3>
+            </CardHeader>
+            <CardContent>
+              <Table columns={[]} dataSource={[]}>
+                <TableBody>
+                  <TableRow>
+                    <TableCell>Total Working Days</TableCell>
+                    <TableCell>{result.summary.totalWorkingDays}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Total Present Days</TableCell>
+                    <TableCell>
+                      {result.summary.totalPresent} /{' '}
+                      {result.summary.totalWorkingDays}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Total Absent Days</TableCell>
+                    <TableCell>{result.summary.totalAbsent}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Total Incomplete Days</TableCell>
+                    <TableCell>{result.summary.totalIncomplete}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Total Holidays</TableCell>
+                    <TableCell>{result.summary.totalHolidays}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Total Day Off</TableCell>
+                    <TableCell>{result.summary.totalDayOff}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Total Regular Hours</TableCell>
+                    <TableCell>
+                      {formatNumber(result.summary.totalRegularHours)} /{' '}
+                      {formatNumber(result.summary.expectedRegularHours)}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Total Overtime Hours</TableCell>
+                    <TableCell>
+                      {formatNumber(result.summary.totalOvertimeHours)}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Total Potential Overtime Hours</TableCell>
+                    <TableCell>
+                      {formatNumber(result.summary.totalPotentialOvertimeHours)}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>Attendance Rate</TableCell>
+                    <TableCell>
+                      {formatNumber(result.summary.attendanceRate)}%
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
           {getWeeks(result.processedAttendance).map((week, index) => {
             const weekData = result.processedAttendance.filter((row) => {
               const rowDate = new Date(row.date);

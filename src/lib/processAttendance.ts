@@ -8,11 +8,11 @@ import { UserData } from '../types/user';
 import {
   parseISO,
   addDays,
-  isValid,
   format,
   parse,
-  startOfMonth,
-  endOfMonth,
+  setDate,
+  addMonths,
+  subMonths,
 } from 'date-fns';
 import { logMessage } from '../utils/inMemoryLogger';
 import { leaveServiceServer } from '../services/LeaveServiceServer';
@@ -42,13 +42,11 @@ function calculatePeriodDates(payrollPeriod: string): {
     let startDate: Date, endDate: Date;
 
     if (currentDay < 26) {
-      // Current period started last month
-      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 26);
-      endDate = new Date(now.getFullYear(), now.getMonth(), 25);
+      startDate = setDate(subMonths(now, 1), 26);
+      endDate = setDate(now, 25);
     } else {
-      // Current period starts this month
-      startDate = new Date(now.getFullYear(), now.getMonth(), 26);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 25);
+      startDate = setDate(now, 26);
+      endDate = setDate(addMonths(now, 1), 25);
     }
 
     return {
@@ -59,12 +57,12 @@ function calculatePeriodDates(payrollPeriod: string): {
 
   const [month, year] = payrollPeriod.split('-');
   const date = parse(`${month} ${year}`, 'MMMM yyyy', new Date());
-  const start = startOfMonth(date);
-  const end = endOfMonth(date);
+  const startDate = setDate(subMonths(date, 1), 26);
+  const endDate = setDate(date, 25);
 
   return {
-    start: format(start, 'yyyy-MM-dd'),
-    end: format(end, 'yyyy-MM-dd'),
+    start: format(startDate, 'yyyy-MM-dd'),
+    end: format(endDate, 'yyyy-MM-dd'),
   };
 }
 
@@ -85,6 +83,7 @@ export async function processAttendance(job: Job): Promise<any> {
   try {
     const { start: startDate, end: endDate } =
       calculatePeriodDates(payrollPeriod);
+    const queryStartDate = parseISO(startDate);
     const queryEndDate = addDays(parseISO(endDate), 1); // Add one day to include the full last day
 
     logMessage(
@@ -108,27 +107,27 @@ export async function processAttendance(job: Job): Promise<any> {
 
     const attendanceRecords = await attendanceService.getAttendanceRecords(
       employeeId,
-      new Date(startDate),
+      queryStartDate,
       queryEndDate,
     );
 
     const holidays = await attendanceService.getHolidaysForDateRange(
-      new Date(startDate),
-      new Date(endDate),
+      queryStartDate,
+      queryEndDate,
     );
 
     const processedAttendance = await attendanceService.processAttendanceData(
       attendanceRecords,
       userData,
-      new Date(startDate),
-      new Date(endDate),
+      queryStartDate,
+      queryEndDate,
       holidays,
     );
 
     const summary = await attendanceService.calculateSummary(
       processedAttendance.processedAttendance,
-      new Date(startDate),
-      new Date(endDate),
+      queryStartDate,
+      queryEndDate,
     );
 
     const result = {
@@ -146,8 +145,8 @@ export async function processAttendance(job: Job): Promise<any> {
     await prisma.payrollProcessingResult.create({
       data: {
         employeeId,
-        periodStart: new Date(startDate),
-        periodEnd: new Date(endDate),
+        periodStart: queryStartDate,
+        periodEnd: parseISO(endDate),
         totalWorkingDays: summary.totalWorkingDays,
         totalPresent: summary.totalPresent,
         totalAbsent: summary.totalAbsent,
