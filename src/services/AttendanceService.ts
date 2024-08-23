@@ -44,6 +44,7 @@ import {
   compareAsc,
   addDays,
   addHours,
+  set,
 } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { memoize } from 'lodash';
@@ -330,7 +331,6 @@ export class AttendanceService {
     });
   }
 
-  // Improve processAttendanceData by breaking it down
   async processAttendanceData(
     records: AttendanceRecord[],
     userData: UserData,
@@ -341,10 +341,11 @@ export class AttendanceService {
     processedAttendance: ProcessedAttendance[];
     summary: any;
   }> {
-    logMessage(`Processing ${records.length} attendance records`);
-    logMessage(
-      `Start date: ${this.formatDate(startDate)}, End date: ${this.formatDate(endDate)}`,
+    console.log(`Starting attendance processing for ${userData.employeeId}`);
+    console.log(
+      `Date range: ${format(startDate, 'yyyy-MM-dd')} to ${format(endDate, 'yyyy-MM-dd')}`,
     );
+    console.log(`Number of records to process: ${records.length}`);
 
     const shift: ShiftData = {
       ...userData.assignedShift,
@@ -410,6 +411,8 @@ export class AttendanceService {
       startDate,
       endDate,
     );
+    console.log(`Finished processing attendance for ${userData.employeeId}`);
+    console.log(`Processed ${processedAttendance.length} records`);
 
     return { processedAttendance: validatedAttendance, summary };
   }
@@ -773,12 +776,9 @@ export class AttendanceService {
     const roundedCheckIn = this.roundToNearestThirtyMinutes(checkIn);
     const roundedCheckOut = this.roundToNearestThirtyMinutes(checkOut);
 
-    const shiftStart = this.parseDate(
-      `${format(checkIn, 'yyyy-MM-dd')} ${shift.startTime}`,
-    );
-    let shiftEnd = this.parseDate(
-      `${format(checkIn, 'yyyy-MM-dd')} ${shift.endTime}`,
-    );
+    const shiftDate = startOfDay(checkIn);
+    const shiftStart = set(shiftDate, this.parseTime(shift.startTime));
+    let shiftEnd = set(shiftDate, this.parseTime(shift.endTime));
     if (shiftEnd < shiftStart) {
       shiftEnd = addDays(shiftEnd, 1);
     }
@@ -831,8 +831,8 @@ export class AttendanceService {
       regularHours,
       overtimeHours,
       potentialOvertimePeriods: potentialOvertimePeriods.map((period) => ({
-        start: this.formatDate(new Date(period.start)),
-        end: this.formatDate(new Date(period.end)),
+        start: format(new Date(period.start), 'yyyy-MM-dd HH:mm:ss'),
+        end: format(new Date(period.end), 'yyyy-MM-dd HH:mm:ss'),
       })),
     };
   }
@@ -842,22 +842,29 @@ export class AttendanceService {
     actualCheckIn: Date,
     actualCheckOut: Date,
   ): Promise<boolean> {
-    const shiftStart = parse(scheduledShift.startTime, 'HH:mm', actualCheckIn);
-    const shiftEnd = parse(scheduledShift.endTime, 'HH:mm', actualCheckIn);
+    const shiftStart = set(
+      startOfDay(actualCheckIn),
+      this.parseTime(scheduledShift.startTime),
+    );
+    let shiftEnd = set(
+      startOfDay(actualCheckIn),
+      this.parseTime(scheduledShift.endTime),
+    );
+    if (shiftEnd < shiftStart) shiftEnd = addDays(shiftEnd, 1);
 
     const earlyThreshold = subMinutes(shiftStart, 30);
     const lateThreshold = addMinutes(shiftStart, 30);
 
-    // Adjusting to consider shifts that might start earlier or later
+    const significantDeviation = 60; // minutes
+
     const isPotentialShiftAdjustment =
-      isBefore(actualCheckIn, earlyThreshold) ||
-      isAfter(actualCheckIn, lateThreshold) ||
-      isBefore(actualCheckOut, shiftStart) ||
-      isAfter(actualCheckOut, shiftEnd);
+      Math.abs(differenceInMinutes(actualCheckIn, shiftStart)) >
+        significantDeviation ||
+      Math.abs(differenceInMinutes(actualCheckOut, shiftEnd)) >
+        significantDeviation;
 
     return isPotentialShiftAdjustment;
   }
-
   private calculateOvertime(
     checkIn: Date,
     checkOut: Date | null,
@@ -1027,10 +1034,18 @@ export class AttendanceService {
     shiftAdjustments: any[],
     shifts: Map<string, ShiftData>,
   ): ShiftData {
-    const adjustment = shiftAdjustments.find((adj) =>
-      isSameDay(adj.date, date),
-    );
-    return adjustment ? adjustment.requestedShift : userData.assignedShift;
+    try {
+      const adjustment = shiftAdjustments.find((adj) =>
+        isSameDay(adj.date, date),
+      );
+      return adjustment ? adjustment.requestedShift : userData.assignedShift;
+    } catch (error) {
+      console.error(
+        `Error getting effective shift for date ${format(date, 'yyyy-MM-dd')}:`,
+        error,
+      );
+      return userData.assignedShift;
+    }
   }
 
   private async getShiftAdjustments(
@@ -1274,12 +1289,18 @@ export class AttendanceService {
   private getShiftDuration(shift: ShiftData): number {
     const startTime = this.parseTime(shift.startTime);
     const endTime = this.parseTime(shift.endTime);
-    return (endTime - startTime) / (60 * 60 * 1000); // Convert milliseconds to hours
+    return (
+      (endTime.hours * 60 +
+        endTime.minutes -
+        startTime.hours * 60 -
+        startTime.minutes) /
+      60
+    ); // Convert minutes to hours
   }
 
-  private parseTime(timeString: string): number {
+  private parseTime(timeString: string): { hours: number; minutes: number } {
     const [hours, minutes] = timeString.split(':').map(Number);
-    return hours * 60 * 60 * 1000 + minutes * 60 * 1000;
+    return { hours, minutes };
   }
 
   private generateDetailedStatus(
