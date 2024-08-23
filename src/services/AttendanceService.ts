@@ -78,7 +78,6 @@ export class AttendanceService {
       startTime: '',
       endTime: '',
       workDays: [],
-      timezone: '',
       shiftCode: '',
     };
   }
@@ -349,7 +348,6 @@ export class AttendanceService {
 
     const shift: ShiftData = {
       ...userData.assignedShift,
-      timezone: this.TIMEZONE,
     };
     if (!shift) throw new Error('User has no assigned shift');
 
@@ -571,13 +569,9 @@ export class AttendanceService {
     isHoliday: boolean,
     approvedOvertimes: ApprovedOvertime[],
   ): Promise<ProcessedAttendance> {
-    const checkInTime = parse(
-      pair.checkIn.attendanceTime,
-      'yyyy-MM-dd HH:mm:ss',
-      new Date(),
-    );
+    const checkInTime = parseISO(pair.checkIn.attendanceTime);
     const checkOutTime = pair.checkOut
-      ? parse(pair.checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
+      ? parseISO(pair.checkOut.attendanceTime)
       : checkInTime;
 
     // Handle late night check-outs
@@ -830,10 +824,24 @@ export class AttendanceService {
     return {
       regularHours,
       overtimeHours,
-      potentialOvertimePeriods: potentialOvertimePeriods.map((period) => ({
-        start: format(new Date(period.start), 'yyyy-MM-dd HH:mm:ss'),
-        end: format(new Date(period.end), 'yyyy-MM-dd HH:mm:ss'),
-      })),
+      potentialOvertimePeriods: potentialOvertimePeriods.map((period) => {
+        const startDate = set(checkIn, {
+          hours: parseInt(period.start.split(':')[0], 10),
+          minutes: parseInt(period.start.split(':')[1], 10),
+          seconds: 0,
+          milliseconds: 0,
+        });
+        const endDate = set(checkOut, {
+          hours: parseInt(period.end.split(':')[0], 10),
+          minutes: parseInt(period.end.split(':')[1], 10),
+          seconds: 0,
+          milliseconds: 0,
+        });
+        return {
+          start: format(startDate, 'yyyy-MM-dd HH:mm:ss'),
+          end: format(endDate, 'yyyy-MM-dd HH:mm:ss'),
+        };
+      }),
     };
   }
 
@@ -2103,10 +2111,10 @@ export class AttendanceService {
     console.log(`Raw date value: ${external.date}`);
     console.log(`Raw time value: ${external.time}`);
 
-    const attendanceTime = parseISO(external.sj);
+    const attendanceTime = external.sj;
     console.log(`Parsed attendanceTime: ${attendanceTime}`);
 
-    if (!isValid(attendanceTime)) {
+    if (!isValid(parseISO(attendanceTime))) {
       console.log(
         `Invalid date in external record: ${JSON.stringify(external)}`,
       );

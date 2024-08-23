@@ -123,13 +123,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           );
           shift = {
             ...userData.assignedShift!,
-            timezone: 'BANGKOK',
           };
         }
       } else {
         shift = {
           ...userData.assignedShift!,
-          timezone: 'BANGKOK',
         };
       }
 
