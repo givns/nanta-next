@@ -36,8 +36,6 @@ function calculatePeriodDates(payrollPeriod: string): {
   start: string;
   end: string;
 } {
-  logMessage(`Calculating period dates for payroll period: ${payrollPeriod}`);
-
   if (payrollPeriod === 'current') {
     const now = new Date();
     const currentDay = now.getDate();
@@ -60,46 +58,9 @@ function calculatePeriodDates(payrollPeriod: string): {
   }
 
   const [month, year] = payrollPeriod.split('-');
-  if (!month || !year) {
-    throw new Error(`Invalid payroll period format: ${payrollPeriod}`);
-  }
-
-  const monthIndex = [
-    'january',
-    'february',
-    'march',
-    'april',
-    'may',
-    'june',
-    'july',
-    'august',
-    'september',
-    'october',
-    'november',
-    'december',
-  ].indexOf(month.toLowerCase());
-
-  if (monthIndex === -1) {
-    throw new Error(`Invalid month in payroll period: ${month}`);
-  }
-
-  const yearNumber = parseInt(year, 10);
-  if (isNaN(yearNumber)) {
-    throw new Error(`Invalid year in payroll period: ${year}`);
-  }
-
-  const date = new Date(yearNumber, monthIndex);
-  if (!isValid(date)) {
-    throw new Error(
-      `Invalid date created from payroll period: ${payrollPeriod}`,
-    );
-  }
-
+  const date = parse(`${month} ${year}`, 'MMMM yyyy', new Date());
   const start = startOfMonth(date);
   const end = endOfMonth(date);
-
-  logMessage(`Calculated start date: ${format(start, 'yyyy-MM-dd')}`);
-  logMessage(`Calculated end date: ${format(end, 'yyyy-MM-dd')}`);
 
   return {
     start: format(start, 'yyyy-MM-dd'),

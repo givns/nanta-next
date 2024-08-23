@@ -9,7 +9,13 @@ import {
 import { retry } from '../utils/retry';
 import { logMessage } from '../utils/inMemoryLogger';
 import { createLogger } from '../utils/loggers';
-import moment from 'moment-timezone';
+import {
+  format,
+  parseISO,
+  isSameDay,
+  differenceInHours,
+  addDays,
+} from 'date-fns';
 
 const logger = createLogger('ExternalDbService');
 
@@ -83,7 +89,8 @@ export class ExternalDbService {
 
         const processedRecords = attendanceResult.map((record) => ({
           ...record,
-          sj: moment(record.sj).format(),
+          sj: format(parseISO(record.sj), "yyyy-MM-dd'T'HH:mm:ssXXX"),
+          date: format(parseISO(record.date), 'yyyy-MM-dd'),
         }));
 
         console.log(
@@ -115,6 +122,8 @@ export class ExternalDbService {
     return retry(
       async () => {
         const offset = (page - 1) * pageSize;
+        const formattedStartDate = format(startDate, 'yyyy-MM-dd');
+        const formattedEndDate = format(endDate, 'yyyy-MM-dd');
 
         console.log(
           `Fetching historical attendance records for employeeId: ${employeeId}`,
@@ -177,8 +186,8 @@ export class ExternalDbService {
 
         const processedRecords = records.map((record) => ({
           ...record,
-          sj: moment(record.sj).format(),
-          date: moment(record.date).format('YYYY-MM-DD'),
+          sj: format(parseISO(record.sj), "yyyy-MM-dd'T'HH:mm:ssXXX"),
+          date: format(parseISO(record.date), 'yyyy-MM-dd'),
         }));
 
         console.log(
@@ -190,9 +199,8 @@ export class ExternalDbService {
           totalCount: countResult.total,
         };
       },
-      5,
-      2000,
-      2,
+      3,
+      1000,
     );
   }
 
@@ -240,7 +248,7 @@ export class ExternalDbService {
     console.log(`Searching for latest check-out for employeeId: ${employeeId}`);
 
     const checkOutQuery = `
-        SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
+        SELECT kj.*, du.user_no, du.use_lname, du.user_fname, dd.dep_name as department
         FROM kt_jl kj
         JOIN dt_user du ON kj.user_serial = du.user_serial
         LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial

@@ -4,7 +4,6 @@ export async function retry<T>(
   fn: () => Promise<T>,
   retries: number = 3,
   delay: number = 1000,
-  backoff: number = 2,
 ): Promise<T> {
   try {
     return await fn();
@@ -14,7 +13,7 @@ export async function retry<T>(
         `Retry attempt ${4 - retries} of 3. Waiting ${delay}ms before next attempt.`,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
-      return retry(fn, retries - 1, delay * backoff, backoff);
+      return retry(fn, retries - 1, delay * 2);
     } else {
       logMessage('All retry attempts exhausted. Throwing error.');
       throw error;
