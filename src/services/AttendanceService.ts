@@ -1873,7 +1873,7 @@ export class AttendanceService {
     const result: AttendanceRecord = {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      attendanceTime: formattedAttendanceTime || '', // Ensure a valid string
+      attendanceTime: formattedAttendanceTime || '',
       checkInTime: null,
       checkOutTime: null,
       isOvertime: false,
