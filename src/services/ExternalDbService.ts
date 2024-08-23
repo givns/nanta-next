@@ -9,13 +9,7 @@ import {
 import { retry } from '../utils/retry';
 import { logMessage } from '../utils/inMemoryLogger';
 import { createLogger } from '../utils/loggers';
-import {
-  format,
-  parseISO,
-  isSameDay,
-  differenceInHours,
-  addDays,
-} from 'date-fns';
+import moment from 'moment-timezone';
 
 const logger = createLogger('ExternalDbService');
 
@@ -89,8 +83,7 @@ export class ExternalDbService {
 
         const processedRecords = attendanceResult.map((record) => ({
           ...record,
-          sj: format(parseISO(record.sj), "yyyy-MM-dd'T'HH:mm:ssXXX"),
-          date: format(parseISO(record.date), 'yyyy-MM-dd'),
+          sj: moment(record.sj).format(),
         }));
 
         console.log(
@@ -122,8 +115,6 @@ export class ExternalDbService {
     return retry(
       async () => {
         const offset = (page - 1) * pageSize;
-        const formattedStartDate = format(startDate, 'yyyy-MM-dd');
-        const formattedEndDate = format(endDate, 'yyyy-MM-dd');
 
         console.log(
           `Fetching historical attendance records for employeeId: ${employeeId}`,
@@ -184,27 +175,11 @@ export class ExternalDbService {
         );
         console.log(`Total count: ${countResult.total}`);
 
-        const processedRecords = records.map((record) => {
-          try {
-            const sjDate =
-              typeof record.sj === 'object' ? record.sj : new Date(record.sj);
-            const recordDate =
-              typeof record.date === 'object'
-                ? record.date
-                : new Date(record.date);
-            return {
-              ...record,
-              sj: format(sjDate, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-              date: format(recordDate, 'yyyy-MM-dd'),
-            };
-          } catch (error) {
-            console.error(
-              `Error processing record: ${JSON.stringify(record)}`,
-              error,
-            );
-            return record; // Return the original record if processing fails
-          }
-        });
+        const processedRecords = records.map((record) => ({
+          ...record,
+          sj: moment(record.sj).format(),
+          date: moment(record.date).format('YYYY-MM-DD'),
+        }));
 
         console.log(
           `Processed attendance records: ${JSON.stringify(processedRecords, null, 2)}`,
@@ -264,7 +239,7 @@ export class ExternalDbService {
     console.log(`Searching for latest check-out for employeeId: ${employeeId}`);
 
     const checkOutQuery = `
-        SELECT kj.*, du.user_no, du.use_lname, du.user_fname, dd.dep_name as department
+        SELECT kj.*, du.user_no, du.user_lname, du.user_fname, dd.dep_name as department
         FROM kt_jl kj
         JOIN dt_user du ON kj.user_serial = du.user_serial
         LEFT JOIN dt_dep dd ON du.user_dep = dd.dep_serial

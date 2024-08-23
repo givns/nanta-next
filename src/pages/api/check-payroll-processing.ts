@@ -1,3 +1,5 @@
+// pages/api/check-payroll-processing.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAttendanceProcessingQueue } from '../../lib/queue';
 import prisma from '../../lib/prisma';
@@ -12,9 +14,7 @@ export default async function handler(
   }
 
   const { jobId, employeeId } = req.query;
-  logMessage(
-    `Checking status for job ID: ${jobId}, Employee ID: ${employeeId}`,
-  );
+  logMessage(`Checking status for job ID: ${jobId}`);
 
   if (!jobId || !employeeId) {
     return res
@@ -23,95 +23,48 @@ export default async function handler(
   }
 
   try {
-    let queue;
-    try {
-      queue = getAttendanceProcessingQueue();
-      logMessage('Queue retrieved successfully');
-    } catch (queueError) {
-      logMessage(`Error getting queue: ${queueError}`);
-      return res.status(500).json({
-        error: 'Error retrieving queue',
-        details: (queueError as Error).message,
-      });
-    }
-
-    let job;
-    try {
-      job = await queue.getJob(`process-payroll:${jobId}`);
-      logMessage(`Job retrieved: ${job ? 'Yes' : 'No'}`);
-    } catch (jobError) {
-      logMessage(`Error getting job from queue: ${jobError}`);
-      // Continue execution to check database for results
-    }
+    const queue = getAttendanceProcessingQueue();
+    const job = await queue.getJob(jobId as string);
 
     if (!job) {
       logMessage(
         `Job ${jobId} not found in queue. Checking database for results.`,
       );
-      try {
-        const result = await checkDatabaseForResults(employeeId as string);
-        if (result) {
-          return res.status(200).json(result);
-        }
-        return res
-          .status(404)
-          .json({ error: 'Job not found and no results available' });
-      } catch (dbError) {
-        logMessage(`Error checking database for results: ${dbError}`);
-        return res.status(500).json({
-          error: 'Error checking database for results',
-          details: (dbError as Error).message,
-        });
+      const result = await checkDatabaseForResults(employeeId as string);
+      if (result) {
+        return res.status(200).json(result);
       }
-    }
-
-    let jobStatus;
-    try {
-      jobStatus = await job.getState();
-      logMessage(`Job status: ${jobStatus}`);
-    } catch (stateError) {
-      const error: Error = stateError as Error;
-      logMessage(`Error getting job state: ${error}`);
       return res
-        .status(500)
-        .json({ error: 'Error retrieving job state', details: error.message });
+        .status(404)
+        .json({ error: 'Job not found and no results available' });
     }
+    const jobStatus = await job.getState();
 
     if (jobStatus === 'completed') {
-      try {
-        let processedData;
-        let payrollProcessingResult; // Declare the variable here
-        try {
-          payrollProcessingResult = await getPrismaResult(employeeId as string);
-          if (payrollProcessingResult) {
-            processedData = JSON.parse(
-              payrollProcessingResult.processedData as string,
-            );
-          } else {
-            return res
-              .status(404)
-              .json({ error: 'Payroll processing result not found' });
-          }
-        } catch (parseError) {
-          logMessage(`Error parsing processed data: ${parseError}`);
-          const error: Error = parseError as Error;
-          return res.status(500).json({
-            error: 'Error parsing processed data',
-            details: error.message,
-          });
-        }
+      const payrollProcessingResult =
+        await prisma.payrollProcessingResult.findFirst({
+          where: {
+            employeeId: employeeId as string,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
 
-        return res.status(200).json({
-          status: 'completed',
-          data: processedData,
-        });
-      } catch (prismaError) {
-        logMessage(`Prisma error: ${prismaError}`);
-        return res.status(500).json({
-          error: 'Database error',
-          details: (prismaError as Error).message,
-        });
+      if (!payrollProcessingResult) {
+        return res
+          .status(404)
+          .json({ error: 'Payroll processing result not found' });
       }
+
+      const processedData = JSON.parse(
+        payrollProcessingResult.processedData as string,
+      );
+
+      return res.status(200).json({
+        status: 'completed',
+        data: processedData,
+      });
     } else if (jobStatus === 'failed') {
       const jobError = job.failedReason;
       return res.status(500).json({
@@ -125,19 +78,17 @@ export default async function handler(
       });
     }
   } catch (error: any) {
-    logMessage(`Unhandled error in check-payroll-processing: ${error}`);
     console.error('Error checking payroll processing status:', error);
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: error.message,
-      stack: error.stack,
-    });
+    return res
+      .status(500)
+      .json({ error: 'Internal server error', message: error.message });
   }
-}
-
-async function checkDatabaseForResults(employeeId: string) {
-  try {
-    const payrollProcessingResult = await getPrismaResult(employeeId);
+  async function checkDatabaseForResults(employeeId: string) {
+    const payrollProcessingResult =
+      await prisma.payrollProcessingResult.findFirst({
+        where: { employeeId },
+        orderBy: { createdAt: 'desc' },
+      });
 
     if (payrollProcessingResult) {
       return {
@@ -157,20 +108,5 @@ async function checkDatabaseForResults(employeeId: string) {
     }
 
     return null;
-  } catch (error) {
-    logMessage(`Error checking database for results: ${error}`);
-    throw error;
-  }
-}
-
-async function getPrismaResult(employeeId: string) {
-  try {
-    return await prisma.payrollProcessingResult.findFirst({
-      where: { employeeId },
-      orderBy: { createdAt: 'desc' },
-    });
-  } catch (prismaError) {
-    logMessage(`Prisma error: ${prismaError}`);
-    throw prismaError;
   }
 }

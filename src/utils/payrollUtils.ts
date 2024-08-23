@@ -19,16 +19,18 @@ export function generatePayrollPeriods(
   const formatDate = (date: Date) => format(date, 'yyyy-MM-dd');
   const periods: PayrollPeriod[] = [];
 
-  let startDate = new Date(currentDate.getFullYear() - 1, 11, 26); // Start from December 26th of last year
+  let startDate = startOfYear(currentDate);
+  startDate = subMonths(startDate, 1); // Start from December of previous year
+  startDate.setDate(26);
 
   while (startDate <= currentDate) {
-    const endDate = addMonths(startDate, 1);
+    const endDate = endOfMonth(addMonths(startDate, 1));
     endDate.setDate(25);
 
-    const periodLabel = format(startDate, 'MMMM yyyy');
+    const periodLabel = format(addMonths(startDate, 1), 'MMMM yyyy');
     const period: PayrollPeriod = {
       label: periodLabel,
-      value: format(startDate, 'MMMM-yyyy').toLowerCase(),
+      value: periodLabel.toLowerCase().replace(' ', '-'),
       start: formatDate(startDate),
       end: formatDate(endDate),
     };
@@ -36,7 +38,6 @@ export function generatePayrollPeriods(
     periods.push(period);
 
     startDate = addMonths(startDate, 1);
-    startDate.setDate(26);
   }
 
   // Add "Current" period
