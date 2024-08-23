@@ -57,7 +57,7 @@ interface PairedAttendance {
 }
 
 export class AttendanceService {
-  private timezone: string = 'Asia/Bangkok';
+  private readonly TIMEZONE = 'Asia/Bangkok';
   private processingService: AttendanceProcessingService;
   private holidayService: HolidayService;
   private shift: ShiftData;
@@ -86,21 +86,11 @@ export class AttendanceService {
   }
 
   private parseDate(dateString: string): Date {
-    const parsedDate = parseISO(dateString);
-    if (!isValid(parsedDate)) {
-      throw new Error(`Invalid date: ${dateString}`);
-    }
-    return parsedDate;
+    return parse(dateString, 'yyyy-MM-dd HH:mm:ss', new Date());
   }
 
   private formatDate(date: Date): string {
     return format(date, 'yyyy-MM-dd HH:mm:ss');
-  }
-
-  // Use this method when you need to compare dates across timezones
-  private toComparableDate(date: Date | string): Date {
-    const parsedDate = typeof date === 'string' ? this.parseDate(date) : date;
-    return zonedTimeToUtc(parsedDate, this.timezone);
   }
 
   async getLatestAttendanceStatus(
@@ -358,7 +348,7 @@ export class AttendanceService {
 
     const shift: ShiftData = {
       ...userData.assignedShift,
-      timezone: this.timezone,
+      timezone: this.TIMEZONE,
     };
     if (!shift) throw new Error('User has no assigned shift');
 
@@ -531,8 +521,8 @@ export class AttendanceService {
   } {
     records.sort(
       (a, b) =>
-        this.toComparableDate(a.attendanceTime).getTime() -
-        this.toComparableDate(b.attendanceTime).getTime(),
+        new Date(a.attendanceTime).getTime() -
+        new Date(b.attendanceTime).getTime(),
     );
     const pairedRecords: PairedAttendance[] = [];
     const unpairedRecords: AttendanceRecord[] = [];
