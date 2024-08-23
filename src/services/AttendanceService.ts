@@ -1,4 +1,4 @@
-import { PrismaClient, Attendance, Holiday } from '@prisma/client';
+import { PrismaClient, Attendance, Holiday, NoWorkDay } from '@prisma/client';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { ExternalDbService } from './ExternalDbService';
 import { NotificationService } from './NotificationService';
@@ -43,10 +43,10 @@ import {
   isValid,
   compareAsc,
   addDays,
-  setMinutes,
-  getMinutes,
-  getHours,
+  addHours,
 } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
+import { memoize } from 'lodash';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
@@ -57,6 +57,7 @@ interface PairedAttendance {
 }
 
 export class AttendanceService {
+  private timezone: string = 'Asia/Bangkok';
   private processingService: AttendanceProcessingService;
   private holidayService: HolidayService;
   private shift: ShiftData;
@@ -84,11 +85,22 @@ export class AttendanceService {
     this.shift = shift;
   }
 
-  private parseDate(date: Date | string): Date {
-    if (typeof date === 'string') {
-      return parse(date, 'yyyy-MM-dd HH:mm:ss', new Date());
+  private parseDate(dateString: string): Date {
+    const parsedDate = parseISO(dateString);
+    if (!isValid(parsedDate)) {
+      throw new Error(`Invalid date: ${dateString}`);
     }
-    return date;
+    return parsedDate;
+  }
+
+  private formatDate(date: Date): string {
+    return format(date, 'yyyy-MM-dd HH:mm:ss');
+  }
+
+  // Use this method when you need to compare dates across timezones
+  private toComparableDate(date: Date | string): Date {
+    const parsedDate = typeof date === 'string' ? this.parseDate(date) : date;
+    return zonedTimeToUtc(parsedDate, this.timezone);
   }
 
   async getLatestAttendanceStatus(
@@ -285,7 +297,7 @@ export class AttendanceService {
     return this.convertToUserData(user);
   }
 
-  private async getAttendanceRecords(
+  public async getAttendanceRecords(
     employeeId: string,
     startDate: Date,
     endDate: Date,
@@ -328,30 +340,44 @@ export class AttendanceService {
     });
   }
 
+  // Improve processAttendanceData by breaking it down
   async processAttendanceData(
     records: AttendanceRecord[],
     userData: UserData,
     startDate: Date,
     endDate: Date,
     holidays: Holiday[],
-  ): Promise<{ processedAttendance: ProcessedAttendance[]; summary: any }> {
+  ): Promise<{
+    processedAttendance: ProcessedAttendance[];
+    summary: any;
+  }> {
     logMessage(`Processing ${records.length} attendance records`);
-    logMessage(`Start date: ${startDate}, End date: ${endDate}`);
+    logMessage(
+      `Start date: ${this.formatDate(startDate)}, End date: ${this.formatDate(endDate)}`,
+    );
 
     const shift: ShiftData = {
       ...userData.assignedShift,
-      timezone: 'Asia/Bangkok',
+      timezone: this.timezone,
     };
     if (!shift) throw new Error('User has no assigned shift');
 
+    const validRecords = records.filter((record) => {
+      try {
+        this.parseDate(record.attendanceTime);
+        return true;
+      } catch (error) {
+        logMessage(`Invalid date encountered: ${record.attendanceTime}`);
+        return false;
+      }
+    });
+
     const { pairedRecords, unpairedRecords } = this.groupAndPairRecords(
-      records,
+      validRecords,
       shift,
     );
 
-    if (unpairedRecords.length > 0) {
-      await this.flagUnpairedRecordsForAdminReview(unpairedRecords);
-    }
+    await this.handleUnpairedRecords(unpairedRecords);
 
     const shiftAdjustments = await this.getShiftAdjustments(
       userData.employeeId,
@@ -366,76 +392,134 @@ export class AttendanceService {
       startDate,
       endDate,
     );
-    const isShift104 = userData.assignedShift.shiftCode === 'SHIFT104';
 
-    const processedAttendance: ProcessedAttendance[] = [];
+    const processedPairedRecords = await this.processPairedRecords(
+      pairedRecords,
+      userData,
+      shiftAdjustments,
+      approvedOvertimes,
+      holidays,
+    );
+    const processedUnpairedRecords = await this.processUnpairedRecords(
+      unpairedRecords,
+      userData,
+      shiftAdjustments,
+      approvedOvertimes,
+      holidays,
+    );
 
-    for (const pair of pairedRecords) {
-      try {
-        const currentDate = new Date(pair.checkIn.attendanceTime);
-        const effectiveShift = this.getEffectiveShift(
-          currentDate,
-          userData,
-          shiftAdjustments,
-          await this.getAllShifts(),
-        );
-        const isDayOff = await this.isDayOff(
-          userData.employeeId,
-          currentDate,
-          effectiveShift,
-          holidays,
-        );
-        const isHoliday = this.isHoliday(currentDate, holidays, isShift104);
-
-        const isLeave = this.isOnLeave(currentDate, leaveRequests);
-
-        const processed = await this.processAttendancePair(
-          pair,
-          effectiveShift,
-          isDayOff,
-          isHoliday,
-          approvedOvertimes,
-        );
-
-        const potentialShiftAdjustment =
-          await this.detectPotentialShiftAdjustment(
-            effectiveShift,
-            new Date(pair.checkIn.attendanceTime),
-            new Date(
-              pair.checkOut?.attendanceTime || pair.checkIn.attendanceTime,
-            ),
-          );
-
-        if (potentialShiftAdjustment) {
-          await this.flagPotentialShiftAdjustment(processed, effectiveShift);
-        }
-
-        processedAttendance.push(processed);
-      } catch (error) {
-        console.error('Error processing attendance pair:', error);
-      }
-    }
-
-    for (const record of unpairedRecords) {
-      const processed = await this.processUnpairedRecord(
-        record,
-        userData,
-        shiftAdjustments,
-        approvedOvertimes,
-        holidays,
-      );
-      processedAttendance.push(processed);
-    }
+    const processedAttendance = [
+      ...processedPairedRecords,
+      ...processedUnpairedRecords,
+    ];
 
     const validatedAttendance =
       this.validateAndCorrectAttendance(processedAttendance);
-    const summary = this.calculateSummary(
+    const summary = await this.calculateSummary(
       validatedAttendance,
       startDate,
       endDate,
     );
 
     return { processedAttendance: validatedAttendance, summary };
+  }
+
+  private async handleUnpairedRecords(
+    unpairedRecords: AttendanceRecord[],
+  ): Promise<void> {
+    if (unpairedRecords.length > 0) {
+      await this.flagUnpairedRecordsForAdminReview(unpairedRecords);
+    }
+  }
+
+  private async processPairedRecords(
+    pairedRecords: PairedAttendance[],
+    userData: UserData,
+    shiftAdjustments: ShiftAdjustment[],
+    approvedOvertimes: ApprovedOvertime[],
+    holidays: Holiday[],
+  ): Promise<ProcessedAttendance[]> {
+    const processedRecords: ProcessedAttendance[] = [];
+
+    for (const pair of pairedRecords) {
+      try {
+        const processedRecord = await this.processSinglePairedRecord(
+          pair,
+          userData,
+          shiftAdjustments,
+          approvedOvertimes,
+          holidays,
+        );
+        processedRecords.push(processedRecord);
+      } catch (error) {
+        console.error('Error processing attendance pair:', error);
+      }
+    }
+
+    return processedRecords;
+  }
+
+  private async processSinglePairedRecord(
+    pair: PairedAttendance,
+    userData: UserData,
+    shiftAdjustments: ShiftAdjustment[],
+    approvedOvertimes: ApprovedOvertime[],
+    holidays: Holiday[],
+  ): Promise<ProcessedAttendance> {
+    const currentDate = new Date(pair.checkIn.attendanceTime);
+    const effectiveShift = this.getEffectiveShift(
+      currentDate,
+      userData,
+      shiftAdjustments,
+      await this.getAllShifts(),
+    );
+    const isDayOff = await this.isDayOff(
+      userData.employeeId,
+      currentDate,
+      effectiveShift,
+      holidays,
+    );
+    const isHoliday = this.isHoliday(
+      currentDate,
+      holidays,
+      userData.assignedShift.shiftCode === 'SHIFT104',
+    );
+
+    let processed = await this.processAttendancePair(
+      pair,
+      effectiveShift,
+      isDayOff,
+      isHoliday,
+      approvedOvertimes,
+    );
+
+    if (isHoliday) {
+      processed = this.adjustForHoliday(processed);
+    }
+
+    const potentialShiftAdjustment = await this.detectPotentialShiftAdjustment(
+      effectiveShift,
+      new Date(pair.checkIn.attendanceTime),
+      new Date(pair.checkOut?.attendanceTime || pair.checkIn.attendanceTime),
+    );
+
+    if (potentialShiftAdjustment) {
+      await this.flagPotentialShiftAdjustment(processed, effectiveShift);
+    }
+
+    return processed;
+  }
+
+  private adjustForHoliday(
+    processed: ProcessedAttendance,
+  ): ProcessedAttendance {
+    return {
+      ...processed,
+      status: 'holiday',
+      detailedStatus: 'Holiday',
+      regularHours: 0,
+      overtimeHours: 0,
+    };
   }
 
   private groupAndPairRecords(
@@ -447,46 +531,39 @@ export class AttendanceService {
   } {
     records.sort(
       (a, b) =>
-        new Date(a.attendanceTime).getTime() -
-        new Date(b.attendanceTime).getTime(),
+        this.toComparableDate(a.attendanceTime).getTime() -
+        this.toComparableDate(b.attendanceTime).getTime(),
     );
-
     const pairedRecords: PairedAttendance[] = [];
     const unpairedRecords: AttendanceRecord[] = [];
     let currentPair: Partial<PairedAttendance> = {};
 
+    const isValidCheckOut = (checkIn: Date, checkOut: Date) => {
+      const maxShiftDuration = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      return (
+        checkOut > checkIn &&
+        checkOut.getTime() - checkIn.getTime() <= maxShiftDuration
+      );
+    };
+
     for (const record of records) {
       const recordTime = new Date(record.attendanceTime);
-      const shiftStartTime = new Date(record.attendanceTime);
-      shiftStartTime.setHours(
-        parseInt(shift.startTime.split(':')[0]),
-        parseInt(shift.startTime.split(':')[1]),
-      );
 
-      if (
-        !currentPair.checkIn ||
-        recordTime.getTime() -
-          new Date(currentPair.checkIn!.attendanceTime).getTime() >
-          16 * 60 * 60 * 1000
-      ) {
-        // If there's no current pair or the time difference is more than 16 hours, start a new pair
-        if (currentPair.checkIn) {
-          if (currentPair.checkOut) {
-            pairedRecords.push(currentPair as PairedAttendance);
-          } else {
-            unpairedRecords.push(currentPair.checkIn);
-          }
-        }
-        currentPair = { checkIn: record };
+      if (!currentPair.checkIn) {
+        currentPair.checkIn = record;
       } else {
-        // This is a check-out for the current pair
-        currentPair.checkOut = record;
-        pairedRecords.push(currentPair as PairedAttendance);
-        currentPair = {};
+        const currentCheckIn = new Date(currentPair.checkIn!.attendanceTime);
+        if (isValidCheckOut(currentCheckIn, recordTime)) {
+          currentPair.checkOut = record;
+          pairedRecords.push(currentPair as PairedAttendance);
+          currentPair = {};
+        } else {
+          unpairedRecords.push(currentPair.checkIn!);
+          currentPair = { checkIn: record };
+        }
       }
     }
 
-    // Handle any remaining unpaired check-in
     if (currentPair.checkIn) {
       unpairedRecords.push(currentPair.checkIn);
     }
@@ -509,6 +586,14 @@ export class AttendanceService {
     const checkOutTime = pair.checkOut
       ? parse(pair.checkOut.attendanceTime, 'yyyy-MM-dd HH:mm:ss', new Date())
       : checkInTime;
+
+    // Handle late night check-outs
+    if (isAfter(checkOutTime, addHours(checkInTime, 16))) {
+      const adjustedCheckOut = endOfDay(checkInTime);
+      console.log(
+        `Adjusted late night check-out from ${checkOutTime} to ${adjustedCheckOut}`,
+      );
+    }
 
     const { regularHours, overtimeHours, potentialOvertimePeriods } =
       this.calculateEffectiveHours(
@@ -568,98 +653,111 @@ export class AttendanceService {
     };
   }
 
-  private async processUnpairedRecord(
-    record: AttendanceRecord,
+  private async processUnpairedRecords(
+    records: AttendanceRecord[],
     userData: UserData,
     shiftAdjustments: ShiftAdjustment[],
     approvedOvertimes: ApprovedOvertime[],
     holidays: Holiday[],
-  ): Promise<ProcessedAttendance> {
-    const attendanceTime = parse(
-      record.attendanceTime,
-      'yyyy-MM-dd HH:mm:ss',
-      new Date(),
-    );
-    const effectiveShift = this.getEffectiveShift(
-      attendanceTime,
-      userData,
-      shiftAdjustments,
-      await this.getAllShifts(),
-    );
-    const isDayOff = await this.isDayOff(
-      userData.employeeId,
-      attendanceTime,
-      effectiveShift,
-      holidays,
-    );
-    const isHoliday = holidays.some((holiday) =>
-      isSameDay(holiday.date, attendanceTime),
-    );
+  ): Promise<ProcessedAttendance[]> {
+    const processedRecords: ProcessedAttendance[] = [];
 
-    const shiftStart = parse(effectiveShift.startTime, 'HH:mm', attendanceTime);
-    let shiftEnd = parse(effectiveShift.endTime, 'HH:mm', attendanceTime);
-    if (isBefore(shiftEnd, shiftStart)) shiftEnd = addMinutes(shiftEnd, 1440);
+    for (const record of records) {
+      const attendanceTime = parse(
+        record.attendanceTime,
+        'yyyy-MM-dd HH:mm:ss',
+        new Date(),
+      );
+      const effectiveShift = this.getEffectiveShift(
+        attendanceTime,
+        userData,
+        shiftAdjustments,
+        await this.getAllShifts(),
+      );
+      const isDayOff = await this.isDayOff(
+        userData.employeeId,
+        attendanceTime,
+        effectiveShift,
+        holidays,
+      );
+      const isHoliday = holidays.some((holiday) =>
+        isSameDay(holiday.date, attendanceTime),
+      );
 
-    const isEarlyCheckIn = isBefore(attendanceTime, subMinutes(shiftStart, 30));
-    const isLateCheckIn = isAfter(attendanceTime, addMinutes(shiftStart, 15));
+      const shiftStart = parse(
+        effectiveShift.startTime,
+        'HH:mm',
+        attendanceTime,
+      );
+      let shiftEnd = parse(effectiveShift.endTime, 'HH:mm', attendanceTime);
+      if (isBefore(shiftEnd, shiftStart)) shiftEnd = addMinutes(shiftEnd, 1440);
 
-    let status: AttendanceStatusValue = isHoliday
-      ? 'holiday'
-      : isDayOff
-        ? 'off'
-        : 'incomplete';
+      const isEarlyCheckIn = isBefore(
+        attendanceTime,
+        subMinutes(shiftStart, 30),
+      );
+      const isLateCheckIn = isAfter(attendanceTime, addMinutes(shiftStart, 15));
 
-    const overtimeInfo = this.calculateOvertime(
-      attendanceTime,
-      null,
-      shiftStart,
-      shiftEnd,
-      approvedOvertimes,
-    );
+      let status: AttendanceStatusValue = isHoliday
+        ? 'holiday'
+        : isDayOff
+          ? 'off'
+          : 'incomplete';
 
-    const potentialOvertimeInfo = this.calculatePotentialOvertime(
-      attendanceTime,
-      new Date(),
-      effectiveShift,
-    );
+      const overtimeInfo = this.calculateOvertime(
+        attendanceTime,
+        null,
+        shiftStart,
+        shiftEnd,
+        approvedOvertimes,
+      );
 
-    if (potentialOvertimeInfo.duration > 0) {
-      await this.flagPotentialOvertime({
-        ...record,
-        overtimeHours: potentialOvertimeInfo.duration,
-        potentialOvertimePeriods: potentialOvertimeInfo.periods,
-        status: 'present',
+      const potentialOvertimeInfo = this.calculatePotentialOvertime(
+        attendanceTime,
+        new Date(),
+        effectiveShift,
+      );
+
+      if (potentialOvertimeInfo.duration > 0) {
+        await this.flagPotentialOvertime({
+          ...record,
+          overtimeHours: potentialOvertimeInfo.duration,
+          potentialOvertimePeriods: potentialOvertimeInfo.periods,
+          status: 'present',
+          date: attendanceTime,
+          regularHours: 0,
+          detailedStatus: '',
+        });
+      }
+
+      processedRecords.push({
+        id: record.id,
+        employeeId: record.employeeId,
         date: attendanceTime,
-        regularHours: 0,
-        detailedStatus: '',
-      });
-    }
-
-    return {
-      id: record.id,
-      employeeId: record.employeeId,
-      date: attendanceTime,
-      checkIn: record.attendanceTime,
-      checkOut: undefined,
-      status,
-      isEarlyCheckIn,
-      isLateCheckIn,
-      isLateCheckOut: false,
-      regularHours: 0,
-      overtimeHours: overtimeInfo.duration,
-      overtimeDuration: overtimeInfo.duration,
-      potentialOvertimePeriods: overtimeInfo.periods,
-      isOvertime: overtimeInfo.duration > 0,
-      detailedStatus: this.generateDetailedStatus(
+        checkIn: record.attendanceTime,
+        checkOut: undefined,
         status,
         isEarlyCheckIn,
         isLateCheckIn,
-        false,
-      ),
-      checkInDeviceSerial: record.checkInDeviceSerial,
-      checkOutDeviceSerial: null,
-      isManualEntry: record.isManualEntry,
-    };
+        isLateCheckOut: false,
+        regularHours: 0,
+        overtimeHours: overtimeInfo.duration,
+        overtimeDuration: overtimeInfo.duration,
+        potentialOvertimePeriods: overtimeInfo.periods,
+        isOvertime: overtimeInfo.duration > 0,
+        detailedStatus: this.generateDetailedStatus(
+          status,
+          isEarlyCheckIn,
+          isLateCheckIn,
+          false,
+        ),
+        checkInDeviceSerial: record.checkInDeviceSerial,
+        checkOutDeviceSerial: null,
+        isManualEntry: record.isManualEntry,
+      });
+    }
+
+    return processedRecords;
   }
 
   private roundToNearestThirtyMinutes(date: Date): Date {
@@ -685,16 +783,21 @@ export class AttendanceService {
     const roundedCheckIn = this.roundToNearestThirtyMinutes(checkIn);
     const roundedCheckOut = this.roundToNearestThirtyMinutes(checkOut);
 
-    const shiftStart = parse(shift.startTime, 'HH:mm', roundedCheckIn);
-    let shiftEnd = parse(shift.endTime, 'HH:mm', roundedCheckIn);
-    if (isBefore(shiftEnd, shiftStart)) shiftEnd = addDays(shiftEnd, 1);
+    const shiftStart = this.parseDate(
+      `${format(checkIn, 'yyyy-MM-dd')} ${shift.startTime}`,
+    );
+    let shiftEnd = this.parseDate(
+      `${format(checkIn, 'yyyy-MM-dd')} ${shift.endTime}`,
+    );
+    if (shiftEnd < shiftStart) {
+      shiftEnd = addDays(shiftEnd, 1);
+    }
 
     let regularHours = 0;
     let overtimeHours = 0;
     const potentialOvertimePeriods: { start: string; end: string }[] = [];
 
     if (isDayOff) {
-      // All hours on a day off are considered overtime
       overtimeHours = differenceInHours(roundedCheckOut, roundedCheckIn);
       if (overtimeHours > 4) {
         overtimeHours -= 1; // Deduct 1 hour for break time
@@ -734,7 +837,14 @@ export class AttendanceService {
       }
     }
 
-    return { regularHours, overtimeHours, potentialOvertimePeriods };
+    return {
+      regularHours,
+      overtimeHours,
+      potentialOvertimePeriods: potentialOvertimePeriods.map((period) => ({
+        start: this.formatDate(new Date(period.start)),
+        end: this.formatDate(new Date(period.end)),
+      })),
+    };
   }
 
   private async detectPotentialShiftAdjustment(
@@ -748,10 +858,14 @@ export class AttendanceService {
     const earlyThreshold = subMinutes(shiftStart, 30);
     const lateThreshold = addMinutes(shiftStart, 30);
 
-    return (
+    // Adjusting to consider shifts that might start earlier or later
+    const isPotentialShiftAdjustment =
       isBefore(actualCheckIn, earlyThreshold) ||
-      isAfter(actualCheckIn, lateThreshold)
-    );
+      isAfter(actualCheckIn, lateThreshold) ||
+      isBefore(actualCheckOut, shiftStart) ||
+      isAfter(actualCheckOut, shiftEnd);
+
+    return isPotentialShiftAdjustment;
   }
 
   private calculateOvertime(
@@ -806,14 +920,59 @@ export class AttendanceService {
     };
   }
 
-  // Update other methods that use holidays
   private isHoliday(
     date: Date,
     holidays: Holiday[],
     isShift104: boolean,
   ): boolean {
     const checkDate = isShift104 ? addDays(date, 1) : date;
-    return holidays.some((holiday) => isSameDay(holiday.date, checkDate));
+    return holidays.some((holiday) =>
+      isSameDay(new Date(holiday.date), checkDate),
+    );
+  }
+
+  private async isNoWorkDay(date: Date): Promise<boolean> {
+    const noWorkDay = await prisma.noWorkDay.findFirst({
+      where: { date: date },
+    });
+    return !!noWorkDay;
+  }
+
+  public async getHolidaysForDateRange(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Holiday[]> {
+    return this.memoizedGetHolidays(startDate, endDate);
+  }
+
+  // Memoize the getHolidaysForDateRange function for performance
+  private memoizedGetHolidays = memoize(
+    async (startDate: Date, endDate: Date): Promise<Holiday[]> => {
+      return prisma.holiday.findMany({
+        where: {
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+      });
+    },
+    (startDate, endDate) =>
+      `${startDate.toISOString()}-${endDate.toISOString()}`,
+  );
+
+  public async getNoWorkDaysForDateRange(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<NoWorkDay[]> {
+    return prisma.noWorkDay.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
   }
 
   private async isDayOff(
@@ -831,6 +990,9 @@ export class AttendanceService {
       shift.shiftCode === 'SHIFT104',
     );
     if (isHoliday) return true;
+
+    const isNoWorkDay = await this.isNoWorkDay(date);
+    if (isNoWorkDay) return true;
 
     const weeklyWorkDayCount = await this.getWeeklyWorkDayCount(
       employeeId,
@@ -934,6 +1096,38 @@ export class AttendanceService {
     }));
   }
 
+  async approvePotentialOvertime(
+    overtimeId: string,
+    action: 'approve' | 'deny',
+  ): Promise<void> {
+    const potentialOvertime = await prisma.potentialOvertime.findUnique({
+      where: { id: overtimeId },
+    });
+
+    if (!potentialOvertime) {
+      throw new Error('Potential overtime not found');
+    }
+
+    if (action === 'approve') {
+      await prisma.approvedOvertime.create({
+        data: {
+          employeeId: potentialOvertime.employeeId,
+          date: potentialOvertime.date,
+          startTime: new Date(potentialOvertime.date),
+          endTime: new Date(potentialOvertime.date),
+          status: 'approved',
+          approvedBy: 'Admin',
+          approvedAt: new Date(),
+        },
+      });
+    }
+
+    await prisma.potentialOvertime.update({
+      where: { id: overtimeId },
+      data: { status: action === 'approve' ? 'approved' : 'rejected' },
+    });
+  }
+
   private async getAllShifts(): Promise<Map<string, ShiftData>> {
     const shifts = await prisma.shift.findMany();
     return new Map(shifts.map((shift) => [shift.id, shift as ShiftData]));
@@ -965,68 +1159,45 @@ export class AttendanceService {
     };
   }
 
-  private createIncompleteAttendanceRecord(
-    pair: PairedAttendance,
-    shift: ShiftData,
-    isDayOff: boolean,
-  ): ProcessedAttendance {
-    const checkInTime = parse(
-      pair.checkIn.attendanceTime,
-      'yyyy-MM-dd HH:mm:ss',
-      new Date(),
-    );
-
-    return {
-      id: pair.checkIn.id,
-      employeeId: pair.checkIn.employeeId,
-      date: checkInTime,
-      checkIn: pair.checkIn.attendanceTime,
-      checkOut: undefined,
-      status: isDayOff ? 'off' : 'incomplete',
-      isEarlyCheckIn: false,
-      isLateCheckIn: false,
-      isLateCheckOut: false,
-      regularHours: 0,
-      overtimeHours: 0,
-      overtimeDuration: 0,
-      potentialOvertimePeriods: [],
-      isOvertime: false,
-      detailedStatus: isDayOff ? 'off' : 'incomplete',
-      checkInDeviceSerial: pair.checkIn.checkInDeviceSerial,
-      checkOutDeviceSerial: null,
-      isManualEntry: pair.checkIn.isManualEntry,
-    };
-  }
-
-  public calculateSummary(
+  public async calculateSummary(
     processedAttendance: ProcessedAttendance[],
     startDate: Date,
     endDate: Date,
   ) {
+    const holidays = await this.getHolidaysForDateRange(startDate, endDate);
+    const noWorkDays = await this.getNoWorkDaysForDateRange(startDate, endDate);
     return this.calculateSummaryWithShift(
       processedAttendance,
       startDate,
       endDate,
       this.shift,
+      holidays,
+      noWorkDays,
     );
   }
 
-  public calculateSummaryWithShift(
+  private calculateSummaryWithShift(
     processedAttendance: ProcessedAttendance[],
     startDate: Date,
     endDate: Date,
     shift: ShiftData,
+    holidays: Holiday[],
+    noWorkDays: NoWorkDay[],
   ) {
+    const isShift104 = shift.shiftCode === 'SHIFT104';
+
     const summary = processedAttendance.reduce(
       (acc, record) => {
         if (record.status === 'present') {
-          acc.totalWorkingDays++;
           acc.totalPresent++;
         } else if (record.status === 'off') {
           acc.totalDayOff++;
         } else if (record.status === 'absent') {
-          acc.totalWorkingDays++;
           acc.totalAbsent++;
+        } else if (record.status === 'holiday') {
+          acc.totalHolidays++;
+        } else if (record.status === 'incomplete') {
+          acc.totalIncomplete++;
         }
         acc.totalOvertimeHours += record.overtimeHours || 0;
         acc.totalPotentialOvertimeHours += record.overtimeDuration || 0;
@@ -1034,10 +1205,12 @@ export class AttendanceService {
         return acc;
       },
       {
-        totalWorkingDays: 0,
         totalPresent: 0,
         totalAbsent: 0,
         totalDayOff: 0,
+        totalHolidays: 0,
+        totalWorkingDays: 0,
+        totalIncomplete: 0,
         totalOvertimeHours: 0,
         totalPotentialOvertimeHours: 0,
         totalRegularHours: 0,
@@ -1048,28 +1221,58 @@ export class AttendanceService {
       startDate,
       endDate,
       shift,
+      holidays,
+      noWorkDays,
+      isShift104,
+    );
+    if (summary.totalWorkingDays === undefined) {
+      console.error('totalWorkingDays is undefined. Summary:', summary);
+      throw new Error('totalWorkingDays is missing from the summary');
+    }
+
+    const expectedRegularHours =
+      totalWorkingDays * this.getShiftDuration(shift);
+
+    const currentDate = new Date();
+    const workingDaysUpToToday = this.calculateTotalWorkingDays(
+      startDate,
+      currentDate < endDate ? currentDate : endDate,
+      shift,
+      holidays,
+      noWorkDays,
+      isShift104,
     );
 
-    const attendanceRate =
-      (summary.totalPresent / summary.totalWorkingDays) * 100;
+    const attendanceRate = (summary.totalPresent / workingDaysUpToToday) * 100;
 
     return {
       ...summary,
       totalWorkingDays,
+      expectedRegularHours,
+      workingDaysUpToToday,
       attendanceRate: Number(attendanceRate.toFixed(2)),
     };
   }
 
-  private calculateTotalWorkingDays(
+  public calculateTotalWorkingDays(
     startDate: Date,
     endDate: Date,
     shift: ShiftData,
+    holidays: Holiday[],
+    noWorkDays: NoWorkDay[],
+    isShift104: boolean,
   ): number {
     let totalWorkingDays = 0;
     let currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-      if (shift.workDays.includes(currentDate.getDay())) {
+      if (
+        shift.workDays.includes(currentDate.getDay()) &&
+        !this.isHoliday(currentDate, holidays, isShift104) &&
+        !noWorkDays.some((noWorkDay) =>
+          isSameDay(new Date(noWorkDay.date), currentDate),
+        )
+      ) {
         totalWorkingDays++;
       }
       currentDate.setDate(currentDate.getDate() + 1);
@@ -1078,10 +1281,15 @@ export class AttendanceService {
     return totalWorkingDays;
   }
 
-  public getAbsentDays(processedAttendance: ProcessedAttendance[]): string[] {
-    return processedAttendance
-      .filter((record) => record.status === 'absent')
-      .map((record) => format(record.date, 'yyyy-MM-dd'));
+  private getShiftDuration(shift: ShiftData): number {
+    const startTime = this.parseTime(shift.startTime);
+    const endTime = this.parseTime(shift.endTime);
+    return (endTime - startTime) / (60 * 60 * 1000); // Convert milliseconds to hours
+  }
+
+  private parseTime(timeString: string): number {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return hours * 60 * 60 * 1000 + minutes * 60 * 1000;
   }
 
   private generateDetailedStatus(
@@ -1348,14 +1556,42 @@ export class AttendanceService {
     processedAttendance: ProcessedAttendance,
   ): Promise<void> {
     if ((processedAttendance.overtimeHours ?? 0) > 0) {
+      const timezone = 'Asia/Bangkok'; // Replace with your local timezone
+
+      // Convert the date to the local timezone
+      const localDate = toZonedTime(processedAttendance.date, timezone);
+      const localDateStart = startOfDay(localDate);
+
+      // Convert periods to local timezone
+      const localPeriods = processedAttendance.potentialOvertimePeriods?.map(
+        (period) => {
+          const startTime = new Date(
+            `${format(localDateStart, 'yyyy-MM-dd')}T${period.start}`,
+          );
+          const endTime = new Date(
+            `${format(localDateStart, 'yyyy-MM-dd')}T${period.end}`,
+          );
+          return {
+            start: format(
+              toZonedTime(startTime, timezone),
+              "yyyy-MM-dd'T'HH:mm:ssXXX",
+            ),
+            end: format(
+              toZonedTime(endTime, timezone),
+              "yyyy-MM-dd'T'HH:mm:ssXXX",
+            ),
+          };
+        },
+      );
+
       await prisma.potentialOvertime.create({
         data: {
           employeeId: processedAttendance.employeeId,
-          date: processedAttendance.date,
+          date: toZonedTime(localDateStart, timezone), // Store the local date as UTC
           hours: processedAttendance.overtimeHours || 0,
           type: this.determineOvertimeType(processedAttendance),
           status: 'pending',
-          periods: JSON.stringify(processedAttendance.potentialOvertimePeriods),
+          periods: JSON.stringify(localPeriods),
         },
       });
 
@@ -1363,7 +1599,7 @@ export class AttendanceService {
       for (const admin of admins) {
         await notificationService.sendNotification(
           admin.id,
-          `Potential overtime detected for ${processedAttendance.employeeId} on ${processedAttendance.date.toDateString()}. Please review.`,
+          `Potential overtime detected for ${processedAttendance.employeeId} on ${format(localDate, 'yyyy-MM-dd')}. Please review.`,
         );
       }
     }
@@ -1873,7 +2109,7 @@ export class AttendanceService {
     const result: AttendanceRecord = {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      attendanceTime: formattedAttendanceTime || '',
+      attendanceTime: formattedAttendanceTime || '', // Ensure a valid string
       checkInTime: null,
       checkOutTime: null,
       isOvertime: false,
@@ -1984,4 +2220,7 @@ export class AttendanceService {
       'invalid',
     ].includes(status);
   }
+}
+function zonedTimeToUtc(parsedDate: Date, timezone: string): Date {
+  throw new Error('Function not implemented.');
 }
