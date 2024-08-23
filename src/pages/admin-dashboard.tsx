@@ -1,5 +1,3 @@
-// pages/admin-dashboard.tsx
-
 import React, { useState, useEffect } from 'react';
 import AdminShiftAdjustmentForm from '../components/AdminShiftAdjustmentForm';
 import axios from 'axios';
@@ -74,7 +72,8 @@ const AdminDashboard: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-4">Shift Adjustment</h1>
-      <AdminShiftAdjustmentForm lineUserId={userDetails.user.lineUserId} /> //
+      <AdminShiftAdjustmentForm lineUserId={userDetails.user.lineUserId} />
+      {/* Add the lineUserId prop */}
     </div>
   );
 };
