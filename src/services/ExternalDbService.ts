@@ -184,11 +184,27 @@ export class ExternalDbService {
         );
         console.log(`Total count: ${countResult.total}`);
 
-        const processedRecords = records.map((record) => ({
-          ...record,
-          sj: format(parseISO(record.sj), "yyyy-MM-dd'T'HH:mm:ssXXX"),
-          date: format(parseISO(record.date), 'yyyy-MM-dd'),
-        }));
+        const processedRecords = records.map((record) => {
+          try {
+            const sjDate =
+              typeof record.sj === 'object' ? record.sj : new Date(record.sj);
+            const recordDate =
+              typeof record.date === 'object'
+                ? record.date
+                : new Date(record.date);
+            return {
+              ...record,
+              sj: format(sjDate, "yyyy-MM-dd'T'HH:mm:ssXXX"),
+              date: format(recordDate, 'yyyy-MM-dd'),
+            };
+          } catch (error) {
+            console.error(
+              `Error processing record: ${JSON.stringify(record)}`,
+              error,
+            );
+            return record; // Return the original record if processing fails
+          }
+        });
 
         console.log(
           `Processed attendance records: ${JSON.stringify(processedRecords, null, 2)}`,

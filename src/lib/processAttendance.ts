@@ -160,6 +160,7 @@ export async function processAttendance(job: Job): Promise<any> {
     return result;
   } catch (error: any) {
     logMessage(`Error processing attendance: ${error.message}`);
+    logMessage(`Stack trace: ${error.stack}`);
     console.error('Error processing attendance:', error);
     throw error;
   }
