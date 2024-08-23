@@ -2121,14 +2121,10 @@ export class AttendanceService {
       return undefined;
     }
 
-    const formattedAttendanceTime = isValid(attendanceTime)
-      ? format(attendanceTime, 'yyyy-MM-dd HH:mm:ss')
-      : '';
-
     const result: AttendanceRecord = {
       id: external.bh.toString(),
       employeeId: external.user_no,
-      attendanceTime: formattedAttendanceTime || '', // Ensure a valid string
+      attendanceTime: attendanceTime,
       checkInTime: null,
       checkOutTime: null,
       isOvertime: false,
