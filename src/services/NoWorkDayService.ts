@@ -1,8 +1,10 @@
 import { PrismaClient, NoWorkDay } from '@prisma/client';
+import { endOfDay, startOfDay } from 'date-fns';
 
 const prisma = new PrismaClient();
 
 export class NoWorkDayService {
+  prisma: any;
   async getNoWorkDays(): Promise<NoWorkDay[]> {
     return prisma.noWorkDay.findMany({
       orderBy: { date: 'asc' },
@@ -30,6 +32,32 @@ export class NoWorkDayService {
         reason,
       },
     });
+  }
+
+  async isNoWorkDay(date: Date, userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { department: true },
+    });
+
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+
+    const noWorkDay = await this.prisma.noWorkDay.findFirst({
+      where: {
+        date: {
+          gte: startOfDay(date),
+          lt: endOfDay(date),
+        },
+        OR: [
+          { affectedDepartments: { has: user.department.id } },
+          { affectedDepartments: { isEmpty: true } },
+        ],
+      },
+    });
+
+    return !!noWorkDay;
   }
 
   async deleteNoWorkDay(id: string): Promise<void> {

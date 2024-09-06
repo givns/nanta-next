@@ -143,30 +143,20 @@ export class HolidayService {
     return holidays;
   }
 
-  async getHolidaysForYear(
-    year: number,
-    shiftType: 'regular' | 'shift104',
-  ): Promise<Holiday[]> {
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31);
+  // In HolidayService.ts
 
-    if (!this.holidayCache[year]) {
-      await this.syncHolidays(year);
-    }
+  async getHolidaysForYear(year: number): Promise<Holiday[]> {
+    const startDate = new Date(year, 0, 1); // January 1st of the year
+    const endDate = new Date(year, 11, 31); // December 31st of the year
 
-    let holidays = this.holidayCache[year] || [];
-
-    if (shiftType === 'shift104') {
-      holidays = holidays.map((holiday) => ({
-        ...holiday,
-        date: subDays(holiday.date, 1),
-        name: `Shift 104 - ${holiday.name}`,
-      }));
-    }
-    console.log(
-      `Retrieved ${holidays.length} holidays${shiftType === 'shift104' ? ' (adjusted for Shift 104)' : ''}`,
-    );
-    return holidays;
+    return this.prisma.holiday.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
   }
 
   public isHoliday(

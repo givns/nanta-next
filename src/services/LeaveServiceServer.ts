@@ -9,15 +9,23 @@ import {
 import { sendRequestNotification } from '../utils/sendRequestNotification';
 import { UserRole } from '../types/enum';
 import { ILeaveServiceServer, LeaveBalanceData } from '@/types/LeaveService';
+import { NotificationService } from './NotificationService';
 
-const prisma = new PrismaClient();
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
 export class LeaveServiceServer implements ILeaveServiceServer {
+  private prisma: PrismaClient;
+  private notificationService: NotificationService;
+
+  constructor() {
+    this.prisma = new PrismaClient();
+    this.notificationService = new NotificationService();
+  }
+
   async checkLeaveBalance(userId: string): Promise<LeaveBalanceData> {
-    const user = await prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { leaveRequests: true },
     });
@@ -89,7 +97,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     resubmitted: boolean = false,
     originalRequestId?: string,
   ): Promise<LeaveRequest> {
-    const user = await prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { lineUserId },
       include: { leaveRequests: true },
     });
@@ -146,7 +154,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       };
     }
 
-    const newLeaveRequest = await prisma.leaveRequest.create({
+    const newLeaveRequest = await this.prisma.leaveRequest.create({
       data: leaveRequestData,
     });
 
@@ -159,13 +167,13 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     requestId: string,
     lineUserId: string,
   ): Promise<LeaveRequest> {
-    const leaveRequest = await prisma.leaveRequest.update({
+    const leaveRequest = await this.prisma.leaveRequest.update({
       where: { id: requestId },
       data: { status: 'Approved', approverId: lineUserId },
       include: { user: true },
     });
 
-    const admin = await prisma.user.findUnique({ where: { lineUserId } });
+    const admin = await this.prisma.user.findUnique({ where: { lineUserId } });
 
     if (leaveRequest.user && admin) {
       await sendApproveNotification(
@@ -183,13 +191,13 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     requestId: string,
     lineUserId: string,
   ): Promise<LeaveRequest> {
-    const leaveRequest = await prisma.leaveRequest.update({
+    const leaveRequest = await this.prisma.leaveRequest.update({
       where: { id: requestId },
       data: { status: 'DenialPending', approverId: lineUserId },
       include: { user: true },
     });
 
-    const admin = await prisma.user.findUnique({ where: { lineUserId } });
+    const admin = await this.prisma.user.findUnique({ where: { lineUserId } });
 
     if (admin) {
       const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&approverId=${lineUserId}`;
@@ -207,13 +215,13 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     lineUserId: string,
     denialReason: string,
   ): Promise<LeaveRequest> {
-    const leaveRequest = await prisma.leaveRequest.update({
+    const leaveRequest = await this.prisma.leaveRequest.update({
       where: { id: requestId },
       data: { status: 'Denied', denialReason },
       include: { user: true },
     });
 
-    const admin = await prisma.user.findUnique({ where: { lineUserId } });
+    const admin = await this.prisma.user.findUnique({ where: { lineUserId } });
 
     if (leaveRequest.user && admin) {
       await sendDenyNotification(
@@ -229,7 +237,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
   }
 
   async getOriginalLeaveRequest(requestId: string): Promise<LeaveRequest> {
-    const leaveRequest = await prisma.leaveRequest.findUnique({
+    const leaveRequest = await this.prisma.leaveRequest.findUnique({
       where: { id: requestId },
     });
 
@@ -241,21 +249,21 @@ export class LeaveServiceServer implements ILeaveServiceServer {
   }
 
   async getLeaveRequests(employeeId: string): Promise<LeaveRequest[]> {
-    return prisma.leaveRequest.findMany({
+    return this.prisma.leaveRequest.findMany({
       where: { employeeId: employeeId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async getAllLeaveRequests(): Promise<LeaveRequest[]> {
-    return prisma.leaveRequest.findMany({
+    return this.prisma.leaveRequest.findMany({
       orderBy: { createdAt: 'desc' },
       include: { user: true },
     });
   }
 
   private async notifyAdmins(leaveRequest: LeaveRequest): Promise<void> {
-    const admins = await prisma.user.findMany({
+    const admins = await this.prisma.user.findMany({
       where: {
         role: {
           in: [UserRole.ADMIN.toString(), UserRole.SUPERADMIN.toString()],
@@ -267,5 +275,38 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       await sendRequestNotification(admin, leaveRequest, 'leave');
     }
   }
+
+  async getLeaveRequestForDate(
+    userId: string,
+    date: Date,
+  ): Promise<LeaveRequest | null> {
+    return this.prisma.leaveRequest.findFirst({
+      where: {
+        employeeId: userId,
+        startDate: { lte: date },
+        endDate: { gte: date },
+        status: 'Approved',
+      },
+    });
+  }
+
+  async cancelApprovedLeave(requestId: string): Promise<LeaveRequest> {
+    const cancelledLeave = await this.prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: { status: 'Cancelled' },
+      include: { user: true },
+    });
+
+    if (cancelledLeave.user.lineUserId) {
+      await this.notificationService.sendNotification(
+        cancelledLeave.user.id,
+        `Your approved leave from ${cancelledLeave.startDate} to ${cancelledLeave.endDate} has been cancelled.`,
+        cancelledLeave.user.lineUserId,
+      );
+    }
+
+    return cancelledLeave;
+  }
 }
+
 export const leaveServiceServer = new LeaveServiceServer();

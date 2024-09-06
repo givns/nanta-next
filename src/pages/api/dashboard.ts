@@ -131,7 +131,6 @@ export default async function handler(
           : String(user.assignedShift.workDays).split(',').map(Number),
       } as ShiftData,
       profilePictureUrl: user.profilePictureUrl,
-      profilePictureExternal: user.profilePictureExternal,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: user.potentialOvertimes.map((po) => ({
         id: po.id,

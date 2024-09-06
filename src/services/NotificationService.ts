@@ -1,13 +1,33 @@
 // NotificationService.ts
 
-import axios from 'axios';
-import { PrismaClient, User, OvertimeRequest } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { Client, FlexComponent, FlexMessage } from '@line/bot-sdk';
+import {
+  PrismaClient,
+  User,
+  LeaveRequest,
+  OvertimeRequest,
+  ShiftAdjustmentRequest,
+} from '@prisma/client';
+import {
+  generateApprovalMessage,
+  generateApprovalMessageForAdmins,
+} from '../utils/generateApprovalMessage';
+import {
+  generateDenialMessage,
+  generateDenialMessageForAdmins,
+} from '../utils/generateDenialMessage';
+import { format } from 'date-fns';
 
 export class NotificationService {
-  private lineApiUrl = 'https://api.line.me/v2/bot/message/push';
-  private channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  private lineClient: Client;
+  private prisma: PrismaClient;
+
+  constructor() {
+    this.lineClient = new Client({
+      channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+    });
+    this.prisma = new PrismaClient();
+  }
 
   async sendNotification(
     userId: string,
@@ -18,7 +38,9 @@ export class NotificationService {
       if (lineUserId) {
         await this.sendLineMessage(lineUserId, message);
       } else {
-        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+        });
         if (user && user.lineUserId) {
           await this.sendLineMessage(user.lineUserId, message);
         } else {
@@ -35,24 +57,10 @@ export class NotificationService {
     message: string,
   ): Promise<void> {
     try {
-      await axios.post(
-        this.lineApiUrl,
-        {
-          to: lineUserId,
-          messages: [
-            {
-              type: 'text',
-              text: message,
-            },
-          ],
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.channelAccessToken}`,
-          },
-        },
-      );
+      await this.lineClient.pushMessage(lineUserId, {
+        type: 'text',
+        text: message,
+      });
       console.log(`Notification sent to LINE user ${lineUserId}: ${message}`);
     } catch (error) {
       console.error('Error sending LINE message:', error);
@@ -60,211 +68,34 @@ export class NotificationService {
     }
   }
 
-  async sendConfirmationRequest(
+  async sendCheckInConfirmation(
     userId: string,
-    action: 'check-in' | 'check-out',
+    checkInTime: Date,
   ): Promise<void> {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.lineUserId) {
-      console.warn(`No LINE user ID found for user ${userId}`);
-      return;
-    }
-
-    const message = {
-      type: 'template',
-      altText: `Confirm ${action}`,
-      template: {
-        type: 'confirm',
-        text: `Do you want to ${action}?`,
-        actions: [
-          {
-            type: 'postback',
-            label: 'Yes',
-            data: `action=${action}&confirm=yes`,
-          },
-          {
-            type: 'postback',
-            label: 'No',
-            data: `action=${action}&confirm=no`,
-          },
-        ],
-      },
-    };
-
-    try {
-      await axios.post(
-        this.lineApiUrl,
-        {
-          to: user.lineUserId,
-          messages: [message],
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.channelAccessToken}`,
-          },
-        },
-      );
-      console.log(`Confirmation request sent to user ${userId} for ${action}`);
-    } catch (error) {
-      console.error('Error sending LINE confirmation request:', error);
-      throw new Error('Failed to send LINE confirmation request');
-    }
+    const message = `You have successfully checked in at ${format(checkInTime, 'HH:mm:ss')}`;
+    await this.sendNotification(userId, message);
   }
 
-  async sendFlexMessage(
+  async sendCheckOutConfirmation(
+    userId: string,
+    checkOutTime: Date,
+  ): Promise<void> {
+    const message = `You have successfully checked out at ${format(checkOutTime, 'HH:mm:ss')}`;
+    await this.sendNotification(userId, message);
+  }
+
+  async sendMissingCheckInNotification(lineUserId: string): Promise<void> {
+    const message =
+      'คุณยังไม่ได้บันทึกเวลาเข้างานวันนี้ กรุณาบันทึกเวลาโดยเร็วที่สุด';
+    await this.sendLineMessage(lineUserId, message);
+  }
+
+  async sendApprovedRequestNotification(
     lineUserId: string,
-    altText: string,
-    flexContent: any,
+    requestType: 'leave' | 'overtime',
   ): Promise<void> {
-    try {
-      await axios.post(
-        this.lineApiUrl,
-        {
-          to: lineUserId,
-          messages: [
-            {
-              type: 'flex',
-              altText: altText,
-              contents: flexContent,
-            },
-          ],
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.channelAccessToken}`,
-          },
-        },
-      );
-      console.log(`Flex message sent to user ${lineUserId}`);
-    } catch (error) {
-      console.error('Error sending LINE flex message:', error);
-      throw new Error('Failed to send LINE flex message');
-    }
-  }
-
-  async sendQuickReply(
-    userId: string,
-    message: string,
-    options: string[],
-  ): Promise<void> {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.lineUserId) {
-      console.warn(`No LINE user ID found for user ${userId}`);
-      return;
-    }
-
-    const quickReply = {
-      items: options.map((option) => ({
-        type: 'action',
-        action: {
-          type: 'message',
-          label: option,
-          text: option,
-        },
-      })),
-    };
-
-    try {
-      await axios.post(
-        this.lineApiUrl,
-        {
-          to: user.lineUserId,
-          messages: [
-            {
-              type: 'text',
-              text: message,
-              quickReply,
-            },
-          ],
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.channelAccessToken}`,
-          },
-        },
-      );
-      console.log(`Quick reply sent to user ${userId}`);
-    } catch (error) {
-      console.error('Error sending LINE quick reply:', error);
-      throw new Error('Failed to send LINE quick reply');
-    }
-  }
-
-  async notifyAdminsOfMissingCheckIn(
-    userId: string,
-    employeeId: string,
-    potentialStartTime: string,
-    checkOutTime: string,
-    pendingAttendanceId: string,
-  ): Promise<void> {
-    const admins = await prisma.user.findMany({
-      where: { role: 'Admin' },
-      select: { id: true, lineUserId: true },
-    });
-
-    const flexContent = {
-      type: 'bubble',
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        contents: [
-          {
-            type: 'text',
-            text: 'Missing Check-in Approval Required',
-            weight: 'bold',
-            size: 'lg',
-          },
-          {
-            type: 'text',
-            text: `Employee ID: ${employeeId}`,
-          },
-          {
-            type: 'text',
-            text: `Potential Start Time: ${potentialStartTime}`,
-          },
-          {
-            type: 'text',
-            text: `Check-out Time: ${checkOutTime}`,
-          },
-        ],
-      },
-      footer: {
-        type: 'box',
-        layout: 'horizontal',
-        spacing: 'sm',
-        contents: [
-          {
-            type: 'button',
-            style: 'primary',
-            action: {
-              type: 'postback',
-              label: 'Approve',
-              data: `action=approve&attendanceId=${pendingAttendanceId}`,
-            },
-          },
-          {
-            type: 'button',
-            style: 'secondary',
-            action: {
-              type: 'postback',
-              label: 'Deny',
-              data: `action=deny&attendanceId=${pendingAttendanceId}`,
-            },
-          },
-        ],
-      },
-    };
-
-    const altText = 'Missing Check-in Approval Required';
-
-    for (const admin of admins) {
-      if (admin.lineUserId) {
-        await this.sendFlexMessage(admin.lineUserId, altText, flexContent);
-      }
-    }
+    const message = `คำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}ของคุณได้รับการอนุมัติแล้ว`;
+    await this.sendLineMessage(lineUserId, message);
   }
 
   async sendOvertimeApprovalNotification(
@@ -279,7 +110,6 @@ export class NotificationService {
     }
 
     const message = `Your overtime request for ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) has been approved by ${approver.name}.`;
-
     await this.sendNotification(
       overtimeRequest.employeeId,
       message,
@@ -298,12 +128,380 @@ export class NotificationService {
     }
 
     const message = `Your overtime request for ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) has been automatically approved as it's less than or equal to 2 hours.`;
-
     await this.sendNotification(
       overtimeRequest.employeeId,
       message,
       overtimeRequest.user.lineUserId,
     );
+  }
+
+  async sendRequestNotification(
+    admin: User,
+    request: LeaveRequest | OvertimeRequest,
+    requestType: 'leave' | 'overtime',
+  ): Promise<void> {
+    const requestCount = await this.getRequestCountForAdmin(admin.id);
+    const user = await this.prisma.user.findUnique({
+      where: { id: request.employeeId },
+    });
+
+    if (!user) {
+      throw new Error(`User with ID ${request.employeeId} not found`);
+    }
+
+    const message = this.createRequestFlexMessage(
+      user,
+      request,
+      requestType,
+      requestCount,
+      admin,
+    );
+    if (admin.lineUserId) {
+      await this.lineClient.pushMessage(admin.lineUserId, message);
+    } else {
+      console.warn('No LINE user ID provided for admin');
+    }
+  }
+
+  async sendApprovalNotification(
+    user: User,
+    request: LeaveRequest | OvertimeRequest,
+    approver: User,
+    requestType: 'leave' | 'overtime',
+  ): Promise<void> {
+    if (!user.lineUserId) {
+      console.warn('No LINE user ID provided for approval notification');
+      return;
+    }
+
+    const message = generateApprovalMessage(user, request, requestType);
+    await this.lineClient.pushMessage(user.lineUserId, message);
+
+    const adminMessage = generateApprovalMessageForAdmins(
+      user,
+      request,
+      approver,
+      requestType,
+    );
+    const admins = await this.getAdmins();
+    for (const admin of admins) {
+      if (admin.lineUserId) {
+        await this.lineClient.pushMessage(admin.lineUserId, adminMessage);
+      }
+    }
+  }
+
+  async sendDenialNotification(
+    user: User,
+    request: LeaveRequest | OvertimeRequest,
+    denier: User,
+    requestType: 'leave' | 'overtime',
+    denialReason: string,
+  ): Promise<void> {
+    if (!user.lineUserId) {
+      console.warn('No LINE user ID provided for denial notification');
+      return;
+    }
+
+    const message = generateDenialMessage(
+      user,
+      request,
+      denialReason,
+      requestType,
+    );
+    await this.lineClient.pushMessage(user.lineUserId, message);
+
+    const adminMessage = generateDenialMessageForAdmins(
+      user,
+      request,
+      denier,
+      denialReason,
+      requestType,
+    );
+    const admins = await this.getAdmins();
+    for (const admin of admins) {
+      if (admin.lineUserId) {
+        await this.lineClient.pushMessage(admin.lineUserId, adminMessage);
+      }
+    }
+  }
+
+  async sendShiftAdjustmentNotification(
+    userId: string,
+    shiftAdjustment: ShiftAdjustmentRequest & {
+      requestedShift: { name: string };
+    },
+  ): Promise<void> {
+    const message = `Your shift for ${format(shiftAdjustment.date, 'yyyy-MM-dd')} has been adjusted to ${shiftAdjustment.requestedShift.name}`;
+    await this.sendNotification(userId, message);
+  }
+
+  async sendPotentialOvertimeNotification(
+    adminId: string,
+    employeeId: string,
+    date: Date,
+    duration: number,
+  ): Promise<void> {
+    const message = `Employee ${employeeId} has potential overtime of ${duration} minutes on ${format(date, 'yyyy-MM-dd')}. Please review.`;
+    await this.sendNotification(adminId, message);
+  }
+
+  private async getRequestCountForAdmin(adminId: string): Promise<number> {
+    const now = new Date();
+    const currentMonthStart =
+      now.getDate() < 26
+        ? new Date(now.getFullYear(), now.getMonth() - 1, 26)
+        : new Date(now.getFullYear(), now.getMonth(), 26);
+
+    const [leaveRequests, overtimeRequests] = await Promise.all([
+      this.prisma.leaveRequest.count({
+        where: {
+          createdAt: { gte: currentMonthStart },
+          status: 'PENDING',
+        },
+      }),
+      this.prisma.overtimeRequest.count({
+        where: {
+          createdAt: { gte: currentMonthStart },
+          status: 'PENDING',
+        },
+      }),
+    ]);
+
+    return leaveRequests + overtimeRequests;
+  }
+
+  private createRequestFlexMessage(
+    user: User,
+    request: LeaveRequest | OvertimeRequest,
+    requestType: 'leave' | 'overtime',
+    requestCount: number,
+    admin: User,
+  ): FlexMessage {
+    const isLeaveRequest = requestType === 'leave';
+    const requestTypeText = isLeaveRequest ? 'Leave' : 'Overtime';
+    const resubmissionText =
+      'resubmitted' in request && request.resubmitted ? ' (ส่งใหม่)' : '';
+
+    return {
+      type: 'flex',
+      altText: `${requestTypeText} Request Notification${resubmissionText}`,
+      contents: {
+        type: 'bubble',
+        size: 'giga',
+        header: {
+          type: 'box',
+          layout: 'horizontal',
+          contents: [
+            {
+              type: 'box',
+              layout: 'vertical',
+              contents: [
+                {
+                  type: 'text',
+                  text: `${requestTypeText} Request${resubmissionText}`,
+                  color: '#000000',
+                  size: 'xl',
+                  flex: 4,
+                  weight: 'bold',
+                  align: 'center',
+                  gravity: 'center',
+                },
+              ],
+            },
+            {
+              type: 'box',
+              layout: 'vertical',
+              contents: [],
+              width: '10px',
+            },
+            {
+              type: 'box',
+              layout: 'vertical',
+              contents: [
+                {
+                  type: 'text',
+                  text: `${requestCount}`,
+                  align: 'center',
+                  gravity: 'center',
+                  color: '#FFFFFF',
+                  wrap: true,
+                  adjustMode: 'shrink-to-fit',
+                  weight: 'bold',
+                },
+              ],
+              width: '35px',
+              height: '35px',
+              cornerRadius: '30px',
+              backgroundColor: '#FF1900',
+              justifyContent: 'center',
+            },
+          ],
+          paddingAll: '20px',
+          backgroundColor: '#F0F0F0',
+          spacing: 'md',
+          paddingTop: '22px',
+          height: '100px',
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'box',
+              layout: 'horizontal',
+              contents: [
+                {
+                  type: 'box',
+                  layout: 'vertical',
+                  contents: [
+                    {
+                      type: 'image',
+                      url: user.profilePictureUrl || '',
+                      aspectMode: 'cover',
+                      size: 'full',
+                    },
+                  ],
+                  cornerRadius: '100px',
+                  width: '72px',
+                  height: '72px',
+                },
+                {
+                  type: 'box',
+                  layout: 'vertical',
+                  contents: [
+                    {
+                      type: 'text',
+                      text: `${user.name} (${user.nickname})`,
+                      weight: 'bold',
+                      size: 'sm',
+                      wrap: true,
+                    },
+                    ...(isLeaveRequest
+                      ? [
+                          {
+                            type: 'text',
+                            text: `ประเภทการลา: ${(request as LeaveRequest).leaveType}${resubmissionText}`,
+                            size: 'sm',
+                            wrap: true,
+                          },
+                          {
+                            type: 'text',
+                            text: `วันที่: ${new Date(
+                              (request as LeaveRequest).startDate,
+                            ).toLocaleDateString('th-TH', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })} - ${new Date(
+                              (request as LeaveRequest).endDate,
+                            ).toLocaleDateString('th-TH', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })} (${(request as LeaveRequest).fullDayCount} วัน)`,
+                            size: 'sm',
+                            wrap: true,
+                          },
+                        ]
+                      : [
+                          {
+                            type: 'text',
+                            text: `วันที่: ${new Date(
+                              (request as OvertimeRequest).date,
+                            ).toLocaleDateString('th-TH', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })}`,
+                            size: 'sm',
+                            wrap: true,
+                          },
+                          {
+                            type: 'text',
+                            text: `เวลา: ${(request as OvertimeRequest).startTime} - ${(request as OvertimeRequest).endTime}`,
+                            size: 'sm',
+                            wrap: true,
+                          },
+                        ]),
+                    {
+                      type: 'text',
+                      text: `สาเหตุ: ${request.reason}`,
+                      size: 'sm',
+                      wrap: true,
+                    },
+                    {
+                      type: 'text',
+                      text: `วันที่ยื่น: ${new Date(
+                        request.createdAt,
+                      ).toLocaleDateString('th-TH', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}`,
+                      size: 'sm',
+                      color: '#4682B4',
+                    },
+                    ...('resubmitted' in request &&
+                    request.resubmitted &&
+                    request.originalRequestId
+                      ? [
+                          {
+                            type: 'text',
+                            text: `คำขอเดิม: ${request.originalRequestId}`,
+                            size: 'sm',
+                            color: '#4682B4',
+                          },
+                        ]
+                      : []),
+                  ] as FlexComponent[],
+                },
+              ],
+              spacing: 'xl',
+              paddingAll: '20px',
+            },
+          ],
+          paddingAll: '0px',
+        },
+        footer: {
+          type: 'box',
+          layout: 'horizontal',
+          contents: [
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
+                label: 'อนุมัติ',
+                data: `action=approve&requestType=${requestType}&requestId=${request.id}&approverId=${admin.id}`,
+              },
+              color: '#0662FF',
+              style: 'primary',
+              adjustMode: 'shrink-to-fit',
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
+                label: 'ไม่อนุมัติ',
+                data: `action=deny&requestType=${requestType}&requestId=${request.id}&approverId=${admin.id}`,
+              },
+              color: '#F0F0F0',
+              style: 'secondary',
+              adjustMode: 'shrink-to-fit',
+              margin: 'lg',
+            },
+          ],
+        },
+      },
+    };
+  }
+
+  private async getAdmins(): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: {
+        OR: [{ role: 'ADMIN' }, { role: 'SUPERADMIN' }],
+      },
+    });
   }
 }
 

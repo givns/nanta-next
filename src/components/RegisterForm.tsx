@@ -1,14 +1,18 @@
-import { Formik, Field, Form, ErrorMessage, FormikHelpers } from 'formik';
+import React, { useState, useEffect } from 'react';
+import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
-import { useEffect, useState } from 'react';
 import liff from '@line/liff';
 
-const RegistrationSchema = Yup.object().shape({
+const ExistingEmployeeSchema = Yup.object().shape({
   employeeId: Yup.string().required('Required'),
+});
+
+const NewEmployeeSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
-  nickname: Yup.string().required('Required'),
+  nickname: Yup.string(),
   department: Yup.string().required('Required'),
+  role: Yup.string().required('Required'),
 });
 
 const departments = [
@@ -21,262 +25,307 @@ const departments = [
   'ฝ่ายประกันคุณภาพ',
   'ฝ่ายคลังสินค้าและแพ็คกิ้ง',
   'ฝ่ายจัดส่งสินค้า',
-  'ฝ่ายจัดซื้อและประสานงานขาย',
+  'ฝ่ายบริหารงานขาย',
+  'ฝ่ายจัดซื้อและประสานงาน',
   'ฝ่ายบัญชีและการเงิน',
   'ฝ่ายทรัพยากรบุคคล',
   'ฝ่ายรักษาความสะอาด',
   'ฝ่ายรักษาความปลอดภัย',
 ];
 
-interface FormValues {
-  employeeId: string;
-  name: string;
-  nickname: string;
-  department: string;
-}
+const roles = ['DRIVER', 'OPERATION', 'GENERAL', 'ADMIN'];
 
 const RegisterForm: React.FC = () => {
   const [lineUserId, setLineUserId] = useState('');
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
-  const [step, setStep] = useState(1);
-  const [externalUserData, setExternalUserData] = useState<any>(null);
+  const [isExistingEmployee, setIsExistingEmployee] = useState<boolean | null>(
+    null,
+  );
+  const [userInfo, setUserInfo] = useState<any>(null);
 
   useEffect(() => {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (liffId) {
-      liff.init({ liffId }).then(() => {
+    const initializeLiff = async () => {
+      try {
+        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
         if (liff.isLoggedIn()) {
-          liff.getProfile().then((profile) => {
-            setLineUserId(profile.userId);
-            setProfilePictureUrl(profile.pictureUrl || '');
-          });
+          const profile = await liff.getProfile();
+          setLineUserId(profile.userId);
+          setProfilePictureUrl(profile.pictureUrl || '');
         } else {
           liff.login();
         }
-      });
-    } else {
-      console.error('LIFF ID is not defined');
-    }
+      } catch (error) {
+        console.error('LIFF initialization failed', error);
+      }
+    };
+
+    initializeLiff();
   }, []);
 
-  const fetchExternalUserData = async (employeeId: string) => {
-    try {
-      const response = await axios.get(
-        `/api/getExternalUserData?employeeId=${employeeId}`,
-      );
-      setExternalUserData(response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching external user data:', error);
-      return null;
-    }
-  };
-
-  const handleNextStep = async (
-    values: FormValues,
-    setFieldValue: (
-      field: string,
-      value: any,
-      shouldValidate?: boolean,
-    ) => void,
+  const handleExistingEmployeeSubmit = async (
+    values: any,
+    { setSubmitting, setFieldError }: any,
   ) => {
-    if (step === 1) {
-      const data = await fetchExternalUserData(values.employeeId);
-      if (data) {
-        setFieldValue('name', data.name);
-        setFieldValue('department', data.department);
+    try {
+      const response = await axios.post('/api/checkExistingEmployee', {
+        employeeId: values.employeeId,
+        lineUserId,
+        profilePictureUrl,
+      });
+
+      if (response.data.success) {
+        setUserInfo(response.data.user);
+      } else {
+        throw new Error(response.data.error);
       }
+    } catch (error: any) {
+      console.error('Error checking existing employee:', error);
+      setFieldError('employeeId', 'Employee ID not found or error occurred');
+    } finally {
+      setSubmitting(false);
     }
-    setStep(step + 1);
   };
 
-  const handleSubmit = async (
-    values: FormValues,
-    { setSubmitting }: FormikHelpers<FormValues>,
+  const handleNewEmployeeSubmit = async (
+    values: any,
+    { setSubmitting, setFieldError }: any,
   ) => {
     try {
-      const response = await axios.post('/api/registerUser', {
+      const response = await axios.post('/api/registerNewEmployee', {
         ...values,
         lineUserId,
         profilePictureUrl,
       });
 
       if (response.data.success) {
-        alert('Registration successful!');
-        liff.closeWindow();
+        setUserInfo(response.data.user);
       } else {
-        alert('Error: ' + response.data.error);
+        throw new Error(response.data.error);
       }
-    } catch (error) {
-      alert(
-        'Error: ' + (error as any).response?.data?.message ||
-          (error as Error).message,
-      );
+    } catch (error: any) {
+      console.error('Error registering new employee:', error);
+      setFieldError('general', 'Error occurred during registration');
     } finally {
       setSubmitting(false);
     }
   };
 
-  return (
-    <div className="main-container flex justify-center items-center h-screen">
-      <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mb-4">
-          <div
-            className="bg-blue-600 h-2.5 rounded-full"
-            style={{ width: `${(step / 3) * 100}%` }}
-          ></div>
+  const handleConfirmRegistration = async () => {
+    try {
+      const response = await axios.post('/api/confirmRegistration', {
+        employeeId: userInfo.employeeId,
+        lineUserId,
+      });
+
+      if (response.data.success) {
+        alert(
+          'Registration successful! Please check your LINE app for further instructions.',
+        );
+        liff.closeWindow();
+      } else {
+        throw new Error(response.data.error);
+      }
+    } catch (error: any) {
+      console.error('Error confirming registration:', error);
+      alert('Error occurred during registration confirmation');
+    }
+  };
+
+  if (userInfo) {
+    return (
+      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          Confirm Your Information
+        </h2>
+        <div className="space-y-4">
+          <p>
+            <strong>Employee ID:</strong> {userInfo.employeeId}
+          </p>
+          <p>
+            <strong>Name:</strong> {userInfo.name}
+          </p>
+          <p>
+            <strong>Nickname:</strong> {userInfo.nickname}
+          </p>
+          <p>
+            <strong>Department:</strong> {userInfo.department}
+          </p>
+          <p>
+            <strong>Role:</strong> {userInfo.role}
+          </p>
+          <p>
+            <strong>Sick Leave Balance:</strong> {userInfo.sickLeaveBalance}
+          </p>
+          <p>
+            <strong>Business Leave Balance:</strong>{' '}
+            {userInfo.businessLeaveBalance}
+          </p>
+          <p>
+            <strong>Annual Leave Balance:</strong> {userInfo.annualLeaveBalance}
+          </p>
+          <button
+            onClick={handleConfirmRegistration}
+            className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Confirm and Complete Registration
+          </button>
         </div>
-        <h5 className="text-xl font-medium text-gray-900 dark:text-white text-center mb-4">
-          ลงทะเบียนพนักงาน
-        </h5>
+      </div>
+    );
+  }
+
+  if (isExistingEmployee === null) {
+    return (
+      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          Employee Registration
+        </h2>
+        <div className="space-y-4">
+          <button
+            onClick={() => setIsExistingEmployee(true)}
+            className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            I have an Employee ID
+          </button>
+          <button
+            onClick={() => setIsExistingEmployee(false)}
+            className="w-full p-2 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            I'm a New Employee
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isExistingEmployee) {
+    return (
+      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          Existing Employee Registration
+        </h2>
         <Formik
-          initialValues={{
-            employeeId: '',
-            name: '',
-            nickname: '',
-            department: '',
-          }}
-          validationSchema={RegistrationSchema}
-          onSubmit={handleSubmit}
+          initialValues={{ employeeId: '' }}
+          validationSchema={ExistingEmployeeSchema}
+          onSubmit={handleExistingEmployeeSubmit}
         >
-          {({ isSubmitting, values, setFieldValue, isValid, dirty }) => (
-            <Form className="space-y-6">
-              {step === 1 && (
-                <div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="employeeId"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      รหัสพนักงาน
-                    </label>
-                    <Field
-                      type="text"
-                      name="employeeId"
-                      id="employeeId"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                      placeholder="รหัสพนักงาน"
-                    />
-                    <ErrorMessage
-                      name="employeeId"
-                      component="div"
-                      className="text-red-500 text-sm"
-                    />
-                  </div>
-                  <div className="button-container flex justify-end">
-                    <button
-                      type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={() => handleNextStep(values, setFieldValue)}
-                    >
-                      ถัดไป
-                    </button>
-                  </div>
-                </div>
-              )}
-              {step === 2 && (
-                <div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="name"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      ชื่อ - นามสกุล
-                    </label>
-                    <Field
-                      type="text"
-                      name="name"
-                      id="name"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                      placeholder="ชื่อ-นามสกุล"
-                    />
-                    <ErrorMessage
-                      name="name"
-                      component="div"
-                      className="text-red-500 text-sm"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="nickname"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      ชื่อเล่น
-                    </label>
-                    <Field
-                      type="text"
-                      name="nickname"
-                      id="nickname"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                      placeholder="ชื่อเล่น"
-                    />
-                    <ErrorMessage
-                      name="nickname"
-                      component="div"
-                      className="text-red-500 text-sm"
-                    />
-                  </div>
-                  <div className="button-container flex justify-end">
-                    <button
-                      type="button"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      onClick={() => handleNextStep(values, setFieldValue)}
-                    >
-                      ถัดไป
-                    </button>
-                  </div>
-                </div>
-              )}
-              {step === 3 && (
-                <div>
-                  <div className="mb-3">
-                    <label
-                      htmlFor="department"
-                      className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                    >
-                      แผนก
-                    </label>
-                    <Field
-                      as="select"
-                      name="department"
-                      id="department"
-                      className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                    >
-                      <option value="">เลือกแผนก</option>
-                      {departments.map((dept) => (
-                        <option key={dept} value={dept}>
-                          {dept}
-                        </option>
-                      ))}
-                    </Field>
-                    <ErrorMessage
-                      name="department"
-                      component="div"
-                      className="text-red-500 text-sm"
-                    />
-                  </div>
-                  {externalUserData && (
-                    <div className="mb-3">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        กะการทำงานจะถูกกำหนดโดยอัตโนมัติตามแผนกของคุณ
-                      </p>
-                    </div>
-                  )}
-                  <div className="button-container flex justify-end">
-                    <button
-                      type="submit"
-                      className="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                      disabled={isSubmitting || !isValid || !dirty}
-                    >
-                      {isSubmitting ? 'กำลังส่งเก็บข้อมูล...' : 'ยืนยัน'}
-                    </button>
-                  </div>
-                </div>
-              )}
+          {({ isSubmitting }) => (
+            <Form className="space-y-4">
+              <div>
+                <Field
+                  name="employeeId"
+                  type="text"
+                  placeholder="Employee ID"
+                  className="w-full p-2 border rounded"
+                />
+                <ErrorMessage
+                  name="employeeId"
+                  component="div"
+                  className="text-red-500 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300"
+              >
+                {isSubmitting ? 'Checking...' : 'Check Employee ID'}
+              </button>
             </Form>
           )}
         </Formik>
       </div>
+    );
+  }
+
+  return (
+    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
+      <h2 className="text-2xl font-bold mb-6 text-center">
+        New Employee Registration
+      </h2>
+      <Formik
+        initialValues={{
+          name: '',
+          nickname: '',
+          department: '',
+          role: '',
+        }}
+        validationSchema={NewEmployeeSchema}
+        onSubmit={handleNewEmployeeSubmit}
+      >
+        {({ isSubmitting, errors }) => (
+          <Form className="space-y-4">
+            <div>
+              <Field
+                name="name"
+                type="text"
+                placeholder="Full Name"
+                className="w-full p-2 border rounded"
+              />
+              <ErrorMessage
+                name="name"
+                component="div"
+                className="text-red-500 text-sm"
+              />
+            </div>
+            <div>
+              <Field
+                name="nickname"
+                type="text"
+                placeholder="Nickname (Optional)"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            <div>
+              <Field
+                as="select"
+                name="department"
+                className="w-full p-2 border rounded"
+              >
+                <option value="">Select Department</option>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </Field>
+              <ErrorMessage
+                name="department"
+                component="div"
+                className="text-red-500 text-sm"
+              />
+            </div>
+            <div>
+              <Field
+                as="select"
+                name="role"
+                className="w-full p-2 border rounded"
+              >
+                <option value="">Select Role</option>
+                {roles.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </Field>
+              <ErrorMessage
+                name="role"
+                component="div"
+                className="text-red-500 text-sm"
+              />
+
+              <div className="text-red-500 text-sm">{errors.general}</div>
+            </div>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300"
+            >
+              {isSubmitting ? 'Registering...' : 'Register'}
+            </button>
+          </Form>
+        )}
+      </Formik>
     </div>
   );
 };

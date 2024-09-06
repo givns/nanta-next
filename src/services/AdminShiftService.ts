@@ -1,7 +1,8 @@
 // services/AdminShiftService.ts
 
 import prisma from '../lib/prisma';
-import { Shift, ShiftAdjustmentRequest } from '../types/user';
+import { Shift } from '../types/user';
+import { ShiftAdjustmentRequest } from '@prisma/client';
 
 export class AdminShiftService {
   async getAllShifts(): Promise<Shift[]> {

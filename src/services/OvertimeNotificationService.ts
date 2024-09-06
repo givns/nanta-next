@@ -67,6 +67,25 @@ export class OvertimeNotificationService {
     );
   }
 
+  async sendOvertimeApprovalNotification(
+    overtimeRequest: OvertimeRequest & { user: User },
+    approverId: User,
+  ): Promise<void> {
+    if (!overtimeRequest.user.lineUserId) {
+      console.warn(
+        'No LINE user ID provided for overtime approval notification',
+      );
+      return;
+    }
+
+    const message = `Your overtime request for ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) has been approved by ${approverId.name}.`;
+    await this.sendNotification(
+      overtimeRequest.employeeId,
+      message,
+      overtimeRequest.user.lineUserId,
+    );
+  }
+
   private async sendNotification(
     userId: string,
     message: string,

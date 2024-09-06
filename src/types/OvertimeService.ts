@@ -1,7 +1,7 @@
 // @/types/OvertimeService.ts
 
 import { OvertimeRequest } from '@prisma/client';
-import { ApprovedOvertime } from './user'; // Make sure to import ApprovedOvertime
+import { ApprovedOvertime } from '@prisma/client'; // Import ApprovedOvertime from the correct file path
 
 export interface IOvertimeServiceBase {
   createOvertimeRequest(
@@ -37,9 +37,19 @@ export interface IOvertimeServiceServer extends IOvertimeServiceBase {
     denialReason: string,
   ): Promise<OvertimeRequest>;
   getApprovedOvertimeRequest(
-    userId: string,
+    employeeId: string,
     date: Date,
-  ): Promise<ApprovedOvertime | null>; // Changed return type to ApprovedOvertime
+  ): Promise<{
+    id: string;
+    employeeId: string;
+    startTime: string; // Changed to string
+    endTime: string; // Changed to string
+    reason: string | null;
+    status: string;
+    approvedBy: string;
+    approvedAt: Date;
+    date: Date;
+  } | null>;
   getPendingOvertimeRequests(): Promise<OvertimeRequest[]>;
   createUnapprovedOvertime(
     userId: string,

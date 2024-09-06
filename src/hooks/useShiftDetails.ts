@@ -1,7 +1,7 @@
 // hooks/useShiftDetails.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import { AttendanceStatusInfo, ShiftData } from '../types/user';
+import { AttendanceStatusInfo, ShiftData } from '../types/attendance';
 import axios from 'axios';
 
 export const useShiftDetails = (

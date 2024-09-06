@@ -15,35 +15,44 @@ enum UserRole {
   SUPERADMIN
 }
 
+enum EmployeeType {
+  FULL_TIME
+  PART_TIME
+  PROBATION
+}
+
 model User {
   id                      String                   @id @default(auto()) @map("_id") @db.ObjectId
   employeeId              String                   @unique
-  externalEmployeeId      String?
   name                    String
   lineUserId              String?                  @unique
   nickname                String?
   department              Department @relation(fields: [departmentId], references: [id]) 
   departmentId            String  @db.ObjectId
   role                    String
+  company                 String?
+  employeeType            EmployeeType             @default(PROBATION)
+  isGovernmentRegistered  Boolean                  @default(false)
   profilePictureUrl       String?
-  profilePictureExternal  String?
   shiftId                 String    @db.ObjectId
   assignedShift           Shift     @relation("UserAssignedShift", fields: [shiftId], references: [id])
   overtimeHours           Float     @default(0)
   attendances             Attendance[]
   shiftAdjustmentRequests ShiftAdjustmentRequest[]
   leaveRequests           LeaveRequest[]
-  sickLeaveBalance Int @default(30)
-  businessLeaveBalance Int @default(3)
-  annualLeaveBalance Int @default(6)
-  overtimeLeaveBalance Int @default(0)
+  sickLeaveBalance        Int                      @default(30)
+  businessLeaveBalance    Int                      @default(3)
+  annualLeaveBalance      Int                      @default(6)
+  overtimeLeaveBalance    Int                      @default(0)
+  isPreImported           Boolean                  @default(false)
   overtimeRequests        OvertimeRequest[]
-  approvedOvertimeRequests OvertimeRequest[] @relation("OvertimeApprover")
+  approvedOvertimeRequests OvertimeRequest[]       @relation("OvertimeApprover")
   approvedOvertimes       ApprovedOvertime[]
-  potentialOvertimes PotentialOvertime[]
+  potentialOvertimes      PotentialOvertime[]
   payrollProcessingResults PayrollProcessingResult[]
   checkPoints             CheckPoint[]
   timeEntries             TimeEntry[]
+  isRegistrationComplete  Boolean   @default(false)
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 }
@@ -91,6 +100,7 @@ model LeaveRequest {
   originalRequestId String?  @db.ObjectId
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  @@index([employeeId, startDate, endDate, status])
 }
 
 model OvertimeRequest {
@@ -112,6 +122,7 @@ model OvertimeRequest {
   timeEntries         TimeEntry[]
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  @@index([employeeId, date, status])
 }
 
 model ApprovedOvertime {
@@ -120,6 +131,7 @@ model ApprovedOvertime {
   user              User @relation(fields: [employeeId], references: [employeeId])
   startTime  DateTime
   endTime    DateTime
+  reason     String?
   status     String
   approvedBy String
   approvedAt DateTime
@@ -154,7 +166,7 @@ model Attendance {
   timeEntries           TimeEntry[]
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
-
+  @@index([employeeId, date])
   user              User @relation(fields: [employeeId], references: [employeeId])
 }
 
@@ -275,7 +287,6 @@ model DepartmentDayOff {
 
 model Department {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  externalId   Int   @unique
   name      String   @unique
   defaultShiftId String? @db.ObjectId
   defaultShift  Shift?  @relation(fields: [defaultShiftId], references: [id])

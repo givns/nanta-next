@@ -2,77 +2,50 @@ import React from 'react';
 import {
   AttendanceStatusInfo,
   ShiftData,
-  UserData,
   ApprovedOvertime,
-  PotentialOvertime,
-} from '../types/user';
+} from '../types/attendance';
+import { UserData } from '../types/user';
 import { formatTime } from '../utils/dateUtils';
 import { getDeviceType } from '../utils/deviceUtils';
-import moment from 'moment-timezone';
-import 'moment/locale/th';
-moment.locale('th');
+import { format, isSameDay, parseISO } from 'date-fns';
+import { th } from 'date-fns/locale';
 
 interface UserShiftInfoProps {
-  attendanceStatus: AttendanceStatusInfo;
   userData: UserData;
-  departmentName: string;
+  attendanceStatus: AttendanceStatusInfo;
+  departmentName: string; // Changed from 'department' to 'departmentName' for clarity
   isOutsideShift: boolean;
 }
 
-const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
-  attendanceStatus,
-  userData,
-}) => {
-  const today = moment().tz('Asia/Bangkok').startOf('day');
-
-  const todayShiftAdjustment = attendanceStatus.shiftAdjustment;
+const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
+  const { user, status, latestAttendance, shiftAdjustment } = attendanceStatus;
   const effectiveShift: ShiftData =
-    {
-      ...todayShiftAdjustment?.requestedShift,
-      id: '',
-      name: '',
-      startTime: '',
-      endTime: '',
-      workDays: [],
-      shiftCode: '',
-    } || attendanceStatus.user.assignedShift;
+    shiftAdjustment?.requestedShift || user.assignedShift;
+  const today = new Date();
 
   const getStatusMessage = () => {
-    console.log('isDayOff:', attendanceStatus.isDayOff);
-    console.log('latestAttendance:', attendanceStatus.latestAttendance);
-    console.log('today:', today.format('YYYY-MM-DD'));
-
     if (attendanceStatus.isDayOff) {
-      console.log('Condition: Day Off');
       return { message: 'วันหยุด', color: 'blue' };
     }
 
     if (!attendanceStatus.latestAttendance) {
-      console.log('Condition: No attendance');
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }
 
-    const attendanceDate = moment(
-      attendanceStatus.latestAttendance.date,
-    ).format('YYYY-MM-DD');
-    console.log('Attendance date:', attendanceDate);
+    const attendanceDate = parseISO(attendanceStatus.latestAttendance.date);
 
-    if (attendanceDate !== today.format('YYYY-MM-DD')) {
-      console.log('Condition: Attendance not for today');
+    if (!isSameDay(attendanceDate, today)) {
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }
 
     if (attendanceStatus.latestAttendance.checkOutTime) {
-      console.log('Condition: Checked out');
       return { message: 'ทำงานเสร็จแล้ว', color: 'green' };
     }
 
     if (attendanceStatus.latestAttendance.checkInTime) {
-      console.log('Condition: Checked in');
       return { message: 'ลงเวลาเข้างานแล้ว', color: 'orange' };
     }
 
-    console.log('Condition: Default - No attendance');
     return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
   };
 
@@ -80,64 +53,65 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return (
       <>
         {!attendanceStatus.isDayOff &&
-        (attendanceStatus.latestAttendance || effectiveShift) ? (
-          <div className="bg-white p-4 rounded-lg mb-4">
-            {attendanceStatus.latestAttendance &&
-              moment(attendanceStatus.latestAttendance.date).isSame(
-                today,
-                'day',
-              ) && (
+          (attendanceStatus.latestAttendance || effectiveShift) && (
+            <div className="bg-white p-4 rounded-lg mb-4">
+              {attendanceStatus.latestAttendance &&
+                isSameDay(
+                  parseISO(attendanceStatus.latestAttendance.date),
+                  today,
+                ) && (
+                  <>
+                    {attendanceStatus.latestAttendance.checkInTime && (
+                      <p className="text-gray-800">
+                        เวลาเข้างาน:{' '}
+                        <span className="font-medium">
+                          {formatTime(
+                            attendanceStatus.latestAttendance.checkInTime,
+                          )}
+                        </span>
+                      </p>
+                    )}
+                    {attendanceStatus.latestAttendance.checkOutTime && (
+                      <p className="text-gray-800">
+                        เวลาออกงาน:{' '}
+                        <span className="font-medium">
+                          {formatTime(
+                            attendanceStatus.latestAttendance.checkOutTime,
+                          )}
+                        </span>
+                      </p>
+                    )}
+                    {attendanceStatus.latestAttendance.checkInDeviceSerial && (
+                      <p className="text-gray-800">
+                        วิธีการ:{' '}
+                        <span className="font-medium">
+                          {getDeviceType(
+                            attendanceStatus.latestAttendance
+                              .checkInDeviceSerial,
+                          )}
+                        </span>
+                      </p>
+                    )}
+                  </>
+                )}
+              {effectiveShift && (
                 <>
-                  {attendanceStatus.latestAttendance.checkInTime && (
-                    <p className="text-gray-800">
-                      เวลาเข้างาน:{' '}
-                      <span className="font-medium">
-                        {formatTime(
-                          attendanceStatus.latestAttendance.checkInTime,
-                        )}
-                      </span>
-                    </p>
-                  )}
-                  {attendanceStatus.latestAttendance.checkOutTime && (
-                    <p className="text-gray-800">
-                      เวลาออกงาน:{' '}
-                      <span className="font-medium">
-                        {formatTime(
-                          attendanceStatus.latestAttendance.checkOutTime,
-                        )}
-                      </span>
-                    </p>
-                  )}
-                  {attendanceStatus.latestAttendance.checkInDeviceSerial && (
-                    <p className="text-gray-800">
-                      วิธีการ:{' '}
-                      <span className="font-medium">
-                        {getDeviceType(
-                          attendanceStatus.latestAttendance.checkInDeviceSerial,
-                        )}
-                      </span>
+                  <h3 className="text-md font-semibold mt-4 mb-1">
+                    กะการทำงานของคุณวันนี้:
+                  </h3>
+                  <p className="text-gray-800">
+                    <span className="font-medium">{effectiveShift.name}</span> (
+                    {effectiveShift.startTime} - {effectiveShift.endTime})
+                  </p>
+                  {attendanceStatus.shiftAdjustment && (
+                    <p className="text-blue-600 mt-1">
+                      * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
                     </p>
                   )}
                 </>
               )}
-            {effectiveShift && (
-              <>
-                <h3 className="text-md font-semibold mt-4 mb-1">
-                  กะการทำงานของคุณวันนี้:
-                </h3>
-                <p className="text-gray-800">
-                  <span className="font-medium">{effectiveShift.name}</span> (
-                  {effectiveShift.startTime} - {effectiveShift.endTime})
-                </p>
-                {todayShiftAdjustment && (
-                  <p className="text-blue-600 mt-1">
-                    * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        ) : null}
+            </div>
+          )}
 
         {attendanceStatus.approvedOvertime &&
           isOvertimeForToday(attendanceStatus.approvedOvertime) && (
@@ -160,9 +134,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               <p className="text-gray-800">
                 เวลาที่อนุมัติ:{' '}
                 <span className="font-medium">
-                  {moment(attendanceStatus.approvedOvertime.approvedAt)
-                    .tz('Asia/Bangkok')
-                    .format('YYYY-MM-DD HH:mm:ss')}
+                  {format(
+                    parseISO(
+                      attendanceStatus.approvedOvertime.approvedAt.toString(),
+                    ),
+                    'yyyy-MM-dd HH:mm:ss',
+                    { locale: th },
+                  )}
                 </span>
               </p>
             </div>
@@ -192,24 +170,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   };
 
   const renderFutureInfo = () => {
-    const futureOvertime =
-      attendanceStatus.approvedOvertime &&
-      !isOvertimeForToday(attendanceStatus.approvedOvertime)
-        ? [attendanceStatus.approvedOvertime]
-        : [];
-
-    const allFutureOvertimes = [
-      ...futureOvertime,
-      ...attendanceStatus.futureOvertimes,
-    ];
-
     const futureShiftAdjustments = attendanceStatus.futureShifts.filter(
-      (adjustment) => !moment(adjustment.date).isSame(today, 'day'),
+      (adjustment) => !isSameDay(parseISO(adjustment.date), today),
     );
 
     if (
       futureShiftAdjustments.length === 0 &&
-      allFutureOvertimes.length === 0
+      attendanceStatus.futureOvertimes.length === 0
     ) {
       return null;
     }
@@ -223,7 +190,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
           >
             <h3 className="font-bold">
               Shift Adjustment on{' '}
-              {moment(adjustment.date).format('DD MMM YYYY')}
+              {format(parseISO(adjustment.date), 'dd MMM yyyy', { locale: th })}
             </h3>
             <p>Shift: {adjustment.shift.name}</p>
             <p>
@@ -231,13 +198,16 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             </p>
           </div>
         ))}
-        {allFutureOvertimes.map((overtime, index) => (
+        {attendanceStatus.futureOvertimes.map((overtime, index) => (
           <div
             key={`overtime-${index}`}
             className="bg-green-300 p-4 rounded-box mb-4"
           >
             <h3 className="font-bold">
-              Approved Overtime on {moment(overtime.date).format('DD MMM YYYY')}
+              Approved Overtime on{' '}
+              {format(parseISO(overtime.date.toString()), 'dd MMM yyyy', {
+                locale: th,
+              })}
             </h3>
             <p>
               Time: {overtime.startTime} - {overtime.endTime}
@@ -250,10 +220,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   };
 
   const isOvertimeForToday = (overtime: ApprovedOvertime) => {
-    const overtimeDate = moment(overtime.date)
-      .tz('Asia/Bangkok')
-      .startOf('day');
-    return overtimeDate.isSame(today);
+    return isSameDay(parseISO(overtime.date.toString()), today);
   };
 
   const { message, color } = getStatusMessage();
@@ -261,11 +228,14 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   return (
     <div className="flex flex-col">
       <div className="bg-white p-4 rounded-box mb-4 text-center">
-        <p className="text-2xl font-bold">{userData.name}</p>
-        <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
-        <p className="text-gray-600">แผนก: {String(userData.department)}</p>
+        <p className="text-2xl font-bold">{attendanceStatus.user.name}</p>
+        <p className="text-xl">
+          รหัสพนักงาน: {attendanceStatus.user.employeeId}
+        </p>
+        <p className="text-gray-600">
+          แผนก: {attendanceStatus.user.department}
+        </p>
 
-        {/* Status Message Section */}
         <div className="flex flex-col items-center">
           <div className="flex items-center mt-2">
             <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>

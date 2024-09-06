@@ -1,26 +1,40 @@
+//api/check-in-out.ts
+import { PrismaClient } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
-import moment from 'moment-timezone';
-import { AttendanceData } from '@/types/user';
-import { notificationService } from '@/services/NotificationService';
-import { ExternalDbService } from '@/services/ExternalDbService';
 import { HolidayService } from '@/services/HolidayService';
 import { Shift104HolidayService } from '@/services/Shift104HolidayService';
 import { leaveServiceServer } from '@/services/LeaveServiceServer';
+import { AttendanceData } from '@/types/attendance';
+import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
+import { NotificationService } from '@/services/NotificationService';
+import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
+import { TimeEntryService } from '@/services/TimeEntryService';
 
-const externalDbService = new ExternalDbService();
+const prisma = new PrismaClient();
+const overtimeNotificationService = new OvertimeNotificationService();
+const timeEntryService = new TimeEntryService();
+
+const overtimeService = new OvertimeServiceServer(
+  prisma,
+  overtimeNotificationService,
+  timeEntryService,
+);
+
+const notificationService = new NotificationService();
+const shiftService = new ShiftManagementService(prisma);
 const holidayService = new HolidayService();
 const shift104HolidayService = new Shift104HolidayService();
-const attendanceService = new AttendanceService(
-  externalDbService,
-  holidayService,
-  shift104HolidayService,
-  leaveServiceServer,
-);
-const shiftService = new ShiftManagementService();
 
-const TIMEZONE = 'Asia/Bangkok'; // Set this to your local timezone
+const attendanceService = new AttendanceService(
+  prisma,
+  shiftService,
+  holidayService,
+  leaveServiceServer,
+  overtimeService,
+  notificationService,
+);
 
 export default async function handler(
   req: NextApiRequest,
@@ -32,235 +46,32 @@ export default async function handler(
 
   console.log('Received check-in/out request:', req.body);
 
-  const {
-    employeeId,
-    lineUserId,
-    checkTime,
-    location,
-    address,
-    reason,
-    photo,
-    deviceSerial,
-    isCheckIn,
-    isOvertime,
-    isLate,
-  } = req.body;
-
-  // Validate required fields
-  if (
-    !employeeId ||
-    !lineUserId ||
-    !checkTime ||
-    !location ||
-    !address ||
-    !deviceSerial ||
-    typeof isCheckIn !== 'boolean'
-  ) {
-    console.error('Missing or invalid required fields:', req.body);
-    return res
-      .status(400)
-      .json({ message: 'Missing or invalid required fields' });
-  }
+  const attendanceData: AttendanceData = req.body;
 
   try {
-    console.log(`Getting shift for user: ${employeeId}`);
-    const shift = await shiftService.getUserShift(employeeId);
-    console.log('User shift:', shift);
-
-    console.log(`Getting attendance status for employee: ${employeeId}`);
-    const attendanceStatus =
-      await attendanceService.getLatestAttendanceStatus(employeeId);
-    console.log('Attendance status:', attendanceStatus);
-
-    if (!shift) {
-      console.error(`Shift not found for user: ${employeeId}`);
-      return res.status(400).json({ message: 'User shift not found' });
-    }
-
-    const checkTime = moment(req.body.checkTime).tz(TIMEZONE);
-    console.log('Check time (local):', checkTime.format());
-
-    if (!isCheckIn) {
-      // Check if there's a check-in for today
-      const todayCheckIn = await attendanceService.getTodayCheckIn(employeeId);
-
-      if (!todayCheckIn) {
-        // Handle missing check-in
-        const potentialStartTime = moment(checkTime).set({
-          hour: parseInt(shift.startTime.split(':')[0]),
-          minute: parseInt(shift.startTime.split(':')[1]),
-          second: 0,
-          millisecond: 0,
-        });
-
-        const pendingAttendance =
-          await attendanceService.createPendingAttendance(
-            employeeId,
-            potentialStartTime.toDate(),
-            checkTime.toDate(),
-          );
-
-        // Notify admins
-        await notificationService.notifyAdminsOfMissingCheckIn(
-          employeeId,
-          employeeId,
-          potentialStartTime.format('HH:mm:ss'),
-          checkTime.format('HH:mm:ss'),
-          pendingAttendance.id,
-        );
-
-        return res.status(200).json({
-          message:
-            'Check-out recorded. Pending admin approval for missing check-in.',
-          pendingAttendanceId: pendingAttendance.id,
-        });
-      }
-    }
-
-    let effectiveShift = shift;
-    if (attendanceStatus.shiftAdjustment) {
-      const adjustmentDate = moment(attendanceStatus.shiftAdjustment.date).tz(
-        TIMEZONE,
-      );
-      if (adjustmentDate.isSame(checkTime, 'day')) {
-        console.log('Using adjusted shift');
-        effectiveShift = attendanceStatus.shiftAdjustment.requestedShift as {
-          id: string;
-          shiftCode: string;
-          name: string;
-          startTime: string;
-          endTime: string;
-          workDays: number[];
-        };
-      }
-    }
-
-    console.log('Effective shift:', effectiveShift);
-
-    const {
-      shiftStart,
-      shiftEnd,
-      flexibleStart,
-      flexibleEnd,
-      graceStart,
-      graceEnd,
-    } = calculateShiftTimes(
-      checkTime,
-      effectiveShift.startTime,
-      effectiveShift.endTime,
+    const attendanceStatus = await attendanceService.getLatestAttendanceStatus(
+      attendanceData.employeeId,
     );
 
-    console.log('Calculated shift times:', {
-      shiftStart: shiftStart.format(),
-      shiftEnd: shiftEnd.format(),
-      flexibleStart: flexibleStart.format(),
-      flexibleEnd: flexibleEnd.format(),
-      graceStart: graceStart.format(),
-      graceEnd: graceEnd.format(),
-    });
-
-    const isOutsideShift =
-      checkTime.isBefore(shiftStart) || checkTime.isAfter(shiftEnd);
-    const isFlexibleStart =
-      checkTime.isSameOrAfter(flexibleStart) && checkTime.isBefore(shiftStart);
-    const isFlexibleEnd =
-      checkTime.isAfter(shiftEnd) && checkTime.isSameOrBefore(flexibleEnd);
-    const isWithinGracePeriod =
-      (checkTime.isSameOrAfter(graceStart) &&
-        checkTime.isSameOrBefore(shiftStart)) ||
-      (checkTime.isSameOrAfter(shiftEnd) && checkTime.isSameOrBefore(graceEnd));
-
-    const isCheckInOutAllowed =
-      attendanceStatus.approvedOvertime ||
-      !isOutsideShift ||
-      isFlexibleStart ||
-      isFlexibleEnd ||
-      isWithinGracePeriod;
-
-    console.log('Check-in/out allowed:', isCheckInOutAllowed);
-
-    if (!isCheckInOutAllowed) {
+    // Additional checks using attendanceStatus
+    if (attendanceStatus.isDayOff && !attendanceData.isOvertime) {
       return res
         .status(400)
-        .json({ message: 'Check-in/out not allowed at this time' });
+        .json({ message: 'Cannot check in/out on day off without overtime' });
     }
 
-    let attendanceType:
-      | 'regular'
-      | 'flexible-start'
-      | 'flexible-end'
-      | 'grace-period'
-      | 'overtime' = 'regular';
-    if (isFlexibleStart) attendanceType = 'flexible-start';
-    else if (isFlexibleEnd) attendanceType = 'flexible-end';
-    else if (isWithinGracePeriod) attendanceType = 'grace-period';
-    else if (attendanceStatus.approvedOvertime) attendanceType = 'overtime';
-
-    const attendanceData: AttendanceData = {
-      employeeId,
-      lineUserId,
-      checkTime: checkTime.toDate(),
-      location: JSON.stringify(location), // Assuming location is an object
-      address,
-      reason,
-      photo,
-      deviceSerial,
-      isCheckIn,
-      isOvertime: attendanceStatus.approvedOvertime ? true : isOvertime,
-      isLate,
-      isFlexibleStart: attendanceType === 'flexible-start',
-      isFlexibleEnd: attendanceType === 'flexible-end',
-      isWithinGracePeriod: attendanceType === 'grace-period',
-    };
-
-    console.log('Attendance data:', attendanceData);
-
-    const attendance =
+    // Process attendance
+    const processedAttendance =
       await attendanceService.processAttendance(attendanceData);
 
-    console.log('Processed attendance:', attendance);
+    console.log('Processed attendance:', processedAttendance);
 
-    res.status(200).json(attendance);
+    res.status(200).json(processedAttendance);
   } catch (error: any) {
     console.error('Check-in/out failed:', error);
     res.status(error.statusCode || 500).json({
       message: 'Check-in/out failed',
       error: error.message,
     });
-  }
-
-  function calculateShiftTimes(
-    checkTime: moment.Moment,
-    startTime: string,
-    endTime: string,
-  ) {
-    const [startHour, startMinute] = startTime.split(':').map(Number);
-    const [endHour, endMinute] = endTime.split(':').map(Number);
-
-    const shiftStart = checkTime
-      .clone()
-      .set({ hour: startHour, minute: startMinute, second: 0, millisecond: 0 });
-    const shiftEnd = checkTime
-      .clone()
-      .set({ hour: endHour, minute: endMinute, second: 0, millisecond: 0 });
-
-    // Handle overnight shifts
-    if (shiftEnd.isBefore(shiftStart)) {
-      shiftEnd.add(1, 'day');
-    }
-
-    const flexibleStart = shiftStart.clone().subtract(30, 'minutes');
-    const flexibleEnd = shiftEnd.clone().add(30, 'minutes');
-    const graceStart = shiftStart.clone().subtract(5, 'minutes');
-    const graceEnd = shiftEnd.clone().add(5, 'minutes');
-
-    return {
-      shiftStart,
-      shiftEnd,
-      flexibleStart,
-      flexibleEnd,
-      graceStart,
-      graceEnd,
-    };
   }
 }

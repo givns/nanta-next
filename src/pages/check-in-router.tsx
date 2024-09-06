@@ -1,16 +1,12 @@
+//check-in-router.tsx
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
-import { UserData, AttendanceStatusInfo } from '../types/user';
+import { UserData } from '../types/user';
+import { AttendanceStatusInfo } from '@/types/attendance';
 import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
-import dayjs from 'dayjs';
-import 'dayjs/locale/th';
-
-dayjs.locale('th');
-
-const today = dayjs();
-const currentDate = dayjs().format('D MMMM YYYY');
+import { parseISO, format } from 'date-fns';
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -19,7 +15,7 @@ const CheckInRouter: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>(
-    new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
+    format(new Date(), 'HH:mm:ss', { timeZone: 'Asia/Bangkok' } as any),
   );
 
   useEffect(() => {

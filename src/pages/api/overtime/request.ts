@@ -1,7 +1,20 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
+import { OvertimeNotificationService } from '../../../services/OvertimeNotificationService'; // Import the overtimeNotificationService
+import { TimeEntryService } from '../../../services/TimeEntryService';
 
-const overtimeService = new OvertimeServiceServer();
+const timeEntryService = new TimeEntryService();
+
+if (!prisma) {
+  throw new Error('Prisma client is undefined');
+}
+
+const overtimeNotificationService = new OvertimeNotificationService(); // Instantiate an instance of the OvertimeNotificationService class
+const overtimeService = new OvertimeServiceServer(
+  prisma,
+  overtimeNotificationService,
+  timeEntryService,
+);
 
 export default async function handler(
   req: NextApiRequest,

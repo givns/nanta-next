@@ -1,8 +1,14 @@
+//checkInOutForm.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Webcam from 'react-webcam';
 import '@tensorflow/tfjs-backend-webgl';
-import { AttendanceStatusInfo, UserData, ShiftData } from '../types/user';
+import {
+  AttendanceStatusInfo,
+  ShiftData,
+  AttendanceData,
+} from '../types/attendance';
+import { UserData } from '../types/user';
 import axios from 'axios';
 import InteractiveMap from './InteractiveMap';
 import { useFaceDetection } from '../hooks/useFaceDetection';
@@ -39,7 +45,6 @@ const PREMISES: Premise[] = [
 ];
 
 const GOOGLE_MAPS_API = process.env.GOOGLE_MAPS_API;
-const shiftManagementService = new ShiftManagementService();
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,

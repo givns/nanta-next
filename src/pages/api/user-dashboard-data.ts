@@ -64,7 +64,6 @@ export default async function handler(
       department: user.department.name,
       role: user.role as any, // Cast to UserRole enum if necessary
       profilePictureUrl: user.profilePictureUrl,
-      profilePictureExternal: user.profilePictureExternal,
       shiftId: user.shiftId,
       assignedShift: user.assignedShift,
       overtimeHours: user.overtimeHours,

@@ -95,7 +95,6 @@ export default async function handler(
       shiftId: user.shiftId,
       assignedShift: user.assignedShift as ShiftData,
       profilePictureUrl: user.profilePictureUrl,
-      profilePictureExternal: user.profilePictureExternal,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: user.potentialOvertimes.map((po) => ({
         id: po.id,

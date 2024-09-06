@@ -1,23 +1,22 @@
 // services/CacheService.ts
 import NodeCache from 'node-cache';
 
-class CacheService {
+export class CacheService {
   private cache: NodeCache;
 
-  constructor(ttlSeconds: number) {
-    this.cache = new NodeCache({
-      stdTTL: ttlSeconds,
-      checkperiod: ttlSeconds * 0.2,
-    });
+  constructor(ttlSeconds: number = 60) {
+    this.cache = new NodeCache({ stdTTL: ttlSeconds });
+  }
+
+  set(key: string, value: any): void {
+    this.cache.set(key, value);
   }
 
   get<T>(key: string): T | undefined {
     return this.cache.get<T>(key);
   }
 
-  set<T>(key: string, value: T): void {
-    this.cache.set(key, value);
+  del(key: string): void {
+    this.cache.del(key);
   }
 }
-
-export const cacheService = new CacheService(60 * 5); // 5 minutes TTL
