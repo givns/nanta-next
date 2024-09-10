@@ -2,7 +2,7 @@ import { PrismaClient, Holiday } from '@prisma/client';
 import { HolidayService } from './HolidayService';
 
 const prisma = new PrismaClient();
-const holidayService = new HolidayService();
+const holidayService = new HolidayService(prisma);
 
 export class WorkdayCalculationService {
   async calculateWorkingDays(

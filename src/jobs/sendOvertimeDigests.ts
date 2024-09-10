@@ -3,10 +3,17 @@
 import { PrismaClient } from '@prisma/client';
 import { OvertimeNotificationService } from '../services/OvertimeNotificationService';
 import { OvertimeServiceServer } from '../services/OvertimeServiceServer';
+import { TimeEntryService } from '../services/TimeEntryService'; // Add this import
 
 const prisma = new PrismaClient();
 const notificationService = new OvertimeNotificationService();
-const overtimeService = new OvertimeServiceServer();
+const timeEntryService = new TimeEntryService(prisma); // Pass the prisma instance as an argument
+
+const overtimeService = new OvertimeServiceServer(
+  prisma,
+  notificationService,
+  timeEntryService,
+);
 
 export async function sendOvertimeDigests() {
   const managers = await prisma.user.findMany({ where: { role: 'MANAGER' } });

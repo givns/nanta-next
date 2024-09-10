@@ -53,6 +53,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       include: { user: true },
     });
 
+    await this.timeEntryService.createPendingOvertimeEntry(newOvertimeRequest);
+
     const durationInHours = differenceInHours(
       parseISO(endTime),
       parseISO(startTime),

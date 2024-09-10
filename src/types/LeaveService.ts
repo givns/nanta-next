@@ -6,7 +6,6 @@ export interface LeaveBalanceData {
   sickLeave: number;
   businessLeave: number;
   annualLeave: number;
-  overtimeLeave: number;
 }
 
 export interface ILeaveServiceBase {
@@ -18,7 +17,6 @@ export interface ILeaveServiceBase {
     startDate: string,
     endDate: string,
     fullDayCount: number,
-    useOvertimeHours: boolean,
     resubmitted?: boolean,
     originalRequestId?: string,
   ): Promise<LeaveRequest>;

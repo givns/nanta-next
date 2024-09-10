@@ -31,7 +31,6 @@ export default async function handler(
         sickLeaveBalance: true,
         businessLeaveBalance: true,
         annualLeaveBalance: true,
-        overtimeLeaveBalance: true,
       },
     });
 

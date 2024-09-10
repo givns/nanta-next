@@ -10,7 +10,6 @@ export default async function handler(
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-
   const {
     lineUserId,
     leaveType,
@@ -19,7 +18,6 @@ export default async function handler(
     startDate,
     endDate,
     fullDayCount,
-    useOvertimeHours,
     resubmitted,
     originalRequestId,
   } = req.body;
@@ -34,7 +32,6 @@ export default async function handler(
       startDate,
       endDate,
       fullDayCount,
-      useOvertimeHours,
       resubmitted,
       originalRequestId,
     );

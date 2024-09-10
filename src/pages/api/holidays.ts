@@ -1,8 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { HolidayService } from '../../services/HolidayService';
-import { Holiday } from '@prisma/client';
+import { Holiday, PrismaClient } from '@prisma/client';
 
-const holidayService = new HolidayService();
+const prisma = new PrismaClient();
+const holidayService = new HolidayService(prisma);
 
 export default async function handler(
   req: NextApiRequest,

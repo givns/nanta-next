@@ -4,7 +4,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { LeaveServiceServer } from '../../../services/LeaveServiceServer';
 import { ILeaveServiceBase } from '../../../types/LeaveService';
 
-const leaveService: ILeaveServiceBase = new LeaveServiceServer();
+const leaveService: ILeaveServiceBase =
+  new LeaveServiceServer() as ILeaveServiceBase;
 
 export default async function handler(
   req: NextApiRequest,
@@ -19,7 +20,6 @@ export default async function handler(
       startDate,
       endDate,
       fullDayCount,
-      useOvertimeHours = false,
     } = req.body;
 
     try {
@@ -31,9 +31,7 @@ export default async function handler(
         startDate,
         endDate,
         fullDayCount,
-        useOvertimeHours,
       );
-
       res.status(201).json({
         success: true,
         message: 'Leave request created successfully',

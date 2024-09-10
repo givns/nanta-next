@@ -4,9 +4,9 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import { Shift } from '../types/user';
 import { ShiftManagementService } from '../services/ShiftManagementService';
-import moment from 'moment';
-
-const shiftManagementService = new ShiftManagementService();
+import prisma from '../lib/prisma';
+import { startOfDay } from 'date-fns';
+const shiftManagementService = new ShiftManagementService(prisma);
 
 interface AdminShiftAdjustmentFormProps {
   lineUserId?: string;
@@ -80,7 +80,7 @@ const AdminShiftAdjustmentForm: React.FC<AdminShiftAdjustmentFormProps> = ({
     }),
     date: Yup.date()
       .required('Date is required')
-      .min(moment().startOf('day'), 'Date must not be in the past'),
+      .min(startOfDay(new Date()), 'Date must not be in the past'),
     reason: Yup.string().required('Reason is required'),
   });
 

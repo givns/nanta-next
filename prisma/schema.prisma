@@ -43,7 +43,6 @@ model User {
   sickLeaveBalance        Int                      @default(30)
   businessLeaveBalance    Int                      @default(3)
   annualLeaveBalance      Int                      @default(6)
-  overtimeLeaveBalance    Int                      @default(0)
   isPreImported           Boolean                  @default(false)
   overtimeRequests        OvertimeRequest[]
   approvedOvertimeRequests OvertimeRequest[]       @relation("OvertimeApprover")
@@ -89,7 +88,6 @@ model LeaveRequest {
   leaveType         String
   leaveFormat       String
   reason            String
-  useOvertimeHours  Boolean 
   startDate         DateTime
   endDate           DateTime
   status            String

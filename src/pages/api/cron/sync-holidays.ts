@@ -2,8 +2,10 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { HolidayService } from '../../../services/HolidayService';
+import { PrismaClient } from '@prisma/client';
 
-const holidayService = new HolidayService();
+const prisma = new PrismaClient();
+const holidayService = new HolidayService(prisma);
 
 const API_KEY = process.env.CRON_API_KEY;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';

@@ -72,15 +72,11 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       sickLeave: user.sickLeaveBalance - usedLeave.sickLeave,
       businessLeave: user.businessLeaveBalance - usedLeave.businessLeave,
       annualLeave: user.annualLeaveBalance - usedLeave.annualLeave,
-      overtimeLeave: user.overtimeLeaveBalance - usedLeave.overtimeLeave,
       totalLeaveDays: 0,
     };
 
     balance.totalLeaveDays =
-      balance.sickLeave +
-      balance.businessLeave +
-      balance.annualLeave +
-      balance.overtimeLeave;
+      balance.sickLeave + balance.businessLeave + balance.annualLeave;
 
     return balance;
   }
@@ -93,7 +89,6 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     startDate: string,
     endDate: string,
     fullDayCount: number,
-    useOvertimeHours: boolean,
     resubmitted: boolean = false,
     originalRequestId?: string,
   ): Promise<LeaveRequest> {
@@ -117,9 +112,6 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       case 'ลาพักร้อน':
         availableDays = leaveBalance.annualLeave;
         break;
-      case 'ลาโดยใช้ชั่วโมง OT':
-        availableDays = leaveBalance.overtimeLeave;
-        break;
       default:
         throw new Error('Invalid leave type');
     }
@@ -137,7 +129,6 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       endDate: new Date(endDate),
       status: 'Pending',
       fullDayCount,
-      useOvertimeHours,
       resubmitted,
     };
 

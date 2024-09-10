@@ -14,7 +14,7 @@ import { TimeEntryService } from '@/services/TimeEntryService';
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
-const timeEntryService = new TimeEntryService();
+const timeEntryService = new TimeEntryService(prisma);
 
 const overtimeService = new OvertimeServiceServer(
   prisma,
@@ -24,8 +24,7 @@ const overtimeService = new OvertimeServiceServer(
 
 const notificationService = new NotificationService();
 const shiftService = new ShiftManagementService(prisma);
-const holidayService = new HolidayService();
-const shift104HolidayService = new Shift104HolidayService();
+const holidayService = new HolidayService(prisma);
 
 const attendanceService = new AttendanceService(
   prisma,
@@ -34,6 +33,7 @@ const attendanceService = new AttendanceService(
   leaveServiceServer,
   overtimeService,
   notificationService,
+  timeEntryService,
 );
 
 export default async function handler(

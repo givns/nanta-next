@@ -9,7 +9,6 @@ interface LeaveBalanceData {
   sickLeave: number;
   businessLeave: number;
   annualLeave: number;
-  overtimeLeave: number;
   totalLeaveDays: number;
 }
 
@@ -22,7 +21,6 @@ export class LeaveServiceClient implements ILeaveServiceClient {
     startDate: string,
     endDate: string,
     fullDayCount: number,
-    useOvertimeHours: boolean,
     resubmitted: boolean = false,
     originalRequestId?: string,
   ): Promise<LeaveRequest> {
@@ -38,7 +36,6 @@ export class LeaveServiceClient implements ILeaveServiceClient {
       endDate: new Date(endDate),
       status: 'Pending',
       fullDayCount,
-      useOvertimeHours,
       resubmitted,
     };
 
@@ -82,7 +79,6 @@ export class LeaveServiceClient implements ILeaveServiceClient {
       sickLeave: 0,
       businessLeave: 0,
       annualLeave: 0,
-      overtimeLeave: 0,
     };
 
     approvedRequests.forEach((request) => {
@@ -96,9 +92,6 @@ export class LeaveServiceClient implements ILeaveServiceClient {
         case 'ลาพักร้อน':
           usedLeave.annualLeave += request.fullDayCount;
           break;
-        case 'ลาโดยใช้ชั่วโมง OT':
-          usedLeave.overtimeLeave += request.fullDayCount;
-          break;
       }
     });
 
@@ -106,15 +99,11 @@ export class LeaveServiceClient implements ILeaveServiceClient {
       sickLeave: user.sickLeaveBalance - usedLeave.sickLeave,
       businessLeave: user.businessLeaveBalance - usedLeave.businessLeave,
       annualLeave: user.annualLeaveBalance - usedLeave.annualLeave,
-      overtimeLeave: user.overtimeLeaveBalance - usedLeave.overtimeLeave,
       totalLeaveDays: 0,
     };
 
     balance.totalLeaveDays =
-      balance.sickLeave +
-      balance.businessLeave +
-      balance.annualLeave +
-      balance.overtimeLeave;
+      balance.sickLeave + balance.businessLeave + balance.annualLeave;
 
     return balance;
   }

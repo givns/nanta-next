@@ -47,6 +47,7 @@ export class AttendanceProcessingService {
   async processAttendance(
     attendanceData: AttendanceData,
     user: User,
+    shiftType: 'regular' | 'shift104' = 'regular',
   ): Promise<ProcessedAttendance> {
     const { isCheckIn, checkTime } = attendanceData;
     const parsedCheckTime = parseISO(checkTime as string);
@@ -60,8 +61,11 @@ export class AttendanceProcessingService {
     const isShift104 = userShift?.shiftCode === 'SHIFT104';
 
     // Fetch holidays for the entire year to reduce database queries
-    const year = date.getFullYear();
-    const holidays = await this.holidayService.getHolidaysForYear(year);
+    const year = parsedCheckTime.getFullYear();
+    const holidays = await this.holidayService.getHolidaysForYear(
+      year,
+      shiftType,
+    );
 
     const isHoliday = this.holidayService.isHoliday(date, holidays, isShift104);
     const isNoWorkDay = await this.noWorkDayService.isNoWorkDay(date, user.id);

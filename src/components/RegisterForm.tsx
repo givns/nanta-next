@@ -13,6 +13,7 @@ const NewEmployeeSchema = Yup.object().shape({
   nickname: Yup.string(),
   department: Yup.string().required('Required'),
   role: Yup.string().required('Required'),
+  general: Yup.string(), // This is a placeholder for general error message
 });
 
 const departments = [
@@ -38,9 +39,6 @@ const roles = ['DRIVER', 'OPERATION', 'GENERAL', 'ADMIN'];
 const RegisterForm: React.FC = () => {
   const [lineUserId, setLineUserId] = useState('');
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
-  const [isExistingEmployee, setIsExistingEmployee] = useState<boolean | null>(
-    null,
-  );
   const [userInfo, setUserInfo] = useState<any>(null);
 
   useEffect(() => {
@@ -86,35 +84,12 @@ const RegisterForm: React.FC = () => {
     }
   };
 
-  const handleNewEmployeeSubmit = async (
-    values: any,
-    { setSubmitting, setFieldError }: any,
-  ) => {
-    try {
-      const response = await axios.post('/api/registerNewEmployee', {
-        ...values,
-        lineUserId,
-        profilePictureUrl,
-      });
-
-      if (response.data.success) {
-        setUserInfo(response.data.user);
-      } else {
-        throw new Error(response.data.error);
-      }
-    } catch (error: any) {
-      console.error('Error registering new employee:', error);
-      setFieldError('general', 'Error occurred during registration');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleConfirmRegistration = async () => {
     try {
       const response = await axios.post('/api/confirmRegistration', {
         employeeId: userInfo.employeeId,
         lineUserId,
+        profilePictureUrl,
       });
 
       if (response.data.success) {
@@ -174,154 +149,37 @@ const RegisterForm: React.FC = () => {
     );
   }
 
-  if (isExistingEmployee === null) {
-    return (
-      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
-        <h2 className="text-2xl font-bold mb-6 text-center">
-          Employee Registration
-        </h2>
-        <div className="space-y-4">
-          <button
-            onClick={() => setIsExistingEmployee(true)}
-            className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            I have an Employee ID
-          </button>
-          <button
-            onClick={() => setIsExistingEmployee(false)}
-            className="w-full p-2 bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            I'm a New Employee
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (isExistingEmployee) {
-    return (
-      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
-        <h2 className="text-2xl font-bold mb-6 text-center">
-          Existing Employee Registration
-        </h2>
-        <Formik
-          initialValues={{ employeeId: '' }}
-          validationSchema={ExistingEmployeeSchema}
-          onSubmit={handleExistingEmployeeSubmit}
-        >
-          {({ isSubmitting }) => (
-            <Form className="space-y-4">
-              <div>
-                <Field
-                  name="employeeId"
-                  type="text"
-                  placeholder="Employee ID"
-                  className="w-full p-2 border rounded"
-                />
-                <ErrorMessage
-                  name="employeeId"
-                  component="div"
-                  className="text-red-500 text-sm"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300"
-              >
-                {isSubmitting ? 'Checking...' : 'Check Employee ID'}
-              </button>
-            </Form>
-          )}
-        </Formik>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
       <h2 className="text-2xl font-bold mb-6 text-center">
-        New Employee Registration
+        Existing Employee Registration
       </h2>
       <Formik
-        initialValues={{
-          name: '',
-          nickname: '',
-          department: '',
-          role: '',
-        }}
-        validationSchema={NewEmployeeSchema}
-        onSubmit={handleNewEmployeeSubmit}
+        initialValues={{ employeeId: '' }}
+        validationSchema={ExistingEmployeeSchema}
+        onSubmit={handleExistingEmployeeSubmit}
       >
-        {({ isSubmitting, errors }) => (
+        {({ isSubmitting }) => (
           <Form className="space-y-4">
             <div>
               <Field
-                name="name"
+                name="employeeId"
                 type="text"
-                placeholder="Full Name"
+                placeholder="Employee ID"
                 className="w-full p-2 border rounded"
               />
               <ErrorMessage
-                name="name"
+                name="employeeId"
                 component="div"
                 className="text-red-500 text-sm"
               />
-            </div>
-            <div>
-              <Field
-                name="nickname"
-                type="text"
-                placeholder="Nickname (Optional)"
-                className="w-full p-2 border rounded"
-              />
-            </div>
-            <div>
-              <Field
-                as="select"
-                name="department"
-                className="w-full p-2 border rounded"
-              >
-                <option value="">Select Department</option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </Field>
-              <ErrorMessage
-                name="department"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-            </div>
-            <div>
-              <Field
-                as="select"
-                name="role"
-                className="w-full p-2 border rounded"
-              >
-                <option value="">Select Role</option>
-                {roles.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </Field>
-              <ErrorMessage
-                name="role"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-
-              <div className="text-red-500 text-sm">{errors.general}</div>
             </div>
             <button
               type="submit"
               disabled={isSubmitting}
               className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300"
             >
-              {isSubmitting ? 'Registering...' : 'Register'}
+              {isSubmitting ? 'Checking...' : 'Check Employee ID'}
             </button>
           </Form>
         )}

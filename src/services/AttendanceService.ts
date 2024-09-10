@@ -31,6 +31,7 @@ import {
 import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
+import { TimeEntryService } from './TimeEntryService';
 
 export class AttendanceService {
   constructor(
@@ -40,6 +41,7 @@ export class AttendanceService {
     private leaveService: LeaveServiceServer,
     private overtimeService: OvertimeServiceServer,
     private notificationService: NotificationService,
+    private timeEntryService: TimeEntryService,
   ) {}
 
   async processAttendance(
@@ -124,6 +126,7 @@ export class AttendanceService {
         isManualEntry: processedAttendance.isManualEntry,
       },
     });
+    await this.timeEntryService.createOrUpdateTimeEntry(savedAttendance);
 
     processedAttendance.id = savedAttendance.id;
 
@@ -181,7 +184,6 @@ export class AttendanceService {
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
-      overtimeLeaveBalance: user.overtimeLeaveBalance,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

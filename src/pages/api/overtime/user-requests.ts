@@ -2,8 +2,15 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
-
-const overtimeService = new OvertimeServiceServer();
+import { OvertimeNotificationService } from '../../../services/OvertimeNotificationService';
+import { TimeEntryService } from '@/services/TimeEntryService';
+const timeEntryService = new TimeEntryService(prisma!);
+const overtimeNotificationService = new OvertimeNotificationService();
+const overtimeService = new OvertimeServiceServer(
+  prisma!,
+  overtimeNotificationService,
+  timeEntryService,
+);
 
 export default async function handler(
   req: NextApiRequest,

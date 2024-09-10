@@ -7,47 +7,30 @@ import {
   Attendance,
 } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
 export class TimeEntryService {
-  async createPendingOvertimeEntry(
-    overtimeRequest: OvertimeRequest,
-  ): Promise<TimeEntry> {
-    return prisma.timeEntry.create({
-      data: {
-        employeeId: overtimeRequest.employeeId,
-        date: overtimeRequest.date,
-        startTime: new Date(
-          `${overtimeRequest.date.toISOString().split('T')[0]}T${overtimeRequest.startTime}`,
-        ),
-        endTime: new Date(
-          `${overtimeRequest.date.toISOString().split('T')[0]}T${overtimeRequest.endTime}`,
-        ),
-        status: 'PENDING',
-        regularHours: 0,
-        overtimeHours: 0,
-        overtimeRequestId: overtimeRequest.id,
+  constructor(private prisma: PrismaClient) {}
+
+  async getTimeEntriesForEmployee(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<TimeEntry[]> {
+    return this.prisma.timeEntry.findMany({
+      where: {
+        employeeId,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
       },
     });
-  }
-
-  async createOrUpdateTimeEntry(attendance: Attendance): Promise<TimeEntry> {
-    const existingEntry = await prisma.timeEntry.findFirst({
-      where: { employeeId: attendance.employeeId, date: attendance.date },
-    });
-
-    if (existingEntry) {
-      return this.updateTimeEntry(existingEntry.id, attendance);
-    } else {
-      return this.createTimeEntry(attendance);
-    }
   }
 
   private async createTimeEntry(attendance: Attendance): Promise<TimeEntry> {
     const startTime = attendance.checkInTime || attendance.date; // Use date as fallback
     const endTime = attendance.checkOutTime || new Date();
 
-    return prisma.timeEntry.create({
+    return this.prisma.timeEntry.create({
       data: {
         employeeId: attendance.employeeId,
         date: attendance.date,
@@ -67,7 +50,7 @@ export class TimeEntryService {
   ): Promise<TimeEntry> {
     const endTime = attendance.checkOutTime || new Date();
 
-    return prisma.timeEntry.update({
+    return this.prisma.timeEntry.update({
       where: { id: timeEntryId },
       data: {
         endTime: endTime,
@@ -81,7 +64,7 @@ export class TimeEntryService {
     startDate: Date,
     endDate: Date,
   ): Promise<TimeEntry[]> {
-    return prisma.timeEntry.findMany({
+    return this.prisma.timeEntry.findMany({
       where: {
         date: {
           gte: startDate,
@@ -93,5 +76,38 @@ export class TimeEntryService {
         user: true,
       },
     });
+  }
+
+  async createPendingOvertimeEntry(
+    overtimeRequest: OvertimeRequest,
+  ): Promise<TimeEntry> {
+    return this.prisma.timeEntry.create({
+      data: {
+        employeeId: overtimeRequest.employeeId,
+        date: overtimeRequest.date,
+        startTime: new Date(
+          `${overtimeRequest.date.toISOString().split('T')[0]}T${overtimeRequest.startTime}`,
+        ),
+        endTime: new Date(
+          `${overtimeRequest.date.toISOString().split('T')[0]}T${overtimeRequest.endTime}`,
+        ),
+        status: 'PENDING',
+        regularHours: 0,
+        overtimeHours: 0,
+        overtimeRequestId: overtimeRequest.id,
+      },
+    });
+  }
+
+  async createOrUpdateTimeEntry(attendance: Attendance): Promise<TimeEntry> {
+    const existingEntry = await this.prisma.timeEntry.findFirst({
+      where: { employeeId: attendance.employeeId, date: attendance.date },
+    });
+
+    if (existingEntry) {
+      return this.updateTimeEntry(existingEntry.id, attendance);
+    } else {
+      return this.createTimeEntry(attendance);
+    }
   }
 }

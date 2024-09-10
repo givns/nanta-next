@@ -1,6 +1,6 @@
 import React from 'react';
 import moment from 'moment-timezone';
-import { ProcessedAttendance, ShiftData } from '../types/user';
+import { ProcessedAttendance, ShiftData } from '../types/attendance';
 
 interface AttendanceTableProps {
   attendanceData: ProcessedAttendance[];

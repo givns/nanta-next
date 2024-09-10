@@ -27,7 +27,6 @@ export interface UserData {
   sickLeaveBalance: number;
   businessLeaveBalance: number;
   annualLeaveBalance: number;
-  overtimeLeaveBalance: number;
   createdAt: Date;
   updatedAt: Date;
 }

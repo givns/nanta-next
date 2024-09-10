@@ -3,8 +3,6 @@
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { getRegistrationQueue } from '../lib/queue';
-import { processRegistration } from '../lib/processRegistration';
-import { processAttendance } from '../lib/processAttendance';
 
 console.log('Current working directory:', process.cwd());
 console.log('__dirname:', __dirname);
@@ -47,7 +45,7 @@ queue.on('failed', (job, err) => {
 queue.process('user-registration', async (job) => {
   console.log('Processing user registration job:', job.id);
   try {
-    return await processRegistration(job);
+    //return await processRegistration(job);
   } catch (error) {
     console.error(
       'Error processing user registration job:',
@@ -63,7 +61,7 @@ queue.process('user-registration', async (job) => {
 queue.process('process-payroll', async (job) => {
   console.log('Processing payroll job:', job.id);
   try {
-    return await processAttendance(job);
+    //return await processAttendance(job);
   } catch (error) {
     console.error('Error processing payroll job:', job.id, 'Error:', error);
     throw error;

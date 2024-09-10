@@ -3,7 +3,6 @@
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { getAttendanceProcessingQueue } from '../lib/queue';
-import { processAttendance } from '../lib/processAttendance';
 import { logMessage } from '../utils/inMemoryLogger';
 import { Job } from 'bull';
 
@@ -42,7 +41,7 @@ queue.on('failed', (job: Job, err: Error) => {
 queue.process('process-payroll', async (job: Job) => {
   logMessage(`Processing payroll job: ${job.id}`);
   try {
-    const result = await processAttendance(job);
+    const result = await //processAttendance(job);
     logMessage(`Payroll processing completed for job: ${job.id}`);
     return result;
   } catch (error: any) {

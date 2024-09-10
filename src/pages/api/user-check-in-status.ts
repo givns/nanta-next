@@ -3,22 +3,42 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/AttendanceService';
-import { ExternalDbService } from '@/services/ExternalDbService';
 import { HolidayService } from '@/services/HolidayService';
 import { Shift104HolidayService } from '@/services/Shift104HolidayService';
-import { UserData, ShiftAdjustment, ApprovedOvertime } from '../../types/user';
-import moment from 'moment-timezone';
-import { leaveServiceServer } from '@/services/LeaveServiceServer';
+import { UserData } from '../../types/user';
+import { ShiftAdjustment, ApprovedOvertime } from '@/types/attendance';
+import { UserRole } from '@/types/enum';
+import { parseISO, startOfDay } from 'date-fns';
+import { LeaveServiceServer } from '@/services/LeaveServiceServer';
+import { ShiftManagementService } from '@/services/ShiftManagementService';
+import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
+import { NotificationService } from '@/services/NotificationService';
+import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
+import { TimeEntryService } from '@/services/TimeEntryService';
 
 const prisma = new PrismaClient();
-const externalDbService = new ExternalDbService();
-const holidayService = new HolidayService();
+const holidayService = new HolidayService(prisma);
 const shift104HolidayService = new Shift104HolidayService();
+const shiftManagementService = new ShiftManagementService(prisma);
+const notificationService = new NotificationService();
+const overtimeNotificationService = new OvertimeNotificationService();
+const timeEntryService = new TimeEntryService(prisma);
+const leaveServiceServer = new LeaveServiceServer();
+
+const overtimeService = new OvertimeServiceServer(
+  prisma,
+  overtimeNotificationService,
+  timeEntryService,
+);
+
 const attendanceService = new AttendanceService(
-  externalDbService,
+  prisma,
+  shiftManagementService,
   holidayService,
-  shift104HolidayService,
   leaveServiceServer,
+  overtimeService,
+  notificationService,
+  timeEntryService,
 );
 
 export default async function handler(
@@ -58,7 +78,7 @@ export default async function handler(
       nickname: user.nickname,
       departmentId: user.departmentId,
       department: user.department.name,
-      role: user.role as any, // Cast to UserRole enum if necessary
+      role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
       shiftId: user.shiftId,
       assignedShift: user.assignedShift,
@@ -76,7 +96,6 @@ export default async function handler(
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
-      overtimeLeaveBalance: user.overtimeLeaveBalance,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -85,22 +104,20 @@ export default async function handler(
       user.employeeId,
     );
 
-    const today = moment().tz('Asia/Bangkok').startOf('day');
+    const today = startOfDay(new Date());
     const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
       where: {
         employeeId: user.employeeId,
-        date: today.toDate(),
+        date: today,
         status: 'approved',
       },
       include: { requestedShift: true },
     });
 
-    const approvedOvertime = await prisma.approvedOvertime.findFirst({
-      where: {
-        employeeId: user.employeeId,
-        date: today.toDate(),
-      },
-    });
+    const approvedOvertime = await overtimeService.getApprovedOvertimeRequest(
+      user.employeeId,
+      today,
+    );
 
     const responseData = {
       user: userData,
@@ -116,18 +133,7 @@ export default async function handler(
             updatedAt: shiftAdjustment.updatedAt,
           } as ShiftAdjustment)
         : null,
-      approvedOvertime: approvedOvertime
-        ? ({
-            id: approvedOvertime.id,
-            employeeId: approvedOvertime.employeeId,
-            date: approvedOvertime.date,
-            startTime: approvedOvertime.startTime.toISOString(),
-            endTime: approvedOvertime.endTime.toISOString(),
-            status: approvedOvertime.status,
-            approvedBy: approvedOvertime.approvedBy,
-            approvedAt: approvedOvertime.approvedAt,
-          } as ApprovedOvertime)
-        : null,
+      approvedOvertime: approvedOvertime,
     };
 
     res.status(200).json(responseData);

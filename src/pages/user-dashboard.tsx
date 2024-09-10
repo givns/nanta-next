@@ -4,7 +4,8 @@ import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Calendar } from '../components/ui/calendar';
 import { Input } from '../components/ui/input';
 import liff from '@line/liff';
-import { UserData, ProcessedAttendance, ShiftData } from '@/types/user';
+import { UserData } from '@/types/user';
+import { ProcessedAttendance, ShiftData } from '@/types/attendance';
 import moment from 'moment-timezone';
 import AttendanceTable from '../components/AttendanceTable';
 

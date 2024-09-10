@@ -5,7 +5,6 @@ interface LeaveBalanceData {
   sickLeave: number;
   businessLeave: number;
   annualLeave: number;
-  overtimeLeave: number;
   totalLeaveDays: number;
 }
 
@@ -69,14 +68,12 @@ const LeaveBalanceComponent: React.FC<LeaveBalanceProps> = ({
           <p>Sick Leave:</p>
           <p>Business Leave:</p>
           <p>Annual Leave:</p>
-          <p>Overtime Leave:</p>
           <p className="font-bold">Total Leave Days:</p>
         </div>
         <div>
           <p>{leaveBalance.sickLeave} days</p>
           <p>{leaveBalance.businessLeave} days</p>
           <p>{leaveBalance.annualLeave} days</p>
-          <p>{leaveBalance.overtimeLeave} hours</p>
           <p className="font-bold">{leaveBalance.totalLeaveDays} days</p>
         </div>
       </div>

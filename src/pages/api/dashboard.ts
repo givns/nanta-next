@@ -2,16 +2,12 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
-import {
-  UserData,
-  ShiftData,
-  AttendanceRecord,
-  PotentialOvertime,
-} from '../../types/user';
+import { UserData } from '../../types/user';
 import { HolidayService } from '../../services/HolidayService';
 import { UserRole } from '../../types/enum';
+import { ShiftData } from '@/types/attendance';
 
-const holidayService = new HolidayService();
+const holidayService = new HolidayService(prisma);
 
 export default async function handler(
   req: NextApiRequest,
@@ -148,7 +144,6 @@ export default async function handler(
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
-      overtimeLeaveBalance: user.overtimeLeaveBalance,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
