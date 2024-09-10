@@ -1,5 +1,5 @@
 import React from 'react';
-import ImportUserProfilesForm from '../../components/ImportUserProfilesForm'; // Import the component
+import ImportUserProfilesForm from '../../components/ImportUserProfilesForm'; // Import the component from the components folder
 
 const ImportUsersPage: React.FC = () => {
   return (
