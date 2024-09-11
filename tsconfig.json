@@ -16,9 +16,10 @@
     "incremental": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
+      "@components/*": ["./src/components/*"],
       "@prisma/client": ["./node_modules/@prisma/client"],
-      "@/services/*": ["src/services/*"]
+      "@/services/*": ["./src/services/*"]
     },
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "types": ["node"]
@@ -30,7 +31,6 @@
     "scripts/validatePrismaClient.ts",
     "types/**/*.d.ts",
     "src/**/*",
-    "src/**/*.ts",
     "ecosystem.config.js",
     "next.config.js"
   ],
