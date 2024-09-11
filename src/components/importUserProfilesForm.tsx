@@ -1,4 +1,4 @@
-// ImportUserProfilesForm.tsx
+// src/components/ImportUserProfilesForm.tsx
 import React, { useState } from 'react';
 import axios from 'axios';
 
@@ -35,10 +35,8 @@ const ImportUserProfilesForm: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
-      <h2 className="text-2xl font-bold mb-6 text-center">
-        Import User Profiles
-      </h2>
+    <div className="mt-6 p-4 bg-gray-100 rounded-lg">
+      <h3 className="text-lg font-semibold mb-4">Import User Profiles</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label
@@ -66,13 +64,13 @@ const ImportUserProfilesForm: React.FC = () => {
       </form>
       {importResults && (
         <div className="mt-4">
-          <h3 className="text-lg font-semibold">Import Results:</h3>
+          <h4 className="text-md font-semibold">Import Results:</h4>
           <p>Total records: {importResults.total}</p>
           <p>Successfully imported: {importResults.success}</p>
           <p>Failed to import: {importResults.failed}</p>
           {importResults.errors.length > 0 && (
             <div>
-              <h4 className="text-md font-semibold mt-2">Errors:</h4>
+              <h5 className="text-sm font-semibold mt-2">Errors:</h5>
               <ul className="list-disc list-inside">
                 {importResults.errors.map((error: string, index: number) => (
                   <li key={index} className="text-sm text-red-600">
