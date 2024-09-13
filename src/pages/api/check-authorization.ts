@@ -12,7 +12,7 @@ export default async function handler(
   }
 
   const userRole = await getUserRole(lineUserId);
-  const isAuthorized = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
+  const isAuthorized = userRole === 'Admin' || userRole === 'SuperAdmin';
 
   res.status(200).json({ isAuthorized });
 }
