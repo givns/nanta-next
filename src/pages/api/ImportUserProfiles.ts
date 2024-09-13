@@ -19,7 +19,9 @@ const multerMiddleware = initMiddleware(upload.single('file'));
 
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
   },
 };
 

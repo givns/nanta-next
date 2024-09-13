@@ -52,7 +52,6 @@ const nextConfig = {
         headers: securityHeaders,
       },
       {
-        // Add this new object for API routes
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Credentials', value: 'true' },
@@ -80,11 +79,6 @@ const nextConfig = {
       };
     }
     return config;
-  },
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
   },
 };
 
