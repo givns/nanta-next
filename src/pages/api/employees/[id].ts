@@ -24,7 +24,7 @@ export default async function handler(
     const userRole = await getUserRole(lineUserId);
     console.log('User role:', userRole);
 
-    if (userRole !== 'ADMIN' && userRole !== 'SuperAdmin') {
+    if (userRole !== 'Admin' && userRole !== 'SuperAdmin') {
       console.error('User does not have required role');
       return res
         .status(403)

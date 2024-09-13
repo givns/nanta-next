@@ -9,7 +9,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  console.log('Received headers:', req.headers);
+  console.log('Received headers:', JSON.stringify(req.headers, null, 2));
   const lineUserId = req.headers['x-line-userid'];
   console.log('Extracted lineUserId:', lineUserId);
 
@@ -24,7 +24,7 @@ export default async function handler(
     const userRole = await getUserRole(lineUserId);
     console.log('User role:', userRole);
 
-    if (userRole !== 'ADMIN' && userRole !== 'SuperAdmin') {
+    if (userRole !== 'Admin' && userRole !== 'SuperAdmin') {
       console.error('User does not have required role');
       return res
         .status(403)

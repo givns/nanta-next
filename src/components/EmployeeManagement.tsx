@@ -73,6 +73,19 @@ const EmployeeManagement: React.FC = () => {
     initializeLiff();
   }, []);
 
+  useEffect(() => {
+    if (lineUserId && isAuthorized) {
+      fetchEmployees();
+    }
+  }, [lineUserId, isAuthorized]);
+
+  useEffect(() => {
+    if (!liff.isLoggedIn()) {
+      console.log('User not logged in, redirecting to LINE Login');
+      liff.login();
+    }
+  }, []);
+
   const checkAuthorization = async (userId: string) => {
     try {
       const response = await axios.get('/api/check-authorization', {
@@ -89,6 +102,10 @@ const EmployeeManagement: React.FC = () => {
 
   const fetchEmployees = async () => {
     try {
+      if (!lineUserId) {
+        console.error('No lineUserId available');
+        return;
+      }
       console.log('Fetching employees with lineUserId:', lineUserId);
       const response = await axios.get('/api/employees', {
         headers: { 'x-line-userid': lineUserId },
