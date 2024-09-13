@@ -58,9 +58,11 @@ const EmployeeManagement: React.FC = () => {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
+          console.log('LINE profile:', profile);
           setLineUserId(profile.userId);
           checkAuthorization(profile.userId);
         } else {
+          console.log('User not logged in');
           liff.login();
         }
       } catch (error) {
@@ -87,12 +89,19 @@ const EmployeeManagement: React.FC = () => {
 
   const fetchEmployees = async () => {
     try {
+      console.log('Fetching employees with lineUserId:', lineUserId);
       const response = await axios.get('/api/employees', {
         headers: { 'x-line-userid': lineUserId },
       });
+      console.log('Fetched employees:', response.data);
       setEmployees(response.data);
     } catch (error) {
       console.error('Error fetching employees:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Response data:', error.response?.data);
+        console.error('Response status:', error.response?.status);
+        console.error('Response headers:', error.response?.headers);
+      }
     }
   };
 
