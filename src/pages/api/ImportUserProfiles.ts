@@ -80,19 +80,6 @@ export default async function handler(
         const isGovernmentRegistered =
           record.registered.toLowerCase() === 'yes';
 
-        const existingUser = await prisma.user.findUnique({
-          where: { employeeId: record.employeeId },
-        });
-
-        const leaveBalances = existingUser
-          ? {
-              sickLeaveBalance: parseFloat(record.sickLeaveBalance) || 0,
-              businessLeaveBalance:
-                parseFloat(record.businessLeaveBalance) || 0,
-              annualLeaveBalance: parseFloat(record.annualLeaveBalance) || 0,
-            }
-          : calculateLeaveBalances(employeeType);
-
         await prisma.user.upsert({
           where: { employeeId: record.employeeId },
           update: {
@@ -103,7 +90,9 @@ export default async function handler(
             company: record.company,
             employeeType,
             isGovernmentRegistered,
-            ...leaveBalances,
+            sickLeaveBalance: parseFloat(record.sickLeaveBalance) || 0,
+            businessLeaveBalance: parseFloat(record.businessLeaveBalance) || 0,
+            annualLeaveBalance: parseFloat(record.annualLeaveBalance) || 0,
             isPreImported: true,
             isRegistrationComplete: true,
           },
@@ -116,7 +105,9 @@ export default async function handler(
             company: record.company,
             employeeType,
             isGovernmentRegistered,
-            ...leaveBalances,
+            sickLeaveBalance: parseFloat(record.sickLeaveBalance) || 0,
+            businessLeaveBalance: parseFloat(record.businessLeaveBalance) || 0,
+            annualLeaveBalance: parseFloat(record.annualLeaveBalance) || 0,
             isPreImported: true,
             isRegistrationComplete: true,
           },
