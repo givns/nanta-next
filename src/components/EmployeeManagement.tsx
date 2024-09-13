@@ -1,17 +1,34 @@
-// components/EmployeeManagement.tsx
 import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import liff from '@line/liff';
-import ImportUserProfilesForm from './ImportUserProfilesForm';
 
 const EmployeeSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
   nickname: Yup.string(),
-  department: Yup.string().required('Required'),
+  departmentId: Yup.string().required('Required'),
   role: Yup.string().required('Required'),
+  employeeType: Yup.string().required('Required'),
+  isGovernmentRegistered: Yup.boolean(),
+  company: Yup.string(),
 });
+
+interface Employee {
+  id: string;
+  employeeId: string;
+  name: string;
+  nickname: string;
+  department: { id: string; name: string };
+  role: string;
+  assignedShift: { id: string; name: string };
+  isLegacyUser: boolean;
+  employeeType: string;
+  isGovernmentRegistered: boolean;
+  company: string | null;
+  profilePictureUrl: string | null;
+  isRegistrationComplete: boolean;
+}
 
 const departments = [
   'ฝ่ายปฏิบัติการ',
@@ -31,19 +48,6 @@ const departments = [
   'ฝ่ายรักษาความปลอดภัย',
 ];
 
-const roles = ['DRIVER', 'OPERATION', 'GENERAL', 'ADMIN'];
-
-interface Employee {
-  id: string;
-  employeeId: string;
-  name: string;
-  nickname: string;
-  department: { id: string; name: string };
-  role: string;
-  assignedShift: { id: string; name: string };
-  isLegacyUser: boolean;
-}
-
 const EmployeeManagement: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
@@ -52,7 +56,6 @@ const EmployeeManagement: React.FC = () => {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [showImportForm, setShowImportForm] = useState(false);
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -60,11 +63,9 @@ const EmployeeManagement: React.FC = () => {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
-          console.log('LINE profile:', profile);
           setLineUserId(profile.userId);
           checkAuthorization(profile.userId);
         } else {
-          console.log('User not logged in');
           liff.login();
         }
       } catch (error) {
@@ -73,19 +74,6 @@ const EmployeeManagement: React.FC = () => {
     };
 
     initializeLiff();
-  }, []);
-
-  useEffect(() => {
-    if (lineUserId && isAuthorized) {
-      fetchEmployees();
-    }
-  }, [lineUserId, isAuthorized]);
-
-  useEffect(() => {
-    if (!liff.isLoggedIn()) {
-      console.log('User not logged in, redirecting to LINE Login');
-      liff.login();
-    }
   }, []);
 
   const checkAuthorization = async (userId: string) => {
@@ -104,23 +92,12 @@ const EmployeeManagement: React.FC = () => {
 
   const fetchEmployees = async () => {
     try {
-      if (!lineUserId) {
-        console.error('No lineUserId available');
-        return;
-      }
-      console.log('Fetching employees with lineUserId:', lineUserId);
       const response = await axios.get('/api/employees', {
         headers: { 'x-line-userid': lineUserId },
       });
-      console.log('Fetched employees:', response.data);
       setEmployees(response.data);
     } catch (error) {
       console.error('Error fetching employees:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Response data:', error.response?.data);
-        console.error('Response status:', error.response?.status);
-        console.error('Response headers:', error.response?.headers);
-      }
     }
   };
 
@@ -155,7 +132,7 @@ const EmployeeManagement: React.FC = () => {
         Employee Management
       </h2>
 
-      <div className="mb-6 flex justify-between">
+      <div className="mb-6">
         <button
           onClick={() => {
             setIsAddingNew(true);
@@ -165,15 +142,7 @@ const EmployeeManagement: React.FC = () => {
         >
           Add New Employee
         </button>
-        <button
-          onClick={() => setShowImportForm(!showImportForm)}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          {showImportForm ? 'Hide Import Form' : 'Show Import Form'}
-        </button>
       </div>
-
-      {showImportForm && <ImportUserProfilesForm />}
 
       {(isAddingNew || selectedEmployee) && (
         <Formik
@@ -181,8 +150,11 @@ const EmployeeManagement: React.FC = () => {
             selectedEmployee || {
               name: '',
               nickname: '',
-              department: '',
+              departmentId: '',
               role: '',
+              employeeType: 'PROBATION',
+              isGovernmentRegistered: false,
+              company: '',
             }
           }
           validationSchema={EmployeeSchema}
@@ -211,18 +183,18 @@ const EmployeeManagement: React.FC = () => {
 
               <Field
                 as="select"
-                name="department"
+                name="departmentId"
                 className="w-full p-2 border rounded"
               >
                 <option value="">Select Department</option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>
+                {departments.map((dept, index) => (
+                  <option key={index} value={dept}>
                     {dept}
                   </option>
                 ))}
               </Field>
               <ErrorMessage
-                name="department"
+                name="departmentId"
                 component="div"
                 className="text-red-500 text-sm"
               />
@@ -233,16 +205,47 @@ const EmployeeManagement: React.FC = () => {
                 className="w-full p-2 border rounded"
               >
                 <option value="">Select Role</option>
-                {roles.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
+                <option value="DRIVER">Driver</option>
+                <option value="OPERATION">Operation</option>
+                <option value="GENERAL">General</option>
+                <option value="ADMIN">Admin</option>
+                <option value="SUPERADMIN">Super Admin</option>
               </Field>
               <ErrorMessage
                 name="role"
                 component="div"
                 className="text-red-500 text-sm"
+              />
+
+              <Field
+                as="select"
+                name="employeeType"
+                className="w-full p-2 border rounded"
+              >
+                <option value="FULL_TIME">Full Time</option>
+                <option value="PART_TIME">Part Time</option>
+                <option value="PROBATION">Probation</option>
+              </Field>
+              <ErrorMessage
+                name="employeeType"
+                component="div"
+                className="text-red-500 text-sm"
+              />
+
+              <label className="flex items-center">
+                <Field
+                  type="checkbox"
+                  name="isGovernmentRegistered"
+                  className="mr-2"
+                />
+                Is Government Registered
+              </label>
+
+              <Field
+                name="company"
+                type="text"
+                placeholder="Company"
+                className="w-full p-2 border rounded"
               />
 
               <button
@@ -271,7 +274,7 @@ const EmployeeManagement: React.FC = () => {
               <th className="border p-2">Nickname</th>
               <th className="border p-2">Department</th>
               <th className="border p-2">Role</th>
-              <th className="border p-2">Shift</th>
+              <th className="border p-2">Employee Type</th>
               <th className="border p-2">Actions</th>
             </tr>
           </thead>
@@ -286,7 +289,7 @@ const EmployeeManagement: React.FC = () => {
                 <td className="border p-2">{employee.nickname}</td>
                 <td className="border p-2">{employee.department.name}</td>
                 <td className="border p-2">{employee.role}</td>
-                <td className="border p-2">{employee.assignedShift.name}</td>
+                <td className="border p-2">{employee.employeeType}</td>
                 <td className="border p-2">
                   {employee.isLegacyUser ? (
                     <span className="text-yellow-600">Legacy User</span>
