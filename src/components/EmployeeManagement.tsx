@@ -4,6 +4,7 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import liff from '@line/liff';
 import api from '../utils/api';
+import ImportUserProfilesForm from './ImportUserProfilesForm';
 
 const EmployeeSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -57,6 +58,7 @@ const EmployeeManagement: React.FC = () => {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [showImportForm, setShowImportForm] = useState(false);
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -173,7 +175,15 @@ const EmployeeManagement: React.FC = () => {
         >
           Add New Employee
         </button>
+        <button
+          onClick={() => setShowImportForm(!showImportForm)}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          {showImportForm ? 'Hide Import Form' : 'Import Employees'}
+        </button>
       </div>
+
+      {showImportForm && <ImportUserProfilesForm />}
 
       {(isAddingNew || selectedEmployee) && (
         <Formik
