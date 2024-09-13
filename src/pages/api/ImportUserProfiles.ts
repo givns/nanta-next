@@ -55,14 +55,31 @@ export default async function handler(
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const csvData = file.buffer.toString();
-    const records = parse(csvData, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true, // This will trim whitespace from all fields
-    });
+    console.log('Uploaded file:', file.originalname, file.mimetype, file.size);
 
-    console.log('Number of records parsed:', records.length);
+    const csvData = file.buffer
+      .toString('utf-8')
+      .replace(/[^\x20-\x7E\n\r]/g, '');
+    console.log('Raw CSV data:', csvData);
+
+    let records;
+    try {
+      records = parse(csvData, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relaxColumnCount: true,
+        relaxQuotes: true,
+        skipRecordsWithError: true,
+      });
+    } catch (parseError: any) {
+      console.error('Error parsing CSV:', parseError);
+      return res
+        .status(400)
+        .json({ message: 'Error parsing CSV file', error: parseError.message });
+    }
+
+    console.log('Parsed records:', records);
 
     const importResults = {
       total: records.length,
@@ -72,9 +89,8 @@ export default async function handler(
     };
 
     for (const [index, record] of records.entries()) {
+      console.log(`Processing record ${index + 1}:`, JSON.stringify(record));
       try {
-        console.log(`Processing record ${index + 1}:`, record);
-
         if (!record.employeeId || record.employeeId.trim() === '') {
           throw new Error('Employee ID is missing or empty');
         }
@@ -132,7 +148,7 @@ export default async function handler(
       .status(200)
       .json({ message: 'Import completed', results: importResults });
   } catch (error: any) {
-    console.error('Error importing user profiles:', error);
+    console.error('Error in import process:', error);
     res
       .status(500)
       .json({ message: 'Internal server error', error: error.message });
