@@ -3,6 +3,7 @@ import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import liff from '@line/liff';
+import api from '../utils/api';
 
 const EmployeeSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -63,9 +64,12 @@ const EmployeeManagement: React.FC = () => {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
+          console.log('LINE profile:', profile);
           setLineUserId(profile.userId);
+          localStorage.setItem('lineUserId', profile.userId); // Store lineUserId in localStorage
           checkAuthorization(profile.userId);
         } else {
+          console.log('User not logged in');
           liff.login();
         }
       } catch (error) {
@@ -78,9 +82,7 @@ const EmployeeManagement: React.FC = () => {
 
   const checkAuthorization = async (userId: string) => {
     try {
-      const response = await axios.get('/api/check-authorization', {
-        headers: { 'x-line-userid': userId },
-      });
+      const response = await api.get('/check-authorization');
       setIsAuthorized(response.data.isAuthorized);
       if (response.data.isAuthorized) {
         fetchEmployees();
@@ -92,25 +94,26 @@ const EmployeeManagement: React.FC = () => {
 
   const fetchEmployees = async () => {
     try {
-      const response = await axios.get('/api/employees', {
-        headers: { 'x-line-userid': lineUserId },
-      });
+      console.log('Fetching employees');
+      const response = await api.get('/employees');
+      console.log('Fetched employees:', response.data);
       setEmployees(response.data);
     } catch (error) {
       console.error('Error fetching employees:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Response data:', error.response?.data);
+        console.error('Response status:', error.response?.status);
+        console.error('Response headers:', error.response?.headers);
+      }
     }
   };
 
   const handleSubmit = async (values: any, { setSubmitting }: any) => {
     try {
       if (selectedEmployee) {
-        await axios.put(`/api/employees/${selectedEmployee.id}`, values, {
-          headers: { 'x-line-userid': lineUserId },
-        });
+        await api.put(`/employees/${selectedEmployee.id}`, values);
       } else {
-        await axios.post('/api/employees', values, {
-          headers: { 'x-line-userid': lineUserId },
-        });
+        await api.post('/employees', values);
       }
       fetchEmployees();
       setSelectedEmployee(null);

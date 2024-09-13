@@ -9,7 +9,8 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   console.log('Received headers:', JSON.stringify(req.headers, null, 2));
-  const lineUserId = req.headers['x-line-userid'];
+
+  const lineUserId = req.headers['x-line-userid'] as string;
   console.log('Extracted lineUserId:', lineUserId);
 
   if (!lineUserId || typeof lineUserId !== 'string') {
