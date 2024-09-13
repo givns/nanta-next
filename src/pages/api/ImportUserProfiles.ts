@@ -67,7 +67,11 @@ export default async function handler(
       columns: true,
       skip_empty_lines: true,
       trim: true,
+      relax_quotes: true,
+      relax_column_count: true,
     });
+
+    console.log('Parsed records:', records);
 
     const importResults = {
       total: records.length,
