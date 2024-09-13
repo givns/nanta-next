@@ -21,20 +21,28 @@ const ImportUserProfilesForm: React.FC = () => {
     const formData = new FormData();
     formData.append('file', file);
 
-    try {
-      const response = await axios.post('/api/ImportUserProfiles', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'x-line-userid': localStorage.getItem('lineUserId'),
-        },
-      });
-      setImportResults(response.data.results);
-    } catch (error) {
-      console.error('Error importing user profiles:', error);
-      alert('Error importing user profiles. Please try again.');
-    } finally {
-      setImporting(false);
-    }
+    // Log file content
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      console.log('File content:', e.target?.result);
+
+      try {
+        const response = await axios.post('/api/ImportUserProfiles', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'x-line-userid': localStorage.getItem('lineUserId'),
+          },
+        });
+        console.log('Import results:', response.data.results);
+        setImportResults(response.data.results);
+      } catch (error) {
+        console.error('Error importing user profiles:', error);
+        alert('Error importing user profiles. Please try again.');
+      } finally {
+        setImporting(false);
+      }
+    };
+    reader.readAsText(file);
   };
 
   return (

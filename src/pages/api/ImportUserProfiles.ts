@@ -61,6 +61,8 @@ export default async function handler(
       skip_empty_lines: true,
     });
 
+    console.log('Parsed CSV data:', records); // Log the parsed data
+
     const importResults = {
       total: records.length,
       success: 0,
