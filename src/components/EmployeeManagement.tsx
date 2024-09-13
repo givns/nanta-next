@@ -129,6 +129,34 @@ const EmployeeManagement: React.FC = () => {
     return <div>You are not authorized to access this page.</div>;
   }
 
+  const renderEmployeeRow = (employee: Employee) => (
+    <tr
+      key={employee.id}
+      className={employee.isLegacyUser ? 'bg-yellow-100' : ''}
+    >
+      <td className="border p-2">{employee.employeeId}</td>
+      <td className="border p-2">{employee.name}</td>
+      <td className="border p-2">{employee.nickname || '-'}</td>
+      <td className="border p-2">
+        {employee.department?.name || 'Legacy Department'}
+      </td>
+      <td className="border p-2">{employee.role}</td>
+      <td className="border p-2">{employee.employeeType || 'LEGACY'}</td>
+      <td className="border p-2">
+        {employee.isLegacyUser ? (
+          <span className="text-yellow-600">Legacy User</span>
+        ) : (
+          <button
+            onClick={() => setSelectedEmployee(employee)}
+            className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 mr-2"
+          >
+            Edit
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+
   return (
     <div className="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
       <h2 className="text-2xl font-bold mb-6 text-center">
@@ -281,35 +309,7 @@ const EmployeeManagement: React.FC = () => {
               <th className="border p-2">Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {employees.map((employee) => (
-              <tr
-                key={employee.id}
-                className={employee.isLegacyUser ? 'bg-yellow-100' : ''}
-              >
-                <td className="border p-2">{employee.employeeId}</td>
-                <td className="border p-2">{employee.name}</td>
-                <td className="border p-2">{employee.nickname || '-'}</td>
-                <td className="border p-2">
-                  {employee.department?.name || 'Unassigned'}
-                </td>
-                <td className="border p-2">{employee.role}</td>
-                <td className="border p-2">{employee.employeeType}</td>
-                <td className="border p-2">
-                  {employee.isLegacyUser ? (
-                    <span className="text-yellow-600">Legacy User</span>
-                  ) : (
-                    <button
-                      onClick={() => setSelectedEmployee(employee)}
-                      className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 mr-2"
-                    >
-                      Edit
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
+          <tbody>{employees.map(renderEmployeeRow)}</tbody>
         </table>
       </div>
     </div>

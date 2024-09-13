@@ -42,26 +42,26 @@ export default async function handler(
         id: user.id,
         employeeId: user.employeeId,
         name: user.name,
-        nickname: user.nickname,
+        nickname: user.nickname || null,
         department: user.department
           ? {
               id: user.department.id,
               name: user.department.name,
             }
-          : null,
+          : { id: 'legacy', name: 'Legacy Department' },
         role: user.role,
         assignedShift: user.assignedShift
           ? {
               id: user.assignedShift.id,
               name: user.assignedShift.name,
             }
-          : null,
-        isLegacyUser: user.isPreImported,
-        employeeType: user.employeeType,
-        isGovernmentRegistered: user.isGovernmentRegistered,
-        company: user.company,
-        profilePictureUrl: user.profilePictureUrl,
-        isRegistrationComplete: user.isRegistrationComplete,
+          : { id: 'legacy', name: 'Legacy Shift' },
+        isLegacyUser: true, // Mark all existing users as legacy for now
+        employeeType: user.employeeType || 'LEGACY',
+        isGovernmentRegistered: user.isGovernmentRegistered || false,
+        company: user.company || 'Legacy Company',
+        profilePictureUrl: user.profilePictureUrl || null,
+        isRegistrationComplete: user.isRegistrationComplete || false,
       }));
 
       console.log('Fetched employees:', mappedEmployees.length);

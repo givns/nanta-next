@@ -27,15 +27,15 @@ model User {
   name                    String
   lineUserId              String?                  @unique
   nickname                String?
-  department              Department @relation(fields: [departmentId], references: [id]) 
-  departmentId            String  @db.ObjectId
+  department              Department? @relation(fields: [departmentId], references: [id]) 
+  departmentId            String?  @db.ObjectId
   role                    String
   company                 String?
   employeeType            EmployeeType             @default(PROBATION)
   isGovernmentRegistered  Boolean                  @default(false)
   profilePictureUrl       String?
-  shiftId                 String    @db.ObjectId
-  assignedShift           Shift     @relation("UserAssignedShift", fields: [shiftId], references: [id])
+  shiftId                 String?    @db.ObjectId
+  assignedShift           Shift?     @relation("UserAssignedShift", fields: [shiftId], references: [id])
   overtimeHours           Float     @default(0)
   attendances             Attendance[]
   shiftAdjustmentRequests ShiftAdjustmentRequest[]
