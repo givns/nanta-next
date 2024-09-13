@@ -59,9 +59,10 @@ export default async function handler(
     const records = parse(csvData, {
       columns: true,
       skip_empty_lines: true,
+      trim: true, // This will trim whitespace from all fields
     });
 
-    console.log('Parsed CSV data:', records); // Log the parsed data
+    console.log('Number of records parsed:', records.length);
 
     const importResults = {
       total: records.length,
@@ -70,10 +71,12 @@ export default async function handler(
       errors: [] as string[],
     };
 
-    for (const record of records) {
+    for (const [index, record] of records.entries()) {
       try {
-        if (!record.employeeId) {
-          throw new Error('Employee ID is missing');
+        console.log(`Processing record ${index + 1}:`, record);
+
+        if (!record.employeeId || record.employeeId.trim() === '') {
+          throw new Error('Employee ID is missing or empty');
         }
 
         const employeeType = mapEmployeeType(record.type);
@@ -118,12 +121,13 @@ export default async function handler(
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         importResults.errors.push(
-          `Error importing ${record.employeeId}: ${errorMessage}`,
+          `Error importing record ${index + 1} (${record.employeeId || 'unknown'}): ${errorMessage}`,
         );
-        console.error(`Failed to import ${record.employeeId}:`, error);
+        console.error(`Failed to import record ${index + 1}:`, error);
       }
     }
 
+    console.log('Import results:', importResults);
     res
       .status(200)
       .json({ message: 'Import completed', results: importResults });
@@ -142,31 +146,8 @@ function mapEmployeeType(type: string): EmployeeType {
     case 'part-time':
       return EmployeeType.PART_TIME;
     case 'probation':
-    default:
       return EmployeeType.PROBATION;
-  }
-}
-
-function calculateLeaveBalances(type: EmployeeType) {
-  switch (type) {
-    case EmployeeType.FULL_TIME:
-      return {
-        sickLeaveBalance: 30,
-        businessLeaveBalance: 3,
-        annualLeaveBalance: 6,
-      };
-    case EmployeeType.PART_TIME:
-      return {
-        sickLeaveBalance: 30,
-        businessLeaveBalance: 3,
-        annualLeaveBalance: 3,
-      };
-    case EmployeeType.PROBATION:
     default:
-      return {
-        sickLeaveBalance: 0,
-        businessLeaveBalance: 0,
-        annualLeaveBalance: 0,
-      };
+      throw new Error(`Invalid employee type: ${type}`);
   }
 }
