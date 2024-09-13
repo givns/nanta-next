@@ -22,7 +22,7 @@ const ImportUserProfilesForm: React.FC = () => {
     formData.append('file', file);
 
     try {
-      const response = await axios.post('/api/importUserProfiles', formData, {
+      const response = await axios.post('/api/ImportUserProfiles', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           'x-line-userid': localStorage.getItem('lineUserId'),
