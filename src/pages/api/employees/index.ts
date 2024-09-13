@@ -1,8 +1,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, User, Department, Shift } from '@prisma/client';
 import { getUserRole } from '../../../utils/auth';
 
 const prisma = new PrismaClient();
+
+type EmployeeWithRelations = User & {
+  department: Department | null;
+  assignedShift: Shift | null;
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -31,26 +36,26 @@ export default async function handler(
     }
 
     if (req.method === 'GET') {
-      const employees = await prisma.user.findMany({
+      const users = await prisma.user.findMany({
         include: {
           department: true,
           assignedShift: true,
         },
       });
 
-      // Map the results to handle potential null values
-      const mappedEmployees = employees.map((employee) => ({
-        ...employee,
-        department: employee.department || {
-          id: 'unassigned',
-          name: 'Unassigned',
-        },
-        assignedShift: employee.assignedShift || {
-          id: 'no-shift',
-          name: 'No Shift Assigned',
-        },
-        // Add a flag to identify the special user
-        isLegacyUser: !employee.department && !employee.assignedShift,
+      const mappedEmployees = users.map((user: EmployeeWithRelations) => ({
+        id: user.id,
+        employeeId: user.employeeId,
+        name: user.name,
+        nickname: user.nickname,
+        department: user.department
+          ? { id: user.department.id, name: user.department.name }
+          : { id: 'unassigned', name: 'Unassigned' },
+        role: user.role,
+        assignedShift: user.assignedShift
+          ? { id: user.assignedShift.id, name: user.assignedShift.name }
+          : { id: 'no-shift', name: 'No Shift Assigned' },
+        isLegacyUser: !user.department && !user.assignedShift,
       }));
 
       console.log('Fetched employees:', mappedEmployees.length);
@@ -63,5 +68,7 @@ export default async function handler(
     res
       .status(500)
       .json({ error: 'Internal Server Error', details: error.message });
+  } finally {
+    await prisma.$disconnect();
   }
 }
