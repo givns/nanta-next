@@ -1,5 +1,8 @@
+// lib/init-middleware.ts
+import { NextApiRequest, NextApiResponse } from 'next';
+
 export default function initMiddleware(middleware: any) {
-  return (req: any, res: any) =>
+  return (req: NextApiRequest, res: NextApiResponse) =>
     new Promise((resolve, reject) => {
       middleware(req, res, (result: any) => {
         if (result instanceof Error) {
