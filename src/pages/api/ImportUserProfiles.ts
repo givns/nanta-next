@@ -72,9 +72,13 @@ export default async function handler(
 
     for (const record of records) {
       try {
-        const employeeType = mapEmployeeType(record.Type);
+        if (!record.employeeId) {
+          throw new Error('Employee ID is missing');
+        }
+
+        const employeeType = mapEmployeeType(record.type);
         const isGovernmentRegistered =
-          record.Registered.toLowerCase() === 'yes';
+          record.registered.toLowerCase() === 'yes';
 
         const existingUser = await prisma.user.findUnique({
           where: { employeeId: record.employeeId },
@@ -82,9 +86,10 @@ export default async function handler(
 
         const leaveBalances = existingUser
           ? {
-              sickLeaveBalance: parseInt(record.sickLeaveBalance),
-              businessLeaveBalance: parseInt(record.businessLeaveBalance),
-              annualLeaveBalance: parseInt(record.annualLeaveBalance),
+              sickLeaveBalance: parseFloat(record.sickLeaveBalance) || 0,
+              businessLeaveBalance:
+                parseFloat(record.businessLeaveBalance) || 0,
+              annualLeaveBalance: parseFloat(record.annualLeaveBalance) || 0,
             }
           : calculateLeaveBalances(employeeType);
 
@@ -92,35 +97,39 @@ export default async function handler(
           where: { employeeId: record.employeeId },
           update: {
             name: record.name,
-            nickname: record.nickname,
+            nickname: record.nickname || null,
             department: { connect: { name: record.department } },
             role: record.role,
-            company: record.Company,
+            company: record.company,
             employeeType,
             isGovernmentRegistered,
-            isPreImported: true,
             ...leaveBalances,
+            isPreImported: true,
+            isRegistrationComplete: true,
           },
           create: {
             employeeId: record.employeeId,
             name: record.name,
-            nickname: record.nickname,
+            nickname: record.nickname || null,
             department: { connect: { name: record.department } },
             role: record.role,
-            company: record.Company,
+            company: record.company,
             employeeType,
             isGovernmentRegistered,
-            isPreImported: true,
-            assignedShift: { connect: { shiftCode: 'DEFAULT' } },
             ...leaveBalances,
+            isPreImported: true,
+            isRegistrationComplete: true,
           },
         });
         importResults.success++;
-      } catch (error: any) {
+      } catch (error) {
         importResults.failed++;
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         importResults.errors.push(
-          `Error importing ${record.employeeId}: ${error.message}`,
+          `Error importing ${record.employeeId}: ${errorMessage}`,
         );
+        console.error(`Failed to import ${record.employeeId}:`, error);
       }
     }
 
@@ -159,7 +168,7 @@ function calculateLeaveBalances(type: EmployeeType) {
       return {
         sickLeaveBalance: 30,
         businessLeaveBalance: 3,
-        annualLeaveBalance: 6,
+        annualLeaveBalance: 3,
       };
     case EmployeeType.PROBATION:
     default:
