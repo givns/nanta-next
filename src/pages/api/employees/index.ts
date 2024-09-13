@@ -15,7 +15,7 @@ export default async function handler(
   }
 
   const userRole = await getUserRole(lineUserId);
-  if (userRole !== 'ADMIN' && userRole !== 'SUPERADMIN') {
+  if (userRole !== 'Admin' && userRole !== 'SuperAdmin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
 

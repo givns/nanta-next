@@ -67,7 +67,6 @@ export default async function handler(
               sickLeaveBalance: parseInt(record.sickLeaveBalance),
               businessLeaveBalance: parseInt(record.businessLeaveBalance),
               annualLeaveBalance: parseInt(record.annualLeaveBalance),
-              overtimeLeaveBalance: parseInt(record.overtimeLeaveBalance),
             }
           : calculateLeaveBalances(employeeType);
 
@@ -137,14 +136,12 @@ function calculateLeaveBalances(type: EmployeeType) {
         sickLeaveBalance: 30,
         businessLeaveBalance: 3,
         annualLeaveBalance: 6,
-        overtimeLeaveBalance: 0,
       };
     case EmployeeType.PART_TIME:
       return {
         sickLeaveBalance: 30,
         businessLeaveBalance: 3,
         annualLeaveBalance: 6,
-        overtimeLeaveBalance: 0,
       };
     case EmployeeType.PROBATION:
     default:
@@ -152,7 +149,6 @@ function calculateLeaveBalances(type: EmployeeType) {
         sickLeaveBalance: 0,
         businessLeaveBalance: 0,
         annualLeaveBalance: 0,
-        overtimeLeaveBalance: 0,
       };
   }
 }
