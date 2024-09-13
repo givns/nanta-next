@@ -38,8 +38,10 @@ interface Employee {
   employeeId: string;
   name: string;
   nickname: string;
-  department: string;
+  department: { id: string; name: string };
   role: string;
+  assignedShift: { id: string; name: string };
+  isLegacyUser: boolean;
 }
 
 const EmployeeManagement: React.FC = () => {
@@ -269,24 +271,33 @@ const EmployeeManagement: React.FC = () => {
               <th className="border p-2">Nickname</th>
               <th className="border p-2">Department</th>
               <th className="border p-2">Role</th>
+              <th className="border p-2">Shift</th>
               <th className="border p-2">Actions</th>
             </tr>
           </thead>
           <tbody>
             {employees.map((employee) => (
-              <tr key={employee.id}>
+              <tr
+                key={employee.id}
+                className={employee.isLegacyUser ? 'bg-yellow-100' : ''}
+              >
                 <td className="border p-2">{employee.employeeId}</td>
                 <td className="border p-2">{employee.name}</td>
                 <td className="border p-2">{employee.nickname}</td>
-                <td className="border p-2">{employee.department}</td>
+                <td className="border p-2">{employee.department.name}</td>
                 <td className="border p-2">{employee.role}</td>
+                <td className="border p-2">{employee.assignedShift.name}</td>
                 <td className="border p-2">
-                  <button
-                    onClick={() => setSelectedEmployee(employee)}
-                    className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 mr-2"
-                  >
-                    Edit
-                  </button>
+                  {employee.isLegacyUser ? (
+                    <span className="text-yellow-600">Legacy User</span>
+                  ) : (
+                    <button
+                      onClick={() => setSelectedEmployee(employee)}
+                      className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 mr-2"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -1,4 +1,3 @@
-// pages/api/employees/index.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { getUserRole } from '../../../utils/auth';
@@ -33,54 +32,36 @@ export default async function handler(
 
     if (req.method === 'GET') {
       const employees = await prisma.user.findMany({
-        include: { department: true, assignedShift: true },
+        include: {
+          department: true,
+          assignedShift: true,
+        },
       });
-      console.log('Fetched employees:', employees.length);
-      res.status(200).json(employees);
-    } else if (req.method === 'POST') {
-      const {
-        employeeId,
-        name,
-        nickname,
-        departmentId,
-        role,
-        company,
-        employeeType,
-        isGovernmentRegistered,
-        shiftId,
-        isPreImported,
-      } = req.body;
 
-      try {
-        const newEmployee = await prisma.user.create({
-          data: {
-            employeeId,
-            name,
-            nickname,
-            department: { connect: { id: departmentId } },
-            role,
-            company,
-            employeeType: employeeType || 'PROBATION',
-            isGovernmentRegistered: isGovernmentRegistered || false,
-            assignedShift: { connect: { id: shiftId } },
-            isPreImported: isPreImported || false,
-            isRegistrationComplete: false,
-            sickLeaveBalance: 30,
-            businessLeaveBalance: 3,
-            annualLeaveBalance: 6,
-          },
-          include: { department: true, assignedShift: true },
-        });
-        res.status(201).json(newEmployee);
-      } catch (error) {
-        console.error('Error in creating new employee:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-      }
+      // Map the results to handle potential null values
+      const mappedEmployees = employees.map((employee) => ({
+        ...employee,
+        department: employee.department || {
+          id: 'unassigned',
+          name: 'Unassigned',
+        },
+        assignedShift: employee.assignedShift || {
+          id: 'no-shift',
+          name: 'No Shift Assigned',
+        },
+        // Add a flag to identify the special user
+        isLegacyUser: !employee.department && !employee.assignedShift,
+      }));
+
+      console.log('Fetched employees:', mappedEmployees.length);
+      res.status(200).json(mappedEmployees);
     } else {
       res.status(405).json({ error: 'Method not allowed' });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in /api/employees:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res
+      .status(500)
+      .json({ error: 'Internal Server Error', details: error.message });
   }
 }
