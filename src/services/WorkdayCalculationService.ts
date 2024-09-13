@@ -23,7 +23,7 @@ export class WorkdayCalculationService {
 
     const departmentDaysOff = await prisma.departmentDayOff.findMany({
       where: {
-        departmentId: user.departmentId,
+        departmentId: user.departmentId ?? '',
         date: {
           gte: startDate,
           lte: endDate,

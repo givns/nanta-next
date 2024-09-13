@@ -58,7 +58,7 @@ export default async function handler(
       name: user.name,
       nickname: user.nickname,
       employeeId: user.employeeId,
-      department: user.department.name,
+      department: user.department?.name ?? 'Unassigned',
       shift: {
         name: effectiveShift.name,
         startTime: formatTimeToHHMM(effectiveShift.startTime),

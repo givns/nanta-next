@@ -45,7 +45,7 @@ export default async function handler(
       user: {
         employeeId: user.employeeId,
         name: user.name,
-        department: user.department.name,
+        department: user.department?.name ?? 'Unassigned',
         assignedShift: user.assignedShift,
       },
       latestAttendance,

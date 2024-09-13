@@ -19,7 +19,7 @@ interface UserShiftInfoProps {
 
 const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
   const { user, status, latestAttendance, shiftAdjustment } = attendanceStatus;
-  const effectiveShift: ShiftData =
+  const effectiveShift: ShiftData | null =
     shiftAdjustment?.requestedShift || user.assignedShift;
   const today = new Date();
 

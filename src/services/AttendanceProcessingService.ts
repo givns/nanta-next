@@ -297,8 +297,8 @@ export class AttendanceProcessingService {
 
       const regularHours = this.calculateRegularHours(
         parseISO(attendance.checkIn || ''),
-        this.parseShiftTime(user.assignedShift.startTime, date),
-        this.parseShiftTime(user.assignedShift.endTime, date),
+        this.parseShiftTime(user.assignedShift?.startTime ?? '00:00', date),
+        this.parseShiftTime(user.assignedShift?.endTime ?? '00:00', date),
       );
 
       const overtimeHours = overtimeRequest

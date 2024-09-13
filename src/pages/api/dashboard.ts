@@ -87,7 +87,7 @@ export default async function handler(
     );
     const totalWorkingDays = calculateTotalWorkingDays(
       totalDaysInPeriod,
-      user.assignedShift.workDays,
+      user.assignedShift?.workDays ?? [],
       holidays.length,
     );
 
@@ -111,21 +111,23 @@ export default async function handler(
       lineUserId: user.lineUserId,
       name: user.name,
       nickname: user.nickname,
-      departmentId: user.departmentId,
-      department: user.department.name,
+      departmentId: user.departmentId!,
+      department: user.department?.name ?? 'Unassigned',
       employeeId: user.employeeId,
       role: user.role as UserRole,
-      shiftId: user.shiftId,
-      assignedShift: {
-        id: user.assignedShift.id,
-        shiftCode: user.assignedShift.shiftCode,
-        name: user.assignedShift.name,
-        startTime: user.assignedShift.startTime,
-        endTime: user.assignedShift.endTime,
-        workDays: Array.isArray(user.assignedShift.workDays)
-          ? user.assignedShift.workDays
-          : String(user.assignedShift.workDays).split(',').map(Number),
-      } as ShiftData,
+      shiftId: user.shiftId!,
+      assignedShift: user.assignedShift
+        ? ({
+            id: user.assignedShift.id,
+            shiftCode: user.assignedShift.shiftCode,
+            name: user.assignedShift.name,
+            startTime: user.assignedShift.startTime,
+            endTime: user.assignedShift.endTime,
+            workDays: Array.isArray(user.assignedShift.workDays)
+              ? user.assignedShift.workDays
+              : String(user.assignedShift.workDays).split(',').map(Number),
+          } as ShiftData)
+        : null,
       profilePictureUrl: user.profilePictureUrl,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: user.potentialOvertimes.map((po) => ({

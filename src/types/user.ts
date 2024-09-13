@@ -16,12 +16,12 @@ export interface UserData {
   name: string;
   lineUserId: string | null;
   nickname: string | null;
-  departmentId: string;
+  departmentId: string | null;
   department: string;
   role: UserRole;
   profilePictureUrl: string | null;
-  shiftId: string;
-  assignedShift: ShiftData;
+  shiftId: string | null;
+  assignedShift: ShiftData | null;
   overtimeHours: number;
   potentialOvertimes: PotentialOvertime[];
   sickLeaveBalance: number;
@@ -44,11 +44,4 @@ export interface UserResponse {
 
 export interface UserWithShift extends User {
   shift: Shift;
-}
-
-export interface ExternalUserInfo {
-  user_no: string;
-  user_fname?: string;
-  user_lname?: string;
-  user_photo: string;
 }

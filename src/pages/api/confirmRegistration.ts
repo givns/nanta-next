@@ -33,7 +33,7 @@ export default async function handler(
       lineUserId,
       user.name,
       user.role,
-      user.department.name,
+      user.department?.name ?? 'Unassigned',
     );
 
     res

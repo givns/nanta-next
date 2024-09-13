@@ -174,7 +174,7 @@ export class AttendanceService {
       lineUserId: user.lineUserId,
       nickname: user.nickname,
       departmentId: user.departmentId,
-      department: user.department.name,
+      department: user.department?.name ?? 'Unassigned',
       role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
       shiftId: shift.id,
