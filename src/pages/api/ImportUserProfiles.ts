@@ -60,26 +60,12 @@ export default async function handler(
     const csvData = file.buffer
       .toString('utf-8')
       .replace(/[^\x20-\x7E\n\r]/g, '');
-    console.log('Raw CSV data:', csvData);
 
-    let records;
-    try {
-      records = parse(csvData, {
-        columns: true,
-        skip_empty_lines: true,
-        trim: true,
-        relaxColumnCount: true,
-        relaxQuotes: true,
-        skipRecordsWithError: true,
-      });
-    } catch (parseError: any) {
-      console.error('Error parsing CSV:', parseError);
-      return res
-        .status(400)
-        .json({ message: 'Error parsing CSV file', error: parseError.message });
-    }
-
-    console.log('Parsed records:', records);
+    const records = parse(csvData, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+    });
 
     const importResults = {
       total: records.length,
@@ -88,59 +74,10 @@ export default async function handler(
       errors: [] as string[],
     };
 
-    for (const [index, record] of records.entries()) {
-      console.log(`Processing record ${index + 1}:`, JSON.stringify(record));
-      try {
-        if (!record.employeeId || record.employeeId.trim() === '') {
-          throw new Error('Employee ID is missing or empty');
-        }
-
-        const employeeType = mapEmployeeType(record.type);
-        const isGovernmentRegistered =
-          record.registered.toLowerCase() === 'yes';
-
-        await prisma.user.upsert({
-          where: { employeeId: record.employeeId },
-          update: {
-            name: record.name,
-            nickname: record.nickname || null,
-            department: { connect: { name: record.department } },
-            role: record.role,
-            company: record.company,
-            employeeType,
-            isGovernmentRegistered,
-            sickLeaveBalance: parseFloat(record.sickLeaveBalance) || 0,
-            businessLeaveBalance: parseFloat(record.businessLeaveBalance) || 0,
-            annualLeaveBalance: parseFloat(record.annualLeaveBalance) || 0,
-            isPreImported: true,
-            isRegistrationComplete: true,
-          },
-          create: {
-            employeeId: record.employeeId,
-            name: record.name,
-            nickname: record.nickname || null,
-            department: { connect: { name: record.department } },
-            role: record.role,
-            company: record.company,
-            employeeType,
-            isGovernmentRegistered,
-            sickLeaveBalance: parseFloat(record.sickLeaveBalance) || 0,
-            businessLeaveBalance: parseFloat(record.businessLeaveBalance) || 0,
-            annualLeaveBalance: parseFloat(record.annualLeaveBalance) || 0,
-            isPreImported: true,
-            isRegistrationComplete: true,
-          },
-        });
-        importResults.success++;
-      } catch (error) {
-        importResults.failed++;
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        importResults.errors.push(
-          `Error importing record ${index + 1} (${record.employeeId || 'unknown'}): ${errorMessage}`,
-        );
-        console.error(`Failed to import record ${index + 1}:`, error);
-      }
+    const CHUNK_SIZE = 10; // Adjust this value based on your needs
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const chunk = records.slice(i, i + CHUNK_SIZE);
+      await processChunk(chunk, importResults);
     }
 
     console.log('Import results:', importResults);
@@ -152,6 +89,58 @@ export default async function handler(
     res
       .status(500)
       .json({ message: 'Internal server error', error: error.message });
+  }
+}
+
+async function processChunk(chunk: any[], importResults: any) {
+  for (const record of chunk) {
+    try {
+      if (!record.employeeId || record.employeeId.trim() === '') {
+        throw new Error('Employee ID is missing or empty');
+      }
+
+      await prisma.user.upsert({
+        where: { employeeId: record.employeeId },
+        update: {
+          name: record.name,
+          nickname: record.nickname || null,
+          department: { connect: { name: record.department } },
+          role: record.role,
+          company: record.company,
+          employeeType: mapEmployeeType(record.type),
+          isGovernmentRegistered: record.registered.toLowerCase() === 'yes',
+          sickLeaveBalance: parseFloat(record.sickLeaveBalance) || 0,
+          businessLeaveBalance: parseFloat(record.businessLeaveBalance) || 0,
+          annualLeaveBalance: parseFloat(record.annualLeaveBalance) || 0,
+          isPreImported: true,
+          isRegistrationComplete: true,
+        },
+        create: {
+          employeeId: record.employeeId,
+          name: record.name,
+          nickname: record.nickname || null,
+          department: { connect: { name: record.department } },
+          role: record.role,
+          company: record.company,
+          employeeType: mapEmployeeType(record.type),
+          isGovernmentRegistered: record.registered.toLowerCase() === 'yes',
+          sickLeaveBalance: parseFloat(record.sickLeaveBalance) || 0,
+          businessLeaveBalance: parseFloat(record.businessLeaveBalance) || 0,
+          annualLeaveBalance: parseFloat(record.annualLeaveBalance) || 0,
+          isPreImported: true,
+          isRegistrationComplete: true,
+        },
+      });
+      importResults.success++;
+    } catch (error) {
+      importResults.failed++;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      importResults.errors.push(
+        `Error importing ${record.employeeId}: ${errorMessage}`,
+      );
+      console.error(`Failed to import ${record.employeeId}:`, error);
+    }
   }
 }
 

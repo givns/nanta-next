@@ -8,6 +8,11 @@
     "NEXT_PUBLIC_LIFF_ID": "2005335337-8DwLbNrP",
     "DATABASE_URL": "mongodb+srv://parunpatp:6RHIingg9kvWoP05@cluster0.hogpd3l.mongodb.net/myDatabase?retryWrites=true&w=majority"
   },
+  "functions": {
+    "api/ImportUserProfiles.ts": {
+      "maxDuration": 60
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",
