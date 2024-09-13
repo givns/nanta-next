@@ -29,7 +29,7 @@ interface Employee {
   profilePictureUrl: string | null;
   isRegistrationComplete: boolean;
 }
-
+//update the departments array with the following values
 const departments = [
   'ฝ่ายปฏิบัติการ',
   'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)',
