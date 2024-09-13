@@ -23,7 +23,10 @@ const ImportUserProfilesForm: React.FC = () => {
 
     try {
       const response = await axios.post('/api/importUserProfiles', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'x-line-userid': localStorage.getItem('lineUserId'),
+        },
       });
       setImportResults(response.data.results);
     } catch (error) {
