@@ -18,10 +18,10 @@ interface Employee {
   id: string;
   employeeId: string;
   name: string;
-  nickname: string;
-  department: { id: string; name: string };
+  nickname: string | null;
+  department: { id: string; name: string } | null;
   role: string;
-  assignedShift: { id: string; name: string };
+  assignedShift: { id: string; name: string } | null;
   isLegacyUser: boolean;
   employeeType: string;
   isGovernmentRegistered: boolean;
@@ -286,8 +286,10 @@ const EmployeeManagement: React.FC = () => {
               >
                 <td className="border p-2">{employee.employeeId}</td>
                 <td className="border p-2">{employee.name}</td>
-                <td className="border p-2">{employee.nickname}</td>
-                <td className="border p-2">{employee.department.name}</td>
+                <td className="border p-2">{employee.nickname || '-'}</td>
+                <td className="border p-2">
+                  {employee.department?.name || 'Unassigned'}
+                </td>
                 <td className="border p-2">{employee.role}</td>
                 <td className="border p-2">{employee.employeeType}</td>
                 <td className="border p-2">
