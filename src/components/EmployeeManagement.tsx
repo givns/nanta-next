@@ -4,7 +4,14 @@ import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import liff from '@line/liff';
-import ImportUserProfilesForm from './ImportUserProfilesForm';
+import dynamic from 'next/dynamic';
+
+const ImportUserProfilesForm = dynamic(
+  () => import('./ImportUserProfilesForm'),
+  {
+    ssr: false,
+  },
+);
 
 const EmployeeSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
