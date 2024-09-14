@@ -41,10 +41,6 @@ export default async function handler(
   );
 
   // If it's an OPTIONS request, send a 200 status
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -63,15 +59,24 @@ export default async function handler(
       .toString('utf-8')
       .replace(/[^\x20-\x7E\n\r]/g, '');
 
-    const records = parse(csvData, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      relax_quotes: true,
-      relax_column_count: true,
-    });
+    console.log('CSV Data:', csvData.substring(0, 200) + '...'); // Log first 200 characters
 
-    console.log('Parsed records:', records);
+    let records;
+    try {
+      records = parse(csvData, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_quotes: true,
+        relax_column_count: true,
+      });
+      console.log('Parsed records:', records.slice(0, 2)); // Log first two records
+    } catch (parseError: any) {
+      console.error('Error parsing CSV:', parseError);
+      return res
+        .status(400)
+        .json({ message: 'Error parsing CSV file', error: parseError.message });
+    }
 
     const importResults = {
       total: records.length,
@@ -80,10 +85,17 @@ export default async function handler(
       errors: [] as string[],
     };
 
-    const CHUNK_SIZE = 10; // Adjust this value based on your needs
+    const CHUNK_SIZE = 10;
     for (let i = 0; i < records.length; i += CHUNK_SIZE) {
       const chunk = records.slice(i, i + CHUNK_SIZE);
-      await processChunk(chunk, importResults);
+      try {
+        await processChunk(chunk, importResults);
+      } catch (chunkError: any) {
+        console.error('Error processing chunk:', chunkError);
+        importResults.errors.push(
+          `Error processing chunk: ${chunkError.message}`,
+        );
+      }
     }
 
     console.log('Import results:', importResults);
@@ -92,9 +104,11 @@ export default async function handler(
       .json({ message: 'Import completed', results: importResults });
   } catch (error: any) {
     console.error('Error in import process:', error);
-    res
-      .status(500)
-      .json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({
+      message: 'Internal server error',
+      error: error.message,
+      stack: error.stack,
+    });
   }
 }
 
@@ -104,6 +118,8 @@ async function processChunk(chunk: any[], importResults: any) {
       if (!record.employeeId || record.employeeId.trim() === '') {
         throw new Error('Employee ID is missing or empty');
       }
+      // Log the record being processed
+      console.log('Processing record:', record);
 
       await prisma.user.upsert({
         where: { employeeId: record.employeeId },
