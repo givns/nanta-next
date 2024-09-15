@@ -212,138 +212,142 @@ const RegisterForm: React.FC = () => {
   };
 
   if (userInfo) {
+    // When userInfo is available
     return (
       <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
         <h2 className="text-2xl font-bold mb-6 text-center">
-          {userInfo ? 'Confirm Your Information' : 'ลงทะเบียนพนักงาน'}
+          Confirm Your Information
         </h2>
-        {userInfo ? (
-          <>
-            <div className="flex flex-col items-center mb-6">
-              <div className="w-32 h-32 rounded-full overflow-hidden mb-4 relative">
-                {isEditingPicture ? (
-                  <div className="w-full h-full">
-                    <Cropper
-                      image={profilePictureUrl}
-                      crop={crop}
-                      zoom={zoom}
-                      aspect={1}
-                      onCropChange={setCrop}
-                      onZoomChange={setZoom}
-                      onCropComplete={onCropComplete}
-                      cropShape="round"
-                      showGrid={false}
-                    />
-                  </div>
-                ) : (
-                  <NextImage
-                    src={profilePictureUrl || '/default-avatar.png'}
-                    alt="Profile"
-                    width={128}
-                    height={128}
-                    className="object-cover"
-                  />
-                )}
-                {!isEditingPicture && (
-                  <button
-                    onClick={handleEditPicture}
-                    className="absolute bottom-0 right-0 bg-blue-500 text-white p-1 rounded-full z-10"
-                  >
-                    Edit
-                  </button>
-                )}
+        <div className="flex flex-col items-center mb-6">
+          <div className="w-32 h-32 rounded-full overflow-hidden mb-4 relative">
+            {isEditingPicture ? (
+              <div className="w-full h-full">
+                <Cropper
+                  image={profilePictureUrl}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={onCropComplete}
+                  cropShape="round"
+                  showGrid={false}
+                />
               </div>
-              {isEditingPicture && (
-                <div className="flex flex-col items-center">
-                  <input
-                    type="file"
-                    onChange={handleFileChange}
-                    className="mb-2"
-                    accept="image/*"
-                  />
-                  <div>
-                    <button
-                      onClick={handleSavePicture}
-                      className="bg-blue-500 text-white p-2 rounded mr-2"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="bg-red-500 text-white p-2 rounded"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="space-y-4">
-              <p>
-                <strong>รหัสพนักงาน:</strong> {userInfo.employeeId}
-              </p>
-              <p>
-                <strong>ชื่อ-สกุล:</strong> {userInfo.name}
-              </p>
-              <p>
-                <strong>ชื่อเล่น:</strong> {userInfo.nickname}
-              </p>
-              <p>
-                <strong>แผนก:</strong> {userInfo.departmentName}
-              </p>
-              <p>
-                <strong>วันลาป่วยคงเหลือ:</strong> {userInfo.sickLeaveBalance}
-              </p>
-              <p>
-                <strong>วันลากิจคงเหลือ:</strong>{' '}
-                {userInfo.businessLeaveBalance}
-              </p>
-              <p>
-                <strong>วันลาพักร้อนคงเหลือ:</strong>{' '}
-                {userInfo.annualLeaveBalance}
-              </p>
-              <button
-                onClick={handleConfirmRegistration}
-                className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                ยืนยันข้อมูล
-              </button>
-            </div>
-          </>
-        ) : (
-          <Formik
-            initialValues={{ employeeId: '' }}
-            validationSchema={ExistingEmployeeSchema}
-            onSubmit={handleExistingEmployeeSubmit}
-          >
-            {({ isSubmitting }) => (
-              <Form className="space-y-4">
-                <div>
-                  <Field
-                    name="employeeId"
-                    type="text"
-                    placeholder="Employee ID"
-                    className="w-full p-2 border rounded"
-                  />
-                  <ErrorMessage
-                    name="employeeId"
-                    component="div"
-                    className="text-red-500 text-sm"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300"
-                >
-                  {isSubmitting ? 'Checking...' : 'Check Employee ID'}
-                </button>
-              </Form>
+            ) : (
+              <NextImage
+                src={profilePictureUrl || '/default-avatar.png'}
+                alt="Profile"
+                width={128}
+                height={128}
+                className="object-cover"
+              />
             )}
-          </Formik>
-        )}
+            {!isEditingPicture && (
+              <button
+                onClick={handleEditPicture}
+                className="absolute bottom-0 right-0 bg-blue-500 text-white p-1 rounded-full z-10"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          {isEditingPicture && (
+            <div className="flex flex-col items-center">
+              <input
+                type="file"
+                onChange={handleFileChange}
+                className="mb-2"
+                accept="image/*"
+              />
+              <div>
+                <button
+                  onClick={handleSavePicture}
+                  className="bg-blue-500 text-white p-2 rounded mr-2"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="bg-red-500 text-white p-2 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="space-y-4">
+          <p>
+            <strong>รหัสพนักงาน:</strong> {userInfo.employeeId}
+          </p>
+          <p>
+            <strong>ชื่อ-สกุล:</strong> {userInfo.name}
+          </p>
+          <p>
+            <strong>ชื่อเล่น:</strong> {userInfo.nickname}
+          </p>
+          <p>
+            <strong>แผนก:</strong> {userInfo.departmentName}
+          </p>
+          <p>
+            <strong>วันลาป่วยคงเหลือ:</strong> {userInfo.sickLeaveBalance}
+          </p>
+          <p>
+            <strong>วันลากิจคงเหลือ:</strong> {userInfo.businessLeaveBalance}
+          </p>
+          <p>
+            <strong>วันลาพักร้อนคงเหลือ:</strong> {userInfo.annualLeaveBalance}
+          </p>
+          <button
+            onClick={handleConfirmRegistration}
+            className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            ยืนยันข้อมูล
+          </button>
+        </div>
+      </div>
+    );
+  } else {
+    // When userInfo is not available
+    return (
+      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          ลงทะเบียนพนักงาน
+        </h2>
+        <Formik
+          initialValues={{ employeeId: '' }}
+          validationSchema={ExistingEmployeeSchema}
+          onSubmit={handleExistingEmployeeSubmit}
+        >
+          {({ isSubmitting }) => (
+            <Form className="space-y-4">
+              <div>
+                <Field
+                  name="employeeId"
+                  type="text"
+                  placeholder="Employee ID"
+                  className="w-full p-2 border rounded"
+                />
+                <ErrorMessage
+                  name="employeeId"
+                  component="div"
+                  className="text-red-500 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300"
+              >
+                {isSubmitting ? 'Checking...' : 'Check Employee ID'}
+              </button>
+            </Form>
+          )}
+        </Formik>
       </div>
     );
   }
 };
+
 export default RegisterForm;
