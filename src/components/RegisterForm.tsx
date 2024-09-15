@@ -104,9 +104,17 @@ const RegisterForm: React.FC = () => {
         <div className="space-y-4">
           <p>
             <strong>รหัสพนักงาน:</strong> {userInfo.employeeId}
+          </p>
+          <p>
             <strong>ชื่อ-สกุล:</strong> {userInfo.name}
+          </p>
+          <p>
             <strong>แผนก:</strong> {userInfo.departmentName}
+          </p>
+          <p>
             <strong>ประเภทพนักงาน:</strong> {userInfo.employeeType}
+          </p>
+          <p>
             <strong>รหัสกะการทำงาน:</strong> {userInfo.shiftCode}
           </p>
           <div className="bg-gray-100 p-4 rounded-lg">
