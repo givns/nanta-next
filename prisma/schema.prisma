@@ -17,8 +17,8 @@ enum UserRole {
 
 enum EmployeeType {
   Probation
-  Full_time
-  Part_time
+  Fulltime
+  Parttime
 }
 
 model User {
