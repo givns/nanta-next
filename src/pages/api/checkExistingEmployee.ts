@@ -47,12 +47,10 @@ export default async function handler(
     res.status(200).json({ success: true, user: userInfo });
   } catch (error: any) {
     console.error('Error checking existing employee:', error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: 'Internal server error',
-        details: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: error.message,
+    });
   }
 }
