@@ -19,6 +19,9 @@ export default async function handler(
 
     const user = await prisma.user.findUnique({
       where: { employeeId },
+      include: {
+        assignedShift: true,
+      },
     });
 
     console.log('User found:', user);
@@ -39,7 +42,7 @@ export default async function handler(
       company: user.company,
       employeeType: user.employeeType,
       isGovernmentRegistered: user.isGovernmentRegistered,
-      shiftCode: user.shiftCode,
+      shiftName: user.assignedShift?.name || 'Not assigned',
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
