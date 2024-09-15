@@ -1,4 +1,4 @@
-//api/checkExistingEmployee.ts
+// pages/api/checkExistingEmployee.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
@@ -15,10 +15,14 @@ export default async function handler(
   const { employeeId } = req.body;
 
   try {
+    console.log('Checking employee with ID:', employeeId);
+
     const user = await prisma.user.findUnique({
       where: { employeeId },
       include: { department: true },
     });
+
+    console.log('User found:', user);
 
     if (!user) {
       return res
@@ -33,15 +37,22 @@ export default async function handler(
       nickname: user.nickname,
       department: user.department?.name ?? 'Unassigned',
       role: user.role,
-      isGovernmentRegistered: user.isGovernmentRegistered === 'Yes',
+      isGovernmentRegistered: user.isGovernmentRegistered,
+      employeeType: user.employeeType,
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
     };
 
     res.status(200).json({ success: true, user: userInfo });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error checking existing employee:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res
+      .status(500)
+      .json({
+        success: false,
+        error: 'Internal server error',
+        details: error.message,
+      });
   }
 }
