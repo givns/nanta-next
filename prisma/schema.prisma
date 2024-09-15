@@ -27,15 +27,17 @@ model User {
   name                    String
   lineUserId              String?                  @unique
   nickname                String?
-  department              Department? @relation(fields: [departmentId], references: [id]) 
-  departmentId            String?  @db.ObjectId
+  departmentName          String
+  department              Department?              @relation(fields: [departmentId], references: [id])
+  departmentId            String?                  @db.ObjectId
   role                    String
   company                 String?
   employeeType            EmployeeType             @default(Probation)
   isGovernmentRegistered  String                   @default("No")
   profilePictureUrl       String?
-  shiftId                 String?    @db.ObjectId
-  assignedShift           Shift?     @relation("UserAssignedShift", fields: [shiftId], references: [id])
+  shiftId                 String?                  @db.ObjectId
+  shiftCode               String?
+  assignedShift           Shift?                   @relation("UserAssignedShift", fields: [shiftId], references: [id])
   overtimeHours           Float                    @default(0)
   attendances             Attendance[]
   shiftAdjustmentRequests ShiftAdjustmentRequest[]
@@ -52,8 +54,8 @@ model User {
   checkPoints             CheckPoint[]
   timeEntries             TimeEntry[]
   isRegistrationComplete  String                   @default("No")
-  createdAt               DateTime?                 @default(now())
-  updatedAt               DateTime?                 @updatedAt
+  createdAt               DateTime?                @default(now())
+  updatedAt               DateTime?                @updatedAt
 }
 
 model Shift {

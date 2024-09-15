@@ -8,11 +8,12 @@ import api from '../utils/api';
 const EmployeeSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
   nickname: Yup.string(),
-  departmentId: Yup.string().required('Required'),
+  departmentName: Yup.string().required('Required'),
   role: Yup.string().required('Required'),
   employeeType: Yup.string().required('Required'),
   isGovernmentRegistered: Yup.boolean(),
   company: Yup.string(),
+  shiftCode: Yup.string(),
 });
 
 interface Employee {
@@ -20,7 +21,7 @@ interface Employee {
   employeeId: string;
   name: string;
   nickname: string | null;
-  department: { id: string; name: string } | null;
+  departmentName: string;
   role: string;
   assignedShift: { id: string; name: string } | null;
   employeeType: string;
@@ -29,6 +30,7 @@ interface Employee {
   profilePictureUrl: string | null;
   isRegistrationComplete: string;
   isPreImported: string;
+  shiftCode: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -170,7 +172,7 @@ const EmployeeManagement: React.FC = () => {
 
           <Field
             as="select"
-            name="departmentId"
+            name="departmentName"
             className="w-full p-2 border rounded"
           >
             <option value="">Select Department</option>
@@ -181,9 +183,16 @@ const EmployeeManagement: React.FC = () => {
             ))}
           </Field>
           <ErrorMessage
-            name="departmentId"
+            name="departmentName"
             component="div"
             className="text-red-500 text-sm"
+          />
+
+          <Field
+            name="shiftCode"
+            type="text"
+            placeholder="Shift Code"
+            className="w-full p-2 border rounded"
           />
 
           <Field as="select" name="role" className="w-full p-2 border rounded">
@@ -283,7 +292,7 @@ const EmployeeManagement: React.FC = () => {
                 <td className="border p-2">{employee.employeeId}</td>
                 <td className="border p-2">{employee.name}</td>
                 <td className="border p-2">
-                  {employee.department?.name || 'Unassigned'}
+                  {employee.departmentName || 'Unassigned'}
                 </td>
                 <td className="border p-2">{employee.role}</td>
                 <td className="border p-2">
