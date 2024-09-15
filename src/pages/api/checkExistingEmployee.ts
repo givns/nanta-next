@@ -19,7 +19,6 @@ export default async function handler(
 
     const user = await prisma.user.findUnique({
       where: { employeeId },
-      include: { department: true },
     });
 
     console.log('User found:', user);
@@ -35,17 +34,15 @@ export default async function handler(
       employeeId: user.employeeId,
       name: user.name,
       nickname: user.nickname,
-      department: user.departmentName,
+      departmentName: user.departmentName,
       role: user.role,
-      isGovernmentRegistered: user.isGovernmentRegistered,
+      company: user.company,
       employeeType: user.employeeType,
+      isGovernmentRegistered: user.isGovernmentRegistered,
+      shiftCode: user.shiftCode,
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
-      company: user.company,
-      shift: user.shiftId,
-      createdAt: user.createdAt ?? new Date(),
-      updatedAt: user.updatedAt ?? new Date(),
     };
 
     res.status(200).json({ success: true, user: userInfo });
