@@ -4,7 +4,6 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import liff from '@line/liff';
 import api from '../utils/api';
-import ImportUserProfilesForm from './ImportUserProfilesForm';
 
 const EmployeeSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -58,7 +57,6 @@ const EmployeeManagement: React.FC = () => {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [showImportForm, setShowImportForm] = useState(false);
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -131,32 +129,120 @@ const EmployeeManagement: React.FC = () => {
     return <div>You are not authorized to access this page.</div>;
   }
 
-  const renderEmployeeRow = (employee: Employee) => (
-    <tr
-      key={employee.id}
-      className={employee.isLegacyUser ? 'bg-yellow-100' : ''}
+  const renderEmployeeForm = () => (
+    <Formik
+      initialValues={
+        selectedEmployee || {
+          name: '',
+          nickname: '',
+          departmentId: '',
+          role: '',
+          employeeType: 'PROBATION',
+          isGovernmentRegistered: false,
+          company: '',
+        }
+      }
+      validationSchema={EmployeeSchema}
+      onSubmit={handleSubmit}
     >
-      <td className="border p-2">{employee.employeeId}</td>
-      <td className="border p-2">{employee.name}</td>
-      <td className="border p-2">{employee.nickname || '-'}</td>
-      <td className="border p-2">
-        {employee.department?.name || 'Legacy Department'}
-      </td>
-      <td className="border p-2">{employee.role}</td>
-      <td className="border p-2">{employee.employeeType || 'LEGACY'}</td>
-      <td className="border p-2">
-        {employee.isLegacyUser ? (
-          <span className="text-yellow-600">Legacy User</span>
-        ) : (
-          <button
-            onClick={() => setSelectedEmployee(employee)}
-            className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 mr-2"
+      {({ isSubmitting }) => (
+        <Form className="space-y-4 mb-8">
+          <Field
+            name="name"
+            type="text"
+            placeholder="Full Name"
+            className="w-full p-2 border rounded"
+          />
+          <ErrorMessage
+            name="name"
+            component="div"
+            className="text-red-500 text-sm"
+          />
+
+          <Field
+            name="nickname"
+            type="text"
+            placeholder="Nickname"
+            className="w-full p-2 border rounded"
+          />
+
+          <Field
+            as="select"
+            name="departmentId"
+            className="w-full p-2 border rounded"
           >
-            Edit
+            <option value="">Select Department</option>
+            {departments.map((dept, index) => (
+              <option key={index} value={dept}>
+                {dept}
+              </option>
+            ))}
+          </Field>
+          <ErrorMessage
+            name="departmentId"
+            component="div"
+            className="text-red-500 text-sm"
+          />
+
+          <Field as="select" name="role" className="w-full p-2 border rounded">
+            <option value="">Select Role</option>
+            <option value="DRIVER">Driver</option>
+            <option value="OPERATION">Operation</option>
+            <option value="GENERAL">General</option>
+            <option value="ADMIN">Admin</option>
+            <option value="SUPERADMIN">Super Admin</option>
+          </Field>
+          <ErrorMessage
+            name="role"
+            component="div"
+            className="text-red-500 text-sm"
+          />
+
+          <Field
+            as="select"
+            name="employeeType"
+            className="w-full p-2 border rounded"
+          >
+            <option value="FULL_TIME">Full Time</option>
+            <option value="PART_TIME">Part Time</option>
+            <option value="PROBATION">Probation</option>
+          </Field>
+          <ErrorMessage
+            name="employeeType"
+            component="div"
+            className="text-red-500 text-sm"
+          />
+
+          <label className="flex items-center">
+            <Field
+              type="checkbox"
+              name="isGovernmentRegistered"
+              className="mr-2"
+            />
+            Is Government Registered
+          </label>
+
+          <Field
+            name="company"
+            type="text"
+            placeholder="Company"
+            className="w-full p-2 border rounded"
+          />
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300"
+          >
+            {isSubmitting
+              ? 'Submitting...'
+              : selectedEmployee
+                ? 'Update Employee'
+                : 'Add Employee'}
           </button>
-        )}
-      </td>
-    </tr>
+        </Form>
+      )}
+    </Formik>
   );
 
   return (
@@ -165,145 +251,17 @@ const EmployeeManagement: React.FC = () => {
         Employee Management
       </h2>
 
-      <div className="mb-6">
-        <button
-          onClick={() => {
-            setIsAddingNew(true);
-            setSelectedEmployee(null);
-          }}
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-        >
-          Add New Employee
-        </button>
-        <button
-          onClick={() => setShowImportForm(!showImportForm)}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          {showImportForm ? 'Hide Import Form' : 'Import Employees'}
-        </button>
-      </div>
+      <button
+        onClick={() => {
+          setIsAddingNew(true);
+          setSelectedEmployee(null);
+        }}
+        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-4"
+      >
+        Add New Employee
+      </button>
 
-      {showImportForm && <ImportUserProfilesForm />}
-
-      {(isAddingNew || selectedEmployee) && (
-        <Formik
-          initialValues={
-            selectedEmployee || {
-              name: '',
-              nickname: '',
-              departmentId: '',
-              role: '',
-              employeeType: 'PROBATION',
-              isGovernmentRegistered: false,
-              company: '',
-            }
-          }
-          validationSchema={EmployeeSchema}
-          onSubmit={handleSubmit}
-        >
-          {({ isSubmitting }) => (
-            <Form className="space-y-4 mb-8">
-              <Field
-                name="name"
-                type="text"
-                placeholder="Full Name"
-                className="w-full p-2 border rounded"
-              />
-              <ErrorMessage
-                name="name"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-
-              <Field
-                name="nickname"
-                type="text"
-                placeholder="Nickname"
-                className="w-full p-2 border rounded"
-              />
-
-              <Field
-                as="select"
-                name="departmentId"
-                className="w-full p-2 border rounded"
-              >
-                <option value="">Select Department</option>
-                {departments.map((dept, index) => (
-                  <option key={index} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </Field>
-              <ErrorMessage
-                name="departmentId"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-
-              <Field
-                as="select"
-                name="role"
-                className="w-full p-2 border rounded"
-              >
-                <option value="">Select Role</option>
-                <option value="DRIVER">Driver</option>
-                <option value="OPERATION">Operation</option>
-                <option value="GENERAL">General</option>
-                <option value="ADMIN">Admin</option>
-                <option value="SUPERADMIN">Super Admin</option>
-              </Field>
-              <ErrorMessage
-                name="role"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-
-              <Field
-                as="select"
-                name="employeeType"
-                className="w-full p-2 border rounded"
-              >
-                <option value="FULL_TIME">Full Time</option>
-                <option value="PART_TIME">Part Time</option>
-                <option value="PROBATION">Probation</option>
-              </Field>
-              <ErrorMessage
-                name="employeeType"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-
-              <label className="flex items-center">
-                <Field
-                  type="checkbox"
-                  name="isGovernmentRegistered"
-                  className="mr-2"
-                />
-                Is Government Registered
-              </label>
-
-              <Field
-                name="company"
-                type="text"
-                placeholder="Company"
-                className="w-full p-2 border rounded"
-              />
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300"
-              >
-                {isSubmitting
-                  ? 'Submitting...'
-                  : selectedEmployee
-                    ? 'Update Employee'
-                    : 'Add Employee'}
-              </button>
-            </Form>
-          )}
-        </Formik>
-      )}
+      {(isAddingNew || selectedEmployee) && renderEmployeeForm()}
 
       <div className="mt-8">
         <h3 className="text-xl font-semibold mb-4">Employee List</h3>
@@ -312,14 +270,31 @@ const EmployeeManagement: React.FC = () => {
             <tr className="bg-gray-200">
               <th className="border p-2">Employee ID</th>
               <th className="border p-2">Name</th>
-              <th className="border p-2">Nickname</th>
               <th className="border p-2">Department</th>
               <th className="border p-2">Role</th>
-              <th className="border p-2">Employee Type</th>
               <th className="border p-2">Actions</th>
             </tr>
           </thead>
-          <tbody>{employees.map(renderEmployeeRow)}</tbody>
+          <tbody>
+            {employees.map((employee) => (
+              <tr key={employee.id}>
+                <td className="border p-2">{employee.employeeId}</td>
+                <td className="border p-2">{employee.name}</td>
+                <td className="border p-2">
+                  {employee.department?.name || 'Unassigned'}
+                </td>
+                <td className="border p-2">{employee.role}</td>
+                <td className="border p-2">
+                  <button
+                    onClick={() => setSelectedEmployee(employee)}
+                    className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 mr-2"
+                  >
+                    Edit
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </div>

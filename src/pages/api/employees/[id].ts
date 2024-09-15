@@ -1,4 +1,3 @@
-// pages/api/employees/[id].ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { getUserRole } from '../../../utils/auth';
@@ -27,11 +26,9 @@ export default async function handler(
       nickname,
       departmentId,
       role,
-      company,
       employeeType,
       isGovernmentRegistered,
-      profilePictureUrl,
-      shiftId,
+      company,
     } = req.body;
 
     try {
@@ -42,11 +39,9 @@ export default async function handler(
           nickname,
           department: { connect: { id: departmentId } },
           role,
-          company,
           employeeType,
           isGovernmentRegistered,
-          profilePictureUrl,
-          assignedShift: { connect: { id: shiftId } },
+          company,
         },
         include: { department: true, assignedShift: true },
       });
@@ -54,14 +49,6 @@ export default async function handler(
     } catch (error) {
       console.error('Error updating employee:', error);
       res.status(400).json({ error: 'Error updating employee' });
-    }
-  } else if (req.method === 'DELETE') {
-    try {
-      await prisma.user.delete({ where: { id: String(id) } });
-      res.status(204).end();
-    } catch (error) {
-      console.error('Error deleting employee:', error);
-      res.status(400).json({ error: 'Error deleting employee' });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

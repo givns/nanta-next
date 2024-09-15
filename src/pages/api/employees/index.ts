@@ -2,81 +2,76 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { getUserRole } from '../../../utils/auth';
 
-const prisma = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error'],
-});
+const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  console.log('Received headers:', JSON.stringify(req.headers, null, 2));
-  const lineUserId = req.headers['x-line-userid'];
-  console.log('Extracted lineUserId:', lineUserId);
-
-  if (!lineUserId || typeof lineUserId !== 'string') {
-    console.error('No valid lineUserId provided');
-    return res
-      .status(401)
-      .json({ error: 'Unauthorized: No valid LINE User ID provided' });
+  const lineUserId = req.headers['x-line-userid'] as string;
+  if (!lineUserId) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  try {
-    const userRole = await getUserRole(lineUserId);
-    console.log('User role:', userRole);
+  const userRole = await getUserRole(lineUserId);
+  if (userRole !== 'ADMIN' && userRole !== 'SUPERADMIN') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
 
-    if (userRole !== 'Admin' && userRole !== 'SuperAdmin') {
-      console.error('User does not have required role');
-      return res
-        .status(403)
-        .json({ error: 'Forbidden: Insufficient permissions' });
+  if (req.method === 'GET') {
+    try {
+      const employees = await prisma.user.findMany({
+        include: { department: true, assignedShift: true },
+      });
+      res.status(200).json(employees);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
     }
+  } else if (req.method === 'POST') {
+    const {
+      name,
+      nickname,
+      departmentId,
+      role,
+      employeeType,
+      isGovernmentRegistered,
+      company,
+    } = req.body;
 
-    if (req.method === 'GET') {
-      const users = await prisma.user.findMany({
-        include: {
-          department: true,
-          assignedShift: true,
-        },
+    try {
+      // Find the latest employee ID
+      const latestEmployee = await prisma.user.findFirst({
+        orderBy: { employeeId: 'desc' },
       });
 
-      const mappedEmployees = users.map((user) => ({
-        id: user.id,
-        employeeId: user.employeeId,
-        name: user.name,
-        nickname: user.nickname || null,
-        department: user.department
-          ? {
-              id: user.department.id,
-              name: user.department.name,
-            }
-          : { id: 'legacy', name: 'Legacy Department' },
-        role: user.role,
-        assignedShift: user.assignedShift
-          ? {
-              id: user.assignedShift.id,
-              name: user.assignedShift.name,
-            }
-          : { id: 'legacy', name: 'Legacy Shift' },
-        isLegacyUser: true, // Mark all existing users as legacy for now
-        employeeType: user.employeeType || 'LEGACY',
-        isGovernmentRegistered: user.isGovernmentRegistered || false,
-        company: user.company || 'Legacy Company',
-        profilePictureUrl: user.profilePictureUrl || null,
-        isRegistrationComplete: user.isRegistrationComplete || false,
-      }));
+      let newEmployeeId;
+      if (latestEmployee) {
+        const latestId = parseInt(latestEmployee.employeeId.substring(1));
+        newEmployeeId = `E${(latestId + 1).toString().padStart(4, '0')}`;
+      } else {
+        newEmployeeId = 'E1001'; // Start from E1001 if no employees exist
+      }
 
-      console.log('Fetched employees:', mappedEmployees.length);
-      res.status(200).json(mappedEmployees);
-    } else {
-      res.status(405).json({ error: 'Method not allowed' });
+      const newEmployee = await prisma.user.create({
+        data: {
+          employeeId: newEmployeeId,
+          name,
+          nickname,
+          department: { connect: { id: departmentId } },
+          role,
+          employeeType,
+          isGovernmentRegistered,
+          company,
+        },
+        include: { department: true, assignedShift: true },
+      });
+      res.status(201).json(newEmployee);
+    } catch (error) {
+      console.error('Error creating employee:', error);
+      res.status(400).json({ error: 'Error creating employee' });
     }
-  } catch (error: any) {
-    console.error('Error in /api/employees:', error);
-    res
-      .status(500)
-      .json({ error: 'Internal Server Error', details: error.message });
-  } finally {
-    await prisma.$disconnect();
+  } else {
+    res.status(405).json({ error: 'Method not allowed' });
   }
 }
