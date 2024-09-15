@@ -29,6 +29,8 @@ interface Employee {
   profilePictureUrl: string | null;
   isRegistrationComplete: string;
   isPreImported: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 //update the departments array with the following values
 const departments = [

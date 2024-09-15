@@ -42,6 +42,10 @@ export default async function handler(
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
+      company: user.company,
+      shift: user.shiftId,
+      createdAt: user.createdAt ?? new Date(),
+      updatedAt: user.updatedAt ?? new Date(),
     };
 
     res.status(200).json({ success: true, user: userInfo });
