@@ -151,9 +151,7 @@ const RegisterForm: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
-      <h2 className="text-2xl font-bold mb-6 text-center">
-        Existing Employee Registration
-      </h2>
+      <h2 className="text-2xl font-bold mb-6 text-center">ลงทะเบียนพนักงาน</h2>
       <Formik
         initialValues={{ employeeId: '' }}
         validationSchema={ExistingEmployeeSchema}

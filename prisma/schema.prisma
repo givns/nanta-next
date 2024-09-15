@@ -16,9 +16,9 @@ enum UserRole {
 }
 
 enum EmployeeType {
-  FULL_TIME
-  PART_TIME
-  PROBATION
+  Probation
+  Full_time
+  Part_time
 }
 
 model User {
@@ -31,7 +31,7 @@ model User {
   departmentId            String?  @db.ObjectId
   role                    String
   company                 String?
-  employeeType            EmployeeType             @default(PROBATION)
+  employeeType            EmployeeType             @default(Probation)
   isGovernmentRegistered  String                   @default("No")
   profilePictureUrl       String?
   shiftId                 String?    @db.ObjectId
