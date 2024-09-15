@@ -1,45 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import liff from '@line/liff';
+import Image from 'next/image';
 
 const ExistingEmployeeSchema = Yup.object().shape({
   employeeId: Yup.string().required('Required'),
 });
 
-const NewEmployeeSchema = Yup.object().shape({
-  name: Yup.string().required('Required'),
-  nickname: Yup.string(),
-  department: Yup.string().required('Required'),
-  role: Yup.string().required('Required'),
-  general: Yup.string(), // This is a placeholder for general error message
-});
-
-const departments = [
-  'ฝ่ายปฏิบัติการ',
-  'ฝ่ายผลิต-กระบวนการที่ 1 (บ่าย)',
-  'ฝ่ายผลิต-กระบวนการที่ 2 (เช้า)',
-  'ฝ่ายผลิต-คัดคุณภาพและบรรจุ',
-  'ฝ่ายผลิต-ข้าวเกรียบ-ข้าวตัง',
-  'ฝ่ายผลิต-วิจัยและพัฒนาคุณภาพผลิตภัณฑ์',
-  'ฝ่ายประกันคุณภาพ',
-  'ฝ่ายคลังสินค้าและแพ็คกิ้ง',
-  'ฝ่ายจัดส่งสินค้า',
-  'ฝ่ายบริหารงานขาย',
-  'ฝ่ายจัดซื้อและประสานงาน',
-  'ฝ่ายบัญชีและการเงิน',
-  'ฝ่ายทรัพยากรบุคคล',
-  'ฝ่ายรักษาความสะอาด',
-  'ฝ่ายรักษาความปลอดภัย',
-];
-
-const roles = ['DRIVER', 'OPERATION', 'GENERAL', 'ADMIN'];
-
 const RegisterForm: React.FC = () => {
   const [lineUserId, setLineUserId] = useState('');
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const [userInfo, setUserInfo] = useState<any>(null);
+  const [isEditingPicture, setIsEditingPicture] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -112,20 +88,128 @@ const RegisterForm: React.FC = () => {
     }
   };
 
+  const handleEditPicture = () => {
+    setIsEditingPicture(true);
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfilePictureUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingPicture(false);
+  };
+
+  const handleSavePicture = async () => {
+    if (!uploadedFile && !profilePictureUrl) {
+      alert('No image selected');
+      return;
+    }
+
+    try {
+      let imageUrl = profilePictureUrl;
+
+      if (uploadedFile) {
+        const formData = new FormData();
+        formData.append('image', uploadedFile);
+        formData.append('employeeId', userInfo.employeeId);
+
+        const response = await axios.post(
+          '/api/uploadProfilePicture',
+          formData,
+          {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          },
+        );
+
+        if (response.data.success) {
+          imageUrl = response.data.imageUrl;
+        } else {
+          throw new Error('Failed to upload image');
+        }
+      }
+
+      // Update the user's profile picture URL in the database
+      await axios.post('/api/updateProfilePicture', {
+        employeeId: userInfo.employeeId,
+        profilePictureUrl: imageUrl,
+      });
+
+      setProfilePictureUrl(imageUrl);
+      setIsEditingPicture(false);
+      alert('Profile picture updated successfully');
+    } catch (error) {
+      console.error('Error saving profile picture:', error);
+      alert('Failed to update profile picture');
+    }
+  };
+
   if (userInfo) {
     return (
       <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
         <h2 className="text-2xl font-bold mb-6 text-center">
-          กรุณาตรวจสอบข้อมูลของคุณ
+          Confirm Your Information
         </h2>
         <div className="flex flex-col items-center mb-6">
-          <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
-            <img
+          <div className="w-32 h-32 rounded-full overflow-hidden mb-4 relative">
+            <Image
               src={profilePictureUrl || '/default-avatar.png'}
-              alt="Profile Picture"
-              className="w-full h-full object-cover"
+              alt="Profile"
+              width={128}
+              height={128}
+              className="object-cover"
             />
+            {!isEditingPicture && (
+              <button
+                onClick={handleEditPicture}
+                className="absolute bottom-0 right-0 bg-blue-500 text-white p-1 rounded-full"
+              >
+                Edit
+              </button>
+            )}
           </div>
+          {isEditingPicture && (
+            <div className="flex flex-col items-center">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                accept="image/*"
+              />
+              <button
+                onClick={handleUploadClick}
+                className="bg-green-500 text-white p-2 rounded mb-2"
+              >
+                Upload New Picture
+              </button>
+              <div>
+                <button
+                  onClick={handleSavePicture}
+                  className="bg-blue-500 text-white p-2 rounded mr-2"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="bg-red-500 text-white p-2 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="space-y-4">
           <p>
