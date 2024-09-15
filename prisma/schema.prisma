@@ -32,7 +32,7 @@ model User {
   role                    String
   company                 String?
   employeeType            EmployeeType             @default(PROBATION)
-  isGovernmentRegistered  Boolean                  @default(false)
+  isGovernmentRegistered  String @default("No")
   profilePictureUrl       String?
   shiftId                 String?    @db.ObjectId
   assignedShift           Shift?     @relation("UserAssignedShift", fields: [shiftId], references: [id])

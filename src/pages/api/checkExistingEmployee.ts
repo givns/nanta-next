@@ -33,6 +33,7 @@ export default async function handler(
       nickname: user.nickname,
       department: user.department?.name ?? 'Unassigned',
       role: user.role,
+      isGovernmentRegistered: user.isGovernmentRegistered === 'Yes',
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
