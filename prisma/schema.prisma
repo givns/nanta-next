@@ -32,18 +32,18 @@ model User {
   role                    String
   company                 String?
   employeeType            EmployeeType             @default(PROBATION)
-  isGovernmentRegistered  String @default("No")
+  isGovernmentRegistered  String                   @default("No")
   profilePictureUrl       String?
   shiftId                 String?    @db.ObjectId
   assignedShift           Shift?     @relation("UserAssignedShift", fields: [shiftId], references: [id])
-  overtimeHours           Float     @default(0)
+  overtimeHours           Float                    @default(0)
   attendances             Attendance[]
   shiftAdjustmentRequests ShiftAdjustmentRequest[]
   leaveRequests           LeaveRequest[]
   sickLeaveBalance        Int                      @default(30)
   businessLeaveBalance    Int                      @default(3)
   annualLeaveBalance      Int                      @default(6)
-  isPreImported           Boolean                  @default(false)
+  isPreImported           String                   @default("No")
   overtimeRequests        OvertimeRequest[]
   approvedOvertimeRequests OvertimeRequest[]       @relation("OvertimeApprover")
   approvedOvertimes       ApprovedOvertime[]
@@ -51,7 +51,7 @@ model User {
   payrollProcessingResults PayrollProcessingResult[]
   checkPoints             CheckPoint[]
   timeEntries             TimeEntry[]
-  isRegistrationComplete  Boolean   @default(false)
+  isRegistrationComplete  String                   @default("No")
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 }

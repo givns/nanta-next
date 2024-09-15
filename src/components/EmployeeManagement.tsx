@@ -23,12 +23,12 @@ interface Employee {
   department: { id: string; name: string } | null;
   role: string;
   assignedShift: { id: string; name: string } | null;
-  isLegacyUser: boolean;
   employeeType: string;
-  isGovernmentRegistered: boolean;
+  isGovernmentRegistered: string;
   company: string | null;
   profilePictureUrl: string | null;
-  isRegistrationComplete: boolean;
+  isRegistrationComplete: string;
+  isPreImported: string;
 }
 //update the departments array with the following values
 const departments = [
