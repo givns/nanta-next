@@ -118,7 +118,7 @@ const RegisterForm: React.FC = () => {
             <strong>รหัสกะการทำงาน:</strong> {userInfo.shiftCode}
           </p>
           <div className="bg-gray-100 p-4 rounded-lg">
-            <h3 className="font-bold mb-2">Leave Balances</h3>
+            <h3 className="font-bold mb-2">วันลาคงเหลือ</h3>
             <p>
               <strong>วันลาป่วยคงเหลือ:</strong> {userInfo.sickLeaveBalance}{' '}
               days
