@@ -35,7 +35,7 @@ export default async function handler(
       employeeId: user.employeeId,
       name: user.name,
       nickname: user.nickname,
-      department: user.department?.name ?? 'Unassigned',
+      department: user.departmentName,
       role: user.role,
       isGovernmentRegistered: user.isGovernmentRegistered,
       employeeType: user.employeeType,
