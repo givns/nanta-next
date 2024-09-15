@@ -87,9 +87,7 @@ const RegisterForm: React.FC = () => {
   if (userInfo) {
     return (
       <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
-        <h2 className="text-2xl font-bold mb-6 text-center">
-          ข้อมูลพนักงาน
-        </h2>
+        <h2 className="text-2xl font-bold mb-6 text-center">ข้อมูลพนักงาน</h2>
         <div className="flex flex-col items-center mb-6">
           <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
             <Image
