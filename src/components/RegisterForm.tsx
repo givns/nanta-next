@@ -60,6 +60,7 @@ const RegisterForm: React.FC = () => {
     initializeLiff();
   }, []);
 
+  // In your React component (e.g., RegisterForm.tsx)
   const handleExistingEmployeeSubmit = async (
     values: any,
     { setSubmitting, setFieldError }: any,
@@ -67,8 +68,6 @@ const RegisterForm: React.FC = () => {
     try {
       const response = await axios.post('/api/checkExistingEmployee', {
         employeeId: values.employeeId,
-        lineUserId,
-        profilePictureUrl,
       });
 
       if (response.data.success) {
@@ -78,7 +77,14 @@ const RegisterForm: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error checking existing employee:', error);
-      setFieldError('employeeId', 'Employee ID not found or error occurred');
+      if (error.response && error.response.status === 404) {
+        setFieldError('employeeId', 'Employee ID not found');
+      } else {
+        setFieldError(
+          'employeeId',
+          'Error occurred while checking employee ID',
+        );
+      }
     } finally {
       setSubmitting(false);
     }
