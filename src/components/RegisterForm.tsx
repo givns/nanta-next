@@ -116,39 +116,44 @@ const RegisterForm: React.FC = () => {
     return (
       <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
         <h2 className="text-2xl font-bold mb-6 text-center">
-          Confirm Your Information
+          กรุณาตรวจสอบข้อมูลของคุณ
         </h2>
+        <div className="flex flex-col items-center mb-6">
+          <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
+            <img
+              src={profilePictureUrl || '/default-avatar.png'}
+              alt="Profile Picture"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        </div>
         <div className="space-y-4">
           <p>
             <strong>Employee ID:</strong> {userInfo.employeeId}
           </p>
           <p>
-            <strong>Name:</strong> {userInfo.name}
+            <strong>ชื่อ-สกุล:</strong> {userInfo.name}
           </p>
           <p>
-            <strong>Nickname:</strong> {userInfo.nickname}
+            <strong>ชื่อเล่น:</strong> {userInfo.nickname}
           </p>
           <p>
-            <strong>Department:</strong> {userInfo.department}
+            <strong>แผนก:</strong> {userInfo.departmentName}
           </p>
           <p>
-            <strong>Role:</strong> {userInfo.role}
+            <strong>วันลาป่วยคงเหลือ:</strong> {userInfo.sickLeaveBalance}
           </p>
           <p>
-            <strong>Sick Leave Balance:</strong> {userInfo.sickLeaveBalance}
+            <strong>วันลากิจคงเหลือ:</strong> {userInfo.businessLeaveBalance}
           </p>
           <p>
-            <strong>Business Leave Balance:</strong>{' '}
-            {userInfo.businessLeaveBalance}
-          </p>
-          <p>
-            <strong>Annual Leave Balance:</strong> {userInfo.annualLeaveBalance}
+            <strong>วันลาพักร้อนคงเหลือ:</strong> {userInfo.annualLeaveBalance}
           </p>
           <button
             onClick={handleConfirmRegistration}
             className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            Confirm and Complete Registration
+            ยืนยันข้อมูล
           </button>
         </div>
       </div>
