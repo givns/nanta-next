@@ -27,8 +27,8 @@ export interface UserData {
   sickLeaveBalance: number;
   businessLeaveBalance: number;
   annualLeaveBalance: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface UserResponse {
