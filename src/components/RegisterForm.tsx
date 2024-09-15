@@ -121,15 +121,15 @@ const RegisterForm: React.FC = () => {
             <h3 className="font-bold mb-2">วันลาคงเหลือ</h3>
             <p>
               <strong>วันลาป่วยคงเหลือ:</strong> {userInfo.sickLeaveBalance}{' '}
-              days
+              วัน
             </p>
             <p>
               <strong>วันลากิจคงเหลือ:</strong> {userInfo.businessLeaveBalance}{' '}
-              days
+              วัน
             </p>
             <p>
               <strong>วันลาพักร้อนคงเหลือ:</strong>{' '}
-              {userInfo.annualLeaveBalance} days
+              {userInfo.annualLeaveBalance} วัน
             </p>
           </div>
 
