@@ -15,7 +15,7 @@ export async function processRegistration(
     data: {
       lineUserId,
       profilePictureUrl,
-      isRegistrationComplete: 'Yes',
+      isRegistrationComplete: 'Yes', // Update registration status
     },
     include: { department: true },
   });
