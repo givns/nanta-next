@@ -2,7 +2,9 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { getUserRole } from '../../../utils/auth';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+});
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,7 +25,7 @@ export default async function handler(
     const userRole = await getUserRole(lineUserId);
     console.log('User role:', userRole);
 
-    if (userRole !== 'ADMIN' && userRole !== 'SuperAdmin') {
+    if (userRole !== 'Admin' && userRole !== 'SuperAdmin') {
       console.error('User does not have required role');
       return res
         .status(403)

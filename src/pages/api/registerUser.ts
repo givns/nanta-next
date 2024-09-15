@@ -1,3 +1,4 @@
+//api/registerUser.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getRegistrationQueue } from '../../lib/queue';
 export default async function handler(

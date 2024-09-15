@@ -1,3 +1,4 @@
+//api/checkExistingEmployee.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
@@ -11,7 +12,7 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { employeeId, lineUserId, profilePictureUrl } = req.body;
+  const { employeeId } = req.body;
 
   try {
     const user = await prisma.user.findUnique({
@@ -24,12 +25,6 @@ export default async function handler(
         .status(404)
         .json({ success: false, error: 'Employee not found' });
     }
-
-    // Update the user with LINE info
-    await prisma.user.update({
-      where: { employeeId },
-      data: { lineUserId, profilePictureUrl },
-    });
 
     // Return user info without sensitive data
     const userInfo = {
