@@ -14,6 +14,8 @@ const RegisterForm: React.FC = () => {
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const [userInfo, setUserInfo] = useState<any>(null);
   const [shiftDetails, setShiftDetails] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -34,50 +36,44 @@ const RegisterForm: React.FC = () => {
     initializeLiff();
   }, []);
 
-  useEffect(() => {
-    const fetchShiftDetails = async () => {
-      if (userInfo && userInfo.shiftCode) {
-        try {
-          const response = await axios.get(
-            `/api/getShiftDetails?shiftCode=${userInfo.shiftCode}`,
-          );
-          setShiftDetails(response.data);
-        } catch (error) {
-          console.error('Error fetching shift details:', error);
-        }
-      }
-    };
-
-    fetchShiftDetails();
-  }, [userInfo]);
-
-  const handleExistingEmployeeSubmit = async (
-    values: any,
-    { setSubmitting, setFieldError }: any,
-  ) => {
+  const fetchUserAndShiftDetails = async (employeeId: string) => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const response = await axios.post('/api/checkExistingEmployee', {
-        employeeId: values.employeeId,
+      // First, fetch user information
+      const userResponse = await axios.post('/api/checkExistingEmployee', {
+        employeeId,
       });
+      if (userResponse.data.success) {
+        const user = userResponse.data.user;
+        setUserInfo(user);
 
-      if (response.data.success) {
-        setUserInfo(response.data.user);
+        // Then, fetch shift details if shiftCode is available
+        if (user.shiftCode) {
+          const shiftResponse = await axios.get(
+            `/api/getShiftDetails?shiftCode=${user.shiftCode}`,
+          );
+          setShiftDetails(shiftResponse.data);
+        }
       } else {
-        throw new Error(response.data.error);
-      }
-    } catch (error: any) {
-      console.error('Error checking existing employee:', error);
-      if (error.response && error.response.status === 404) {
-        setFieldError('employeeId', 'Employee ID not found');
-      } else {
-        setFieldError(
-          'employeeId',
-          'Error occurred while checking employee ID',
+        throw new Error(
+          userResponse.data.error || 'Failed to fetch user information',
         );
       }
+    } catch (error: any) {
+      console.error('Error fetching user or shift details:', error);
+      setError(error.message || 'An error occurred while fetching data');
     } finally {
-      setSubmitting(false);
+      setIsLoading(false);
     }
+  };
+
+  const handleExistingEmployeeSubmit = async (
+    values: { employeeId: string },
+    { setSubmitting }: any,
+  ) => {
+    await fetchUserAndShiftDetails(values.employeeId);
+    setSubmitting(false);
   };
 
   const handleConfirmRegistration = async () => {
@@ -104,85 +100,87 @@ const RegisterForm: React.FC = () => {
 
   if (userInfo) {
     return (
-      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
-        <div className="bg-gray-600 mx-6 -mt-6 mb-6 p-4">
-          <h2 className="text-2xl text-white font-bold text-center">
-            ข้อมูลพนักงาน
-          </h2>
-        </div>
-        <div className="flex flex-col items-center mb-6">
-          <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
-            <Image
-              src={profilePictureUrl || '/default-avatar.png'}
-              alt="Profile"
-              width={128}
-              height={128}
-              className="object-cover"
-            />
+      <div className="max-w-md mx-auto mt-10 bg-gray-100 rounded-lg shadow-xl overflow-hidden">
+        <h2 className="text-2xl font-bold text-center py-4 bg-blue-500 text-white">
+          ข้อมูลพนักงาน
+        </h2>
+        <div className="bg-white p-6">
+          <div className="flex flex-col items-center mb-6">
+            <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
+              <Image
+                src={profilePictureUrl || '/default-avatar.png'}
+                alt="Profile"
+                width={128}
+                height={128}
+                className="object-cover"
+              />
+            </div>
           </div>
-        </div>
-        <div className="space-y-3">
-          <p className="flex justify-between">
-            <span className="font-semibold">รหัสพนักงาน:</span>
-            <span>{userInfo.employeeId}</span>
-          </p>
-          <p className="flex justify-between">
-            <span className="font-semibold">ชื่อ-สกุล:</span>
-            <span>{userInfo.name}</span>
-          </p>
-          <p className="flex justify-between">
-            <span className="font-semibold">แผนก:</span>
-            <span>{userInfo.departmentName}</span>
-          </p>
-          <p className="flex justify-between">
-            <span className="font-semibold">ประเภทพนักงาน:</span>
-            <span>{userInfo.employeeType}</span>
-          </p>
-          {shiftDetails && (
-            <>
+          <div className="bg-gray-50 p-4 rounded-lg mb-6">
+            <div className="space-y-3">
               <p className="flex justify-between">
-                <span className="font-semibold">กะการทำงาน:</span>
-                <span>{shiftDetails.name}</span>
+                <span className="font-semibold">รหัสพนักงาน:</span>
+                <span>{userInfo.employeeId}</span>
               </p>
               <p className="flex justify-between">
-                <span className="font-semibold">เวลาทำงาน:</span>
-                <span>
-                  {shiftDetails.startTime} - {shiftDetails.endTime}
-                </span>
+                <span className="font-semibold">ชื่อ-สกุล:</span>
+                <span>{userInfo.name}</span>
               </p>
               <p className="flex justify-between">
-                <span className="font-semibold">วันทำงาน:</span>
-                <span>{shiftDetails.workDays.join(', ')}</span>
+                <span className="font-semibold">แผนก:</span>
+                <span>{userInfo.departmentName}</span>
               </p>
-            </>
-          )}
-        </div>
-        <div className="bg-gray-100 rounded-lg mt-6">
-          <div className="bg-yellow-200 p-2 rounded-t-lg">
-            <h3 className="font-bold text-center">วันลาคงเหลือ</h3>
+              <p className="flex justify-between">
+                <span className="font-semibold">ประเภทพนักงาน:</span>
+                <span>{userInfo.employeeType}</span>
+              </p>
+              {shiftDetails && (
+                <>
+                  <p className="flex justify-between">
+                    <span className="font-semibold">กะการทำงาน:</span>
+                    <span>{shiftDetails.name}</span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="font-semibold">เวลาทำงาน:</span>
+                    <span>
+                      {shiftDetails.startTime} - {shiftDetails.endTime}
+                    </span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="font-semibold">วันทำงาน:</span>
+                    <span>{shiftDetails.workDays.join(', ')}</span>
+                  </p>
+                </>
+              )}
+            </div>
           </div>
-          <div className="p-4 space-y-2">
-            <p className="flex justify-between">
-              <span className="font-semibold">วันลาป่วยคงเหลือ:</span>
-              <span>{userInfo.sickLeaveBalance} วัน</span>
-            </p>
-            <p className="flex justify-between">
-              <span className="font-semibold">วันลากิจคงเหลือ:</span>
-              <span>{userInfo.businessLeaveBalance} วัน</span>
-            </p>
-            <p className="flex justify-between">
-              <span className="font-semibold">วันลาพักร้อนคงเหลือ:</span>
-              <span>{userInfo.annualLeaveBalance} วัน</span>
-            </p>
+          <div className="bg-gray-100 rounded-lg mt-6">
+            <div className="bg-yellow-200 p-2 rounded-t-lg">
+              <h3 className="font-bold text-center">วันลาคงเหลือ</h3>
+            </div>
+            <div className="p-4 space-y-2">
+              <p className="flex justify-between">
+                <span className="font-semibold">วันลาป่วยคงเหลือ:</span>
+                <span>{userInfo.sickLeaveBalance} วัน</span>
+              </p>
+              <p className="flex justify-between">
+                <span className="font-semibold">วันลากิจคงเหลือ:</span>
+                <span>{userInfo.businessLeaveBalance} วัน</span>
+              </p>
+              <p className="flex justify-between">
+                <span className="font-semibold">วันลาพักร้อนคงเหลือ:</span>
+                <span>{userInfo.annualLeaveBalance} วัน</span>
+              </p>
+            </div>
           </div>
-        </div>
 
-        <button
-          onClick={handleConfirmRegistration}
-          className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 mt-6"
-        >
-          ยืนยันข้อมูล
-        </button>
+          <button
+            onClick={handleConfirmRegistration}
+            className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 mt-6"
+          >
+            ยืนยันข้อมูล
+          </button>
+        </div>
       </div>
     );
   } else {
