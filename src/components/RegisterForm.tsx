@@ -34,6 +34,23 @@ const RegisterForm: React.FC = () => {
     initializeLiff();
   }, []);
 
+  useEffect(() => {
+    const fetchShiftDetails = async () => {
+      if (userInfo && userInfo.shiftCode) {
+        try {
+          const response = await axios.get(
+            `/api/getShiftDetails?shiftCode=${userInfo.shiftCode}`,
+          );
+          setShiftDetails(response.data);
+        } catch (error) {
+          console.error('Error fetching shift details:', error);
+        }
+      }
+    };
+
+    fetchShiftDetails();
+  }, [userInfo]);
+
   const handleExistingEmployeeSubmit = async (
     values: any,
     { setSubmitting, setFieldError }: any,
@@ -85,28 +102,13 @@ const RegisterForm: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchShiftDetails = async () => {
-      if (userInfo && userInfo.shiftCode) {
-        try {
-          const response = await axios.get(
-            `/api/getShiftDetails?shiftCode=${userInfo.shiftCode}`,
-          );
-          setShiftDetails(response.data);
-        } catch (error) {
-          console.error('Error fetching shift details:', error);
-        }
-      }
-    };
-
-    fetchShiftDetails();
-  }, [userInfo]);
-
   if (userInfo) {
     return (
       <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
-        <div className="bg-gray-100 -mx-6 -mt-6 mb-6 p-4">
-          <h2 className="text-2xl font-bold text-center">ข้อมูลพนักงาน</h2>
+        <div className="bg-gray-600 mx-6 -mt-6 mb-6 p-4">
+          <h2 className="text-2xl text-white font-bold text-center">
+            ข้อมูลพนักงาน
+          </h2>
         </div>
         <div className="flex flex-col items-center mb-6">
           <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
@@ -156,7 +158,7 @@ const RegisterForm: React.FC = () => {
           )}
         </div>
         <div className="bg-gray-100 rounded-lg mt-6">
-          <div className="bg-gray-600 text-white p-2 rounded-t-lg">
+          <div className="bg-yellow-200 p-2 rounded-t-lg">
             <h3 className="font-bold text-center">วันลาคงเหลือ</h3>
           </div>
           <div className="p-4 space-y-2">
