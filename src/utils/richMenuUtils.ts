@@ -8,10 +8,10 @@ const client = new Client({
 });
 
 export const createAndAssignRichMenu = async (
-  department: string,
+  departmentId: string | undefined,
   userId: string,
   role: UserRole,
-): Promise<string> => {
+): Promise<string | undefined> => {
   let richMenuId: string;
 
   switch (role) {
@@ -38,11 +38,12 @@ export const createAndAssignRichMenu = async (
     return richMenuId;
   } catch (error) {
     console.error(`Error linking rich menu to user ${userId}:`, error);
-    throw error;
+    // Instead of throwing, we return undefined
+    return undefined;
   }
 };
 
-// You can add more rich menu related utilities here if needed
+// Other utility functions remain the same
 
 export const unlinkRichMenu = async (userId: string): Promise<void> => {
   try {
@@ -65,5 +66,3 @@ export const getRichMenuIdForUser = async (
     return null;
   }
 };
-
-// Add any other rich menu related functions here

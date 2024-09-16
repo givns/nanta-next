@@ -1,4 +1,4 @@
-// confirmRegistration.ts
+// pages/api/confirmRegistration.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
@@ -20,6 +20,12 @@ export default async function handler(
 
   const { employeeId, lineUserId, profilePictureUrl } = req.body;
 
+  if (!employeeId || !lineUserId) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'Missing required fields' });
+  }
+
   try {
     const result = await processRegistration(
       employeeId,
@@ -36,6 +42,18 @@ export default async function handler(
     });
   } catch (error) {
     console.error('Error confirming registration:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    if (error instanceof Error) {
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: error.message,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'An unknown error occurred',
+      });
+    }
   }
 }

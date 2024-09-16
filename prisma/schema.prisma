@@ -8,11 +8,12 @@ generator client {
 }
 
 enum UserRole {
-  DRIVER
-  OPERATION
-  GENERAL
-  ADMIN
-  SUPERADMIN
+  Employee
+  SuperAdmin
+  Manager
+  Admin
+  Operation
+  Driver
 }
 
 enum EmployeeType {
