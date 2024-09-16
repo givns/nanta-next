@@ -6,7 +6,10 @@ import liff from '@line/liff';
 import { formatTime } from '../utils/dateUtils';
 import TimePickerField from './TimePickerField';
 import { UserData } from '@/types/user';
-import moment from 'moment-timezone';
+import { format, parseISO } from 'date-fns';
+import { zonedTimeToUtc } from '../utils/dateUtils';
+
+const TIMEZONE = 'Asia/Bangkok';
 
 const OvertimeSchema = Yup.object().shape({
   startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
@@ -23,7 +26,7 @@ const OvertimeRequestForm: React.FC = () => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [newRequestDate, setNewRequestDate] = useState(
-    moment().format('YYYY-MM-DD'),
+    format(zonedTimeToUtc(new Date(), TIMEZONE), 'yyyy-MM-dd'),
   );
 
   useEffect(() => {
@@ -51,7 +54,9 @@ const OvertimeRequestForm: React.FC = () => {
 
   const fetchUserData = async (lineUserId: string) => {
     try {
-      const response = await axios.get(`/api/users?lineUserId=${lineUserId}`);
+      const response = await axios.get(
+        `/api/user-check-in-status?lineUserId=${lineUserId}`,
+      );
       setUserData(response.data.user);
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -97,6 +102,7 @@ const OvertimeRequestForm: React.FC = () => {
 
       const response = await axios.post(endpoint, {
         lineUserId,
+        date: newRequestDate,
         ...values,
       });
 
@@ -138,11 +144,11 @@ const OvertimeRequestForm: React.FC = () => {
                           className="w-full text-left"
                         >
                           <div>
-                            {new Date(request.date).toLocaleDateString()} -{' '}
+                            {format(parseISO(request.date), 'dd/MM/yyyy')} -{' '}
                             {request.startTime} to {request.endTime}
                           </div>
                           <div className="text-sm text-gray-500">
-                            สถานะ: {request.status}
+                            สถานะ: {getStatusText(request.status)}
                           </div>
                         </button>
                       </li>
@@ -189,7 +195,9 @@ const OvertimeRequestForm: React.FC = () => {
             <Formik
               initialValues={
                 selectedRequest || {
-                  startTime: userData?.assignedShift?.endTime || '',
+                  startTime: userData?.shiftCode
+                    ? formatTime(userData.shiftCode.split('-')[1])
+                    : '',
                   endTime: '',
                   reason: '',
                 }

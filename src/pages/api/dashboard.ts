@@ -112,24 +112,11 @@ export default async function handler(
       name: user.name,
       nickname: user.nickname,
       departmentId: user.departmentId!,
-      department: user.department?.name ?? 'Unassigned',
       departmentName: user.departmentName,
       employeeId: user.employeeId,
       role: user.role as UserRole,
       shiftId: user.shiftId!,
       shiftCode: user.shiftCode,
-      assignedShift: user.assignedShift
-        ? ({
-            id: user.assignedShift.id,
-            shiftCode: user.assignedShift.shiftCode,
-            name: user.assignedShift.name,
-            startTime: user.assignedShift.startTime,
-            endTime: user.assignedShift.endTime,
-            workDays: Array.isArray(user.assignedShift.workDays)
-              ? user.assignedShift.workDays
-              : String(user.assignedShift.workDays).split(',').map(Number),
-          } as ShiftData)
-        : null,
       profilePictureUrl: user.profilePictureUrl,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: user.potentialOvertimes.map((po) => ({

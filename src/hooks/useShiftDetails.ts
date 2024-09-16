@@ -14,20 +14,25 @@ export const useShiftDetails = (
   const [minutesUntilShiftEnd, setMinutesUntilShiftEnd] = useState(0);
 
   const fetchShiftDetails = useCallback(async () => {
-    if (!attendanceStatus) return;
+    if (!attendanceStatus || !attendanceStatus.user.shiftCode) return;
 
     const now = new Date();
-    let shift = attendanceStatus.user.assignedShift;
+    let shift: ShiftData | null = null;
 
-    if (attendanceStatus.shiftAdjustment) {
-      try {
+    try {
+      if (attendanceStatus.shiftAdjustment) {
         const response = await axios.get(
           `/api/shifts/${attendanceStatus.shiftAdjustment.requestedShiftId}`,
         );
         shift = response.data;
-      } catch (error) {
-        console.error('Error fetching requested shift:', error);
+      } else {
+        const response = await axios.get(
+          `/api/shifts/by-code/${attendanceStatus.user.shiftCode}`,
+        );
+        shift = response.data;
       }
+    } catch (error) {
+      console.error('Error fetching shift details:', error);
     }
 
     if (!shift) {
@@ -40,16 +45,7 @@ export const useShiftDetails = (
       return;
     }
 
-    const shiftData: ShiftData = {
-      id: shift.id,
-      name: shift.name,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      workDays: shift.workDays,
-      shiftCode: shift.shiftCode,
-    };
-
-    updateShiftStatus(shiftData, now);
+    updateShiftStatus(shift, now);
   }, [attendanceStatus]);
 
   const updateShiftStatus = (shift: ShiftData, now: Date) => {

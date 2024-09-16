@@ -92,7 +92,9 @@ export default function UserDashboard() {
         </Avatar>
         <div className="grid gap-0.5 text-sm">
           <div className="font-medium">{user.name}</div>
-          <div className="text-muted-foreground">{String(user.department)}</div>
+          <div className="text-muted-foreground">
+            {String(user.departmentName)}
+          </div>
         </div>
       </div>
       <div className="w-full">

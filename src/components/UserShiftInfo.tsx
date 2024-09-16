@@ -22,7 +22,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 }) => {
   const { user, latestAttendance, shiftAdjustment } = attendanceStatus;
   const effectiveShift: ShiftData | null =
-    shiftAdjustment?.requestedShift || user.assignedShift;
+    shiftAdjustment?.requestedShift || null;
   const today = new Date();
 
   const getStatusMessage = () => {
