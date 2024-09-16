@@ -3,7 +3,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Webcam from 'react-webcam';
-import { AttendanceData, AttendanceStatusInfo } from '../types/attendance';
+import {
+  AttendanceData,
+  AttendanceStatusInfo,
+  ShiftData,
+} from '../types/attendance';
 import { UserData } from '../types/user';
 import InteractiveMap from './InteractiveMap';
 import { useFaceDetection } from '../hooks/useFaceDetection';
@@ -19,12 +23,15 @@ const TIMEZONE = 'Asia/Bangkok';
 interface CheckInOutFormProps {
   userData: UserData;
   initialAttendanceStatus: AttendanceStatusInfo;
+  effectiveShift: ShiftData | null;
+
   onStatusChange: (newStatus: boolean) => void;
 }
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
   initialAttendanceStatus,
+  effectiveShift,
   onStatusChange,
 }) => {
   const router = useRouter();

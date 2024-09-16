@@ -71,6 +71,7 @@ const CheckInRouter: React.FC = () => {
     error,
     userData,
     attendanceStatus,
+    effectiveShift,
   });
 
   useEffect(() => {
@@ -136,6 +137,7 @@ const CheckInRouter: React.FC = () => {
           <CheckInOutForm
             userData={userData}
             initialAttendanceStatus={attendanceStatus}
+            effectiveShift={effectiveShift}
             onStatusChange={(newStatus) =>
               setAttendanceStatus((prev) =>
                 prev ? { ...prev, isCheckingIn: newStatus } : null,
