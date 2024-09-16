@@ -136,23 +136,21 @@ const RegisterForm: React.FC = () => {
     console.log('Rendering user info. ShiftDetails:', shiftDetails);
     return (
       <div className="max-w-md mx-auto mt-10 bg-gray-100 rounded-lg shadow-xl overflow-hidden">
+        <h2 className="text-2xl font-bold text-center py-4">ข้อมูลพนักงาน</h2>
         <div className="bg-white p-6">
-          <div className="flex flex-col items-center mb-6">
-            <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
-              <Image
-                src={profilePictureUrl || '/default-avatar.png'}
-                alt="Profile"
-                width={128}
-                height={128}
-                className="object-cover"
-              />
-            </div>
-          </div>
-          <div className="bg-gray-100 rounded-lg mt-6">
+          <div className="flex flex-col items-center mb-6"></div>
+          <div className="bg-gray-50 rounded-lg mt-6">
             <div className="bg-grey-400 p-2 rounded-t-lg">
-              <h3 className="font-bold text-white text-center">
-                ข้อมูลพนักงาน
-              </h3>
+              <h3 className="font-bold text-center">ข้อมูลพนักงาน</h3>
+              <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
+                <Image
+                  src={profilePictureUrl || '/default-avatar.png'}
+                  alt="Profile"
+                  width={128}
+                  height={128}
+                  className="object-cover"
+                />
+              </div>
             </div>
             <div className="p-4 space-y-2">
               <p className="flex justify-between">
@@ -193,9 +191,9 @@ const RegisterForm: React.FC = () => {
               )}
             </div>
           </div>
-          <div className="bg-gray-100 rounded-lg mt-6">
+          <div className="bg-gray-50 rounded-lg mt-6">
             <div className="bg-grey-400 p-2 rounded-t-lg">
-              <h3 className="font-bold text-white text-center">วันลาคงเหลือ</h3>
+              <h3 className="font-bold text-center">วันลาคงเหลือ</h3>
             </div>
             <div className="p-4 space-y-2">
               <p className="flex justify-between">
