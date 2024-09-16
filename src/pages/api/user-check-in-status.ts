@@ -1,5 +1,3 @@
-// pages/api/user-check-in-status.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/AttendanceService';
@@ -12,7 +10,7 @@ import {
   AttendanceStatusInfo,
 } from '@/types/attendance';
 import { UserRole } from '@/types/enum';
-import { parseISO, startOfDay } from 'date-fns';
+import { startOfDay } from 'date-fns';
 import { LeaveServiceServer } from '@/services/LeaveServiceServer';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
@@ -73,8 +71,9 @@ export default async function handler(
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+
     const effectiveShift = await shiftManagementService.getEffectiveShift(
-      user.id,
+      user.employeeId,
       new Date(),
     );
 
@@ -84,11 +83,11 @@ export default async function handler(
       lineUserId: user.lineUserId,
       nickname: user.nickname,
       departmentId: user.departmentId,
-      departmentName: user.departmentName,
+      departmentName: user.departmentName || '',
       role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
-      shiftId: effectiveShift ? effectiveShift.id : null,
-      shiftCode: effectiveShift ? effectiveShift.shiftCode : null,
+      shiftId: effectiveShift?.id || null,
+      shiftCode: effectiveShift?.shiftCode || null,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
         ...overtime,

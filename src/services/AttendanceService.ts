@@ -135,7 +135,8 @@ export class AttendanceService {
     employeeId: string,
   ): Promise<AttendanceStatusInfo> {
     const user = await this.prisma.user.findUnique({
-      where: { employeeId: employeeId },
+      where: { employeeId },
+      include: { department: true },
     });
     if (!user) throw new Error('User not found');
 
@@ -150,7 +151,11 @@ export class AttendanceService {
     );
     if (!effectiveShift) throw new Error('Shift not found');
 
-    const isHoliday = await this.holidayService.isHoliday(today, [], false);
+    const isHoliday = await this.holidayService.isHoliday(
+      today,
+      [],
+      user.shiftCode === 'SHIFT104',
+    );
     const leaveRequests = await this.leaveService.getLeaveRequests(employeeId);
     const approvedOvertime =
       await this.overtimeService.getApprovedOvertimeRequest(employeeId, today);
@@ -167,18 +172,18 @@ export class AttendanceService {
       lineUserId: user.lineUserId,
       nickname: user.nickname,
       departmentId: user.departmentId,
-      departmentName: user.departmentName,
+      departmentName: user.departmentName || '',
       role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
       shiftId: effectiveShift.id,
       shiftCode: effectiveShift.shiftCode,
       overtimeHours: user.overtimeHours,
-      potentialOvertimes: [],
+      potentialOvertimes: [], // This should be populated if needed
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
-      createdAt: user.createdAt ?? new Date(),
-      updatedAt: user.updatedAt ?? new Date(),
+      createdAt: user.createdAt !== null ? user.createdAt : undefined,
+      updatedAt: user.updatedAt !== null ? user.updatedAt : undefined,
     };
 
     return this.determineAttendanceStatus(
