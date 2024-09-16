@@ -66,7 +66,7 @@ export async function processRegistration(
     // Send welcome message
     await lineClient.pushMessage(lineUserId, {
       type: 'text',
-      text: `Welcome, ${updatedUser.name}! Your registration is complete.`,
+      text: `สวัสดี, ${updatedUser.name}! ระบบได้ลงทะเบียนพนักงานของคุณเรียบร้อยแล้ว.`,
     });
 
     return {

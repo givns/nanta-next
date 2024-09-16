@@ -81,6 +81,19 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     return balance;
   }
 
+  async checkUserOnLeave(userId: string, date: Date): Promise<boolean> {
+    const leaveRequests = await this.prisma.leaveRequest.findMany({
+      where: {
+        employeeId: userId,
+        status: 'approved',
+        startDate: { lte: date },
+        endDate: { gte: date },
+      },
+    });
+
+    return leaveRequests.length > 0;
+  }
+
   async createLeaveRequest(
     lineUserId: string,
     leaveType: string,

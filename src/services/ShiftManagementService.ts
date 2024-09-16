@@ -38,6 +38,17 @@ export class ShiftManagementService {
     return this.prisma.shift.findUnique({ where: { shiftCode } });
   }
 
+  async getUserShift(userId: string): Promise<Shift | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { shiftCode: true },
+    });
+
+    if (!user || !user.shiftCode) return null;
+
+    return this.getShiftByCode(user.shiftCode);
+  }
+
   async getShiftById(shiftId: string): Promise<Shift | null> {
     return this.prisma.shift.findUnique({ where: { id: shiftId } });
   }
@@ -59,29 +70,10 @@ export class ShiftManagementService {
     return this.getShiftByCode(shiftCode);
   }
 
-  async getUserShift(userId: string): Promise<Shift | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { assignedShift: true, department: true },
-    });
-
-    if (!user) return null;
-
-    if (user.assignedShift) {
-      return user.assignedShift;
-    }
-
-    if (user.department) {
-      return this.getShiftForDepartment(user.department.name);
-    }
-
-    return null;
-  }
-
-  async assignShiftToUser(userId: string, shiftId: string): Promise<User> {
+  async assignShiftToUser(userId: string, shiftCode: string): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
-      data: { assignedShift: { connect: { id: shiftId } } },
+      data: { shiftCode: shiftCode },
     });
   }
 

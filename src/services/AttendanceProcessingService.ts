@@ -131,6 +131,14 @@ export class AttendanceProcessingService {
     };
   }
 
+  private async getShiftForUser(userData: UserData): Promise<Shift | null> {
+    if (!userData.shiftCode) {
+      console.warn(`No shift code found for user ${userData.employeeId}`);
+      return null;
+    }
+    return this.shiftManagementService.getShiftByCode(userData.shiftCode);
+  }
+
   private async getEffectiveShift(
     userId: string,
     date: Date,
@@ -263,11 +271,16 @@ export class AttendanceProcessingService {
 
   async processAttendanceHistory(
     attendances: ProcessedAttendance[],
-    user: UserData,
+    userData: UserData,
     holidays: Date[],
     leaveRequests: LeaveRequest[],
     overtimeRequests: ApprovedOvertime[],
   ): Promise<ProcessedAttendance[]> {
+    const shift = await this.getShiftForUser(userData);
+    if (!shift) {
+      console.warn(`No shift found for user ${userData.employeeId}`);
+      return [];
+    }
     return attendances.map((attendance) => {
       const date = startOfDay(attendance.date);
       const isHoliday = holidays.some((holiday) => isSameDay(holiday, date));
@@ -293,8 +306,8 @@ export class AttendanceProcessingService {
 
       const regularHours = this.calculateRegularHours(
         parseISO(attendance.checkIn || ''),
-        this.parseShiftTime(user.assignedShift?.startTime ?? '00:00', date),
-        this.parseShiftTime(user.assignedShift?.endTime ?? '00:00', date),
+        this.parseShiftTime(shift?.startTime ?? '00:00', date),
+        this.parseShiftTime(shift?.endTime ?? '00:00', date),
       );
 
       const overtimeHours = overtimeRequest

@@ -6,7 +6,11 @@ import { AttendanceService } from '../../services/AttendanceService';
 import { HolidayService } from '@/services/HolidayService';
 import { Shift104HolidayService } from '@/services/Shift104HolidayService';
 import { UserData } from '../../types/user';
-import { ShiftAdjustment, ApprovedOvertime } from '@/types/attendance';
+import {
+  ShiftAdjustment,
+  ApprovedOvertime,
+  AttendanceStatusInfo,
+} from '@/types/attendance';
 import { UserRole } from '@/types/enum';
 import { parseISO, startOfDay } from 'date-fns';
 import { LeaveServiceServer } from '@/services/LeaveServiceServer';
@@ -61,7 +65,6 @@ export default async function handler(
     const user = await prisma.user.findUnique({
       where: { lineUserId },
       include: {
-        assignedShift: true,
         department: true,
         potentialOvertimes: true,
       },
@@ -77,13 +80,11 @@ export default async function handler(
       lineUserId: user.lineUserId,
       nickname: user.nickname,
       departmentId: user.departmentId,
-      department: user.department?.name ?? 'Unassigned',
       departmentName: user.departmentName,
       role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
       shiftId: user.shiftId,
       shiftCode: user.shiftCode,
-      assignedShift: user.assignedShift,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
         ...overtime,

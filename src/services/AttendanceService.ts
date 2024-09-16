@@ -18,6 +18,7 @@ import {
   isBefore,
   isAfter,
   isSameDay,
+  addMinutes,
 } from 'date-fns';
 import {
   AttendanceData,
@@ -53,7 +54,8 @@ export class AttendanceService {
     });
     if (!user) throw new Error('User not found');
 
-    const shift = await this.shiftManagementService.getUserShift(user.id);
+    const shiftCode = user.shiftCode ?? ''; // Handle null value by providing a default value
+    const shift = await this.shiftManagementService.getShiftByCode(shiftCode);
     if (!shift) throw new Error('User shift not found');
 
     const { isCheckIn, checkTime } = attendanceData;
@@ -134,15 +136,18 @@ export class AttendanceService {
   ): Promise<AttendanceStatusInfo> {
     const user = await this.prisma.user.findUnique({
       where: { employeeId },
-      include: { department: true, assignedShift: true },
     });
     if (!user) throw new Error('User not found');
 
     const today = new Date();
     const latestAttendance = await this.getLatestAttendance(employeeId);
 
-    const shift = user.assignedShift;
-    if (!shift) throw new Error('User shift not found');
+    if (!user.shiftCode) throw new Error('User shift not found');
+
+    const shift = await this.shiftManagementService.getShiftByCode(
+      user.shiftCode,
+    );
+    if (!shift) throw new Error('Shift not found');
 
     const shiftData: ShiftData = {
       id: shift.id,
@@ -170,13 +175,11 @@ export class AttendanceService {
       lineUserId: user.lineUserId,
       nickname: user.nickname,
       departmentId: user.departmentId,
-      department: user.department?.name ?? 'Unassigned',
       departmentName: user.departmentName,
       role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
       shiftId: shift.id,
       shiftCode: shift.shiftCode,
-      assignedShift: shiftData,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: [],
       sickLeaveBalance: user.sickLeaveBalance,
@@ -526,22 +529,108 @@ export class AttendanceService {
     const now = new Date();
     const users = await this.prisma.user.findMany({
       where: {
-        assignedShift: {
-          startTime: { lte: format(now, 'HH:mm:ss') },
-          endTime: { gte: format(now, 'HH:mm:ss') },
+        shiftCode: { not: null },
+      },
+      include: {
+        attendances: {
+          where: {
+            date: {
+              gte: startOfDay(now),
+              lte: endOfDay(now),
+            },
+          },
+          orderBy: { date: 'desc' },
+          take: 1,
         },
       },
-      include: { attendances: { where: { date: now } } },
     });
 
     for (const user of users) {
-      if (user.attendances.length === 0) {
-        if (user.lineUserId) {
-          await this.notificationService.sendMissingCheckInNotification(
-            user.lineUserId,
-          );
-        }
+      await this.checkUserAttendance(user, now);
+    }
+  }
+
+  private async checkUserAttendance(
+    user: User & { attendances: Attendance[] },
+    now: Date,
+  ) {
+    const effectiveShift = await this.getEffectiveShift(user.id, now);
+    if (!effectiveShift) return;
+
+    const { shiftStart, shiftEnd } = this.getShiftTimes(effectiveShift, now);
+    const latestAttendance = user.attendances[0];
+
+    const isOnLeave = await this.leaveService.checkUserOnLeave(user.id, now);
+    if (isOnLeave) return;
+
+    const approvedOvertime =
+      await this.overtimeService.getApprovedOvertimeRequest(user.id, now);
+
+    // Check for missing check-in
+    if (
+      isAfter(now, shiftStart) &&
+      isBefore(now, shiftEnd) &&
+      !latestAttendance
+    ) {
+      await this.sendMissingCheckInNotification(user);
+      return;
+    }
+
+    // Check for missing check-out
+    if (
+      latestAttendance &&
+      latestAttendance.checkInTime &&
+      !latestAttendance.checkOutTime
+    ) {
+      const checkOutTime = approvedOvertime
+        ? parseISO(approvedOvertime.endTime)
+        : shiftEnd;
+      if (isAfter(now, addMinutes(checkOutTime, 30))) {
+        await this.sendMissingCheckOutNotification(user);
       }
+    }
+  }
+
+  private async getEffectiveShift(
+    userId: string,
+    date: Date,
+  ): Promise<Shift | null> {
+    const shiftAdjustment =
+      await this.shiftManagementService.getShiftAdjustmentForDate(userId, date);
+    if (
+      shiftAdjustment?.status === 'approved' &&
+      shiftAdjustment.requestedShift?.shiftCode
+    ) {
+      return this.shiftManagementService.getShiftByCode(
+        shiftAdjustment.requestedShift.shiftCode,
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    return user?.shiftCode
+      ? this.shiftManagementService.getShiftByCode(user.shiftCode)
+      : null;
+  }
+
+  private getShiftTimes(shift: Shift, date: Date) {
+    const shiftStart = this.parseShiftTime(shift.startTime, date);
+    const shiftEnd = this.parseShiftTime(shift.endTime, date);
+    return { shiftStart, shiftEnd };
+  }
+
+  private async sendMissingCheckInNotification(user: User) {
+    if (user.lineUserId) {
+      await this.notificationService.sendMissingCheckInNotification(
+        user.lineUserId,
+      );
+    }
+  }
+
+  private async sendMissingCheckOutNotification(user: User) {
+    if (user.lineUserId) {
+      await this.notificationService.sendMissingCheckInNotification(
+        user.lineUserId,
+      );
     }
   }
 
