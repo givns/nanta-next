@@ -1,5 +1,6 @@
 // pages/api/checkExistingEmployee.ts
-import { NextApiRequest, NextApiResponse } from 'next';
+
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -19,9 +20,7 @@ export default async function handler(
 
     const user = await prisma.user.findUnique({
       where: { employeeId },
-      include: {
-        assignedShift: true,
-      },
+      include: { department: true },
     });
 
     console.log('User found:', user);
@@ -32,7 +31,7 @@ export default async function handler(
         .json({ success: false, error: 'Employee not found' });
     }
 
-    // Return user info without sensitive data
+    // Return user info including shiftCode
     const userInfo = {
       employeeId: user.employeeId,
       name: user.name,
@@ -42,7 +41,7 @@ export default async function handler(
       company: user.company,
       employeeType: user.employeeType,
       isGovernmentRegistered: user.isGovernmentRegistered,
-      shiftName: user.assignedShift?.name || 'Not assigned',
+      shiftCode: user.shiftCode, // Include shiftCode here
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,

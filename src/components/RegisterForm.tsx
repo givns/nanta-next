@@ -121,10 +121,10 @@ const RegisterForm: React.FC = () => {
             </div>
           </div>
           <div className="bg-gray-100 rounded-lg mt-6">
-            <div className="bg-yellow-200 p-2 rounded-t-lg">
+            <div className="bg-grey-200 p-2 rounded-t-lg">
               <h3 className="font-bold text-center">ข้อมูลพนักงาน</h3>
             </div>
-            <div className="space-y-3">
+            <div className="p-4 space-y-2">
               <p className="flex justify-between">
                 <span className="font-semibold">รหัสพนักงาน:</span>
                 <span>{userInfo.employeeId}</span>
@@ -168,7 +168,7 @@ const RegisterForm: React.FC = () => {
             </div>
           </div>
           <div className="bg-gray-100 rounded-lg mt-6">
-            <div className="bg-yellow-200 p-2 rounded-t-lg">
+            <div className="bg-grey-200 p-2 rounded-t-lg">
               <h3 className="font-bold text-center">วันลาคงเหลือ</h3>
             </div>
             <div className="p-4 space-y-2">
