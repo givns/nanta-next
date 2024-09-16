@@ -78,9 +78,11 @@ export default async function handler(
       nickname: user.nickname,
       departmentId: user.departmentId,
       department: user.department?.name ?? 'Unassigned',
+      departmentName: user.departmentName,
       role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
       shiftId: user.shiftId,
+      shiftCode: user.shiftCode,
       assignedShift: user.assignedShift,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: user.potentialOvertimes.map((overtime) => ({

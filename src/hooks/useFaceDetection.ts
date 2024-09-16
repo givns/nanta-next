@@ -18,7 +18,6 @@ export const useFaceDetection = (
   const webcamRef = useRef<Webcam>(null);
   const faceDetectionCount = useRef(0);
 
-  // Load the face detection model
   useEffect(() => {
     const loadModel = async () => {
       await tf.ready();
@@ -33,47 +32,44 @@ export const useFaceDetection = (
   }, []);
 
   const capturePhoto = useCallback(() => {
-    if (webcamRef.current) {
-      const imageSrc = webcamRef.current.getScreenshot();
-      if (imageSrc) {
-        setPhoto(imageSrc);
-        onPhotoCapture(imageSrc); // Call the callback with the captured photo
-        return imageSrc;
-      }
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (imageSrc) {
+      setPhoto(imageSrc);
+      onPhotoCapture(imageSrc);
+      return imageSrc;
     }
     return null;
   }, [onPhotoCapture]);
 
   const detectFace = useCallback(async () => {
-    if (webcamRef.current && model) {
-      const imageSrc = webcamRef.current.getScreenshot();
-      if (imageSrc) {
-        const img = new Image();
-        img.src = imageSrc;
-        await new Promise((resolve) => {
-          img.onload = resolve;
-        });
-        const detections = await model.estimateFaces(img, {
-          flipHorizontal: false,
-        });
+    if (!webcamRef.current || !model) return;
 
-        if (detections.length > 0) {
-          setFaceDetected(true);
-          faceDetectionCount.current += 1;
-          setMessage('Face detected. Please stay still...');
+    const imageSrc = webcamRef.current.getScreenshot();
+    if (!imageSrc) return;
 
-          if (faceDetectionCount.current >= captureThreshold) {
-            capturePhoto();
-            setMessage('Photo captured successfully!');
-          }
-        } else {
-          setFaceDetected(false);
-          faceDetectionCount.current = 0;
-          setMessage(
-            'No face detected. Please position your face in the camera.',
-          );
-        }
+    const img = new Image();
+    img.src = imageSrc;
+    await new Promise((resolve) => {
+      img.onload = resolve;
+    });
+
+    const detections = await model.estimateFaces(img, {
+      flipHorizontal: false,
+    });
+
+    if (detections.length > 0) {
+      setFaceDetected(true);
+      faceDetectionCount.current += 1;
+      setMessage('Face detected. Please stay still...');
+
+      if (faceDetectionCount.current >= captureThreshold) {
+        capturePhoto();
+        setMessage('Photo captured successfully!');
       }
+    } else {
+      setFaceDetected(false);
+      faceDetectionCount.current = 0;
+      setMessage('No face detected. Please position your face in the camera.');
     }
   }, [model, captureThreshold, capturePhoto]);
 

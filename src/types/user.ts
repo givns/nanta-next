@@ -18,9 +18,11 @@ export interface UserData {
   nickname: string | null;
   departmentId: string | null;
   department: string;
+  departmentName: string;
   role: UserRole;
   profilePictureUrl: string | null;
   shiftId: string | null;
+  shiftCode: string | null;
   assignedShift: ShiftData | null;
   overtimeHours: number;
   potentialOvertimes: PotentialOvertime[];

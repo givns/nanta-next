@@ -13,6 +13,7 @@ const RegisterForm: React.FC = () => {
   const [lineUserId, setLineUserId] = useState('');
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const [userInfo, setUserInfo] = useState<any>(null);
+  const [shiftDetails, setShiftDetails] = useState<any>(null);
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -84,10 +85,29 @@ const RegisterForm: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const fetchShiftDetails = async () => {
+      if (userInfo && userInfo.shiftCode) {
+        try {
+          const response = await axios.get(
+            `/api/getShiftDetails?shiftCode=${userInfo.shiftCode}`,
+          );
+          setShiftDetails(response.data);
+        } catch (error) {
+          console.error('Error fetching shift details:', error);
+        }
+      }
+    };
+
+    fetchShiftDetails();
+  }, [userInfo]);
+
   if (userInfo) {
     return (
       <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
-        <h2 className="text-2xl font-bold mb-6 text-center">ข้อมูลพนักงาน</h2>
+        <div className="bg-gray-100 -mx-6 -mt-6 mb-6 p-4">
+          <h2 className="text-2xl font-bold text-center">ข้อมูลพนักงาน</h2>
+        </div>
         <div className="flex flex-col items-center mb-6">
           <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
             <Image
@@ -99,44 +119,68 @@ const RegisterForm: React.FC = () => {
             />
           </div>
         </div>
-        <div className="space-y-4">
-          <p>
-            <strong>รหัสพนักงาน:</strong> {userInfo.employeeId}
+        <div className="space-y-3">
+          <p className="flex justify-between">
+            <span className="font-semibold">รหัสพนักงาน:</span>
+            <span>{userInfo.employeeId}</span>
           </p>
-          <p>
-            <strong>ชื่อ-สกุล:</strong> {userInfo.name}
+          <p className="flex justify-between">
+            <span className="font-semibold">ชื่อ-สกุล:</span>
+            <span>{userInfo.name}</span>
           </p>
-          <p>
-            <strong>แผนก:</strong> {userInfo.departmentName}
+          <p className="flex justify-between">
+            <span className="font-semibold">แผนก:</span>
+            <span>{userInfo.departmentName}</span>
           </p>
-          <p>
-            <strong>ประเภทพนักงาน:</strong> {userInfo.employeeType}
+          <p className="flex justify-between">
+            <span className="font-semibold">ประเภทพนักงาน:</span>
+            <span>{userInfo.employeeType}</span>
           </p>
-          <p>
-            <strong>กะการทำงาน:</strong> {userInfo.shiftName}
-          </p>
-          <div className="bg-gray-100 p-4 rounded-lg">
-            <h3 className="font-bold mb-2">วันลาคงเหลือ</h3>
-            <p>
-              <strong>วันลาป่วยคงเหลือ:</strong> {userInfo.sickLeaveBalance} วัน
+          {shiftDetails && (
+            <>
+              <p className="flex justify-between">
+                <span className="font-semibold">กะการทำงาน:</span>
+                <span>{shiftDetails.name}</span>
+              </p>
+              <p className="flex justify-between">
+                <span className="font-semibold">เวลาทำงาน:</span>
+                <span>
+                  {shiftDetails.startTime} - {shiftDetails.endTime}
+                </span>
+              </p>
+              <p className="flex justify-between">
+                <span className="font-semibold">วันทำงาน:</span>
+                <span>{shiftDetails.workDays.join(', ')}</span>
+              </p>
+            </>
+          )}
+        </div>
+        <div className="bg-gray-100 rounded-lg mt-6">
+          <div className="bg-gray-600 text-white p-2 rounded-t-lg">
+            <h3 className="font-bold text-center">วันลาคงเหลือ</h3>
+          </div>
+          <div className="p-4 space-y-2">
+            <p className="flex justify-between">
+              <span className="font-semibold">วันลาป่วยคงเหลือ:</span>
+              <span>{userInfo.sickLeaveBalance} วัน</span>
             </p>
-            <p>
-              <strong>วันลากิจคงเหลือ:</strong> {userInfo.businessLeaveBalance}{' '}
-              วัน
+            <p className="flex justify-between">
+              <span className="font-semibold">วันลากิจคงเหลือ:</span>
+              <span>{userInfo.businessLeaveBalance} วัน</span>
             </p>
-            <p>
-              <strong>วันลาพักร้อนคงเหลือ:</strong>{' '}
-              {userInfo.annualLeaveBalance} วัน
+            <p className="flex justify-between">
+              <span className="font-semibold">วันลาพักร้อนคงเหลือ:</span>
+              <span>{userInfo.annualLeaveBalance} วัน</span>
             </p>
           </div>
-
-          <button
-            onClick={handleConfirmRegistration}
-            className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            ยืนยันข้อมูล
-          </button>
         </div>
+
+        <button
+          onClick={handleConfirmRegistration}
+          className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 mt-6"
+        >
+          ยืนยันข้อมูล
+        </button>
       </div>
     );
   } else {

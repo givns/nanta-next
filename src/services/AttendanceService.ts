@@ -106,8 +106,6 @@ export class AttendanceService {
       isEarlyCheckIn: isBefore(parsedCheckTime, shiftStart),
       isLateCheckIn: isAfter(parsedCheckTime, shiftStart),
       isLateCheckOut: isAfter(parsedCheckTime, shiftEnd),
-      checkInDeviceSerial: attendanceData.deviceSerial,
-      checkOutDeviceSerial: !isCheckIn ? attendanceData.deviceSerial : null,
       isManualEntry: false,
     };
 
@@ -121,8 +119,6 @@ export class AttendanceService {
         status: processedAttendance.status,
         isOvertime: processedAttendance.isOvertime,
         overtimeDuration: processedAttendance.overtimeDuration,
-        checkInDeviceSerial: processedAttendance.checkInDeviceSerial,
-        checkOutDeviceSerial: processedAttendance.checkOutDeviceSerial,
         isManualEntry: processedAttendance.isManualEntry,
       },
     });
@@ -175,9 +171,11 @@ export class AttendanceService {
       nickname: user.nickname,
       departmentId: user.departmentId,
       department: user.department?.name ?? 'Unassigned',
+      departmentName: user.departmentName,
       role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
       shiftId: shift.id,
+      shiftCode: shift.shiftCode,
       assignedShift: shiftData,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: [],
@@ -431,8 +429,6 @@ export class AttendanceService {
       isLateCheckOut: attendance.checkOutTime
         ? isAfter(attendance.checkOutTime, shiftEnd)
         : false,
-      checkInDeviceSerial: attendance.checkInDeviceSerial,
-      checkOutDeviceSerial: attendance.checkOutDeviceSerial,
       isManualEntry: attendance.isManualEntry,
     };
   }

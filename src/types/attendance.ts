@@ -12,13 +12,12 @@ export interface Location {
 
 export interface AttendanceData {
   employeeId: string;
-  lineUserId: string;
+  lineUserId: string | null;
   checkTime: string | Date;
   location: string;
   address: string;
   reason?: string;
   photo?: string;
-  deviceSerial: string;
   isCheckIn: boolean;
   isOvertime?: boolean;
   isLate: boolean;
@@ -135,8 +134,6 @@ export interface AttendanceRecord {
   checkOutReason: string | null;
   checkInPhoto: string | null;
   checkOutPhoto: string | null;
-  checkInDeviceSerial: string | null;
-  checkOutDeviceSerial: string | null;
   status: AttendanceStatusType;
   isManualEntry: boolean;
 }
@@ -160,8 +157,6 @@ export type ProcessedAttendance = {
   isLateCheckOut?: boolean;
   detailedStatus: string;
   overtimeDuration: number;
-  checkInDeviceSerial: string | null;
-  checkOutDeviceSerial: string | null;
   isManualEntry: boolean;
 };
 
@@ -241,7 +236,6 @@ export interface CheckInData {
   address: string;
   reason?: string;
   photo: string;
-  deviceSerial?: string;
   isLate?: boolean;
 }
 
@@ -251,5 +245,4 @@ export interface CheckOutData {
   address: string;
   reason?: string;
   photo: string;
-  deviceSerial?: string;
 }

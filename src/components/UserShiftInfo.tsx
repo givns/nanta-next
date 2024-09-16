@@ -1,3 +1,4 @@
+//UserShiftInfo.tsx
 import React from 'react';
 import {
   AttendanceStatusInfo,
@@ -5,20 +6,21 @@ import {
   ApprovedOvertime,
 } from '../types/attendance';
 import { UserData } from '../types/user';
-import { formatTime } from '../utils/dateUtils';
-import { getDeviceType } from '../utils/deviceUtils';
-import { format, isSameDay, parseISO } from 'date-fns';
-import { th } from 'date-fns/locale';
+import { format, isToday, parseISO } from 'date-fns';
+
+const TIMEZONE = 'Asia/Bangkok';
 
 interface UserShiftInfoProps {
   userData: UserData;
   attendanceStatus: AttendanceStatusInfo;
-  departmentName: string; // Changed from 'department' to 'departmentName' for clarity
   isOutsideShift: boolean;
 }
 
-const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
-  const { user, status, latestAttendance, shiftAdjustment } = attendanceStatus;
+const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
+  userData,
+  attendanceStatus,
+}) => {
+  const { user, latestAttendance, shiftAdjustment } = attendanceStatus;
   const effectiveShift: ShiftData | null =
     shiftAdjustment?.requestedShift || user.assignedShift;
   const today = new Date();
@@ -28,21 +30,21 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
       return { message: 'วันหยุด', color: 'blue' };
     }
 
-    if (!attendanceStatus.latestAttendance) {
+    if (!latestAttendance) {
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }
 
-    const attendanceDate = parseISO(attendanceStatus.latestAttendance.date);
+    const attendanceDate = parseISO(latestAttendance.date);
 
-    if (!isSameDay(attendanceDate, today)) {
+    if (!isToday(attendanceDate)) {
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }
 
-    if (attendanceStatus.latestAttendance.checkOutTime) {
+    if (latestAttendance.checkOutTime) {
       return { message: 'ทำงานเสร็จแล้ว', color: 'green' };
     }
 
-    if (attendanceStatus.latestAttendance.checkInTime) {
+    if (latestAttendance.checkInTime) {
       return { message: 'ลงเวลาเข้างานแล้ว', color: 'orange' };
     }
 
@@ -56,42 +58,30 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
           (attendanceStatus.latestAttendance || effectiveShift) && (
             <div className="bg-white p-4 rounded-lg mb-4">
               {attendanceStatus.latestAttendance &&
-                isSameDay(
-                  parseISO(attendanceStatus.latestAttendance.date),
-                  today,
-                ) && (
+                isToday(parseISO(attendanceStatus.latestAttendance.date)) && (
                   <>
                     {attendanceStatus.latestAttendance.checkInTime && (
                       <p className="text-gray-800">
                         เวลาเข้างาน:{' '}
                         <span className="font-medium">
-                          {formatTime(
+                          {format(
                             attendanceStatus.latestAttendance.checkInTime,
+                            'HH:mm:ss',
                           )}
                         </span>
                       </p>
                     )}
-                    {attendanceStatus.latestAttendance.checkOutTime && (
-                      <p className="text-gray-800">
-                        เวลาออกงาน:{' '}
-                        <span className="font-medium">
-                          {formatTime(
-                            attendanceStatus.latestAttendance.checkOutTime,
-                          )}
-                        </span>
-                      </p>
-                    )}
-                    {attendanceStatus.latestAttendance.checkInDeviceSerial && (
-                      <p className="text-gray-800">
-                        วิธีการ:{' '}
-                        <span className="font-medium">
-                          {getDeviceType(
-                            attendanceStatus.latestAttendance
-                              .checkInDeviceSerial,
-                          )}
-                        </span>
-                      </p>
-                    )}
+                    {attendanceStatus.latestAttendance.checkOutTime &&
+                      format(
+                        attendanceStatus.latestAttendance.checkOutTime,
+                        'HH:mm:ss',
+                      )}
+                    {attendanceStatus.latestAttendance.checkInTime &&
+                      !attendanceStatus.latestAttendance.checkOutTime && (
+                        <p className="text-blue-600 mt-1">
+                          * ยังไม่ได้ลงเวลาออกงาน
+                        </p>
+                      )}
                   </>
                 )}
               {effectiveShift && (
@@ -122,13 +112,19 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
               <p className="text-gray-800">
                 เวลาเริ่ม:{' '}
                 <span className="font-medium">
-                  {formatTime(attendanceStatus.approvedOvertime.startTime)}
+                  {format(
+                    attendanceStatus.approvedOvertime.startTime,
+                    'HH:mm:ss',
+                  )}
                 </span>
               </p>
               <p className="text-gray-800">
                 เวลาสิ้นสุด:{' '}
                 <span className="font-medium">
-                  {formatTime(attendanceStatus.approvedOvertime.endTime)}
+                  {format(
+                    attendanceStatus.approvedOvertime.endTime,
+                    'HH:mm:ss',
+                  )}
                 </span>
               </p>
               <p className="text-gray-800">
@@ -139,7 +135,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
                       attendanceStatus.approvedOvertime.approvedAt.toString(),
                     ),
                     'yyyy-MM-dd HH:mm:ss',
-                    { locale: th },
                   )}
                 </span>
               </p>
@@ -171,7 +166,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
 
   const renderFutureInfo = () => {
     const futureShiftAdjustments = attendanceStatus.futureShifts.filter(
-      (adjustment) => !isSameDay(parseISO(adjustment.date), today),
+      (adjustment) => !isToday(parseISO(adjustment.date)),
     );
 
     if (
@@ -190,7 +185,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
           >
             <h3 className="font-bold">
               Shift Adjustment on{' '}
-              {format(parseISO(adjustment.date), 'dd MMM yyyy', { locale: th })}
+              {format(parseISO(adjustment.date), 'dd MMM yyyy')}
             </h3>
             <p>Shift: {adjustment.shift.name}</p>
             <p>
@@ -205,9 +200,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
           >
             <h3 className="font-bold">
               Approved Overtime on{' '}
-              {format(parseISO(overtime.date.toString()), 'dd MMM yyyy', {
-                locale: th,
-              })}
+              {format(parseISO(overtime.date.toString()), 'dd MMM yyyy')}
             </h3>
             <p>
               Time: {overtime.startTime} - {overtime.endTime}
@@ -220,7 +213,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
   };
 
   const isOvertimeForToday = (overtime: ApprovedOvertime) => {
-    return isSameDay(parseISO(overtime.date.toString()), today);
+    return isToday(parseISO(overtime.date.toString()));
   };
 
   const { message, color } = getStatusMessage();
@@ -228,13 +221,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({ attendanceStatus }) => {
   return (
     <div className="flex flex-col">
       <div className="bg-white p-4 rounded-box mb-4 text-center">
-        <p className="text-2xl font-bold">{attendanceStatus.user.name}</p>
-        <p className="text-xl">
-          รหัสพนักงาน: {attendanceStatus.user.employeeId}
-        </p>
-        <p className="text-gray-600">
-          แผนก: {attendanceStatus.user.department}
-        </p>
+        <p className="text-2xl font-bold">{userData.name}</p>
+        <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
+        <p className="text-gray-600">แผนก: {userData.departmentName}</p>
 
         <div className="flex flex-col items-center">
           <div className="flex items-center mt-2">
