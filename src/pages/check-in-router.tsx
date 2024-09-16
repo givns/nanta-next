@@ -7,6 +7,11 @@ import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { parseISO, format, set } from 'date-fns';
+import {
+  isUserData,
+  isAttendanceStatusInfo,
+  isShiftData,
+} from '../lib/typeGuards';
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -45,9 +50,28 @@ const CheckInRouter: React.FC = () => {
         const response = await axios.get(
           `/api/user-check-in-status?lineUserId=${profile.userId}`,
         );
+        console.log('Full API response:', response);
         const { user, attendanceStatus, effectiveShift } = response.data;
+
+        // Validate user data
+        if (!isUserData(user)) {
+          console.error('Invalid user data:', user);
+          throw new Error('Invalid user data received');
+        }
         console.log('User data:', user);
+
+        // Validate attendance status
+        if (!isAttendanceStatusInfo(attendanceStatus)) {
+          console.error('Invalid attendance status:', attendanceStatus);
+          throw new Error('Invalid attendance status received');
+        }
         console.log('Attendance status:', attendanceStatus);
+
+        // Validate effective shift (if it exists)
+        if (effectiveShift !== null && !isShiftData(effectiveShift)) {
+          console.error('Invalid effective shift:', effectiveShift);
+          throw new Error('Invalid effective shift data received');
+        }
         console.log('Effective shift:', effectiveShift);
 
         setUserData(user);
@@ -55,9 +79,15 @@ const CheckInRouter: React.FC = () => {
         setEffectiveShift(effectiveShift);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
-        setError(
-          err instanceof Error ? err.message : 'An unknown error occurred',
-        );
+
+        if (axios.isAxiosError(err)) {
+          console.error('Axios error details:', err.response?.data);
+          setError(`API Error: ${err.response?.data?.message || err.message}`);
+        } else if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('An unknown error occurred');
+        }
       } finally {
         setIsLoading(false);
       }
