@@ -40,20 +40,26 @@ const RegisterForm: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // First, fetch user information
+      console.log('Fetching user information for employeeId:', employeeId);
       const userResponse = await axios.post('/api/checkExistingEmployee', {
         employeeId,
       });
+      console.log('User response:', userResponse.data);
+
       if (userResponse.data.success) {
         const user = userResponse.data.user;
         setUserInfo(user);
+        console.log('User info set:', user);
 
-        // Then, fetch shift details if shiftCode is available
         if (user.shiftCode) {
+          console.log('Fetching shift details for shiftCode:', user.shiftCode);
           const shiftResponse = await axios.get(
             `/api/getShiftDetails?shiftCode=${user.shiftCode}`,
           );
+          console.log('Shift response:', shiftResponse.data);
           setShiftDetails(shiftResponse.data);
+        } else {
+          console.log('No shiftCode found for user');
         }
       } else {
         throw new Error(
@@ -99,11 +105,9 @@ const RegisterForm: React.FC = () => {
   };
 
   if (userInfo) {
+    console.log('Rendering user info. ShiftDetails:', shiftDetails);
     return (
       <div className="max-w-md mx-auto mt-10 bg-gray-100 rounded-lg shadow-xl overflow-hidden">
-        <h2 className="text-2xl font-bold text-center py-4 bg-blue-500 text-white">
-          ข้อมูลพนักงาน
-        </h2>
         <div className="bg-white p-6">
           <div className="flex flex-col items-center mb-6">
             <div className="w-32 h-32 rounded-full overflow-hidden mb-4">
@@ -116,7 +120,10 @@ const RegisterForm: React.FC = () => {
               />
             </div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg mb-6">
+          <div className="bg-gray-100 rounded-lg mt-6">
+            <div className="bg-yellow-200 p-2 rounded-t-lg">
+              <h3 className="font-bold text-center">ข้อมูลพนักงาน</h3>
+            </div>
             <div className="space-y-3">
               <p className="flex justify-between">
                 <span className="font-semibold">รหัสพนักงาน:</span>
@@ -134,7 +141,7 @@ const RegisterForm: React.FC = () => {
                 <span className="font-semibold">ประเภทพนักงาน:</span>
                 <span>{userInfo.employeeType}</span>
               </p>
-              {shiftDetails && (
+              {shiftDetails ? (
                 <>
                   <p className="flex justify-between">
                     <span className="font-semibold">กะการทำงาน:</span>
@@ -148,9 +155,15 @@ const RegisterForm: React.FC = () => {
                   </p>
                   <p className="flex justify-between">
                     <span className="font-semibold">วันทำงาน:</span>
-                    <span>{shiftDetails.workDays.join(', ')}</span>
+                    <span>
+                      {Array.isArray(shiftDetails.workDays)
+                        ? shiftDetails.workDays.join(', ')
+                        : 'ไม่ระบุ'}
+                    </span>
                   </p>
                 </>
+              ) : (
+                <p>ไม่พบข้อมูลกะการทำงาน</p>
               )}
             </div>
           </div>
