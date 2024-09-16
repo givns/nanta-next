@@ -56,8 +56,8 @@ const CheckInRouter: React.FC = () => {
         // Convert date strings to Date objects
         const processedUser = {
           ...user,
-          createdAt: user.createdAt ? parseISO(user.createdAt) : null,
-          updatedAt: user.updatedAt ? parseISO(user.updatedAt) : null,
+          createdAt: user.createdAt ? new Date(user.createdAt) : null,
+          updatedAt: user.updatedAt ? new Date(user.updatedAt) : null,
         };
 
         if (!isUserData(processedUser)) {

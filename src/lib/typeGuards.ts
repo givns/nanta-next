@@ -82,34 +82,68 @@ export function isUserData(obj: any): obj is UserData {
 }
 
 export function isAttendanceStatusInfo(obj: any): obj is AttendanceStatusInfo {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    typeof obj.status === 'string' &&
-    typeof obj.isOvertime === 'boolean' &&
-    typeof obj.overtimeDuration === 'number' &&
-    typeof obj.detailedStatus === 'string' &&
-    isUserData(obj.user) &&
-    (obj.latestAttendance === null ||
-      (typeof obj.latestAttendance === 'object' &&
-        typeof obj.latestAttendance.id === 'string' &&
-        typeof obj.latestAttendance.employeeId === 'string' &&
-        typeof obj.latestAttendance.date === 'string' &&
-        (obj.latestAttendance.checkInTime === null ||
-          typeof obj.latestAttendance.checkInTime === 'string') &&
-        (obj.latestAttendance.checkOutTime === null ||
-          typeof obj.latestAttendance.checkOutTime === 'string') &&
-        typeof obj.latestAttendance.status === 'string' &&
-        typeof obj.latestAttendance.isManualEntry === 'boolean')) &&
-    typeof obj.isCheckingIn === 'boolean' &&
-    typeof obj.isDayOff === 'boolean' &&
-    Array.isArray(obj.potentialOvertimes) &&
-    (obj.shiftAdjustment === null || typeof obj.shiftAdjustment === 'object') &&
-    (obj.approvedOvertime === null ||
-      typeof obj.approvedOvertime === 'object') &&
-    Array.isArray(obj.futureShifts) &&
-    Array.isArray(obj.futureOvertimes)
-  );
+  const checks = [
+    { field: 'status', check: () => typeof obj.status === 'string' },
+    { field: 'isOvertime', check: () => typeof obj.isOvertime === 'boolean' },
+    {
+      field: 'overtimeDuration',
+      check: () => typeof obj.overtimeDuration === 'number',
+    },
+    {
+      field: 'detailedStatus',
+      check: () => typeof obj.detailedStatus === 'string',
+    },
+    { field: 'user', check: () => isUserData(obj.user) },
+    {
+      field: 'latestAttendance',
+      check: () =>
+        obj.latestAttendance === null ||
+        (typeof obj.latestAttendance === 'object' &&
+          typeof obj.latestAttendance.id === 'string' &&
+          typeof obj.latestAttendance.employeeId === 'string' &&
+          typeof obj.latestAttendance.date === 'string' &&
+          (obj.latestAttendance.checkInTime === null ||
+            typeof obj.latestAttendance.checkInTime === 'string') &&
+          (obj.latestAttendance.checkOutTime === null ||
+            typeof obj.latestAttendance.checkOutTime === 'string') &&
+          typeof obj.latestAttendance.status === 'string' &&
+          typeof obj.latestAttendance.isManualEntry === 'boolean'),
+    },
+    {
+      field: 'isCheckingIn',
+      check: () => typeof obj.isCheckingIn === 'boolean',
+    },
+    { field: 'isDayOff', check: () => typeof obj.isDayOff === 'boolean' },
+    {
+      field: 'potentialOvertimes',
+      check: () => Array.isArray(obj.potentialOvertimes),
+    },
+    {
+      field: 'shiftAdjustment',
+      check: () =>
+        obj.shiftAdjustment === null || typeof obj.shiftAdjustment === 'object',
+    },
+    {
+      field: 'approvedOvertime',
+      check: () =>
+        obj.approvedOvertime === null ||
+        typeof obj.approvedOvertime === 'object',
+    },
+    { field: 'futureShifts', check: () => Array.isArray(obj.futureShifts) },
+    {
+      field: 'futureOvertimes',
+      check: () => Array.isArray(obj.futureOvertimes),
+    },
+  ];
+
+  for (const { field, check } of checks) {
+    if (!check()) {
+      console.error(`Invalid field in attendance status: ${field}`);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 export function isShiftData(obj: any): obj is ShiftData {
