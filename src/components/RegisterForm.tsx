@@ -132,6 +132,15 @@ const RegisterForm: React.FC = () => {
     return sortedDays.map((day) => thaiDays[day - 1]).join(', ');
   };
 
+  const translateEmployeeType = (employeeType: string): string => {
+    const translations: { [key: string]: string } = {
+      Fulltime: 'พนักงานรายเดือน',
+      Parttime: 'พนักงานรายวัน',
+      Probation: 'พนักงานทดลองงาน',
+    };
+    return translations[employeeType] || employeeType;
+  };
+
   if (userInfo) {
     console.log('Rendering user info. ShiftDetails:', shiftDetails);
     return (
@@ -169,7 +178,7 @@ const RegisterForm: React.FC = () => {
               </p>
               <p className="flex justify-between">
                 <span className="font-semibold">ประเภทพนักงาน:</span>
-                <span>{userInfo.employeeType}</span>
+                <span>{translateEmployeeType(userInfo.employeeType)}</span>
               </p>
               {shiftDetails ? (
                 <>
