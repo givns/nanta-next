@@ -3,28 +3,82 @@ import { AttendanceStatusInfo, ShiftData } from '../types/attendance';
 import { UserRole } from '../types/enum';
 
 export function isUserData(obj: any): obj is UserData {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    typeof obj.employeeId === 'string' &&
-    typeof obj.name === 'string' &&
-    (obj.lineUserId === null || typeof obj.lineUserId === 'string') &&
-    (obj.nickname === null || typeof obj.nickname === 'string') &&
-    (obj.departmentId === null || typeof obj.departmentId === 'string') &&
-    typeof obj.departmentName === 'string' &&
-    Object.values(UserRole).includes(obj.role) &&
-    (obj.profilePictureUrl === null ||
-      typeof obj.profilePictureUrl === 'string') &&
-    (obj.shiftId === null || typeof obj.shiftId === 'string') &&
-    (obj.shiftCode === null || typeof obj.shiftCode === 'string') &&
-    typeof obj.overtimeHours === 'number' &&
-    Array.isArray(obj.potentialOvertimes) &&
-    typeof obj.sickLeaveBalance === 'number' &&
-    typeof obj.businessLeaveBalance === 'number' &&
-    typeof obj.annualLeaveBalance === 'number' &&
-    obj.createdAt instanceof Date &&
-    obj.updatedAt instanceof Date
-  );
+  const checks = [
+    { field: 'employeeId', check: () => typeof obj.employeeId === 'string' },
+    { field: 'name', check: () => typeof obj.name === 'string' },
+    {
+      field: 'lineUserId',
+      check: () =>
+        obj.lineUserId === null || typeof obj.lineUserId === 'string',
+    },
+    {
+      field: 'nickname',
+      check: () => obj.nickname === null || typeof obj.nickname === 'string',
+    },
+    {
+      field: 'departmentId',
+      check: () =>
+        obj.departmentId === null || typeof obj.departmentId === 'string',
+    },
+    {
+      field: 'departmentName',
+      check: () => typeof obj.departmentName === 'string',
+    },
+    { field: 'role', check: () => Object.values(UserRole).includes(obj.role) },
+    {
+      field: 'profilePictureUrl',
+      check: () =>
+        obj.profilePictureUrl === null ||
+        typeof obj.profilePictureUrl === 'string',
+    },
+    {
+      field: 'shiftId',
+      check: () => obj.shiftId === null || typeof obj.shiftId === 'string',
+    },
+    {
+      field: 'shiftCode',
+      check: () => obj.shiftCode === null || typeof obj.shiftCode === 'string',
+    },
+    {
+      field: 'overtimeHours',
+      check: () => typeof obj.overtimeHours === 'number',
+    },
+    {
+      field: 'potentialOvertimes',
+      check: () => Array.isArray(obj.potentialOvertimes),
+    },
+    {
+      field: 'sickLeaveBalance',
+      check: () => typeof obj.sickLeaveBalance === 'number',
+    },
+    {
+      field: 'businessLeaveBalance',
+      check: () => typeof obj.businessLeaveBalance === 'number',
+    },
+    {
+      field: 'annualLeaveBalance',
+      check: () => typeof obj.annualLeaveBalance === 'number',
+    },
+    {
+      field: 'createdAt',
+      check: () =>
+        typeof obj.createdAt === 'string' || obj.createdAt instanceof Date,
+    },
+    {
+      field: 'updatedAt',
+      check: () =>
+        typeof obj.updatedAt === 'string' || obj.updatedAt instanceof Date,
+    },
+  ];
+
+  for (const { field, check } of checks) {
+    if (!check()) {
+      console.error(`Invalid field in user data: ${field}`);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 export function isAttendanceStatusInfo(obj: any): obj is AttendanceStatusInfo {

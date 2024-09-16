@@ -53,12 +53,18 @@ const CheckInRouter: React.FC = () => {
         console.log('Full API response:', response);
         const { user, attendanceStatus, effectiveShift } = response.data;
 
-        // Validate user data
-        if (!isUserData(user)) {
-          console.error('Invalid user data:', user);
+        // Convert date strings to Date objects
+        const processedUser = {
+          ...user,
+          createdAt: user.createdAt ? parseISO(user.createdAt) : null,
+          updatedAt: user.updatedAt ? parseISO(user.updatedAt) : null,
+        };
+
+        if (!isUserData(processedUser)) {
+          console.error('Invalid user data:', processedUser);
           throw new Error('Invalid user data received');
         }
-        console.log('User data:', user);
+        console.log('User data:', processedUser);
 
         // Validate attendance status
         if (!isAttendanceStatusInfo(attendanceStatus)) {
@@ -74,7 +80,7 @@ const CheckInRouter: React.FC = () => {
         }
         console.log('Effective shift:', effectiveShift);
 
-        setUserData(user);
+        setUserData(processedUser);
         setAttendanceStatus(attendanceStatus);
         setEffectiveShift(effectiveShift);
       } catch (err) {
