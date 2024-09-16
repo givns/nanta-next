@@ -144,22 +144,14 @@ export class AttendanceService {
 
     if (!user.shiftCode) throw new Error('User shift not found');
 
-    const shift = await this.shiftManagementService.getShiftByCode(
-      user.shiftCode,
+    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
+      employeeId,
+      today,
     );
-    if (!shift) throw new Error('Shift not found');
-
-    const shiftData: ShiftData = {
-      id: shift.id,
-      name: shift.name,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      workDays: shift.workDays,
-      shiftCode: shift.shiftCode,
-    };
+    if (!effectiveShift) throw new Error('Shift not found');
 
     const isHoliday = await this.holidayService.isHoliday(today, [], false);
-    const leaveRequest = await this.leaveService.getLeaveRequests(employeeId);
+    const leaveRequests = await this.leaveService.getLeaveRequests(employeeId);
     const approvedOvertime =
       await this.overtimeService.getApprovedOvertimeRequest(employeeId, today);
     const futureShifts = await this.shiftManagementService.getFutureShifts(
@@ -178,8 +170,8 @@ export class AttendanceService {
       departmentName: user.departmentName,
       role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
-      shiftId: shift.id,
-      shiftCode: shift.shiftCode,
+      shiftId: effectiveShift.id,
+      shiftCode: effectiveShift.shiftCode,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: [],
       sickLeaveBalance: user.sickLeaveBalance,
@@ -192,10 +184,10 @@ export class AttendanceService {
     return this.determineAttendanceStatus(
       userData,
       latestAttendance,
-      shiftData,
+      effectiveShift,
       today,
       isHoliday,
-      leaveRequest[0],
+      leaveRequests[0],
       approvedOvertime,
       futureShifts,
       futureOvertimes,
@@ -554,7 +546,10 @@ export class AttendanceService {
     user: User & { attendances: Attendance[] },
     now: Date,
   ) {
-    const effectiveShift = await this.getEffectiveShift(user.id, now);
+    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
+      user.id,
+      now,
+    );
     if (!effectiveShift) return;
 
     const { shiftStart, shiftEnd } = this.getShiftTimes(effectiveShift, now);
@@ -589,27 +584,6 @@ export class AttendanceService {
         await this.sendMissingCheckOutNotification(user);
       }
     }
-  }
-
-  private async getEffectiveShift(
-    userId: string,
-    date: Date,
-  ): Promise<Shift | null> {
-    const shiftAdjustment =
-      await this.shiftManagementService.getShiftAdjustmentForDate(userId, date);
-    if (
-      shiftAdjustment?.status === 'approved' &&
-      shiftAdjustment.requestedShift?.shiftCode
-    ) {
-      return this.shiftManagementService.getShiftByCode(
-        shiftAdjustment.requestedShift.shiftCode,
-      );
-    }
-
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    return user?.shiftCode
-      ? this.shiftManagementService.getShiftByCode(user.shiftCode)
-      : null;
   }
 
   private getShiftTimes(shift: Shift, date: Date) {

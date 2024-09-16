@@ -6,6 +6,7 @@ import {
   Department,
   User,
 } from '@prisma/client';
+import { ShiftData } from '@/types/attendance';
 import { endOfDay, startOfDay } from 'date-fns';
 
 export class ShiftManagementService {
@@ -29,6 +30,35 @@ export class ShiftManagementService {
     ฝ่ายรักษาความสะอาด: 'SHIFT102',
     ฝ่ายรักษาความปลอดภัย: 'SHIFT102',
   };
+
+  async getEffectiveShift(
+    userId: string,
+    date: Date,
+  ): Promise<ShiftData | null> {
+    const shiftAdjustment = await this.getShiftAdjustmentForDate(userId, date);
+    if (shiftAdjustment && shiftAdjustment.status === 'approved') {
+      return this.convertToShiftData(shiftAdjustment.requestedShift);
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.shiftCode) {
+      return null;
+    }
+
+    const shift = await this.getShiftByCode(user.shiftCode);
+    return shift ? this.convertToShiftData(shift) : null;
+  }
+
+  private convertToShiftData(shift: Shift): ShiftData {
+    return {
+      id: shift.id,
+      name: shift.name,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      workDays: shift.workDays,
+      shiftCode: shift.shiftCode,
+    };
+  }
 
   async getAllShifts(): Promise<Shift[]> {
     return this.prisma.shift.findMany();

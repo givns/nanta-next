@@ -73,6 +73,10 @@ export default async function handler(
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+    const effectiveShift = await shiftManagementService.getEffectiveShift(
+      user.id,
+      new Date(),
+    );
 
     const userData: UserData = {
       employeeId: user.employeeId,
@@ -83,8 +87,8 @@ export default async function handler(
       departmentName: user.departmentName,
       role: user.role as UserRole,
       profilePictureUrl: user.profilePictureUrl,
-      shiftId: user.shiftId,
-      shiftCode: user.shiftCode,
+      shiftId: effectiveShift ? effectiveShift.id : null,
+      shiftCode: effectiveShift ? effectiveShift.shiftCode : null,
       overtimeHours: user.overtimeHours,
       potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
         ...overtime,
