@@ -1,3 +1,4 @@
+//api/
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/AttendanceService';
@@ -72,9 +73,12 @@ export default async function handler(
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const today = startOfDay(new Date());
+
+    // Fetch the effective shift
     const effectiveShift = await shiftManagementService.getEffectiveShift(
       user.employeeId,
-      new Date(),
+      today,
     );
 
     const userData: UserData = {
@@ -110,16 +114,6 @@ export default async function handler(
       user.employeeId,
     );
 
-    const today = startOfDay(new Date());
-    const shiftAdjustment = await prisma.shiftAdjustmentRequest.findFirst({
-      where: {
-        employeeId: user.employeeId,
-        date: today,
-        status: 'approved',
-      },
-      include: { requestedShift: true },
-    });
-
     const approvedOvertime = await overtimeService.getApprovedOvertimeRequest(
       user.employeeId,
       today,
@@ -128,18 +122,8 @@ export default async function handler(
     const responseData = {
       user: userData,
       attendanceStatus,
-      shiftAdjustment: shiftAdjustment
-        ? ({
-            date: shiftAdjustment.date.toISOString().split('T')[0],
-            requestedShiftId: shiftAdjustment.requestedShiftId,
-            requestedShift: shiftAdjustment.requestedShift,
-            status: shiftAdjustment.status,
-            reason: shiftAdjustment.reason,
-            createdAt: shiftAdjustment.createdAt,
-            updatedAt: shiftAdjustment.updatedAt,
-          } as ShiftAdjustment)
-        : null,
-      approvedOvertime: approvedOvertime,
+      effectiveShift,
+      approvedOvertime,
     };
 
     res.status(200).json(responseData);

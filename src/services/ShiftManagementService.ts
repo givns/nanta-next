@@ -35,23 +35,40 @@ export class ShiftManagementService {
     employeeId: string,
     date: Date,
   ): Promise<ShiftData | null> {
-    const user = await this.prisma.user.findFirst({
-      where: { employeeId: employeeId },
+    const user = await this.prisma.user.findUnique({
+      where: { employeeId },
+      select: { shiftCode: true },
     });
 
-    if (!user) return null;
-
-    const shiftAdjustment = await this.getShiftAdjustmentForDate(user.id, date);
-    if (shiftAdjustment && shiftAdjustment.status === 'approved') {
-      return this.convertToShiftData(shiftAdjustment.requestedShift);
-    }
-
-    if (!user.shiftCode) {
+    if (!user || !user.shiftCode) {
       return null;
     }
 
-    const shift = await this.getShiftByCode(user.shiftCode);
-    return shift ? this.convertToShiftData(shift) : null;
+    const regularShift = await this.getShiftByCode(user.shiftCode);
+
+    const shiftAdjustment = await this.prisma.shiftAdjustmentRequest.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(date),
+          lt: endOfDay(date),
+        },
+        status: 'approved',
+      },
+      include: { requestedShift: true },
+    });
+
+    if (shiftAdjustment && shiftAdjustment.requestedShift) {
+      return this.convertToShiftData(shiftAdjustment.requestedShift);
+    }
+
+    return regularShift ? this.convertToShiftData(regularShift) : null;
+  }
+
+  public async getShiftByCode(shiftCode: string): Promise<Shift | null> {
+    return this.prisma.shift.findUnique({
+      where: { shiftCode },
+    });
   }
 
   private convertToShiftData(shift: Shift): ShiftData {
@@ -67,10 +84,6 @@ export class ShiftManagementService {
 
   async getAllShifts(): Promise<Shift[]> {
     return this.prisma.shift.findMany();
-  }
-
-  async getShiftByCode(shiftCode: string): Promise<Shift | null> {
-    return this.prisma.shift.findUnique({ where: { shiftCode } });
   }
 
   async getUserShift(userId: string): Promise<Shift | null> {
