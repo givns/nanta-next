@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { UserData } from '../types/user';
-import { AttendanceStatusInfo } from '@/types/attendance';
+import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
 import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
-import { parseISO, format } from 'date-fns';
+import { parseISO, format, set } from 'date-fns';
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -17,6 +17,7 @@ const CheckInRouter: React.FC = () => {
   const [currentTime, setCurrentTime] = useState<string>(
     format(new Date(), 'HH:mm:ss', { timeZone: 'Asia/Bangkok' } as any),
   );
+  const [effectiveShift, setEffectiveShift] = useState<ShiftData | null>(null);
 
   useEffect(() => {
     const initializeLiffAndFetchData = async () => {
@@ -44,12 +45,14 @@ const CheckInRouter: React.FC = () => {
         const response = await axios.get(
           `/api/user-check-in-status?lineUserId=${profile.userId}`,
         );
-        const { user, attendanceStatus } = response.data;
+        const { user, attendanceStatus, effectiveShift } = response.data;
         console.log('User data:', user);
         console.log('Attendance status:', attendanceStatus);
+        console.log('Effective shift:', effectiveShift);
 
         setUserData(user);
         setAttendanceStatus(attendanceStatus);
+        setEffectiveShift(effectiveShift);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
         setError(
