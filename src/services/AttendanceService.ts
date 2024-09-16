@@ -318,8 +318,6 @@ export class AttendanceService {
             checkOutTime: attendance.checkOutTime
               ? format(attendance.checkOutTime, 'HH:mm:ss')
               : null,
-            checkInDeviceSerial: attendance.checkInDeviceSerial || '',
-            checkOutDeviceSerial: attendance.checkOutDeviceSerial || null,
             status: this.mapStatusToAttendanceStatusType(status),
             isManualEntry: attendance.isManualEntry,
           }

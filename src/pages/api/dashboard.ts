@@ -113,9 +113,11 @@ export default async function handler(
       nickname: user.nickname,
       departmentId: user.departmentId!,
       department: user.department?.name ?? 'Unassigned',
+      departmentName: user.departmentName,
       employeeId: user.employeeId,
       role: user.role as UserRole,
       shiftId: user.shiftId!,
+      shiftCode: user.shiftCode,
       assignedShift: user.assignedShift
         ? ({
             id: user.assignedShift.id,

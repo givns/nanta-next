@@ -127,8 +127,6 @@ export class AttendanceProcessingService {
       isEarlyCheckIn: isBefore(parsedCheckTime, shiftStart),
       isLateCheckIn: isAfter(parsedCheckTime, shiftStart),
       isLateCheckOut: isAfter(parsedCheckTime, shiftEnd),
-      checkInDeviceSerial: attendanceData.deviceSerial,
-      checkOutDeviceSerial: !isCheckIn ? attendanceData.deviceSerial : null,
       isManualEntry: false,
     };
   }
@@ -247,8 +245,6 @@ export class AttendanceProcessingService {
             date: format(latestAttendance.date, 'yyyy-MM-dd'),
             checkInTime: latestAttendance.checkIn || null,
             checkOutTime: latestAttendance.checkOut || null,
-            checkInDeviceSerial: latestAttendance.checkInDeviceSerial || '',
-            checkOutDeviceSerial: latestAttendance.checkOutDeviceSerial || null,
             status: this.mapStatusToAttendanceStatusType(
               latestAttendance.status,
             ),

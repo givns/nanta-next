@@ -53,8 +53,6 @@ export interface AttendanceStatusInfo {
     date: string;
     checkInTime: string | null;
     checkOutTime: string | null;
-    checkInDeviceSerial: string;
-    checkOutDeviceSerial: string | null;
     status: AttendanceStatusType;
     isManualEntry: boolean;
   } | null;
