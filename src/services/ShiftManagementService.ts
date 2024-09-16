@@ -32,16 +32,18 @@ export class ShiftManagementService {
   };
 
   async getEffectiveShift(
-    userId: string,
+    employeeId: string,
     date: Date,
   ): Promise<ShiftData | null> {
-    const shiftAdjustment = await this.getShiftAdjustmentForDate(userId, date);
+    const user = await this.prisma.user.findUnique({ where: { employeeId } });
+    if (!user) return null;
+
+    const shiftAdjustment = await this.getShiftAdjustmentForDate(user.id, date);
     if (shiftAdjustment && shiftAdjustment.status === 'approved') {
       return this.convertToShiftData(shiftAdjustment.requestedShift);
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.shiftCode) {
+    if (!user.shiftCode) {
       return null;
     }
 

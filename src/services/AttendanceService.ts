@@ -135,7 +135,7 @@ export class AttendanceService {
     employeeId: string,
   ): Promise<AttendanceStatusInfo> {
     const user = await this.prisma.user.findUnique({
-      where: { employeeId },
+      where: { employeeId: employeeId },
     });
     if (!user) throw new Error('User not found');
 
