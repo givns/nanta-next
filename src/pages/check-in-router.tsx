@@ -66,9 +66,29 @@ const CheckInRouter: React.FC = () => {
         }
         console.log('User data:', processedUser);
 
-        // Validate attendance status
-        if (!isAttendanceStatusInfo(attendanceStatus)) {
-          console.error('Invalid attendance status:', attendanceStatus);
+        // Handle potential missing attendance status
+        const defaultAttendanceStatus = {
+          status: 'incomplete',
+          isOvertime: false,
+          overtimeDuration: 0,
+          detailedStatus: '',
+          isCheckingIn: true,
+          isDayOff: false,
+          potentialOvertimes: [],
+          futureShifts: [],
+          futureOvertimes: [],
+        };
+
+        const processedAttendanceStatus = {
+          ...defaultAttendanceStatus,
+          ...attendanceStatus,
+        };
+
+        if (!isAttendanceStatusInfo(processedAttendanceStatus)) {
+          console.error(
+            'Invalid attendance status:',
+            processedAttendanceStatus,
+          );
           throw new Error('Invalid attendance status received');
         }
         console.log('Attendance status:', attendanceStatus);
@@ -81,19 +101,13 @@ const CheckInRouter: React.FC = () => {
         console.log('Effective shift:', effectiveShift);
 
         setUserData(processedUser);
-        setAttendanceStatus(attendanceStatus);
+        setAttendanceStatus(processedAttendanceStatus);
         setEffectiveShift(effectiveShift);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
-
-        if (axios.isAxiosError(err)) {
-          console.error('Axios error details:', err.response?.data);
-          setError(`API Error: ${err.response?.data?.message || err.message}`);
-        } else if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError('An unknown error occurred');
-        }
+        setError(
+          err instanceof Error ? err.message : 'An unknown error occurred',
+        );
       } finally {
         setIsLoading(false);
       }
