@@ -104,6 +104,34 @@ const RegisterForm: React.FC = () => {
     }
   };
 
+  const translateWorkDays = (workDays: number[]): string => {
+    if (!workDays || workDays.length === 0) return 'ไม่ระบุ';
+
+    const thaiDays = [
+      'จันทร์',
+      'อังคาร',
+      'พุธ',
+      'พฤหัสบดี',
+      'ศุกร์',
+      'เสาร์',
+      'อาทิตย์',
+    ];
+    const sortedDays = [...workDays].sort((a, b) => a - b);
+
+    if (sortedDays.length === 7) return 'ทุกวัน';
+
+    if (
+      sortedDays.length > 2 &&
+      sortedDays.every((day, index) => day === sortedDays[0] + index)
+    ) {
+      // Continuous range
+      return `${thaiDays[sortedDays[0] - 1]} - ${thaiDays[sortedDays[sortedDays.length - 1] - 1]}`;
+    }
+
+    // Non-continuous or short range
+    return sortedDays.map((day) => thaiDays[day - 1]).join(', ');
+  };
+
   if (userInfo) {
     console.log('Rendering user info. ShiftDetails:', shiftDetails);
     return (
@@ -121,8 +149,10 @@ const RegisterForm: React.FC = () => {
             </div>
           </div>
           <div className="bg-gray-100 rounded-lg mt-6">
-            <div className="bg-grey-200 p-2 rounded-t-lg">
-              <h3 className="font-bold text-center">ข้อมูลพนักงาน</h3>
+            <div className="bg-grey-400 p-2 rounded-t-lg">
+              <h3 className="font-bold text-white text-center">
+                ข้อมูลพนักงาน
+              </h3>
             </div>
             <div className="p-4 space-y-2">
               <p className="flex justify-between">
@@ -155,11 +185,7 @@ const RegisterForm: React.FC = () => {
                   </p>
                   <p className="flex justify-between">
                     <span className="font-semibold">วันทำงาน:</span>
-                    <span>
-                      {Array.isArray(shiftDetails.workDays)
-                        ? shiftDetails.workDays.join(', ')
-                        : 'ไม่ระบุ'}
-                    </span>
+                    <span>{translateWorkDays(shiftDetails.workDays)}</span>
                   </p>
                 </>
               ) : (
@@ -168,8 +194,8 @@ const RegisterForm: React.FC = () => {
             </div>
           </div>
           <div className="bg-gray-100 rounded-lg mt-6">
-            <div className="bg-grey-200 p-2 rounded-t-lg">
-              <h3 className="font-bold text-center">วันลาคงเหลือ</h3>
+            <div className="bg-grey-400 p-2 rounded-t-lg">
+              <h3 className="font-bold text-white text-center">วันลาคงเหลือ</h3>
             </div>
             <div className="p-4 space-y-2">
               <p className="flex justify-between">
