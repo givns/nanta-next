@@ -1,8 +1,10 @@
 // pages/api/shifts/check-outside.ts
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { ShiftManagementService } from '../../../services/ShiftManagementService';
-import prisma from '../../../lib/prisma';
 
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { PrismaClient } from '@prisma/client';
+import { ShiftManagementService } from '../../../services/ShiftManagementService';
+
+const prisma = new PrismaClient();
 const shiftManagementService = new ShiftManagementService(prisma);
 
 export default async function handler(
