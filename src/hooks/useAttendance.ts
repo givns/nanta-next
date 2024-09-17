@@ -271,6 +271,22 @@ export const useAttendance = (
     }
   }, []);
 
+  const refreshAttendanceStatus = useCallback(async () => {
+    try {
+      const response = await axios.get(
+        `/api/attendance?employeeId=${userData.employeeId}`,
+      );
+      setAttendanceStatus(response.data);
+    } catch (error) {
+      console.error('Error fetching latest attendance status:', error);
+      setError('Failed to fetch latest attendance status');
+    }
+  }, [userData.employeeId]);
+
+  useEffect(() => {
+    refreshAttendanceStatus();
+  }, [refreshAttendanceStatus]);
+
   const isWithinPremises = useCallback(
     (lat: number, lng: number): Premise | null => {
       for (const premise of PREMISES) {
@@ -389,5 +405,6 @@ export const useAttendance = (
     getEffectiveShift,
     isWithinPremises,
     getAddressFromCoordinates,
+    refreshAttendanceStatus,
   };
 };

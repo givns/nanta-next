@@ -35,6 +35,15 @@ import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
 
 export class AttendanceService {
+  static isCheckInOutAllowed(employeeId: string) {
+    throw new Error('Method not implemented.');
+  }
+  static processAttendance(attendanceData: any) {
+    throw new Error('Method not implemented.');
+  }
+  static getLatestAttendanceStatus(employeeId: string) {
+    throw new Error('Method not implemented.');
+  }
   constructor(
     private prisma: PrismaClient,
     private shiftManagementService: ShiftManagementService,

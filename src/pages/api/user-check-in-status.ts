@@ -73,18 +73,14 @@ export default async function handler(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const today = startOfDay(new Date());
-
-    // Fetch the effective shift
+    const today = new Date();
     const effectiveShift = await shiftManagementService.getEffectiveShift(
       user.employeeId,
       today,
     );
-
     const attendanceStatus = await attendanceService.getLatestAttendanceStatus(
       user.employeeId,
     );
-
     const approvedOvertime = await overtimeService.getApprovedOvertimeRequest(
       user.employeeId,
       today,

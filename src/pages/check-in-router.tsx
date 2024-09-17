@@ -1,4 +1,3 @@
-//check-in-router.tsx
 import React, { useState, useEffect } from 'react';
 import CheckInOutForm from '../components/CheckInOutForm';
 import { UserData } from '../types/user';
@@ -6,23 +5,18 @@ import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
 import axios from 'axios';
 import liff from '@line/liff';
 import ErrorBoundary from '../components/ErrorBoundary';
-import { parseISO, format, set } from 'date-fns';
-import {
-  isUserData,
-  isAttendanceStatusInfo,
-  isShiftData,
-} from '../lib/typeGuards';
+import { format } from 'date-fns';
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
+  const [effectiveShift, setEffectiveShift] = useState<ShiftData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>(
     format(new Date(), 'HH:mm:ss', { timeZone: 'Asia/Bangkok' } as any),
   );
-  const [effectiveShift, setEffectiveShift] = useState<ShiftData | null>(null);
 
   useEffect(() => {
     const initializeLiffAndFetchData = async () => {
@@ -44,16 +38,11 @@ const CheckInRouter: React.FC = () => {
           `/api/user-check-in-status?lineUserId=${profile.userId}`,
         );
 
-        const { user, attendanceStatus } = response.data;
+        const { user, attendanceStatus, effectiveShift } = response.data;
 
         setUserData(user);
         setAttendanceStatus(attendanceStatus);
-
-        // Fetch effective shift separately
-        const effectiveShiftResponse = await axios.get(
-          `/api/get-effective-shift?employeeId=${user.employeeId}&date=${new Date().toISOString()}`,
-        );
-        setEffectiveShift(effectiveShiftResponse.data);
+        setEffectiveShift(effectiveShift);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
         setError(
@@ -67,18 +56,10 @@ const CheckInRouter: React.FC = () => {
     initializeLiffAndFetchData();
   }, []);
 
-  console.log('Rendering CheckInRouter', {
-    isLoading,
-    error,
-    userData,
-    attendanceStatus,
-    effectiveShift,
-  });
-
   useEffect(() => {
     const intervalId = setInterval(() => {
       setCurrentTime(
-        new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok' }),
+        format(new Date(), 'HH:mm:ss', { timeZone: 'Asia/Bangkok' } as any),
       );
     }, 1000);
 
@@ -108,7 +89,7 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  if (!userData || !attendanceStatus) {
+  if (!userData || !attendanceStatus || !effectiveShift) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
