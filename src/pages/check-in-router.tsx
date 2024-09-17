@@ -38,16 +38,15 @@ const CheckInRouter: React.FC = () => {
         }
 
         const profile = await liff.getProfile();
-        const [userResponse, attendanceResponse, shiftResponse] =
-          await Promise.all([
-            axios.get(`/api/user?lineUserId=${profile.userId}`),
-            axios.get(`/api/attendance?lineUserId=${profile.userId}`),
-            axios.get(`/api/shifts/effective?lineUserId=${profile.userId}`),
-          ]);
+        const response = await axios.get(
+          `/api/user-check-in-status?lineUserId=${profile.userId}`,
+        );
 
-        setUserData(userResponse.data);
-        setAttendanceStatus(attendanceResponse.data);
-        setEffectiveShift(shiftResponse.data);
+        const { user, attendanceStatus, effectiveShift } = response.data;
+
+        setUserData(user);
+        setAttendanceStatus(attendanceStatus);
+        setEffectiveShift(effectiveShift);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
         setError(
