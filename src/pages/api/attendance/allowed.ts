@@ -1,22 +1,35 @@
+// pages/api/attendance/allowed.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../../services/AttendanceService';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
-import { HolidayService } from '@/services/HolidayService';
-import { LeaveServiceServer } from '@/services/LeaveServiceServer';
-import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { NotificationService } from '@/services/NotificationService';
-import { TimeEntryService } from '@/services/TimeEntryService';
-import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
+import prisma from '../../../lib/prisma';
+import { ShiftManagementService } from '../../../services/ShiftManagementService';
+import { HolidayService } from '../../../services/HolidayService';
+import { LeaveServiceServer } from '../../../services/LeaveServiceServer';
+import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
+import { NotificationService } from '../../../services/NotificationService';
+import { TimeEntryService } from '../../../services/TimeEntryService';
+import { OvertimeNotificationService } from '../../../services/OvertimeNotificationService';
 
-const prisma = new PrismaClient();
 const shiftManagementService = new ShiftManagementService(prisma);
-const overtimeNotificationService = new OvertimeNotificationService();
+const holidayService = new HolidayService(prisma);
+const leaveServiceServer = new LeaveServiceServer();
+const notificationService = new NotificationService();
 const timeEntryService = new TimeEntryService(prisma);
+const overtimeNotificationService = new OvertimeNotificationService();
 
-const overtimeService = new OvertimeServiceServer(
+const overtimeServiceServer = new OvertimeServiceServer(
   prisma,
   overtimeNotificationService,
+  timeEntryService,
+);
+
+const attendanceService = new AttendanceService(
+  prisma,
+  shiftManagementService,
+  holidayService,
+  leaveServiceServer,
+  overtimeServiceServer,
+  notificationService,
   timeEntryService,
 );
 
@@ -24,24 +37,23 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  if (req.method === 'GET') {
-    const { employeeId } = req.query;
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
 
-    if (typeof employeeId !== 'string') {
-      return res.status(400).json({ error: 'Invalid employeeId' });
-    }
+  const { employeeId } = req.query;
 
-    try {
-      const isAllowed = await AttendanceService.isCheckInOutAllowed(employeeId);
-      res.status(200).json(isAllowed);
-    } catch (error) {
-      console.error('Error checking if check-in/out is allowed:', error);
-      res
-        .status(500)
-        .json({ error: 'Failed to check if check-in/out is allowed' });
-    }
-  } else {
-    res.setHeader('Allow', ['GET']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+  if (typeof employeeId !== 'string') {
+    return res.status(400).json({ error: 'Invalid employeeId' });
+  }
+
+  try {
+    const isAllowed = await attendanceService.isCheckInOutAllowed(employeeId);
+    res.status(200).json(isAllowed);
+  } catch (error) {
+    console.error('Error checking if check-in/out is allowed:', error);
+    res
+      .status(500)
+      .json({ error: 'Failed to check if check-in/out is allowed' });
   }
 }

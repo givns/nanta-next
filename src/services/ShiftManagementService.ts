@@ -6,8 +6,27 @@ import {
   Department,
   User,
 } from '@prisma/client';
+import axios from 'axios';
 import { ShiftData } from '@/types/attendance';
 import { endOfDay, startOfDay } from 'date-fns';
+
+interface Premise {
+  lat: number;
+  lng: number;
+  radius: number;
+  name: string;
+}
+
+const PREMISES: Premise[] = [
+  { lat: 13.50821, lng: 100.76405, radius: 100, name: 'บริษัท นันตา ฟู้ด' },
+  { lat: 13.51444, lng: 100.70922, radius: 100, name: 'บริษัท ปัตตานี ฟู้ด' },
+  {
+    lat: 13.747920392683099,
+    lng: 100.63441771348242,
+    radius: 100,
+    name: 'สำนักงานใหญ่',
+  },
+];
 
 export class ShiftManagementService {
   constructor(private prisma: PrismaClient) {}
@@ -198,5 +217,82 @@ export class ShiftManagementService {
 
   async getAllDepartments(): Promise<Department[]> {
     return this.prisma.department.findMany();
+  }
+
+  public async getAddressFromCoordinates(
+    lat: number,
+    lng: number,
+  ): Promise<string> {
+    const premise = this.isWithinPremises(lat, lng);
+    if (premise) {
+      return premise.name;
+    }
+    try {
+      const response = await axios.get(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`,
+      );
+      if (response.data.results && response.data.results.length > 0) {
+        return response.data.results[0].formatted_address;
+      } else {
+        throw new Error('No address found');
+      }
+    } catch (error) {
+      console.error('Error fetching address:', error);
+      const nearestPremise = this.isWithinPremises(lat, lng);
+      return nearestPremise ? nearestPremise.name : 'Unknown location';
+    }
+  }
+
+  public isWithinPremises(lat: number, lng: number): Premise | null {
+    for (const premise of PREMISES) {
+      const distance = this.calculateDistance(
+        lat,
+        lng,
+        premise.lat,
+        premise.lng,
+      );
+      if (distance <= premise.radius) {
+        return premise;
+      }
+    }
+    return null;
+  }
+
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  }
+
+  public async isOutsideShift(employeeId: string): Promise<boolean> {
+    const now = new Date();
+    const effectiveShift = await this.getEffectiveShift(employeeId, now);
+    if (!effectiveShift) return true;
+
+    const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+
+    return now < shiftStart || now > shiftEnd;
+  }
+
+  private parseShiftTime(timeString: string, referenceDate: Date): Date {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const shiftTime = new Date(referenceDate);
+    shiftTime.setHours(hours, minutes, 0, 0);
+    return shiftTime;
   }
 }

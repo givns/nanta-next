@@ -556,6 +556,46 @@ export class AttendanceService {
     }
   }
 
+  public async isCheckInOutAllowed(
+    employeeId: string,
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    const user = await this.prisma.user.findUnique({ where: { employeeId } });
+    if (!user) throw new Error('User not found');
+
+    const now = new Date();
+    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
+      employeeId,
+      now,
+    );
+    if (!effectiveShift)
+      return { allowed: false, reason: 'No shift found for the user' };
+
+    const isHoliday = await this.holidayService.isHoliday(
+      now,
+      [],
+      user.shiftCode === 'SHIFT104',
+    );
+    if (isHoliday)
+      return { allowed: true, reason: 'Holiday: Overtime will be recorded' };
+
+    const leaveRequest = await this.leaveService.checkUserOnLeave(
+      employeeId,
+      now,
+    );
+    if (leaveRequest)
+      return { allowed: false, reason: 'User is on approved leave' };
+
+    const isOutsideShift =
+      await this.shiftManagementService.isOutsideShift(employeeId);
+    if (isOutsideShift)
+      return {
+        allowed: true,
+        reason: 'Outside regular shift: Overtime will be recorded',
+      };
+
+    return { allowed: true };
+  }
+
   private async checkUserAttendance(
     user: User & { attendances: Attendance[] },
     now: Date,
