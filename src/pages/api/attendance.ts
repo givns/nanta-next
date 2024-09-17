@@ -5,18 +5,30 @@ import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
 import { LeaveServiceServer } from '@/services/LeaveServiceServer';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { NotificationService } from '@/services/NotificationService';
+import { notificationService } from '@/services/NotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 
 const prisma = new PrismaClient();
 const shiftManagementService = new ShiftManagementService(prisma);
-const overtimeNotificationService = new OvertimeNotificationService();
+const holidayService = new HolidayService(prisma);
+const leaveServiceServer = new LeaveServiceServer();
+const overtimeNotificationService = new OvertimeNotificationService(); // Add this line
 const timeEntryService = new TimeEntryService(prisma);
 
 const overtimeService = new OvertimeServiceServer(
   prisma,
-  overtimeNotificationService,
+  overtimeNotificationService, // Add this line
+  timeEntryService,
+);
+
+const attendanceService = new AttendanceService(
+  prisma,
+  shiftManagementService,
+  holidayService,
+  leaveServiceServer,
+  overtimeService,
+  notificationService,
   timeEntryService,
 );
 
@@ -33,7 +45,7 @@ export default async function handler(
 
     try {
       const attendanceStatus =
-        await AttendanceService.getLatestAttendanceStatus(employeeId);
+        await attendanceService.getLatestAttendanceStatus(employeeId);
       res.status(200).json(attendanceStatus);
     } catch (error) {
       console.error('Error fetching attendance status:', error);
@@ -42,7 +54,7 @@ export default async function handler(
   } else if (req.method === 'POST') {
     try {
       const attendanceData = req.body;
-      const result = await AttendanceService.processAttendance(attendanceData);
+      const result = await attendanceService.processAttendance(attendanceData);
       res.status(200).json(result);
     } catch (error) {
       console.error('Error processing attendance:', error);

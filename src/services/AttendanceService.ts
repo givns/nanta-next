@@ -341,6 +341,13 @@ export class AttendanceService {
     };
   }
 
+  async getLatestAttendance(employeeId: string): Promise<Attendance | null> {
+    return this.prisma.attendance.findFirst({
+      where: { employeeId },
+      orderBy: { date: 'desc' },
+    });
+  }
+
   private processAttendanceHistory(
     attendances: Attendance[],
     user: User,
@@ -522,13 +529,6 @@ export class AttendanceService {
     if (isLateCheckOut) details.push('late-check-out');
 
     return details.length > 0 ? details.join('-') : 'on-time';
-  }
-
-  async getLatestAttendance(employeeId: string): Promise<Attendance | null> {
-    return this.prisma.attendance.findFirst({
-      where: { employeeId },
-      orderBy: { date: 'desc' },
-    });
   }
 
   async checkMissingAttendance() {
