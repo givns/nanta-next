@@ -556,9 +556,12 @@ export class AttendanceService {
     }
   }
 
-  public async isCheckInOutAllowed(
-    employeeId: string,
-  ): Promise<{ allowed: boolean; reason?: string }> {
+  public async isCheckInOutAllowed(employeeId: string): Promise<{
+    allowed: boolean;
+    reason?: string;
+    isLate?: boolean;
+    isOvertime?: boolean;
+  }> {
     const user = await this.prisma.user.findUnique({ where: { employeeId } });
     if (!user) throw new Error('User not found');
 
@@ -570,13 +573,22 @@ export class AttendanceService {
     if (!effectiveShift)
       return { allowed: false, reason: 'No shift found for the user' };
 
+    const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+    const lateThreshold = addMinutes(shiftStart, 30); // 30 minutes grace period
+    const overtimeThreshold = addMinutes(shiftEnd, 5); // 5 minutes after shift end
+
     const isHoliday = await this.holidayService.isHoliday(
       now,
       [],
       user.shiftCode === 'SHIFT104',
     );
     if (isHoliday)
-      return { allowed: true, reason: 'Holiday: Overtime will be recorded' };
+      return {
+        allowed: true,
+        reason: 'Holiday: Overtime will be recorded',
+        isOvertime: true,
+      };
 
     const leaveRequest = await this.leaveService.checkUserOnLeave(
       employeeId,
@@ -587,11 +599,30 @@ export class AttendanceService {
 
     const isOutsideShift =
       await this.shiftManagementService.isOutsideShift(employeeId);
-    if (isOutsideShift)
+    if (isOutsideShift) {
+      if (now < shiftStart) {
+        return {
+          allowed: true,
+          reason: 'Early check-in: Time will be recorded',
+          isOvertime: false,
+        };
+      } else if (now > overtimeThreshold) {
+        return {
+          allowed: true,
+          reason: 'Outside regular shift: Overtime will be recorded',
+          isOvertime: true,
+        };
+      }
+    }
+
+    if (now > lateThreshold && now < shiftEnd) {
       return {
         allowed: true,
-        reason: 'Outside regular shift: Overtime will be recorded',
+        reason: 'Late check-in',
+        isLate: true,
+        isOvertime: false,
       };
+    }
 
     return { allowed: true };
   }
