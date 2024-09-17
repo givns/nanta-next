@@ -39,6 +39,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
   const [isLate, setIsLate] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
+  const [isCheckInOutAllowedState, setIsCheckInOutAllowedState] = useState({
+    allowed: false,
+    reason: '',
+  });
 
   const {
     attendanceStatus,
@@ -65,6 +69,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setPhoto,
     message: faceDetectionMessage,
   } = useFaceDetection(5, handlePhotoCapture);
+
+  useEffect(() => {
+    const checkAllowed = async () => {
+      const { allowed, reason } = await isCheckInOutAllowed();
+      setIsCheckInOutAllowedState({ allowed, reason: reason || '' });
+    };
+    checkAllowed();
+  }, [isCheckInOutAllowed]);
 
   const handleCheckInOut = async () => {
     if (!photo || !location) {
@@ -126,49 +138,37 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     await submitCheckInOut(lateReason);
   };
 
-  const renderStep1 = () => {
-    const [isAllowed, setIsAllowed] = useState(false);
-    const [reason, setReason] = useState('');
-
-    useEffect(() => {
-      const checkAllowed = async () => {
-        const { allowed, reason } = await isCheckInOutAllowed();
-        setIsAllowed(allowed);
-        setReason(reason || '');
-      };
-      checkAllowed();
-    }, []);
-
-    return (
-      <div className="flex flex-col h-full">
-        <UserShiftInfo
-          userData={userData}
-          attendanceStatus={attendanceStatus}
-          effectiveShift={effectiveShift}
-          isOutsideShift={isOutsideShift}
-        />
-        <div className="flex-shrink-0 mt-4">
-          <button
-            onClick={() => setStep('camera')}
-            disabled={!isAllowed}
-            className={`w-full ${
-              isAllowed
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-gray-400 cursor-not-allowed'
-            } text-white py-3 px-4 rounded-lg transition duration-300`}
-            aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-          >
-            {isAllowed
-              ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-              : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
-          </button>
-          {reason && (
-            <p className="text-red-500 text-center text-sm mt-2">{reason}</p>
-          )}
-        </div>
+  const renderStep1 = () => (
+    <div className="flex flex-col h-full">
+      <UserShiftInfo
+        userData={userData}
+        attendanceStatus={attendanceStatus}
+        effectiveShift={effectiveShift}
+        isOutsideShift={isOutsideShift}
+      />
+      <div className="flex-shrink-0 mt-4">
+        <button
+          onClick={() => setStep('camera')}
+          disabled={!isCheckInOutAllowedState.allowed}
+          className={`w-full ${
+            isCheckInOutAllowedState.allowed
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-gray-400 cursor-not-allowed'
+          } text-white py-3 px-4 rounded-lg transition duration-300`}
+          aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+        >
+          {isCheckInOutAllowedState.allowed
+            ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+            : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+        </button>
+        {isCheckInOutAllowedState.reason && (
+          <p className="text-red-500 text-center text-sm mt-2">
+            {isCheckInOutAllowedState.reason}
+          </p>
+        )}
       </div>
-    );
-  };
+    </div>
+  );
 
   const renderStep2 = () => (
     <div className="h-full flex flex-col justify-center">
