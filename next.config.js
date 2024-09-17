@@ -39,7 +39,6 @@ const nextConfig = {
       'maps.googleapis.com',
       'maps.gstatic.com',
       'profile.line-scdn.net',
-      'nanta-next.vercel.app',
     ],
   },
   env: {

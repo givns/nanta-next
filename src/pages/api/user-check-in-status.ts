@@ -1,4 +1,4 @@
-//api/
+//api/user-check-in-status.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/AttendanceService';

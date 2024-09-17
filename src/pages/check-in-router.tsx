@@ -44,11 +44,16 @@ const CheckInRouter: React.FC = () => {
           `/api/user-check-in-status?lineUserId=${profile.userId}`,
         );
 
-        const { user, attendanceStatus, effectiveShift } = response.data;
+        const { user, attendanceStatus } = response.data;
 
         setUserData(user);
         setAttendanceStatus(attendanceStatus);
-        setEffectiveShift(effectiveShift);
+
+        // Fetch effective shift separately
+        const effectiveShiftResponse = await axios.get(
+          `/api/get-effective-shift?employeeId=${user.employeeId}&date=${new Date().toISOString()}`,
+        );
+        setEffectiveShift(effectiveShiftResponse.data);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
         setError(
