@@ -81,35 +81,6 @@ export default async function handler(
       today,
     );
 
-    const userData: UserData = {
-      employeeId: user.employeeId,
-      name: user.name,
-      lineUserId: user.lineUserId,
-      nickname: user.nickname,
-      departmentId: user.departmentId,
-      departmentName: user.departmentName || '',
-      role: user.role as UserRole,
-      profilePictureUrl: user.profilePictureUrl,
-      shiftId: effectiveShift?.id || null,
-      shiftCode: effectiveShift?.shiftCode || null,
-      overtimeHours: user.overtimeHours,
-      potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
-        ...overtime,
-        type: overtime.type as 'early-check-in' | 'late-check-out' | 'day-off',
-        status: overtime.status as 'approved' | 'pending' | 'rejected',
-        periods: overtime.periods as
-          | { start: string; end: string }[]
-          | undefined,
-        reviewedBy: overtime.reviewedBy || undefined,
-        reviewedAt: overtime.reviewedAt ?? undefined,
-      })),
-      sickLeaveBalance: user.sickLeaveBalance,
-      businessLeaveBalance: user.businessLeaveBalance,
-      annualLeaveBalance: user.annualLeaveBalance,
-      createdAt: user.createdAt ?? new Date(),
-      updatedAt: user.updatedAt ?? new Date(),
-    };
-
     const attendanceStatus = await attendanceService.getLatestAttendanceStatus(
       user.employeeId,
     );
@@ -120,7 +91,37 @@ export default async function handler(
     );
 
     const responseData = {
-      user: userData,
+      user: {
+        employeeId: user.employeeId,
+        name: user.name,
+        lineUserId: user.lineUserId,
+        nickname: user.nickname,
+        departmentId: user.departmentId,
+        departmentName: user.departmentName || '',
+        role: user.role as UserRole,
+        profilePictureUrl: user.profilePictureUrl,
+        shiftId: effectiveShift?.id || null,
+        shiftCode: effectiveShift?.shiftCode || null,
+        overtimeHours: user.overtimeHours,
+        potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
+          ...overtime,
+          type: overtime.type as
+            | 'early-check-in'
+            | 'late-check-out'
+            | 'day-off',
+          status: overtime.status as 'approved' | 'pending' | 'rejected',
+          periods: overtime.periods as
+            | { start: string; end: string }[]
+            | undefined,
+          reviewedBy: overtime.reviewedBy || undefined,
+          reviewedAt: overtime.reviewedAt ?? undefined,
+        })),
+        sickLeaveBalance: user.sickLeaveBalance,
+        businessLeaveBalance: user.businessLeaveBalance,
+        annualLeaveBalance: user.annualLeaveBalance,
+        createdAt: user.createdAt ?? new Date(),
+        updatedAt: user.updatedAt ?? new Date(),
+      },
       attendanceStatus,
       effectiveShift,
       approvedOvertime,

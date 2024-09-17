@@ -24,7 +24,6 @@ interface CheckInOutFormProps {
   userData: UserData;
   initialAttendanceStatus: AttendanceStatusInfo;
   effectiveShift: ShiftData | null;
-
   onStatusChange: (newStatus: boolean) => void;
 }
 
@@ -130,6 +129,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       <UserShiftInfo
         userData={userData}
         attendanceStatus={attendanceStatus}
+        effectiveShift={effectiveShift}
         isOutsideShift={isOutsideShift}
       />
       <div className="flex-shrink-0 mt-4">

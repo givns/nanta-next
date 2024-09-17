@@ -13,16 +13,16 @@ const TIMEZONE = 'Asia/Bangkok';
 interface UserShiftInfoProps {
   userData: UserData;
   attendanceStatus: AttendanceStatusInfo;
+  effectiveShift: ShiftData | null;
   isOutsideShift: boolean;
 }
 
 const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   userData,
   attendanceStatus,
+  effectiveShift,
 }) => {
-  const { user, latestAttendance, shiftAdjustment } = attendanceStatus;
-  const effectiveShift: ShiftData | null =
-    shiftAdjustment?.requestedShift || null;
+  const { latestAttendance, shiftAdjustment } = attendanceStatus;
   const today = new Date();
 
   const getStatusMessage = () => {

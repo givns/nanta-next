@@ -27,81 +27,27 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     const initializeLiffAndFetchData = async () => {
       try {
-        console.log('Starting LIFF initialization');
         const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
         if (!liffId) {
           throw new Error('LIFF ID is not defined');
         }
 
         await liff.init({ liffId });
-        console.log('LIFF initialized successfully');
 
         if (!liff.isLoggedIn()) {
-          console.log('User not logged in, redirecting to login');
           liff.login();
           return;
         }
 
-        console.log('Fetching user profile');
         const profile = await liff.getProfile();
-        console.log('User profile:', profile);
-
-        console.log('Fetching user data and attendance status');
         const response = await axios.get(
           `/api/user-check-in-status?lineUserId=${profile.userId}`,
         );
-        console.log('Full API response:', response);
+
         const { user, attendanceStatus, effectiveShift } = response.data;
 
-        // Convert date strings to Date objects
-        const processedUser = {
-          ...user,
-          createdAt: user.createdAt ? new Date(user.createdAt) : null,
-          updatedAt: user.updatedAt ? new Date(user.updatedAt) : null,
-        };
-
-        if (!isUserData(processedUser)) {
-          console.error('Invalid user data:', processedUser);
-          throw new Error('Invalid user data received');
-        }
-        console.log('User data:', processedUser);
-
-        // Handle potential missing attendance status
-        const defaultAttendanceStatus = {
-          status: 'incomplete',
-          isOvertime: false,
-          overtimeDuration: 0,
-          detailedStatus: '',
-          isCheckingIn: true,
-          isDayOff: false,
-          potentialOvertimes: [],
-          futureShifts: [],
-          futureOvertimes: [],
-        };
-
-        const processedAttendanceStatus = {
-          ...defaultAttendanceStatus,
-          ...attendanceStatus,
-        };
-
-        if (!isAttendanceStatusInfo(processedAttendanceStatus)) {
-          console.error(
-            'Invalid attendance status:',
-            processedAttendanceStatus,
-          );
-          throw new Error('Invalid attendance status received');
-        }
-        console.log('Attendance status:', attendanceStatus);
-
-        // Validate effective shift (if it exists)
-        if (effectiveShift !== null && !isShiftData(effectiveShift)) {
-          console.error('Invalid effective shift:', effectiveShift);
-          throw new Error('Invalid effective shift data received');
-        }
-        console.log('Effective shift:', effectiveShift);
-
-        setUserData(processedUser);
-        setAttendanceStatus(processedAttendanceStatus);
+        setUserData(user);
+        setAttendanceStatus(attendanceStatus);
         setEffectiveShift(effectiveShift);
       } catch (err) {
         console.error('Error in initialization or data fetching:', err);
