@@ -8,6 +8,8 @@ import { Provider } from 'react-redux';
 import store from '../store';
 import liff from '@line/liff';
 
+process.env.TZ = 'Asia/Bangkok';
+
 function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const [isLiffInitialized, setIsLiffInitialized] = useState(false);

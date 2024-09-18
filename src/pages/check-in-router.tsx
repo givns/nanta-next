@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
 import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
@@ -63,7 +63,7 @@ const CheckInRouter: React.FC = () => {
 
   useEffect(() => {
     const intervalId = setInterval(() => {
-      setCurrentTime(format(new Date(), 'HH:mm:ss')); // Add timeZone property to format options
+      setCurrentTime(format(new Date(), 'HH:mm:ss'));
     }, 1000); // Update every second
 
     return () => clearInterval(intervalId);

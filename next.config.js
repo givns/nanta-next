@@ -44,6 +44,7 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_LIFF_ID: process.env.NEXT_PUBLIC_LIFF_ID,
     GOOGLE_MAPS_API: process.env.GOOGLE_MAPS_API,
+    TZ: process.env.TZ,
   },
   async headers() {
     return [
