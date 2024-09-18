@@ -566,6 +566,7 @@ export class AttendanceService {
     if (!user) throw new Error('User not found');
 
     const now = new Date();
+    console.log(now);
     const effectiveShift = await this.shiftManagementService.getEffectiveShift(
       employeeId,
       now,

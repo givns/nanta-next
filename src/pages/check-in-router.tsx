@@ -5,6 +5,7 @@ import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
 import axios from 'axios';
 import liff from '@line/liff';
 import { format } from 'date-fns';
+import SkeletonLoader from '../components/SkeletonLoader';
 // Lazy load components
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   loading: () => <p>Loading form...</p>,
@@ -18,9 +19,9 @@ const CheckInRouter: React.FC = () => {
   const [effectiveShift, setEffectiveShift] = useState<ShiftData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const currentTime = useMemo(() => {
-    return format(new Date(), 'HH:mm:ss', { timeZone: 'Asia/Bangkok' } as any);
-  }, []);
+  const [currentTime, setCurrentTime] = useState(
+    format(new Date(), 'HH:mm:ss'),
+  );
 
   useEffect(() => {
     const initializeLiffAndFetchData = async () => {
@@ -60,12 +61,16 @@ const CheckInRouter: React.FC = () => {
     initializeLiffAndFetchData();
   }, []);
 
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCurrentTime(format(new Date(), 'HH:mm:ss')); // Add timeZone property to format options
+    }, 1000); // Update every second
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   if (isLoading) {
-    return (
-      <div className="flex flex-col justify-center items-center min-h-screen">
-        <h1 className="text-1xl mb-6 text-gray-800">กำลังเข้าสู่ระบบ...</h1>
-      </div>
-    );
+    return <SkeletonLoader />; // Show skeleton while loading
   }
 
   if (error) {
@@ -100,27 +105,26 @@ const CheckInRouter: React.FC = () => {
   return (
     <ErrorBoundary>
       <div className="main-container flex flex-col min-h-screen bg-gray-100 p-4">
-        <div className="flex-grow flex flex-col justify-start items-center">
-          <h1 className="text-2xl font-bold text-center mt-8 mb-2 text-gray-800">
-            {attendanceStatus.isCheckingIn
-              ? 'ระบบบันทึกเวลาเข้างาน'
-              : 'ระบบบันทึกเวลาออกงาน'}
-          </h1>
-          <div className="text-3xl font-bold text-center mb-2 text-black-950">
-            {currentTime}
-          </div>
-          <div className="w-full max-w-md">
-            <CheckInOutForm
-              userData={userData}
-              initialAttendanceStatus={attendanceStatus}
-              effectiveShift={effectiveShift}
-              onStatusChange={(newStatus) =>
-                setAttendanceStatus((prev) =>
-                  prev ? { ...prev, isCheckingIn: newStatus } : null,
-                )
-              }
-            />
-          </div>
+        <div className="flex-grow flex flex-col justify-start items-center"></div>
+        <h1 className="text-2xl font-bold text-center mt-8 mb-2 text-gray-800">
+          {attendanceStatus.isCheckingIn
+            ? 'ระบบบันทึกเวลาเข้างาน'
+            : 'ระบบบันทึกเวลาออกงาน'}
+        </h1>
+        <div className="text-3xl font-bold text-center mb-2 text-black-950">
+          {currentTime}
+        </div>
+        <div className="w-full max-w-md">
+          <CheckInOutForm
+            userData={userData}
+            initialAttendanceStatus={attendanceStatus}
+            effectiveShift={effectiveShift}
+            onStatusChange={(newStatus) =>
+              setAttendanceStatus((prev) =>
+                prev ? { ...prev, isCheckingIn: newStatus } : null,
+              )
+            }
+          />
         </div>
       </div>
     </ErrorBoundary>

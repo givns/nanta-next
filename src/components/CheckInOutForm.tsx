@@ -9,14 +9,18 @@ import {
   ShiftData,
 } from '../types/attendance';
 import { UserData } from '../types/user';
-import InteractiveMap from './InteractiveMap';
 import { useFaceDetection } from '../hooks/useFaceDetection';
 import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
-import { formatISO } from 'date-fns';
-import { zonedTimeToUtc } from '../utils/dateUtils';
+import { format } from 'date-fns';
+import dynamic from 'next/dynamic';
+
+const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
+  loading: () => <p>Loading map...</p>,
+  ssr: false,
+});
 
 const TIMEZONE = 'Asia/Bangkok';
 
@@ -113,7 +117,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const checkInOutData: AttendanceData = {
       employeeId: userData.employeeId,
       lineUserId: userData.lineUserId,
-      checkTime: formatISO(zonedTimeToUtc(new Date(), TIMEZONE)),
+      checkTime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
       location: JSON.stringify(location),
       address,
       reason: lateReasonInput || reason,
