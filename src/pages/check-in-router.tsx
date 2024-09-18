@@ -72,6 +72,16 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   }, [fetchData]);
 
   useEffect(() => {
+    if (attendanceStatus) {
+      console.log('Current attendance status:', {
+        isCheckingIn: attendanceStatus.isCheckingIn,
+        detailedStatus: attendanceStatus.detailedStatus,
+        latestAttendance: attendanceStatus.latestAttendance,
+      });
+    }
+  }, [attendanceStatus]);
+
+  useEffect(() => {
     const updateTime = () => {
       try {
         const now = new Date();

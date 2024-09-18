@@ -36,37 +36,46 @@ export const useAttendance = (
 
   const processAttendanceStatus = useCallback(
     (status: AttendanceStatusInfo) => {
-      if (status.latestAttendance?.checkInTime) {
-        const checkInTime = parseISO(status.latestAttendance.checkInTime);
-        if (!isValid(checkInTime)) {
-          console.error(
-            'Invalid checkInTime:',
-            status.latestAttendance.checkInTime,
+      if (status.latestAttendance) {
+        const {
+          checkInTime,
+          checkOutTime,
+          status: attendanceStatus,
+        } = status.latestAttendance;
+
+        // Handle potential inconsistencies
+        if (!checkInTime && !checkOutTime) {
+          status.isCheckingIn = true;
+          status.detailedStatus = 'pending';
+        } else if (checkInTime && !checkOutTime) {
+          status.isCheckingIn = false;
+          status.detailedStatus = 'checked-in';
+        } else if (checkInTime && checkOutTime) {
+          status.isCheckingIn = true;
+          status.detailedStatus = 'checked-out';
+        }
+
+        // Format times if they exist
+        if (checkInTime) {
+          status.latestAttendance.checkInTime = formatTime(
+            parseISO(checkInTime),
           );
-          // Set to a default value or handle the error as appropriate
-          status.latestAttendance.checkInTime = null;
-        } else {
-          // Format the time using our utility function
-          status.latestAttendance.checkInTime = formatTime(checkInTime);
+        }
+        if (checkOutTime) {
+          status.latestAttendance.checkOutTime = formatTime(
+            parseISO(checkOutTime),
+          );
         }
       }
-      // Do the same for checkOutTime if it exists
-      if (status.latestAttendance?.checkOutTime) {
-        const checkOutTime = parseISO(status.latestAttendance.checkOutTime);
-        if (!isValid(checkOutTime)) {
-          console.error(
-            'Invalid checkOutTime:',
-            status.latestAttendance.checkOutTime,
-          );
-          status.latestAttendance.checkOutTime = null;
-        } else {
-          status.latestAttendance.checkOutTime = formatTime(checkOutTime);
-        }
-      }
+
       return status;
     },
     [],
   );
+
+  useEffect(() => {
+    setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
+  }, [initialAttendanceStatus, processAttendanceStatus]);
 
   useEffect(() => {
     setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));

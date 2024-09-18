@@ -100,18 +100,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     console.log('initialAttendanceStatus:', initialAttendanceStatus);
     console.log('effectiveShift:', effectiveShift);
 
-    // Validate date and time values
-    if (initialAttendanceStatus?.latestAttendance?.checkInTime) {
-      const checkInTime = parseISO(
-        initialAttendanceStatus.latestAttendance.checkInTime,
-      );
-      if (!isValid(checkInTime)) {
-        console.error(
-          'Invalid checkInTime:',
-          initialAttendanceStatus.latestAttendance.checkInTime,
-        );
-      } else {
+    if (initialAttendanceStatus?.latestAttendance) {
+      const { checkInTime, checkOutTime, status } =
+        initialAttendanceStatus.latestAttendance;
+      console.log('Latest attendance:', { checkInTime, checkOutTime, status });
+
+      if (checkInTime) {
         console.log('Formatted checkInTime:', formatTime(checkInTime));
+      } else {
+        console.log('No check-in time available');
+      }
+
+      if (checkOutTime) {
+        console.log('Formatted checkOutTime:', formatTime(checkOutTime));
+      } else {
+        console.log('No check-out time available');
       }
     }
 
@@ -119,10 +122,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       console.log('Shift start time:', formatTime(effectiveShift.startTime));
       console.log('Shift end time:', formatTime(effectiveShift.endTime));
     }
-
-    return () => {
-      console.log('CheckInOutForm unmounted');
-    };
   }, [userData, initialAttendanceStatus, effectiveShift]);
 
   const submitCheckInOut = useCallback(
