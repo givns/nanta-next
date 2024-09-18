@@ -16,6 +16,7 @@ import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
 import dynamic from 'next/dynamic';
 import { formatBangkokTime, getBangkokTime } from '../utils/dateUtils';
+import ErrorBoundary from './ErrorBoundary';
 
 const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
   loading: () => <p>Loading map...</p>,
@@ -288,25 +289,27 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   return (
-    <div className="h-screen flex flex-col">
-      <div className="flex-grow overflow-hidden flex flex-col">
-        {step === 'info' && renderStep1()}
-        {step === 'camera' && renderStep2()}
-        {step === 'confirm' && renderStep3()}
-      </div>
-      {error && (
-        <div className="mt-4">
-          <p className="text-red-500" role="alert">
-            {error}
-          </p>
+    <ErrorBoundary>
+      <div className="h-screen flex flex-col">
+        <div className="flex-grow overflow-hidden flex flex-col">
+          {step === 'info' && renderStep1()}
+          {step === 'camera' && renderStep2()}
+          {step === 'confirm' && renderStep3()}
         </div>
-      )}
-      <LateReasonModal
-        isOpen={isLateModalOpen}
-        onClose={() => setIsLateModalOpen(false)}
-        onSubmit={handleLateReasonSubmit}
-      />
-    </div>
+        {error && (
+          <div className="mt-4">
+            <p className="text-red-500" role="alert">
+              {error}
+            </p>
+          </div>
+        )}
+        <LateReasonModal
+          isOpen={isLateModalOpen}
+          onClose={() => setIsLateModalOpen(false)}
+          onSubmit={handleLateReasonSubmit}
+        />
+      </div>
+    </ErrorBoundary>
   );
 };
 

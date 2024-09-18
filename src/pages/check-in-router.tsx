@@ -71,9 +71,17 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   }, [fetchData]);
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString());
-    }, 1000);
+    const updateTime = () => {
+      try {
+        const now = new Date();
+        setCurrentTime(now.toLocaleTimeString());
+      } catch (err) {
+        console.error('Error updating time:', err);
+      }
+    };
+
+    updateTime(); // Initial update
+    const intervalId = setInterval(updateTime, 1000);
 
     return () => clearInterval(intervalId);
   }, []);
