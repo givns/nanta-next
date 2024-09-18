@@ -15,7 +15,6 @@ import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
 import dynamic from 'next/dynamic';
-import { formatBangkokTime, getBangkokTime } from '../utils/dateUtils';
 import ErrorBoundary from './ErrorBoundary';
 
 const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
@@ -49,6 +48,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
   const [isLate, setIsLate] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
+
   const [isCheckInOutAllowedState, setIsCheckInOutAllowedState] = useState({
     allowed: false,
     reason: '',
@@ -91,6 +91,17 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
     checkAllowed();
   }, [isCheckInOutAllowed]);
+
+  useEffect(() => {
+    console.log('CheckInOutForm mounted');
+    console.log('userData:', userData);
+    console.log('initialAttendanceStatus:', initialAttendanceStatus);
+    console.log('effectiveShift:', effectiveShift);
+
+    return () => {
+      console.log('CheckInOutForm unmounted');
+    };
+  }, [userData, initialAttendanceStatus, effectiveShift]);
 
   const submitCheckInOut = useCallback(
     async (lateReasonInput?: string) => {
@@ -175,6 +186,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setIsLateModalOpen(false);
     await submitCheckInOut(lateReason);
   };
+
+  if (error) {
+    return (
+      <div
+        className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
+        role="alert"
+      >
+        <strong className="font-bold">Error:</strong>
+        <span className="block sm:inline"> {error}</span>
+      </div>
+    );
+  }
 
   const renderStep1 = () => (
     <div className="flex flex-col h-full">

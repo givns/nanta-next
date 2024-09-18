@@ -50,6 +50,13 @@ export const useAttendance = (
     }
   }, [userData.lineUserId]);
 
+  useEffect(() => {
+    console.log('useAttendance hook: Initial data', {
+      userData,
+      initialAttendanceStatus,
+    });
+  }, [userData, initialAttendanceStatus]);
+
   const isCheckInOutAllowed = useCallback(async () => {
     if (checkInOutAllowance) {
       return checkInOutAllowance;

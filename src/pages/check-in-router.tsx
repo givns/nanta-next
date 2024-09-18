@@ -33,6 +33,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [currentTime, setCurrentTime] = useState(
     new Date().toLocaleTimeString(),
   );
+  const [formError, setFormError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!lineUserId) {
@@ -129,15 +130,31 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         <div className="text-3xl font-bold text-center mb-2 text-black-950">
           {currentTime}
         </div>
-        <div className="w-full max-w-md">
-          <CheckInOutForm
-            userData={userData}
-            initialAttendanceStatus={attendanceStatus}
-            effectiveShift={effectiveShift}
-            initialCheckInOutAllowance={checkInOutAllowance}
-            onStatusChange={handleStatusChange}
-          />
-        </div>
+        {formError && (
+          <div
+            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
+            role="alert"
+          >
+            <strong className="font-bold">Error in CheckInOutForm:</strong>
+            <span className="block sm:inline"> {formError}</span>
+          </div>
+        )}
+        <ErrorBoundary
+          onError={(error: Error) => {
+            console.error('Error in CheckInOutForm:', error);
+            setFormError(error.message);
+          }}
+        >
+          <div className="w-full max-w-md">
+            <CheckInOutForm
+              userData={userData}
+              initialAttendanceStatus={attendanceStatus}
+              effectiveShift={effectiveShift}
+              initialCheckInOutAllowance={checkInOutAllowance}
+              onStatusChange={handleStatusChange}
+            />
+          </div>
+        </ErrorBoundary>
       </div>
     </ErrorBoundary>
   );
