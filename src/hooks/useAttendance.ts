@@ -43,7 +43,7 @@ export const useAttendance = (
           status: attendanceStatus,
         } = status.latestAttendance;
 
-        // Handle potential inconsistencies
+        // These times are already formatted, so we don't need to parse them
         if (!checkInTime && !checkOutTime) {
           status.isCheckingIn = true;
           status.detailedStatus = 'pending';
@@ -53,27 +53,6 @@ export const useAttendance = (
         } else if (checkInTime && checkOutTime) {
           status.isCheckingIn = true;
           status.detailedStatus = 'checked-out';
-        }
-
-        // Format times if they exist and are valid
-        if (checkInTime) {
-          const parsedCheckInTime = parseISO(checkInTime);
-          if (isValid(parsedCheckInTime)) {
-            status.latestAttendance.checkInTime = formatTime(parsedCheckInTime);
-          } else {
-            console.error('Invalid checkInTime:', checkInTime);
-            status.latestAttendance.checkInTime = null;
-          }
-        }
-        if (checkOutTime) {
-          const parsedCheckOutTime = parseISO(checkOutTime);
-          if (isValid(parsedCheckOutTime)) {
-            status.latestAttendance.checkOutTime =
-              formatTime(parsedCheckOutTime);
-          } else {
-            console.error('Invalid checkOutTime:', checkOutTime);
-            status.latestAttendance.checkOutTime = null;
-          }
         }
       }
 

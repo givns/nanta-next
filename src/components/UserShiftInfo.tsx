@@ -6,7 +6,7 @@ import {
   ApprovedOvertime,
 } from '../types/attendance';
 import { UserData } from '../types/user';
-import { format, isToday, parseISO } from 'date-fns';
+import { format, isToday, parseISO, isValid } from 'date-fns';
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -31,6 +31,12 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     isOutsideShift,
   });
   console.log('Latest Attendance:', attendanceStatus.latestAttendance);
+
+  const formatTimeOrNull = (timeString: string | null): string | null => {
+    if (!timeString) return null;
+    const parsedTime = parseISO(timeString);
+    return isValid(parsedTime) ? format(parsedTime, 'HH:mm:ss') : null;
+  };
 
   const getStatusMessage = () => {
     if (attendanceStatus.isDayOff) {
@@ -61,66 +67,47 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const renderTodayInfo = () => {
     return (
       <>
-        {!attendanceStatus.isDayOff &&
-          (attendanceStatus.latestAttendance || effectiveShift) && (
-            <div className="bg-white p-4 rounded-lg mb-4">
-              {attendanceStatus.latestAttendance &&
-                isToday(parseISO(attendanceStatus.latestAttendance.date)) && (
-                  <>
-                    {attendanceStatus.latestAttendance?.checkInTime && (
-                      <p className="text-gray-800">
-                        เวลาเข้างาน:{' '}
-                        <span className="font-medium">
-                          {format(
-                            parseISO(
-                              attendanceStatus.latestAttendance.checkInTime,
-                            ),
-                            'HH:mm:ss',
-                          )}
-                        </span>
-                      </p>
-                    )}
+        {!attendanceStatus.isDayOff && (latestAttendance || effectiveShift) && (
+          <div className="bg-white p-4 rounded-lg mb-4">
+            {latestAttendance && (
+              <>
+                <p className="text-gray-800">
+                  เวลาเข้างาน:{' '}
+                  <span className="font-medium">
+                    {latestAttendance.checkInTime || 'ยังไม่ได้ลงเวลา'}
+                  </span>
+                </p>
+                <p className="text-gray-800">
+                  เวลาออกงาน:{' '}
+                  <span className="font-medium">
+                    {latestAttendance.checkOutTime || 'ยังไม่ได้ลงเวลา'}
+                  </span>
+                </p>
+                <p className="text-gray-800">
+                  สถานะ:{' '}
+                  <span className="font-medium">{latestAttendance.status}</span>
+                </p>
+              </>
+            )}
 
-                    {attendanceStatus.latestAttendance &&
-                      attendanceStatus.latestAttendance.checkOutTime && (
-                        <p className="text-gray-800">
-                          เวลาออกงาน:{' '}
-                          <span className="font-medium">
-                            {format(
-                              parseISO(
-                                attendanceStatus.latestAttendance.checkOutTime,
-                              ),
-                              'HH:mm:ss',
-                            )}
-                          </span>
-                        </p>
-                      )}
-                    {attendanceStatus.latestAttendance.checkInTime &&
-                      !attendanceStatus.latestAttendance.checkOutTime && (
-                        <p className="text-blue-600 mt-1">
-                          * ยังไม่ได้ลงเวลาออกงาน
-                        </p>
-                      )}
-                  </>
-                )}
-              {effectiveShift && (
-                <>
-                  <h3 className="text-md font-semibold mt-4 mb-1">
-                    กะการทำงานของคุณวันนี้:
-                  </h3>
-                  <p className="text-gray-800">
-                    <span className="font-medium">{effectiveShift.name}</span> (
-                    {effectiveShift.startTime} - {effectiveShift.endTime})
+            {effectiveShift && (
+              <>
+                <h3 className="text-md font-semibold mt-4 mb-1">
+                  กะการทำงานของคุณวันนี้:
+                </h3>
+                <p className="text-gray-800">
+                  <span className="font-medium">{effectiveShift.name}</span> (
+                  {effectiveShift.startTime} - {effectiveShift.endTime})
+                </p>
+                {attendanceStatus.shiftAdjustment && (
+                  <p className="text-blue-600 mt-1">
+                    * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
                   </p>
-                  {attendanceStatus.shiftAdjustment && (
-                    <p className="text-blue-600 mt-1">
-                      * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {attendanceStatus.approvedOvertime &&
           isOvertimeForToday(attendanceStatus.approvedOvertime) && (
