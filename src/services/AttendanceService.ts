@@ -33,8 +33,7 @@ import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
-import { getBangkokTime, formatBangkokTime } from '../utils/dateUtils';
-import { toZonedTime } from 'date-fns-tz';
+import { formatDate, formatTime } from '../utils/dateUtils';
 
 const TIMEZONE = 'Asia/Bangkok';
 
@@ -72,8 +71,33 @@ export class AttendanceService {
     if (!shift) throw new Error('User shift not found');
 
     const { isCheckIn, checkTime } = attendanceData;
-    const parsedCheckTime = toZonedTime(new Date(checkTime), TIMEZONE); // Convert the provided checkTime to Bangkok time
-    const nowBangkok = getBangkokTime();
+
+    // Parse the checkTime properly
+    let parsedCheckTime: Date;
+    if (typeof checkTime === 'string') {
+      // If it's just a time string (HH:mm:ss), prepend today's date
+      if (checkTime.length <= 8) {
+        const today = new Date();
+        const [hours, minutes, seconds] = checkTime.split(':').map(Number);
+        parsedCheckTime = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate(),
+          hours,
+          minutes,
+          seconds,
+        );
+      } else {
+        // If it's a full ISO string, parse it directly
+        parsedCheckTime = parseISO(checkTime);
+      }
+    } else if (checkTime instanceof Date) {
+      parsedCheckTime = checkTime;
+    } else {
+      throw new Error('Invalid checkTime format');
+    }
+
+    const date = startOfDay(parsedCheckTime);
 
     const shiftStart = this.parseShiftTime(shift.startTime, parsedCheckTime);
     const shiftEnd = this.parseShiftTime(shift.endTime, parsedCheckTime);
@@ -111,13 +135,9 @@ export class AttendanceService {
     const processedAttendance: ProcessedAttendance = {
       id: '', // This will be set when saving to the database
       employeeId: user.employeeId,
-      date: startOfDay(parsedCheckTime),
-      checkIn: isCheckIn
-        ? formatBangkokTime(parsedCheckTime, 'HH:mm:ss')
-        : undefined,
-      checkOut: !isCheckIn
-        ? formatBangkokTime(parsedCheckTime, 'HH:mm:ss')
-        : undefined,
+      date: new Date(formatDate(date)),
+      checkIn: isCheckIn ? formatTime(parsedCheckTime) : undefined,
+      checkOut: !isCheckIn ? formatTime(parsedCheckTime) : undefined,
       status,
       regularHours,
       overtimeHours,

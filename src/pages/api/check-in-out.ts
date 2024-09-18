@@ -12,6 +12,7 @@ import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { getBangkokTime, formatBangkokTime } from '@/utils/dateUtils';
+import { NoWorkDayService } from '@/services/NoWorkDayService';
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
