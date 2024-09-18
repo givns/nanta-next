@@ -19,13 +19,6 @@ export const useAttendance = (
   const [inPremises, setInPremises] = useState(false);
   const [isOutsideShift, setIsOutsideShift] = useState(false);
 
-  const isCheckInOutAllowedRef = useRef<{
-    allowed: boolean;
-    reason?: string;
-    isLate?: boolean;
-    isOvertime?: boolean;
-  } | null>(null);
-
   const getAttendanceStatus = useCallback(async () => {
     try {
       const response = await axios.get(
@@ -44,19 +37,16 @@ export const useAttendance = (
 
   const isCheckInOutAllowed = useCallback(async () => {
     try {
-      const { shiftStatus } = await getAttendanceStatus();
-      return {
-        allowed: shiftStatus.isOutsideShift || !shiftStatus.isLate,
-        reason: shiftStatus.isLate ? 'Late check-in' : undefined,
-        isLate: shiftStatus.isLate,
-        isOvertime: shiftStatus.isOvertime,
-      };
+      const response = await axios.get(
+        `/api/attendance/allowed?employeeId=${userData.employeeId}`,
+      );
+      return response.data;
     } catch (error) {
       console.error('Error checking if check-in/out is allowed:', error);
       setError('Failed to check if check-in/out is allowed');
       return { allowed: false, reason: 'Error checking permissions' };
     }
-  }, [getAttendanceStatus]);
+  }, [userData.employeeId]);
 
   const checkInOut = useCallback(async (attendanceData: AttendanceData) => {
     setIsLoading(true);
@@ -77,30 +67,17 @@ export const useAttendance = (
     }
   }, []);
 
-  const refreshAttendanceStatus = useCallback(async () => {
-    try {
-      const response = await axios.get(
-        `/api/attendance?employeeId=${userData.employeeId}`,
-      );
-      setAttendanceStatus(response.data);
-    } catch (error) {
-      console.error('Error fetching latest attendance status:', error);
-      setError('Failed to fetch latest attendance status');
-    }
-  }, [userData.employeeId]);
-
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        await refreshAttendanceStatus();
-        await isCheckInOutAllowed();
+        await getAttendanceStatus();
       } catch (error) {
         console.error('Error fetching initial data:', error);
       }
     };
 
     fetchInitialData();
-  }, [refreshAttendanceStatus, isCheckInOutAllowed]);
+  }, [getAttendanceStatus]);
 
   useEffect(() => {
     const getCurrentLocation = async () => {

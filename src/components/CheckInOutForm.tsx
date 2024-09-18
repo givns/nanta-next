@@ -22,8 +22,6 @@ const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
   ssr: false,
 });
 
-const TIMEZONE = 'Asia/Bangkok';
-
 interface CheckInOutFormProps {
   userData: UserData;
   initialAttendanceStatus: AttendanceStatusInfo;
@@ -133,8 +131,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       const {
         allowed,
         reason: checkInOutReason,
-        isLate: late,
-        isOvertime: overtime,
+        isLate,
+        isOvertime,
       } = await isCheckInOutAllowed();
 
       if (!allowed) {
@@ -142,10 +140,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         return;
       }
 
-      setIsLate(late);
-      setIsOvertime(overtime);
+      setIsLate(isLate || false);
+      setIsOvertime(isOvertime || false);
 
-      if (late && attendanceStatus.isCheckingIn) {
+      if (isLate && attendanceStatus.isCheckingIn) {
         setIsLateModalOpen(true);
         return;
       }
