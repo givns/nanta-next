@@ -16,6 +16,8 @@ import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
 import dynamic from 'next/dynamic';
 import ErrorBoundary from './ErrorBoundary';
+import { parseISO, isValid } from 'date-fns';
+import { formatTime, formatDate, getBangkokTime } from '../utils/dateUtils';
 
 const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
   loading: () => <p>Loading map...</p>,
@@ -97,6 +99,26 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     console.log('userData:', userData);
     console.log('initialAttendanceStatus:', initialAttendanceStatus);
     console.log('effectiveShift:', effectiveShift);
+
+    // Validate date and time values
+    if (initialAttendanceStatus?.latestAttendance?.checkInTime) {
+      const checkInTime = parseISO(
+        initialAttendanceStatus.latestAttendance.checkInTime,
+      );
+      if (!isValid(checkInTime)) {
+        console.error(
+          'Invalid checkInTime:',
+          initialAttendanceStatus.latestAttendance.checkInTime,
+        );
+      } else {
+        console.log('Formatted checkInTime:', formatTime(checkInTime));
+      }
+    }
+
+    if (effectiveShift) {
+      console.log('Shift start time:', formatTime(effectiveShift.startTime));
+      console.log('Shift end time:', formatTime(effectiveShift.endTime));
+    }
 
     return () => {
       console.log('CheckInOutForm unmounted');

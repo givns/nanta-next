@@ -3,6 +3,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { AttendanceData, AttendanceStatusInfo } from '../types/attendance';
 import { UserData } from '../types/user';
+import { parseISO, isValid } from 'date-fns';
+import { formatTime, formatDate, getBangkokTime } from '../utils/dateUtils';
 
 export const useAttendance = (
   userData: UserData,
@@ -31,6 +33,44 @@ export const useAttendance = (
     isLate?: boolean;
     isOvertime?: boolean;
   } | null>(initialCheckInOutAllowance);
+
+  const processAttendanceStatus = useCallback(
+    (status: AttendanceStatusInfo) => {
+      if (status.latestAttendance?.checkInTime) {
+        const checkInTime = parseISO(status.latestAttendance.checkInTime);
+        if (!isValid(checkInTime)) {
+          console.error(
+            'Invalid checkInTime:',
+            status.latestAttendance.checkInTime,
+          );
+          // Set to a default value or handle the error as appropriate
+          status.latestAttendance.checkInTime = null;
+        } else {
+          // Format the time using our utility function
+          status.latestAttendance.checkInTime = formatTime(checkInTime);
+        }
+      }
+      // Do the same for checkOutTime if it exists
+      if (status.latestAttendance?.checkOutTime) {
+        const checkOutTime = parseISO(status.latestAttendance.checkOutTime);
+        if (!isValid(checkOutTime)) {
+          console.error(
+            'Invalid checkOutTime:',
+            status.latestAttendance.checkOutTime,
+          );
+          status.latestAttendance.checkOutTime = null;
+        } else {
+          status.latestAttendance.checkOutTime = formatTime(checkOutTime);
+        }
+      }
+      return status;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
+  }, [initialAttendanceStatus, processAttendanceStatus]);
 
   const getAttendanceStatus = useCallback(async () => {
     try {

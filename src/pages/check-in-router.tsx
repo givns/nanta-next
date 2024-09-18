@@ -113,7 +113,16 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   if (!userData || !attendanceStatus || !effectiveShift) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
-        <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
+        <h1 className="text-1xl mb-6 text-gray-800">
+          ไม่พบข้อมูลผู้ใช้หรือข้อมูลกะงาน
+        </h1>
+        <pre>
+          {JSON.stringify(
+            { userData, attendanceStatus, effectiveShift },
+            null,
+            2,
+          )}
+        </pre>
       </div>
     );
   }
