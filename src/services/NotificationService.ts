@@ -7,6 +7,7 @@ import {
   LeaveRequest,
   OvertimeRequest,
   ShiftAdjustmentRequest,
+  EmployeeType,
 } from '@prisma/client';
 import {
   generateApprovalMessage,
@@ -39,7 +40,7 @@ export class NotificationService {
         await this.sendLineMessage(lineUserId, message);
       } else {
         const user = await this.prisma.user.findUnique({
-          where: { id: userId },
+          where: { employeeId: userId }, // Changed from id to employeeId
         });
         if (user && user.lineUserId) {
           await this.sendLineMessage(user.lineUserId, message);

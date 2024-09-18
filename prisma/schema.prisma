@@ -105,7 +105,7 @@ model LeaveRequest {
 }
 
 model OvertimeRequest {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
   employeeId              String   
   user              User @relation(fields: [employeeId], references: [employeeId])
   date                DateTime

@@ -34,6 +34,9 @@ import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
 import { getBangkokTime, formatBangkokTime } from '../utils/dateUtils';
+import { toZonedTime } from 'date-fns-tz';
+
+const TIMEZONE = 'Asia/Bangkok';
 
 export class AttendanceService {
   static isCheckInOutAllowed(employeeId: string) {
@@ -69,7 +72,9 @@ export class AttendanceService {
     if (!shift) throw new Error('User shift not found');
 
     const { isCheckIn, checkTime } = attendanceData;
-    const parsedCheckTime = getBangkokTime();
+    const parsedCheckTime = toZonedTime(new Date(checkTime), TIMEZONE); // Convert the provided checkTime to Bangkok time
+    const nowBangkok = getBangkokTime();
+
     const shiftStart = this.parseShiftTime(shift.startTime, parsedCheckTime);
     const shiftEnd = this.parseShiftTime(shift.endTime, parsedCheckTime);
 
