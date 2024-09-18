@@ -111,29 +111,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         });
 
         if (checkInTime) {
-          const parsedCheckInTime = parseISO(checkInTime);
-          if (isValid(parsedCheckInTime)) {
-            console.log(
-              'Formatted checkInTime:',
-              formatTime(parsedCheckInTime),
-            );
-          } else {
-            console.error('Invalid checkInTime:', checkInTime);
-          }
+          console.log('Check-in time:', checkInTime);
         } else {
           console.log('No check-in time available');
         }
 
         if (checkOutTime) {
-          const parsedCheckOutTime = parseISO(checkOutTime);
-          if (isValid(parsedCheckOutTime)) {
-            console.log(
-              'Formatted checkOutTime:',
-              formatTime(parsedCheckOutTime),
-            );
-          } else {
-            console.error('Invalid checkOutTime:', checkOutTime);
-          }
+          console.log('Check-out time:', checkOutTime);
         } else {
           console.log('No check-out time available');
         }

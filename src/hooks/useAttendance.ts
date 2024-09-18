@@ -44,6 +44,17 @@ export const useAttendance = (
         } = status.latestAttendance;
         status.detailedStatus = attendanceStatus;
         status.isCheckingIn = !!checkInTime && !checkOutTime;
+        // These times are already formatted, so we don't need to parse them
+        if (!checkInTime && !checkOutTime) {
+          status.isCheckingIn = true;
+          status.detailedStatus = 'pending';
+        } else if (checkInTime && !checkOutTime) {
+          status.isCheckingIn = false;
+          status.detailedStatus = 'checked-in';
+        } else if (checkInTime && checkOutTime) {
+          status.isCheckingIn = true;
+          status.detailedStatus = 'checked-out';
+        }
       }
       return status;
     },
