@@ -8,8 +8,6 @@ import {
 import { UserData } from '../types/user';
 import { format, isToday, parseISO } from 'date-fns';
 
-const TIMEZONE = 'Asia/Bangkok';
-
 interface UserShiftInfoProps {
   userData: UserData;
   attendanceStatus: AttendanceStatusInfo;
@@ -21,9 +19,18 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   userData,
   attendanceStatus,
   effectiveShift,
+  isOutsideShift,
 }) => {
   const { latestAttendance, shiftAdjustment } = attendanceStatus;
   const today = new Date();
+
+  console.log('UserShiftInfo props:', {
+    userData,
+    attendanceStatus,
+    effectiveShift,
+    isOutsideShift,
+  });
+  console.log('Latest Attendance:', attendanceStatus.latestAttendance);
 
   const getStatusMessage = () => {
     if (attendanceStatus.isDayOff) {
@@ -60,20 +67,19 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               {attendanceStatus.latestAttendance &&
                 isToday(parseISO(attendanceStatus.latestAttendance.date)) && (
                   <>
-                    {attendanceStatus.latestAttendance &&
-                      attendanceStatus.latestAttendance.checkInTime && (
-                        <p className="text-gray-800">
-                          เวลาเข้างาน:{' '}
-                          <span className="font-medium">
-                            {format(
-                              parseISO(
-                                attendanceStatus.latestAttendance.checkInTime,
-                              ),
-                              'HH:mm:ss',
-                            )}
-                          </span>
-                        </p>
-                      )}
+                    {attendanceStatus.latestAttendance?.checkInTime && (
+                      <p className="text-gray-800">
+                        เวลาเข้างาน:{' '}
+                        <span className="font-medium">
+                          {format(
+                            parseISO(
+                              attendanceStatus.latestAttendance.checkInTime,
+                            ),
+                            'HH:mm:ss',
+                          )}
+                        </span>
+                      </p>
+                    )}
 
                     {attendanceStatus.latestAttendance &&
                       attendanceStatus.latestAttendance.checkOutTime && (

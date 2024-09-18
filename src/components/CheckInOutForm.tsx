@@ -249,12 +249,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
-      <UserShiftInfo
-        userData={userData}
-        attendanceStatus={attendanceStatus}
-        effectiveShift={effectiveShift}
-        isOutsideShift={isOutsideShift}
-      />
+      <ErrorBoundary>
+        <UserShiftInfo
+          userData={userData}
+          attendanceStatus={attendanceStatus}
+          effectiveShift={effectiveShift}
+          isOutsideShift={isOutsideShift}
+        />
+      </ErrorBoundary>
       <div className="flex-shrink-0 mt-4">
         <button
           onClick={() => setStep('camera')}
