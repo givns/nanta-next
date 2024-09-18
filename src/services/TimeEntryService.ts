@@ -26,20 +26,22 @@ export class TimeEntryService {
     });
   }
 
-  private async createTimeEntry(attendance: Attendance): Promise<TimeEntry> {
-    const startTime = attendance.checkInTime || attendance.date; // Use date as fallback
-    const endTime = attendance.checkOutTime || new Date();
+  private async createTimeEntry(
+    attendanceData: Attendance,
+  ): Promise<TimeEntry> {
+    const startTime = attendanceData.checkInTime || attendanceData.date; // Use date as fallback
+    const endTime = attendanceData.checkOutTime || new Date();
 
     return this.prisma.timeEntry.create({
       data: {
-        employeeId: attendance.employeeId,
-        date: attendance.date,
+        employeeId: attendanceData.employeeId,
+        date: attendanceData.date,
         startTime: startTime,
         endTime: endTime,
         status: 'COMPLETED',
         regularHours: 1, // Calculate this based on your business logic
         overtimeHours: 1.5, // Calculate this based on your business logic
-        attendanceId: attendance.id,
+        attendanceId: attendanceData.id,
       },
     });
   }

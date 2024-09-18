@@ -203,7 +203,7 @@ model TimeEntry {
   regularHours      Float
   overtimeHours     Float
   status            String
-  attendanceId      String?   @db.ObjectId
+  attendanceId      String?   
   attendance        Attendance? @relation(fields: [attendanceId], references: [id])
   overtimeRequestId String?   @db.ObjectId
   overtimeRequest   OvertimeRequest? @relation(fields: [overtimeRequestId], references: [id])
