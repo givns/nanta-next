@@ -98,7 +98,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       const checkInOutData = {
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
-        checkTime: formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd HH:mm:ss'),
+        checkTime: new Date().toISOString(),
         location: JSON.stringify(location),
         address,
         reason: lateReasonInput || reason,

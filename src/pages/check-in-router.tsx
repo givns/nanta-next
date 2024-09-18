@@ -31,7 +31,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(
-    formatBangkokTime(getBangkokTime(), 'HH:mm:ss'),
+    new Date().toLocaleTimeString(),
   );
 
   const fetchData = useCallback(async () => {
@@ -72,7 +72,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
   useEffect(() => {
     const intervalId = setInterval(() => {
-      setCurrentTime(formatBangkokTime(getBangkokTime(), 'HH:mm:ss'));
+      setCurrentTime(new Date().toLocaleTimeString());
     }, 1000);
 
     return () => clearInterval(intervalId);
