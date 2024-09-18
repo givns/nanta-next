@@ -9,8 +9,6 @@ import { UserData } from '@/types/user';
 import { format, parseISO } from 'date-fns';
 import { getBangkokTime, formatBangkokTime } from '../utils/dateUtils';
 
-const TIMEZONE = 'Asia/Bangkok';
-
 const OvertimeSchema = Yup.object().shape({
   startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
   endTime: Yup.string().required('กรุณาระบุเวลาสิ้นสุด'),

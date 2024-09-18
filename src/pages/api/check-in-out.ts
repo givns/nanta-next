@@ -1,27 +1,26 @@
-//api/check-in-out.ts
+// pages/api/check-in-out.ts
+
 import { PrismaClient } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
-import { Shift104HolidayService } from '@/services/Shift104HolidayService';
 import { leaveServiceServer } from '@/services/LeaveServiceServer';
 import { AttendanceData } from '@/types/attendance';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
+import { getBangkokTime } from '@/utils/dateUtils';
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
 const timeEntryService = new TimeEntryService(prisma);
-
 const overtimeService = new OvertimeServiceServer(
   prisma,
   overtimeNotificationService,
   timeEntryService,
 );
-
 const notificationService = new NotificationService();
 const shiftService = new ShiftManagementService(prisma);
 const holidayService = new HolidayService(prisma);
@@ -53,25 +52,39 @@ export default async function handler(
       attendanceData.employeeId,
     );
 
-    // Additional checks using attendanceStatus
     if (attendanceStatus.isDayOff && !attendanceData.isOvertime) {
       return res
         .status(400)
         .json({ message: 'Cannot check in/out on day off without overtime' });
     }
 
-    // Process attendance
     const processedAttendance =
       await attendanceService.processAttendance(attendanceData);
 
     console.log('Processed attendance:', processedAttendance);
 
+    // Send notification using NotificationService
+    const currentTime = getBangkokTime();
+    if (attendanceData.isCheckIn) {
+      await notificationService.sendCheckInConfirmation(
+        attendanceData.employeeId,
+        currentTime,
+      );
+    } else {
+      await notificationService.sendCheckOutConfirmation(
+        attendanceData.employeeId,
+        currentTime,
+      );
+    }
+
     res.status(200).json(processedAttendance);
   } catch (error: any) {
     console.error('Check-in/out failed:', error);
+    console.error('Error stack:', error.stack);
     res.status(error.statusCode || 500).json({
       message: 'Check-in/out failed',
       error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 }

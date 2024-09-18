@@ -14,8 +14,8 @@ import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
-import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
+import { formatBangkokTime, getBangkokTime } from '../utils/dateUtils';
 
 const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
   loading: () => <p>Loading map...</p>,
@@ -82,60 +82,84 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     checkAllowed();
   }, [isCheckInOutAllowed]);
 
-  const handleCheckInOut = async () => {
-    if (!photo || !location) {
-      console.error('No photo or location data');
-      return;
-    }
+  const submitCheckInOut = useCallback(
+    async (lateReasonInput?: string) => {
+      if (!location) return;
 
-    const {
-      allowed,
-      reason: checkInOutReason,
-      isLate: late,
-      isOvertime: overtime,
-    } = await isCheckInOutAllowed();
+      const checkInOutData: AttendanceData = {
+        employeeId: userData.employeeId,
+        lineUserId: userData.lineUserId,
+        checkTime: formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd HH:mm:ss'),
+        location: JSON.stringify(location),
+        address,
+        reason: lateReasonInput || reason,
+        isCheckIn: attendanceStatus.isCheckingIn,
+        isOvertime,
+        isLate,
+      };
 
-    if (!allowed) {
-      console.error(checkInOutReason);
-      return;
-    }
+      try {
+        const response = await checkInOut(checkInOutData);
+        console.log('Check-in/out response:', response);
 
-    setIsLate(late);
-    setIsOvertime(overtime);
-
-    if (late && attendanceStatus.isCheckingIn) {
-      setIsLateModalOpen(true);
-      return;
-    }
-
-    await submitCheckInOut();
-  };
-
-  const submitCheckInOut = async (lateReasonInput?: string) => {
-    if (!photo || !location) return;
-
-    const checkInOutData: AttendanceData = {
-      employeeId: userData.employeeId,
-      lineUserId: userData.lineUserId,
-      checkTime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
-      location: JSON.stringify(location),
-      address,
-      reason: lateReasonInput || reason,
-      photo,
-      isCheckIn: attendanceStatus.isCheckingIn,
+        onStatusChange(!attendanceStatus.isCheckingIn);
+        await refreshAttendanceStatus();
+        router.push('/checkInOutSuccess');
+      } catch (error) {
+        console.error('Error during check-in/out:', error);
+      }
+    },
+    [
+      location,
+      userData,
+      attendanceStatus,
       isOvertime,
       isLate,
-    };
+      reason,
+      checkInOut,
+      onStatusChange,
+      refreshAttendanceStatus,
+      router,
+    ],
+  );
+
+  const handleCheckInOut = useCallback(async () => {
+    if (!location) {
+      console.error('No location data');
+      return;
+    }
 
     try {
-      const response = await checkInOut(checkInOutData);
-      onStatusChange(!attendanceStatus.isCheckingIn);
-      await refreshAttendanceStatus();
-      router.push('/checkInOutSuccess');
+      const {
+        allowed,
+        reason: checkInOutReason,
+        isLate: late,
+        isOvertime: overtime,
+      } = await isCheckInOutAllowed();
+
+      if (!allowed) {
+        console.error(checkInOutReason);
+        return;
+      }
+
+      setIsLate(late);
+      setIsOvertime(overtime);
+
+      if (late && attendanceStatus.isCheckingIn) {
+        setIsLateModalOpen(true);
+        return;
+      }
+
+      await submitCheckInOut();
     } catch (error) {
-      console.error('Error during check-in/out:', error);
+      console.error('Error in handleCheckInOut:', error);
     }
-  };
+  }, [
+    location,
+    isCheckInOutAllowed,
+    attendanceStatus.isCheckingIn,
+    submitCheckInOut,
+  ]);
 
   const handleLateReasonSubmit = async (lateReason: string) => {
     setIsLateModalOpen(false);
