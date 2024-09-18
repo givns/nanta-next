@@ -7,7 +7,7 @@ import { formatTime } from '../utils/dateUtils';
 import TimePickerField from './TimePickerField';
 import { UserData } from '@/types/user';
 import { format, parseISO } from 'date-fns';
-import { zonedTimeToUtc } from '../utils/dateUtils';
+import { getBangkokTime, formatBangkokTime } from '../utils/dateUtils';
 
 const TIMEZONE = 'Asia/Bangkok';
 
@@ -26,7 +26,7 @@ const OvertimeRequestForm: React.FC = () => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [newRequestDate, setNewRequestDate] = useState(
-    format(zonedTimeToUtc(new Date(), TIMEZONE), 'yyyy-MM-dd'),
+    formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
   );
 
   useEffect(() => {

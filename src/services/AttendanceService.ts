@@ -33,6 +33,7 @@ import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
+import { getBangkokTime, formatBangkokTime } from '../utils/dateUtils';
 
 export class AttendanceService {
   static isCheckInOutAllowed(employeeId: string) {
@@ -68,7 +69,7 @@ export class AttendanceService {
     if (!shift) throw new Error('User shift not found');
 
     const { isCheckIn, checkTime } = attendanceData;
-    const parsedCheckTime = parseISO(checkTime as string);
+    const parsedCheckTime = getBangkokTime();
     const shiftStart = this.parseShiftTime(shift.startTime, parsedCheckTime);
     const shiftEnd = this.parseShiftTime(shift.endTime, parsedCheckTime);
 
@@ -106,8 +107,12 @@ export class AttendanceService {
       id: '', // This will be set when saving to the database
       employeeId: user.employeeId,
       date: startOfDay(parsedCheckTime),
-      checkIn: isCheckIn ? format(parsedCheckTime, 'HH:mm:ss') : undefined,
-      checkOut: !isCheckIn ? format(parsedCheckTime, 'HH:mm:ss') : undefined,
+      checkIn: isCheckIn
+        ? formatBangkokTime(parsedCheckTime, 'HH:mm:ss')
+        : undefined,
+      checkOut: !isCheckIn
+        ? formatBangkokTime(parsedCheckTime, 'HH:mm:ss')
+        : undefined,
       status,
       regularHours,
       overtimeHours,
@@ -565,7 +570,7 @@ export class AttendanceService {
     const user = await this.prisma.user.findUnique({ where: { employeeId } });
     if (!user) throw new Error('User not found');
 
-    const now = new Date();
+    const now = getBangkokTime();
     console.log(new Date().toString());
     const effectiveShift = await this.shiftManagementService.getEffectiveShift(
       employeeId,

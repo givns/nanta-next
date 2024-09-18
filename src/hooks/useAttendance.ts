@@ -1,8 +1,6 @@
 // hooks/useAttendance.ts
 import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
-import { parseISO, format } from 'date-fns';
-import { zonedTimeToUtc } from '../utils/dateUtils';
 import { AttendanceData, AttendanceStatusInfo } from '../types/attendance';
 import { UserData } from '../types/user';
 

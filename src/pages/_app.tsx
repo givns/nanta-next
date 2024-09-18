@@ -11,6 +11,7 @@ import liff from '@line/liff';
 function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const [isLiffInitialized, setIsLiffInitialized] = useState(false);
+  const [lineUserId, setLineUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleError = (error: Error, errorInfo: ErrorInfo) => {
@@ -38,6 +39,9 @@ function MyApp({ Component, pageProps }: AppProps) {
         await liff.init({ liffId });
 
         if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          setLineUserId(profile.userId);
+
           const urlParams = new URLSearchParams(window.location.search);
           const path = urlParams.get('path');
           if (path) {
@@ -62,7 +66,7 @@ function MyApp({ Component, pageProps }: AppProps) {
 
   return (
     <Provider store={store}>
-      <Component {...pageProps} />
+      <Component {...pageProps} lineUserId={lineUserId} />
     </Provider>
   );
 }

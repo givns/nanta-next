@@ -6,13 +6,16 @@ import axios from 'axios';
 import liff from '@line/liff';
 import { format } from 'date-fns';
 import SkeletonLoader from '../components/SkeletonLoader';
-// Lazy load components
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   loading: () => <p>Loading form...</p>,
 });
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
-const CheckInRouter: React.FC = () => {
+interface CheckInRouterProps {
+  lineUserId: string | null;
+}
+
+const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
@@ -24,32 +27,24 @@ const CheckInRouter: React.FC = () => {
   );
 
   useEffect(() => {
-    const initializeLiffAndFetchData = async () => {
+    const fetchData = async () => {
+      if (!lineUserId) {
+        setError('LINE user ID not available');
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-        if (!liffId) {
-          throw new Error('LIFF ID is not defined');
-        }
-
-        await liff.init({ liffId });
-
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
-
-        const profile = await liff.getProfile();
         const response = await axios.get(
-          `/api/user-check-in-status?lineUserId=${profile.userId}`,
+          `/api/user-check-in-status?lineUserId=${lineUserId}`,
         );
-
         const { user, attendanceStatus, effectiveShift } = response.data;
 
         setUserData(user);
         setAttendanceStatus(attendanceStatus);
         setEffectiveShift(effectiveShift);
       } catch (err) {
-        console.error('Error in initialization or data fetching:', err);
+        console.error('Error in data fetching:', err);
         setError(
           err instanceof Error ? err.message : 'An unknown error occurred',
         );
@@ -58,8 +53,8 @@ const CheckInRouter: React.FC = () => {
       }
     };
 
-    initializeLiffAndFetchData();
-  }, []);
+    fetchData();
+  }, [lineUserId]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
