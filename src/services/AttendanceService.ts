@@ -571,7 +571,7 @@ export class AttendanceService {
     if (!user) throw new Error('User not found');
 
     const now = getBangkokTime();
-    console.log(new Date().toString());
+    console.log(now);
     const effectiveShift = await this.shiftManagementService.getEffectiveShift(
       employeeId,
       now,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
 import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
@@ -26,35 +26,39 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     format(new Date(), 'HH:mm:ss'),
   );
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!lineUserId) {
-        setError('LINE user ID not available');
-        setIsLoading(false);
-        return;
-      }
+  const fetchData = useCallback(async () => {
+    if (!lineUserId) {
+      setError('LINE user ID not available');
+      setIsLoading(false);
+      return;
+    }
 
-      try {
-        const response = await axios.get(
-          `/api/user-check-in-status?lineUserId=${lineUserId}`,
-        );
-        const { user, attendanceStatus, effectiveShift } = response.data;
+    try {
+      const response = await axios.get(
+        `/api/user-check-in-status?lineUserId=${lineUserId}`,
+      );
+      const {
+        user,
+        attendanceStatus: fetchedAttendanceStatus,
+        effectiveShift: fetchedEffectiveShift,
+      } = response.data;
 
-        setUserData(user);
-        setAttendanceStatus(attendanceStatus);
-        setEffectiveShift(effectiveShift);
-      } catch (err) {
-        console.error('Error in data fetching:', err);
-        setError(
-          err instanceof Error ? err.message : 'An unknown error occurred',
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
+      setUserData(user);
+      setAttendanceStatus(fetchedAttendanceStatus);
+      setEffectiveShift(fetchedEffectiveShift);
+    } catch (err) {
+      console.error('Error in data fetching:', err);
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
+    } finally {
+      setIsLoading(false);
+    }
   }, [lineUserId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -63,6 +67,16 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
     return () => clearInterval(intervalId);
   }, []);
+
+  const handleStatusChange = useCallback(
+    (newStatus: boolean) => {
+      setAttendanceStatus((prev) =>
+        prev ? { ...prev, isCheckingIn: newStatus } : null,
+      );
+      fetchData(); // Refresh data after status change
+    },
+    [fetchData],
+  );
 
   if (isLoading) {
     return <SkeletonLoader />; // Show skeleton while loading
@@ -114,11 +128,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             userData={userData}
             initialAttendanceStatus={attendanceStatus}
             effectiveShift={effectiveShift}
-            onStatusChange={(newStatus) =>
-              setAttendanceStatus((prev) =>
-                prev ? { ...prev, isCheckingIn: newStatus } : null,
-              )
-            }
+            onStatusChange={handleStatusChange}
           />
         </div>
       </div>
