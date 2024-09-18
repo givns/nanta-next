@@ -72,12 +72,19 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   }, [fetchData]);
 
   useEffect(() => {
-    if (attendanceStatus) {
-      console.log('Current attendance status:', {
-        isCheckingIn: attendanceStatus.isCheckingIn,
-        detailedStatus: attendanceStatus.detailedStatus,
-        latestAttendance: attendanceStatus.latestAttendance,
-      });
+    try {
+      if (attendanceStatus) {
+        console.log('Current attendance status:', {
+          isCheckingIn: attendanceStatus.isCheckingIn,
+          detailedStatus: attendanceStatus.detailedStatus,
+          latestAttendance: attendanceStatus.latestAttendance,
+        });
+      }
+    } catch (err) {
+      console.error('Error in CheckInRouter:', err);
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
     }
   }, [attendanceStatus]);
 

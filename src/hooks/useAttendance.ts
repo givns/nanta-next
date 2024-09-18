@@ -55,16 +55,25 @@ export const useAttendance = (
           status.detailedStatus = 'checked-out';
         }
 
-        // Format times if they exist
+        // Format times if they exist and are valid
         if (checkInTime) {
-          status.latestAttendance.checkInTime = formatTime(
-            parseISO(checkInTime),
-          );
+          const parsedCheckInTime = parseISO(checkInTime);
+          if (isValid(parsedCheckInTime)) {
+            status.latestAttendance.checkInTime = formatTime(parsedCheckInTime);
+          } else {
+            console.error('Invalid checkInTime:', checkInTime);
+            status.latestAttendance.checkInTime = null;
+          }
         }
         if (checkOutTime) {
-          status.latestAttendance.checkOutTime = formatTime(
-            parseISO(checkOutTime),
-          );
+          const parsedCheckOutTime = parseISO(checkOutTime);
+          if (isValid(parsedCheckOutTime)) {
+            status.latestAttendance.checkOutTime =
+              formatTime(parsedCheckOutTime);
+          } else {
+            console.error('Invalid checkOutTime:', checkOutTime);
+            status.latestAttendance.checkOutTime = null;
+          }
         }
       }
 

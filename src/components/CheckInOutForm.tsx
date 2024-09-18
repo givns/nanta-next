@@ -50,6 +50,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
   const [isLate, setIsLate] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [isCheckInOutAllowedState, setIsCheckInOutAllowedState] = useState({
     allowed: false,
@@ -59,7 +60,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const {
     attendanceStatus,
     isLoading,
-    error,
     location,
     address,
     inPremises,
@@ -100,27 +100,54 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     console.log('initialAttendanceStatus:', initialAttendanceStatus);
     console.log('effectiveShift:', effectiveShift);
 
-    if (initialAttendanceStatus?.latestAttendance) {
-      const { checkInTime, checkOutTime, status } =
-        initialAttendanceStatus.latestAttendance;
-      console.log('Latest attendance:', { checkInTime, checkOutTime, status });
+    try {
+      if (initialAttendanceStatus?.latestAttendance) {
+        const { checkInTime, checkOutTime, status } =
+          initialAttendanceStatus.latestAttendance;
+        console.log('Latest attendance:', {
+          checkInTime,
+          checkOutTime,
+          status,
+        });
 
-      if (checkInTime) {
-        console.log('Formatted checkInTime:', formatTime(checkInTime));
-      } else {
-        console.log('No check-in time available');
+        if (checkInTime) {
+          const parsedCheckInTime = parseISO(checkInTime);
+          if (isValid(parsedCheckInTime)) {
+            console.log(
+              'Formatted checkInTime:',
+              formatTime(parsedCheckInTime),
+            );
+          } else {
+            console.error('Invalid checkInTime:', checkInTime);
+          }
+        } else {
+          console.log('No check-in time available');
+        }
+
+        if (checkOutTime) {
+          const parsedCheckOutTime = parseISO(checkOutTime);
+          if (isValid(parsedCheckOutTime)) {
+            console.log(
+              'Formatted checkOutTime:',
+              formatTime(parsedCheckOutTime),
+            );
+          } else {
+            console.error('Invalid checkOutTime:', checkOutTime);
+          }
+        } else {
+          console.log('No check-out time available');
+        }
       }
 
-      if (checkOutTime) {
-        console.log('Formatted checkOutTime:', formatTime(checkOutTime));
-      } else {
-        console.log('No check-out time available');
+      if (effectiveShift) {
+        console.log('Shift start time:', formatTime(effectiveShift.startTime));
+        console.log('Shift end time:', formatTime(effectiveShift.endTime));
       }
-    }
-
-    if (effectiveShift) {
-      console.log('Shift start time:', formatTime(effectiveShift.startTime));
-      console.log('Shift end time:', formatTime(effectiveShift.endTime));
+    } catch (err) {
+      console.error('Error in CheckInOutForm:', err);
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
     }
   }, [userData, initialAttendanceStatus, effectiveShift]);
 
