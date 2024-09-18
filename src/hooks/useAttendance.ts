@@ -26,23 +26,37 @@ export const useAttendance = (
     isOvertime?: boolean;
   } | null>(null);
 
-  const isCheckInOutAllowed = useCallback(async () => {
-    if (isCheckInOutAllowedRef.current) {
-      return isCheckInOutAllowedRef.current;
-    }
-
+  const getAttendanceStatus = useCallback(async () => {
     try {
       const response = await axios.get(
-        `/api/attendance/allowed?employeeId=${userData.employeeId}`,
+        `/api/attendance/status?employeeId=${userData.employeeId}`,
       );
-      isCheckInOutAllowedRef.current = response.data;
-      return response.data;
+      const { attendanceStatus, shiftStatus } = response.data;
+      setAttendanceStatus(attendanceStatus);
+      setIsOutsideShift(shiftStatus.isOutsideShift);
+      return { attendanceStatus, shiftStatus };
+    } catch (error) {
+      console.error('Error fetching attendance status:', error);
+      setError('Failed to fetch attendance status');
+      throw error;
+    }
+  }, [userData.employeeId]);
+
+  const isCheckInOutAllowed = useCallback(async () => {
+    try {
+      const { shiftStatus } = await getAttendanceStatus();
+      return {
+        allowed: shiftStatus.isOutsideShift || !shiftStatus.isLate,
+        reason: shiftStatus.isLate ? 'Late check-in' : undefined,
+        isLate: shiftStatus.isLate,
+        isOvertime: shiftStatus.isOvertime,
+      };
     } catch (error) {
       console.error('Error checking if check-in/out is allowed:', error);
       setError('Failed to check if check-in/out is allowed');
       return { allowed: false, reason: 'Error checking permissions' };
     }
-  }, [userData.employeeId]);
+  }, [getAttendanceStatus]);
 
   const checkInOut = useCallback(async (attendanceData: AttendanceData) => {
     setIsLoading(true);
@@ -145,6 +159,6 @@ export const useAttendance = (
     isOutsideShift,
     checkInOut,
     isCheckInOutAllowed,
-    refreshAttendanceStatus,
+    refreshAttendanceStatus: getAttendanceStatus,
   };
 };

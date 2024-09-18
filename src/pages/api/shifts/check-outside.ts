@@ -22,11 +22,10 @@ export default async function handler(
   }
 
   try {
-    const isOutsideShift =
-      await shiftManagementService.isOutsideShift(employeeId);
-    res.status(200).json({ isOutsideShift });
+    const shiftStatus = await shiftManagementService.getShiftStatus(employeeId);
+    res.status(200).json(shiftStatus);
   } catch (error) {
-    console.error('Error checking if outside shift:', error);
-    res.status(500).json({ error: 'Failed to check if outside shift' });
+    console.error('Error checking shift status:', error);
+    res.status(500).json({ error: 'Failed to check shift status' });
   }
 }

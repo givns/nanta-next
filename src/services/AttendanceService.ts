@@ -570,22 +570,11 @@ export class AttendanceService {
     const user = await this.prisma.user.findUnique({ where: { employeeId } });
     if (!user) throw new Error('User not found');
 
-    const now = getBangkokTime();
-    console.log(now);
-    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
-      employeeId,
-      now,
-    );
-    if (!effectiveShift)
-      return { allowed: false, reason: 'No shift found for the user' };
-
-    const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
-    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
-    const lateThreshold = addMinutes(shiftStart, 30); // 30 minutes grace period
-    const overtimeThreshold = addMinutes(shiftEnd, 5); // 5 minutes after shift end
+    const shiftStatus =
+      await this.shiftManagementService.getShiftStatus(employeeId);
 
     const isHoliday = await this.holidayService.isHoliday(
-      now,
+      new Date(),
       [],
       user.shiftCode === 'SHIFT104',
     );
@@ -598,30 +587,28 @@ export class AttendanceService {
 
     const leaveRequest = await this.leaveService.checkUserOnLeave(
       employeeId,
-      now,
+      new Date(),
     );
     if (leaveRequest)
       return { allowed: false, reason: 'User is on approved leave' };
 
-    const isOutsideShift =
-      await this.shiftManagementService.isOutsideShift(employeeId);
-    if (isOutsideShift) {
-      if (now < shiftStart) {
-        return {
-          allowed: true,
-          reason: 'Early check-in: Time will be recorded',
-          isOvertime: false,
-        };
-      } else if (now > overtimeThreshold) {
+    if (shiftStatus.isOutsideShift) {
+      if (shiftStatus.isOvertime) {
         return {
           allowed: true,
           reason: 'Outside regular shift: Overtime will be recorded',
           isOvertime: true,
         };
+      } else {
+        return {
+          allowed: true,
+          reason: 'Early check-in: Time will be recorded',
+          isOvertime: false,
+        };
       }
     }
 
-    if (now > lateThreshold && now < shiftEnd) {
+    if (shiftStatus.isLate) {
       return {
         allowed: true,
         reason: 'Late check-in',

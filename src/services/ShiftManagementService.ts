@@ -8,7 +8,8 @@ import {
 } from '@prisma/client';
 import axios from 'axios';
 import { ShiftData } from '@/types/attendance';
-import { endOfDay, startOfDay } from 'date-fns';
+import { endOfDay, startOfDay, addMinutes, isBefore, isAfter } from 'date-fns';
+import { getBangkokTime } from '@/utils/dateUtils';
 
 interface Premise {
   lat: number;
@@ -278,15 +279,39 @@ export class ShiftManagementService {
     return R * c; // Distance in meters
   }
 
-  public async isOutsideShift(employeeId: string): Promise<boolean> {
-    const now = new Date();
+  public async getShiftStatus(employeeId: string): Promise<{
+    isOutsideShift: boolean;
+    isLate: boolean;
+    isOvertime: boolean;
+    effectiveShift: any; // Replace 'any' with your actual ShiftData type
+  }> {
+    const now = getBangkokTime();
     const effectiveShift = await this.getEffectiveShift(employeeId, now);
-    if (!effectiveShift) return true;
+
+    if (!effectiveShift) {
+      return {
+        isOutsideShift: true,
+        isLate: false,
+        isOvertime: false,
+        effectiveShift: null,
+      };
+    }
 
     const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
     const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+    const lateThreshold = addMinutes(shiftStart, 30); // 30 minutes grace period
+    const overtimeThreshold = addMinutes(shiftEnd, 5); // 5 minutes after shift end
 
-    return now < shiftStart || now > shiftEnd;
+    const isOutsideShift = now < shiftStart || now > shiftEnd;
+    const isLate = isAfter(now, lateThreshold) && isBefore(now, shiftEnd);
+    const isOvertime = isAfter(now, overtimeThreshold);
+
+    return {
+      isOutsideShift,
+      isLate,
+      isOvertime,
+      effectiveShift,
+    };
   }
 
   private parseShiftTime(timeString: string, referenceDate: Date): Date {
