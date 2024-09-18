@@ -26,6 +26,12 @@ interface CheckInOutFormProps {
   userData: UserData;
   initialAttendanceStatus: AttendanceStatusInfo;
   effectiveShift: ShiftData | null;
+  initialCheckInOutAllowance: {
+    allowed: boolean;
+    reason?: string;
+    isLate?: boolean;
+    isOvertime?: boolean;
+  } | null;
   onStatusChange: (newStatus: boolean) => void;
 }
 
@@ -33,6 +39,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
   initialAttendanceStatus,
   effectiveShift,
+  initialCheckInOutAllowance,
   onStatusChange,
 }) => {
   const router = useRouter();
@@ -57,7 +64,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     checkInOut,
     isCheckInOutAllowed,
     refreshAttendanceStatus,
-  } = useAttendance(userData, initialAttendanceStatus);
+  } = useAttendance(
+    userData,
+    initialAttendanceStatus,
+    initialCheckInOutAllowance ?? { allowed: false },
+  );
 
   const handlePhotoCapture = useCallback((capturedPhoto: string) => {
     setPhoto(capturedPhoto);
@@ -84,7 +95,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     async (lateReasonInput?: string) => {
       if (!location) return;
 
-      const checkInOutData: AttendanceData = {
+      const checkInOutData = {
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
         checkTime: formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd HH:mm:ss'),

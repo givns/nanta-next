@@ -1,11 +1,13 @@
+// pages/check-in-router.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
 import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
 import axios from 'axios';
-import liff from '@line/liff';
-import { format } from 'date-fns';
+import { formatBangkokTime, getBangkokTime } from '../utils/dateUtils';
 import SkeletonLoader from '../components/SkeletonLoader';
+
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   loading: () => <p>Loading form...</p>,
 });
@@ -20,10 +22,16 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
   const [effectiveShift, setEffectiveShift] = useState<ShiftData | null>(null);
+  const [checkInOutAllowance, setCheckInOutAllowance] = useState<{
+    allowed: boolean;
+    reason?: string;
+    isLate?: boolean;
+    isOvertime?: boolean;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(
-    format(new Date(), 'HH:mm:ss'),
+    formatBangkokTime(getBangkokTime(), 'HH:mm:ss'),
   );
 
   const fetchData = useCallback(async () => {
@@ -41,11 +49,13 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         user,
         attendanceStatus: fetchedAttendanceStatus,
         effectiveShift: fetchedEffectiveShift,
+        checkInOutAllowance: fetchedAllowance,
       } = response.data;
 
       setUserData(user);
       setAttendanceStatus(fetchedAttendanceStatus);
       setEffectiveShift(fetchedEffectiveShift);
+      setCheckInOutAllowance(fetchedAllowance);
     } catch (err) {
       console.error('Error in data fetching:', err);
       setError(
@@ -62,8 +72,8 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
   useEffect(() => {
     const intervalId = setInterval(() => {
-      setCurrentTime(format(new Date(), 'HH:mm:ss'));
-    }, 1000); // Update every second
+      setCurrentTime(formatBangkokTime(getBangkokTime(), 'HH:mm:ss'));
+    }, 1000);
 
     return () => clearInterval(intervalId);
   }, []);
@@ -79,7 +89,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
 
   if (isLoading) {
-    return <SkeletonLoader />; // Show skeleton while loading
+    return <SkeletonLoader />;
   }
 
   if (error) {
@@ -87,12 +97,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">เกิดข้อผิดพลาด</h1>
         <p className="text-red-500">{error}</p>
-        <button
-          onClick={() => liff.login()}
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
-        >
-          เข้าสู่ระบบอีกครั้ง
-        </button>
       </div>
     );
   }
@@ -101,12 +105,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
-        <button
-          onClick={() => liff.login()}
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
-        >
-          เข้าสู่ระบบอีกครั้ง
-        </button>
       </div>
     );
   }
@@ -128,6 +126,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             userData={userData}
             initialAttendanceStatus={attendanceStatus}
             effectiveShift={effectiveShift}
+            initialCheckInOutAllowance={checkInOutAllowance}
             onStatusChange={handleStatusChange}
           />
         </div>

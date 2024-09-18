@@ -7,9 +7,16 @@ import { UserData } from '../types/user';
 export const useAttendance = (
   userData: UserData,
   initialAttendanceStatus: AttendanceStatusInfo,
+  initialCheckInOutAllowance: {
+    allowed: boolean;
+    reason?: string;
+    isLate?: boolean;
+    isOvertime?: boolean;
+  },
 ) => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo>(initialAttendanceStatus);
+  const [effectiveShift, setEffectiveShift] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
@@ -18,35 +25,45 @@ export const useAttendance = (
   const [address, setAddress] = useState<string>('');
   const [inPremises, setInPremises] = useState(false);
   const [isOutsideShift, setIsOutsideShift] = useState(false);
+  const [checkInOutAllowance, setCheckInOutAllowance] = useState<{
+    allowed: boolean;
+    reason?: string;
+    isLate?: boolean;
+    isOvertime?: boolean;
+  } | null>(initialCheckInOutAllowance);
 
   const getAttendanceStatus = useCallback(async () => {
     try {
       const response = await axios.get(
-        `/api/attendance/status?employeeId=${userData.employeeId}`,
+        `/api/user-check-in-status?lineUserId=${userData.lineUserId}`,
       );
-      const { attendanceStatus, shiftStatus } = response.data;
+      const { attendanceStatus, effectiveShift, checkInOutAllowance } =
+        response.data;
       setAttendanceStatus(attendanceStatus);
-      setIsOutsideShift(shiftStatus.isOutsideShift);
-      return { attendanceStatus, shiftStatus };
+      setEffectiveShift(effectiveShift);
+      setCheckInOutAllowance(checkInOutAllowance);
+      return response.data;
     } catch (error) {
       console.error('Error fetching attendance status:', error);
       setError('Failed to fetch attendance status');
       throw error;
     }
-  }, [userData.employeeId]);
+  }, [userData.lineUserId]);
 
   const isCheckInOutAllowed = useCallback(async () => {
+    if (checkInOutAllowance) {
+      return checkInOutAllowance;
+    }
+
     try {
-      const response = await axios.get(
-        `/api/attendance/allowed?employeeId=${userData.employeeId}`,
-      );
-      return response.data;
+      const data = await getAttendanceStatus();
+      return data.checkInOutAllowance;
     } catch (error) {
       console.error('Error checking if check-in/out is allowed:', error);
       setError('Failed to check if check-in/out is allowed');
       return { allowed: false, reason: 'Error checking permissions' };
     }
-  }, [userData.employeeId]);
+  }, [checkInOutAllowance, getAttendanceStatus]);
 
   const checkInOut = useCallback(async (attendanceData: AttendanceData) => {
     setIsLoading(true);

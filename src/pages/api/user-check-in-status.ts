@@ -86,6 +86,10 @@ export default async function handler(
       today,
     );
 
+    const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
+      user.employeeId,
+    );
+
     const responseData = {
       user: {
         employeeId: user.employeeId,
@@ -121,6 +125,7 @@ export default async function handler(
       attendanceStatus,
       effectiveShift,
       approvedOvertime,
+      checkInOutAllowance,
     };
 
     res.status(200).json(responseData);
