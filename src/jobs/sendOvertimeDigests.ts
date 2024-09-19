@@ -3,12 +3,13 @@
 import { PrismaClient } from '@prisma/client';
 import { OvertimeNotificationService } from '../services/OvertimeNotificationService';
 import { OvertimeServiceServer } from '../services/OvertimeServiceServer';
-import { TimeEntryService } from '../services/TimeEntryService'; // Add this import
+import { TimeEntryService } from '../services/TimeEntryService';
+import { ShiftManagementService } from '../services/ShiftManagementService';
 
 const prisma = new PrismaClient();
 const notificationService = new OvertimeNotificationService();
-const timeEntryService = new TimeEntryService(prisma); // Pass the prisma instance as an argument
-
+const shiftManagementService = new ShiftManagementService(prisma);
+const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
 const overtimeService = new OvertimeServiceServer(
   prisma,
   notificationService,

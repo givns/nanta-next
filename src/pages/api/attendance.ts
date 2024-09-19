@@ -10,12 +10,11 @@ import { TimeEntryService } from '@/services/TimeEntryService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 
 const prisma = new PrismaClient();
-const shiftManagementService = new ShiftManagementService(prisma);
 const holidayService = new HolidayService(prisma);
 const leaveServiceServer = new LeaveServiceServer();
 const overtimeNotificationService = new OvertimeNotificationService(); // Add this line
-const timeEntryService = new TimeEntryService(prisma);
-
+const shiftManagementService = new ShiftManagementService(prisma);
+const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
 const overtimeService = new OvertimeServiceServer(
   prisma,
   overtimeNotificationService, // Add this line

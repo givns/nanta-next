@@ -35,6 +35,7 @@ interface CheckInOutFormProps {
     isOvertime?: boolean;
   } | null;
   onStatusChange: (newStatus: boolean) => void;
+  onError: () => void; // Add this line
 }
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
@@ -43,6 +44,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   effectiveShift,
   initialCheckInOutAllowance,
   onStatusChange,
+  onError,
 }) => {
   const router = useRouter();
   const [step, setStep] = useState<'info' | 'camera' | 'confirm'>('info');
@@ -179,6 +181,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const handleCheckInOut = useCallback(async () => {
     if (!location) {
       console.error('No location data');
+      onError();
       return;
     }
 
@@ -192,6 +195,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
       if (!allowed) {
         console.error(checkInOutReason);
+        onError();
         return;
       }
 
@@ -206,12 +210,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       await submitCheckInOut();
     } catch (error) {
       console.error('Error in handleCheckInOut:', error);
+      onError();
     }
   }, [
     location,
     isCheckInOutAllowed,
     attendanceStatus.isCheckingIn,
     submitCheckInOut,
+    onError,
   ]);
 
   const handleLateReasonSubmit = async (lateReason: string) => {

@@ -39,6 +39,8 @@ import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
 import { formatDate, formatTime } from '../utils/dateUtils';
+import NodeCache from 'node-cache';
+const attendanceCache = new NodeCache({ stdTTL: 60 });
 
 const TIMEZONE = 'Asia/Bangkok';
 
@@ -249,6 +251,21 @@ export class AttendanceService {
   }
 
   async getLatestAttendanceStatus(
+    employeeId: string,
+  ): Promise<AttendanceStatusInfo> {
+    const cacheKey = `attendance:${employeeId}`;
+    const cachedStatus = attendanceCache.get<AttendanceStatusInfo>(cacheKey);
+
+    if (cachedStatus) {
+      return cachedStatus;
+    }
+
+    const status = await this.fetchLatestAttendanceStatus(employeeId);
+    attendanceCache.set(cacheKey, status);
+    return status;
+  }
+
+  private async fetchLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatusInfo> {
     const user = await this.prisma.user.findUnique({

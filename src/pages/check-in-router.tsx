@@ -1,4 +1,4 @@
-// pages/check-in-router.tsx
+// check-in-router.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
@@ -17,6 +17,24 @@ interface CheckInRouterProps {
   lineUserId: string | null;
 }
 
+const CACHE_KEY = 'attendanceStatus';
+const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+interface CachedData {
+  data: {
+    userData: UserData;
+    attendanceStatus: AttendanceStatusInfo;
+    effectiveShift: ShiftData;
+    checkInOutAllowance: {
+      allowed: boolean;
+      reason?: string;
+      isLate?: boolean;
+      isOvertime?: boolean;
+    };
+  };
+  timestamp: number;
+}
+
 const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [attendanceStatus, setAttendanceStatus] =
@@ -31,9 +49,34 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(
-    new Date().toLocaleTimeString(),
+    getBangkokTime().toLocaleTimeString(),
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [isCachedData, setIsCachedData] = useState(false);
+
+  const getCachedData = (): CachedData | null => {
+    const cachedString = localStorage.getItem(CACHE_KEY);
+    if (!cachedString) return null;
+    return JSON.parse(cachedString);
+  };
+
+  const setCachedData = (data: CachedData['data']) => {
+    const cacheData: CachedData = {
+      data,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+  };
+
+  const isCacheValid = (cachedData: CachedData): boolean => {
+    return Date.now() - cachedData.timestamp < CACHE_EXPIRATION;
+  };
+
+  const invalidateCache = useCallback(() => {
+    localStorage.removeItem(CACHE_KEY);
+    setIsCachedData(false);
+    console.log('Cache invalidated');
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!lineUserId) {
@@ -43,6 +86,25 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     }
 
     try {
+      const cachedData = getCachedData();
+      if (cachedData && isCacheValid(cachedData)) {
+        console.log('Cache hit');
+        const {
+          userData,
+          attendanceStatus,
+          effectiveShift,
+          checkInOutAllowance,
+        } = cachedData.data;
+        setUserData(userData);
+        setAttendanceStatus(attendanceStatus);
+        setEffectiveShift(effectiveShift);
+        setCheckInOutAllowance(checkInOutAllowance);
+        setIsLoading(false);
+        setIsCachedData(true);
+        return;
+      }
+
+      console.log('Cache miss');
       const response = await axios.get(
         `/api/user-check-in-status?lineUserId=${lineUserId}`,
       );
@@ -57,61 +119,72 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       setAttendanceStatus(fetchedAttendanceStatus);
       setEffectiveShift(fetchedEffectiveShift);
       setCheckInOutAllowance(fetchedAllowance);
+
+      setCachedData({
+        userData: user,
+        attendanceStatus: fetchedAttendanceStatus,
+        effectiveShift: fetchedEffectiveShift,
+        checkInOutAllowance: fetchedAllowance,
+      });
+      setIsCachedData(false);
     } catch (err) {
       console.error('Error in data fetching:', err);
       setError(
         err instanceof Error ? err.message : 'An unknown error occurred',
       );
+      invalidateCache();
     } finally {
       setIsLoading(false);
     }
-  }, [lineUserId]);
+  }, [lineUserId, invalidateCache]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   useEffect(() => {
-    try {
-      if (attendanceStatus) {
-        console.log('Current attendance status:', {
-          isCheckingIn: attendanceStatus.isCheckingIn,
-          detailedStatus: attendanceStatus.detailedStatus,
-          latestAttendance: attendanceStatus.latestAttendance,
-        });
-      }
-    } catch (err) {
-      console.error('Error in CheckInRouter:', err);
-      setError(
-        err instanceof Error ? err.message : 'An unknown error occurred',
-      );
-    }
-  }, [attendanceStatus]);
-
-  useEffect(() => {
     const updateTime = () => {
       try {
-        const now = new Date();
-        setCurrentTime(now.toLocaleTimeString());
+        setCurrentTime(getBangkokTime().toLocaleTimeString());
       } catch (err) {
         console.error('Error updating time:', err);
       }
     };
 
-    updateTime(); // Initial update
+    updateTime();
     const intervalId = setInterval(updateTime, 1000);
 
     return () => clearInterval(intervalId);
   }, []);
 
   const handleStatusChange = useCallback(
-    (newStatus: boolean) => {
-      setAttendanceStatus((prev) =>
-        prev ? { ...prev, isCheckingIn: newStatus } : null,
-      );
-      fetchData(); // Refresh data after status change
+    async (newStatus: boolean) => {
+      if (attendanceStatus) {
+        try {
+          const response = await axios.post('/api/check-in-out', {
+            lineUserId,
+            isCheckIn: newStatus,
+          });
+
+          const updatedStatus = response.data;
+          setAttendanceStatus(updatedStatus);
+
+          // Update cache
+          const cachedData = getCachedData();
+          if (cachedData) {
+            cachedData.data.attendanceStatus = updatedStatus;
+            setCachedData(cachedData.data);
+          }
+
+          setIsCachedData(false);
+        } catch (error) {
+          console.error('Error during check-in/out:', error);
+          invalidateCache();
+        }
+      }
+      await fetchData(); // Refresh data after status change
     },
-    [fetchData],
+    [attendanceStatus, fetchData, invalidateCache, lineUserId],
   );
 
   if (isLoading) {
@@ -156,6 +229,14 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         <div className="text-3xl font-bold text-center mb-2 text-black-950">
           {currentTime}
         </div>
+        {isCachedData && (
+          <div className="text-sm text-gray-500 text-center mb-2">
+            Viewing cached data.{' '}
+            <button onClick={fetchData} className="text-blue-500 underline">
+              Refresh
+            </button>
+          </div>
+        )}
         {formError && (
           <div
             className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
@@ -169,6 +250,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           onError={(error: Error) => {
             console.error('Error in CheckInOutForm:', error);
             setFormError(error.message);
+            invalidateCache();
           }}
         >
           <div className="w-full max-w-md">
@@ -178,6 +260,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               effectiveShift={effectiveShift}
               initialCheckInOutAllowance={checkInOutAllowance}
               onStatusChange={handleStatusChange}
+              onError={invalidateCache}
             />
           </div>
         </ErrorBoundary>

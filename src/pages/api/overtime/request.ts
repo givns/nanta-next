@@ -2,12 +2,14 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
 import { OvertimeNotificationService } from '../../../services/OvertimeNotificationService'; // Import the overtimeNotificationService
 import { TimeEntryService } from '../../../services/TimeEntryService';
+import { ShiftManagementService } from '../../../services/ShiftManagementService';
 
 if (!prisma) {
   throw new Error('Prisma client is undefined');
 }
 
-const timeEntryService = new TimeEntryService(prisma); // Pass the prisma argument to the TimeEntryService constructor
+const shiftManagementService = new ShiftManagementService(prisma);
+const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
 const overtimeNotificationService = new OvertimeNotificationService(); // Instantiate an instance of the OvertimeNotificationService class
 const overtimeService = new OvertimeServiceServer(
   prisma,

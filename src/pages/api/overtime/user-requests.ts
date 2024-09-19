@@ -4,7 +4,10 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
 import { OvertimeNotificationService } from '../../../services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
-const timeEntryService = new TimeEntryService(prisma!);
+import { ShiftManagementService } from '@/services/ShiftManagementService';
+import prisma from '@/lib/prisma';
+const shiftManagementService = new ShiftManagementService(prisma);
+const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
 const overtimeNotificationService = new OvertimeNotificationService();
 const overtimeService = new OvertimeServiceServer(
   prisma!,

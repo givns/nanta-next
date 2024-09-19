@@ -13,6 +13,8 @@ import { OvertimeNotificationService } from '@/services/OvertimeNotificationServ
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { getBangkokTime, formatBangkokTime } from '@/utils/dateUtils';
 import { NoWorkDayService } from '@/services/NoWorkDayService';
+import { Queue } from 'bullmq';
+const notificationQueue = new Queue('notifications');
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
@@ -65,23 +67,20 @@ export default async function handler(
     const processedAttendance =
       await attendanceService.processAttendance(attendanceData);
 
+    // Get the full updated attendance status
+    const updatedStatus = await attendanceService.getLatestAttendanceStatus(
+      attendanceData.employeeId,
+    );
+
     console.log('Processed attendance:', processedAttendance);
+    // Queue notification instead of sending it immediately
+    notificationQueue.add('sendNotification', {
+      employeeId: attendanceData.employeeId,
+      isCheckIn: attendanceData.isCheckIn,
+      time: getBangkokTime(),
+    });
 
-    // Send notification using NotificationService
-    const currentTime = getBangkokTime();
-    if (attendanceData.isCheckIn) {
-      await notificationService.sendCheckInConfirmation(
-        attendanceData.employeeId,
-        currentTime,
-      );
-    } else {
-      await notificationService.sendCheckOutConfirmation(
-        attendanceData.employeeId,
-        currentTime,
-      );
-    }
-
-    res.status(200).json(processedAttendance);
+    res.status(200).json(updatedStatus);
   } catch (error: any) {
     console.error('Check-in/out failed:', error);
     console.error('Error stack:', error.stack);

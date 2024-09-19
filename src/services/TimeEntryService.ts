@@ -1,5 +1,4 @@
 // services/TimeEntryService.ts
-
 import {
   PrismaClient,
   TimeEntry,
@@ -46,7 +45,7 @@ export class TimeEntryService {
       differenceInMinutes(checkOutTime, shiftEnd),
     );
     const totalOvertimeMinutes = beforeShiftMinutes + afterShiftMinutes;
-    return Math.floor(totalOvertimeMinutes / 30) * 0.5; // Convert to hours, rounded to nearest 30 minutes
+    return Math.floor(totalOvertimeMinutes / 30) * 0.5;
   }
 
   async getTimeEntriesForEmployee(
