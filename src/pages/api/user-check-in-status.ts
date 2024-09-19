@@ -18,6 +18,7 @@ import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
+import { Redis } from 'ioredis';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);

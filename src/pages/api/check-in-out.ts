@@ -6,15 +6,23 @@ import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
 import { leaveServiceServer } from '@/services/LeaveServiceServer';
-import { AttendanceData } from '@/types/attendance';
+import { AttendanceData, AttendanceStatusInfo } from '@/types/attendance';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
-import { getBangkokTime, formatBangkokTime } from '@/utils/dateUtils';
+import {
+  getBangkokTime,
+  formatBangkokTime,
+  formatDate,
+  formatTime,
+} from '@/utils/dateUtils';
+import { errorLogger } from '../../utils/errorLogger';
+import { retryOperation } from '../../utils/retryOperation';
 import { performance } from 'perf_hooks';
 import { NoWorkDayService } from '@/services/NoWorkDayService';
 import { Queue } from 'bullmq';
+import { PrismaClientValidationError } from '@prisma/client/runtime/library';
 const notificationQueue = new Queue('notifications');
 
 const prisma = new PrismaClient();
@@ -50,45 +58,76 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  console.log('Received check-in/out request:', req.body);
-
   const attendanceData: AttendanceData = req.body;
 
+  if (!attendanceData.employeeId) {
+    return res.status(400).json({ message: 'Employee ID is required' });
+  }
+
   try {
-    const attendanceStatus = await attendanceService.getLatestAttendanceStatus(
-      attendanceData.employeeId,
+    // Use getBangkokTime() for the check time
+    attendanceData.checkTime = getBangkokTime().toISOString();
+
+    const processedAttendance = await retryOperation(
+      () => attendanceService.processAttendance(attendanceData),
+      3,
     );
 
-    if (attendanceStatus.isDayOff && !attendanceData.isOvertime) {
-      return res
-        .status(400)
-        .json({ message: 'Cannot check in/out on day off without overtime' });
+    const updatedStatus = await retryOperation(
+      () =>
+        attendanceService.getLatestAttendanceStatus(attendanceData.employeeId),
+      3,
+    );
+
+    // Format times in the response
+    if (updatedStatus.latestAttendance) {
+      updatedStatus.latestAttendance.checkInTime = updatedStatus
+        .latestAttendance.checkInTime
+        ? formatTime(new Date(updatedStatus.latestAttendance.checkInTime))
+        : null;
+      updatedStatus.latestAttendance.checkOutTime = updatedStatus
+        .latestAttendance.checkOutTime
+        ? formatTime(new Date(updatedStatus.latestAttendance.checkOutTime))
+        : null;
     }
 
-    const processedAttendance =
-      await attendanceService.processAttendance(attendanceData);
-
-    // Get the full updated attendance status
-    const updatedStatus = await attendanceService.getLatestAttendanceStatus(
-      attendanceData.employeeId,
-    );
-
-    console.log('Processed attendance:', processedAttendance);
-    // Queue notification instead of sending it immediately
-    notificationQueue.add('sendNotification', {
-      employeeId: attendanceData.employeeId,
-      isCheckIn: attendanceData.isCheckIn,
-      time: getBangkokTime(),
-    });
+    // Send notification asynchronously
+    sendNotificationAsync(attendanceData, updatedStatus);
 
     res.status(200).json(updatedStatus);
   } catch (error: any) {
-    console.error('Check-in/out failed:', error);
-    console.error('Error stack:', error.stack);
-    res.status(error.statusCode || 500).json({
-      message: 'Check-in/out failed',
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-    });
+    errorLogger.log(error);
+
+    if (error instanceof PrismaClientValidationError) {
+      res.status(400).json({ message: 'Invalid input data' });
+    } else if (error.code === 'P2002') {
+      res.status(409).json({ message: 'Attendance record already exists' });
+    } else {
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+}
+
+async function sendNotificationAsync(
+  attendanceData: AttendanceData,
+  updatedStatus: AttendanceStatusInfo,
+) {
+  try {
+    const currentTime = getBangkokTime();
+    if (attendanceData.isCheckIn) {
+      await notificationService.sendCheckInConfirmation(
+        attendanceData.employeeId,
+        currentTime,
+      );
+    } else {
+      await notificationService.sendCheckOutConfirmation(
+        attendanceData.employeeId,
+        currentTime,
+      );
+    }
+  } catch (error: any) {
+    console.error('Failed to send notification:', error);
+    errorLogger.log(error);
+    // Consider implementing a retry mechanism or queueing system for failed notifications
   }
 }

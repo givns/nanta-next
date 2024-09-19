@@ -39,21 +39,14 @@ import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
 import { formatDate, formatTime } from '../utils/dateUtils';
-import NodeCache from 'node-cache';
-const attendanceCache = new NodeCache({ stdTTL: 60 });
+import { Redis } from 'ioredis';
 
-const TIMEZONE = 'Asia/Bangkok';
+const USER_CACHE_TTL = 24 * 60 * 60; // 24 hours
+const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
 
 export class AttendanceService {
-  static isCheckInOutAllowed(employeeId: string) {
-    throw new Error('Method not implemented.');
-  }
-  static processAttendance(attendanceData: any) {
-    throw new Error('Method not implemented.');
-  }
-  static getLatestAttendanceStatus(employeeId: string) {
-    throw new Error('Method not implemented.');
-  }
+  private redis: Redis | null = null;
+
   constructor(
     private prisma: PrismaClient,
     private shiftManagementService: ShiftManagementService,
@@ -62,15 +55,58 @@ export class AttendanceService {
     private overtimeService: OvertimeServiceServer,
     private notificationService: NotificationService,
     private timeEntryService: TimeEntryService,
-  ) {}
+  ) {
+    this.initializeRedis();
+  }
+
+  private initializeRedis() {
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl) {
+      this.redis = new Redis(redisUrl);
+      this.redis.on('error', (error) => {
+        console.error('Redis error:', error);
+      });
+    } else {
+      console.warn('REDIS_URL is not set. Caching will be disabled.');
+    }
+  }
+
+  private async getCachedUserData(employeeId: string): Promise<User | null> {
+    if (!this.redis) {
+      return this.prisma.user.findUnique({
+        where: { employeeId },
+        include: { department: true },
+      });
+    }
+
+    const cacheKey = `user:${employeeId}`;
+    const cachedUser = await this.redis.get(cacheKey);
+
+    if (cachedUser) {
+      return JSON.parse(cachedUser);
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { employeeId },
+      include: { department: true },
+    });
+
+    if (user) {
+      await this.redis.set(
+        cacheKey,
+        JSON.stringify(user),
+        'EX',
+        USER_CACHE_TTL,
+      );
+    }
+
+    return user;
+  }
 
   async processAttendance(
     attendanceData: AttendanceData,
   ): Promise<ProcessedAttendance> {
-    const user = await this.prisma.user.findUnique({
-      where: { employeeId: attendanceData.employeeId },
-      include: { department: true },
-    });
+    const user = await this.getCachedUserData(attendanceData.employeeId);
     if (!user) throw new Error('User not found');
 
     const { isCheckIn, checkTime } = attendanceData;
@@ -217,6 +253,12 @@ export class AttendanceService {
       isManualEntry: false,
     };
 
+    // Invalidate the attendance cache after processing
+    if (this.redis) {
+      const attendanceCacheKey = `attendance:${attendanceData.employeeId}`;
+      await this.redis.del(attendanceCacheKey);
+    }
+
     return processedAttendance;
   }
 
@@ -253,25 +295,31 @@ export class AttendanceService {
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatusInfo> {
+    if (!this.redis) {
+      return this.fetchLatestAttendanceStatus(employeeId);
+    }
+
     const cacheKey = `attendance:${employeeId}`;
-    const cachedStatus = attendanceCache.get<AttendanceStatusInfo>(cacheKey);
+    const cachedStatus = await this.redis.get(cacheKey);
 
     if (cachedStatus) {
-      return cachedStatus;
+      return JSON.parse(cachedStatus);
     }
 
     const status = await this.fetchLatestAttendanceStatus(employeeId);
-    attendanceCache.set(cacheKey, status);
+    await this.redis.set(
+      cacheKey,
+      JSON.stringify(status),
+      'EX',
+      ATTENDANCE_CACHE_TTL,
+    );
     return status;
   }
 
   private async fetchLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatusInfo> {
-    const user = await this.prisma.user.findUnique({
-      where: { employeeId },
-      include: { department: true },
-    });
+    const user = await this.getCachedUserData(employeeId);
     if (!user) throw new Error('User not found');
 
     const today = new Date();
@@ -737,8 +785,11 @@ export class AttendanceService {
     user: User & { attendances: Attendance[] },
     now: Date,
   ) {
+    const cachedUser = await this.getCachedUserData(user.employeeId);
+    if (!cachedUser) return;
+
     const effectiveShift = await this.shiftManagementService.getEffectiveShift(
-      user.id,
+      cachedUser.id,
       now,
     );
     if (!effectiveShift) return;
@@ -797,6 +848,25 @@ export class AttendanceService {
         user.lineUserId,
       );
     }
+  }
+
+  // Helper method to invalidate user cache
+  private async invalidateUserCache(employeeId: string) {
+    if (this.redis) {
+      const cacheKey = `user:${employeeId}`;
+      await this.redis.del(cacheKey);
+    }
+  }
+
+  // Add this method to update user data and invalidate cache
+  async updateUserData(employeeId: string, updateData: Partial<User>) {
+    const updatedUser = await this.prisma.user.update({
+      where: { employeeId },
+      data: updateData,
+    });
+
+    await this.invalidateUserCache(employeeId);
+    return updatedUser;
   }
 
   private calculateAttendanceStatus(
