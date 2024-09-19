@@ -16,7 +16,10 @@ import { NoWorkDayService } from '@/services/NoWorkDayService';
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
-const timeEntryService = new TimeEntryService(prisma);
+const timeEntryService = new TimeEntryService(
+  prisma,
+  new ShiftManagementService(prisma),
+);
 const overtimeService = new OvertimeServiceServer(
   prisma,
   overtimeNotificationService,

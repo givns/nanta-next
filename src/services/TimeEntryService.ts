@@ -3,12 +3,51 @@
 import {
   PrismaClient,
   TimeEntry,
-  OvertimeRequest,
   Attendance,
+  OvertimeRequest,
 } from '@prisma/client';
+import { differenceInMinutes, isAfter, isBefore } from 'date-fns';
+import { ShiftManagementService } from './ShiftManagementService';
+import { ShiftData } from '@/types/attendance';
 
 export class TimeEntryService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(
+    private prisma: PrismaClient,
+    private shiftManagementService: ShiftManagementService,
+  ) {}
+
+  private calculateRegularHours(
+    checkInTime: Date,
+    checkOutTime: Date,
+    shiftStart: Date,
+    shiftEnd: Date,
+  ): number {
+    const effectiveStart = isAfter(checkInTime, shiftStart)
+      ? checkInTime
+      : shiftStart;
+    const effectiveEnd = isBefore(checkOutTime, shiftEnd)
+      ? checkOutTime
+      : shiftEnd;
+    return Math.max(0, differenceInMinutes(effectiveEnd, effectiveStart) / 60);
+  }
+
+  private calculateOvertimeHours(
+    checkInTime: Date,
+    checkOutTime: Date,
+    shiftStart: Date,
+    shiftEnd: Date,
+  ): number {
+    const beforeShiftMinutes = Math.max(
+      0,
+      differenceInMinutes(shiftStart, checkInTime),
+    );
+    const afterShiftMinutes = Math.max(
+      0,
+      differenceInMinutes(checkOutTime, shiftEnd),
+    );
+    const totalOvertimeMinutes = beforeShiftMinutes + afterShiftMinutes;
+    return Math.floor(totalOvertimeMinutes / 30) * 0.5; // Convert to hours, rounded to nearest 30 minutes
+  }
 
   async getTimeEntriesForEmployee(
     employeeId: string,
@@ -22,42 +61,6 @@ export class TimeEntryService {
           gte: startDate,
           lte: endDate,
         },
-      },
-    });
-  }
-
-  private async createTimeEntry(
-    attendanceData: Attendance,
-  ): Promise<TimeEntry> {
-    const startTime = attendanceData.checkInTime || attendanceData.date; // Use date as fallback
-    const endTime = attendanceData.checkOutTime || new Date();
-
-    return this.prisma.timeEntry.create({
-      data: {
-        employeeId: attendanceData.employeeId,
-        date: attendanceData.date,
-        startTime: startTime,
-        endTime: endTime,
-        status: 'COMPLETED',
-        regularHours: 1, // Calculate this based on your business logic
-        overtimeHours: 1.5, // Calculate this based on your business logic
-        attendanceId: attendanceData.id,
-      },
-    });
-  }
-
-  private async updateTimeEntry(
-    timeEntryId: string,
-    attendance: Attendance,
-  ): Promise<TimeEntry> {
-    const endTime = attendance.checkOutTime || new Date();
-
-    return this.prisma.timeEntry.update({
-      where: { id: timeEntryId },
-      data: {
-        endTime: endTime,
-        status: 'COMPLETED',
-        // Update regularHours and overtimeHours based on your business logic
       },
     });
   }
@@ -102,14 +105,108 @@ export class TimeEntryService {
   }
 
   async createOrUpdateTimeEntry(attendance: Attendance): Promise<TimeEntry> {
+    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
+      attendance.employeeId,
+      attendance.date,
+    );
+
+    if (!effectiveShift) {
+      throw new Error('No effective shift found for the employee on this date');
+    }
+
     const existingEntry = await this.prisma.timeEntry.findFirst({
       where: { employeeId: attendance.employeeId, date: attendance.date },
     });
 
     if (existingEntry) {
-      return this.updateTimeEntry(existingEntry.id, attendance);
+      return this.updateTimeEntry(existingEntry.id, attendance, effectiveShift);
     } else {
-      return this.createTimeEntry(attendance);
+      return this.createTimeEntry(attendance, effectiveShift);
     }
+  }
+
+  private async createTimeEntry(
+    attendance: Attendance,
+    effectiveShift: ShiftData,
+  ): Promise<TimeEntry> {
+    const checkInTime = attendance.checkInTime || attendance.date;
+    const checkOutTime = attendance.checkOutTime || new Date();
+    const shiftStart = this.parseShiftTime(
+      effectiveShift.startTime,
+      checkInTime,
+    );
+    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, checkInTime);
+
+    const regularHours = this.calculateRegularHours(
+      checkInTime,
+      checkOutTime,
+      shiftStart,
+      shiftEnd,
+    );
+    const overtimeHours = this.calculateOvertimeHours(
+      checkInTime,
+      checkOutTime,
+      shiftStart,
+      shiftEnd,
+    );
+
+    return this.prisma.timeEntry.create({
+      data: {
+        employeeId: attendance.employeeId,
+        date: attendance.date,
+        startTime: checkInTime,
+        endTime: checkOutTime,
+        status: 'COMPLETED',
+        regularHours,
+        overtimeHours,
+        attendanceId: attendance.id,
+      },
+    });
+  }
+
+  private async updateTimeEntry(
+    timeEntryId: string,
+    attendance: Attendance,
+    effectiveShift: ShiftData,
+  ): Promise<TimeEntry> {
+    const checkOutTime = attendance.checkOutTime || new Date();
+    const shiftStart = this.parseShiftTime(
+      effectiveShift.startTime,
+      attendance.date,
+    );
+    const shiftEnd = this.parseShiftTime(
+      effectiveShift.endTime,
+      attendance.date,
+    );
+
+    const regularHours = this.calculateRegularHours(
+      attendance.checkInTime!,
+      checkOutTime,
+      shiftStart,
+      shiftEnd,
+    );
+    const overtimeHours = this.calculateOvertimeHours(
+      attendance.checkInTime!,
+      checkOutTime,
+      shiftStart,
+      shiftEnd,
+    );
+
+    return this.prisma.timeEntry.update({
+      where: { id: timeEntryId },
+      data: {
+        endTime: checkOutTime,
+        status: 'COMPLETED',
+        regularHours,
+        overtimeHours,
+      },
+    });
+  }
+
+  private parseShiftTime(timeString: string, referenceDate: Date): Date {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const shiftTime = new Date(referenceDate);
+    shiftTime.setHours(hours, minutes, 0, 0);
+    return shiftTime;
   }
 }

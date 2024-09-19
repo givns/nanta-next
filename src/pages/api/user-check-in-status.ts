@@ -25,7 +25,7 @@ const shift104HolidayService = new Shift104HolidayService();
 const shiftManagementService = new ShiftManagementService(prisma);
 const notificationService = new NotificationService();
 const overtimeNotificationService = new OvertimeNotificationService();
-const timeEntryService = new TimeEntryService(prisma);
+const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
 const leaveServiceServer = new LeaveServiceServer();
 
 const overtimeService = new OvertimeServiceServer(
