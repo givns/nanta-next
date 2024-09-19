@@ -60,6 +60,19 @@ export default async function handler(
 
   const attendanceData: AttendanceData = req.body;
 
+  // Ensure checkTime is in the correct format
+  if (typeof attendanceData.checkTime === 'string') {
+    // If it's just time (HH:mm:ss), prepend today's date
+    if (attendanceData.checkTime.length <= 8) {
+      const now = new Date();
+      attendanceData.checkTime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${attendanceData.checkTime}`;
+    }
+    // Now it should be a full ISO string
+    attendanceData.checkTime = new Date(attendanceData.checkTime).toISOString();
+  } else if (attendanceData.checkTime instanceof Date) {
+    attendanceData.checkTime = attendanceData.checkTime.toISOString();
+  }
+
   if (!attendanceData.employeeId) {
     return res.status(400).json({ message: 'Employee ID is required' });
   }
