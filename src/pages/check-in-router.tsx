@@ -7,6 +7,7 @@ import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
 import axios from 'axios';
 import { formatBangkokTime, getBangkokTime } from '../utils/dateUtils';
 import SkeletonLoader from '../components/SkeletonLoader';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   loading: () => <p>Loading form...</p>,
@@ -263,6 +264,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               onError={invalidateCache}
             />
           </div>
+          <SpeedInsights />
         </ErrorBoundary>
       </div>
     </ErrorBoundary>
