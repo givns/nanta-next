@@ -76,23 +76,52 @@ export default async function handler(
     }
 
     const today = new Date();
-    const effectiveShift = await shiftManagementService.getEffectiveShift(
-      user.employeeId,
-      today,
-    );
-    const attendanceStatus = await attendanceService.getLatestAttendanceStatus(
-      user.id,
-      forceRefresh === 'true',
-    );
+    let effectiveShift, attendanceStatus, approvedOvertime, checkInOutAllowance;
 
-    const approvedOvertime = await overtimeService.getApprovedOvertimeRequest(
-      user.employeeId,
-      today,
-    );
+    try {
+      effectiveShift = await shiftManagementService.getEffectiveShift(
+        user.employeeId,
+        today,
+      );
+    } catch (shiftError) {
+      console.error('Error getting effective shift:', shiftError);
+      return res
+        .status(500)
+        .json({
+          error: 'Error getting effective shift',
+          details: (shiftError as Error).message,
+        });
+    }
 
-    const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
-      user.employeeId,
-    );
+    try {
+      attendanceStatus = await attendanceService.getLatestAttendanceStatus(
+        user.id,
+        forceRefresh === 'true',
+      );
+    } catch (attendanceError) {
+      console.error('Error getting attendance status:', attendanceError);
+      return res
+        .status(500)
+        .json({
+          error: 'Error getting attendance status',
+          details: (attendanceError as Error).message,
+        });
+    }
+
+    try {
+      approvedOvertime = await overtimeService.getApprovedOvertimeRequest(
+        user.employeeId,
+        today,
+      );
+    } catch (overtimeError) {
+      console.error('Error getting approved overtime:', overtimeError);
+      return res
+        .status(500)
+        .json({
+          error: 'Error getting approved overtime',
+          details: (overtimeError as Error).message,
+        });
+    }
 
     const responseData = {
       user: {
