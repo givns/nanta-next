@@ -41,11 +41,11 @@ export type ApprovedOvertime = {
 export interface AttendanceStatusInfo {
   status: AttendanceStatusValue;
   isOvertime: boolean;
-  overtimeDuration: number | undefined;
+  overtimeDuration?: number;
   detailedStatus: string;
-  isEarlyCheckIn: boolean | undefined;
-  isLateCheckIn: boolean | undefined;
-  isLateCheckOut: boolean | undefined;
+  isEarlyCheckIn: boolean;
+  isLateCheckIn: boolean;
+  isLateCheckOut: boolean;
   user: UserData;
   latestAttendance: {
     id: string;
@@ -102,14 +102,14 @@ export interface PotentialOvertime {
   updatedAt: Date;
 }
 
-export interface ShiftData {
+export type ShiftData = {
   id: string;
   name: string;
+  shiftCode: string;
   startTime: string;
   endTime: string;
   workDays: number[];
-  shiftCode: string;
-}
+} | null;
 
 export interface AttendanceRecord {
   id: string;

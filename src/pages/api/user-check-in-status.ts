@@ -93,7 +93,7 @@ export default async function handler(
 
     try {
       attendanceStatus = await attendanceService.getLatestAttendanceStatus(
-        user.id,
+        user.employeeId,
       );
     } catch (attendanceError) {
       console.error('Error getting attendance status:', attendanceError);

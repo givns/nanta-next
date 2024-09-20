@@ -8,6 +8,7 @@ import axios from 'axios';
 import { formatBangkokTime, getBangkokTime } from '../utils/dateUtils';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { z } from 'zod'; // Import Zod for runtime type checking
+import { UserRole } from '@/types/enum';
 
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   loading: () => <p>Loading form...</p>,
@@ -18,6 +19,23 @@ interface CheckInRouterProps {
   lineUserId: string | null;
 }
 
+const CACHE_KEY = 'attendanceStatus';
+const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+interface CachedData {
+  data: {
+    userData: UserData;
+    attendanceStatus: AttendanceStatusInfo;
+    effectiveShift: ShiftData;
+    checkInOutAllowance: {
+      allowed: boolean;
+      reason?: string;
+      isLate?: boolean;
+      isOvertime?: boolean;
+    };
+  };
+  timestamp: number;
+}
+
 const UserDataSchema = z.object({
   employeeId: z.string(),
   name: z.string(),
@@ -25,27 +43,38 @@ const UserDataSchema = z.object({
   nickname: z.string().nullable(),
   departmentId: z.string().nullable(),
   departmentName: z.string(),
-  role: z.string(),
+  role: z.nativeEnum(UserRole),
   profilePictureUrl: z.string().nullable(),
   shiftId: z.string().nullable(),
   shiftCode: z.string().nullable(),
   overtimeHours: z.number(),
+  potentialOvertimes: z.array(z.any()), // You might want to define a more specific schema for PotentialOvertime
   sickLeaveBalance: z.number(),
   businessLeaveBalance: z.number(),
   annualLeaveBalance: z.number(),
-  createdAt: z.date().nullable(),
-  updatedAt: z.date().nullable(),
+  createdAt: z.date().optional(),
+  updatedAt: z.date().optional(),
 });
 
-// Update AttendanceStatusInfoSchema to match your AttendanceStatusInfo type
+const ShiftDataSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    shiftCode: z.string(),
+    startTime: z.string(),
+    endTime: z.string(),
+    workDays: z.array(z.number()),
+  })
+  .nullable();
+
 const AttendanceStatusInfoSchema = z.object({
-  status: z.string(),
+  status: z.enum(['present', 'absent', 'incomplete', 'holiday', 'off']),
   isOvertime: z.boolean(),
-  overtimeDuration: z.number().nullable(),
+  overtimeDuration: z.number().optional(),
   detailedStatus: z.string(),
-  isEarlyCheckIn: z.boolean().nullable(),
-  isLateCheckIn: z.boolean().nullable(),
-  isLateCheckOut: z.boolean().nullable(),
+  isEarlyCheckIn: z.boolean(),
+  isLateCheckIn: z.boolean(),
+  isLateCheckOut: z.boolean(),
   user: UserDataSchema,
   latestAttendance: z
     .object({
@@ -54,62 +83,48 @@ const AttendanceStatusInfoSchema = z.object({
       date: z.string(),
       checkInTime: z.string().nullable(),
       checkOutTime: z.string().nullable(),
-      status: z.string(),
+      status: z.enum([
+        'checked-in',
+        'checked-out',
+        'overtime-started',
+        'overtime-ended',
+        'pending',
+        'approved',
+        'denied',
+      ]),
       isManualEntry: z.boolean(),
     })
     .nullable(),
   isCheckingIn: z.boolean(),
   isDayOff: z.boolean(),
-  potentialOvertimes: z.array(
-    z.object({
-      // Define the structure of PotentialOvertime
-    }),
-  ),
+  potentialOvertimes: z.array(z.any()), // Define a more specific schema if possible
   shiftAdjustment: z
     .object({
-      // Define the structure of ShiftAdjustment
+      date: z.string(),
+      requestedShiftId: z.string(),
+      requestedShift: ShiftDataSchema,
     })
     .nullable(),
-  approvedOvertime: z
-    .object({
-      // Define the structure of ApprovedOvertime
-    })
-    .nullable(),
+  approvedOvertime: z.any().nullable(), // Define a more specific schema if possible
   futureShifts: z.array(
     z.object({
-      // Define the structure of future shifts
+      date: z.string(),
+      shift: ShiftDataSchema,
     }),
   ),
-  futureOvertimes: z.array(
-    z.object({
-      // Define the structure of future overtimes
-    }),
-  ),
+  futureOvertimes: z.array(z.any()), // Define a more specific schema if possible
 });
 
-// Update ShiftDataSchema to match your Shift model
-const ShiftDataSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  startTime: z.string(),
-  endTime: z.string(),
-  workDays: z.array(z.number()),
-  shiftCode: z.string(),
-});
-
-const CheckInOutAllowanceSchema = z.object({
-  allowed: z.boolean(),
-  reason: z.string().optional(),
-  isLate: z.boolean().optional(),
-  isOvertime: z.boolean().optional(),
-});
-
-// Update the ResponseDataSchema
 const ResponseDataSchema = z.object({
   user: UserDataSchema,
   attendanceStatus: AttendanceStatusInfoSchema,
-  effectiveShift: ShiftDataSchema.nullable(),
-  checkInOutAllowance: CheckInOutAllowanceSchema,
+  effectiveShift: ShiftDataSchema,
+  checkInOutAllowance: z.object({
+    allowed: z.boolean(),
+    reason: z.string().optional(),
+    isLate: z.boolean().optional(),
+    isOvertime: z.boolean().optional(),
+  }),
 });
 
 const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
@@ -129,6 +144,31 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     getBangkokTime().toLocaleTimeString(),
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [isCachedData, setIsCachedData] = useState(false);
+
+  const getCachedData = (): CachedData | null => {
+    const cachedString = localStorage.getItem(CACHE_KEY);
+    if (!cachedString) return null;
+    return JSON.parse(cachedString);
+  };
+
+  const setCachedData = (data: CachedData['data']) => {
+    const cacheData: CachedData = {
+      data,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+  };
+
+  const isCacheValid = (cachedData: CachedData): boolean => {
+    return Date.now() - cachedData.timestamp < CACHE_EXPIRATION;
+  };
+
+  const invalidateCache = useCallback(() => {
+    localStorage.removeItem(CACHE_KEY);
+    setIsCachedData(false);
+    console.log('Cache invalidated');
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!lineUserId) {
@@ -138,45 +178,72 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     }
 
     try {
-      setIsLoading(true);
+      const cachedData = getCachedData();
+      if (cachedData && isCacheValid(cachedData)) {
+        console.log('Cache hit');
+        const validatedCachedData = ResponseDataSchema.parse(cachedData.data);
+        setUserData(validatedCachedData.user);
+        setAttendanceStatus({
+          ...validatedCachedData.attendanceStatus,
+          approvedOvertime:
+            validatedCachedData.attendanceStatus.approvedOvertime || null,
+        });
+        setEffectiveShift(validatedCachedData.effectiveShift);
+        setCheckInOutAllowance(validatedCachedData.checkInOutAllowance);
+        setIsLoading(false);
+        setIsCachedData(true);
+        return;
+      }
+
+      console.log('Cache miss');
       const response = await axios.get(
         `/api/user-check-in-status?lineUserId=${lineUserId}`,
       );
-
-      // Validate the response data
       const validatedData = ResponseDataSchema.parse(response.data);
 
-      setUserData(validatedData.user as UserData);
-      setAttendanceStatus(
-        validatedData.attendanceStatus as AttendanceStatusInfo,
-      );
-      setEffectiveShift(validatedData.effectiveShift as ShiftData | null);
-      setCheckInOutAllowance(
-        validatedData.checkInOutAllowance as {
-          allowed: boolean;
-          reason?: string;
-          isLate?: boolean;
-          isOvertime?: boolean;
-        } | null,
-      );
+      const attendanceStatus: AttendanceStatusInfo = {
+        ...validatedData.attendanceStatus,
+        isEarlyCheckIn: validatedData.attendanceStatus.isEarlyCheckIn ?? false,
+        isLateCheckIn: validatedData.attendanceStatus.isLateCheckIn ?? false,
+        isLateCheckOut: validatedData.attendanceStatus.isLateCheckOut ?? false,
+        user: validatedData.user,
+        potentialOvertimes:
+          validatedData.attendanceStatus.potentialOvertimes || [],
+        shiftAdjustment: validatedData.attendanceStatus.shiftAdjustment || null,
+        approvedOvertime:
+          validatedData.attendanceStatus.approvedOvertime || null,
+        futureShifts: validatedData.attendanceStatus.futureShifts || [],
+        futureOvertimes: validatedData.attendanceStatus.futureOvertimes || [],
+      };
+
+      setUserData(validatedData.user);
+      setAttendanceStatus(attendanceStatus);
+      setEffectiveShift(validatedData.effectiveShift);
+      setCheckInOutAllowance(validatedData.checkInOutAllowance);
+
+      setCachedData({
+        userData: validatedData.user,
+        attendanceStatus,
+        effectiveShift: validatedData.effectiveShift,
+        checkInOutAllowance: validatedData.checkInOutAllowance,
+      });
+      setIsCachedData(false);
     } catch (err) {
       console.error('Error in data fetching:', err);
       if (err instanceof z.ZodError) {
         setError(
-          'Data validation error: ' +
-            err.errors.map((e) => e.message).join(', '),
-        );
-      } else if (axios.isAxiosError(err)) {
-        setError(
-          'Network error: ' + (err.response?.data?.message || err.message),
+          `Data validation error: ${err.errors.map((e) => e.message).join(', ')}`,
         );
       } else {
-        setError('An unknown error occurred');
+        setError(
+          err instanceof Error ? err.message : 'An unknown error occurred',
+        );
       }
+      invalidateCache();
     } finally {
       setIsLoading(false);
     }
-  }, [lineUserId]);
+  }, [lineUserId, invalidateCache]);
 
   useEffect(() => {
     fetchData();

@@ -130,23 +130,24 @@ export class TimeEntryService {
   ): Promise<TimeEntry> {
     const checkInTime = attendance.checkInTime || attendance.date;
     const checkOutTime = attendance.checkOutTime || new Date();
-    const shiftStart = this.parseShiftTime(
-      effectiveShift.startTime,
-      checkInTime,
-    );
-    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, checkInTime);
+    const shiftStart = effectiveShift
+      ? this.parseShiftTime(effectiveShift.startTime, checkInTime)
+      : null;
+    const shiftEnd = effectiveShift
+      ? this.parseShiftTime(effectiveShift.endTime, checkInTime)
+      : null;
 
     const regularHours = this.calculateRegularHours(
       checkInTime,
       checkOutTime,
-      shiftStart,
-      shiftEnd,
+      shiftStart || new Date(), // Provide a default value of new Date() when shiftStart is null
+      shiftEnd || new Date(), // Provide a default value of new Date() when shiftEnd is null
     );
     const overtimeHours = this.calculateOvertimeHours(
       checkInTime,
       checkOutTime,
-      shiftStart,
-      shiftEnd,
+      shiftStart || new Date(), // Provide a default value of new Date() when shiftStart is null
+      shiftEnd || new Date(), // Provide a default value of new Date() when shiftEnd is null
     );
 
     return this.prisma.timeEntry.create({
@@ -169,26 +170,24 @@ export class TimeEntryService {
     effectiveShift: ShiftData,
   ): Promise<TimeEntry> {
     const checkOutTime = attendance.checkOutTime || new Date();
-    const shiftStart = this.parseShiftTime(
-      effectiveShift.startTime,
-      attendance.date,
-    );
-    const shiftEnd = this.parseShiftTime(
-      effectiveShift.endTime,
-      attendance.date,
-    );
+    const shiftStart = effectiveShift
+      ? this.parseShiftTime(effectiveShift.startTime, attendance.date)
+      : null;
+    const shiftEnd = effectiveShift
+      ? this.parseShiftTime(effectiveShift.endTime, attendance.date)
+      : null;
 
     const regularHours = this.calculateRegularHours(
       attendance.checkInTime!,
       checkOutTime,
-      shiftStart,
-      shiftEnd,
+      shiftStart || new Date(), // Provide a default value of new Date() when shiftStart is null
+      shiftEnd || new Date(), // Provide a default value of new Date() when shiftEnd is null
     );
     const overtimeHours = this.calculateOvertimeHours(
       attendance.checkInTime!,
       checkOutTime,
-      shiftStart,
-      shiftEnd,
+      shiftStart || new Date(), // Provide a default value of new Date() when shiftStart is null
+      shiftEnd || new Date(), // Provide a default value of new Date() when shiftEnd is null
     );
 
     return this.prisma.timeEntry.update({

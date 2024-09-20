@@ -443,8 +443,8 @@ export class AttendanceService {
     futureShifts: Array<{ date: string; shift: ShiftData }>,
     futureOvertimes: Array<ApprovedOvertime>,
   ): AttendanceStatusInfo {
-    const shiftStart = this.parseShiftTime(shift.startTime, now);
-    const shiftEnd = this.parseShiftTime(shift.endTime, now);
+    const shiftStart = shift ? this.parseShiftTime(shift.startTime, now) : null;
+    const shiftEnd = shift ? this.parseShiftTime(shift.endTime, now) : null;
 
     let status: AttendanceStatusValue = 'absent';
     let isCheckingIn = true;
@@ -459,22 +459,18 @@ export class AttendanceService {
       status = 'off';
       isCheckingIn = false;
     } else if (!attendance) {
-      status = isBefore(now, shiftStart) ? 'absent' : 'incomplete';
+      status = isBefore(now, shiftStart ?? new Date())
+        ? 'absent'
+        : 'incomplete';
     } else {
-      if (!attendance.checkOutTime) {
-        status = 'present';
-        isCheckingIn = false;
-        detailedStatus = 'checked-in';
-      } else {
-        status = 'present';
-        detailedStatus = 'checked-out';
-        isCheckingIn = isAfter(now, endOfDay(attendance.date));
-
-        if (isAfter(attendance.checkOutTime, shiftEnd)) {
-          isOvertime = true;
-          overtimeDuration =
-            differenceInMinutes(attendance.checkOutTime, shiftEnd) / 60;
-        }
+      if (
+        attendance.checkOutTime &&
+        isAfter(attendance.checkOutTime, shiftEnd ?? new Date())
+      ) {
+        isOvertime = true;
+        overtimeDuration =
+          differenceInMinutes(attendance.checkOutTime, shiftEnd ?? new Date()) /
+          60;
       }
     }
 
@@ -492,9 +488,9 @@ export class AttendanceService {
       isOvertime,
       overtimeDuration,
       detailedStatus,
-      isEarlyCheckIn: attendance?.isEarlyCheckIn ?? undefined,
-      isLateCheckIn: attendance?.isLateCheckIn ?? undefined,
-      isLateCheckOut: attendance?.isLateCheckOut ?? undefined,
+      isEarlyCheckIn: !!attendance?.isEarlyCheckIn,
+      isLateCheckIn: attendance?.isLateCheckIn ?? false,
+      isLateCheckOut: attendance?.isLateCheckOut ?? false,
       user,
       latestAttendance: attendance
         ? {
