@@ -53,7 +53,7 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { lineUserId } = req.query;
+  const { lineUserId, forceRefresh } = req.query;
 
   if (!lineUserId || typeof lineUserId !== 'string') {
     return res
@@ -80,8 +80,10 @@ export default async function handler(
       today,
     );
     const attendanceStatus = await attendanceService.getLatestAttendanceStatus(
-      user.employeeId,
+      user.id,
+      forceRefresh === 'true',
     );
+
     const approvedOvertime = await overtimeService.getApprovedOvertimeRequest(
       user.employeeId,
       today,

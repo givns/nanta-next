@@ -69,23 +69,32 @@ export const useAttendance = (
     setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
   }, [initialAttendanceStatus, processAttendanceStatus]);
 
-  const getAttendanceStatus = useCallback(async () => {
-    try {
-      const response = await axios.get(
-        `/api/user-check-in-status?lineUserId=${userData.lineUserId}`,
-      );
-      const { attendanceStatus, effectiveShift, checkInOutAllowance } =
-        response.data;
-      setAttendanceStatus(attendanceStatus);
-      setEffectiveShift(effectiveShift);
-      setCheckInOutAllowance(checkInOutAllowance);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching attendance status:', error);
-      setError('Failed to fetch attendance status');
-      throw error;
-    }
-  }, [userData.lineUserId]);
+  const getAttendanceStatus = useCallback(
+    async (forceRefresh: boolean = false) => {
+      try {
+        setIsLoading(true);
+        const response = await axios.get(
+          `/api/user-check-in-status?lineUserId=${userData.lineUserId}&forceRefresh=${forceRefresh}`,
+        );
+        const { attendanceStatus, effectiveShift, checkInOutAllowance } =
+          response.data;
+        setAttendanceStatus(attendanceStatus);
+        setCheckInOutAllowance(checkInOutAllowance);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching attendance status:', error);
+        setError('Failed to fetch attendance status');
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [userData.lineUserId],
+  );
+
+  const refreshAttendanceStatus = useCallback(async () => {
+    return getAttendanceStatus(true);
+  }, [getAttendanceStatus]);
 
   useEffect(() => {
     console.log('useAttendance hook: Initial data', {
