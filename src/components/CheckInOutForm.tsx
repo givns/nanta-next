@@ -47,18 +47,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onStatusChange,
   onError,
 }) => {
-  const router = useRouter();
   const [step, setStep] = useState<'info' | 'camera' | 'confirm'>('info');
   const [reason, setReason] = useState<string>('');
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
   const [isLate, setIsLate] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [isCheckInOutAllowedState, setIsCheckInOutAllowedState] = useState({
-    allowed: false,
-    reason: '',
-  });
 
   const {
     attendanceStatus,
@@ -88,14 +82,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setPhoto,
     message: faceDetectionMessage,
   } = useFaceDetection(2, handlePhotoCapture);
-
-  useEffect(() => {
-    const checkAllowed = async () => {
-      const { allowed, reason } = await isCheckInOutAllowed();
-      setIsCheckInOutAllowedState({ allowed, reason: reason || '' });
-    };
-    checkAllowed();
-  }, [isCheckInOutAllowed]);
 
   useEffect(() => {
     console.log('CheckInOutForm mounted');
