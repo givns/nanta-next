@@ -60,7 +60,7 @@ export const useFaceDetection = (
     if (detections.length > 0) {
       setFaceDetected(true);
       faceDetectionCount.current += 1;
-      setMessage('Face detected. Please stay still...');
+      setMessage('ระบบตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...');
 
       if (faceDetectionCount.current >= captureThreshold) {
         capturePhoto();
@@ -69,7 +69,7 @@ export const useFaceDetection = (
     } else {
       setFaceDetected(false);
       faceDetectionCount.current = 0;
-      setMessage('No face detected. Please position your face in the camera.');
+      setMessage('ไม่พบใบหน้าของพนักงาน..');
     }
   }, [model, captureThreshold, capturePhoto]);
 

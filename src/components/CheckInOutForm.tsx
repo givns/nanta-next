@@ -18,6 +18,7 @@ import dynamic from 'next/dynamic';
 import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, formatDate, getBangkokTime } from '../utils/dateUtils';
+import liff from '@line/liff';
 
 const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
   loading: () => <p>Loading map...</p>,
@@ -86,7 +87,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     photo,
     setPhoto,
     message: faceDetectionMessage,
-  } = useFaceDetection(5, handlePhotoCapture);
+  } = useFaceDetection(2, handlePhotoCapture);
 
   useEffect(() => {
     const checkAllowed = async () => {
@@ -141,7 +142,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     async (lateReasonInput?: string) => {
       if (!location) return;
 
-      const checkInOutData = {
+      const checkInOutData: AttendanceData = {
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
         checkTime: new Date().toISOString(),
@@ -159,9 +160,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
-        router.push('/checkInOutSuccess');
+
+        // Close LIFF window after successful submission
+        try {
+          await liff.init({
+            liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
+          });
+          setTimeout(() => {
+            liff.closeWindow();
+          }, 2000); // Close the window after 2 seconds
+        } catch (error) {
+          console.error('Error closing LIFF window:', error);
+        }
       } catch (error) {
         console.error('Error during check-in/out:', error);
+        setError('Failed to submit check-in/out. Please try again.');
       }
     },
     [
@@ -174,7 +187,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       checkInOut,
       onStatusChange,
       refreshAttendanceStatus,
-      router,
+      address,
     ],
   );
 
@@ -195,7 +208,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
       if (!allowed) {
         console.error(checkInOutReason);
-        onError();
+        setError(
+          checkInOutReason || 'Check-in/out is not allowed at this time.',
+        );
         return;
       }
 
@@ -210,7 +225,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       await submitCheckInOut();
     } catch (error) {
       console.error('Error in handleCheckInOut:', error);
-      onError();
+      setError('An error occurred. Please try again.');
     }
   }, [
     location,
@@ -250,23 +265,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       <div className="flex-shrink-0 mt-4">
         <button
           onClick={() => setStep('camera')}
-          disabled={!isCheckInOutAllowedState.allowed}
+          disabled={!initialCheckInOutAllowance?.allowed}
           className={`w-full ${
-            isCheckInOutAllowedState.allowed
+            initialCheckInOutAllowance?.allowed
               ? 'bg-red-600 hover:bg-red-700'
               : 'bg-gray-400 cursor-not-allowed'
           } text-white py-3 px-4 rounded-lg transition duration-300`}
           aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
         >
-          {isCheckInOutAllowedState.allowed
+          {initialCheckInOutAllowance?.allowed
             ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
             : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
         </button>
-        {isCheckInOutAllowedState.reason && (
-          <p className="text-red-500 text-center text-sm mt-2">
-            {isCheckInOutAllowedState.reason}
-          </p>
-        )}
+        {!initialCheckInOutAllowance?.allowed &&
+          initialCheckInOutAllowance?.reason && (
+            <p className="text-red-500 text-center text-sm mt-2">
+              {initialCheckInOutAllowance.reason}
+            </p>
+          )}
       </div>
     </div>
   );
@@ -307,15 +323,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             {address || 'Loading address...'}
           </div>
         </div>
-        {location && (
-          <div className="mb-4">
-            <InteractiveMap
-              lat={location.lat}
-              lng={location.lng}
-              apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API ?? ''}
-            />
-          </div>
-        )}
         {!inPremises && (
           <div className="mt-4">
             <label
