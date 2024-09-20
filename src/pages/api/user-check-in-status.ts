@@ -85,12 +85,10 @@ export default async function handler(
       );
     } catch (shiftError) {
       console.error('Error getting effective shift:', shiftError);
-      return res
-        .status(500)
-        .json({
-          error: 'Error getting effective shift',
-          details: (shiftError as Error).message,
-        });
+      return res.status(500).json({
+        error: 'Error getting effective shift',
+        details: (shiftError as Error).message,
+      });
     }
 
     try {
@@ -100,12 +98,10 @@ export default async function handler(
       );
     } catch (attendanceError) {
       console.error('Error getting attendance status:', attendanceError);
-      return res
-        .status(500)
-        .json({
-          error: 'Error getting attendance status',
-          details: (attendanceError as Error).message,
-        });
+      return res.status(500).json({
+        error: 'Error getting attendance status',
+        details: (attendanceError as Error).message,
+      });
     }
 
     try {
@@ -115,12 +111,10 @@ export default async function handler(
       );
     } catch (overtimeError) {
       console.error('Error getting approved overtime:', overtimeError);
-      return res
-        .status(500)
-        .json({
-          error: 'Error getting approved overtime',
-          details: (overtimeError as Error).message,
-        });
+      return res.status(500).json({
+        error: 'Error getting approved overtime',
+        details: (overtimeError as Error).message,
+      });
     }
 
     const responseData = {
