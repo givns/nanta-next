@@ -130,56 +130,53 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
   const [formError, setFormError] = useState<string | null>(null);
 
-  const fetchData = useCallback(
-    async (forceRefresh: boolean = false) => {
-      if (!lineUserId) {
-        setError('LINE user ID not available');
-        setIsLoading(false);
-        return;
+  const fetchData = useCallback(async () => {
+    if (!lineUserId) {
+      setError('LINE user ID not available');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const response = await axios.get(
+        `/api/user-check-in-status?lineUserId=${lineUserId}`,
+      );
+
+      // Validate the response data
+      const validatedData = ResponseDataSchema.parse(response.data);
+
+      setUserData(validatedData.user as UserData);
+      setAttendanceStatus(
+        validatedData.attendanceStatus as AttendanceStatusInfo,
+      );
+      setEffectiveShift(validatedData.effectiveShift as ShiftData | null);
+      setCheckInOutAllowance(
+        validatedData.checkInOutAllowance as {
+          allowed: boolean;
+          reason?: string;
+          isLate?: boolean;
+          isOvertime?: boolean;
+        } | null,
+      );
+    } catch (err) {
+      console.error('Error in data fetching:', err);
+      if (err instanceof z.ZodError) {
+        setError(
+          'Data validation error: ' +
+            err.errors.map((e) => e.message).join(', '),
+        );
+      } else if (axios.isAxiosError(err)) {
+        setError(
+          'Network error: ' + (err.response?.data?.message || err.message),
+        );
+      } else {
+        setError('An unknown error occurred');
       }
-
-      try {
-        setIsLoading(true);
-        const response = await axios.get(
-          `/api/user-check-in-status?lineUserId=${lineUserId}&forceRefresh=${forceRefresh}`,
-        );
-
-        // Validate the response data
-        const validatedData = ResponseDataSchema.parse(response.data);
-
-        setUserData(validatedData.user as UserData);
-        setAttendanceStatus(
-          validatedData.attendanceStatus as AttendanceStatusInfo,
-        );
-        setEffectiveShift(validatedData.effectiveShift as ShiftData | null);
-        setCheckInOutAllowance(
-          validatedData.checkInOutAllowance as {
-            allowed: boolean;
-            reason?: string;
-            isLate?: boolean;
-            isOvertime?: boolean;
-          } | null,
-        );
-      } catch (err) {
-        console.error('Error in data fetching:', err);
-        if (err instanceof z.ZodError) {
-          setError(
-            'Data validation error: ' +
-              err.errors.map((e) => e.message).join(', '),
-          );
-        } else if (axios.isAxiosError(err)) {
-          setError(
-            'Network error: ' + (err.response?.data?.message || err.message),
-          );
-        } else {
-          setError('An unknown error occurred');
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [lineUserId],
-  );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [lineUserId]);
 
   useEffect(() => {
     fetchData();
@@ -216,14 +213,11 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           setFormError('Failed to update status. Please try again.');
         }
       }
-      await fetchData(true); // Refresh data after status change
     },
     [attendanceStatus, fetchData, lineUserId],
   );
 
-  const handleRefresh = useCallback(() => {
-    fetchData(true);
-  }, [fetchData]);
+  const handleRefresh = useCallback(() => {}, [fetchData]);
 
   if (isLoading) {
     return <SkeletonLoader />;
@@ -295,7 +289,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
                 effectiveShift={effectiveShift}
                 initialCheckInOutAllowance={checkInOutAllowance}
                 onStatusChange={handleStatusChange}
-                onError={() => fetchData(true)}
+                onError={() => fetchData()}
               />
             </div>
           </ErrorBoundary>

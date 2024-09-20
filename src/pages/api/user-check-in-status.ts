@@ -54,7 +54,7 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { lineUserId, forceRefresh } = req.query;
+  const { lineUserId } = req.query;
 
   if (!lineUserId || typeof lineUserId !== 'string') {
     return res
@@ -94,7 +94,6 @@ export default async function handler(
     try {
       attendanceStatus = await attendanceService.getLatestAttendanceStatus(
         user.id,
-        forceRefresh === 'true',
       );
     } catch (attendanceError) {
       console.error('Error getting attendance status:', attendanceError);

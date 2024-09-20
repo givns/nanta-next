@@ -301,7 +301,6 @@ export class AttendanceService {
 
   async getLatestAttendanceStatus(
     employeeId: string,
-    forceRefresh: boolean = false,
   ): Promise<AttendanceStatusInfo> {
     if (!this.redis) {
       return this.fetchLatestAttendanceStatus(employeeId);
