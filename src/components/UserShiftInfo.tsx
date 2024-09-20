@@ -193,10 +193,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               Shift Adjustment on{' '}
               {format(parseISO(adjustment.date), 'dd MMM yyyy')}
             </h3>
-            <p>Shift: {adjustment.shift?.name}</p> // Added null check
+            <p>Shift: {adjustment.shift?.name}</p> 
             <p>
               Time: {adjustment.shift?.startTime} - {adjustment.shift?.endTime}{' '}
-              // Added null check
             </p>
           </div>
         ))}
