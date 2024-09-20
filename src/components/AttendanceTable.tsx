@@ -26,7 +26,7 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
       date: currentDay.clone(),
       attendance: attendanceForDay || {
         date: currentDay.toDate(),
-        status: shift.workDays.includes(currentDay.day()) ? 'absent' : 'off',
+        status: shift?.workDays?.includes(currentDay.day()) ? 'absent' : 'off',
       },
     });
     currentDay.add(1, 'day');

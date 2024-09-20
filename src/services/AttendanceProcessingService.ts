@@ -54,8 +54,12 @@ export class AttendanceProcessingService {
     const date = startOfDay(parsedCheckTime);
 
     const shift = await this.getEffectiveShift(user.id, date);
-    const shiftStart = this.parseShiftTime(shift.startTime, parsedCheckTime);
-    const shiftEnd = this.parseShiftTime(shift.endTime, parsedCheckTime);
+    const shiftStart = shift
+      ? this.parseShiftTime(shift.startTime, parsedCheckTime)
+      : null;
+    const shiftEnd = shift
+      ? this.parseShiftTime(shift.endTime, parsedCheckTime)
+      : null;
 
     const userShift = await this.shiftManagementService.getUserShift(user.id);
     const isShift104 = userShift?.shiftCode === 'SHIFT104';
@@ -91,15 +95,15 @@ export class AttendanceProcessingService {
       if (isCheckIn) {
         detailedStatus = this.determineCheckInStatus(
           parsedCheckTime,
-          shiftStart,
-          shiftEnd,
+          shiftStart || new Date(), // Provide a default value for shiftStart
+          shiftEnd || new Date(), // Provide a default value for shiftEnd
         );
       } else {
         [detailedStatus, isOvertime, overtimeMinutes] =
           this.determineCheckOutStatus(
             parsedCheckTime,
-            shiftStart,
-            shiftEnd,
+            shiftStart || new Date(), // Provide a default value for shiftStart
+            shiftEnd || new Date(), // Provide a default value for shiftEnd
             approvedOvertime,
           );
       }
@@ -107,8 +111,8 @@ export class AttendanceProcessingService {
 
     const regularHours = this.calculateRegularHours(
       parsedCheckTime,
-      shiftStart,
-      shiftEnd,
+      shiftStart || new Date(), // Provide a default value for shiftStart
+      shiftEnd || new Date(), // Provide a default value for shiftEnd
     );
     const overtimeHours = overtimeMinutes / 60;
 
@@ -124,9 +128,9 @@ export class AttendanceProcessingService {
       isOvertime,
       detailedStatus,
       overtimeDuration: overtimeHours,
-      isEarlyCheckIn: isBefore(parsedCheckTime, shiftStart),
-      isLateCheckIn: isAfter(parsedCheckTime, shiftStart),
-      isLateCheckOut: isAfter(parsedCheckTime, shiftEnd),
+      isEarlyCheckIn: isBefore(parsedCheckTime, shiftStart || new Date()),
+      isLateCheckIn: isAfter(parsedCheckTime, shiftStart || new Date()),
+      isLateCheckOut: isAfter(parsedCheckTime, shiftEnd || new Date()),
       isManualEntry: false,
     };
   }
@@ -201,8 +205,8 @@ export class AttendanceProcessingService {
     approvedOvertime: ApprovedOvertime | null,
   ): AttendanceStatusInfo {
     const now = new Date();
-    const shiftStart = this.parseShiftTime(shift.startTime, now);
-    const shiftEnd = this.parseShiftTime(shift.endTime, now);
+    const shiftStart = shift ? this.parseShiftTime(shift.startTime, now) : null;
+    const shiftEnd = shift ? this.parseShiftTime(shift.endTime, now) : null;
 
     let status: AttendanceStatusValue = 'absent';
     let isCheckingIn = true;
@@ -217,7 +221,9 @@ export class AttendanceProcessingService {
       status = 'off';
       isCheckingIn = false;
     } else if (!latestAttendance) {
-      status = isBefore(now, shiftStart) ? 'absent' : 'incomplete';
+      status = isBefore(now, shiftStart || new Date())
+        ? 'absent'
+        : 'incomplete';
     } else if (!latestAttendance.checkOut) {
       status = 'present';
       isCheckingIn = false;
@@ -242,9 +248,9 @@ export class AttendanceProcessingService {
       isOvertime,
       overtimeDuration,
       detailedStatus,
-      isEarlyCheckIn: latestAttendance?.isEarlyCheckIn,
-      isLateCheckIn: latestAttendance?.isLateCheckIn,
-      isLateCheckOut: latestAttendance?.isLateCheckOut,
+      isEarlyCheckIn: latestAttendance?.isEarlyCheckIn || false,
+      isLateCheckIn: latestAttendance?.isLateCheckIn ?? false,
+      isLateCheckOut: latestAttendance?.isLateCheckOut || false,
       user,
       latestAttendance: latestAttendance
         ? {

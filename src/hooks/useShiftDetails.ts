@@ -49,6 +49,10 @@ export const useShiftDetails = (
   }, [attendanceStatus]);
 
   const updateShiftStatus = (shift: ShiftData, now: Date) => {
+    if (!shift) {
+      return;
+    }
+
     const [startHour, startMinute] = (shift.startTime || '00:00')
       .split(':')
       .map(Number);
