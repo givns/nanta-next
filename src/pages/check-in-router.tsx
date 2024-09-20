@@ -1,3 +1,5 @@
+// check-in-router.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
@@ -5,6 +7,7 @@ import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
 import axios from 'axios';
 import { formatBangkokTime, getBangkokTime } from '../utils/dateUtils';
 import SkeletonLoader from '../components/SkeletonLoader';
+import { z } from 'zod'; // Import Zod for runtime type checking
 
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   loading: () => <p>Loading form...</p>,
@@ -14,6 +17,100 @@ const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 interface CheckInRouterProps {
   lineUserId: string | null;
 }
+
+const UserDataSchema = z.object({
+  employeeId: z.string(),
+  name: z.string(),
+  lineUserId: z.string().nullable(),
+  nickname: z.string().nullable(),
+  departmentId: z.string().nullable(),
+  departmentName: z.string(),
+  role: z.string(),
+  profilePictureUrl: z.string().nullable(),
+  shiftId: z.string().nullable(),
+  shiftCode: z.string().nullable(),
+  overtimeHours: z.number(),
+  sickLeaveBalance: z.number(),
+  businessLeaveBalance: z.number(),
+  annualLeaveBalance: z.number(),
+  createdAt: z.date().nullable(),
+  updatedAt: z.date().nullable(),
+});
+
+// Update AttendanceStatusInfoSchema to match your AttendanceStatusInfo type
+const AttendanceStatusInfoSchema = z.object({
+  status: z.string(),
+  isOvertime: z.boolean(),
+  overtimeDuration: z.number().nullable(),
+  detailedStatus: z.string(),
+  isEarlyCheckIn: z.boolean().nullable(),
+  isLateCheckIn: z.boolean().nullable(),
+  isLateCheckOut: z.boolean().nullable(),
+  user: UserDataSchema,
+  latestAttendance: z
+    .object({
+      id: z.string(),
+      employeeId: z.string(),
+      date: z.string(),
+      checkInTime: z.string().nullable(),
+      checkOutTime: z.string().nullable(),
+      status: z.string(),
+      isManualEntry: z.boolean(),
+    })
+    .nullable(),
+  isCheckingIn: z.boolean(),
+  isDayOff: z.boolean(),
+  potentialOvertimes: z.array(
+    z.object({
+      // Define the structure of PotentialOvertime
+    }),
+  ),
+  shiftAdjustment: z
+    .object({
+      // Define the structure of ShiftAdjustment
+    })
+    .nullable(),
+  approvedOvertime: z
+    .object({
+      // Define the structure of ApprovedOvertime
+    })
+    .nullable(),
+  futureShifts: z.array(
+    z.object({
+      // Define the structure of future shifts
+    }),
+  ),
+  futureOvertimes: z.array(
+    z.object({
+      // Define the structure of future overtimes
+    }),
+  ),
+});
+
+// Update ShiftDataSchema to match your Shift model
+const ShiftDataSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  startTime: z.string(),
+  endTime: z.string(),
+  workDays: z.array(z.number()),
+  shiftCode: z.string(),
+});
+
+const CheckInOutAllowanceSchema = z.object({
+  allowed: z.boolean(),
+  reason: z.string().optional(),
+  isLate: z.boolean().optional(),
+  isOvertime: z.boolean().optional(),
+});
+
+// Update the ResponseDataSchema
+const ResponseDataSchema = z.object({
+  user: UserDataSchema,
+  attendanceStatus: AttendanceStatusInfoSchema,
+  effectiveShift: ShiftDataSchema.nullable(),
+  checkInOutAllowance: CheckInOutAllowanceSchema,
+});
 
 const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -46,22 +143,37 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         const response = await axios.get(
           `/api/user-check-in-status?lineUserId=${lineUserId}&forceRefresh=${forceRefresh}`,
         );
-        const {
-          user,
-          attendanceStatus: fetchedAttendanceStatus,
-          effectiveShift: fetchedEffectiveShift,
-          checkInOutAllowance: fetchedAllowance,
-        } = response.data;
 
-        setUserData(user);
-        setAttendanceStatus(fetchedAttendanceStatus);
-        setEffectiveShift(fetchedEffectiveShift);
-        setCheckInOutAllowance(fetchedAllowance);
+        // Validate the response data
+        const validatedData = ResponseDataSchema.parse(response.data);
+
+        setUserData(validatedData.user as UserData);
+        setAttendanceStatus(
+          validatedData.attendanceStatus as AttendanceStatusInfo,
+        );
+        setEffectiveShift(validatedData.effectiveShift as ShiftData | null);
+        setCheckInOutAllowance(
+          validatedData.checkInOutAllowance as {
+            allowed: boolean;
+            reason?: string;
+            isLate?: boolean;
+            isOvertime?: boolean;
+          } | null,
+        );
       } catch (err) {
         console.error('Error in data fetching:', err);
-        setError(
-          err instanceof Error ? err.message : 'An unknown error occurred',
-        );
+        if (err instanceof z.ZodError) {
+          setError(
+            'Data validation error: ' +
+              err.errors.map((e) => e.message).join(', '),
+          );
+        } else if (axios.isAxiosError(err)) {
+          setError(
+            'Network error: ' + (err.response?.data?.message || err.message),
+          );
+        } else {
+          setError('An unknown error occurred');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -101,6 +213,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           setAttendanceStatus(updatedStatus);
         } catch (error) {
           console.error('Error during check-in/out:', error);
+          setFormError('Failed to update status. Please try again.');
         }
       }
       await fetchData(true); // Refresh data after status change
