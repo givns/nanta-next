@@ -11,19 +11,9 @@ import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
-import {
-  getBangkokTime,
-  formatBangkokTime,
-  formatDate,
-  formatTime,
-} from '@/utils/dateUtils';
-import { errorLogger } from '../../utils/errorLogger';
-import { retryOperation } from '../../utils/retryOperation';
-import { performance } from 'perf_hooks';
-import { NoWorkDayService } from '@/services/NoWorkDayService';
-import { Queue } from 'bullmq';
-import { PrismaClientValidationError } from '@prisma/client/runtime/library';
-const notificationQueue = new Queue('notifications');
+import { getBangkokTime, formatTime } from '@/utils/dateUtils';
+import { AppError, handleError } from '../../utils/errorHandler';
+import * as Yup from 'yup';
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
@@ -50,6 +40,17 @@ const attendanceService = new AttendanceService(
   timeEntryService,
 );
 
+const attendanceSchema = Yup.object().shape({
+  employeeId: Yup.string().required('Employee ID is required'),
+  lineUserId: Yup.string().nullable(),
+  checkTime: Yup.date().required('Check time is required'),
+  location: Yup.string().required('Location is required'),
+  address: Yup.string().required('Address is required'),
+  reason: Yup.string(),
+  isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
+  isLate: Yup.boolean().required('Late flag is required'),
+});
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -58,38 +59,23 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const attendanceData: AttendanceData = req.body;
-
-  // Ensure checkTime is in the correct format
-  if (typeof attendanceData.checkTime === 'string') {
-    // If it's just time (HH:mm:ss), prepend today's date
-    if (attendanceData.checkTime.length <= 8) {
-      const now = new Date();
-      attendanceData.checkTime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${attendanceData.checkTime}`;
-    }
-    // Now it should be a full ISO string
-    attendanceData.checkTime = new Date(attendanceData.checkTime).toISOString();
-  } else if (attendanceData.checkTime instanceof Date) {
-    attendanceData.checkTime = attendanceData.checkTime.toISOString();
-  }
-
-  if (!attendanceData.employeeId) {
-    return res.status(400).json({ message: 'Employee ID is required' });
-  }
-
   try {
-    // Use getBangkokTime() for the check time
+    const validatedData = await attendanceSchema.validate(req.body);
+    const attendanceData: AttendanceData = {
+      ...validatedData,
+      lineUserId: '',
+      address: '',
+      isLate: false,
+      location: '',
+    };
+    // Ensure checkTime is in the correct format
     attendanceData.checkTime = getBangkokTime().toISOString();
 
-    const processedAttendance = await retryOperation(
-      () => attendanceService.processAttendance(attendanceData),
-      3,
-    );
+    const processedAttendance =
+      await attendanceService.processAttendance(attendanceData);
 
-    const updatedStatus = await retryOperation(
-      () =>
-        attendanceService.getLatestAttendanceStatus(attendanceData.employeeId),
-      3,
+    const updatedStatus = await attendanceService.getLatestAttendanceStatus(
+      attendanceData.employeeId,
     );
 
     // Format times in the response
@@ -109,15 +95,7 @@ export default async function handler(
 
     res.status(200).json(updatedStatus);
   } catch (error: any) {
-    errorLogger.log(error);
-
-    if (error instanceof PrismaClientValidationError) {
-      res.status(400).json({ message: 'Invalid input data' });
-    } else if (error.code === 'P2002') {
-      res.status(409).json({ message: 'Attendance record already exists' });
-    } else {
-      res.status(500).json({ message: 'Internal server error' });
-    }
+    handleError(error, res);
   }
 }
 
@@ -138,9 +116,8 @@ async function sendNotificationAsync(
         currentTime,
       );
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to send notification:', error);
-    errorLogger.log(error);
     // Consider implementing a retry mechanism or queueing system for failed notifications
   }
 }

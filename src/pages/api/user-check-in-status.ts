@@ -19,6 +19,7 @@ import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { Redis } from 'ioredis';
+import { AppError } from '../../utils/errorHandler';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
@@ -71,7 +72,7 @@ export default async function handler(
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      if (!user) throw new AppError('User not found', 404);
     }
 
     const today = new Date();
@@ -133,7 +134,7 @@ export default async function handler(
 
     res.status(200).json(responseData);
   } catch (error) {
-    console.error('Error fetching user check-in data:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    if (error instanceof AppError) throw error;
+    throw new AppError('Error fetching user check-in data', 500);
   }
 }
