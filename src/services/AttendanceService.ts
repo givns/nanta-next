@@ -38,7 +38,7 @@ import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
-import { formatDate, formatTime } from '../utils/dateUtils';
+import { formatDate, formatTime, getBangkokTime } from '../utils/dateUtils';
 import { Redis } from 'ioredis';
 
 const USER_CACHE_TTL = 24 * 60 * 60; // 24 hours
@@ -323,7 +323,7 @@ export class AttendanceService {
     const user = await this.getCachedUserData(employeeId);
     if (!user) throw new Error('User not found');
 
-    const today = new Date();
+    const today = getBangkokTime();
     const latestAttendance = await this.getLatestAttendance(employeeId);
 
     if (!user.shiftCode) throw new Error('User shift not found');
