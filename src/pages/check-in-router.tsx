@@ -1,6 +1,6 @@
 // check-in-router.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
 import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
@@ -9,6 +9,7 @@ import { formatBangkokTime, getBangkokTime } from '../utils/dateUtils';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
+import { debounce } from 'lodash';
 
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   loading: () => <p>Loading form...</p>,
@@ -21,6 +22,8 @@ interface CheckInRouterProps {
 
 const CACHE_KEY = 'attendanceStatus';
 const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+const CACHE_VERSION = '1'; // Change this value if the cache schema changes
+
 interface CachedData {
   data: {
     userData: UserData;
@@ -144,23 +147,28 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [isCachedData, setIsCachedData] = useState(false);
 
-  const getCachedData = (): CachedData | null => {
+  const getCachedData = useCallback((): CachedData | null => {
     const cachedString = localStorage.getItem(CACHE_KEY);
     if (!cachedString) return null;
-    return JSON.parse(cachedString);
-  };
+    const parsed = JSON.parse(cachedString);
+    if (parsed.version !== CACHE_VERSION) return null;
+    return parsed.data;
+  }, []);
 
-  const setCachedData = (data: CachedData['data']) => {
-    const cacheData: CachedData = {
-      data,
-      timestamp: Date.now(),
+  const setCachedData = useCallback((data: CachedData['data']) => {
+    const cacheData = {
+      version: CACHE_VERSION,
+      data: {
+        data,
+        timestamp: Date.now(),
+      },
     };
     localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-  };
+  }, []);
 
-  const isCacheValid = (cachedData: CachedData): boolean => {
+  const isCacheValid = useCallback((cachedData: CachedData): boolean => {
     return Date.now() - cachedData.timestamp < CACHE_EXPIRATION;
-  };
+  }, []);
 
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
@@ -179,16 +187,26 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       const cachedData = getCachedData();
       if (cachedData && isCacheValid(cachedData)) {
         console.log('Cache hit');
-        const validatedCachedData = ResponseDataSchema.parse(cachedData.data);
-        setUserData(parseUserData(validatedCachedData.user));
-        setAttendanceStatus(
-          parseAttendanceStatus(validatedCachedData.attendanceStatus),
+        const validatedCachedData = ResponseDataSchema.safeParse(
+          cachedData.data,
         );
-        setEffectiveShift(validatedCachedData.effectiveShift);
-        setCheckInOutAllowance(validatedCachedData.checkInOutAllowance);
-        setIsLoading(false);
-        setIsCachedData(true);
-        return;
+        if (validatedCachedData.success) {
+          setUserData(parseUserData(validatedCachedData.data.user));
+          setAttendanceStatus(
+            parseAttendanceStatus(validatedCachedData.data.attendanceStatus),
+          );
+          setEffectiveShift(validatedCachedData.data.effectiveShift);
+          setCheckInOutAllowance(validatedCachedData.data.checkInOutAllowance);
+          setIsLoading(false);
+          setIsCachedData(true);
+          return;
+        } else {
+          console.error(
+            'Cached data validation failed:',
+            validatedCachedData.error,
+          );
+          invalidateCache();
+        }
       }
 
       console.log('Cache miss');
@@ -229,7 +247,17 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [lineUserId, invalidateCache]);
+  }, [lineUserId, getCachedData, isCacheValid, setCachedData, invalidateCache]);
+
+  const debouncedFetchData = useMemo(
+    () => debounce(fetchData, 300),
+    [fetchData],
+  );
+
+  useEffect(() => {
+    debouncedFetchData();
+    return () => debouncedFetchData.cancel();
+  }, [debouncedFetchData]);
 
   // Helper functions to parse dates
   const parseDate = (
@@ -287,19 +315,19 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
           const updatedStatus = response.data;
           setAttendanceStatus(updatedStatus);
-          fetchData();
+          debouncedFetchData();
         } catch (error) {
           console.error('Error during check-in/out:', error);
           setFormError('Failed to update status. Please try again.');
         }
       }
     },
-    [attendanceStatus, fetchData, lineUserId],
+    [attendanceStatus, lineUserId, debouncedFetchData],
   );
 
   const handleRefresh = useCallback(() => {
-    fetchData();
-  }, [fetchData]);
+    debouncedFetchData();
+  }, [debouncedFetchData]);
 
   if (isLoading) {
     return <SkeletonLoader />;
@@ -386,4 +414,4 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
 };
 
-export default CheckInRouter;
+export default React.memo(CheckInRouter);
