@@ -115,29 +115,63 @@ export const useAttendance = (
     }
   }, [checkInOutAllowance, getAttendanceStatus]);
 
-  const checkInOut = useCallback(async (attendanceData: AttendanceData) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await axios.post('/api/check-in-out', attendanceData);
-      setAttendanceStatus((prevStatus) => ({
-        ...prevStatus,
-        isCheckingIn: !prevStatus.isCheckingIn,
-        latestAttendance: response.data,
-      }));
-      return response.data;
-    } catch (err) {
-      console.error('Error during check-in/out:', err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'An error occurred during check-in/out',
-      );
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const checkInOut = useCallback(
+    async (attendanceData: AttendanceData) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await axios.post('/api/check-in-out', attendanceData);
+        setAttendanceStatus((prevStatus) => ({
+          ...prevStatus,
+          isCheckingIn: !prevStatus.isCheckingIn,
+          latestAttendance: response.data,
+        }));
+        return response.data;
+      } catch (err) {
+        console.error('Error during check-in/out:', err);
+
+        // Check if the error is due to a timeout or network issue
+        if (
+          axios.isAxiosError(err) &&
+          (err.code === 'ECONNABORTED' || !err.response)
+        ) {
+          console.log(
+            'Possible timeout or network error. Checking attendance status...',
+          );
+          try {
+            const latestStatus = await refreshAttendanceStatus();
+
+            // If the attendance was actually recorded despite the error
+            if (
+              latestStatus.latestAttendance &&
+              new Date(
+                latestStatus.latestAttendance.checkInTime ||
+                  latestStatus.latestAttendance.checkOutTime,
+              ) > new Date(attendanceData.checkTime)
+            ) {
+              console.log(
+                'Attendance was recorded successfully despite the error',
+              );
+              setAttendanceStatus(latestStatus);
+              return latestStatus;
+            }
+          } catch (refreshError) {
+            console.error('Error refreshing attendance status:', refreshError);
+          }
+        }
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'An error occurred during check-in/out',
+        );
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [refreshAttendanceStatus],
+  );
 
   useEffect(() => {
     const fetchInitialData = async () => {

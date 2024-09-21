@@ -1,7 +1,6 @@
 // components/CheckInOutForm.tsx
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/router';
 import Webcam from 'react-webcam';
 import {
   AttendanceData,
@@ -14,17 +13,9 @@ import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
-import dynamic from 'next/dynamic';
 import ErrorBoundary from './ErrorBoundary';
-import { parseISO, isValid } from 'date-fns';
-import { formatTime, formatDate, getBangkokTime } from '../utils/dateUtils';
+import { formatTime } from '../utils/dateUtils';
 import liff from '@line/liff';
-import { User } from '@sentry/node';
-
-const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
-  loading: () => <p>Loading map...</p>,
-  ssr: false,
-});
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -57,10 +48,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const {
     attendanceStatus,
-    isLoading,
     location,
     address,
-    inPremises,
     isOutsideShift,
     checkInOut,
     isCheckInOutAllowed,
@@ -70,6 +59,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     initialAttendanceStatus,
     initialCheckInOutAllowance ?? { allowed: false },
   );
+
+  const closeLiffWindow = async () => {
+    try {
+      await liff.init({
+        liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
+      });
+      setTimeout(() => {
+        liff.closeWindow();
+      }, 2000); // Close the window after 2 seconds
+    } catch (error) {
+      console.error('Error closing LIFF window:', error);
+    }
+  };
 
   const submitCheckInOut = useCallback(
     async (lateReasonInput?: string) => {
@@ -97,8 +99,36 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         await refreshAttendanceStatus();
 
         await closeLiffWindow();
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error during check-in/out:', error);
+
+        // Check if the error is due to a timeout or network issue
+        if (
+          error.message.includes('timeout') ||
+          error.message.includes('network')
+        ) {
+          console.log(
+            'Possible timeout or network error. Checking attendance status...',
+          );
+          const latestStatus = await refreshAttendanceStatus();
+
+          // If the attendance was actually recorded despite the error
+          if (
+            latestStatus.latestAttendance &&
+            new Date(
+              latestStatus.latestAttendance.checkInTime ||
+                latestStatus.latestAttendance.checkOutTime,
+            ) > new Date(checkInOutData.checkTime)
+          ) {
+            console.log(
+              'Attendance was recorded successfully despite the error',
+            );
+            onStatusChange(!attendanceStatus.isCheckingIn);
+            await closeLiffWindow();
+            return;
+          }
+        }
+
         setError('Failed to submit check-in/out. Please try again.');
       }
     },
@@ -113,24 +143,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       onStatusChange,
       refreshAttendanceStatus,
       address,
+      closeLiffWindow,
     ],
   );
 
-  const closeLiffWindow = async () => {
-    try {
-      await liff.init({
-        liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
-      });
-      setTimeout(() => {
-        liff.closeWindow();
-      }, 2000); // Close the window after 2 seconds
-    } catch (error) {
-      console.error('Error closing LIFF window:', error);
-    }
-  };
-
   const handlePhotoCapture = useCallback(
     async (capturedPhoto: string) => {
+      console.log('Photo capture started');
       if (!location) {
         console.error('No location data');
         onError();
@@ -138,12 +157,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
 
       try {
+        console.log('Checking if check-in/out is allowed');
         const {
           allowed,
           reason: checkInOutReason,
           isLate,
           isOvertime,
         } = await isCheckInOutAllowed();
+
+        console.log('Check-in/out allowance result:', {
+          allowed,
+          isLate,
+          isOvertime,
+        });
 
         if (!allowed) {
           console.error(checkInOutReason);
@@ -161,7 +187,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           return;
         }
 
+        console.log('Submitting check-in/out');
         await submitCheckInOut();
+        console.log('Check-in/out submitted successfully');
       } catch (error) {
         console.error('Error in handlePhotoCapture:', error);
         setError('An error occurred. Please try again.');
