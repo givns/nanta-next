@@ -224,52 +224,24 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         `/api/user-check-in-status?lineUserId=${lineUserId}`,
       );
       const validatedData = ResponseDataSchema.parse(response.data);
-
-      const parsedData = {
-        ...validatedData,
-        user: {
-          ...validatedData.user,
-          createdAt: validatedData.user.createdAt
-            ? new Date(validatedData.user.createdAt)
-            : undefined,
-          updatedAt: validatedData.user.updatedAt
-            ? new Date(validatedData.user.updatedAt)
-            : undefined,
-        },
-        attendanceStatus: {
-          ...validatedData.attendanceStatus,
-          user: {
-            ...validatedData.attendanceStatus.user,
-            createdAt: validatedData.attendanceStatus.user.createdAt
-              ? new Date(validatedData.attendanceStatus.user.createdAt)
-              : undefined,
-            updatedAt: validatedData.attendanceStatus.user.updatedAt
-              ? new Date(validatedData.attendanceStatus.user.updatedAt)
-              : undefined,
-          },
-          approvedOvertime:
-            validatedData.attendanceStatus.approvedOvertime || null,
-          futureShifts: validatedData.attendanceStatus.futureShifts || [],
-          futureOvertimes: validatedData.attendanceStatus.futureOvertimes || [],
-        },
-      };
-
-      setFullData(parsedData);
-      setCachedData(parsedData);
+      setFullData(validatedData);
+      setCachedData(validatedData);
       setIsCachedData(false);
     } catch (err) {
       console.error('Error fetching full data:', err);
-      if (err instanceof z.ZodError) {
-        setError(
-          `Data validation error: ${err.errors.map((e) => e.message).join(', ')}`,
-        );
-      } else {
-        setError(
-          err instanceof Error ? err.message : 'An unknown error occurred',
-        );
-      }
+      // Don't set error state here to allow partial functionality with basic data
     }
   }, [lineUserId, setCachedData]);
+
+  useEffect(() => {
+    fetchBasicData();
+  }, [fetchBasicData]);
+
+  useEffect(() => {
+    if (basicData) {
+      fetchFullData();
+    }
+  }, [basicData, fetchFullData]);
 
   const debouncedFetchFullData = useMemo(
     () => debounce(fetchFullData, 300),
