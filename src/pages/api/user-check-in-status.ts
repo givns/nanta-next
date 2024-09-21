@@ -19,7 +19,6 @@ import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { Redis } from 'ioredis';
-import { AppError } from '../../utils/errorHandler';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
@@ -72,7 +71,7 @@ export default async function handler(
     });
 
     if (!user) {
-      if (!user) throw new AppError('User not found', 404);
+      return res.status(404).json({ error: 'User not found' });
     }
 
     const today = new Date();
@@ -113,6 +112,17 @@ export default async function handler(
       return res.status(500).json({
         error: 'Error getting approved overtime',
         details: (overtimeError as Error).message,
+      });
+    }
+    try {
+      checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
+        user.employeeId,
+      );
+    } catch (allowanceError) {
+      console.error('Error checking check-in/out allowance:', allowanceError);
+      return res.status(500).json({
+        error: 'Error checking check-in/out allowance',
+        details: (allowanceError as Error).message,
       });
     }
 
@@ -156,7 +166,12 @@ export default async function handler(
 
     res.status(200).json(responseData);
   } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError('Error fetching user check-in data', 500);
+    console.error('Unexpected error in user check-in status:', error);
+    res
+      .status(500)
+      .json({
+        error: 'Internal server error',
+        details: (error as Error).message,
+      });
   }
 }
