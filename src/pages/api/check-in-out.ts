@@ -11,9 +11,8 @@ import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
-import { getBangkokTime, formatTime } from '@/utils/dateUtils';
+import { getBangkokTime, formatTime, formatDate } from '@/utils/dateUtils';
 import * as Yup from 'yup';
-import { parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
@@ -64,7 +63,7 @@ export default async function handler(
     const attendanceData: AttendanceData = {
       ...validatedData,
       lineUserId: '',
-      checkTime: parseISO(validatedData.checkTime.toISOString()), // Parse the ISO string to a Date object
+      checkTime: getBangkokTime(), // Parse the ISO string to a Date object
     };
     // Ensure checkTime is in the correct format
     attendanceData.checkTime = getBangkokTime().toISOString();
@@ -90,7 +89,12 @@ export default async function handler(
         .latestAttendance.checkOutTime
         ? formatTime(new Date(updatedStatus.latestAttendance.checkOutTime))
         : null;
+      updatedStatus.latestAttendance.date = formatDate(
+        updatedStatus.latestAttendance.date,
+      );
     }
+
+    console.log('Final updated status:', updatedStatus);
 
     // Send notification asynchronously
     sendNotificationAsync(attendanceData, updatedStatus);

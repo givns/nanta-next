@@ -120,6 +120,7 @@ export const useAttendance = (
       setIsLoading(true);
       setError(null);
       try {
+        console.log('sending check-in/out data:', attendanceData);
         const response = await axios.post('/api/check-in-out', attendanceData);
         setAttendanceStatus((prevStatus) => ({
           ...prevStatus,
@@ -129,6 +130,10 @@ export const useAttendance = (
         return response.data;
       } catch (err) {
         console.error('Error during check-in/out:', err);
+
+        if (axios.isAxiosError(err)) {
+          console.log('Axios error details:', err.response?.data);
+        }
 
         // Check if the error is due to a timeout or network issue
         if (
