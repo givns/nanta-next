@@ -52,11 +52,8 @@ const UserDataSchema = z.object({
   sickLeaveBalance: z.number(),
   businessLeaveBalance: z.number(),
   annualLeaveBalance: z.number(),
-  createdAt: z.date().optional(),
-  updatedAt: z
-    .union([z.string(), z.date()])
-    .transform((val) => (val ? new Date(val) : undefined))
-    .optional(),
+  createdAt: z.string().or(z.date()).nullable().optional(),
+  updatedAt: z.string().or(z.date()).nullable().optional(),
 });
 
 const ShiftDataSchema = z.object({
@@ -224,24 +221,36 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         `/api/user-check-in-status?lineUserId=${lineUserId}`,
       );
       const validatedData = ResponseDataSchema.parse(response.data);
-      setFullData(validatedData);
-      setCachedData(validatedData);
+
+      const parsedData = {
+        ...validatedData,
+        user: parseUserData(validatedData.user),
+        attendanceStatus: {
+          ...validatedData.attendanceStatus,
+          user: parseUserData(validatedData.attendanceStatus.user),
+          approvedOvertime:
+            validatedData.attendanceStatus.approvedOvertime || null,
+          futureShifts: validatedData.attendanceStatus.futureShifts || [],
+          futureOvertimes: validatedData.attendanceStatus.futureOvertimes || [],
+        },
+      };
+
+      setFullData(parsedData);
+      setCachedData(parsedData);
       setIsCachedData(false);
     } catch (err) {
       console.error('Error fetching full data:', err);
-      // Don't set error state here to allow partial functionality with basic data
+      if (err instanceof z.ZodError) {
+        setError(
+          `Data validation error: ${err.errors.map((e) => e.message).join(', ')}`,
+        );
+      } else {
+        setError(
+          err instanceof Error ? err.message : 'An unknown error occurred',
+        );
+      }
     }
   }, [lineUserId, setCachedData]);
-
-  useEffect(() => {
-    fetchBasicData();
-  }, [fetchBasicData]);
-
-  useEffect(() => {
-    if (basicData) {
-      fetchFullData();
-    }
-  }, [basicData, fetchFullData]);
 
   const debouncedFetchFullData = useMemo(
     () => debounce(fetchFullData, 300),
@@ -363,7 +372,15 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               >
                 <div className="w-full max-w-md">
                   <CheckInOutForm
-                    userData={fullData.user}
+                    userData={{
+                      ...fullData.user,
+                      createdAt: fullData.user.createdAt
+                        ? new Date(fullData.user.createdAt)
+                        : undefined,
+                      updatedAt: fullData.user.updatedAt
+                        ? new Date(fullData.user.updatedAt)
+                        : undefined,
+                    }}
                     initialAttendanceStatus={fullData.attendanceStatus}
                     effectiveShift={fullData.effectiveShift}
                     initialCheckInOutAllowance={fullData.checkInOutAllowance}

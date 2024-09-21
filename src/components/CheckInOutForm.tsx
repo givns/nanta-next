@@ -19,6 +19,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, formatDate, getBangkokTime } from '../utils/dateUtils';
 import liff from '@line/liff';
+import { User } from '@sentry/node';
 
 const InteractiveMap = dynamic(() => import('./InteractiveMap'), {
   loading: () => <p>Loading map...</p>,
