@@ -315,7 +315,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     );
   }
 
-  if (!basicData) {
+  if (!fullData) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
@@ -328,7 +328,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       <div className="main-container flex flex-col min-h-screen bg-gray-100 p-4">
         <div className="flex-grow flex flex-col justify-start items-center">
           <h1 className="text-2xl font-bold text-center mt-8 mb-2 text-gray-800">
-            {basicData.attendanceStatus.isCheckingIn
+            {fullData.attendanceStatus.isCheckingIn
               ? 'ระบบบันทึกเวลาเข้างาน'
               : 'ระบบบันทึกเวลาออกงาน'}
           </h1>
@@ -356,33 +356,31 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             </div>
           )}
           <Suspense fallback={<p>Loading additional information...</p>}>
-            {fullData && (
-              <ErrorBoundary
-                onError={(error: Error) => {
-                  console.error('Error in CheckInOutForm:', error);
-                  setFormError(error.message);
-                }}
-              >
-                <div className="w-full max-w-md">
-                  <CheckInOutForm
-                    userData={{
-                      ...fullData.user,
-                      createdAt: fullData.user.createdAt
-                        ? new Date(fullData.user.createdAt)
-                        : undefined,
-                      updatedAt: fullData.user.updatedAt
-                        ? new Date(fullData.user.updatedAt)
-                        : undefined,
-                    }}
-                    initialAttendanceStatus={fullData.attendanceStatus}
-                    effectiveShift={fullData.effectiveShift}
-                    initialCheckInOutAllowance={fullData.checkInOutAllowance}
-                    onStatusChange={handleStatusChange}
-                    onError={() => debouncedFetchFreshData()}
-                  />
-                </div>
-              </ErrorBoundary>
-            )}
+            <ErrorBoundary
+              onError={(error: Error) => {
+                console.error('Error in CheckInOutForm:', error);
+                setFormError(error.message);
+              }}
+            >
+              <div className="w-full max-w-md">
+                <CheckInOutForm
+                  userData={{
+                    ...fullData.user,
+                    createdAt: fullData.user.createdAt
+                      ? new Date(fullData.user.createdAt)
+                      : undefined,
+                    updatedAt: fullData.user.updatedAt
+                      ? new Date(fullData.user.updatedAt)
+                      : undefined,
+                  }}
+                  initialAttendanceStatus={fullData.attendanceStatus}
+                  effectiveShift={fullData.effectiveShift}
+                  initialCheckInOutAllowance={fullData.checkInOutAllowance}
+                  onStatusChange={handleStatusChange}
+                  onError={() => debouncedFetchFreshData()}
+                />
+              </div>
+            </ErrorBoundary>
           </Suspense>
         </div>
       </div>
