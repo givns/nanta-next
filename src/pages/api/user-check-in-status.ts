@@ -167,11 +167,9 @@ export default async function handler(
     res.status(200).json(responseData);
   } catch (error) {
     console.error('Unexpected error in user check-in status:', error);
-    res
-      .status(500)
-      .json({
-        error: 'Internal server error',
-        details: (error as Error).message,
-      });
+    res.status(500).json({
+      error: 'Internal server error',
+      details: (error as Error).message,
+    });
   }
 }
