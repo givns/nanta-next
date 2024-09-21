@@ -157,14 +157,31 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [isCachedData, setIsCachedData] = useState(false);
 
+  const invalidateCache = useCallback(() => {
+    localStorage.removeItem(CACHE_KEY);
+  }, []);
+
+  // Updated: Modified getCachedData with timing and logging
   const getCachedData = useCallback(() => {
+    console.time('Cache retrieval');
     const cachedString = localStorage.getItem(CACHE_KEY);
-    if (!cachedString) return null;
+    if (!cachedString) {
+      console.timeEnd('Cache retrieval');
+      console.log('No cached data found');
+      return null;
+    }
     try {
       const parsed = JSON.parse(cachedString);
-      if (parsed.version !== CACHE_VERSION) return null;
+      if (parsed.version !== CACHE_VERSION) {
+        console.timeEnd('Cache retrieval');
+        console.log('Cached data version mismatch');
+        return null;
+      }
+      console.timeEnd('Cache retrieval');
+      console.log('Retrieved cached data', parsed.data);
       return parsed.data;
     } catch (e) {
+      console.timeEnd('Cache retrieval');
       console.error('Error parsing cached data:', e);
       return null;
     }
@@ -179,6 +196,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
   }, []);
 
+  // Updated: Modified fetchBasicData to implement stale-while-revalidate strategy
   const fetchBasicData = useCallback(async () => {
     if (!lineUserId) {
       setError('LINE user ID not available');
@@ -186,11 +204,33 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       return;
     }
 
+    setIsLoading(true);
+
+    const cachedData = getCachedData();
+    if (cachedData && Date.now() - cachedData.timestamp < CACHE_EXPIRATION) {
+      const validatedBasicData = BasicDataSchema.safeParse(cachedData);
+      if (validatedBasicData.success) {
+        setBasicData(validatedBasicData.data);
+        setIsLoading(false);
+        setIsCachedData(true);
+
+        // Fetch fresh data in the background
+        fetchFreshBasicData();
+        return;
+      }
+    }
+
+    // No valid cache, fetch fresh data
+    await fetchFreshBasicData();
+  }, [lineUserId, getCachedData, setCachedData]);
+
+  // New: Added fetchFreshBasicData function
+  const fetchFreshBasicData = async () => {
     try {
       const response = await axios.get(
         `/api/user-basic-info?lineUserId=${lineUserId}`,
       );
-      console.log('API response:', response.data); // Log the raw response
+      console.log('API response:', response.data);
 
       const validationResult = BasicDataSchema.safeParse(response.data);
 
@@ -215,7 +255,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [lineUserId, setCachedData]);
+  };
 
   const fetchFullData = useCallback(async () => {
     if (!lineUserId) return;
@@ -261,16 +301,24 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     [fetchFullData],
   );
 
-  useEffect(() => {
-    fetchBasicData();
-  }, [fetchBasicData]);
+  const useStaleCacheStrategy = useCallback(async () => {
+    const cachedData = getCachedData();
+    if (cachedData) {
+      setFullData(cachedData);
+      setIsLoading(false);
+      setIsCachedData(true);
+    }
 
+    // Always fetch fresh data
+    await fetchFullData();
+  }, [getCachedData, fetchFullData]);
+
+  // Updated: Use useStaleCacheStrategy in useEffect
   useEffect(() => {
     if (basicData) {
-      debouncedFetchFullData();
+      useStaleCacheStrategy();
     }
-    return () => debouncedFetchFullData.cancel();
-  }, [basicData, debouncedFetchFullData]);
+  }, [basicData, useStaleCacheStrategy]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -299,6 +347,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               isCheckingIn: !prevData!.attendanceStatus.isCheckingIn,
             },
           }));
+          invalidateCache(); // Invalidate cache after successful check-in/out
           debouncedFetchFullData();
         } catch (error) {
           console.error('Error during check-in/out:', error);
@@ -306,7 +355,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         }
       }
     },
-    [fullData, lineUserId, debouncedFetchFullData],
+    [fullData, lineUserId, debouncedFetchFullData, invalidateCache],
   );
 
   const handleRefresh = useCallback(() => {
