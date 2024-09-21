@@ -71,6 +71,64 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     initialCheckInOutAllowance ?? { allowed: false },
   );
 
+  const submitCheckInOut = useCallback(
+    async (lateReasonInput?: string) => {
+      if (!location) return;
+
+      const checkInOutData: AttendanceData = {
+        employeeId: userData.employeeId,
+        lineUserId: userData.lineUserId,
+        checkTime: new Date().toISOString(),
+        location: JSON.stringify(location),
+        address,
+        reason: lateReasonInput || reason,
+        isCheckIn: attendanceStatus.isCheckingIn,
+        isOvertime,
+        isLate,
+      };
+
+      console.log('Data being sent to check-in-out API:', checkInOutData);
+
+      try {
+        const response = await checkInOut(checkInOutData);
+        console.log('Check-in/out response:', response);
+
+        onStatusChange(!attendanceStatus.isCheckingIn);
+        await refreshAttendanceStatus();
+
+        await closeLiffWindow();
+      } catch (error) {
+        console.error('Error during check-in/out:', error);
+        setError('Failed to submit check-in/out. Please try again.');
+      }
+    },
+    [
+      location,
+      userData,
+      attendanceStatus,
+      isOvertime,
+      isLate,
+      reason,
+      checkInOut,
+      onStatusChange,
+      refreshAttendanceStatus,
+      address,
+    ],
+  );
+
+  const closeLiffWindow = async () => {
+    try {
+      await liff.init({
+        liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
+      });
+      setTimeout(() => {
+        liff.closeWindow();
+      }, 2000); // Close the window after 2 seconds
+    } catch (error) {
+      console.error('Error closing LIFF window:', error);
+    }
+  };
+
   const handlePhotoCapture = useCallback(
     async (capturedPhoto: string) => {
       if (!location) {
@@ -95,42 +153,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           return;
         }
 
+        setIsLate(isLate || false);
+        setIsOvertime(isOvertime || false);
+
         if (isLate && attendanceStatus.isCheckingIn) {
           setIsLateModalOpen(true);
           return;
         }
 
-        const checkInOutData: AttendanceData = {
-          employeeId: userData.employeeId,
-          lineUserId: userData.lineUserId,
-          checkTime: new Date().toISOString(),
-          location: JSON.stringify(location),
-          address,
-          reason: '',
-          isCheckIn: attendanceStatus.isCheckingIn,
-          isOvertime,
-          isLate,
-        };
-
-        console.log('Data being sent to check-in-out API:', checkInOutData);
-
-        const response = await checkInOut(checkInOutData);
-        console.log('Check-in/out response:', response);
-
-        onStatusChange(!attendanceStatus.isCheckingIn);
-        await refreshAttendanceStatus();
-
-        // Close LIFF window after successful submission
-        try {
-          await liff.init({
-            liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
-          });
-          setTimeout(() => {
-            liff.closeWindow();
-          }, 2000);
-        } catch (error) {
-          console.error('Error closing LIFF window:', error);
-        }
+        await submitCheckInOut();
       } catch (error) {
         console.error('Error in handlePhotoCapture:', error);
         setError('An error occurred. Please try again.');
@@ -139,12 +170,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [
       location,
       isCheckInOutAllowed,
-      attendanceStatus,
-      userData,
-      address,
-      checkInOut,
-      onStatusChange,
-      refreshAttendanceStatus,
+      attendanceStatus.isCheckingIn,
+      submitCheckInOut,
       onError,
     ],
   );
@@ -157,7 +184,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handleLateReasonSubmit = async (lateReason: string) => {
     setIsLateModalOpen(false);
-    await handlePhotoCapture(lateReason);
+    await submitCheckInOut(lateReason);
   };
 
   useEffect(() => {
@@ -200,61 +227,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       );
     }
   }, [userData, initialAttendanceStatus, effectiveShift]);
-
-  const submitCheckInOut = useCallback(
-    async (lateReasonInput?: string) => {
-      if (!location) return;
-
-      const checkInOutData: AttendanceData = {
-        employeeId: userData.employeeId,
-        lineUserId: userData.lineUserId,
-        checkTime: new Date().toISOString(),
-        location: JSON.stringify(location),
-        address,
-        reason: lateReasonInput || reason,
-        isCheckIn: attendanceStatus.isCheckingIn,
-        isOvertime,
-        isLate,
-      };
-
-      console.log('Data being sent to check-in-out API:', checkInOutData);
-
-      try {
-        const response = await checkInOut(checkInOutData);
-        console.log('Check-in/out response:', response);
-
-        onStatusChange(!attendanceStatus.isCheckingIn);
-        await refreshAttendanceStatus();
-
-        // Close LIFF window after successful submission
-        try {
-          await liff.init({
-            liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
-          });
-          setTimeout(() => {
-            liff.closeWindow();
-          }, 2000); // Close the window after 2 seconds
-        } catch (error) {
-          console.error('Error closing LIFF window:', error);
-        }
-      } catch (error) {
-        console.error('Error during check-in/out:', error);
-        setError('Failed to submit check-in/out. Please try again.');
-      }
-    },
-    [
-      location,
-      userData,
-      attendanceStatus,
-      isOvertime,
-      isLate,
-      reason,
-      checkInOut,
-      onStatusChange,
-      refreshAttendanceStatus,
-      address,
-    ],
-  );
 
   if (error) {
     return (
