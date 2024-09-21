@@ -199,7 +199,7 @@ model TimeEntry {
   user              User @relation(fields: [employeeId], references: [employeeId])
   date              DateTime
   startTime         DateTime
-  endTime           DateTime
+  endTime           DateTime?
   regularHours      Float
   overtimeHours     Float
   status            String

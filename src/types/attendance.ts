@@ -109,7 +109,7 @@ export type ShiftData = {
   startTime: string;
   endTime: string;
   workDays: number[];
-} | null;
+};
 
 export interface AttendanceRecord {
   id: string;

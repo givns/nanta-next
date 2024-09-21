@@ -222,7 +222,10 @@ export class AttendanceService {
         });
       }
 
-      await this.timeEntryService.createOrUpdateTimeEntry(existingAttendance);
+      await this.timeEntryService.createOrUpdateTimeEntry(
+        existingAttendance,
+        isCheckIn,
+      );
 
       const isOvertime = overtimeMinutes >= 30;
       const combinedLateCheckOut = isLateCheckOut || isOvertime;

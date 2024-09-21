@@ -103,14 +103,29 @@ export class TimeEntryService {
     });
   }
 
-  async createOrUpdateTimeEntry(attendance: Attendance): Promise<TimeEntry> {
-    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
+  async createOrUpdateTimeEntry(
+    attendance: Attendance,
+    isCheckIn: boolean,
+  ): Promise<TimeEntry> {
+    let effectiveShift = await this.shiftManagementService.getEffectiveShift(
       attendance.employeeId,
       attendance.date,
     );
 
     if (!effectiveShift) {
-      throw new Error('No effective shift found for the employee on this date');
+      console.warn(
+        `No effective shift found for employee ${attendance.employeeId} on ${attendance.date}`,
+      );
+      // For example, you could use a default 9-5 shift:
+      const defaultShift: ShiftData = {
+        id: 'default',
+        name: 'Default Shift',
+        shiftCode: 'DEFAULT',
+        startTime: '08:00',
+        endTime: '17:00',
+        workDays: [1, 2, 3, 4, 5],
+      };
+      effectiveShift = defaultShift;
     }
 
     const existingEntry = await this.prisma.timeEntry.findFirst({
@@ -118,37 +133,48 @@ export class TimeEntryService {
     });
 
     if (existingEntry) {
-      return this.updateTimeEntry(existingEntry.id, attendance, effectiveShift);
+      return this.updateTimeEntry(
+        existingEntry.id,
+        attendance,
+        effectiveShift,
+        isCheckIn,
+      );
     } else {
-      return this.createTimeEntry(attendance, effectiveShift);
+      return this.createTimeEntry(attendance, effectiveShift, isCheckIn);
     }
   }
 
   private async createTimeEntry(
     attendance: Attendance,
     effectiveShift: ShiftData,
+    isCheckIn: boolean,
   ): Promise<TimeEntry> {
     const checkInTime = attendance.checkInTime || attendance.date;
-    const checkOutTime = attendance.checkOutTime || new Date();
-    const shiftStart = effectiveShift
-      ? this.parseShiftTime(effectiveShift.startTime, checkInTime)
-      : null;
-    const shiftEnd = effectiveShift
-      ? this.parseShiftTime(effectiveShift.endTime, checkInTime)
-      : null;
+    const checkOutTime = isCheckIn
+      ? null
+      : attendance.checkOutTime || new Date();
+    const shiftStart = this.parseShiftTime(
+      effectiveShift.startTime,
+      checkInTime,
+    );
+    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, checkInTime);
 
-    const regularHours = this.calculateRegularHours(
-      checkInTime,
-      checkOutTime,
-      shiftStart || new Date(), // Provide a default value of new Date() when shiftStart is null
-      shiftEnd || new Date(), // Provide a default value of new Date() when shiftEnd is null
-    );
-    const overtimeHours = this.calculateOvertimeHours(
-      checkInTime,
-      checkOutTime,
-      shiftStart || new Date(), // Provide a default value of new Date() when shiftStart is null
-      shiftEnd || new Date(), // Provide a default value of new Date() when shiftEnd is null
-    );
+    const regularHours = isCheckIn
+      ? 0
+      : this.calculateRegularHours(
+          checkInTime,
+          checkOutTime || new Date(),
+          shiftStart,
+          shiftEnd,
+        );
+    const overtimeHours = isCheckIn
+      ? 0
+      : this.calculateOvertimeHours(
+          checkInTime,
+          checkOutTime || new Date(),
+          shiftStart,
+          shiftEnd,
+        );
 
     return this.prisma.timeEntry.create({
       data: {
@@ -156,7 +182,7 @@ export class TimeEntryService {
         date: attendance.date,
         startTime: checkInTime,
         endTime: checkOutTime,
-        status: 'COMPLETED',
+        status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
         regularHours,
         overtimeHours,
         attendanceId: attendance.id,
@@ -168,33 +194,42 @@ export class TimeEntryService {
     timeEntryId: string,
     attendance: Attendance,
     effectiveShift: ShiftData,
+    isCheckIn: boolean,
   ): Promise<TimeEntry> {
-    const checkOutTime = attendance.checkOutTime || new Date();
-    const shiftStart = effectiveShift
-      ? this.parseShiftTime(effectiveShift.startTime, attendance.date)
-      : null;
-    const shiftEnd = effectiveShift
-      ? this.parseShiftTime(effectiveShift.endTime, attendance.date)
-      : null;
+    const checkOutTime = isCheckIn
+      ? null
+      : attendance.checkOutTime || new Date();
+    const shiftStart = this.parseShiftTime(
+      effectiveShift.startTime,
+      attendance.date,
+    );
+    const shiftEnd = this.parseShiftTime(
+      effectiveShift.endTime,
+      attendance.date,
+    );
 
-    const regularHours = this.calculateRegularHours(
-      attendance.checkInTime!,
-      checkOutTime,
-      shiftStart || new Date(), // Provide a default value of new Date() when shiftStart is null
-      shiftEnd || new Date(), // Provide a default value of new Date() when shiftEnd is null
-    );
-    const overtimeHours = this.calculateOvertimeHours(
-      attendance.checkInTime!,
-      checkOutTime,
-      shiftStart || new Date(), // Provide a default value of new Date() when shiftStart is null
-      shiftEnd || new Date(), // Provide a default value of new Date() when shiftEnd is null
-    );
+    const regularHours = isCheckIn
+      ? 0
+      : this.calculateRegularHours(
+          attendance.checkInTime!,
+          checkOutTime || new Date(),
+          shiftStart,
+          shiftEnd,
+        );
+    const overtimeHours = isCheckIn
+      ? 0
+      : this.calculateOvertimeHours(
+          attendance.checkInTime!,
+          checkOutTime || new Date(),
+          shiftStart,
+          shiftEnd,
+        );
 
     return this.prisma.timeEntry.update({
       where: { id: timeEntryId },
       data: {
         endTime: checkOutTime,
-        status: 'COMPLETED',
+        status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
         regularHours,
         overtimeHours,
       },

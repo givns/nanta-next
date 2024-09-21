@@ -12,7 +12,6 @@ import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { getBangkokTime, formatTime } from '@/utils/dateUtils';
-import { AppError, handleError } from '../../utils/errorHandler';
 import * as Yup from 'yup';
 
 const prisma = new PrismaClient();
@@ -95,7 +94,10 @@ export default async function handler(
 
     res.status(200).json(updatedStatus);
   } catch (error: any) {
-    handleError(error, res);
+    console.error('Detailed error in check-in-out:', error);
+    res
+      .status(500)
+      .json({ error: 'Internal server error', details: error.message });
   }
 }
 

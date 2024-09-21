@@ -56,16 +56,14 @@ const UserDataSchema = z.object({
   updatedAt: z.string().or(z.date()).optional(),
 });
 
-const ShiftDataSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    shiftCode: z.string(),
-    startTime: z.string(),
-    endTime: z.string(),
-    workDays: z.array(z.number()),
-  })
-  .nullable();
+const ShiftDataSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  shiftCode: z.string(),
+  startTime: z.string(),
+  endTime: z.string(),
+  workDays: z.array(z.number()),
+});
 
 const AttendanceStatusInfoSchema = z.object({
   status: z.enum(['present', 'absent', 'incomplete', 'holiday', 'off']),
