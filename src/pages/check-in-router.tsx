@@ -343,12 +343,17 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           <div className="text-3xl font-bold text-center mb-2 text-black-950">
             {currentTime}
           </div>
-          <button
-            onClick={handleRefresh}
-            className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-          >
-            Refresh Data
-          </button>
+          {isCachedData && (
+            <div className="text-sm text-gray-500 text-center mb-2">
+              Viewing cached data.{' '}
+              <button
+                onClick={handleRefresh}
+                className="text-blue-500 underline"
+              >
+                Refresh
+              </button>
+            </div>
+          )}
           {formError && (
             <div
               className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
