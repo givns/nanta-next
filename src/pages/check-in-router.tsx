@@ -138,7 +138,7 @@ const BasicDataSchema = z.object({
     role: z.nativeEnum(UserRole),
   }),
   attendanceStatus: z.object({
-    isCheckingIn: z.boolean(),
+    isCheckingIn: z.boolean().nullable().default(true),
   }),
 });
 
@@ -187,31 +187,35 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     }
 
     try {
-      const cachedData = getCachedData();
-      if (cachedData && Date.now() - cachedData.timestamp < CACHE_EXPIRATION) {
-        const validatedBasicData = BasicDataSchema.safeParse(cachedData);
-        if (validatedBasicData.success) {
-          setBasicData(validatedBasicData.data);
-          setIsLoading(false);
-          setIsCachedData(true);
-          return;
-        }
-      }
-
       const response = await axios.get(
         `/api/user-basic-info?lineUserId=${lineUserId}`,
       );
-      const validatedData = BasicDataSchema.parse(response.data);
-      setBasicData(validatedData);
-      setCachedData(validatedData);
-      setIsCachedData(false);
+      console.log('API response:', response.data); // Log the raw response
+
+      const validationResult = BasicDataSchema.safeParse(response.data);
+
+      if (validationResult.success) {
+        const validatedData = validationResult.data;
+        setBasicData(validatedData);
+        setCachedData(validatedData);
+        setIsCachedData(false);
+      } else {
+        console.error('Validation errors:', validationResult.error);
+        throw new Error('Data validation failed');
+      }
     } catch (err) {
       console.error('Error fetching basic data:', err);
-      setError('Failed to load basic user information');
+      if (err instanceof z.ZodError) {
+        setError(
+          `Data validation error: ${err.errors.map((e) => e.message).join(', ')}`,
+        );
+      } else {
+        setError('Failed to load basic user information');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [lineUserId, getCachedData, setCachedData]);
+  }, [lineUserId, setCachedData]);
 
   const fetchFullData = useCallback(async () => {
     if (!lineUserId) return;
