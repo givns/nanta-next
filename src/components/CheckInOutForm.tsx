@@ -71,18 +71,94 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     initialCheckInOutAllowance ?? { allowed: false },
   );
 
-  const handlePhotoCapture = useCallback((capturedPhoto: string) => {
-    setPhoto(capturedPhoto);
-    setStep('confirm');
-  }, []);
+  const handlePhotoCapture = useCallback(
+    async (capturedPhoto: string) => {
+      if (!location) {
+        console.error('No location data');
+        onError();
+        return;
+      }
+
+      try {
+        const {
+          allowed,
+          reason: checkInOutReason,
+          isLate,
+          isOvertime,
+        } = await isCheckInOutAllowed();
+
+        if (!allowed) {
+          console.error(checkInOutReason);
+          setError(
+            checkInOutReason || 'Check-in/out is not allowed at this time.',
+          );
+          return;
+        }
+
+        if (isLate && attendanceStatus.isCheckingIn) {
+          setIsLateModalOpen(true);
+          return;
+        }
+
+        const checkInOutData: AttendanceData = {
+          employeeId: userData.employeeId,
+          lineUserId: userData.lineUserId,
+          checkTime: new Date().toISOString(),
+          location: JSON.stringify(location),
+          address,
+          reason: '',
+          isCheckIn: attendanceStatus.isCheckingIn,
+          isOvertime,
+          isLate,
+        };
+
+        console.log('Data being sent to check-in-out API:', checkInOutData);
+
+        const response = await checkInOut(checkInOutData);
+        console.log('Check-in/out response:', response);
+
+        onStatusChange(!attendanceStatus.isCheckingIn);
+        await refreshAttendanceStatus();
+
+        // Close LIFF window after successful submission
+        try {
+          await liff.init({
+            liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
+          });
+          setTimeout(() => {
+            liff.closeWindow();
+          }, 2000);
+        } catch (error) {
+          console.error('Error closing LIFF window:', error);
+        }
+      } catch (error) {
+        console.error('Error in handlePhotoCapture:', error);
+        setError('An error occurred. Please try again.');
+      }
+    },
+    [
+      location,
+      isCheckInOutAllowed,
+      attendanceStatus,
+      userData,
+      address,
+      checkInOut,
+      onStatusChange,
+      refreshAttendanceStatus,
+      onError,
+    ],
+  );
 
   const {
     webcamRef,
     isModelLoading,
-    photo,
-    setPhoto,
     message: faceDetectionMessage,
   } = useFaceDetection(2, handlePhotoCapture);
+
+  const handleLateReasonSubmit = async (lateReason: string) => {
+    setIsLateModalOpen(false);
+    await handlePhotoCapture(lateReason);
+  };
 
   useEffect(() => {
     console.log('CheckInOutForm mounted');
@@ -141,6 +217,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         isLate,
       };
 
+      console.log('Data being sent to check-in-out API:', checkInOutData);
+
       try {
         const response = await checkInOut(checkInOutData);
         console.log('Check-in/out response:', response);
@@ -177,55 +255,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       address,
     ],
   );
-
-  const handleCheckInOut = useCallback(async () => {
-    if (!location) {
-      console.error('No location data');
-      onError();
-      return;
-    }
-
-    try {
-      const {
-        allowed,
-        reason: checkInOutReason,
-        isLate,
-        isOvertime,
-      } = await isCheckInOutAllowed();
-
-      if (!allowed) {
-        console.error(checkInOutReason);
-        setError(
-          checkInOutReason || 'Check-in/out is not allowed at this time.',
-        );
-        return;
-      }
-
-      setIsLate(isLate || false);
-      setIsOvertime(isOvertime || false);
-
-      if (isLate && attendanceStatus.isCheckingIn) {
-        setIsLateModalOpen(true);
-        return;
-      }
-
-      await submitCheckInOut();
-    } catch (error) {
-      console.error('Error in handleCheckInOut:', error);
-      setError('An error occurred. Please try again.');
-    }
-  }, [
-    location,
-    isCheckInOutAllowed,
-    attendanceStatus.isCheckingIn,
-    submitCheckInOut,
-    onError,
-  ]);
-
-  const handleLateReasonSubmit = async (lateReason: string) => {
-    setIsLateModalOpen(false);
-    await submitCheckInOut(lateReason);
-  };
 
   if (error) {
     return (
@@ -292,66 +321,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
-  const renderStep3 = () => (
-    <div className="flex flex-col h-full">
-      <div className="bg-white p-6 rounded-box shadow-lg mb-4 flex-grow overflow-y-auto">
-        <div className="mb-4">
-          <label
-            htmlFor="address-display"
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
-            ที่อยู่ของคุณ
-          </label>
-          <div
-            id="address-display"
-            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5"
-            aria-live="polite"
-          >
-            {address || 'Loading address...'}
-          </div>
-        </div>
-        {!inPremises && (
-          <div className="mt-4">
-            <label
-              htmlFor="reason-input"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              เหตุผลสำหรับการ
-              {attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}นอกสถานที่
-            </label>
-            <input
-              type="text"
-              id="reason-input"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
-              required
-            />
-          </div>
-        )}
-      </div>
-      <div className="mt-auto">
-        <button
-          onClick={handleCheckInOut}
-          disabled={isLoading || (!inPremises && !reason)}
-          className="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition duration-300 disabled:bg-gray-400"
-          aria-label={`ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-        >
-          {isLoading
-            ? 'กำลังดำเนินการ...'
-            : `ลงเวลา${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
-        </button>
-      </div>
-    </div>
-  );
-
   return (
     <ErrorBoundary>
       <div className="h-screen flex flex-col">
         <div className="flex-grow overflow-hidden flex flex-col">
           {step === 'info' && renderStep1()}
           {step === 'camera' && renderStep2()}
-          {step === 'confirm' && renderStep3()}
         </div>
         {error && (
           <div className="mt-4">
