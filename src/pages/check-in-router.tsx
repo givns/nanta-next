@@ -9,9 +9,8 @@ import React, {
 } from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
-import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
 import axios from 'axios';
-import { formatBangkokTime, getBangkokTime } from '../utils/dateUtils';
+import { getBangkokTime } from '../utils/dateUtils';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
@@ -196,68 +195,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
   }, []);
 
-  // Updated: Modified fetchBasicData to implement stale-while-revalidate strategy
-  const fetchBasicData = useCallback(async () => {
-    if (!lineUserId) {
-      setError('LINE user ID not available');
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-
-    const cachedData = getCachedData();
-    if (cachedData && Date.now() - cachedData.timestamp < CACHE_EXPIRATION) {
-      const validatedBasicData = BasicDataSchema.safeParse(cachedData);
-      if (validatedBasicData.success) {
-        setBasicData(validatedBasicData.data);
-        setIsLoading(false);
-        setIsCachedData(true);
-
-        // Fetch fresh data in the background
-        fetchFreshBasicData();
-        return;
-      }
-    }
-
-    // No valid cache, fetch fresh data
-    await fetchFreshBasicData();
-  }, [lineUserId, getCachedData, setCachedData]);
-
-  // New: Added fetchFreshBasicData function
-  const fetchFreshBasicData = async () => {
-    try {
-      const response = await axios.get(
-        `/api/user-basic-info?lineUserId=${lineUserId}`,
-      );
-      console.log('API response:', response.data);
-
-      const validationResult = BasicDataSchema.safeParse(response.data);
-
-      if (validationResult.success) {
-        const validatedData = validationResult.data;
-        setBasicData(validatedData);
-        setCachedData(validatedData);
-        setIsCachedData(false);
-      } else {
-        console.error('Validation errors:', validationResult.error);
-        throw new Error('Data validation failed');
-      }
-    } catch (err) {
-      console.error('Error fetching basic data:', err);
-      if (err instanceof z.ZodError) {
-        setError(
-          `Data validation error: ${err.errors.map((e) => e.message).join(', ')}`,
-        );
-      } else {
-        setError('Failed to load basic user information');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchFullData = useCallback(async () => {
+  const fetchFreshData = useCallback(async () => {
     if (!lineUserId) return;
 
     try {
@@ -282,6 +220,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       setFullData(parsedData);
       setCachedData(parsedData);
       setIsCachedData(false);
+      setIsLoading(false);
     } catch (err) {
       console.error('Error fetching full data:', err);
       if (err instanceof z.ZodError) {
@@ -293,32 +232,32 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           err instanceof Error ? err.message : 'An unknown error occurred',
         );
       }
+      setIsLoading(false);
     }
   }, [lineUserId, setCachedData]);
 
-  const debouncedFetchFullData = useMemo(
-    () => debounce(fetchFullData, 300),
-    [fetchFullData],
-  );
-
-  const useStaleCacheStrategy = useCallback(async () => {
+  const staleWhileRevalidate = useCallback(async () => {
+    setIsLoading(true);
     const cachedData = getCachedData();
     if (cachedData) {
       setFullData(cachedData);
-      setIsLoading(false);
       setIsCachedData(true);
+      setIsLoading(false);
     }
+    // Always fetch fresh data, even if we have cached data
+    await fetchFreshData();
+  }, [getCachedData, fetchFreshData]);
 
-    // Always fetch fresh data
-    await fetchFullData();
-  }, [getCachedData, fetchFullData]);
-
-  // Updated: Use useStaleCacheStrategy in useEffect
   useEffect(() => {
-    if (basicData) {
-      useStaleCacheStrategy();
+    if (lineUserId) {
+      staleWhileRevalidate();
     }
-  }, [basicData, useStaleCacheStrategy]);
+  }, [lineUserId, staleWhileRevalidate]);
+
+  const debouncedFetchFreshData = useMemo(
+    () => debounce(fetchFreshData, 300),
+    [fetchFreshData],
+  );
 
   useEffect(() => {
     const updateTime = () => {
@@ -335,11 +274,12 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     async (newStatus: boolean) => {
       if (fullData) {
         try {
-          const response = await axios.post('/api/check-in-out', {
+          await axios.post('/api/check-in-out', {
             lineUserId,
             isCheckIn: newStatus,
           });
 
+          // Update the local state based on the action, not the response
           setFullData((prevData) => ({
             ...prevData!,
             attendanceStatus: {
@@ -347,20 +287,20 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               isCheckingIn: !prevData!.attendanceStatus.isCheckingIn,
             },
           }));
-          invalidateCache(); // Invalidate cache after successful check-in/out
-          debouncedFetchFullData();
+          localStorage.removeItem(CACHE_KEY); // Invalidate cache after successful check-in/out
+          debouncedFetchFreshData(); // Fetch fresh data to ensure we have the latest state
         } catch (error) {
           console.error('Error during check-in/out:', error);
           setFormError('Failed to update status. Please try again.');
         }
       }
     },
-    [fullData, lineUserId, debouncedFetchFullData, invalidateCache],
+    [fullData, lineUserId, debouncedFetchFreshData],
   );
 
   const handleRefresh = useCallback(() => {
-    debouncedFetchFullData();
-  }, [debouncedFetchFullData]);
+    debouncedFetchFreshData();
+  }, [debouncedFetchFreshData]);
 
   if (isLoading) {
     return <SkeletonLoader />;
@@ -438,7 +378,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
                     effectiveShift={fullData.effectiveShift}
                     initialCheckInOutAllowance={fullData.checkInOutAllowance}
                     onStatusChange={handleStatusChange}
-                    onError={() => debouncedFetchFullData()}
+                    onError={() => debouncedFetchFreshData()}
                   />
                 </div>
               </ErrorBoundary>
