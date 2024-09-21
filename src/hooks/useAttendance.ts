@@ -65,10 +65,6 @@ export const useAttendance = (
     setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
   }, [initialAttendanceStatus, processAttendanceStatus]);
 
-  useEffect(() => {
-    setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
-  }, [initialAttendanceStatus, processAttendanceStatus]);
-
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
       try {
@@ -79,6 +75,7 @@ export const useAttendance = (
         const { attendanceStatus, effectiveShift, checkInOutAllowance } =
           response.data;
         setAttendanceStatus(attendanceStatus);
+        setEffectiveShift(effectiveShift);
         setCheckInOutAllowance(checkInOutAllowance);
         return response.data;
       } catch (error) {

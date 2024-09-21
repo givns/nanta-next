@@ -287,6 +287,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
           const updatedStatus = response.data;
           setAttendanceStatus(updatedStatus);
+          fetchData();
         } catch (error) {
           console.error('Error during check-in/out:', error);
           setFormError('Failed to update status. Please try again.');
@@ -296,7 +297,9 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     [attendanceStatus, fetchData, lineUserId],
   );
 
-  const handleRefresh = useCallback(() => {}, [fetchData]);
+  const handleRefresh = useCallback(() => {
+    fetchData();
+  }, [fetchData]);
 
   if (isLoading) {
     return <SkeletonLoader />;

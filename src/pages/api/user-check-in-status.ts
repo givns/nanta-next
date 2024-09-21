@@ -78,15 +78,22 @@ export default async function handler(
     let effectiveShift, attendanceStatus, approvedOvertime, checkInOutAllowance;
 
     try {
-      effectiveShift = await shiftManagementService.getEffectiveShift(
-        user.employeeId,
-        today,
-      );
-    } catch (shiftError) {
-      console.error('Error getting effective shift:', shiftError);
-      return res.status(500).json({
-        error: 'Error getting effective shift',
-        details: (shiftError as Error).message,
+      [
+        effectiveShift,
+        attendanceStatus,
+        approvedOvertime,
+        checkInOutAllowance,
+      ] = await Promise.all([
+        shiftManagementService.getEffectiveShift(user.employeeId, today),
+        attendanceService.getLatestAttendanceStatus(user.employeeId),
+        overtimeService.getApprovedOvertimeRequest(user.employeeId, today),
+        attendanceService.isCheckInOutAllowed(user.employeeId),
+      ]);
+    } catch (error) {
+      console.error('Unexpected error in user check-in status:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        details: (error as Error).message,
       });
     }
 
