@@ -81,23 +81,33 @@ export default async function handler(
 
     // Format times in the response
     if (updatedStatus.latestAttendance) {
-      updatedStatus.latestAttendance.checkInTime = updatedStatus
-        .latestAttendance.checkInTime
-        ? formatTime(new Date(updatedStatus.latestAttendance.checkInTime))
-        : null;
-      updatedStatus.latestAttendance.checkOutTime = updatedStatus
-        .latestAttendance.checkOutTime
-        ? formatTime(new Date(updatedStatus.latestAttendance.checkOutTime))
-        : null;
-      updatedStatus.latestAttendance.date = formatDate(
-        updatedStatus.latestAttendance.date,
-      );
+      try {
+        updatedStatus.latestAttendance.checkInTime = updatedStatus
+          .latestAttendance.checkInTime
+          ? formatTime(new Date(updatedStatus.latestAttendance.checkInTime))
+          : null;
+        updatedStatus.latestAttendance.checkOutTime = updatedStatus
+          .latestAttendance.checkOutTime
+          ? formatTime(new Date(updatedStatus.latestAttendance.checkOutTime))
+          : null;
+        updatedStatus.latestAttendance.date = formatDate(
+          new Date(updatedStatus.latestAttendance.date),
+        );
+      } catch (formatError) {
+        console.error('Error formatting times:', formatError);
+        // If there's an error formatting, we'll leave the original values
+      }
     }
 
     console.log('Final updated status:', updatedStatus);
 
     // Send notification asynchronously
-    sendNotificationAsync(attendanceData, updatedStatus);
+    try {
+      await sendNotificationAsync(attendanceData, updatedStatus);
+    } catch (notificationError) {
+      console.error('Failed to send notification:', notificationError);
+      // We'll continue even if notification fails
+    }
 
     res.status(200).json(updatedStatus);
   } catch (error: any) {

@@ -120,13 +120,28 @@ export const useAttendance = (
       setIsLoading(true);
       setError(null);
       try {
-        console.log('sending check-in/out data:', attendanceData);
+        console.log('Sending check-in/out data:', attendanceData);
         const response = await axios.post('/api/check-in-out', attendanceData);
-        setAttendanceStatus((prevStatus) => ({
-          ...prevStatus,
-          isCheckingIn: !prevStatus.isCheckingIn,
-          latestAttendance: response.data,
-        }));
+        console.log('Check-in/out response:', response.data);
+
+        if (response.data.error) {
+          console.warn(
+            'Check-in/out processed with warnings:',
+            response.data.error,
+          );
+        }
+
+        if (response.data.latestAttendance) {
+          setAttendanceStatus((prevStatus) => ({
+            ...prevStatus,
+            isCheckingIn: !prevStatus.isCheckingIn,
+            latestAttendance: response.data.latestAttendance,
+          }));
+        } else {
+          // If latestAttendance is not in the response, we'll need to refresh the status
+          await refreshAttendanceStatus();
+        }
+
         return response.data;
       } catch (err) {
         console.error('Error during check-in/out:', err);
@@ -135,42 +150,29 @@ export const useAttendance = (
           console.log('Axios error details:', err.response?.data);
         }
 
-        // Check if the error is due to a timeout or network issue
-        if (
-          axios.isAxiosError(err) &&
-          (err.code === 'ECONNABORTED' || !err.response)
-        ) {
-          console.log(
-            'Possible timeout or network error. Checking attendance status...',
-          );
-          try {
-            const latestStatus = await refreshAttendanceStatus();
-
-            // If the attendance was actually recorded despite the error
-            if (
-              latestStatus.latestAttendance &&
-              new Date(
-                latestStatus.latestAttendance.checkInTime ||
-                  latestStatus.latestAttendance.checkOutTime,
-              ) > new Date(attendanceData.checkTime)
-            ) {
-              console.log(
-                'Attendance was recorded successfully despite the error',
-              );
-              setAttendanceStatus(latestStatus);
-              return latestStatus;
-            }
-          } catch (refreshError) {
-            console.error('Error refreshing attendance status:', refreshError);
+        // Even if there's an error, we'll check if the attendance was recorded
+        try {
+          const latestStatus = await refreshAttendanceStatus();
+          if (
+            latestStatus.latestAttendance &&
+            new Date(
+              latestStatus.latestAttendance.checkInTime ||
+                latestStatus.latestAttendance.checkOutTime,
+            ) > new Date(attendanceData.checkTime)
+          ) {
+            console.log(
+              'Attendance was recorded successfully despite the error',
+            );
+            setAttendanceStatus(latestStatus);
+            return latestStatus;
           }
+        } catch (refreshError) {
+          console.error('Error refreshing attendance status:', refreshError);
         }
 
         setError(
-          err instanceof Error
-            ? err.message
-            : 'An error occurred during check-in/out',
+          'An error occurred during check-in/out. Please check your attendance status.',
         );
-        throw err;
       } finally {
         setIsLoading(false);
       }
