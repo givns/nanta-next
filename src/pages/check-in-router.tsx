@@ -1,6 +1,12 @@
 // check-in-router.tsx
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  Suspense,
+} from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
 import { AttendanceStatusInfo, ShiftData } from '@/types/attendance';
@@ -12,32 +18,23 @@ import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
 
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
-  loading: () => <p>Loading form...</p>,
+  loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
 });
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
+
+const CACHE_KEY = 'attendanceStatus';
+const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+const CACHE_VERSION = '2'; // Change this value if the cache schema changes
 
 interface CheckInRouterProps {
   lineUserId: string | null;
 }
 
-const CACHE_KEY = 'attendanceStatus';
-const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
-const CACHE_VERSION = '1'; // Change this value if the cache schema changes
-
-interface CachedData {
-  data: {
-    userData: UserData;
-    attendanceStatus: AttendanceStatusInfo;
-    effectiveShift: ShiftData;
-    checkInOutAllowance: {
-      allowed: boolean;
-      reason?: string;
-      isLate?: boolean;
-      isOvertime?: boolean;
-    };
-  };
-  timestamp: number;
-}
+const parseUserData = (userData: z.infer<typeof UserDataSchema>): UserData => ({
+  ...userData,
+  createdAt: userData.createdAt ? new Date(userData.createdAt) : undefined,
+  updatedAt: userData.updatedAt ? new Date(userData.updatedAt) : undefined,
+});
 
 const UserDataSchema = z.object({
   employeeId: z.string(),
@@ -55,8 +52,11 @@ const UserDataSchema = z.object({
   sickLeaveBalance: z.number(),
   businessLeaveBalance: z.number(),
   annualLeaveBalance: z.number(),
-  createdAt: z.string().or(z.date()).optional(),
-  updatedAt: z.string().or(z.date()).optional(),
+  createdAt: z.date().optional(),
+  updatedAt: z
+    .union([z.string(), z.date()])
+    .transform((val) => (val ? new Date(val) : undefined))
+    .optional(),
 });
 
 const ShiftDataSchema = z.object({
@@ -68,53 +68,59 @@ const ShiftDataSchema = z.object({
   workDays: z.array(z.number()),
 });
 
-const AttendanceStatusInfoSchema = z.object({
-  status: z.enum(['present', 'absent', 'incomplete', 'holiday', 'off']),
-  isOvertime: z.boolean(),
-  overtimeDuration: z.number().optional(),
-  detailedStatus: z.string(),
-  isEarlyCheckIn: z.boolean(),
-  isLateCheckIn: z.boolean(),
-  isLateCheckOut: z.boolean(),
-  user: UserDataSchema,
-  latestAttendance: z
-    .object({
-      id: z.string(),
-      employeeId: z.string(),
-      date: z.string(),
-      checkInTime: z.string().nullable(),
-      checkOutTime: z.string().nullable(),
-      status: z.enum([
-        'checked-in',
-        'checked-out',
-        'overtime-started',
-        'overtime-ended',
-        'pending',
-        'approved',
-        'denied',
-      ]),
-      isManualEntry: z.boolean(),
-    })
-    .nullable(),
-  isCheckingIn: z.boolean(),
-  isDayOff: z.boolean(),
-  potentialOvertimes: z.array(z.any()), // Define a more specific schema if possible
-  shiftAdjustment: z
-    .object({
-      date: z.string(),
-      requestedShiftId: z.string(),
-      requestedShift: ShiftDataSchema,
-    })
-    .nullable(),
-  approvedOvertime: z.any().nullable(), // Define a more specific schema if possible
-  futureShifts: z.array(
-    z.object({
-      date: z.string(),
-      shift: ShiftDataSchema,
-    }),
-  ),
-  futureOvertimes: z.array(z.any()), // Define a more specific schema if possible
-});
+const AttendanceStatusInfoSchema = z
+  .object({
+    status: z.enum(['present', 'absent', 'incomplete', 'holiday', 'off']),
+    isOvertime: z.boolean(),
+    overtimeDuration: z.number().optional(),
+    detailedStatus: z.string(),
+    isEarlyCheckIn: z.boolean(),
+    isLateCheckIn: z.boolean(),
+    isLateCheckOut: z.boolean(),
+    user: UserDataSchema,
+    latestAttendance: z
+      .object({
+        id: z.string(),
+        employeeId: z.string(),
+        date: z.string(),
+        checkInTime: z.string().nullable(),
+        checkOutTime: z.string().nullable(),
+        status: z.enum([
+          'checked-in',
+          'checked-out',
+          'overtime-started',
+          'overtime-ended',
+          'pending',
+          'approved',
+          'denied',
+        ]),
+        isManualEntry: z.boolean(),
+      })
+      .nullable(),
+    isCheckingIn: z.boolean(),
+    isDayOff: z.boolean(),
+    potentialOvertimes: z.array(z.any()), // Define a more specific schema if possible
+    shiftAdjustment: z
+      .object({
+        date: z.string(),
+        requestedShiftId: z.string(),
+        requestedShift: ShiftDataSchema,
+      })
+      .nullable(),
+    approvedOvertime: z.any().nullable(),
+    futureShifts: z.array(
+      z.object({
+        date: z.string(),
+        shift: ShiftDataSchema,
+      }),
+    ),
+    futureOvertimes: z.array(z.any()), // You might want to define a more specific schema for ApprovedOvertime
+  })
+  .transform((data) => ({
+    ...data,
+    user: parseUserData(data.user),
+    approvedOvertime: data.approvedOvertime || null,
+  }));
 
 const ResponseDataSchema = z.object({
   user: UserDataSchema,
@@ -128,17 +134,29 @@ const ResponseDataSchema = z.object({
   }),
 });
 
+const BasicUserDataSchema = z.object({
+  employeeId: z.string(),
+  name: z.string(),
+  role: z.nativeEnum(UserRole),
+});
+
+const BasicAttendanceStatusSchema = z.object({
+  isCheckingIn: z.boolean(),
+  detailedStatus: z.string(),
+});
+
+const BasicDataSchema = z.object({
+  user: BasicUserDataSchema,
+  attendanceStatus: BasicAttendanceStatusSchema,
+});
+
 const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [attendanceStatus, setAttendanceStatus] =
-    useState<AttendanceStatusInfo | null>(null);
-  const [effectiveShift, setEffectiveShift] = useState<ShiftData | null>(null);
-  const [checkInOutAllowance, setCheckInOutAllowance] = useState<{
-    allowed: boolean;
-    reason?: string;
-    isLate?: boolean;
-    isOvertime?: boolean;
-  } | null>(null);
+  const [basicData, setBasicData] = useState<z.infer<
+    typeof BasicDataSchema
+  > | null>(null);
+  const [fullData, setFullData] = useState<z.infer<
+    typeof ResponseDataSchema
+  > | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(
@@ -147,36 +165,29 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [isCachedData, setIsCachedData] = useState(false);
 
-  const getCachedData = useCallback((): CachedData | null => {
+  const getCachedData = useCallback(() => {
     const cachedString = localStorage.getItem(CACHE_KEY);
     if (!cachedString) return null;
-    const parsed = JSON.parse(cachedString);
-    if (parsed.version !== CACHE_VERSION) return null;
-    return parsed.data;
+    try {
+      const parsed = JSON.parse(cachedString);
+      if (parsed.version !== CACHE_VERSION) return null;
+      return parsed.data;
+    } catch (e) {
+      console.error('Error parsing cached data:', e);
+      return null;
+    }
   }, []);
 
-  const setCachedData = useCallback((data: CachedData['data']) => {
+  const setCachedData = useCallback((data: any) => {
     const cacheData = {
       version: CACHE_VERSION,
-      data: {
-        data,
-        timestamp: Date.now(),
-      },
+      data,
+      timestamp: Date.now(),
     };
     localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
   }, []);
 
-  const isCacheValid = useCallback((cachedData: CachedData): boolean => {
-    return Date.now() - cachedData.timestamp < CACHE_EXPIRATION;
-  }, []);
-
-  const invalidateCache = useCallback(() => {
-    localStorage.removeItem(CACHE_KEY);
-    setIsCachedData(false);
-    console.log('Cache invalidated');
-  }, []);
-
-  const fetchData = useCallback(async () => {
+  const fetchBasicData = useCallback(async () => {
     if (!lineUserId) {
       setError('LINE user ID not available');
       setIsLoading(false);
@@ -185,55 +196,74 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
     try {
       const cachedData = getCachedData();
-      if (cachedData && isCacheValid(cachedData)) {
-        console.log('Cache hit');
-        const validatedCachedData = ResponseDataSchema.safeParse(
-          cachedData.data,
-        );
-        if (validatedCachedData.success) {
-          setUserData(parseUserData(validatedCachedData.data.user));
-          setAttendanceStatus(
-            parseAttendanceStatus(validatedCachedData.data.attendanceStatus),
-          );
-          setEffectiveShift(validatedCachedData.data.effectiveShift);
-          setCheckInOutAllowance(validatedCachedData.data.checkInOutAllowance);
+      if (cachedData && Date.now() - cachedData.timestamp < CACHE_EXPIRATION) {
+        const validatedBasicData = BasicDataSchema.safeParse(cachedData);
+        if (validatedBasicData.success) {
+          setBasicData(validatedBasicData.data);
           setIsLoading(false);
           setIsCachedData(true);
           return;
-        } else {
-          console.error(
-            'Cached data validation failed:',
-            validatedCachedData.error,
-          );
-          invalidateCache();
         }
       }
 
-      console.log('Cache miss');
+      const response = await axios.get(
+        `/api/user-basic-info?lineUserId=${lineUserId}`,
+      );
+      const validatedData = BasicDataSchema.parse(response.data);
+      setBasicData(validatedData);
+      setCachedData(validatedData);
+      setIsCachedData(false);
+    } catch (err) {
+      console.error('Error fetching basic data:', err);
+      setError('Failed to load basic user information');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [lineUserId, getCachedData, setCachedData]);
+
+  const fetchFullData = useCallback(async () => {
+    if (!lineUserId) return;
+
+    try {
       const response = await axios.get(
         `/api/user-check-in-status?lineUserId=${lineUserId}`,
       );
       const validatedData = ResponseDataSchema.parse(response.data);
 
-      const userData = parseUserData(validatedData.user);
-      const attendanceStatus = parseAttendanceStatus(
-        validatedData.attendanceStatus,
-      );
+      const parsedData = {
+        ...validatedData,
+        user: {
+          ...validatedData.user,
+          createdAt: validatedData.user.createdAt
+            ? new Date(validatedData.user.createdAt)
+            : undefined,
+          updatedAt: validatedData.user.updatedAt
+            ? new Date(validatedData.user.updatedAt)
+            : undefined,
+        },
+        attendanceStatus: {
+          ...validatedData.attendanceStatus,
+          user: {
+            ...validatedData.attendanceStatus.user,
+            createdAt: validatedData.attendanceStatus.user.createdAt
+              ? new Date(validatedData.attendanceStatus.user.createdAt)
+              : undefined,
+            updatedAt: validatedData.attendanceStatus.user.updatedAt
+              ? new Date(validatedData.attendanceStatus.user.updatedAt)
+              : undefined,
+          },
+          approvedOvertime:
+            validatedData.attendanceStatus.approvedOvertime || null,
+          futureShifts: validatedData.attendanceStatus.futureShifts || [],
+          futureOvertimes: validatedData.attendanceStatus.futureOvertimes || [],
+        },
+      };
 
-      setUserData(userData);
-      setAttendanceStatus(attendanceStatus);
-      setEffectiveShift(validatedData.effectiveShift);
-      setCheckInOutAllowance(validatedData.checkInOutAllowance);
-
-      setCachedData({
-        userData,
-        attendanceStatus,
-        effectiveShift: validatedData.effectiveShift,
-        checkInOutAllowance: validatedData.checkInOutAllowance,
-      });
+      setFullData(parsedData);
+      setCachedData(parsedData);
       setIsCachedData(false);
     } catch (err) {
-      console.error('Error in data fetching:', err);
+      console.error('Error fetching full data:', err);
       if (err instanceof z.ZodError) {
         setError(
           `Data validation error: ${err.errors.map((e) => e.message).join(', ')}`,
@@ -243,59 +273,28 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           err instanceof Error ? err.message : 'An unknown error occurred',
         );
       }
-      invalidateCache();
-    } finally {
-      setIsLoading(false);
     }
-  }, [lineUserId, getCachedData, isCacheValid, setCachedData, invalidateCache]);
+  }, [lineUserId, setCachedData]);
 
-  const debouncedFetchData = useMemo(
-    () => debounce(fetchData, 300),
-    [fetchData],
+  const debouncedFetchFullData = useMemo(
+    () => debounce(fetchFullData, 300),
+    [fetchFullData],
   );
 
   useEffect(() => {
-    debouncedFetchData();
-    return () => debouncedFetchData.cancel();
-  }, [debouncedFetchData]);
-
-  // Helper functions to parse dates
-  const parseDate = (
-    dateString: string | null | undefined,
-  ): Date | undefined => {
-    if (!dateString) return undefined;
-    const parsed = new Date(dateString);
-    return isNaN(parsed.getTime()) ? undefined : parsed;
-  };
-
-  const parseUserData = (userData: any): UserData => ({
-    ...userData,
-    createdAt: parseDate(userData.createdAt),
-    updatedAt: parseDate(userData.updatedAt),
-  });
-
-  const parseAttendanceStatus = (status: any): AttendanceStatusInfo => ({
-    ...status,
-    user: parseUserData(status.user),
-    latestAttendance: status.latestAttendance
-      ? {
-          ...status.latestAttendance,
-          date: parseDate(status.latestAttendance.date)?.toISOString() ?? '',
-        }
-      : null,
-  });
+    fetchBasicData();
+  }, [fetchBasicData]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (basicData) {
+      debouncedFetchFullData();
+    }
+    return () => debouncedFetchFullData.cancel();
+  }, [basicData, debouncedFetchFullData]);
 
   useEffect(() => {
     const updateTime = () => {
-      try {
-        setCurrentTime(getBangkokTime().toLocaleTimeString());
-      } catch (err) {
-        console.error('Error updating time:', err);
-      }
+      setCurrentTime(getBangkokTime().toLocaleTimeString());
     };
 
     updateTime();
@@ -306,28 +305,33 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
-      if (attendanceStatus) {
+      if (fullData) {
         try {
           const response = await axios.post('/api/check-in-out', {
             lineUserId,
             isCheckIn: newStatus,
           });
 
-          const updatedStatus = response.data;
-          setAttendanceStatus(updatedStatus);
-          debouncedFetchData();
+          setFullData((prevData) => ({
+            ...prevData!,
+            attendanceStatus: {
+              ...prevData!.attendanceStatus,
+              isCheckingIn: !prevData!.attendanceStatus.isCheckingIn,
+            },
+          }));
+          debouncedFetchFullData();
         } catch (error) {
           console.error('Error during check-in/out:', error);
           setFormError('Failed to update status. Please try again.');
         }
       }
     },
-    [attendanceStatus, lineUserId, debouncedFetchData],
+    [fullData, lineUserId, debouncedFetchFullData],
   );
 
   const handleRefresh = useCallback(() => {
-    debouncedFetchData();
-  }, [debouncedFetchData]);
+    debouncedFetchFullData();
+  }, [debouncedFetchFullData]);
 
   if (isLoading) {
     return <SkeletonLoader />;
@@ -342,19 +346,10 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     );
   }
 
-  if (!userData || !attendanceStatus || !effectiveShift) {
+  if (!basicData) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
-        <h1 className="text-1xl mb-6 text-gray-800">
-          ไม่พบข้อมูลผู้ใช้หรือข้อมูลกะงาน
-        </h1>
-        <pre>
-          {JSON.stringify(
-            { userData, attendanceStatus, effectiveShift },
-            null,
-            2,
-          )}
-        </pre>
+        <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
       </div>
     );
   }
@@ -364,7 +359,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       <div className="main-container flex flex-col min-h-screen bg-gray-100 p-4">
         <div className="flex-grow flex flex-col justify-start items-center">
           <h1 className="text-2xl font-bold text-center mt-8 mb-2 text-gray-800">
-            {attendanceStatus.isCheckingIn
+            {basicData.attendanceStatus.isCheckingIn
               ? 'ระบบบันทึกเวลาเข้างาน'
               : 'ระบบบันทึกเวลาออกงาน'}
           </h1>
@@ -391,23 +386,27 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               <span className="block sm:inline"> {formError}</span>
             </div>
           )}
-          <ErrorBoundary
-            onError={(error: Error) => {
-              console.error('Error in CheckInOutForm:', error);
-              setFormError(error.message);
-            }}
-          >
-            <div className="w-full max-w-md">
-              <CheckInOutForm
-                userData={userData}
-                initialAttendanceStatus={attendanceStatus}
-                effectiveShift={effectiveShift}
-                initialCheckInOutAllowance={checkInOutAllowance}
-                onStatusChange={handleStatusChange}
-                onError={() => fetchData()}
-              />
-            </div>
-          </ErrorBoundary>
+          <Suspense fallback={<p>Loading additional information...</p>}>
+            {fullData && (
+              <ErrorBoundary
+                onError={(error: Error) => {
+                  console.error('Error in CheckInOutForm:', error);
+                  setFormError(error.message);
+                }}
+              >
+                <div className="w-full max-w-md">
+                  <CheckInOutForm
+                    userData={fullData.user}
+                    initialAttendanceStatus={fullData.attendanceStatus}
+                    effectiveShift={fullData.effectiveShift}
+                    initialCheckInOutAllowance={fullData.checkInOutAllowance}
+                    onStatusChange={handleStatusChange}
+                    onError={() => debouncedFetchFullData()}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
+          </Suspense>
         </div>
       </div>
     </ErrorBoundary>
