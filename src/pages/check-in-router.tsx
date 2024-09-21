@@ -138,6 +138,7 @@ const BasicUserDataSchema = z.object({
   employeeId: z.string(),
   name: z.string(),
   role: z.nativeEnum(UserRole),
+  lineUserId: z.string().nullable(),
 });
 
 const BasicAttendanceStatusSchema = z.object({
