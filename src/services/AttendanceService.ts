@@ -332,7 +332,7 @@ export class AttendanceService {
     const user = await this.getCachedUserData(employeeId);
     if (!user) throw new Error('User not found');
 
-    const today = getBangkokTime();
+    const today = new Date();
     const latestAttendance = await this.getLatestAttendance(employeeId);
 
     if (!user.shiftCode) throw new Error('User shift not found');
@@ -370,12 +370,12 @@ export class AttendanceService {
       shiftId: effectiveShift.id,
       shiftCode: effectiveShift.shiftCode,
       overtimeHours: user.overtimeHours,
-      potentialOvertimes: [], // This should be populated if needed
+      potentialOvertimes: [],
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
-      createdAt: user.createdAt !== null ? user.createdAt : undefined,
-      updatedAt: user.updatedAt !== null ? user.updatedAt : undefined,
+      createdAt: user.createdAt ?? undefined,
+      updatedAt: user.updatedAt ?? undefined,
     };
 
     return this.determineAttendanceStatus(

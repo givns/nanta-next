@@ -130,7 +130,12 @@ export const useAttendance = (
       }));
       return response.data;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Error during check-in/out:', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An error occurred during check-in/out',
+      );
       throw err;
     } finally {
       setIsLoading(false);
