@@ -52,8 +52,8 @@ const UserDataSchema = z.object({
   sickLeaveBalance: z.number(),
   businessLeaveBalance: z.number(),
   annualLeaveBalance: z.number(),
-  createdAt: z.date().optional(),
-  updatedAt: z.date().optional(),
+  createdAt: z.string().or(z.date()).optional(),
+  updatedAt: z.string().or(z.date()).optional(),
 });
 
 const ShiftDataSchema = z
@@ -182,12 +182,10 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       if (cachedData && isCacheValid(cachedData)) {
         console.log('Cache hit');
         const validatedCachedData = ResponseDataSchema.parse(cachedData.data);
-        setUserData(validatedCachedData.user);
-        setAttendanceStatus({
-          ...validatedCachedData.attendanceStatus,
-          approvedOvertime:
-            validatedCachedData.attendanceStatus.approvedOvertime || null,
-        });
+        setUserData(parseUserData(validatedCachedData.user));
+        setAttendanceStatus(
+          parseAttendanceStatus(validatedCachedData.attendanceStatus),
+        );
         setEffectiveShift(validatedCachedData.effectiveShift);
         setCheckInOutAllowance(validatedCachedData.checkInOutAllowance);
         setIsLoading(false);
@@ -201,28 +199,18 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       );
       const validatedData = ResponseDataSchema.parse(response.data);
 
-      const attendanceStatus: AttendanceStatusInfo = {
-        ...validatedData.attendanceStatus,
-        isEarlyCheckIn: validatedData.attendanceStatus.isEarlyCheckIn ?? false,
-        isLateCheckIn: validatedData.attendanceStatus.isLateCheckIn ?? false,
-        isLateCheckOut: validatedData.attendanceStatus.isLateCheckOut ?? false,
-        user: validatedData.user,
-        potentialOvertimes:
-          validatedData.attendanceStatus.potentialOvertimes || [],
-        shiftAdjustment: validatedData.attendanceStatus.shiftAdjustment || null,
-        approvedOvertime:
-          validatedData.attendanceStatus.approvedOvertime || null,
-        futureShifts: validatedData.attendanceStatus.futureShifts || [],
-        futureOvertimes: validatedData.attendanceStatus.futureOvertimes || [],
-      };
+      const userData = parseUserData(validatedData.user);
+      const attendanceStatus = parseAttendanceStatus(
+        validatedData.attendanceStatus,
+      );
 
-      setUserData(validatedData.user);
+      setUserData(userData);
       setAttendanceStatus(attendanceStatus);
       setEffectiveShift(validatedData.effectiveShift);
       setCheckInOutAllowance(validatedData.checkInOutAllowance);
 
       setCachedData({
-        userData: validatedData.user,
+        userData,
         attendanceStatus,
         effectiveShift: validatedData.effectiveShift,
         checkInOutAllowance: validatedData.checkInOutAllowance,
@@ -244,6 +232,32 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       setIsLoading(false);
     }
   }, [lineUserId, invalidateCache]);
+
+  // Helper functions to parse dates
+  const parseDate = (
+    dateString: string | null | undefined,
+  ): Date | undefined => {
+    if (!dateString) return undefined;
+    const parsed = new Date(dateString);
+    return isNaN(parsed.getTime()) ? undefined : parsed;
+  };
+
+  const parseUserData = (userData: any): UserData => ({
+    ...userData,
+    createdAt: parseDate(userData.createdAt),
+    updatedAt: parseDate(userData.updatedAt),
+  });
+
+  const parseAttendanceStatus = (status: any): AttendanceStatusInfo => ({
+    ...status,
+    user: parseUserData(status.user),
+    latestAttendance: status.latestAttendance
+      ? {
+          ...status.latestAttendance,
+          date: parseDate(status.latestAttendance.date)?.toISOString() ?? '',
+        }
+      : null,
+  });
 
   useEffect(() => {
     fetchData();
