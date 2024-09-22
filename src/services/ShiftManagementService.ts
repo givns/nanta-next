@@ -21,6 +21,12 @@ interface Premise {
 const PREMISES: Premise[] = [
   { lat: 13.50821, lng: 100.76405, radius: 100, name: 'บริษัท นันตา ฟู้ด' },
   { lat: 13.51444, lng: 100.70922, radius: 100, name: 'บริษัท ปัตตานี ฟู้ด' },
+  {
+    lat: 13.747920392683099,
+    lng: 100.63441771348242,
+    radius: 100,
+    name: 'สำนักงานใหญ่',
+  },
 ];
 
 export class ShiftManagementService {

@@ -238,7 +238,7 @@ export const useAttendance = (
           allowed: response.data.inPremises,
           reason: response.data.inPremises
             ? undefined
-            : 'You are not within the premises',
+            : 'คุณไม่ได้อยู่ที่ทำงาน',
         }));
       } catch (error) {
         console.error('Error getting location:', error);

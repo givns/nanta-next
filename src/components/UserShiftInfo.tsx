@@ -77,10 +77,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
                     {latestAttendance.checkOutTime || 'ยังไม่ได้ลงเวลา'}
                   </span>
                 </p>
-                <p className="text-gray-800">
-                  สถานะ:{' '}
-                  <span className="font-medium">{latestAttendance.status}</span>
-                </p>
               </>
             )}
 
@@ -225,8 +221,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
         <p className="text-gray-600">แผนก: {userData.departmentName}</p>
 
-        <div className="flex flex-col items-center">
-          <div className="flex items-center mt-2">
+        <div className="flex justify-between items-center mt-2 w-full">
+          <span className="font-bold">สถานะ</span>
+          <div className="flex items-center">
             <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
             <span className="text-gray-600">{message}</span>
           </div>
