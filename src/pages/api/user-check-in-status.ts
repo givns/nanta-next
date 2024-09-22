@@ -87,7 +87,10 @@ export default async function handler(
         shiftManagementService.getEffectiveShift(user.employeeId, today),
         attendanceService.getLatestAttendanceStatus(user.employeeId),
         overtimeService.getApprovedOvertimeRequest(user.employeeId, today),
-        attendanceService.isCheckInOutAllowed(user.employeeId),
+        attendanceService.isCheckInOutAllowed(user.employeeId, {
+          lat: 0,
+          lng: 0,
+        }), // Replace { lat: 0, lng: 0 } with the actual location object
       ]);
     } catch (error) {
       console.error('Unexpected error in user check-in status:', error);
@@ -124,6 +127,7 @@ export default async function handler(
     try {
       checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
         user.employeeId,
+        { lat: 0, lng: 0 }, // Replace { lat: 0, lng: 0 } with the actual location object
       );
     } catch (allowanceError) {
       console.error('Error checking check-in/out allowance:', allowanceError);

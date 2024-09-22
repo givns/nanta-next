@@ -213,6 +213,14 @@ export interface ManualEntryData {
   reason: string;
 }
 
+export type CheckInOutAllowance = {
+  allowed: boolean;
+  reason?: string;
+  isLate?: boolean;
+  isOvertime?: boolean;
+  countdown?: number;
+};
+
 export interface CheckInFormData {
   employeeId: string;
   checkTime: Date;

@@ -6,6 +6,7 @@ import {
   AttendanceData,
   AttendanceStatusInfo,
   ShiftData,
+  CheckInOutAllowance,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { useFaceDetection } from '../hooks/useFaceDetection';
@@ -22,14 +23,9 @@ interface CheckInOutFormProps {
   userData: UserData;
   initialAttendanceStatus: AttendanceStatusInfo;
   effectiveShift: ShiftData | null;
-  initialCheckInOutAllowance: {
-    allowed: boolean;
-    reason?: string;
-    isLate?: boolean;
-    isOvertime?: boolean;
-  } | null;
+  initialCheckInOutAllowance: CheckInOutAllowance;
   onStatusChange: (newStatus: boolean) => void;
-  onError: () => void; // Add this line
+  onError: () => void;
 }
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
@@ -55,10 +51,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     checkInOut,
     isCheckInOutAllowed,
     refreshAttendanceStatus,
+    checkInOutAllowance,
   } = useAttendance(
     userData,
     initialAttendanceStatus,
-    initialCheckInOutAllowance ?? { allowed: false },
+    initialCheckInOutAllowance,
   );
 
   const closeLiffWindow = async () => {
@@ -285,14 +282,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const renderActionButton = () => {
     const buttonClass = `w-full ${
-      initialCheckInOutAllowance?.allowed
+      checkInOutAllowance?.allowed
         ? 'bg-red-600 hover:bg-red-700'
         : 'bg-gray-400 cursor-not-allowed'
     } text-white py-3 px-4 rounded-lg transition duration-300`;
 
-    const buttonText = initialCheckInOutAllowance?.allowed
-      ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-      : 'ไม่สามารถลงเวลาได้ในขณะนี้';
+    let buttonText = 'ไม่สามารถลงเวลาได้ในขณะนี้';
+    if (checkInOutAllowance?.allowed) {
+      buttonText = `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
+    }
 
     return (
       <>
@@ -300,18 +298,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           onClick={() =>
             handleAction(attendanceStatus.isCheckingIn ? 'checkIn' : 'checkOut')
           }
-          disabled={!initialCheckInOutAllowance?.allowed}
+          disabled={!checkInOutAllowance?.allowed}
           className={buttonClass}
           aria-label={buttonText}
         >
           {buttonText}
         </button>
-        {!initialCheckInOutAllowance?.allowed &&
-          initialCheckInOutAllowance?.reason && (
-            <p className="text-red-500 text-center text-sm mt-2">
-              {initialCheckInOutAllowance.reason}
-            </p>
-          )}
+        {!checkInOutAllowance?.allowed && checkInOutAllowance?.reason && (
+          <p className="text-red-500 text-center text-sm mt-2">
+            {checkInOutAllowance.reason}
+          </p>
+        )}
+        {checkInOutAllowance?.countdown !== undefined && (
+          <p className="text-blue-500 text-center text-sm mt-2">
+            สามารถลงเวลาได้ในอีก {checkInOutAllowance.countdown} นาที
+          </p>
+        )}
       </>
     );
   };

@@ -24,6 +24,7 @@ import {
   min,
   differenceInHours,
   roundToNearestMinutes,
+  subMinutes,
 } from 'date-fns';
 import {
   AttendanceData,
@@ -754,17 +755,43 @@ export class AttendanceService {
     }
   }
 
-  public async isCheckInOutAllowed(employeeId: string): Promise<{
+  public async isCheckInOutAllowed(
+    employeeId: string,
+    location: { lat: number; lng: number },
+  ): Promise<{
     allowed: boolean;
     reason?: string;
     isLate?: boolean;
     isOvertime?: boolean;
+    countdown?: number;
   }> {
     const user = await this.prisma.user.findUnique({ where: { employeeId } });
     if (!user) throw new Error('User not found');
 
+    const inPremises = await this.shiftManagementService.isWithinPremises(
+      location.lat,
+      location.lng,
+    );
+    if (!inPremises) {
+      return { allowed: false, reason: 'You are not within the premises' };
+    }
+
+    const now = new Date();
     const shiftStatus =
       await this.shiftManagementService.getShiftStatus(employeeId);
+    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
+      employeeId,
+      now,
+    );
+
+    if (!effectiveShift) {
+      return { allowed: false, reason: 'No shift assigned for today' };
+    }
+
+    const shiftStart = parseISO(
+      `${now.toISOString().split('T')[0]}T${effectiveShift.startTime}`,
+    );
+    const earlyCheckInWindow = subMinutes(shiftStart, 30); // 30 minutes before shift start
 
     const isHoliday = await this.holidayService.isHoliday(
       new Date(),
@@ -785,6 +812,23 @@ export class AttendanceService {
     if (leaveRequest)
       return { allowed: false, reason: 'User is on approved leave' };
 
+    if (now < earlyCheckInWindow) {
+      const minutesUntilAllowed = differenceInMinutes(earlyCheckInWindow, now);
+      return {
+        allowed: false,
+        reason: `Early check-in not allowed yet. Please wait ${minutesUntilAllowed} minutes.`,
+        countdown: minutesUntilAllowed,
+      };
+    }
+
+    if (now >= earlyCheckInWindow && now < shiftStart) {
+      return {
+        allowed: true,
+        reason: 'Early check-in: Time will be recorded',
+        isOvertime: false,
+      };
+    }
+
     if (shiftStatus.isOutsideShift) {
       if (shiftStatus.isOvertime) {
         return {
@@ -800,7 +844,6 @@ export class AttendanceService {
         };
       }
     }
-
     if (shiftStatus.isLate) {
       return {
         allowed: true,

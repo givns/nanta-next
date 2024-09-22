@@ -1,20 +1,20 @@
 // hooks/useAttendance.ts
 import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { AttendanceData, AttendanceStatusInfo } from '../types/attendance';
+import {
+  AttendanceData,
+  AttendanceStatusInfo,
+  CheckInOutAllowance,
+} from '../types/attendance';
 import { UserData } from '../types/user';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, formatDate, getBangkokTime } from '../utils/dateUtils';
+import { CheckInOut } from '@/lib/types';
 
 export const useAttendance = (
   userData: UserData,
   initialAttendanceStatus: AttendanceStatusInfo,
-  initialCheckInOutAllowance: {
-    allowed: boolean;
-    reason?: string;
-    isLate?: boolean;
-    isOvertime?: boolean;
-  },
+  initialCheckInOutAllowance: CheckInOutAllowance,
 ) => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo>(initialAttendanceStatus);
@@ -32,6 +32,7 @@ export const useAttendance = (
     reason?: string;
     isLate?: boolean;
     isOvertime?: boolean;
+    countdown?: number;
   } | null>(initialCheckInOutAllowance);
 
   const processAttendanceStatus = useCallback(
@@ -101,19 +102,33 @@ export const useAttendance = (
   }, [userData, initialAttendanceStatus]);
 
   const isCheckInOutAllowed = useCallback(async () => {
-    if (checkInOutAllowance) {
-      return checkInOutAllowance;
+    if (!location) {
+      return { allowed: false, reason: 'Location not available' };
     }
 
     try {
-      const data = await getAttendanceStatus();
-      return data.checkInOutAllowance;
+      const response = await axios.get('/api/attendance/allowed', {
+        params: {
+          employeeId: userData.employeeId,
+          lat: location.lat,
+          lng: location.lng,
+        },
+      });
+      const allowanceData = response.data;
+      setCheckInOutAllowance(allowanceData);
+      return allowanceData;
     } catch (error) {
       console.error('Error checking if check-in/out is allowed:', error);
       setError('Failed to check if check-in/out is allowed');
       return { allowed: false, reason: 'Error checking permissions' };
     }
-  }, [checkInOutAllowance, getAttendanceStatus]);
+  }, [location, userData.employeeId]);
+
+  useEffect(() => {
+    if (location) {
+      isCheckInOutAllowed();
+    }
+  }, [location, isCheckInOutAllowed]);
 
   const checkInOut = useCallback(
     async (attendanceData: AttendanceData) => {
@@ -266,6 +281,7 @@ export const useAttendance = (
     isOutsideShift,
     checkInOut,
     isCheckInOutAllowed,
-    refreshAttendanceStatus,
+    refreshAttendanceStatus: getAttendanceStatus,
+    checkInOutAllowance,
   };
 };

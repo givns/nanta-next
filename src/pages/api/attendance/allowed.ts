@@ -41,14 +41,22 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { employeeId } = req.query;
+  const { employeeId, lat, lng } = req.query;
 
-  if (typeof employeeId !== 'string') {
-    return res.status(400).json({ error: 'Invalid employeeId' });
+  if (
+    typeof employeeId !== 'string' ||
+    typeof lat !== 'string' ||
+    typeof lng !== 'string'
+  ) {
+    return res.status(400).json({ error: 'Invalid request data' });
   }
 
   try {
-    const isAllowed = await attendanceService.isCheckInOutAllowed(employeeId);
+    const location = { lat: parseFloat(lat), lng: parseFloat(lng) };
+    const isAllowed = await attendanceService.isCheckInOutAllowed(
+      employeeId,
+      location,
+    );
     res.status(200).json(isAllowed);
   } catch (error) {
     console.error('Error checking if check-in/out is allowed:', error);
