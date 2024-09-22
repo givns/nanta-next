@@ -45,13 +45,15 @@ const attendanceSchema = Yup.object().shape({
   lineUserId: Yup.string().nullable(),
   checkTime: Yup.date().required('Check time is required'),
   location: Yup.string().required('Location is required'),
-  checkInAddress: Yup.string().when('isCheckIn', (isCheckIn, schema) => {
-    return isCheckIn ? schema.required('Check-in address is required') : schema;
+  checkInAddress: Yup.string().when('isCheckIn', {
+    is: true,
+    then: (schema) => schema.required('Check-in address is required'),
+    otherwise: (schema) => schema.notRequired(),
   }),
-  checkOutAddress: Yup.string().when('isCheckIn', (isCheckIn, schema) => {
-    return isCheckIn
-      ? schema
-      : schema.required('Check-out address is required');
+  checkOutAddress: Yup.string().when('isCheckIn', {
+    is: false,
+    then: (schema) => schema.required('Check-out address is required'),
+    otherwise: (schema) => schema.notRequired(),
   }),
   reason: Yup.string(),
   isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
@@ -75,10 +77,8 @@ export default async function handler(
       lineUserId: '',
       checkTime: getBangkokTime().toISOString(), // Parse the ISO string to a Date object
       isLate: validatedData.isLate ?? false, // Provide a default value of false if isLate is undefined
-      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
-        validatedData.isCheckIn
-          ? validatedData.checkInAddress
-          : validatedData.checkOutAddress,
+      [validatedData.isCheckIn ? 'checkOutAddress' : 'checkInAddress']:
+        undefined,
     };
     // Ensure checkTime is in the correct format
     attendanceData.checkTime = getBangkokTime().toISOString();
