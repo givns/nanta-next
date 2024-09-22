@@ -147,7 +147,7 @@ export const useAttendance = (
         console.error('Error during check-in/out:', err);
 
         if (axios.isAxiosError(err)) {
-          console.log('Axios error details:', err.response?.data);
+          console.error('Error response:', err.response?.data); // Add this line for debugging
         }
 
         // Even if there's an error, we'll check if the attendance was recorded

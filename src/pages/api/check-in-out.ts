@@ -47,7 +47,7 @@ const attendanceSchema = Yup.object().shape({
   address: Yup.string().required('Address is required'),
   reason: Yup.string(),
   isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
-  isLate: Yup.boolean().required('Late flag is required'),
+  isLate: Yup.boolean().optional(),
 });
 
 export default async function handler(
@@ -64,6 +64,7 @@ export default async function handler(
       ...validatedData,
       lineUserId: '',
       checkTime: getBangkokTime(), // Parse the ISO string to a Date object
+      isLate: validatedData.isLate ?? false, // Provide a default value of false if isLate is undefined
     };
     // Ensure checkTime is in the correct format
     attendanceData.checkTime = getBangkokTime().toISOString();
@@ -112,9 +113,14 @@ export default async function handler(
     res.status(200).json(updatedStatus);
   } catch (error: any) {
     console.error('Detailed error in check-in-out:', error);
+    console.error('Received data:', req.body); // Add this line
     res
       .status(500)
-      .json({ error: 'Internal server error', details: error.message });
+      .json({
+        error: 'Internal server error',
+        details: error.message,
+        receivedData: req.body,
+      });
   }
 }
 
