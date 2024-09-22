@@ -64,7 +64,7 @@ export const useFaceDetection = (
 
       if (faceDetectionCount.current >= captureThreshold) {
         capturePhoto();
-        setMessage('Photo captured successfully!');
+        setMessage('ระบบบันทึกรูปภาพแล้ว');
       }
     } else {
       setFaceDetected(false);
@@ -75,7 +75,7 @@ export const useFaceDetection = (
 
   useEffect(() => {
     if (!isModelLoading && !photo) {
-      const interval = setInterval(detectFace, 1000);
+      const interval = setInterval(detectFace, 500);
       return () => clearInterval(interval);
     }
   }, [detectFace, isModelLoading, photo]);

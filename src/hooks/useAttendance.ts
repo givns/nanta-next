@@ -249,6 +249,6 @@ export const useAttendance = (
     isOutsideShift,
     checkInOut,
     isCheckInOutAllowed,
-    refreshAttendanceStatus: getAttendanceStatus,
+    refreshAttendanceStatus,
   };
 };

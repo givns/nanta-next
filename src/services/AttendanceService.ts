@@ -72,6 +72,13 @@ export class AttendanceService {
     }
   }
 
+  async invalidateAttendanceCache(employeeId: string): Promise<void> {
+    if (this.redis) {
+      const attendanceCacheKey = `attendance:${employeeId}`;
+      await this.redis.del(attendanceCacheKey);
+    }
+  }
+
   private async getCachedUserData(employeeId: string): Promise<User | null> {
     if (!this.redis) {
       return this.prisma.user.findUnique({
@@ -313,7 +320,19 @@ export class AttendanceService {
     const cachedStatus = await this.redis.get(cacheKey);
 
     if (cachedStatus) {
-      return JSON.parse(cachedStatus);
+      const parsedStatus = JSON.parse(cachedStatus);
+      // Check if the cached data is still valid
+      if (parsedStatus.latestAttendance) {
+        const latestAttendance = await this.getLatestAttendance(employeeId);
+        if (
+          !latestAttendance ||
+          latestAttendance.id !== parsedStatus.latestAttendance.id
+        ) {
+          // If the latest attendance in the database doesn't match the cached one, fetch fresh data
+          return this.fetchLatestAttendanceStatus(employeeId);
+        }
+      }
+      return parsedStatus;
     }
 
     const status = await this.fetchLatestAttendanceStatus(employeeId);
