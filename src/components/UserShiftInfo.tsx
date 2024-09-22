@@ -32,12 +32,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   });
   console.log('Latest Attendance:', attendanceStatus.latestAttendance);
 
-  const formatTimeOrNull = (timeString: string | null): string | null => {
-    if (!timeString) return null;
-    const parsedTime = parseISO(timeString);
-    return isValid(parsedTime) ? format(parsedTime, 'HH:mm:ss') : null;
-  };
-
   const getStatusMessage = () => {
     if (attendanceStatus.isDayOff) {
       return { message: 'วันหยุด', color: 'blue' };
@@ -58,7 +52,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     }
 
     if (latestAttendance.checkInTime) {
-      return { message: 'ลงเวลาเข้างานแล้ว', color: 'orange' };
+      return { message: 'อยู่ระหว่างเวลาทำงาน', color: 'orange' };
     }
 
     return { message: 'ยังไม่มีการลงเวลา', color: 'red' };

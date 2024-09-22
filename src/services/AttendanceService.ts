@@ -470,6 +470,13 @@ export class AttendanceService {
 
     let status: AttendanceStatusValue = 'absent';
     let isCheckingIn = true;
+    if (attendance && attendance.checkInTime) {
+      isCheckingIn = false;
+      if (attendance.checkOutTime) {
+        // If both check-in and check-out exist, user should be able to check-in again
+        isCheckingIn = true;
+      }
+    }
     let detailedStatus = '';
     let isOvertime = false;
     let overtimeDuration = 0;

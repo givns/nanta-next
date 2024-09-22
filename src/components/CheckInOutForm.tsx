@@ -16,6 +16,7 @@ import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
 import { formatTime } from '../utils/dateUtils';
 import liff from '@line/liff';
+import { parseISO } from 'date-fns';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -278,20 +279,32 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           isOutsideShift={isOutsideShift}
         />
       </ErrorBoundary>
-      <div className="flex-shrink-0 mt-4">
+      <div className="flex-shrink-0 mt-4">{renderActionButton()}</div>
+    </div>
+  );
+
+  const renderActionButton = () => {
+    const buttonClass = `w-full ${
+      initialCheckInOutAllowance?.allowed
+        ? 'bg-red-600 hover:bg-red-700'
+        : 'bg-gray-400 cursor-not-allowed'
+    } text-white py-3 px-4 rounded-lg transition duration-300`;
+
+    const buttonText = initialCheckInOutAllowance?.allowed
+      ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+      : 'ไม่สามารถลงเวลาได้ในขณะนี้';
+
+    return (
+      <>
         <button
-          onClick={() => setStep('camera')}
+          onClick={() =>
+            handleAction(attendanceStatus.isCheckingIn ? 'checkIn' : 'checkOut')
+          }
           disabled={!initialCheckInOutAllowance?.allowed}
-          className={`w-full ${
-            initialCheckInOutAllowance?.allowed
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-gray-400 cursor-not-allowed'
-          } text-white py-3 px-4 rounded-lg transition duration-300`}
-          aria-label={`เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
+          className={buttonClass}
+          aria-label={buttonText}
         >
-          {initialCheckInOutAllowance?.allowed
-            ? `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-            : 'ไม่สามารถลงเวลาได้ในขณะนี้'}
+          {buttonText}
         </button>
         {!initialCheckInOutAllowance?.allowed &&
           initialCheckInOutAllowance?.reason && (
@@ -299,9 +312,34 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               {initialCheckInOutAllowance.reason}
             </p>
           )}
-      </div>
-    </div>
-  );
+      </>
+    );
+  };
+
+  const handleAction = (action: 'checkIn' | 'checkOut') => {
+    if (action === 'checkOut' && !confirmEarlyCheckOut()) {
+      return;
+    }
+    setStep('camera');
+  };
+
+  const confirmEarlyCheckOut = () => {
+    if (!effectiveShift) return true;
+
+    const now = new Date();
+    const shiftEnd = parseISO(effectiveShift.endTime);
+    if (now < shiftEnd) {
+      const confirmed = window.confirm(
+        'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน กรุณายื่นคำขอลาในระบบ คุณต้องการลงเวลาออกหรือไม่?',
+      );
+      if (confirmed) {
+        // Redirect to leave request page
+        window.location.href = '/leave-request';
+        return false;
+      }
+    }
+    return true;
+  };
 
   const renderStep2 = () => (
     <div className="h-full flex flex-col justify-center">
