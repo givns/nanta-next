@@ -44,7 +44,7 @@ const attendanceSchema = Yup.object().shape({
   employeeId: Yup.string().required('Employee ID is required'),
   lineUserId: Yup.string().nullable(),
   checkTime: Yup.date().required('Check time is required'),
-  location: Yup.string().required('Location is required'),
+  location: Yup.string().optional(),
   checkInAddress: Yup.string().optional(), // Make checkInAddress optional
   checkOutAddress: Yup.string().optional(),
   reason: Yup.string(),
@@ -68,6 +68,7 @@ export default async function handler(
       ...validatedData,
       lineUserId: '',
       checkTime: getBangkokTime().toISOString(), // Parse the ISO string to a Date object
+      location: validatedData.location || '',
       isLate: validatedData.isLate ?? false, // Provide a default value of false if isLate is undefined
       isOvertime: validatedData.isOvertime || false, // Default to false if not provided
       [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:

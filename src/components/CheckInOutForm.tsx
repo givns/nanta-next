@@ -79,7 +79,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
         checkTime: new Date().toISOString(),
-        location: JSON.stringify(location),
         [attendanceStatus.isCheckingIn ? 'checkInAddress' : 'checkOutAddress']:
           address,
         reason: lateReasonInput || reason,
