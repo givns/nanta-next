@@ -61,6 +61,22 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const renderTodayInfo = () => {
     return (
       <>
+        {effectiveShift && (
+          <>
+            <h3 className="text-md font-semibold mt-4 mb-1">
+              กะการทำงานของคุณวันนี้:
+            </h3>
+            <p className="text-gray-800">
+              <span className="font-medium">{effectiveShift.name}</span> (
+              {effectiveShift.startTime} - {effectiveShift.endTime})
+            </p>
+            {attendanceStatus.shiftAdjustment && (
+              <p className="text-blue-600 mt-1">
+                * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+              </p>
+            )}
+          </>
+        )}
         {!attendanceStatus.isDayOff && (latestAttendance || effectiveShift) && (
           <div className="bg-white p-4 rounded-lg mb-4">
             {latestAttendance && (
@@ -77,23 +93,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
                     {latestAttendance.checkOutTime || 'ยังไม่ได้ลงเวลา'}
                   </span>
                 </p>
-              </>
-            )}
-
-            {effectiveShift && (
-              <>
-                <h3 className="text-md font-semibold mt-4 mb-1">
-                  กะการทำงานของคุณวันนี้:
-                </h3>
-                <p className="text-gray-800">
-                  <span className="font-medium">{effectiveShift.name}</span> (
-                  {effectiveShift.startTime} - {effectiveShift.endTime})
-                </p>
-                {attendanceStatus.shiftAdjustment && (
-                  <p className="text-blue-600 mt-1">
-                    * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
-                  </p>
-                )}
               </>
             )}
           </div>
@@ -221,14 +220,14 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
         <p className="text-gray-600">แผนก: {userData.departmentName}</p>
 
-        <div className="flex justify-between items-center mt-2 w-full">
-          <span className="font-bold">สถานะ</span>
-          <div className="flex items-center">
+        <div className="flex flex-col items-center">
+          <div className="flex items-center mt-2">
             <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
             <span className="text-gray-600">{message}</span>
           </div>
         </div>
       </div>
+
       {renderTodayInfo()}
       <h2 className="text-xl font-bold mt-8 mb-4">กระดานข่าวสาร</h2>
       {renderFutureInfo()}
