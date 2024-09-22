@@ -62,23 +62,25 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     return (
       <>
         {effectiveShift && (
-          <>
-            <h3 className="text-md font-semibold mt-4 mb-1">
-              กะการทำงานของคุณวันนี้:
-            </h3>
-            <p className="text-gray-800">
-              <span className="font-medium">{effectiveShift.name}</span> (
-              {effectiveShift.startTime} - {effectiveShift.endTime})
-            </p>
-            {attendanceStatus.shiftAdjustment && (
-              <p className="text-blue-600 mt-1">
-                * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+          <div className="bg-white p-4 rounded-lg mb-4">
+            <>
+              <h3 className="text-md font-semibold mt-4 mb-1">
+                กะการทำงานของคุณวันนี้:
+              </h3>
+              <p className="text-gray-800">
+                <span className="font-medium">{effectiveShift.name}</span> (
+                {effectiveShift.startTime} - {effectiveShift.endTime})
               </p>
-            )}
-          </>
+              {attendanceStatus.shiftAdjustment && (
+                <p className="text-blue-600 mt-1">
+                  * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+                </p>
+              )}
+            </>
+          </div>
         )}
         {!attendanceStatus.isDayOff && (latestAttendance || effectiveShift) && (
-          <div className="bg-white p-4 rounded-lg mb-4">
+          <>
             {latestAttendance && (
               <>
                 <p className="text-gray-800">
@@ -95,7 +97,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
                 </p>
               </>
             )}
-          </div>
+          </>
         )}
 
         {attendanceStatus.approvedOvertime &&

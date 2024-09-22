@@ -1,6 +1,6 @@
 // pages/api/check-in-out.ts
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, User } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
@@ -40,18 +40,26 @@ const attendanceService = new AttendanceService(
   timeEntryService,
 );
 
-const attendanceSchema = Yup.object().shape({
-  employeeId: Yup.string().required('Employee ID is required'),
-  lineUserId: Yup.string().required('Line User ID is required'),
-  isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
-  checkTime: Yup.date().optional(),
-  location: Yup.string().optional(),
-  checkInAddress: Yup.string().optional(), // Make checkInAddress optional
-  checkOutAddress: Yup.string().optional(),
-  reason: Yup.string(),
-  isOvertime: Yup.boolean().optional(), // Changed to optional
-  isLate: Yup.boolean().optional(),
-});
+const attendanceSchema = Yup.object()
+  .shape({
+    employeeId: Yup.string(),
+    lineUserId: Yup.string(),
+    isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
+    checkTime: Yup.date().optional(),
+    location: Yup.string().optional(),
+    checkInAddress: Yup.string().optional(), // Make checkInAddress optional
+    checkOutAddress: Yup.string().optional(),
+    reason: Yup.string(),
+    isOvertime: Yup.boolean().optional(), // Changed to optional
+    isLate: Yup.boolean().optional(),
+  })
+  .test(
+    'either-employeeId-or-lineUserId',
+    'Either employeeId or lineUserId must be provided',
+    function (value) {
+      return !!value.employeeId || !!value.lineUserId;
+    },
+  );
 
 export default async function handler(
   req: NextApiRequest,
@@ -66,18 +74,50 @@ export default async function handler(
 
     const validatedData = await attendanceSchema.validate(req.body);
 
+    let employeeId: string;
+    let user: User | null = null;
+
+    if (validatedData.employeeId) {
+      employeeId = validatedData.employeeId;
+      user = await prisma.user.findUnique({
+        where: { employeeId },
+      });
+    } else if (validatedData.lineUserId) {
+      user = await prisma.user.findUnique({
+        where: { lineUserId: validatedData.lineUserId },
+      });
+      if (user) {
+        employeeId = user.employeeId;
+      } else {
+        return res
+          .status(404)
+          .json({ error: 'User not found for the given Line User ID' });
+      }
+    } else {
+      return res
+        .status(400)
+        .json({ error: 'Either employeeId or lineUserId must be provided' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const now = getBangkokTime();
+
     const attendanceData: AttendanceData = {
-      ...validatedData,
-      checkTime: getBangkokTime().toISOString(), // Use server time
+      employeeId,
+      lineUserId: user.lineUserId,
+      isCheckIn: validatedData.isCheckIn,
+      checkTime: validatedData.checkTime || now.toISOString(),
       location: validatedData.location || '',
-      isLate: validatedData.isLate ?? false, // Provide a default value of false if isLate is undefined
-      isOvertime: validatedData.isOvertime || false, // Default to false if not provided
       [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
         validatedData.isCheckIn
-          ? validatedData.checkInAddress
-          : validatedData.checkOutAddress,
+          ? validatedData.checkInAddress || user.departmentName || ''
+          : validatedData.checkOutAddress || user.departmentName || '',
       reason: validatedData.reason || '',
-      isCheckIn: validatedData.isCheckIn,
+      isOvertime: validatedData.isOvertime || false,
+      isLate: validatedData.isLate || false,
     };
     // Ensure checkTime is in the correct format
     attendanceData.checkTime = getBangkokTime().toISOString();
