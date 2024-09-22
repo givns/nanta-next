@@ -220,12 +220,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         <p className="text-2xl font-bold">{userData.name}</p>
         <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
         <p className="text-gray-600">แผนก: {userData.departmentName}</p>
-      </div>
 
-      {/* สถานะ section with its own container */}
-      <div className="bg-white p-4 rounded-box mb-4">
-        <div className="flex justify-between items-center w-full">
-          <span className="text-gray-600">สถานะ</span>
+        <div className="flex justify-between items-center mt-2 w-full">
+          <span className="font-bold">สถานะ</span>
           <div className="flex items-center">
             <div className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}></div>
             <span className="text-gray-600">{message}</span>
