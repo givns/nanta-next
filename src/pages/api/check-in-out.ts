@@ -57,7 +57,7 @@ const attendanceSchema = Yup.object().shape({
   }),
   reason: Yup.string(),
   isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
-  isOvertime: Yup.boolean().required('Overtime flag is required'),
+  isOvertime: Yup.boolean().optional(), // Changed to optional
   isLate: Yup.boolean().optional(),
 });
 
@@ -77,6 +77,7 @@ export default async function handler(
       lineUserId: '',
       checkTime: getBangkokTime().toISOString(), // Parse the ISO string to a Date object
       isLate: validatedData.isLate ?? false, // Provide a default value of false if isLate is undefined
+      isOvertime: validatedData.isOvertime || false, // Default to false if not provided
       [validatedData.isCheckIn ? 'checkOutAddress' : 'checkInAddress']:
         undefined,
     };

@@ -84,9 +84,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           address,
         reason: lateReasonInput || reason,
         isCheckIn: attendanceStatus.isCheckingIn,
-        isOvertime,
-        isLate,
       };
+      if (isOvertime) {
+        checkInOutData.isOvertime = true;
+      }
+      if (isLate) {
+        checkInOutData.isLate = true;
+      }
 
       console.log('Data being sent to check-in-out API:', checkInOutData);
 

@@ -21,7 +21,7 @@ export interface AttendanceData {
   photo?: string;
   isCheckIn: boolean;
   isOvertime?: boolean;
-  isLate: boolean;
+  isLate?: boolean;
   isFlexibleStart?: boolean;
   isFlexibleEnd?: boolean;
   isWithinGracePeriod?: boolean;
