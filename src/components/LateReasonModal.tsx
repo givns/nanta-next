@@ -1,5 +1,4 @@
-// LateReasonModal.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface LateReasonModalProps {
   isOpen: boolean;
@@ -13,12 +12,23 @@ const LateReasonModal: React.FC<LateReasonModalProps> = ({
   onSubmit,
 }) => {
   const [reason, setReason] = useState('');
+  const [isValid, setIsValid] = useState(false);
+
+  useEffect(() => {
+    const wordCount = reason
+      .trim()
+      .split(/\s+/)
+      .filter((word) => word.length > 0).length;
+    setIsValid(wordCount >= 3);
+  }, [reason]);
 
   if (!isOpen) return null;
 
   const handleSubmit = () => {
-    onSubmit(reason);
-    onClose();
+    if (isValid) {
+      onSubmit(reason);
+      onClose();
+    }
   };
 
   return (
@@ -32,7 +42,9 @@ const LateReasonModal: React.FC<LateReasonModalProps> = ({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}
+          placeholder="กรุณาระบุเหตุผล"
         />
+        {!isValid && <p className="text-red-500 mb-2">กรุณาใส่เหตุผล</p>}
         <div className="flex justify-end">
           <button
             className="px-4 py-2 bg-gray-200 rounded mr-2"
@@ -41,8 +53,13 @@ const LateReasonModal: React.FC<LateReasonModalProps> = ({
             ยกเลิก
           </button>
           <button
-            className="px-4 py-2 bg-blue-500 text-white rounded"
+            className={`px-4 py-2 ${
+              isValid
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            } rounded`}
             onClick={handleSubmit}
+            disabled={!isValid}
           >
             ยืนยัน
           </button>

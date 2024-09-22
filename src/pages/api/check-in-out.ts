@@ -114,13 +114,11 @@ export default async function handler(
   } catch (error: any) {
     console.error('Detailed error in check-in-out:', error);
     console.error('Received data:', req.body); // Add this line
-    res
-      .status(500)
-      .json({
-        error: 'Internal server error',
-        details: error.message,
-        receivedData: req.body,
-      });
+    res.status(500).json({
+      error: 'Internal server error',
+      details: error.message,
+      receivedData: req.body,
+    });
   }
 }
 
