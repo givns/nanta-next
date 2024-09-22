@@ -42,13 +42,13 @@ const attendanceService = new AttendanceService(
 
 const attendanceSchema = Yup.object().shape({
   employeeId: Yup.string().required('Employee ID is required'),
-  lineUserId: Yup.string().nullable(),
+  lineUserId: Yup.string().required('Line User ID is required'),
+  isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
   checkTime: Yup.date().optional(),
   location: Yup.string().optional(),
   checkInAddress: Yup.string().optional(), // Make checkInAddress optional
   checkOutAddress: Yup.string().optional(),
   reason: Yup.string(),
-  isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
   isOvertime: Yup.boolean().optional(), // Changed to optional
   isLate: Yup.boolean().optional(),
 });
@@ -68,7 +68,6 @@ export default async function handler(
 
     const attendanceData: AttendanceData = {
       ...validatedData,
-      lineUserId: '',
       checkTime: getBangkokTime().toISOString(), // Use server time
       location: validatedData.location || '',
       isLate: validatedData.isLate ?? false, // Provide a default value of false if isLate is undefined
