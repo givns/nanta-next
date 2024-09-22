@@ -73,7 +73,7 @@ export class NotificationService {
     userId: string,
     checkInTime: Date,
   ): Promise<void> {
-    const message = `You have successfully checked in at ${format(checkInTime, 'HH:mm:ss')}`;
+    const message = `คุณได้ลงเวลาเข้างานเรียบร้อยแล้ว ${format(checkInTime, 'HH:mm:ss')}`;
     await this.sendNotification(userId, message);
   }
 
@@ -81,13 +81,12 @@ export class NotificationService {
     userId: string,
     checkOutTime: Date,
   ): Promise<void> {
-    const message = `You have successfully checked out at ${format(checkOutTime, 'HH:mm:ss')}`;
+    const message = `คุณได้ลงเวลาออกงานเรียบร้อยแล้ว ${format(checkOutTime, 'HH:mm:ss')}`;
     await this.sendNotification(userId, message);
   }
 
   async sendMissingCheckInNotification(lineUserId: string): Promise<void> {
-    const message =
-      'คุณยังไม่ได้บันทึกเวลาเข้างานวันนี้ กรุณาบันทึกเวลาโดยเร็วที่สุด';
+    const message = 'คุณยังไม่ได้ลงเวลาเข้างานวันนี้ กรุณาลงเวลาโดยเร็วที่สุด';
     await this.sendLineMessage(lineUserId, message);
   }
 
@@ -110,7 +109,7 @@ export class NotificationService {
       return;
     }
 
-    const message = `Your overtime request for ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) has been approved by ${approver.name}.`;
+    const message = `คำขอทำงานล่วงเวลา ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) ได้รับการอนุมิติโดย ${approver.name}.`;
     await this.sendNotification(
       overtimeRequest.employeeId,
       message,
@@ -128,7 +127,7 @@ export class NotificationService {
       return;
     }
 
-    const message = `Your overtime request for ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) has been automatically approved as it's less than or equal to 2 hours.`;
+    const message = `คำขอทำงานล่วงเวลา ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) ได้รับการอนุมิติโดยระบบอัตโนมัติ`;
     await this.sendNotification(
       overtimeRequest.employeeId,
       message,

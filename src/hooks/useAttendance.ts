@@ -216,8 +216,25 @@ export const useAttendance = (
         const response = await axios.post('/api/location/check', newLocation);
         setAddress(response.data.address);
         setInPremises(response.data.inPremises);
+
+        // Update the checkInOutAllowance based on whether the user is in premises
+        setCheckInOutAllowance((prevAllowance) => ({
+          ...prevAllowance,
+          allowed: response.data.inPremises,
+          reason: response.data.inPremises
+            ? undefined
+            : 'You are not within the premises',
+        }));
       } catch (error) {
+        console.error('Error getting location:', error);
         setError('Unable to get precise location.');
+        setAddress('Unknown');
+        setInPremises(false);
+        setCheckInOutAllowance((prevAllowance) => ({
+          ...prevAllowance,
+          allowed: false,
+          reason: 'Unable to determine your location',
+        }));
       }
     };
 

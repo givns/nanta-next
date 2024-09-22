@@ -1,5 +1,5 @@
 // utils/dateUtils.ts
-import { format, parseISO, differenceInMinutes } from 'date-fns';
+import { format, parseISO, differenceInMinutes, isValid } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
 const TIMEZONE = 'Asia/Bangkok';
@@ -9,12 +9,16 @@ export function formatDate(date: string | Date): string {
   return format(toZonedTime(parsedDate, TIMEZONE), 'yyyy-MM-dd');
 }
 
-export function formatTime(time: string | Date): string {
+export function formatTime(time: string | Date | null): string | null {
+  if (!time) return null;
+
   const parsedTime =
     typeof time === 'string' ? parseISO(`1970-01-01T${time}`) : time;
-  return format(toZonedTime(parsedTime, TIMEZONE), 'HH:mm');
-}
 
+  if (!isValid(parsedTime)) return null;
+
+  return format(toZonedTime(parsedTime, TIMEZONE), 'HH:mm:ss');
+}
 export function getBangkokTime(): Date {
   return toZonedTime(new Date(), TIMEZONE);
 }

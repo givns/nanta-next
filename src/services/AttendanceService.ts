@@ -249,10 +249,10 @@ export class AttendanceService {
         employeeId: user.employeeId,
         date: new Date(formatDate(date)),
         checkIn: existingAttendance.checkInTime
-          ? formatTime(existingAttendance.checkInTime)
+          ? formatTime(existingAttendance.checkInTime) || undefined
           : undefined,
         checkOut: existingAttendance.checkOutTime
-          ? formatTime(existingAttendance.checkOutTime)
+          ? formatTime(existingAttendance.checkOutTime) || undefined
           : undefined,
         status,
         regularHours,

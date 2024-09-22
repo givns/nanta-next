@@ -13,6 +13,7 @@ import { OvertimeNotificationService } from '@/services/OvertimeNotificationServ
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { getBangkokTime, formatTime, formatDate } from '@/utils/dateUtils';
 import * as Yup from 'yup';
+import { format, isValid, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
@@ -50,6 +51,12 @@ const attendanceSchema = Yup.object().shape({
   isLate: Yup.boolean().optional(),
 });
 
+const formatTimeOrNull = (timeString: string | null): string | null => {
+  if (!timeString) return null;
+  const parsedTime = parseISO(timeString);
+  return isValid(parsedTime) ? format(parsedTime, 'HH:mm:ss') : null;
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -63,16 +70,13 @@ export default async function handler(
     const attendanceData: AttendanceData = {
       ...validatedData,
       lineUserId: '',
-      checkTime: getBangkokTime(), // Parse the ISO string to a Date object
+      checkTime: getBangkokTime().toISOString(), // Parse the ISO string to a Date object
       isLate: validatedData.isLate ?? false, // Provide a default value of false if isLate is undefined
     };
     // Ensure checkTime is in the correct format
     attendanceData.checkTime = getBangkokTime().toISOString();
 
     console.log('Received attendance data:', attendanceData);
-
-    const processedAttendance =
-      await attendanceService.processAttendance(attendanceData);
 
     const updatedStatus = await attendanceService.getLatestAttendanceStatus(
       attendanceData.employeeId,
