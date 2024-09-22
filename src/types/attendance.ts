@@ -15,7 +15,8 @@ export interface AttendanceData {
   lineUserId: string | null;
   checkTime: string | Date;
   location: string;
-  address: string;
+  checkInAddress?: string;
+  checkOutAddress?: string;
   reason?: string;
   photo?: string;
   isCheckIn: boolean;

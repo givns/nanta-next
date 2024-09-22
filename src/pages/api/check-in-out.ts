@@ -45,17 +45,19 @@ const attendanceSchema = Yup.object().shape({
   lineUserId: Yup.string().nullable(),
   checkTime: Yup.date().required('Check time is required'),
   location: Yup.string().required('Location is required'),
-  address: Yup.string().required('Address is required'),
+  checkInAddress: Yup.string().when('isCheckIn', (isCheckIn, schema) => {
+    return isCheckIn ? schema.required('Check-in address is required') : schema;
+  }),
+  checkOutAddress: Yup.string().when('isCheckIn', (isCheckIn, schema) => {
+    return isCheckIn
+      ? schema
+      : schema.required('Check-out address is required');
+  }),
   reason: Yup.string(),
   isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
+  isOvertime: Yup.boolean().required('Overtime flag is required'),
   isLate: Yup.boolean().optional(),
 });
-
-const formatTimeOrNull = (timeString: string | null): string | null => {
-  if (!timeString) return null;
-  const parsedTime = parseISO(timeString);
-  return isValid(parsedTime) ? format(parsedTime, 'HH:mm:ss') : null;
-};
 
 export default async function handler(
   req: NextApiRequest,
@@ -66,12 +68,17 @@ export default async function handler(
   }
 
   try {
+    console.log('Received data:', req.body);
     const validatedData = await attendanceSchema.validate(req.body);
     const attendanceData: AttendanceData = {
       ...validatedData,
       lineUserId: '',
       checkTime: getBangkokTime().toISOString(), // Parse the ISO string to a Date object
       isLate: validatedData.isLate ?? false, // Provide a default value of false if isLate is undefined
+      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
+        validatedData.isCheckIn
+          ? validatedData.checkInAddress
+          : validatedData.checkOutAddress,
     };
     // Ensure checkTime is in the correct format
     attendanceData.checkTime = getBangkokTime().toISOString();
