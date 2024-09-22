@@ -94,6 +94,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       console.log('Data being sent to check-in-out API:', checkInOutData);
 
       try {
+        console.log('UserData in CheckInOutForm:', userData);
+        console.log('CheckInOutData being sent:', checkInOutData);
         const response = await checkInOut(checkInOutData);
         console.log('Check-in/out response:', response);
 

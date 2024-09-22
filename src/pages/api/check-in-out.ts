@@ -104,9 +104,14 @@ export default async function handler(
         updatedStatus.latestAttendance.date = formatDate(
           new Date(updatedStatus.latestAttendance.date),
         );
-      } catch (formatError) {
-        console.error('Error formatting times:', formatError);
-        // If there's an error formatting, we'll leave the original values
+      } catch (error: any) {
+        console.error('Validation error:', error);
+        console.error('Received data:', req.body);
+        res.status(400).json({
+          error: 'Validation error',
+          details: error.errors,
+          receivedData: req.body,
+        });
       }
     }
 

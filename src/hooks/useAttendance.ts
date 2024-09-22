@@ -132,6 +132,7 @@ export const useAttendance = (
 
   const checkInOut = useCallback(
     async (attendanceData: AttendanceData) => {
+      console.log('AttendanceData received in useAttendance:', attendanceData);
       setIsLoading(true);
       setError(null);
       try {

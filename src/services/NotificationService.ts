@@ -73,7 +73,7 @@ export class NotificationService {
     userId: string,
     checkInTime: Date,
   ): Promise<void> {
-    const message = `บันทึกเวลาเข้างาน ${format(checkInTime, 'HH:mm')} เรียบร้อยแล้ว`;
+    const message = `บันทึกเวลาเข้างาน ${format(checkInTime, 'HH:mm')}`;
     await this.sendNotification(userId, message);
   }
 
@@ -81,7 +81,7 @@ export class NotificationService {
     userId: string,
     checkOutTime: Date,
   ): Promise<void> {
-    const message = `บันทึกเวลาออกงาน ${format(checkOutTime, 'HH:mm')} เรียบร้อยแล้ว`;
+    const message = `บันทึกเวลาออกงาน ${format(checkOutTime, 'HH:mm')} `;
     await this.sendNotification(userId, message);
   }
 
