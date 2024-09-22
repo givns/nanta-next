@@ -13,7 +13,7 @@ import { OvertimeNotificationService } from '@/services/OvertimeNotificationServ
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { getBangkokTime, formatTime, formatDate } from '@/utils/dateUtils';
 import * as Yup from 'yup';
-import { format, isValid, parseISO } from 'date-fns';
+import { format, isValid, parse, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
@@ -43,7 +43,7 @@ const attendanceService = new AttendanceService(
 const attendanceSchema = Yup.object().shape({
   employeeId: Yup.string().required('Employee ID is required'),
   lineUserId: Yup.string().nullable(),
-  checkTime: Yup.date().required('Check time is required'),
+  checkTime: Yup.date().optional(),
   location: Yup.string().optional(),
   checkInAddress: Yup.string().optional(), // Make checkInAddress optional
   checkOutAddress: Yup.string().optional(),
@@ -63,11 +63,13 @@ export default async function handler(
 
   try {
     console.log('Received data:', req.body);
+
     const validatedData = await attendanceSchema.validate(req.body);
+
     const attendanceData: AttendanceData = {
       ...validatedData,
       lineUserId: '',
-      checkTime: getBangkokTime().toISOString(), // Parse the ISO string to a Date object
+      checkTime: getBangkokTime().toISOString(), // Use server time
       location: validatedData.location || '',
       isLate: validatedData.isLate ?? false, // Provide a default value of false if isLate is undefined
       isOvertime: validatedData.isOvertime || false, // Default to false if not provided

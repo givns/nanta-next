@@ -13,7 +13,7 @@ export interface Location {
 export interface AttendanceData {
   employeeId: string;
   lineUserId: string | null;
-  checkTime: string | Date;
+  checkTime: string | Date; // Add 'undefined' as a possible type
   location?: string;
   checkInAddress?: string;
   checkOutAddress?: string;
