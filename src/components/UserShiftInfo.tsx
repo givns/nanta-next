@@ -59,28 +59,27 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   };
 
   const renderTodayInfo = () => {
-    return (
-      <>
-        {effectiveShift && (
+    if (!attendanceStatus.isDayOff && (effectiveShift || latestAttendance)) {
+      return (
+        <>
           <div className="bg-white p-4 rounded-lg mb-4">
-            <>
-              <h3 className="text-md font-semibold mt-4 mb-1">
-                กะการทำงานของคุณวันนี้:
-              </h3>
-              <p className="text-gray-800">
-                <span className="font-medium">{effectiveShift.name}</span> (
-                {effectiveShift.startTime} - {effectiveShift.endTime})
-              </p>
-              {attendanceStatus.shiftAdjustment && (
-                <p className="text-blue-600 mt-1">
-                  * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+            {effectiveShift && (
+              <>
+                <h3 className="text-md font-semibold mt-4 mb-1">
+                  กะการทำงานของคุณวันนี้:
+                </h3>
+                <p className="text-gray-800">
+                  <span className="font-medium">{effectiveShift.name}</span> (
+                  {effectiveShift.startTime} - {effectiveShift.endTime})
                 </p>
-              )}
-            </>
-          </div>
-        )}
-        {!attendanceStatus.isDayOff && (latestAttendance || effectiveShift) && (
-          <>
+                {attendanceStatus.shiftAdjustment && (
+                  <p className="text-blue-600 mt-1">
+                    * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+                  </p>
+                )}
+              </>
+            )}
+
             {latestAttendance && (
               <>
                 <p className="text-gray-800">
@@ -97,68 +96,72 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
                 </p>
               </>
             )}
-          </>
-        )}
+          </div>
 
-        {attendanceStatus.approvedOvertime &&
-          isOvertimeForToday(attendanceStatus.approvedOvertime) && (
-            <div className="bg-white p-4 rounded-lg mb-4">
-              <h3 className="text-md font-semibold mt-4 mb-1">
-                รายละเอียดการทำงานล่วงเวลาที่ได้รับอนุมัติ:
-              </h3>
-              <p className="text-gray-800">
-                เวลาเริ่ม:{' '}
-                <span className="font-medium">
-                  {format(
-                    attendanceStatus.approvedOvertime.startTime,
-                    'HH:mm:ss',
-                  )}
-                </span>
-              </p>
-              <p className="text-gray-800">
-                เวลาสิ้นสุด:{' '}
-                <span className="font-medium">
-                  {format(
-                    attendanceStatus.approvedOvertime.endTime,
-                    'HH:mm:ss',
-                  )}
-                </span>
-              </p>
-              <p className="text-gray-800">
-                เวลาที่อนุมัติ:{' '}
-                <span className="font-medium">
-                  {format(
-                    parseISO(
-                      attendanceStatus.approvedOvertime.approvedAt.toString(),
-                    ),
-                    'yyyy-MM-dd HH:mm:ss',
-                  )}
-                </span>
-              </p>
-            </div>
-          )}
-
-        {attendanceStatus.isDayOff &&
-          attendanceStatus.potentialOvertimes &&
-          attendanceStatus.potentialOvertimes.length > 0 && (
-            <div className="bg-white p-4 rounded-lg mb-4 mt-2 text-yellow-600">
-              <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
-              {attendanceStatus.potentialOvertimes.map((overtime, index) => (
-                <p key={index} className="text-gray-800">
-                  {overtime.periods &&
-                    overtime.periods.map((period, periodIndex) => (
-                      <span key={periodIndex}>
-                        {period.start} - {period.end}
-                        {periodIndex < (overtime.periods?.length ?? 0) - 1 &&
-                          ', '}
-                      </span>
-                    ))}
+          {attendanceStatus.approvedOvertime &&
+            isOvertimeForToday(attendanceStatus.approvedOvertime) && (
+              <div className="bg-white p-4 rounded-lg mb-4">
+                <h3 className="text-md font-semibold mt-4 mb-1">
+                  รายละเอียดการทำงานล่วงเวลาที่ได้รับอนุมัติ:
+                </h3>
+                <p className="text-gray-800">
+                  เวลาเริ่ม:{' '}
+                  <span className="font-medium">
+                    {format(
+                      attendanceStatus.approvedOvertime.startTime,
+                      'HH:mm:ss',
+                    )}
+                  </span>
                 </p>
-              ))}
-            </div>
-          )}
-      </>
-    );
+                <p className="text-gray-800">
+                  เวลาสิ้นสุด:{' '}
+                  <span className="font-medium">
+                    {format(
+                      attendanceStatus.approvedOvertime.endTime,
+                      'HH:mm:ss',
+                    )}
+                  </span>
+                </p>
+                <p className="text-gray-800">
+                  เวลาที่อนุมัติ:{' '}
+                  <span className="font-medium">
+                    {format(
+                      parseISO(
+                        attendanceStatus.approvedOvertime.approvedAt.toString(),
+                      ),
+                      'yyyy-MM-dd HH:mm:ss',
+                    )}
+                  </span>
+                </p>
+              </div>
+            )}
+        </>
+      );
+    }
+
+    if (
+      attendanceStatus.isDayOff &&
+      attendanceStatus.potentialOvertimes?.length > 0
+    ) {
+      return (
+        <div className="bg-white p-4 rounded-lg mb-4 mt-2 text-yellow-600">
+          <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
+          {attendanceStatus.potentialOvertimes.map((overtime, index) => (
+            <p key={index} className="text-gray-800">
+              {overtime.periods &&
+                overtime.periods.map((period, periodIndex) => (
+                  <span key={periodIndex}>
+                    {period.start} - {period.end}
+                    {periodIndex < (overtime.periods?.length ?? 0) - 1 && ', '}
+                  </span>
+                ))}
+            </p>
+          ))}
+        </div>
+      );
+    }
+
+    return null;
   };
 
   const renderFutureInfo = () => {
