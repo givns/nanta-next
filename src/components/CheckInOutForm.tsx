@@ -128,12 +128,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const submitCheckInOut = useCallback(
     async (lateReasonInput?: string) => {
-      if (!location) return;
+      if (isSubmitting || !location) return; // Prevent multiple submissions
+      setIsSubmitting(true);
 
       const checkInOutData: AttendanceData = {
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
-        checkTime: new Date(),
+        checkTime: getBangkokTime(),
         [attendanceStatus.isCheckingIn ? 'checkInAddress' : 'checkOutAddress']:
           address,
         reason: lateReasonInput || reason,
@@ -156,42 +157,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
-
         await closeLiffWindow();
       } catch (error: any) {
         console.error('Error during check-in/out:', error);
-
-        // Check if the error is due to a timeout or network issue
-        if (
-          error.message.includes('timeout') ||
-          error.message.includes('network')
-        ) {
-          console.log(
-            'Possible timeout or network error. Checking attendance status...',
-          );
-          const latestStatus = await refreshAttendanceStatus();
-
-          // If the attendance was actually recorded despite the error
-          if (
-            latestStatus.latestAttendance &&
-            new Date(
-              latestStatus.latestAttendance.checkInTime ||
-                latestStatus.latestAttendance.checkOutTime,
-            ) > new Date(checkInOutData.checkTime)
-          ) {
-            console.log(
-              'Attendance was recorded successfully despite the error',
-            );
-            onStatusChange(!attendanceStatus.isCheckingIn);
-            await closeLiffWindow();
-            return;
-          }
-        }
-
         setError('Failed to submit check-in/out. Please try again.');
+      } finally {
+        setIsSubmitting(false); // Unlock submission after completion
       }
     },
     [
+      isSubmitting,
       location,
       userData,
       attendanceStatus,
@@ -337,10 +312,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   };
 
   const handleAction = (action: 'checkIn' | 'checkOut') => {
+    if (isSubmitting) return; // Prevent multiple submissions
     if (action === 'checkOut' && !confirmEarlyCheckOut()) {
       return;
     }
     setStep('camera');
+    setIsSubmitting(true); // Set submitting flag to true
   };
 
   const confirmEarlyCheckOut = () => {
