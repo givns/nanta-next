@@ -183,8 +183,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handlePhotoCapture = useCallback(async () => {
     console.log('Photo capture started');
-    if (isSubmitting) return; // Add this line
-    setIsSubmitting(true);
+
+    // Do not set isSubmitting until submission starts
+    if (isSubmitting) return;
 
     try {
       console.log('Checking if check-in/out is allowed');
@@ -219,13 +220,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
 
       console.log('Submitting check-in/out');
+      setIsSubmitting(true); // Set submission to true only here
       await submitCheckInOut();
       console.log('Check-in/out submitted successfully');
     } catch (error) {
       console.error('Error in handlePhotoCapture:', error);
       setError('An error occurred. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Reset after completion
     }
   }, [
     isSubmitting,
