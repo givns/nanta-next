@@ -50,10 +50,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     location,
     address,
     isOutsideShift,
+    checkInOutAllowance,
     checkInOut,
     isCheckInOutAllowed,
     refreshAttendanceStatus,
-    checkInOutAllowance,
   } = useAttendance(
     userData,
     initialAttendanceStatus,
@@ -224,6 +224,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setButtonState(checkInOutAllowance || { allowed: false });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [checkInOutAllowance]);
+
+  useEffect(() => {
     console.log('CheckInOutForm mounted');
     console.log('userData:', userData);
     console.log('initialAttendanceStatus:', initialAttendanceStatus);
@@ -275,14 +283,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       </div>
     );
   }
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setButtonState(checkInOutAllowance || { allowed: false });
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [checkInOutAllowance]);
 
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
