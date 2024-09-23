@@ -65,11 +65,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
           <div className="bg-white p-4 rounded-lg mb-4">
             {effectiveShift && (
               <>
-                <div className="bg-gray-600 p-2 rounded-t-lg">
-                  <h3 className="text-md font-semibold text-white text-center">
-                    เวลาการทำงานของคุณวันนี้:
-                  </h3>
-                </div>
+                <h3 className="text-md font-semibold mt-4 mb-1">
+                  เวลาการทำงานของคุณวันนี้:
+                </h3>
                 <p className="text-gray-800">
                   <span className="font-medium">{effectiveShift.name}</span> (
                   {effectiveShift.startTime} - {effectiveShift.endTime})
