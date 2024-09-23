@@ -15,7 +15,11 @@ import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
-import { formatTime, getBangkokTime } from '../utils/dateUtils';
+import {
+  formatBangkokTime,
+  formatTime,
+  getBangkokTime,
+} from '../utils/dateUtils';
 import liff from '@line/liff';
 import { parseISO } from 'date-fns';
 
@@ -129,7 +133,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       const checkInOutData: AttendanceData = {
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
-        checkTime: getBangkokTime(),
+        checkTime: formatBangkokTime(
+          new Date(),
+          "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        ),
         [attendanceStatus.isCheckingIn ? 'checkInAddress' : 'checkOutAddress']:
           address,
         reason: lateReasonInput || reason,
@@ -204,11 +211,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handlePhotoCapture = useCallback(async () => {
     console.log('Photo capture started');
-    if (!location) {
-      console.error('No location data');
-      onError();
-      return;
-    }
     if (isSubmitting) return; // Add this line
     setIsSubmitting(true);
 
@@ -243,7 +245,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setReason('');
         return;
       }
-      setIsSubmitting(false); // Add this at the end of the function
 
       console.log('Submitting check-in/out');
       await submitCheckInOut();
@@ -251,6 +252,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     } catch (error) {
       console.error('Error in handlePhotoCapture:', error);
       setError('An error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   }, [
     location,
