@@ -18,6 +18,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { formatTime, getBangkokTime } from '../utils/dateUtils';
 import liff from '@line/liff';
 import { parseISO } from 'date-fns';
+import axios from 'axios';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -42,6 +43,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isLate, setIsLate] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checkInOutAllowance, setCheckInOutAllowance] =
+    useState<CheckInOutAllowance | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const {
     attendanceStatus,
@@ -51,12 +55,29 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     checkInOut,
     isCheckInOutAllowed,
     refreshAttendanceStatus,
-    checkInOutAllowance,
   } = useAttendance(
     userData,
     initialAttendanceStatus,
     initialCheckInOutAllowance,
   );
+
+  useEffect(() => {
+    const fetchFreshData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await axios.get(
+          `/api/user-check-in-status?lineUserId=${userData.lineUserId}&forceRefresh=true`,
+        );
+        setCheckInOutAllowance(response.data.checkInOutAllowance);
+      } catch (error) {
+        console.error('Error fetching fresh data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchFreshData();
+  }, [userData.lineUserId]);
 
   const closeLiffWindow = async () => {
     try {
@@ -296,99 +317,110 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     let buttonText = 'ไม่สามารถลงเวลาได้ในขณะนี้';
     if (checkInOutAllowance?.allowed) {
       buttonText = `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
+      if (isLoading) {
+        return (
+          <button
+            className="w-full bg-gray-400 text-white py-3 px-4 rounded-lg"
+            disabled
+          >
+            Loading...
+          </button>
+        );
+      }
+
+      return (
+        <>
+          <button
+            onClick={() =>
+              handleAction(
+                attendanceStatus.isCheckingIn ? 'checkIn' : 'checkOut',
+              )
+            }
+            disabled={!checkInOutAllowance?.allowed}
+            className={buttonClass}
+            aria-label={buttonText}
+          >
+            {buttonText}
+          </button>
+          {!checkInOutAllowance?.allowed && checkInOutAllowance?.reason && (
+            <p className="text-red-500 text-center text-sm mt-2">
+              {checkInOutAllowance.reason}
+            </p>
+          )}
+          {checkInOutAllowance?.countdown !== undefined && (
+            <p className="text-blue-500 text-center text-sm mt-2">
+              สามารถลงเวลาได้ในอีก {checkInOutAllowance.countdown} นาที
+            </p>
+          )}
+        </>
+      );
     }
+
+    const handleAction = (action: 'checkIn' | 'checkOut') => {
+      if (action === 'checkOut' && !confirmEarlyCheckOut()) {
+        return;
+      }
+      setStep('camera');
+    };
+
+    const confirmEarlyCheckOut = () => {
+      if (!effectiveShift) return true;
+
+      const now = getBangkokTime();
+      const shiftEnd = parseISO(effectiveShift.endTime);
+      if (now < shiftEnd) {
+        const confirmed = window.confirm(
+          'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน กรุณายื่นคำขอลาในระบบ คุณต้องการลงเวลาออกหรือไม่?',
+        );
+        if (confirmed) {
+          // Redirect to leave request page
+          window.location.href = '/leave-request';
+          return false;
+        }
+      }
+      return true;
+    };
+
+    const renderStep2 = () => (
+      <div className="h-full flex flex-col justify-center">
+        {isModelLoading ? (
+          <SkeletonLoader />
+        ) : (
+          <>
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              className="w-full rounded-lg mb-4"
+            />
+            <p className="text-center mb-2">{faceDetectionMessage}</p>
+          </>
+        )}
+      </div>
+    );
 
     return (
-      <>
-        <button
-          onClick={() =>
-            handleAction(attendanceStatus.isCheckingIn ? 'checkIn' : 'checkOut')
-          }
-          disabled={!checkInOutAllowance?.allowed}
-          className={buttonClass}
-          aria-label={buttonText}
-        >
-          {buttonText}
-        </button>
-        {!checkInOutAllowance?.allowed && checkInOutAllowance?.reason && (
-          <p className="text-red-500 text-center text-sm mt-2">
-            {checkInOutAllowance.reason}
-          </p>
-        )}
-        {checkInOutAllowance?.countdown !== undefined && (
-          <p className="text-blue-500 text-center text-sm mt-2">
-            สามารถลงเวลาได้ในอีก {checkInOutAllowance.countdown} นาที
-          </p>
-        )}
-      </>
+      <ErrorBoundary>
+        <div className="h-screen flex flex-col">
+          <div className="flex-grow overflow-hidden flex flex-col">
+            {step === 'info' && renderStep1()}
+            {step === 'camera' && renderStep2()}
+          </div>
+          {error && (
+            <div className="mt-4">
+              <p className="text-red-500" role="alert">
+                {error}
+              </p>
+            </div>
+          )}
+          <LateReasonModal
+            isOpen={isLateModalOpen}
+            onClose={() => setIsLateModalOpen(false)}
+            onSubmit={handleLateReasonSubmit}
+          />
+        </div>
+      </ErrorBoundary>
     );
   };
-
-  const handleAction = (action: 'checkIn' | 'checkOut') => {
-    if (action === 'checkOut' && !confirmEarlyCheckOut()) {
-      return;
-    }
-    setStep('camera');
-  };
-
-  const confirmEarlyCheckOut = () => {
-    if (!effectiveShift) return true;
-
-    const now = getBangkokTime();
-    const shiftEnd = parseISO(effectiveShift.endTime);
-    if (now < shiftEnd) {
-      const confirmed = window.confirm(
-        'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน กรุณายื่นคำขอลาในระบบ คุณต้องการลงเวลาออกหรือไม่?',
-      );
-      if (confirmed) {
-        // Redirect to leave request page
-        window.location.href = '/leave-request';
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const renderStep2 = () => (
-    <div className="h-full flex flex-col justify-center">
-      {isModelLoading ? (
-        <SkeletonLoader />
-      ) : (
-        <>
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            className="w-full rounded-lg mb-4"
-          />
-          <p className="text-center mb-2">{faceDetectionMessage}</p>
-        </>
-      )}
-    </div>
-  );
-
-  return (
-    <ErrorBoundary>
-      <div className="h-screen flex flex-col">
-        <div className="flex-grow overflow-hidden flex flex-col">
-          {step === 'info' && renderStep1()}
-          {step === 'camera' && renderStep2()}
-        </div>
-        {error && (
-          <div className="mt-4">
-            <p className="text-red-500" role="alert">
-              {error}
-            </p>
-          </div>
-        )}
-        <LateReasonModal
-          isOpen={isLateModalOpen}
-          onClose={() => setIsLateModalOpen(false)}
-          onSubmit={handleLateReasonSubmit}
-        />
-      </div>
-    </ErrorBoundary>
-  );
 };
-
 export default CheckInOutForm;
