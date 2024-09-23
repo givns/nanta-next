@@ -60,6 +60,55 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     initialCheckInOutAllowance,
   );
 
+  useEffect(() => {
+    console.log('CheckInOutForm mounted');
+    console.log('userData:', userData);
+    console.log('initialAttendanceStatus:', initialAttendanceStatus);
+    console.log('effectiveShift:', effectiveShift);
+
+    try {
+      if (initialAttendanceStatus?.latestAttendance) {
+        const { checkInTime, checkOutTime, status } =
+          initialAttendanceStatus.latestAttendance;
+        console.log('Latest attendance:', {
+          checkInTime,
+          checkOutTime,
+          status,
+        });
+
+        if (checkInTime) {
+          console.log('Check-in time:', checkInTime);
+        } else {
+          console.log('No check-in time available');
+        }
+
+        if (checkOutTime) {
+          console.log('Check-out time:', checkOutTime);
+        } else {
+          console.log('No check-out time available');
+        }
+      }
+
+      if (effectiveShift) {
+        console.log('Shift start time:', formatTime(effectiveShift.startTime));
+        console.log('Shift end time:', formatTime(effectiveShift.endTime));
+      }
+    } catch (err) {
+      console.error('Error in CheckInOutForm:', err);
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
+    }
+  }, [userData, initialAttendanceStatus, effectiveShift]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setButtonState(checkInOutAllowance || { allowed: false });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [checkInOutAllowance]);
+
   const closeLiffWindow = async () => {
     try {
       await liff.init({
@@ -222,55 +271,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setIsLateModalOpen(false);
     await submitCheckInOut(lateReason);
   };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setButtonState(checkInOutAllowance || { allowed: false });
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [checkInOutAllowance]);
-
-  useEffect(() => {
-    console.log('CheckInOutForm mounted');
-    console.log('userData:', userData);
-    console.log('initialAttendanceStatus:', initialAttendanceStatus);
-    console.log('effectiveShift:', effectiveShift);
-
-    try {
-      if (initialAttendanceStatus?.latestAttendance) {
-        const { checkInTime, checkOutTime, status } =
-          initialAttendanceStatus.latestAttendance;
-        console.log('Latest attendance:', {
-          checkInTime,
-          checkOutTime,
-          status,
-        });
-
-        if (checkInTime) {
-          console.log('Check-in time:', checkInTime);
-        } else {
-          console.log('No check-in time available');
-        }
-
-        if (checkOutTime) {
-          console.log('Check-out time:', checkOutTime);
-        } else {
-          console.log('No check-out time available');
-        }
-      }
-
-      if (effectiveShift) {
-        console.log('Shift start time:', formatTime(effectiveShift.startTime));
-        console.log('Shift end time:', formatTime(effectiveShift.endTime));
-      }
-    } catch (err) {
-      console.error('Error in CheckInOutForm:', err);
-      setError(
-        err instanceof Error ? err.message : 'An unknown error occurred',
-      );
-    }
-  }, [userData, initialAttendanceStatus, effectiveShift]);
 
   if (error) {
     return (
