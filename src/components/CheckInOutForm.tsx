@@ -18,6 +18,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { formatTime, getBangkokTime } from '../utils/dateUtils';
 import liff from '@line/liff';
 import { parseISO } from 'date-fns';
+import { get } from 'lodash';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -78,7 +79,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       const checkInOutData: AttendanceData = {
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
-        checkTime: new Date().toISOString(),
+        checkTime: getBangkokTime(),
         [attendanceStatus.isCheckingIn ? 'checkInAddress' : 'checkOutAddress']:
           address,
         reason: lateReasonInput || reason,
@@ -145,6 +146,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       isLate,
       reason,
       checkInOut,
+      checkInOutAllowance,
       onStatusChange,
       refreshAttendanceStatus,
       closeLiffWindow,
