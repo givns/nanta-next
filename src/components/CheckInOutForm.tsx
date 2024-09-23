@@ -133,10 +133,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       const checkInOutData: AttendanceData = {
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
-        checkTime: formatBangkokTime(
-          new Date(),
-          "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
-        ),
+        checkTime: new Date(),
         [attendanceStatus.isCheckingIn ? 'checkInAddress' : 'checkOutAddress']:
           address,
         reason: lateReasonInput || reason,
