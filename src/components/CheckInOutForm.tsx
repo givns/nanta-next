@@ -228,12 +228,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setIsSubmitting(false);
     }
   }, [
-    location,
+    isSubmitting,
     isCheckInOutAllowed,
     attendanceStatus.isCheckingIn,
     submitCheckInOut,
     onError,
-    isSubmitting,
   ]);
 
   const {
