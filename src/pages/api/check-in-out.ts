@@ -11,7 +11,12 @@ import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
-import { getBangkokTime, formatTime, formatDate } from '@/utils/dateUtils';
+import {
+  getBangkokTime,
+  formatTime,
+  formatDate,
+  formatBangkokTime,
+} from '@/utils/dateUtils';
 import * as Yup from 'yup';
 import { format, isValid, parse, parseISO } from 'date-fns';
 
@@ -120,7 +125,10 @@ export default async function handler(
       isLate: validatedData.isLate || false,
     };
     // Ensure checkTime is in the correct format
-    attendanceData.checkTime = getBangkokTime().toISOString();
+    attendanceData.checkTime = formatBangkokTime(
+      getBangkokTime(),
+      "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+    );
 
     console.log('Received attendance data:', attendanceData);
 

@@ -43,6 +43,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isLate, setIsLate] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     attendanceStatus,
@@ -161,6 +162,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         onError();
         return;
       }
+      if (isSubmitting) return; // Add this line
+      setIsSubmitting(true);
 
       try {
         console.log('Checking if check-in/out is allowed');
@@ -192,6 +195,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           setIsLateModalOpen(true);
           return;
         }
+        setIsSubmitting(false); // Add this at the end of the function
 
         console.log('Submitting check-in/out');
         await submitCheckInOut();
@@ -289,14 +293,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderActionButton = () => {
+    const [buttonState, setButtonState] = useState(checkInOutAllowance);
+
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        setButtonState(checkInOutAllowance);
+      }, 500); // 500ms delay
+
+      return () => clearTimeout(timer);
+    }, [checkInOutAllowance]);
+
     const buttonClass = `w-full ${
-      checkInOutAllowance?.allowed
+      buttonState?.allowed
         ? 'bg-red-600 hover:bg-red-700'
         : 'bg-gray-400 cursor-not-allowed'
     } text-white py-3 px-4 rounded-lg transition duration-300`;
 
     let buttonText = 'ไม่สามารถลงเวลาได้ในขณะนี้';
-    if (checkInOutAllowance?.allowed) {
+    if (buttonState?.allowed) {
       buttonText = `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
     }
 
@@ -306,20 +320,20 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           onClick={() =>
             handleAction(attendanceStatus.isCheckingIn ? 'checkIn' : 'checkOut')
           }
-          disabled={!checkInOutAllowance?.allowed}
+          disabled={!buttonState?.allowed}
           className={buttonClass}
           aria-label={buttonText}
         >
           {buttonText}
         </button>
-        {!checkInOutAllowance?.allowed && checkInOutAllowance?.reason && (
+        {!buttonState?.allowed && buttonState?.reason && (
           <p className="text-red-500 text-center text-sm mt-2">
-            {checkInOutAllowance.reason}
+            {buttonState.reason}
           </p>
         )}
-        {checkInOutAllowance?.countdown !== undefined && (
+        {buttonState?.countdown !== undefined && (
           <p className="text-blue-500 text-center text-sm mt-2">
-            สามารถลงเวลาได้ในอีก {checkInOutAllowance.countdown} นาที
+            สามารถลงเวลาได้ในอีก {buttonState.countdown} นาที
           </p>
         )}
       </>
