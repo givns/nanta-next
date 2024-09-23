@@ -22,8 +22,6 @@ import {
   addDays,
   max,
   min,
-  differenceInHours,
-  roundToNearestMinutes,
   subMinutes,
 } from 'date-fns';
 import {
@@ -776,7 +774,7 @@ export class AttendanceService {
       return { allowed: false, reason: 'You are not within the premises' };
     }
 
-    const now = new Date();
+    const now = getBangkokTime();
     const shiftStatus =
       await this.shiftManagementService.getShiftStatus(employeeId);
     const effectiveShift = await this.shiftManagementService.getEffectiveShift(
@@ -794,7 +792,7 @@ export class AttendanceService {
     const earlyCheckInWindow = subMinutes(shiftStart, 30); // 30 minutes before shift start
 
     const isHoliday = await this.holidayService.isHoliday(
-      new Date(),
+      getBangkokTime(),
       [],
       user.shiftCode === 'SHIFT104',
     );
@@ -807,7 +805,7 @@ export class AttendanceService {
 
     const leaveRequest = await this.leaveService.checkUserOnLeave(
       employeeId,
-      new Date(),
+      getBangkokTime(),
     );
     if (leaveRequest)
       return { allowed: false, reason: 'User is on approved leave' };
