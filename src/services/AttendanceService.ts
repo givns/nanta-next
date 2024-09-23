@@ -23,6 +23,8 @@ import {
   max,
   min,
   subMinutes,
+  subHours,
+  addHours,
 } from 'date-fns';
 import {
   AttendanceData,
@@ -119,22 +121,34 @@ export class AttendanceService {
 
       const { isCheckIn, checkTime } = attendanceData;
       const parsedCheckTime = this.parseCheckTime(checkTime);
-      const date = startOfDay(parsedCheckTime);
+      const attendanceDate = startOfDay(parsedCheckTime);
 
       const effectiveShift =
         await this.shiftManagementService.getEffectiveShift(
           user.employeeId,
-          date,
+          attendanceDate,
         );
       if (!effectiveShift) throw new AppError('Effective shift not found', 404);
 
-      const shiftStart = this.parseShiftTime(effectiveShift.startTime, date);
-      const shiftEnd = this.parseShiftTime(effectiveShift.endTime, date);
+      const shiftStart = this.parseShiftTime(
+        effectiveShift.startTime,
+        attendanceDate,
+      );
+      const shiftEnd = this.parseShiftTime(
+        effectiveShift.endTime,
+        attendanceDate,
+      );
 
       let existingAttendance = await this.prisma.attendance.findFirst({
         where: {
           employeeId: user.employeeId,
-          date: date,
+          date: {
+            gte: startOfDay(subHours(attendanceDate, 12)), // Look back 12 hours
+            lt: endOfDay(attendanceDate),
+          },
+        },
+        orderBy: {
+          date: 'desc',
         },
       });
 
@@ -171,7 +185,7 @@ export class AttendanceService {
           const approvedOvertime =
             await this.overtimeService.getApprovedOvertimeRequest(
               user.employeeId,
-              date,
+              attendanceDate,
             );
 
           if (approvedOvertime) {
@@ -214,7 +228,7 @@ export class AttendanceService {
         existingAttendance = await this.prisma.attendance.create({
           data: {
             employeeId: user.employeeId,
-            date: date,
+            date: attendanceDate,
             checkInTime: isCheckIn ? parsedCheckTime : undefined,
             checkOutTime: !isCheckIn ? parsedCheckTime : undefined,
             status,
@@ -246,7 +260,7 @@ export class AttendanceService {
       const processedAttendance: ProcessedAttendance = {
         id: existingAttendance.id,
         employeeId: user.employeeId,
-        date: new Date(formatDate(date)),
+        date: new Date(formatDate(attendanceDate)),
         checkIn: existingAttendance.checkInTime
           ? formatTime(existingAttendance.checkInTime) || undefined
           : undefined,
@@ -350,7 +364,7 @@ export class AttendanceService {
     const user = await this.getCachedUserData(employeeId);
     if (!user) throw new Error('User not found');
 
-    const today = new Date();
+    const today = startOfDay(getBangkokTime());
     const latestAttendance = await this.getLatestAttendance(employeeId);
 
     if (!user.shiftCode) throw new Error('User shift not found');
@@ -546,8 +560,15 @@ export class AttendanceService {
   }
 
   async getLatestAttendance(employeeId: string): Promise<Attendance | null> {
+    const today = startOfDay(getBangkokTime());
     return this.prisma.attendance.findFirst({
-      where: { employeeId },
+      where: {
+        employeeId,
+        date: {
+          gte: today,
+          lt: endOfDay(today),
+        },
+      },
       orderBy: { date: 'desc' },
     });
   }
@@ -814,7 +835,7 @@ export class AttendanceService {
       const minutesUntilAllowed = differenceInMinutes(earlyCheckInWindow, now);
       return {
         allowed: false,
-        reason: `Early check-in not allowed yet. Please wait ${minutesUntilAllowed} minutes.`,
+        reason: `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
         countdown: minutesUntilAllowed,
       };
     }
@@ -822,7 +843,7 @@ export class AttendanceService {
     if (now >= earlyCheckInWindow && now < shiftStart) {
       return {
         allowed: true,
-        reason: 'Early check-in: Time will be recorded',
+        reason: 'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
         isOvertime: false,
       };
     }
@@ -831,13 +852,14 @@ export class AttendanceService {
       if (shiftStatus.isOvertime) {
         return {
           allowed: true,
-          reason: 'Outside regular shift: Overtime will be recorded',
+          reason: 'คุฯกำลังลงเวลานอกกะการทำงาน',
           isOvertime: true,
         };
       } else {
         return {
           allowed: true,
-          reason: 'Early check-in: Time will be recorded',
+          reason:
+            'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
           isOvertime: false,
         };
       }
@@ -845,7 +867,7 @@ export class AttendanceService {
     if (shiftStatus.isLate) {
       return {
         allowed: true,
-        reason: 'Late check-in',
+        reason: 'คุณกำลังลงเวลาเข้างานสาย',
         isLate: true,
         isOvertime: false,
       };
