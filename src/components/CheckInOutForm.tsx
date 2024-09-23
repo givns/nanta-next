@@ -147,7 +147,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       isLate,
       reason,
       checkInOut,
-      checkInOutAllowance,
       onStatusChange,
       refreshAttendanceStatus,
       closeLiffWindow,
@@ -210,6 +209,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     attendanceStatus.isCheckingIn,
     submitCheckInOut,
     onError,
+    isSubmitting,
   ]);
 
   const {
