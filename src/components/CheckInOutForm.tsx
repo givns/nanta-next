@@ -18,7 +18,6 @@ import ErrorBoundary from './ErrorBoundary';
 import { formatTime, getBangkokTime } from '../utils/dateUtils';
 import liff from '@line/liff';
 import { parseISO } from 'date-fns';
-import { get } from 'lodash';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -44,6 +43,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isOvertime, setIsOvertime] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [buttonState, setButtonState] = useState(initialCheckInOutAllowance);
 
   const {
     attendanceStatus,
@@ -154,65 +154,63 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     ],
   );
 
-  const handlePhotoCapture = useCallback(
-    async (capturedPhoto: string) => {
-      console.log('Photo capture started');
-      if (!location) {
-        console.error('No location data');
-        onError();
+  const handlePhotoCapture = useCallback(async () => {
+    console.log('Photo capture started');
+    if (!location) {
+      console.error('No location data');
+      onError();
+      return;
+    }
+    if (isSubmitting) return; // Add this line
+    setIsSubmitting(true);
+
+    try {
+      console.log('Checking if check-in/out is allowed');
+      const {
+        allowed,
+        reason: checkInOutReason,
+        isLate,
+        isOvertime,
+      } = await isCheckInOutAllowed();
+
+      console.log('Check-in/out allowance result:', {
+        allowed,
+        isLate,
+        isOvertime,
+      });
+
+      if (!allowed) {
+        console.error(checkInOutReason);
+        setError(
+          checkInOutReason || 'Check-in/out is not allowed at this time.',
+        );
         return;
       }
-      if (isSubmitting) return; // Add this line
-      setIsSubmitting(true);
 
-      try {
-        console.log('Checking if check-in/out is allowed');
-        const {
-          allowed,
-          reason: checkInOutReason,
-          isLate,
-          isOvertime,
-        } = await isCheckInOutAllowed();
+      setIsLate(isLate || false);
+      setIsOvertime(isOvertime || false);
 
-        console.log('Check-in/out allowance result:', {
-          allowed,
-          isLate,
-          isOvertime,
-        });
-
-        if (!allowed) {
-          console.error(checkInOutReason);
-          setError(
-            checkInOutReason || 'Check-in/out is not allowed at this time.',
-          );
-          return;
-        }
-
-        setIsLate(isLate || false);
-        setIsOvertime(isOvertime || false);
-
-        if (isLate && attendanceStatus.isCheckingIn) {
-          setIsLateModalOpen(true);
-          return;
-        }
-        setIsSubmitting(false); // Add this at the end of the function
-
-        console.log('Submitting check-in/out');
-        await submitCheckInOut();
-        console.log('Check-in/out submitted successfully');
-      } catch (error) {
-        console.error('Error in handlePhotoCapture:', error);
-        setError('An error occurred. Please try again.');
+      if (isLate && attendanceStatus.isCheckingIn) {
+        setIsLateModalOpen(true);
+        setReason('');
+        return;
       }
-    },
-    [
-      location,
-      isCheckInOutAllowed,
-      attendanceStatus.isCheckingIn,
-      submitCheckInOut,
-      onError,
-    ],
-  );
+      setIsSubmitting(false); // Add this at the end of the function
+
+      console.log('Submitting check-in/out');
+      await submitCheckInOut();
+      console.log('Check-in/out submitted successfully');
+    } catch (error) {
+      console.error('Error in handlePhotoCapture:', error);
+      setError('An error occurred. Please try again.');
+    }
+  }, [
+    location,
+    isCheckInOutAllowed,
+    attendanceStatus.isCheckingIn,
+    submitCheckInOut,
+    onError,
+  ]);
 
   const {
     webcamRef,
@@ -278,6 +276,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   }
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setButtonState(checkInOutAllowance || { allowed: false });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [checkInOutAllowance]);
+
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
       <ErrorBoundary>
@@ -293,16 +299,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderActionButton = () => {
-    const [buttonState, setButtonState] = useState(checkInOutAllowance);
-
-    useEffect(() => {
-      const timer = setTimeout(() => {
-        setButtonState(checkInOutAllowance);
-      }, 500); // 500ms delay
-
-      return () => clearTimeout(timer);
-    }, [checkInOutAllowance]);
-
     const buttonClass = `w-full ${
       buttonState?.allowed
         ? 'bg-red-600 hover:bg-red-700'
