@@ -142,10 +142,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const submitCheckInOut = useCallback(
     async (photo: string, lateReasonInput?: string) => {
       addDebugLog('submitCheckInOut called');
-      if (!location || isSubmitting) {
-        addDebugLog(
-          `Cannot submit: location: ${!!location}, isSubmitting: ${isSubmitting}`,
-        );
+      if (!location) {
+        addDebugLog(`Cannot submit: location not available`);
+        return;
+      }
+      if (isSubmitting) {
+        addDebugLog('Submission already in progress, skipping');
         return;
       }
       setIsSubmitting(true);
@@ -201,6 +203,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const handlePhotoCapture = useCallback(
     async (photo: string) => {
       addDebugLog('Photo captured');
+      if (isSubmitting) {
+        addDebugLog('Submission already in progress, skipping photo capture');
+        return;
+      }
       try {
         const {
           allowed,
