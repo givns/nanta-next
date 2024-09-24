@@ -180,9 +180,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setStep('confirm');
         setPhoto(photo);
 
+        addDebugLog('Moving to confirmation step');
+
         if (isLate && attendanceStatus.isCheckingIn) {
           setIsLateModalOpen(true);
           setReason('');
+          addDebugLog('Late modal opened');
         }
       } catch (error) {
         addDebugLog(`Error in handlePhotoCapture: ${error}`);
@@ -221,12 +224,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         isLate,
       };
 
-      console.log('Data being sent to check-in-out API:', checkInOutData);
       addDebugLog(`Sending data to API: ${JSON.stringify(checkInOutData)}`);
 
       try {
         const response = await checkInOut(checkInOutData);
-        console.log('Check-in/out response:', response);
         addDebugLog(`API response received: ${JSON.stringify(response)}`);
 
         onStatusChange(!attendanceStatus.isCheckingIn);
@@ -385,7 +386,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         />
       )}
       <button
-        onClick={() => submitCheckInOut()}
+        onClick={() => {
+          addDebugLog('Confirm button clicked');
+          submitCheckInOut();
+        }}
         disabled={isSubmitting}
         className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded"
       >
