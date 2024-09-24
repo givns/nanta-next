@@ -48,11 +48,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
 
   const addDebugLog = useCallback((message: string) => {
     setDebugLog((prev) => {
       const newLog = [...prev, `${new Date().toISOString()}: ${message}`];
-      console.log(message); // Log to console as well
+      console.log(message);
       return newLog;
     });
   }, []);
@@ -230,15 +231,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const handlePhotoCapture = useCallback(
     (photo: string) => {
       addDebugLog('Photo captured');
-      if (isSubmitting) {
-        addDebugLog('Submission already in progress, skipping photo capture');
-        return;
-      }
       setCapturedPhoto(photo);
-      addDebugLog('Photo stored, proceeding with check-in/out process');
+      setIsCameraActive(false); // Close the camera after capturing
+      addDebugLog('Camera deactivated, photo stored');
     },
-    [isSubmitting, addDebugLog],
+    [addDebugLog],
   );
+
+  const { webcamRef, isModelLoading, message, resetDetection } =
+    useFaceDetection(5, handlePhotoCapture);
 
   useEffect(() => {
     const processCapture = async () => {
@@ -292,9 +293,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     addDebugLog,
     resetStates,
   ]);
-
-  const { webcamRef, isModelLoading, message, resetDetection } =
-    useFaceDetection(5, handlePhotoCapture);
 
   const handleLateReasonSubmit = useCallback(
     async (lateReason: string) => {
@@ -375,12 +373,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   };
 
   const handleAction = (action: 'checkIn' | 'checkOut') => {
-    if (isSubmitting) return; // Prevent multiple submissions
     if (action === 'checkOut' && !confirmEarlyCheckOut()) {
       return;
     }
     setStep('camera');
-    setIsSubmitting(true); // Set submitting flag to true
+    setIsCameraActive(true);
+    resetDetection(); // Reset face detection when activating the camera
+    addDebugLog('Camera activated for check-in/out');
   };
 
   const confirmEarlyCheckOut = () => {
@@ -436,7 +435,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           {step === 'camera' && renderStep2()}
           {step === 'processing' && renderStep3()}
           <button
-            onClick={resetStates}
+            onClick={() => {
+              resetStates();
+              resetDetection();
+              setIsCameraActive(false);
+              setStep('info');
+            }}
             className="mt-2 text-blue-500 underline"
           >
             Reset (Debug)

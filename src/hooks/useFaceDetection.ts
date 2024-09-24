@@ -17,6 +17,7 @@ export const useFaceDetection = (
   const [message, setMessage] = useState<string>('');
   const webcamRef = useRef<Webcam>(null);
   const faceDetectionCount = useRef(0);
+  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const loadModel = async () => {
@@ -36,6 +37,9 @@ export const useFaceDetection = (
     if (imageSrc) {
       setPhoto(imageSrc);
       onPhotoCapture(imageSrc);
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+      }
       return imageSrc;
     }
     return null;
@@ -73,18 +77,30 @@ export const useFaceDetection = (
     }
   }, [model, captureThreshold, capturePhoto]);
 
-  useEffect(() => {
+  const startDetection = useCallback(() => {
     if (!isModelLoading && !photo) {
-      const interval = setInterval(detectFace, 500);
-      return () => clearInterval(interval);
+      detectionIntervalRef.current = setInterval(detectFace, 500);
     }
   }, [detectFace, isModelLoading, photo]);
+
+  const stopDetection = useCallback(() => {
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    startDetection();
+    return () => stopDetection();
+  }, [startDetection, stopDetection]);
 
   const resetDetection = useCallback(() => {
     setPhoto(null);
     setFaceDetected(false);
     faceDetectionCount.current = 0;
-  }, []);
+    stopDetection();
+    startDetection();
+  }, [stopDetection, startDetection]);
 
   return {
     webcamRef,
