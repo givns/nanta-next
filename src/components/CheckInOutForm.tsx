@@ -151,6 +151,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         return;
       }
       setIsSubmitting(true);
+      addDebugLog('Setting isSubmitting to true');
+
       setError(null);
 
       const checkInOutData: AttendanceData = {
@@ -181,11 +183,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setError('Failed to submit check-in/out. Please try again.');
       } finally {
         setIsSubmitting(false);
+        addDebugLog('Setting isSubmitting to false');
       }
     },
     [
       location,
-      isSubmitting,
       userData,
       attendanceStatus,
       address,
@@ -244,6 +246,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     },
     [
+      isSubmitting,
       isCheckInOutAllowed,
       attendanceStatus.isCheckingIn,
       submitCheckInOut,
@@ -251,19 +254,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     ],
   );
 
-  const { webcamRef, isModelLoading, message, resetDetection } =
-    useFaceDetection(5, handlePhotoCapture);
+  const { webcamRef, isModelLoading, message } = useFaceDetection(
+    5,
+    handlePhotoCapture,
+  );
 
-  const handleLateReasonSubmit = async (lateReason: string) => {
-    setIsLateModalOpen(false);
-    setStep('processing');
-    const photo = webcamRef.current?.getScreenshot();
-    if (photo) {
-      await submitCheckInOut(photo, lateReason);
-    } else {
-      setError('Failed to capture photo. Please try again.');
-    }
-  };
+  const handleLateReasonSubmit = useCallback(
+    async (lateReason: string) => {
+      setIsLateModalOpen(false);
+      setStep('processing');
+      const photo = webcamRef.current?.getScreenshot();
+      if (photo) {
+        await submitCheckInOut(photo, lateReason);
+      } else {
+        setError('Failed to capture photo. Please try again.');
+      }
+    },
+    [submitCheckInOut, webcamRef],
+  );
 
   if (error) {
     return (
