@@ -397,6 +397,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           onClose={() => setIsLateModalOpen(false)}
           onSubmit={handleLateReasonSubmit}
         />
+        <div className="mt-4 text-sm text-gray-500 max-h-40 overflow-y-auto">
+          {debugLog.map((log, index) => (
+            <div key={index}>{log}</div>
+          ))}
+        </div>
       </div>
     </ErrorBoundary>
   );
