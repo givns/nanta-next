@@ -45,8 +45,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [buttonState, setButtonState] = useState(initialCheckInOutAllowance);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [isFaceDetected, setIsFaceDetected] = useState(false);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+
+  const addDebugLog = useCallback((message: string) => {
+    setDebugLog((prev) => [...prev, `${new Date().toISOString()}: ${message}`]);
+  }, []);
 
   const handleError = useCallback(
     (errorMessage: string) => {
@@ -144,6 +147,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handlePhotoCapture = useCallback(
     async (photo: string) => {
+      addDebugLog('Photo captured');
       try {
         console.log('Checking if check-in/out is allowed');
         const {
@@ -152,6 +156,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           isLate,
           isOvertime,
         } = await isCheckInOutAllowed();
+
+        addDebugLog(
+          `Check-in/out allowed: ${allowed}, isLate: ${isLate}, isOvertime: ${isOvertime}`,
+        );
 
         console.log('Check-in/out allowance result:', {
           allowed,
@@ -169,8 +177,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         setIsLate(isLate || false);
         setIsOvertime(isOvertime || false);
-
-        // Move to confirmation step
         setStep('confirm');
         setPhoto(photo);
 
@@ -179,11 +185,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           setReason('');
         }
       } catch (error) {
-        console.error('Error in handlePhotoCapture:', error);
+        addDebugLog(`Error in handlePhotoCapture: ${error}`);
         setError('An error occurred. Please try again.');
       }
     },
-    [isCheckInOutAllowed, attendanceStatus.isCheckingIn],
+    [isCheckInOutAllowed, attendanceStatus.isCheckingIn, addDebugLog],
   );
 
   const {
@@ -198,6 +204,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const submitCheckInOut = useCallback(
     async (lateReasonInput?: string) => {
+      addDebugLog('submitCheckInOut called');
       if (!location || isSubmitting || !photo) return;
       setIsSubmitting(true);
       setError(null);
@@ -215,10 +222,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       };
 
       console.log('Data being sent to check-in-out API:', checkInOutData);
+      addDebugLog(`Sending data to API: ${JSON.stringify(checkInOutData)}`);
 
       try {
         const response = await checkInOut(checkInOutData);
         console.log('Check-in/out response:', response);
+        addDebugLog(`API response received: ${JSON.stringify(response)}`);
 
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
@@ -227,7 +236,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         resetDetection();
         await closeLiffWindow();
       } catch (error: any) {
-        console.error('Error during check-in/out:', error);
+        addDebugLog(`Error during check-in/out: ${error.message}`);
         setError('Failed to submit check-in/out. Please try again.');
       } finally {
         setIsSubmitting(false);
@@ -248,6 +257,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       refreshAttendanceStatus,
       resetDetection,
       closeLiffWindow,
+      addDebugLog,
     ],
   );
 
