@@ -37,7 +37,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onStatusChange,
   onError,
 }) => {
-  const [step, setStep] = useState<'info' | 'camera' | 'confirm'>('info');
+  const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [reason, setReason] = useState<string>('');
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
   const [isLate, setIsLate] = useState(false);
@@ -48,17 +48,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [debugLog, setDebugLog] = useState<string[]>([]);
 
   const addDebugLog = useCallback((message: string) => {
-    setDebugLog((prev) => [...prev, `${new Date().toISOString()}: ${message}`]);
+    setDebugLog((prev) => {
+      const newLog = [...prev, `${new Date().toISOString()}: ${message}`];
+      console.log(message); // Log to console as well
+      return newLog;
+    });
   }, []);
-
-  const handleError = useCallback(
-    (errorMessage: string) => {
-      setError(errorMessage);
-      onError();
-      setStep('info');
-    },
-    [onError],
-  );
 
   const {
     attendanceStatus,
@@ -144,71 +139,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       console.error('Error closing LIFF window:', error);
     }
   };
-
-  const handlePhotoCapture = useCallback(
-    async (photo: string) => {
-      addDebugLog('Photo captured');
-      try {
-        console.log('Checking if check-in/out is allowed');
-        const {
-          allowed,
-          reason: checkInOutReason,
-          isLate,
-          isOvertime,
-        } = await isCheckInOutAllowed();
-
-        addDebugLog(
-          `Check-in/out allowed: ${allowed}, isLate: ${isLate}, isOvertime: ${isOvertime}`,
-        );
-
-        console.log('Check-in/out allowance result:', {
-          allowed,
-          isLate,
-          isOvertime,
-        });
-
-        if (!allowed) {
-          console.error(checkInOutReason);
-          setError(
-            checkInOutReason || 'Check-in/out is not allowed at this time.',
-          );
-          return;
-        }
-
-        setIsLate(isLate || false);
-        setIsOvertime(isOvertime || false);
-        setStep('confirm');
-        setPhoto(photo);
-
-        addDebugLog('Moving to confirmation step');
-
-        if (isLate && attendanceStatus.isCheckingIn) {
-          setIsLateModalOpen(true);
-          setReason('');
-          addDebugLog('Late modal opened');
-        }
-      } catch (error) {
-        addDebugLog(`Error in handlePhotoCapture: ${error}`);
-        setError('An error occurred. Please try again.');
-      }
-    },
-    [isCheckInOutAllowed, attendanceStatus.isCheckingIn, addDebugLog],
-  );
-
-  const {
-    webcamRef,
-    isModelLoading,
-    faceDetected,
-    photo,
-    setPhoto,
-    message,
-    resetDetection,
-  } = useFaceDetection(5, handlePhotoCapture);
-
   const submitCheckInOut = useCallback(
-    async (lateReasonInput?: string) => {
+    async (photo: string, lateReasonInput?: string) => {
       addDebugLog('submitCheckInOut called');
-      if (!location || isSubmitting || !photo) return;
+      if (!location || isSubmitting) {
+        addDebugLog(
+          `Cannot submit: location: ${!!location}, isSubmitting: ${isSubmitting}`,
+        );
+        return;
+      }
       setIsSubmitting(true);
       setError(null);
 
@@ -222,6 +161,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         isCheckIn: attendanceStatus.isCheckingIn,
         isOvertime,
         isLate,
+        photo,
       };
 
       addDebugLog(`Sending data to API: ${JSON.stringify(checkInOutData)}`);
@@ -233,8 +173,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
         setStep('info');
-        setPhoto(null);
-        resetDetection();
         await closeLiffWindow();
       } catch (error: any) {
         addDebugLog(`Error during check-in/out: ${error.message}`);
@@ -246,7 +184,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [
       location,
       isSubmitting,
-      photo,
       userData,
       attendanceStatus,
       address,
@@ -256,15 +193,70 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       checkInOut,
       onStatusChange,
       refreshAttendanceStatus,
-      resetDetection,
       closeLiffWindow,
       addDebugLog,
     ],
   );
 
+  const handlePhotoCapture = useCallback(
+    async (photo: string) => {
+      addDebugLog('Photo captured');
+      try {
+        const {
+          allowed,
+          reason: checkInOutReason,
+          isLate,
+          isOvertime,
+        } = await isCheckInOutAllowed();
+
+        addDebugLog(
+          `Check-in/out allowed: ${allowed}, isLate: ${isLate}, isOvertime: ${isOvertime}`,
+        );
+
+        if (!allowed) {
+          setError(
+            checkInOutReason || 'Check-in/out is not allowed at this time.',
+          );
+          return;
+        }
+
+        setIsLate(isLate ?? false);
+        setIsOvertime(isOvertime || false);
+
+        if ((isLate ?? false) && attendanceStatus.isCheckingIn) {
+          setIsLateModalOpen(true);
+          setReason('');
+          addDebugLog('Late modal opened');
+        } else {
+          addDebugLog('Proceeding to submit check-in/out');
+          setStep('processing');
+          await submitCheckInOut(photo);
+        }
+      } catch (error) {
+        addDebugLog(`Error in handlePhotoCapture: ${error}`);
+        setError('An error occurred. Please try again.');
+      }
+    },
+    [
+      isCheckInOutAllowed,
+      attendanceStatus.isCheckingIn,
+      submitCheckInOut,
+      addDebugLog,
+    ],
+  );
+
+  const { webcamRef, isModelLoading, message, resetDetection } =
+    useFaceDetection(5, handlePhotoCapture);
+
   const handleLateReasonSubmit = async (lateReason: string) => {
     setIsLateModalOpen(false);
-    await submitCheckInOut(lateReason);
+    setStep('processing');
+    const photo = webcamRef.current?.getScreenshot();
+    if (photo) {
+      await submitCheckInOut(photo, lateReason);
+    } else {
+      setError('Failed to capture photo. Please try again.');
+    }
   };
 
   if (error) {
@@ -378,38 +370,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const renderStep3 = () => (
     <div className="h-full flex flex-col justify-center items-center">
-      {photo && (
-        <img
-          src={photo}
-          alt="Captured"
-          className="w-full max-w-md rounded-lg mb-4"
-        />
-      )}
-      <button
-        onClick={() => {
-          addDebugLog('Confirm button clicked');
-          submitCheckInOut();
-        }}
-        disabled={isSubmitting}
-        className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded"
-      >
-        {isSubmitting ? 'Processing...' : 'Confirm Check-in/out'}
-      </button>
-      <button
-        onClick={() => {
-          setPhoto(null);
-          setStep('camera');
-          resetDetection();
-        }}
-        className="mt-2 text-blue-500 underline"
-      >
-        Retake Photo
-      </button>
-      <div className="mt-4 text-sm text-gray-500">
-        {debugLog.map((log, index) => (
-          <div key={index}>{log}</div>
-        ))}
-      </div>
+      <p className="text-lg font-semibold mb-4">
+        Processing your attendance...
+      </p>
+      <SkeletonLoader />
     </div>
   );
 
@@ -419,7 +383,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <div className="flex-grow overflow-hidden flex flex-col">
           {step === 'info' && renderStep1()}
           {step === 'camera' && renderStep2()}
-          {step === 'confirm' && renderStep3()}
+          {step === 'processing' && renderStep3()}
         </div>
         {error && (
           <div className="mt-4">
