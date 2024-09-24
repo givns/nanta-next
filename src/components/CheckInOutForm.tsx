@@ -22,6 +22,7 @@ import {
 } from '../utils/dateUtils';
 import liff from '@line/liff';
 import { parseISO } from 'date-fns';
+import { debounce, set } from 'lodash';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -48,6 +49,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [buttonState, setButtonState] = useState(initialCheckInOutAllowance);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+
+  const handleError = useCallback(
+    (errorMessage: string) => {
+      setError(errorMessage);
+      onError(); // Call the prop function
+      setStep('info'); // Reset to initial step
+    },
+    [onError],
+  );
 
   const {
     attendanceStatus,
@@ -127,14 +138,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   };
 
   const submitCheckInOut = useCallback(
-    async (lateReasonInput?: string) => {
-      if (isSubmitting || !location) return; // Prevent multiple submissions
+    debounce(async (lateReasonInput?: string) => {
+      if (!location || isSubmitting) return;
       setIsSubmitting(true);
+      setError(null);
 
       const checkInOutData: AttendanceData = {
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
-        checkTime: getBangkokTime(),
+        checkTime: new Date(),
         [attendanceStatus.isCheckingIn ? 'checkInAddress' : 'checkOutAddress']:
           address,
         reason: lateReasonInput || reason,
@@ -150,41 +162,36 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       console.log('Data being sent to check-in-out API:', checkInOutData);
 
       try {
-        console.log('UserData in CheckInOutForm:', userData);
         console.log('CheckInOutData being sent:', checkInOutData);
         const response = await checkInOut(checkInOutData);
         console.log('Check-in/out response:', response);
 
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
+        setStep('info');
+        setCapturedImage(null);
         await closeLiffWindow();
       } catch (error: any) {
         console.error('Error during check-in/out:', error);
-        setError('Failed to submit check-in/out. Please try again.');
+        handleError('Failed to submit check-in/out. Please try again.');
       } finally {
-        setIsSubmitting(false); // Unlock submission after completion
+        setIsSubmitting(false);
       }
-    },
+    }, 300),
     [
-      isSubmitting,
       location,
       userData,
       attendanceStatus,
       address,
-      isOvertime,
-      isLate,
-      reason,
       checkInOut,
       onStatusChange,
       refreshAttendanceStatus,
-      closeLiffWindow,
+      onError,
+      handleError,
     ],
   );
 
   const handlePhotoCapture = useCallback(async () => {
-    console.log('Photo capture started');
-
-    // Do not set isSubmitting until submission starts
     if (isSubmitting) return;
 
     try {
@@ -209,6 +216,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         );
         return;
       }
+      const imageSrc = webcamRef.current?.getScreenshot() || ''; // Assign an empty string as default value
+      setCapturedImage(imageSrc);
 
       setIsLate(isLate || false);
       setIsOvertime(isOvertime || false);
@@ -220,22 +229,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
 
       console.log('Submitting check-in/out');
-      setIsSubmitting(true); // Set submission to true only here
       await submitCheckInOut();
       console.log('Check-in/out submitted successfully');
     } catch (error) {
       console.error('Error in handlePhotoCapture:', error);
       setError('An error occurred. Please try again.');
-    } finally {
-      setIsSubmitting(false); // Reset after completion
     }
-  }, [
-    isSubmitting,
-    isCheckInOutAllowed,
-    attendanceStatus.isCheckingIn,
-    submitCheckInOut,
-    onError,
-  ]);
+  }, [isSubmitting, isCheckInOutAllowed, submitCheckInOut]);
 
   const {
     webcamRef,

@@ -45,7 +45,6 @@ export const useAttendance = (
         } = status.latestAttendance;
         status.detailedStatus = attendanceStatus;
         status.isCheckingIn = !!checkInTime && !checkOutTime;
-        // These times are already formatted, so we don't need to parse them
         if (!checkInTime && !checkOutTime) {
           status.isCheckingIn = true;
           status.detailedStatus = 'pending';
@@ -75,7 +74,7 @@ export const useAttendance = (
         );
         const { attendanceStatus, effectiveShift, checkInOutAllowance } =
           response.data;
-        setAttendanceStatus(attendanceStatus);
+        setAttendanceStatus(processAttendanceStatus(attendanceStatus));
         setEffectiveShift(effectiveShift);
         setCheckInOutAllowance(checkInOutAllowance);
         return response.data;
@@ -87,19 +86,12 @@ export const useAttendance = (
         setIsLoading(false);
       }
     },
-    [userData.lineUserId],
+    [userData.lineUserId, processAttendanceStatus],
   );
 
   const refreshAttendanceStatus = useCallback(async () => {
     return getAttendanceStatus(true);
   }, [getAttendanceStatus]);
-
-  useEffect(() => {
-    console.log('useAttendance hook: Initial data', {
-      userData,
-      initialAttendanceStatus,
-    });
-  }, [userData, initialAttendanceStatus]);
 
   const isCheckInOutAllowed = useCallback(async () => {
     if (!location) {
@@ -135,6 +127,33 @@ export const useAttendance = (
       console.log('AttendanceData received in useAttendance:', attendanceData);
       setIsLoading(true);
       setError(null);
+
+      // Optimistic update
+      setAttendanceStatus((prevStatus) => {
+        const now = new Date();
+        const formattedNow = formatTime(now);
+        return {
+          ...prevStatus,
+          isCheckingIn: !prevStatus.isCheckingIn,
+          latestAttendance: prevStatus.latestAttendance
+            ? {
+                ...prevStatus.latestAttendance,
+                [attendanceData.isCheckIn ? 'checkInTime' : 'checkOutTime']:
+                  formattedNow,
+                status: attendanceData.isCheckIn ? 'checked-in' : 'checked-out',
+              }
+            : {
+                id: 'temp-id', // This will be replaced by the server response
+                employeeId: attendanceData.employeeId,
+                date: formatDate(now),
+                checkInTime: attendanceData.isCheckIn ? formattedNow : null,
+                checkOutTime: attendanceData.isCheckIn ? null : formattedNow,
+                status: attendanceData.isCheckIn ? 'checked-in' : 'checked-out',
+                isManualEntry: false,
+              },
+        };
+      });
+
       try {
         console.log('Sending check-in/out data:', attendanceData);
         const response = await axios.post('/api/check-in-out', attendanceData);
@@ -147,48 +166,24 @@ export const useAttendance = (
           );
         }
 
-        if (response.data.latestAttendance) {
-          setAttendanceStatus((prevStatus) => ({
-            ...prevStatus,
-            isCheckingIn: !prevStatus.isCheckingIn,
-            latestAttendance: response.data.latestAttendance,
-          }));
-        } else {
-          // If latestAttendance is not in the response, we'll need to refresh the status
-          await refreshAttendanceStatus();
-        }
+        // Update with server response
+        setAttendanceStatus(response.data);
 
         return response.data;
       } catch (err) {
         console.error('Error during check-in/out:', err);
 
-        if (axios.isAxiosError(err)) {
-          console.error('Error response:', err.response?.data); // Add this line for debugging
-        }
+        // Revert optimistic update on error
+        await refreshAttendanceStatus();
 
-        // Even if there's an error, we'll check if the attendance was recorded
-        try {
-          const latestStatus = await refreshAttendanceStatus();
-          if (
-            latestStatus.latestAttendance &&
-            new Date(
-              latestStatus.latestAttendance.checkInTime ||
-                latestStatus.latestAttendance.checkOutTime,
-            ) > new Date(attendanceData.checkTime)
-          ) {
-            console.log(
-              'Attendance was recorded successfully despite the error',
-            );
-            setAttendanceStatus(latestStatus);
-            return latestStatus;
-          }
-        } catch (refreshError) {
-          console.error('Error refreshing attendance status:', refreshError);
+        if (axios.isAxiosError(err)) {
+          console.error('Error response:', err.response?.data);
         }
 
         setError(
           'An error occurred during check-in/out. Please check your attendance status.',
         );
+        throw err;
       } finally {
         setIsLoading(false);
       }
@@ -233,7 +228,6 @@ export const useAttendance = (
         setAddress(response.data.address);
         setInPremises(response.data.inPremises);
 
-        // Update the checkInOutAllowance based on whether the user is in premises
         setCheckInOutAllowance((prevAllowance) => ({
           ...prevAllowance,
           allowed: response.data.inPremises,

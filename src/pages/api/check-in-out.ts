@@ -18,7 +18,9 @@ import {
   formatBangkokTime,
 } from '@/utils/dateUtils';
 import * as Yup from 'yup';
-import { format, isValid, parse, parseISO } from 'date-fns';
+import { RateLimiter } from 'limiter';
+
+const limiter = new RateLimiter({ tokensPerInterval: 1, interval: 'minute' });
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();
@@ -72,6 +74,13 @@ export default async function handler(
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
+  }
+
+  // Rate limiting
+  if (!(await limiter.removeTokens(1))) {
+    return res
+      .status(429)
+      .json({ error: 'Too many requests, please try again later.' });
   }
 
   try {
@@ -132,35 +141,27 @@ export default async function handler(
 
     console.log('Received attendance data:', attendanceData);
 
+    // First, process the attendance
+    await attendanceService.processAttendance(attendanceData);
+
+    // Then, get the latest status
     const updatedStatus = await attendanceService.getLatestAttendanceStatus(
       attendanceData.employeeId,
     );
 
-    console.log('Updated status:', updatedStatus);
-
     // Format times in the response
     if (updatedStatus.latestAttendance) {
-      try {
-        updatedStatus.latestAttendance.checkInTime = updatedStatus
-          .latestAttendance.checkInTime
-          ? formatTime(new Date(updatedStatus.latestAttendance.checkInTime))
-          : null;
-        updatedStatus.latestAttendance.checkOutTime = updatedStatus
-          .latestAttendance.checkOutTime
-          ? formatTime(new Date(updatedStatus.latestAttendance.checkOutTime))
-          : null;
-        updatedStatus.latestAttendance.date = formatDate(
-          new Date(updatedStatus.latestAttendance.date),
-        );
-      } catch (error: any) {
-        console.error('Validation error:', error);
-        console.error('Received data:', req.body);
-        res.status(400).json({
-          error: 'Validation error',
-          details: error.errors,
-          receivedData: req.body,
-        });
-      }
+      updatedStatus.latestAttendance.checkInTime = updatedStatus
+        .latestAttendance.checkInTime
+        ? formatTime(new Date(updatedStatus.latestAttendance.checkInTime))
+        : null;
+      updatedStatus.latestAttendance.checkOutTime = updatedStatus
+        .latestAttendance.checkOutTime
+        ? formatTime(new Date(updatedStatus.latestAttendance.checkOutTime))
+        : null;
+      updatedStatus.latestAttendance.date = formatDate(
+        new Date(updatedStatus.latestAttendance.date),
+      );
     }
 
     console.log('Final updated status:', updatedStatus);
