@@ -401,6 +401,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       >
         Retake Photo
       </button>
+      <div className="mt-4 text-sm text-gray-500">
+        {debugLog.map((log, index) => (
+          <div key={index}>{log}</div>
+        ))}
+      </div>
     </div>
   );
 
