@@ -1,17 +1,28 @@
-// utils/dateUtils.ts
-import { format, parseISO, differenceInMinutes } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
+import { format, parseISO, differenceInMinutes, isValid } from 'date-fns';
+import { toZonedTime, format as formatTz } from 'date-fns-tz';
 
 const TIMEZONE = 'Asia/Bangkok';
 
 export function formatDate(date: string | Date): string {
   const parsedDate = typeof date === 'string' ? parseISO(date) : date;
-  return format(toZonedTime(parsedDate, TIMEZONE), 'yyyy-MM-dd');
+  if (!isValid(parsedDate)) {
+    console.error('Invalid date:', date);
+    return 'Invalid Date';
+  }
+  return formatTz(toZonedTime(parsedDate, TIMEZONE), 'yyyy-MM-dd', {
+    timeZone: TIMEZONE,
+  });
 }
 
 export function formatTime(time: string | Date): string {
   const parsedTime = typeof time === 'string' ? parseISO(time) : time;
-  return format(toZonedTime(parsedTime, TIMEZONE), 'HH:mm:ss');
+  if (!isValid(parsedTime)) {
+    console.error('Invalid time:', time);
+    return 'Invalid Time';
+  }
+  return formatTz(toZonedTime(parsedTime, TIMEZONE), 'HH:mm:ss', {
+    timeZone: TIMEZONE,
+  });
 }
 
 export function getBangkokTime(): Date {
@@ -19,7 +30,13 @@ export function getBangkokTime(): Date {
 }
 
 export function formatBangkokTime(date: Date, formatStr: string): string {
-  return format(toZonedTime(date, TIMEZONE), formatStr);
+  if (!isValid(date)) {
+    console.error('Invalid date:', date);
+    return 'Invalid Date';
+  }
+  return formatTz(toZonedTime(date, TIMEZONE), formatStr, {
+    timeZone: TIMEZONE,
+  });
 }
 
 export function isBangkokTimeWithinRange(
@@ -27,6 +44,10 @@ export function isBangkokTimeWithinRange(
   start: string,
   end: string,
 ): boolean {
+  if (!isValid(time)) {
+    console.error('Invalid time:', time);
+    return false;
+  }
   const bangkokTime = toZonedTime(time, TIMEZONE);
   const [startHour, startMinute] = start.split(':').map(Number);
   const [endHour, endMinute] = end.split(':').map(Number);
@@ -43,6 +64,10 @@ export function isBangkokTimeWithinRange(
 }
 
 export function calculateTimeDifference(start: Date, end: Date): number {
+  if (!isValid(start) || !isValid(end)) {
+    console.error('Invalid date range:', start, end);
+    return 0;
+  }
   const bangkokStart = toZonedTime(start, TIMEZONE);
   const bangkokEnd = toZonedTime(end, TIMEZONE);
   return differenceInMinutes(bangkokEnd, bangkokStart);

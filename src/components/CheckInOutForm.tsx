@@ -15,13 +15,9 @@ import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
-import {
-  formatBangkokTime,
-  formatTime,
-  getBangkokTime,
-} from '../utils/dateUtils';
 import liff from '@line/liff';
-import { parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
+import { formatTime, getBangkokTime } from '../utils/dateUtils';
 import { debounce, set } from 'lodash';
 
 interface CheckInOutFormProps {
@@ -92,29 +88,37 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         });
 
         if (checkInTime) {
-          console.log('Check-in time:', checkInTime);
+          const parsedCheckInTime = parseISO(checkInTime);
+          if (isValid(parsedCheckInTime)) {
+            console.log('Check-in time:', formatTime(parsedCheckInTime));
+          } else {
+            console.log('Invalid check-in time:', checkInTime);
+          }
         } else {
           console.log('No check-in time available');
         }
 
         if (checkOutTime) {
-          console.log('Check-out time:', checkOutTime);
+          const parsedCheckOutTime = parseISO(checkOutTime);
+          if (isValid(parsedCheckOutTime)) {
+            console.log('Check-out time:', formatTime(parsedCheckOutTime));
+          } else {
+            console.log('Invalid check-out time:', checkOutTime);
+          }
         } else {
           console.log('No check-out time available');
         }
       }
 
       if (effectiveShift) {
-        console.log('Shift start time:', formatTime(effectiveShift.startTime));
-        console.log('Shift end time:', formatTime(effectiveShift.endTime));
+        console.log('Shift start time:', effectiveShift.startTime);
+        console.log('Shift end time:', effectiveShift.endTime);
       }
     } catch (err) {
       console.error('Error in CheckInOutForm:', err);
-      setError(
-        err instanceof Error ? err.message : 'An unknown error occurred',
-      );
+      onError(); // Remove the argument from the function call
     }
-  }, [userData, initialAttendanceStatus, effectiveShift]);
+  }, [userData, initialAttendanceStatus, effectiveShift, onError]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
