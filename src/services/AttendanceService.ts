@@ -800,7 +800,10 @@ export class AttendanceService {
     console.log(
       `Shift start time (Bangkok): ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
     );
-
+    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+    console.log(
+      `Shift end time (Bangkok): ${formatBangkokTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
     const earlyCheckInWindow = toZonedTime(
       subMinutes(shiftStart, 30),
       'Asia/Bangkok',
