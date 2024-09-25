@@ -136,32 +136,46 @@ export const useAttendance = (
       setIsLoading(true);
       setError(null);
 
-      try {
-        console.log('Sending check-in/out data:', attendanceData);
-        const response = await axios.post('/api/check-in-out', attendanceData);
-        console.log('Check-in/out response:', response.data);
+      const backoff = (attempt: number) => Math.pow(2, attempt) * 1000;
+      let attempt = 0;
 
-        setAttendanceStatus((prevStatus) => ({
-          ...prevStatus,
-          isCheckingIn: !prevStatus.isCheckingIn,
-          latestAttendance: response.data.latestAttendance,
-        }));
+      while (attempt < 3) {
+        try {
+          console.log('Sending check-in/out data:', attendanceData);
+          const response = await axios.post(
+            '/api/check-in-out',
+            attendanceData,
+          );
+          console.log('Check-in/out response:', response.data);
 
-        await refreshAttendanceStatus();
-        return response.data;
-      } catch (err) {
-        console.error('Error during check-in/out:', err);
-        if (axios.isAxiosError(err) && err.response?.status === 429) {
-          console.log('Rate limit reached. Please try again later.');
-          setError('Rate limit reached. Please try again later.');
-        } else {
-          setError('An error occurred during check-in/out. Please try again.');
+          setAttendanceStatus((prevStatus) => ({
+            ...prevStatus,
+            isCheckingIn: !prevStatus.isCheckingIn,
+            latestAttendance: response.data.latestAttendance,
+          }));
+
+          await refreshAttendanceStatus();
+          return response.data;
+        } catch (err) {
+          console.error('Error during check-in/out:', err);
+          if (axios.isAxiosError(err) && err.response?.status === 429) {
+            console.log(
+              `Rate limit reached. Retry attempt ${attempt + 1} of 3...`,
+            );
+            attempt++;
+            await new Promise((resolve) =>
+              setTimeout(resolve, backoff(attempt)),
+            );
+          } else {
+            setError(
+              'An error occurred during check-in/out. Please try again.',
+            );
+            throw err;
+          }
         }
-        throw err;
-      } finally {
-        isSubmittingRef.current = false;
-        setIsLoading(false);
       }
+      setError('Max retries reached. Please try again later.');
+      throw new Error('Max retries reached');
     }, 1000),
     [refreshAttendanceStatus],
   );

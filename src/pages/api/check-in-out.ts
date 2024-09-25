@@ -14,6 +14,7 @@ import { TimeEntryService } from '@/services/TimeEntryService';
 import { formatTime, formatDate, getCurrentTime } from '@/utils/dateUtils';
 import * as Yup from 'yup';
 import { RateLimiter } from 'limiter';
+import BetterQueue from 'better-queue';
 
 const limiter = new RateLimiter({ tokensPerInterval: 1, interval: 'minute' });
 
@@ -63,6 +64,90 @@ const attendanceSchema = Yup.object()
     },
   );
 
+const checkInOutQueue = new BetterQueue(
+  async (task, cb) => {
+    try {
+      const result = await processCheckInOut(task);
+      cb(null, result);
+    } catch (error) {
+      cb(error);
+    }
+  },
+  { concurrent: 5 },
+);
+
+async function processCheckInOut(data: any) {
+  console.log('Processing check-in/out data:', data);
+
+  const validatedData = await attendanceSchema.validate(data);
+
+  let employeeId: string;
+  let user: User | null = null;
+
+  if (validatedData.employeeId) {
+    employeeId = validatedData.employeeId;
+    user = await prisma.user.findUnique({
+      where: { employeeId },
+    });
+  } else if (validatedData.lineUserId) {
+    user = await prisma.user.findUnique({
+      where: { lineUserId: validatedData.lineUserId },
+    });
+    if (user) {
+      employeeId = user.employeeId;
+    } else {
+      throw new Error('User not found for the given Line User ID');
+    }
+  } else {
+    throw new Error('Either employeeId or lineUserId must be provided');
+  }
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const now = getCurrentTime();
+
+  const attendanceData: AttendanceData = {
+    employeeId,
+    lineUserId: user.lineUserId,
+    isCheckIn: validatedData.isCheckIn,
+    checkTime: validatedData.checkTime || now.toISOString(),
+    location: validatedData.location || '',
+    [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
+      validatedData.isCheckIn
+        ? validatedData.checkInAddress || user.departmentName || ''
+        : validatedData.checkOutAddress || user.departmentName || '',
+    reason: validatedData.reason || '',
+    isOvertime: validatedData.isOvertime || false,
+    isLate: validatedData.isLate || false,
+  };
+
+  await attendanceService.processAttendance(attendanceData);
+
+  const updatedStatus = await attendanceService.getLatestAttendanceStatus(
+    attendanceData.employeeId,
+  );
+
+  if (updatedStatus.latestAttendance) {
+    updatedStatus.latestAttendance.checkInTime = updatedStatus.latestAttendance
+      .checkInTime
+      ? formatTime(new Date(updatedStatus.latestAttendance.checkInTime))
+      : null;
+    updatedStatus.latestAttendance.checkOutTime = updatedStatus.latestAttendance
+      .checkOutTime
+      ? formatTime(new Date(updatedStatus.latestAttendance.checkOutTime))
+      : null;
+    updatedStatus.latestAttendance.date = formatDate(
+      new Date(updatedStatus.latestAttendance.date),
+    );
+  }
+
+  sendNotificationAsync(attendanceData, updatedStatus).catch(console.error);
+
+  return updatedStatus;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -71,7 +156,6 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  // Rate limiting
   if (!(await limiter.removeTokens(1))) {
     return res
       .status(429)
@@ -79,94 +163,19 @@ export default async function handler(
   }
 
   try {
-    console.log('Received data:', req.body);
-
-    const validatedData = await attendanceSchema.validate(req.body);
-
-    let employeeId: string;
-    let user: User | null = null;
-
-    if (validatedData.employeeId) {
-      employeeId = validatedData.employeeId;
-      user = await prisma.user.findUnique({
-        where: { employeeId },
-      });
-    } else if (validatedData.lineUserId) {
-      user = await prisma.user.findUnique({
-        where: { lineUserId: validatedData.lineUserId },
-      });
-      if (user) {
-        employeeId = user.employeeId;
+    checkInOutQueue.push(req.body, (err: Error, result: any) => {
+      if (err) {
+        console.error('Error processing check-in/out:', err);
+        res.status(500).json({
+          error: 'Internal server error',
+          details: err.message,
+        });
       } else {
-        return res
-          .status(404)
-          .json({ error: 'User not found for the given Line User ID' });
+        res.status(200).json(result);
       }
-    } else {
-      return res
-        .status(400)
-        .json({ error: 'Either employeeId or lineUserId must be provided' });
-    }
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const now = getCurrentTime();
-
-    const attendanceData: AttendanceData = {
-      employeeId,
-      lineUserId: user.lineUserId,
-      isCheckIn: validatedData.isCheckIn,
-      checkTime: validatedData.checkTime || now.toISOString(),
-      location: validatedData.location || '',
-      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
-        validatedData.isCheckIn
-          ? validatedData.checkInAddress || user.departmentName || ''
-          : validatedData.checkOutAddress || user.departmentName || '',
-      reason: validatedData.reason || '',
-      isOvertime: validatedData.isOvertime || false,
-      isLate: validatedData.isLate || false,
-    };
-    // Ensure checkTime is in the correct format
-
-    console.log('Received attendance data:', attendanceData);
-
-    // First, process the attendance
-    await attendanceService.processAttendance(attendanceData);
-
-    const processAttendancePromise =
-      attendanceService.processAttendance(attendanceData);
-    // Then, get the latest status
-    const updatedStatus = await attendanceService.getLatestAttendanceStatus(
-      attendanceData.employeeId,
-    );
-
-    // Format times in the response
-    if (updatedStatus.latestAttendance) {
-      updatedStatus.latestAttendance.checkInTime = updatedStatus
-        .latestAttendance.checkInTime
-        ? formatTime(new Date(updatedStatus.latestAttendance.checkInTime))
-        : null;
-      updatedStatus.latestAttendance.checkOutTime = updatedStatus
-        .latestAttendance.checkOutTime
-        ? formatTime(new Date(updatedStatus.latestAttendance.checkOutTime))
-        : null;
-      updatedStatus.latestAttendance.date = formatDate(
-        new Date(updatedStatus.latestAttendance.date),
-      );
-    }
-
-    console.log('Final updated status:', updatedStatus);
-
-    res.status(200).json(updatedStatus);
-
-    // Continue processing attendance in the background
-    await processAttendancePromise;
-    sendNotificationAsync(attendanceData, updatedStatus).catch(console.error);
+    });
   } catch (error: any) {
     console.error('Detailed error in check-in-out:', error);
-    console.error('Received data:', req.body); // Add this line
     res.status(500).json({
       error: 'Internal server error',
       details: error.message,
@@ -194,6 +203,5 @@ async function sendNotificationAsync(
     }
   } catch (error) {
     console.error('Failed to send notification:', error);
-    // Consider implementing a retry mechanism or queueing system for failed notifications
   }
 }

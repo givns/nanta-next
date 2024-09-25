@@ -178,6 +178,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   }, []);
 
+  const MAX_RETRIES = 3;
+  let retryCount = 0;
+
   const submitCheckInOut = useCallback(
     async (photo: string, lateReasonInput?: string) => {
       if (isSubmitting || !location || !photo) {
@@ -209,29 +212,44 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
       addDebugLog(`Sending data to API: ${JSON.stringify(checkInOutData)}`);
 
-      try {
-        const response = await checkInOut(checkInOutData);
-        addDebugLog(`API response received: ${JSON.stringify(response)}`);
+      const attemptSubmit = async () => {
+        try {
+          const response = await checkInOut(checkInOutData);
+          addDebugLog(`API response received: ${JSON.stringify(response)}`);
 
-        onStatusChange(!attendanceStatus.isCheckingIn);
-        await refreshAttendanceStatus();
-        setStep('info');
-      } catch (error: any) {
-        if (error.response && error.response.status === 429) {
-          addDebugLog('Rate limit reached. Retrying in 5 seconds...');
-          submitTimeoutRef.current = setTimeout(() => {
+          onStatusChange(!attendanceStatus.isCheckingIn);
+          await refreshAttendanceStatus();
+          setStep('info');
+        } catch (error: any) {
+          if (
+            error.response &&
+            error.response.status === 429 &&
+            retryCount < MAX_RETRIES
+          ) {
+            addDebugLog(
+              `Rate limit reached. Retry ${retryCount + 1} of ${MAX_RETRIES} in 5 seconds...`,
+            );
+            retryCount++;
+            submitTimeoutRef.current = setTimeout(attemptSubmit, 5000);
+          } else if (!error.response && error.request) {
+            addDebugLog(
+              'Network error. Please check your connection and try again.',
+            );
+            setError(
+              'Network error. Please check your connection and try again.',
+            );
+          } else {
+            addDebugLog(`Error during check-in/out: ${error.message}`);
+            setError('Failed to submit check-in/out. Please try again.');
+          }
+        } finally {
+          if (!submitTimeoutRef.current) {
             setIsSubmitting(false);
-            submitCheckInOut(photo, lateReasonInput);
-          }, 5000);
-          return;
+          }
         }
-        addDebugLog(`Error during check-in/out: ${error.message}`);
-        setError('Failed to submit check-in/out. Please try again.');
-      } finally {
-        if (!submitTimeoutRef.current) {
-          setIsSubmitting(false);
-        }
-      }
+      };
+
+      attemptSubmit();
     },
     [
       location,
