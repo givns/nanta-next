@@ -9,7 +9,8 @@ import {
 import axios from 'axios';
 import { ShiftData } from '@/types/attendance';
 import { endOfDay, startOfDay, addMinutes, isBefore, isAfter } from 'date-fns';
-import { getBangkokTime } from '@/utils/dateUtils';
+import { formatBangkokTime, getBangkokTime } from '@/utils/dateUtils';
+import { toZonedTime } from 'date-fns-tz';
 
 interface Premise {
   lat: number;
@@ -55,6 +56,11 @@ export class ShiftManagementService {
     employeeId: string,
     date: Date,
   ): Promise<ShiftData | null> {
+    const bangkokDate = toZonedTime(date, 'Asia/Bangkok');
+    console.log(
+      `Getting effective shift for date: ${formatBangkokTime(bangkokDate, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+
     const user = await this.prisma.user.findUnique({
       where: { employeeId },
       select: { shiftCode: true },
@@ -70,8 +76,8 @@ export class ShiftManagementService {
       where: {
         employeeId,
         date: {
-          gte: startOfDay(date),
-          lt: endOfDay(date),
+          gte: startOfDay(bangkokDate),
+          lt: endOfDay(bangkokDate),
         },
         status: 'approved',
       },
@@ -79,10 +85,16 @@ export class ShiftManagementService {
     });
 
     if (shiftAdjustment && shiftAdjustment.requestedShift) {
+      console.log('Using adjusted shift:', shiftAdjustment.requestedShift);
       return this.convertToShiftData(shiftAdjustment.requestedShift);
     }
 
-    return regularShift ? this.convertToShiftData(regularShift) : null;
+    if (regularShift) {
+      console.log('Using regular shift:', regularShift);
+      return this.convertToShiftData(regularShift);
+    }
+
+    return null;
   }
 
   public async getShiftByCode(shiftCode: string): Promise<Shift | null> {
@@ -283,9 +295,13 @@ export class ShiftManagementService {
     isOutsideShift: boolean;
     isLate: boolean;
     isOvertime: boolean;
-    effectiveShift: any; // Replace 'any' with your actual ShiftData type
+    effectiveShift: ShiftData | null;
   }> {
     const now = getBangkokTime();
+    console.log(
+      `Current time (Bangkok): ${formatBangkokTime(now, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+
     const effectiveShift = await this.getEffectiveShift(employeeId, now);
 
     if (!effectiveShift) {
@@ -299,6 +315,13 @@ export class ShiftManagementService {
 
     const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
     const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+    console.log(
+      `Shift start: ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+    console.log(
+      `Shift end: ${formatBangkokTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+
     const lateThreshold = addMinutes(shiftStart, 30); // 30 minutes grace period
     const overtimeThreshold = addMinutes(shiftEnd, 5); // 5 minutes after shift end
 
@@ -314,10 +337,10 @@ export class ShiftManagementService {
     };
   }
 
-  private parseShiftTime(timeString: string, referenceDate: Date): Date {
+  public parseShiftTime(timeString: string, referenceDate: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
     const shiftTime = new Date(referenceDate);
     shiftTime.setHours(hours, minutes, 0, 0);
-    return shiftTime;
+    return toZonedTime(shiftTime, 'Asia/Bangkok');
   }
 }

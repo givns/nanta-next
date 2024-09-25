@@ -785,6 +785,12 @@ export class AttendanceService {
 
     const shiftStatus =
       await this.shiftManagementService.getShiftStatus(employeeId);
+    console.log('Shift status:', shiftStatus);
+
+    if (!shiftStatus.effectiveShift) {
+      return { allowed: false, reason: 'No shift assigned for today' };
+    }
+
     const effectiveShift = await this.shiftManagementService.getEffectiveShift(
       employeeId,
       now,
@@ -796,18 +802,22 @@ export class AttendanceService {
 
     console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
 
-    const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+    const shiftStart = this.shiftManagementService.parseShiftTime(
+      shiftStatus.effectiveShift.startTime,
+      now,
+    );
+    const shiftEnd = this.shiftManagementService.parseShiftTime(
+      shiftStatus.effectiveShift.endTime,
+      now,
+    );
     console.log(
       `Shift start time (Bangkok): ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
     );
-    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
     console.log(
       `Shift end time (Bangkok): ${formatBangkokTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
     );
-    const earlyCheckInWindow = toZonedTime(
-      subMinutes(shiftStart, 30),
-      'Asia/Bangkok',
-    );
+
+    const earlyCheckInWindow = subMinutes(shiftStart, 30);
     console.log(
       `Early check-in window (Bangkok): ${formatBangkokTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss')}`,
     );
