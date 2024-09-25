@@ -40,10 +40,10 @@ import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
 import {
-  formatBangkokTime,
   formatDate,
+  formatDateTime,
   formatTime,
-  getBangkokTime,
+  getCurrentTime,
 } from '../utils/dateUtils';
 import { toZonedTime } from 'date-fns-tz';
 import { Redis } from 'ioredis';
@@ -347,7 +347,7 @@ export class AttendanceService {
     const user = await this.getCachedUserData(employeeId);
     if (!user) throw new Error('User not found');
 
-    const today = startOfDay(getBangkokTime());
+    const today = startOfDay(getCurrentTime());
     const latestAttendance = await this.getLatestAttendance(employeeId);
 
     if (!user.shiftCode) throw new Error('User shift not found');
@@ -543,7 +543,7 @@ export class AttendanceService {
   }
 
   async getLatestAttendance(employeeId: string): Promise<Attendance | null> {
-    const today = startOfDay(getBangkokTime());
+    const today = startOfDay(getCurrentTime());
     return this.prisma.attendance.findFirst({
       where: {
         employeeId,
@@ -778,10 +778,8 @@ export class AttendanceService {
       return { allowed: false, reason: 'คุณไม่ได้อยู่ในพื้นที่เข้า-ออกงานได้' };
     }
 
-    const now = getBangkokTime();
-    console.log(
-      `Current time (Bangkok): ${formatBangkokTime(now, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
+    const now = getCurrentTime();
+    console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
 
     const shiftStatus =
       await this.shiftManagementService.getShiftStatus(employeeId);
@@ -809,10 +807,10 @@ export class AttendanceService {
     const earlyCheckInWindow = subMinutes(shiftStart, 30);
 
     console.log(
-      `Shift start: ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
+      `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
     );
     console.log(
-      `Early check-in window: ${formatBangkokTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss')}`,
+      `Early check-in window: ${formatDateTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss')}`,
     );
 
     const isHoliday = await this.holidayService.isHoliday(

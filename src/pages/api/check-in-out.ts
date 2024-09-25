@@ -11,12 +11,7 @@ import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
-import {
-  getBangkokTime,
-  formatTime,
-  formatDate,
-  formatBangkokTime,
-} from '@/utils/dateUtils';
+import { formatTime, formatDate, getCurrentTime } from '@/utils/dateUtils';
 import * as Yup from 'yup';
 import { RateLimiter } from 'limiter';
 
@@ -117,7 +112,7 @@ export default async function handler(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const now = getBangkokTime();
+    const now = getCurrentTime();
 
     const attendanceData: AttendanceData = {
       employeeId,
@@ -134,10 +129,6 @@ export default async function handler(
       isLate: validatedData.isLate || false,
     };
     // Ensure checkTime is in the correct format
-    attendanceData.checkTime = formatBangkokTime(
-      getBangkokTime(),
-      "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
-    );
 
     console.log('Received attendance data:', attendanceData);
 
@@ -191,7 +182,7 @@ async function sendNotificationAsync(
   updatedStatus: AttendanceStatusInfo,
 ) {
   try {
-    const currentTime = getBangkokTime();
+    const currentTime = getCurrentTime();
     if (attendanceData.isCheckIn) {
       await notificationService.sendCheckInConfirmation(
         attendanceData.employeeId,

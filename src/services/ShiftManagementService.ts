@@ -18,11 +18,7 @@ import {
   setHours,
   setMinutes,
 } from 'date-fns';
-import {
-  formatBangkokTime,
-  getBangkokTime,
-  toBangkokTime,
-} from '@/utils/dateUtils';
+import { formatDateTime, formatTime, getCurrentTime } from '@/utils/dateUtils';
 import { toZonedTime } from 'date-fns-tz';
 
 interface Premise {
@@ -70,9 +66,7 @@ export class ShiftManagementService {
     date: Date,
   ): Promise<ShiftData | null> {
     const bangkokDate = toZonedTime(date, 'Asia/Bangkok');
-    console.log(
-      `Getting effective shift for date: ${formatBangkokTime(bangkokDate, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
+    console.log(`Getting effective shift for date: ${formatTime(bangkokDate)}`);
 
     const user = await this.prisma.user.findUnique({
       where: { employeeId },
@@ -310,10 +304,8 @@ export class ShiftManagementService {
     isOvertime: boolean;
     effectiveShift: ShiftData | null;
   }> {
-    const now = getBangkokTime();
-    console.log(
-      `Current time (Bangkok): ${formatBangkokTime(now, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
+    const now = getCurrentTime();
+    console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
 
     const effectiveShift = await this.getEffectiveShift(employeeId, now);
 
@@ -330,23 +322,23 @@ export class ShiftManagementService {
     let shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
 
     // Handle overnight shifts
-    if (shiftEnd < shiftStart) {
+    if (isBefore(shiftEnd, shiftStart)) {
       shiftEnd = addDays(shiftEnd, 1);
     }
 
     console.log(
-      `Shift start: ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
+      `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
     );
     console.log(
-      `Shift end: ${formatBangkokTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
+      `Shift end: ${formatDateTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
     );
 
-    const lateThreshold = addMinutes(shiftStart, 30); // 30 minutes grace period
+    const lateThreshold = addDays(shiftStart, 30); // 30 minutes grace period
     const overtimeThreshold = addDays(shiftEnd, 5); // 5 minutes after shift end
 
-    const isOutsideShift = now < shiftStart || now > shiftEnd;
-    const isLate = now > lateThreshold && now < shiftEnd;
-    const isOvertime = now > overtimeThreshold;
+    const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
+    const isLate = isAfter(now, lateThreshold) && isBefore(now, shiftEnd);
+    const isOvertime = isAfter(now, overtimeThreshold);
 
     return {
       isOutsideShift,
@@ -358,7 +350,6 @@ export class ShiftManagementService {
 
   public parseShiftTime(timeString: string, referenceDate: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
-    const bangkokDate = toBangkokTime(referenceDate);
-    return setMinutes(setHours(bangkokDate, hours), minutes);
+    return setMinutes(setHours(new Date(referenceDate), hours), minutes);
   }
 }

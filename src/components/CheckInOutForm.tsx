@@ -17,7 +17,7 @@ import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
 import liff from '@line/liff';
 import { format, parseISO, isValid } from 'date-fns';
-import { formatTime, getBangkokTime } from '../utils/dateUtils';
+import { formatTime, getCurrentTime } from '../utils/dateUtils';
 import { debounce, set } from 'lodash';
 
 interface CheckInOutFormProps {
@@ -385,7 +385,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const confirmEarlyCheckOut = () => {
     if (!effectiveShift) return true;
 
-    const now = getBangkokTime();
+    const now = getCurrentTime();
     const shiftEnd = parseISO(effectiveShift.endTime);
     if (now < shiftEnd) {
       const confirmed = window.confirm(

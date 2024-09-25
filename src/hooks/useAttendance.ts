@@ -8,7 +8,7 @@ import {
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { parseISO, isValid } from 'date-fns';
-import { formatTime, formatDate, getBangkokTime } from '../utils/dateUtils';
+import { formatTime, formatDate } from '../utils/dateUtils';
 import { CheckInOut } from '@/lib/types';
 
 export const useAttendance = (
