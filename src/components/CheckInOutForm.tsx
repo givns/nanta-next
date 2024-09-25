@@ -22,8 +22,9 @@ import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
 import liff from '@line/liff';
-import { format, parseISO, isValid } from 'date-fns';
+import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
+import { on } from 'events';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -55,7 +56,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [IsCameraActive, setIsCameraActive] = useState(false);
 
   const addDebugLog = useCallback((message: string) => {
     setDebugLog((prev) => {
@@ -154,7 +155,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       console.error('Error in CheckInOutForm:', err);
       onError(); // Remove the argument from the function call
     }
-  }, [userData, initialAttendanceStatus, effectiveShift, addDebugLog]);
+  }, [userData, initialAttendanceStatus, effectiveShift, addDebugLog, onError]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -164,18 +165,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     return () => clearTimeout(timer);
   }, [checkInOutAllowance]);
 
-  const closeLiffWindow = async () => {
+  const closeLiffWindow = useCallback(async () => {
     try {
       await liff.init({
         liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
       });
       setTimeout(() => {
         liff.closeWindow();
-      }, 2000); // Close the window after 2 seconds
+      }, 2000);
     } catch (error) {
       console.error('Error closing LIFF window:', error);
     }
-  };
+  }, []);
+
   const submitCheckInOut = useCallback(
     async (photo: string, lateReasonInput?: string) => {
       addDebugLog('submitCheckInOut called');
@@ -335,7 +337,35 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   }
 
-  const renderActionButton = () => {
+  const handleAction = (action: 'checkIn' | 'checkOut') => {
+    if (action === 'checkOut' && !confirmEarlyCheckOut()) {
+      return;
+    }
+    setStep('camera');
+    setIsCameraActive(true);
+    resetDetection(); // Reset face detection when activating the camera
+    addDebugLog('Camera activated for check-in/out');
+  };
+
+  const confirmEarlyCheckOut = () => {
+    if (!effectiveShift) return true;
+
+    const now = getCurrentTime();
+    const shiftEnd = parseISO(effectiveShift.endTime);
+    if (now < shiftEnd) {
+      const confirmed = window.confirm(
+        'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน กรุณายื่นคำขอลาในระบบ คุณต้องการลงเวลาออกหรือไม่?',
+      );
+      if (confirmed) {
+        // Redirect to leave request page
+        window.location.href = '/leave-request';
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const renderActionButton = useCallback(() => {
     const buttonClass = `w-full ${
       buttonState?.allowed
         ? 'bg-red-600 hover:bg-red-700'
@@ -371,7 +401,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         )}
       </>
     );
-  };
+  }, [buttonState, attendanceStatus.isCheckingIn, handleAction]);
 
   const renderStep1 = useMemo(
     () => (
@@ -395,34 +425,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       renderActionButton,
     ],
   );
-
-  const handleAction = (action: 'checkIn' | 'checkOut') => {
-    if (action === 'checkOut' && !confirmEarlyCheckOut()) {
-      return;
-    }
-    setStep('camera');
-    setIsCameraActive(true);
-    resetDetection(); // Reset face detection when activating the camera
-    addDebugLog('Camera activated for check-in/out');
-  };
-
-  const confirmEarlyCheckOut = () => {
-    if (!effectiveShift) return true;
-
-    const now = getCurrentTime();
-    const shiftEnd = parseISO(effectiveShift.endTime);
-    if (now < shiftEnd) {
-      const confirmed = window.confirm(
-        'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน กรุณายื่นคำขอลาในระบบ คุณต้องการลงเวลาออกหรือไม่?',
-      );
-      if (confirmed) {
-        // Redirect to leave request page
-        window.location.href = '/leave-request';
-        return false;
-      }
-    }
-    return true;
-  };
 
   const renderStep2 = () => (
     <div className="h-full flex flex-col justify-center">
