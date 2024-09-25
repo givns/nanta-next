@@ -4,7 +4,7 @@ import { toZonedTime, format as formatTz } from 'date-fns-tz';
 const TIMEZONE = 'Asia/Bangkok';
 
 export function getBangkokTime(): Date {
-  return toZonedTime(new Date(), TIMEZONE);
+  return new Date(new Date().toLocaleString('en-US', { timeZone: TIMEZONE }));
 }
 
 export function formatBangkokTime(date: Date, formatStr: string): string {

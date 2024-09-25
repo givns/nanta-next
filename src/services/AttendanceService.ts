@@ -802,12 +802,11 @@ export class AttendanceService {
 
     console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
 
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const shiftStart = this.shiftManagementService.parseShiftTime(
       shiftStatus.effectiveShift.startTime,
-      today,
+      now,
     );
-    const earlyCheckInWindow = new Date(shiftStart.getTime() - 30 * 60000);
+    const earlyCheckInWindow = subMinutes(shiftStart, 30);
 
     console.log(
       `Shift start: ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,

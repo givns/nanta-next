@@ -8,7 +8,14 @@ import {
 } from '@prisma/client';
 import axios from 'axios';
 import { ShiftData } from '@/types/attendance';
-import { endOfDay, startOfDay, addMinutes, isBefore, isAfter } from 'date-fns';
+import {
+  endOfDay,
+  startOfDay,
+  addMinutes,
+  isBefore,
+  isAfter,
+  addDays,
+} from 'date-fns';
 import { formatBangkokTime, getBangkokTime } from '@/utils/dateUtils';
 import { toZonedTime } from 'date-fns-tz';
 
@@ -314,12 +321,12 @@ export class ShiftManagementService {
     }
 
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const shiftStart = this.parseShiftTime(effectiveShift.startTime, today);
-    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, today);
+    let shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+    let shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
 
     // Handle overnight shifts
     if (shiftEnd < shiftStart) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
+      shiftEnd = addDays(shiftEnd, 1);
     }
 
     console.log(
@@ -346,8 +353,7 @@ export class ShiftManagementService {
 
   public parseShiftTime(timeString: string, referenceDate: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
-    const bangkokDate = toZonedTime(referenceDate, 'Asia/Bangkok');
-    const shiftTime = new Date(bangkokDate);
+    const shiftTime = new Date(referenceDate);
     shiftTime.setHours(hours, minutes, 0, 0);
     return shiftTime;
   }
