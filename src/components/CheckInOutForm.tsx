@@ -56,6 +56,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isDebugLogExpanded, setIsDebugLogExpanded] = useState(false);
 
   const addDebugLog = useCallback((message: string) => {
     setDebugLog((prev) => {
@@ -454,6 +455,31 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [],
   );
 
+  const toggleDebugLog = useCallback(() => {
+    setIsDebugLogExpanded((prev) => !prev);
+  }, []);
+
+  const renderDebugLog = useMemo(
+    () => (
+      <div className="mt-4">
+        <button
+          onClick={toggleDebugLog}
+          className="text-sm text-blue-500 underline mb-2"
+        >
+          {isDebugLogExpanded ? 'Hide Debug Log' : 'Show Debug Log'}
+        </button>
+        {isDebugLogExpanded && (
+          <div className="text-sm text-gray-500 max-h-40 overflow-y-auto border border-gray-300 p-2 rounded">
+            {debugLog.map((log, index) => (
+              <div key={index}>{log}</div>
+            ))}
+          </div>
+        )}
+      </div>
+    ),
+    [debugLog, isDebugLogExpanded, toggleDebugLog],
+  );
+
   const content = (
     <ErrorBoundary>
       <div className="h-screen flex flex-col">
@@ -485,11 +511,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           onClose={() => setIsLateModalOpen(false)}
           onSubmit={handleLateReasonSubmit}
         />
-        <div className="mt-4 text-sm text-gray-500 max-h-40 overflow-y-auto">
-          {debugLog.map((log, index) => (
-            <div key={index}>{log}</div>
-          ))}
-        </div>
+        {renderDebugLog}
       </div>
     </ErrorBoundary>
   );
