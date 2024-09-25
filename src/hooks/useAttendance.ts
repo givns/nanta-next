@@ -10,6 +10,7 @@ import { UserData } from '../types/user';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, formatDate } from '../utils/dateUtils';
 import { CheckInOut } from '@/lib/types';
+import { debounce } from 'lodash';
 
 export const useAttendance = (
   userData: UserData,
@@ -122,72 +123,46 @@ export const useAttendance = (
     }
   }, [location, isCheckInOutAllowed]);
 
+  const isSubmittingRef = useRef(false);
+
   const checkInOut = useCallback(
-    async (attendanceData: AttendanceData) => {
-      console.log('AttendanceData received in useAttendance:', attendanceData);
+    debounce(async (attendanceData: AttendanceData) => {
+      if (isSubmittingRef.current) {
+        console.log('Submission already in progress');
+        return;
+      }
+
+      isSubmittingRef.current = true;
       setIsLoading(true);
       setError(null);
-
-      // Optimistic update
-      setAttendanceStatus((prevStatus) => {
-        const now = new Date();
-        const formattedNow = formatTime(now);
-        return {
-          ...prevStatus,
-          isCheckingIn: !prevStatus.isCheckingIn,
-          latestAttendance: prevStatus.latestAttendance
-            ? {
-                ...prevStatus.latestAttendance,
-                [attendanceData.isCheckIn ? 'checkInTime' : 'checkOutTime']:
-                  formattedNow,
-                status: attendanceData.isCheckIn ? 'checked-in' : 'checked-out',
-              }
-            : {
-                id: 'temp-id', // This will be replaced by the server response
-                employeeId: attendanceData.employeeId,
-                date: formatDate(now),
-                checkInTime: attendanceData.isCheckIn ? formattedNow : null,
-                checkOutTime: attendanceData.isCheckIn ? null : formattedNow,
-                status: attendanceData.isCheckIn ? 'checked-in' : 'checked-out',
-                isManualEntry: false,
-              },
-        };
-      });
 
       try {
         console.log('Sending check-in/out data:', attendanceData);
         const response = await axios.post('/api/check-in-out', attendanceData);
         console.log('Check-in/out response:', response.data);
 
-        if (response.data.error) {
-          console.warn(
-            'Check-in/out processed with warnings:',
-            response.data.error,
-          );
-        }
+        setAttendanceStatus((prevStatus) => ({
+          ...prevStatus,
+          isCheckingIn: !prevStatus.isCheckingIn,
+          latestAttendance: response.data.latestAttendance,
+        }));
 
-        // Update with server response
-        setAttendanceStatus(response.data);
-
+        await refreshAttendanceStatus();
         return response.data;
       } catch (err) {
         console.error('Error during check-in/out:', err);
-
-        // Revert optimistic update on error
-        await refreshAttendanceStatus();
-
-        if (axios.isAxiosError(err)) {
-          console.error('Error response:', err.response?.data);
+        if (axios.isAxiosError(err) && err.response?.status === 429) {
+          console.log('Rate limit reached. Please try again later.');
+          setError('Rate limit reached. Please try again later.');
+        } else {
+          setError('An error occurred during check-in/out. Please try again.');
         }
-
-        setError(
-          'An error occurred during check-in/out. Please check your attendance status.',
-        );
         throw err;
       } finally {
+        isSubmittingRef.current = false;
         setIsLoading(false);
       }
-    },
+    }, 1000),
     [refreshAttendanceStatus],
   );
 
@@ -278,5 +253,6 @@ export const useAttendance = (
     isCheckInOutAllowed,
     refreshAttendanceStatus: getAttendanceStatus,
     checkInOutAllowance,
+    isSubmitting: isSubmittingRef.current,
   };
 };

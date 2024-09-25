@@ -51,10 +51,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isOvertime, setIsOvertime] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [buttonState, setButtonState] = useState(initialCheckInOutAllowance);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
-  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isDebugLogExpanded, setIsDebugLogExpanded] = useState(false);
 
@@ -180,17 +180,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const submitCheckInOut = useCallback(
     async (photo: string, lateReasonInput?: string) => {
-      addDebugLog('submitCheckInOut called');
-      if (!location || !photo) {
+      if (isSubmitting || !location || !photo) {
         addDebugLog(
-          `Cannot submit: location: ${!!location}, photo: ${!!photo}`,
+          `Cannot submit: isSubmitting: ${isSubmitting}, location: ${!!location}, photo: ${!!photo}`,
         );
-        resetStates();
         return;
       }
 
       setIsSubmitting(true);
       addDebugLog('Setting isSubmitting to true');
+
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
 
       const checkInOutData: AttendanceData = {
         employeeId: userData.employeeId,
@@ -218,14 +220,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       } catch (error: any) {
         if (error.response && error.response.status === 429) {
           addDebugLog('Rate limit reached. Retrying in 5 seconds...');
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-          await submitCheckInOut(photo, lateReasonInput);
+          submitTimeoutRef.current = setTimeout(() => {
+            setIsSubmitting(false);
+            submitCheckInOut(photo, lateReasonInput);
+          }, 5000);
           return;
         }
         addDebugLog(`Error during check-in/out: ${error.message}`);
         setError('Failed to submit check-in/out. Please try again.');
       } finally {
-        resetStates();
+        if (!submitTimeoutRef.current) {
+          setIsSubmitting(false);
+        }
       }
     },
     [
@@ -241,18 +247,26 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       refreshAttendanceStatus,
       closeLiffWindow,
       addDebugLog,
-      resetStates,
     ],
   );
 
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handlePhotoCapture = useCallback(
     (photo: string) => {
+      if (isSubmitting) return; // Prevent multiple captures while submitting
       addDebugLog('Photo captured');
       setCapturedPhoto(photo);
       setIsCameraActive(false); // Close the camera after capturing
       addDebugLog('Camera deactivated, photo stored');
     },
-    [addDebugLog],
+    [addDebugLog, isSubmitting],
   );
 
   const { webcamRef, isModelLoading, message, resetDetection } =
