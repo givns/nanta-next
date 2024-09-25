@@ -17,6 +17,7 @@ import {
   addDays,
   setHours,
   setMinutes,
+  subDays,
 } from 'date-fns';
 import {
   formatDateTime,
@@ -329,8 +330,12 @@ export class ShiftManagementService {
     let shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
 
     // Handle overnight shifts
-    if (isBefore(shiftEnd, shiftStart)) {
-      shiftEnd = addDays(shiftEnd, 1);
+    if (shiftEnd < shiftStart) {
+      if (now < shiftEnd) {
+        shiftStart = subDays(shiftStart, 1);
+      } else {
+        shiftEnd = addDays(shiftEnd, 1);
+      }
     }
 
     console.log(

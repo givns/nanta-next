@@ -131,17 +131,14 @@ export class AttendanceService {
       const { isCheckIn, checkTime } = attendanceData;
       const parsedCheckTime = toBangkokTime(new Date(checkTime));
       // Adjust this logic for late-night check-outs
-      const attendanceDate = isCheckIn
-        ? startOfDay(parsedCheckTime)
-        : parsedCheckTime.getHours() < 4
-          ? subDays(startOfDay(parsedCheckTime), 1)
-          : startOfDay(parsedCheckTime);
+      // Determine the attendance date
+      let attendanceDate = startOfDay(parsedCheckTime);
+      if (!isCheckIn && parsedCheckTime.getHours() < 4) {
+        attendanceDate = subDays(attendanceDate, 1);
+      }
 
       console.log(
-        `Processing attendance for date: ${formatDateTime(attendanceDate, 'yyyy-MM-dd HH:mm:ss')}`,
-      );
-      console.log(
-        `Parsed check time: ${formatDateTime(parsedCheckTime, 'yyyy-MM-dd HH:mm:ss')}`,
+        `Determined attendance date: ${formatDateTime(attendanceDate, 'yyyy-MM-dd')}`,
       );
 
       const effectiveShift =
@@ -151,13 +148,27 @@ export class AttendanceService {
         );
       if (!effectiveShift) throw new AppError('Effective shift not found', 404);
 
-      const shiftStart = this.parseShiftTime(
+      console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
+
+      let shiftStart = this.parseShiftTime(
         effectiveShift.startTime,
         attendanceDate,
       );
-      const shiftEnd = this.parseShiftTime(
+      let shiftEnd = this.parseShiftTime(
         effectiveShift.endTime,
         attendanceDate,
+      );
+
+      // Handle overnight shifts
+      if (shiftEnd < shiftStart) {
+        shiftEnd = addDays(shiftEnd, 1);
+      }
+
+      console.log(
+        `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
+      );
+      console.log(
+        `Shift end: ${formatDateTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
       );
 
       let existingAttendance = await this.prisma.attendance.findFirst({
@@ -315,11 +326,11 @@ export class AttendanceService {
     }
   }
 
-  private parseShiftTime(timeString: string, referenceDate: Date): Date {
+  private parseShiftTime(timeString: string, date: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
-    const shiftTime = new Date(referenceDate);
-    shiftTime.setHours(hours, minutes, 0, 0);
-    return toZonedTime(shiftTime, 'Asia/Bangkok');
+    const result = new Date(date);
+    result.setHours(hours, minutes, 0, 0);
+    return result;
   }
 
   async getLatestAttendanceStatus(

@@ -181,6 +181,7 @@ export default async function handler(
     checkInOutQueue.push(req.body, (err: Error, result: any) => {
       if (err) {
         console.error('Error processing check-in/out:', err);
+        console.error('Error stack:', err.stack);
         res.status(500).json({
           error: 'Internal server error',
           details: err.message,
@@ -196,11 +197,11 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('Detailed error in check-in-out:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       error: 'Internal server error',
       details: error.message,
       stack: error.stack,
-
       receivedData: req.body,
     });
   }
