@@ -17,7 +17,7 @@ import { RateLimiter } from 'limiter';
 import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
 
-const limiter = new RateLimiter({ tokensPerInterval: 1, interval: 'minute' });
+const limiter = new RateLimiter({ tokensPerInterval: 5, interval: 'minute' });
 
 const prisma = new PrismaClient();
 const overtimeNotificationService = new OvertimeNotificationService();

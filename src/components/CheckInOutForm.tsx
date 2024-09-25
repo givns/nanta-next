@@ -278,6 +278,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const handlePhotoCapture = useCallback(
     (photo: string) => {
       if (isSubmitting) return; // Prevent multiple captures while submitting
+      setIsSubmitting(true);
       addDebugLog('Photo captured');
       setCapturedPhoto(photo);
       setIsCameraActive(false); // Close the camera after capturing
@@ -329,9 +330,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         addDebugLog(`Error in processCapture: ${error}`);
         setError('An error occurred. Please try again.');
         resetStates();
+      } finally {
+        setIsSubmitting(false);
       }
     };
-
     processCapture();
   }, [
     capturedPhoto,
@@ -340,6 +342,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     submitCheckInOut,
     addDebugLog,
     resetStates,
+    isSubmitting,
   ]);
 
   const handleLateReasonSubmit = useCallback(
