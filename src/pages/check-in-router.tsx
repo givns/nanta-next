@@ -254,17 +254,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     [fetchFreshData],
   );
 
-  useEffect(() => {
-    const updateTime = () => {
-      setCurrentTime(getBangkokTime().toLocaleTimeString());
-    };
-
-    updateTime();
-    const intervalId = setInterval(updateTime, 1000);
-
-    return () => clearInterval(intervalId);
-  }, []);
-
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
       if (fullData) {
