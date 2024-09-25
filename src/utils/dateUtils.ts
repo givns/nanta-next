@@ -1,4 +1,20 @@
 import { format, parseISO, differenceInMinutes } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
+
+const TIMEZONE = 'Asia/Bangkok';
+
+export function getBangkokTime(): Date {
+  return toZonedTime(new Date(), TIMEZONE);
+}
+
+export function formatBangkokTime(date: Date, formatStr: string): string {
+  const bangkokTime = toZonedTime(date, TIMEZONE);
+  return format(bangkokTime, formatStr);
+}
+
+export function toBangkokTime(date: Date): Date {
+  return toZonedTime(date, TIMEZONE);
+}
 
 export function getCurrentTime(): Date {
   return new Date();
