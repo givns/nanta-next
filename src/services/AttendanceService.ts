@@ -130,17 +130,18 @@ export class AttendanceService {
 
       const { isCheckIn, checkTime } = attendanceData;
       const parsedCheckTime = toBangkokTime(new Date(checkTime));
+      // Adjust this logic for late-night check-outs
       const attendanceDate = isCheckIn
         ? startOfDay(parsedCheckTime)
-        : isBefore(
-              parsedCheckTime,
-              set(parsedCheckTime, { hours: 4, minutes: 0 }),
-            )
+        : parsedCheckTime.getHours() < 4
           ? subDays(startOfDay(parsedCheckTime), 1)
           : startOfDay(parsedCheckTime);
 
       console.log(
         `Processing attendance for date: ${formatDateTime(attendanceDate, 'yyyy-MM-dd HH:mm:ss')}`,
+      );
+      console.log(
+        `Parsed check time: ${formatDateTime(parsedCheckTime, 'yyyy-MM-dd HH:mm:ss')}`,
       );
 
       const effectiveShift =

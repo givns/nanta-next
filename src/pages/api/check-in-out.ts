@@ -172,18 +172,25 @@ export default async function handler(
   }
 
   try {
+    const now = getCurrentTime();
     console.log(
-      `Processing check-in/out at: ${formatDateTime(getCurrentTime(), 'yyyy-MM-dd HH:mm:ss')}`,
+      `Processing check-in/out at: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`,
     );
-    console.log('Received data:', req.body);
+    console.log('Received data:', JSON.stringify(req.body));
+
     checkInOutQueue.push(req.body, (err: Error, result: any) => {
       if (err) {
         console.error('Error processing check-in/out:', err);
         res.status(500).json({
           error: 'Internal server error',
           details: err.message,
+          stack: err.stack,
         });
       } else {
+        console.log(
+          'Check-in/out processed successfully:',
+          JSON.stringify(result),
+        );
         res.status(200).json(result);
       }
     });
@@ -192,6 +199,8 @@ export default async function handler(
     res.status(500).json({
       error: 'Internal server error',
       details: error.message,
+      stack: error.stack,
+
       receivedData: req.body,
     });
   }

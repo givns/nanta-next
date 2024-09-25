@@ -220,6 +220,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           onStatusChange(!attendanceStatus.isCheckingIn);
           await refreshAttendanceStatus();
           setStep('info');
+          await closeLiffWindow();
         } catch (error: any) {
           if (
             error.response &&
@@ -260,6 +261,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       isOvertime,
       isLate,
       checkInOut,
+      closeLiffWindow,
       onStatusChange,
       refreshAttendanceStatus,
 

@@ -357,6 +357,8 @@ export class ShiftManagementService {
 
   public parseShiftTime(timeString: string, referenceDate: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
-    return setMinutes(setHours(new Date(referenceDate), hours), minutes);
+    const shiftTime = new Date(referenceDate);
+    shiftTime.setHours(hours, minutes, 0, 0);
+    return toBangkokTime(shiftTime);
   }
 }
