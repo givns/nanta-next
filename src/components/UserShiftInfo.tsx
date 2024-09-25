@@ -1,5 +1,5 @@
 //UserShiftInfo.tsx
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   AttendanceStatusInfo,
   ShiftData,
@@ -22,17 +22,20 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   isOutsideShift,
 }) => {
   const { latestAttendance, shiftAdjustment } = attendanceStatus;
-  const today = new Date();
 
-  console.log('UserShiftInfo props:', {
-    userData,
-    attendanceStatus,
-    effectiveShift,
-    isOutsideShift,
-  });
-  console.log('Latest Attendance:', attendanceStatus.latestAttendance);
+  const debugLog = useMemo(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('UserShiftInfo props:', {
+        userData,
+        attendanceStatus,
+        effectiveShift,
+        isOutsideShift,
+      });
+      console.log('Latest Attendance:', attendanceStatus.latestAttendance);
+    }
+  }, [userData, attendanceStatus, effectiveShift, isOutsideShift]);
 
-  const getStatusMessage = () => {
+  const getStatusMessage = useMemo(() => {
     if (attendanceStatus.isDayOff) {
       return { message: 'วันหยุด', color: 'blue' };
     }
@@ -56,9 +59,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     }
 
     return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
-  };
+  }, [attendanceStatus.isDayOff, latestAttendance]);
 
-  const renderTodayInfo = () => {
+  const renderTodayInfo = useMemo(() => {
     if (!attendanceStatus.isDayOff && (effectiveShift || latestAttendance)) {
       return (
         <>
@@ -162,9 +165,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     }
 
     return null;
-  };
+  }, [attendanceStatus, effectiveShift, latestAttendance]);
 
-  const renderFutureInfo = () => {
+  const renderFutureInfo = useMemo(() => {
     const futureShiftAdjustments = attendanceStatus.futureShifts.filter(
       (adjustment) => !isToday(parseISO(adjustment.date)),
     );
@@ -210,13 +213,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         ))}
       </>
     );
-  };
+  }, [attendanceStatus.futureShifts, attendanceStatus.futureOvertimes]);
 
-  const isOvertimeForToday = (overtime: ApprovedOvertime) => {
+  const isOvertimeForToday = useCallback((overtime: ApprovedOvertime) => {
     return isToday(parseISO(overtime.date.toString()));
-  };
+  }, []);
 
-  const { message, color } = getStatusMessage();
+  const { message, color } = getStatusMessage;
 
   return (
     <div className="flex flex-col">
@@ -232,10 +235,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
           </div>
         </div>
       </div>
-
-      {renderTodayInfo()}
+      {renderTodayInfo}
       <h2 className="text-xl font-bold mt-8 mb-4">กระดานข่าวสาร</h2>
-      {renderFutureInfo()}
+      {renderFutureInfo}
     </div>
   );
 };

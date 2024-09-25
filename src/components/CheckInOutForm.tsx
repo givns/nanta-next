@@ -1,6 +1,12 @@
 // components/CheckInOutForm.tsx
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from 'react';
 import Webcam from 'react-webcam';
 import {
   AttendanceData,
@@ -18,7 +24,6 @@ import ErrorBoundary from './ErrorBoundary';
 import liff from '@line/liff';
 import { format, parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
-import { debounce, set } from 'lodash';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -28,6 +33,8 @@ interface CheckInOutFormProps {
   onStatusChange: (newStatus: boolean) => void;
   onError: () => void;
 }
+
+const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
@@ -99,10 +106,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   useEffect(() => {
-    console.log('CheckInOutForm mounted');
-    console.log('userData:', userData);
-    console.log('initialAttendanceStatus:', initialAttendanceStatus);
-    console.log('effectiveShift:', effectiveShift);
+    addDebugLog('CheckInOutForm mounted');
+    addDebugLog(`userData: ${JSON.stringify(userData)}`);
+    addDebugLog(
+      `initialAttendanceStatus: ${JSON.stringify(initialAttendanceStatus)}`,
+    );
+    addDebugLog(`effectiveShift: ${JSON.stringify(effectiveShift)}`);
 
     try {
       if (initialAttendanceStatus?.latestAttendance) {
@@ -145,7 +154,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       console.error('Error in CheckInOutForm:', err);
       onError(); // Remove the argument from the function call
     }
-  }, [userData, initialAttendanceStatus, effectiveShift, onError]);
+  }, [userData, initialAttendanceStatus, effectiveShift, addDebugLog]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -326,20 +335,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   }
 
-  const renderStep1 = () => (
-    <div className="flex flex-col h-full">
-      <ErrorBoundary>
-        <UserShiftInfo
-          userData={userData}
-          attendanceStatus={attendanceStatus}
-          effectiveShift={effectiveShift}
-          isOutsideShift={isOutsideShift}
-        />
-      </ErrorBoundary>
-      <div className="flex-shrink-0 mt-4">{renderActionButton()}</div>
-    </div>
-  );
-
   const renderActionButton = () => {
     const buttonClass = `w-full ${
       buttonState?.allowed
@@ -377,6 +372,29 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       </>
     );
   };
+
+  const renderStep1 = useMemo(
+    () => (
+      <div className="flex flex-col h-full">
+        <ErrorBoundary>
+          <MemoizedUserShiftInfo
+            userData={userData}
+            attendanceStatus={attendanceStatus}
+            effectiveShift={effectiveShift}
+            isOutsideShift={isOutsideShift}
+          />
+        </ErrorBoundary>
+        <div className="flex-shrink-0 mt-4">{renderActionButton()}</div>
+      </div>
+    ),
+    [
+      userData,
+      attendanceStatus,
+      effectiveShift,
+      isOutsideShift,
+      renderActionButton,
+    ],
+  );
 
   const handleAction = (action: 'checkIn' | 'checkOut') => {
     if (action === 'checkOut' && !confirmEarlyCheckOut()) {
@@ -437,7 +455,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     <ErrorBoundary>
       <div className="h-screen flex flex-col">
         <div className="flex-grow overflow-hidden flex flex-col">
-          {step === 'info' && renderStep1()}
+          {step === 'info' && renderStep1}
           {step === 'camera' && renderStep2()}
           {step === 'processing' && renderStep3()}
           <button
@@ -474,4 +492,4 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 };
 
-export default CheckInOutForm;
+export default React.memo(CheckInOutForm);

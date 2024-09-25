@@ -16,9 +16,12 @@ import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
 
-const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
-  loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
-});
+const MemoizedCheckInOutForm = React.memo(
+  dynamic(() => import('../components/CheckInOutForm'), {
+    loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
+  }),
+);
+
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
 const CACHE_KEY = 'attendanceStatus';
@@ -130,21 +133,7 @@ const ResponseDataSchema = z.object({
   }),
 });
 
-const BasicDataSchema = z.object({
-  user: z.object({
-    employeeId: z.string(),
-    name: z.string(),
-    role: z.nativeEnum(UserRole),
-  }),
-  attendanceStatus: z.object({
-    isCheckingIn: z.boolean().nullable().default(true),
-  }),
-});
-
 const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
-  const [basicData, setBasicData] = useState<z.infer<
-    typeof BasicDataSchema
-  > | null>(null);
   const [fullData, setFullData] = useState<z.infer<
     typeof ResponseDataSchema
   > | null>(null);
@@ -244,9 +233,14 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       setIsCachedData(true);
       setIsLoading(false);
     }
-    // Always fetch fresh data, even if we have cached data
     await fetchFreshData();
-  }, [getCachedData, fetchFreshData]);
+  }, [
+    getCachedData,
+    fetchFreshData,
+    setFullData,
+    setIsCachedData,
+    setIsLoading,
+  ]);
 
   useEffect(() => {
     if (lineUserId) {
@@ -279,7 +273,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             isCheckIn: newStatus,
           });
 
-          // Update the local state based on the action, not the response
           setFullData((prevData) => ({
             ...prevData!,
             attendanceStatus: {
@@ -287,15 +280,15 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               isCheckingIn: !prevData!.attendanceStatus.isCheckingIn,
             },
           }));
-          localStorage.removeItem(CACHE_KEY); // Invalidate cache after successful check-in/out
-          debouncedFetchFreshData(); // Fetch fresh data to ensure we have the latest state
+          invalidateCache();
+          debouncedFetchFreshData();
         } catch (error) {
           console.error('Error during check-in/out:', error);
           setFormError('Failed to update status. Please try again.');
         }
       }
     },
-    [fullData, lineUserId, debouncedFetchFreshData],
+    [fullData, lineUserId, debouncedFetchFreshData, invalidateCache],
   );
 
   const handleRefresh = useCallback(() => {
@@ -363,7 +356,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               }}
             >
               <div className="w-full max-w-md">
-                <CheckInOutForm
+                <MemoizedCheckInOutForm
                   userData={{
                     ...fullData.user,
                     createdAt: fullData.user.createdAt
