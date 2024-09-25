@@ -24,7 +24,6 @@ import ErrorBoundary from './ErrorBoundary';
 import liff from '@line/liff';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
-import { on } from 'events';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -56,7 +55,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [IsCameraActive, setIsCameraActive] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
 
   const addDebugLog = useCallback((message: string) => {
     setDebugLog((prev) => {
@@ -325,29 +324,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [submitCheckInOut, capturedPhoto, resetStates],
   );
 
-  if (error) {
-    return (
-      <div
-        className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
-        role="alert"
-      >
-        <strong className="font-bold">Error:</strong>
-        <span className="block sm:inline"> {error}</span>
-      </div>
-    );
-  }
-
-  const handleAction = (action: 'checkIn' | 'checkOut') => {
-    if (action === 'checkOut' && !confirmEarlyCheckOut()) {
-      return;
-    }
-    setStep('camera');
-    setIsCameraActive(true);
-    resetDetection(); // Reset face detection when activating the camera
-    addDebugLog('Camera activated for check-in/out');
-  };
-
-  const confirmEarlyCheckOut = () => {
+  const confirmEarlyCheckOut = useCallback(() => {
     if (!effectiveShift) return true;
 
     const now = getCurrentTime();
@@ -363,9 +340,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     }
     return true;
-  };
+  }, [effectiveShift]);
 
   const renderActionButton = useCallback(() => {
+    const handleAction = (action: 'checkIn' | 'checkOut') => {
+      if (action === 'checkOut' && !confirmEarlyCheckOut()) {
+        return;
+      }
+      setStep('camera');
+      setIsCameraActive(true);
+      resetDetection(); // Reset face detection when activating the camera
+      addDebugLog('Camera activated for check-in/out');
+    };
+
     const buttonClass = `w-full ${
       buttonState?.allowed
         ? 'bg-red-600 hover:bg-red-700'
@@ -401,7 +388,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         )}
       </>
     );
-  }, [buttonState, attendanceStatus.isCheckingIn, handleAction]);
+  }, [
+    buttonState,
+    attendanceStatus.isCheckingIn,
+    confirmEarlyCheckOut,
+    setStep,
+    setIsCameraActive,
+    resetDetection,
+    addDebugLog,
+  ]);
 
   const renderStep1 = useMemo(
     () => (
@@ -426,34 +421,40 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     ],
   );
 
-  const renderStep2 = () => (
-    <div className="h-full flex flex-col justify-center">
-      {isModelLoading ? (
+  const renderStep2 = useCallback(
+    () => (
+      <div className="h-full flex flex-col justify-center">
+        {isModelLoading ? (
+          <SkeletonLoader />
+        ) : (
+          <>
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              className="w-full rounded-lg mb-4"
+            />
+            <p className="text-center mb-2">{message}</p>
+          </>
+        )}
+      </div>
+    ),
+    [isModelLoading, webcamRef, message],
+  );
+
+  const renderStep3 = useCallback(
+    () => (
+      <div className="h-full flex flex-col justify-center items-center">
+        <p className="text-lg font-semibold mb-4">
+          Processing your attendance...
+        </p>
         <SkeletonLoader />
-      ) : (
-        <>
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            className="w-full rounded-lg mb-4"
-          />
-          <p className="text-center mb-2">{message}</p>
-        </>
-      )}
-    </div>
+      </div>
+    ),
+    [],
   );
 
-  const renderStep3 = () => (
-    <div className="h-full flex flex-col justify-center items-center">
-      <p className="text-lg font-semibold mb-4">
-        Processing your attendance...
-      </p>
-      <SkeletonLoader />
-    </div>
-  );
-
-  return (
+  const content = (
     <ErrorBoundary>
       <div className="h-screen flex flex-col">
         <div className="flex-grow overflow-hidden flex flex-col">
@@ -492,6 +493,20 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       </div>
     </ErrorBoundary>
   );
+
+  if (error) {
+    return (
+      <div
+        className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
+        role="alert"
+      >
+        <strong className="font-bold">Error:</strong>
+        <span className="block sm:inline"> {error}</span>
+      </div>
+    );
+  }
+
+  return content;
 };
 
 export default React.memo(CheckInOutForm);
