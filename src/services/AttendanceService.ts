@@ -770,7 +770,7 @@ export class AttendanceService {
       location.lng,
     );
     if (!inPremises) {
-      return { allowed: false, reason: 'You are not within the premises' };
+      return { allowed: false, reason: 'คุณไม่ได้อยู่ในพื้นที่เข้า-ออกงานได้' };
     }
 
     const now = getBangkokTime();
@@ -787,6 +787,7 @@ export class AttendanceService {
 
     const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
     const earlyCheckInWindow = subMinutes(shiftStart, 30);
+    console.log(`Early check-in window: ${earlyCheckInWindow.toISOString()}`);
 
     const isHoliday = await this.holidayService.isHoliday(
       now,
@@ -808,7 +809,11 @@ export class AttendanceService {
       return { allowed: false, reason: 'User is on approved leave' };
 
     if (isBefore(now, earlyCheckInWindow)) {
-      const minutesUntilAllowed = differenceInMinutes(earlyCheckInWindow, now);
+      const minutesUntilAllowed = Math.ceil(
+        differenceInMinutes(earlyCheckInWindow, now),
+      );
+      console.log(`Minutes until allowed: ${minutesUntilAllowed}`);
+
       return {
         allowed: false,
         reason: `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
