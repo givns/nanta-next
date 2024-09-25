@@ -21,6 +21,7 @@ export default async function handler(
       lng,
     );
     const inPremises = await shiftManagementService.isWithinPremises(lat, lng);
+    console.log('Address:', address);
 
     res.status(200).json({ address, inPremises });
   } catch (error) {

@@ -135,6 +135,8 @@ export default async function handler(
     // First, process the attendance
     await attendanceService.processAttendance(attendanceData);
 
+    const processAttendancePromise =
+      attendanceService.processAttendance(attendanceData);
     // Then, get the latest status
     const updatedStatus = await attendanceService.getLatestAttendanceStatus(
       attendanceData.employeeId,
@@ -157,15 +159,11 @@ export default async function handler(
 
     console.log('Final updated status:', updatedStatus);
 
-    // Send notification asynchronously
-    try {
-      await sendNotificationAsync(attendanceData, updatedStatus);
-    } catch (notificationError) {
-      console.error('Failed to send notification:', notificationError);
-      // We'll continue even if notification fails
-    }
-
     res.status(200).json(updatedStatus);
+
+    // Continue processing attendance in the background
+    await processAttendancePromise;
+    sendNotificationAsync(attendanceData, updatedStatus).catch(console.error);
   } catch (error: any) {
     console.error('Detailed error in check-in-out:', error);
     console.error('Received data:', req.body); // Add this line

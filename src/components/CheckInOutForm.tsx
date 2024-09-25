@@ -205,6 +205,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setStep('info');
         await closeLiffWindow();
       } catch (error: any) {
+        if (error.response && error.response.status === 429) {
+          addDebugLog('Rate limit reached. Retrying in 5 seconds...');
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+          await submitCheckInOut(photo, lateReasonInput);
+          return;
+        }
         addDebugLog(`Error during check-in/out: ${error.message}`);
         setError('Failed to submit check-in/out. Please try again.');
       } finally {
