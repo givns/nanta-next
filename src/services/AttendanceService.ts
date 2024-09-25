@@ -39,7 +39,12 @@ import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
-import { formatDate, formatTime, getBangkokTime } from '../utils/dateUtils';
+import {
+  formatBangkokTime,
+  formatDate,
+  formatTime,
+  getBangkokTime,
+} from '../utils/dateUtils';
 import { toZonedTime } from 'date-fns-tz';
 import { Redis } from 'ioredis';
 import { AppError } from '@/utils/errorHandler';
@@ -774,6 +779,10 @@ export class AttendanceService {
     }
 
     const now = getBangkokTime();
+    console.log(
+      `Current time (Bangkok): ${formatBangkokTime(now, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+
     const shiftStatus =
       await this.shiftManagementService.getShiftStatus(employeeId);
     const effectiveShift = await this.shiftManagementService.getEffectiveShift(
@@ -785,9 +794,20 @@ export class AttendanceService {
       return { allowed: false, reason: 'No shift assigned for today' };
     }
 
+    console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
+
     const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
-    const earlyCheckInWindow = subMinutes(shiftStart, 30);
-    console.log(`Early check-in window: ${earlyCheckInWindow.toISOString()}`);
+    console.log(
+      `Shift start time (Bangkok): ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+
+    const earlyCheckInWindow = toZonedTime(
+      subMinutes(shiftStart, 30),
+      'Asia/Bangkok',
+    );
+    console.log(
+      `Early check-in window (Bangkok): ${formatBangkokTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
 
     const isHoliday = await this.holidayService.isHoliday(
       now,
@@ -808,12 +828,11 @@ export class AttendanceService {
     if (leaveRequest)
       return { allowed: false, reason: 'User is on approved leave' };
 
-    if (isBefore(now, earlyCheckInWindow)) {
+    if (now < earlyCheckInWindow) {
       const minutesUntilAllowed = Math.ceil(
         differenceInMinutes(earlyCheckInWindow, now),
       );
       console.log(`Minutes until allowed: ${minutesUntilAllowed}`);
-
       return {
         allowed: false,
         reason: `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
