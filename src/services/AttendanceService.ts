@@ -25,6 +25,8 @@ import {
   subMinutes,
   subHours,
   addHours,
+  set,
+  subDays,
 } from 'date-fns';
 import {
   AttendanceData,
@@ -44,6 +46,7 @@ import {
   formatDateTime,
   formatTime,
   getCurrentTime,
+  toBangkokTime,
 } from '../utils/dateUtils';
 import { toZonedTime } from 'date-fns-tz';
 import { Redis } from 'ioredis';
@@ -126,8 +129,19 @@ export class AttendanceService {
       if (!user) throw new AppError('User not found', 404);
 
       const { isCheckIn, checkTime } = attendanceData;
-      const parsedCheckTime = toZonedTime(new Date(checkTime), 'Asia/Bangkok');
-      const attendanceDate = startOfDay(parsedCheckTime);
+      const parsedCheckTime = toBangkokTime(new Date(checkTime));
+      const attendanceDate = isCheckIn
+        ? startOfDay(parsedCheckTime)
+        : isBefore(
+              parsedCheckTime,
+              set(parsedCheckTime, { hours: 4, minutes: 0 }),
+            )
+          ? subDays(startOfDay(parsedCheckTime), 1)
+          : startOfDay(parsedCheckTime);
+
+      console.log(
+        `Processing attendance for date: ${formatDateTime(attendanceDate, 'yyyy-MM-dd HH:mm:ss')}`,
+      );
 
       const effectiveShift =
         await this.shiftManagementService.getEffectiveShift(

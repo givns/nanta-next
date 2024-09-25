@@ -8,7 +8,12 @@ import {
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { parseISO, isValid } from 'date-fns';
-import { formatTime, formatDate } from '../utils/dateUtils';
+import {
+  formatTime,
+  formatDate,
+  formatDateTime,
+  getCurrentTime,
+} from '../utils/dateUtils';
 import { CheckInOut } from '@/lib/types';
 import { debounce } from 'lodash';
 
@@ -135,6 +140,11 @@ export const useAttendance = (
       isSubmittingRef.current = true;
       setIsLoading(true);
       setError(null);
+
+      console.log(
+        `Initiating check-in/out at: ${formatDateTime(getCurrentTime(), 'yyyy-MM-dd HH:mm:ss')}`,
+      );
+      console.log('Sending check-in/out data:', attendanceData);
 
       const backoff = (attempt: number) => Math.pow(2, attempt) * 1000;
       let attempt = 0;

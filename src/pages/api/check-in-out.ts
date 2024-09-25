@@ -11,7 +11,12 @@ import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
-import { formatTime, formatDate, getCurrentTime } from '@/utils/dateUtils';
+import {
+  formatTime,
+  formatDate,
+  getCurrentTime,
+  formatDateTime,
+} from '@/utils/dateUtils';
 import * as Yup from 'yup';
 import { RateLimiter } from 'limiter';
 import BetterQueue from 'better-queue';
@@ -167,6 +172,10 @@ export default async function handler(
   }
 
   try {
+    console.log(
+      `Processing check-in/out at: ${formatDateTime(getCurrentTime(), 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+    console.log('Received data:', req.body);
     checkInOutQueue.push(req.body, (err: Error, result: any) => {
       if (err) {
         console.error('Error processing check-in/out:', err);

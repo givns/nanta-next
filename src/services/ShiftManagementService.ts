@@ -19,7 +19,6 @@ import {
   setMinutes,
 } from 'date-fns';
 import {
-  formatDate,
   formatDateTime,
   formatTime,
   getCurrentTime,
@@ -71,8 +70,10 @@ export class ShiftManagementService {
     employeeId: string,
     date: Date,
   ): Promise<ShiftData | null> {
-    const bangkokDate = toBangkokTime(date);
-    console.log(`Getting effective shift for date: ${formatDate(bangkokDate)}`);
+    const effectiveDate = startOfDay(toBangkokTime(date));
+    console.log(
+      `Getting effective shift for date: ${formatDateTime(effectiveDate, 'yyyy-MM-dd')}`,
+    );
 
     const user = await this.prisma.user.findUnique({
       where: { employeeId },
@@ -89,8 +90,8 @@ export class ShiftManagementService {
       where: {
         employeeId,
         date: {
-          gte: startOfDay(bangkokDate),
-          lt: endOfDay(bangkokDate),
+          gte: startOfDay(effectiveDate),
+          lt: endOfDay(effectiveDate),
         },
         status: 'approved',
       },
