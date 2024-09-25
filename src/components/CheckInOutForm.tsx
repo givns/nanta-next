@@ -216,7 +216,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
         setStep('info');
-        await closeLiffWindow();
       } catch (error: any) {
         if (error.response && error.response.status === 429) {
           addDebugLog('Rate limit reached. Retrying in 5 seconds...');
@@ -245,7 +244,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       checkInOut,
       onStatusChange,
       refreshAttendanceStatus,
-      closeLiffWindow,
+
       addDebugLog,
     ],
   );
