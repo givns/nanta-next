@@ -313,8 +313,15 @@ export class ShiftManagementService {
       };
     }
 
-    const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
-    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const shiftStart = this.parseShiftTime(effectiveShift.startTime, today);
+    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, today);
+
+    // Handle overnight shifts
+    if (shiftEnd < shiftStart) {
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+    }
+
     console.log(
       `Shift start: ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
     );
@@ -322,12 +329,12 @@ export class ShiftManagementService {
       `Shift end: ${formatBangkokTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
     );
 
-    const lateThreshold = addMinutes(shiftStart, 30); // 30 minutes grace period
-    const overtimeThreshold = addMinutes(shiftEnd, 5); // 5 minutes after shift end
+    const lateThreshold = new Date(shiftStart.getTime() + 30 * 60000); // 30 minutes grace period
+    const overtimeThreshold = new Date(shiftEnd.getTime() + 5 * 60000); // 5 minutes after shift end
 
     const isOutsideShift = now < shiftStart || now > shiftEnd;
-    const isLate = isAfter(now, lateThreshold) && isBefore(now, shiftEnd);
-    const isOvertime = isAfter(now, overtimeThreshold);
+    const isLate = now > lateThreshold && now < shiftEnd;
+    const isOvertime = now > overtimeThreshold;
 
     return {
       isOutsideShift,

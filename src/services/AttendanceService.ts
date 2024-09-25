@@ -802,24 +802,18 @@ export class AttendanceService {
 
     console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
 
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const shiftStart = this.shiftManagementService.parseShiftTime(
       shiftStatus.effectiveShift.startTime,
-      now,
+      today,
     );
-    const shiftEnd = this.shiftManagementService.parseShiftTime(
-      shiftStatus.effectiveShift.endTime,
-      now,
-    );
-    console.log(
-      `Shift start time (Bangkok): ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
-    console.log(
-      `Shift end time (Bangkok): ${formatBangkokTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
+    const earlyCheckInWindow = new Date(shiftStart.getTime() - 30 * 60000);
 
-    const earlyCheckInWindow = subMinutes(shiftStart, 30);
     console.log(
-      `Early check-in window (Bangkok): ${formatBangkokTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss')}`,
+      `Shift start: ${formatBangkokTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+    console.log(
+      `Early check-in window: ${formatBangkokTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss')}`,
     );
 
     const isHoliday = await this.holidayService.isHoliday(
