@@ -15,8 +15,14 @@ import {
   isBefore,
   isAfter,
   addDays,
+  setHours,
+  setMinutes,
 } from 'date-fns';
-import { formatBangkokTime, getBangkokTime } from '@/utils/dateUtils';
+import {
+  formatBangkokTime,
+  getBangkokTime,
+  toBangkokTime,
+} from '@/utils/dateUtils';
 import { toZonedTime } from 'date-fns-tz';
 
 interface Premise {
@@ -320,7 +326,6 @@ export class ShiftManagementService {
       };
     }
 
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     let shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
     let shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
 
@@ -336,8 +341,8 @@ export class ShiftManagementService {
       `Shift end: ${formatBangkokTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
     );
 
-    const lateThreshold = new Date(shiftStart.getTime() + 30 * 60000); // 30 minutes grace period
-    const overtimeThreshold = new Date(shiftEnd.getTime() + 5 * 60000); // 5 minutes after shift end
+    const lateThreshold = addMinutes(shiftStart, 30); // 30 minutes grace period
+    const overtimeThreshold = addDays(shiftEnd, 5); // 5 minutes after shift end
 
     const isOutsideShift = now < shiftStart || now > shiftEnd;
     const isLate = now > lateThreshold && now < shiftEnd;
@@ -353,8 +358,7 @@ export class ShiftManagementService {
 
   public parseShiftTime(timeString: string, referenceDate: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
-    const shiftTime = new Date(referenceDate);
-    shiftTime.setHours(hours, minutes, 0, 0);
-    return shiftTime;
+    const bangkokDate = toBangkokTime(referenceDate);
+    return setMinutes(setHours(bangkokDate, hours), minutes);
   }
 }

@@ -1,15 +1,19 @@
-import { format, parseISO, differenceInMinutes, isValid } from 'date-fns';
-import { toZonedTime, format as formatTz } from 'date-fns-tz';
+import { format, parseISO, differenceInMinutes } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 
 const TIMEZONE = 'Asia/Bangkok';
 
 export function getBangkokTime(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: TIMEZONE }));
+  return toZonedTime(new Date(), TIMEZONE);
 }
 
 export function formatBangkokTime(date: Date, formatStr: string): string {
   const bangkokTime = toZonedTime(date, TIMEZONE);
-  return formatTz(bangkokTime, formatStr, { timeZone: TIMEZONE });
+  return format(bangkokTime, formatStr);
+}
+
+export function toBangkokTime(date: Date): Date {
+  return toZonedTime(date, TIMEZONE);
 }
 
 export function formatDate(date: string | Date): string {
@@ -27,7 +31,7 @@ export function isBangkokTimeWithinRange(
   start: string,
   end: string,
 ): boolean {
-  const bangkokTime = toZonedTime(time, TIMEZONE);
+  const bangkokTime = toBangkokTime(time);
   const [startHour, startMinute] = start.split(':').map(Number);
   const [endHour, endMinute] = end.split(':').map(Number);
 
@@ -43,7 +47,7 @@ export function isBangkokTimeWithinRange(
 }
 
 export function calculateTimeDifference(start: Date, end: Date): number {
-  const bangkokStart = toZonedTime(start, TIMEZONE);
-  const bangkokEnd = toZonedTime(end, TIMEZONE);
+  const bangkokStart = toBangkokTime(start);
+  const bangkokEnd = toBangkokTime(end);
   return differenceInMinutes(bangkokEnd, bangkokStart);
 }
