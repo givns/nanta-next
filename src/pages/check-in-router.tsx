@@ -15,6 +15,7 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
+import Clock from '../components/Clock';
 
 const MemoizedCheckInOutForm = React.memo(
   dynamic(() => import('../components/CheckInOutForm'), {
@@ -325,9 +326,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               ? 'ระบบบันทึกเวลาเข้างาน'
               : 'ระบบบันทึกเวลาออกงาน'}
           </h1>
-          <div className="text-3xl font-bold text-center mb-2 text-black-950">
-            {currentTime}
-          </div>
+          <Clock />
           {isCachedData && (
             <div className="text-sm text-gray-500 text-center mb-2">
               Viewing cached data.{' '}
