@@ -339,8 +339,9 @@ export class ShiftManagementService {
 
   public parseShiftTime(timeString: string, referenceDate: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
-    const shiftTime = new Date(referenceDate);
+    const bangkokDate = toZonedTime(referenceDate, 'Asia/Bangkok');
+    const shiftTime = new Date(bangkokDate);
     shiftTime.setHours(hours, minutes, 0, 0);
-    return toZonedTime(shiftTime, 'Asia/Bangkok');
+    return shiftTime;
   }
 }
