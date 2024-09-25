@@ -15,6 +15,7 @@ import { formatTime, formatDate, getCurrentTime } from '@/utils/dateUtils';
 import * as Yup from 'yup';
 import { RateLimiter } from 'limiter';
 import BetterQueue from 'better-queue';
+import MemoryStore from 'better-queue-memory';
 
 const limiter = new RateLimiter({ tokensPerInterval: 1, interval: 'minute' });
 
@@ -73,7 +74,10 @@ const checkInOutQueue = new BetterQueue(
       cb(error);
     }
   },
-  { concurrent: 5 },
+  {
+    concurrent: 5,
+    store: new MemoryStore(),
+  },
 );
 
 async function processCheckInOut(data: any) {
