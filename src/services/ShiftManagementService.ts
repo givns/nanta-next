@@ -18,7 +18,13 @@ import {
   setHours,
   setMinutes,
 } from 'date-fns';
-import { formatDateTime, formatTime, getCurrentTime } from '@/utils/dateUtils';
+import {
+  formatDate,
+  formatDateTime,
+  formatTime,
+  getCurrentTime,
+  toBangkokTime,
+} from '@/utils/dateUtils';
 import { toZonedTime } from 'date-fns-tz';
 
 interface Premise {
@@ -65,8 +71,8 @@ export class ShiftManagementService {
     employeeId: string,
     date: Date,
   ): Promise<ShiftData | null> {
-    const bangkokDate = toZonedTime(date, 'Asia/Bangkok');
-    console.log(`Getting effective shift for date: ${formatTime(bangkokDate)}`);
+    const bangkokDate = toBangkokTime(date);
+    console.log(`Getting effective shift for date: ${formatDate(bangkokDate)}`);
 
     const user = await this.prisma.user.findUnique({
       where: { employeeId },

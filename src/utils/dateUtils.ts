@@ -17,7 +17,7 @@ export function toBangkokTime(date: Date): Date {
 }
 
 export function getCurrentTime(): Date {
-  return new Date();
+  return getBangkokTime();
 }
 
 export function formatDateTime(date: Date, formatStr: string): string {
