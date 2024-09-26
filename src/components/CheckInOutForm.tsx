@@ -380,24 +380,31 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [effectiveShift]);
 
   const renderActionButton = useCallback(() => {
-    const handleAction = (action: 'checkIn' | 'checkOut') => {
+    const handleAction = async (action: 'checkIn' | 'checkOut') => {
       if (action === 'checkOut' && !confirmEarlyCheckOut()) {
         return;
       }
-      setStep('camera');
-      setIsCameraActive(true);
-      resetDetection(); // Reset face detection when activating the camera
-      addDebugLog('Camera activated for check-in/out');
+      const allowance = await isCheckInOutAllowed();
+      if (allowance.allowed) {
+        setStep('camera');
+        setIsCameraActive(true);
+        resetDetection();
+        addDebugLog('Camera activated for check-in/out');
+      } else {
+        setError(
+          allowance.reason || 'Check-in/out is not allowed at this time.',
+        );
+      }
     };
 
     const buttonClass = `w-full ${
-      buttonState?.allowed
+      checkInOutAllowance?.allowed
         ? 'bg-red-600 hover:bg-red-700'
         : 'bg-gray-400 cursor-not-allowed'
     } text-white py-3 px-4 rounded-lg transition duration-300`;
 
     let buttonText = 'ไม่สามารถลงเวลาได้ในขณะนี้';
-    if (buttonState?.allowed) {
+    if (checkInOutAllowance?.allowed) {
       buttonText = `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
     }
 
@@ -407,32 +414,44 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           onClick={() =>
             handleAction(attendanceStatus.isCheckingIn ? 'checkIn' : 'checkOut')
           }
-          disabled={!buttonState?.allowed}
+          disabled={!checkInOutAllowance?.allowed}
           className={buttonClass}
           aria-label={buttonText}
         >
           {buttonText}
         </button>
-        {!buttonState?.allowed && buttonState?.reason && (
+        {!checkInOutAllowance?.allowed && checkInOutAllowance?.reason && (
           <p className="text-red-500 text-center text-sm mt-2">
-            {buttonState.reason}
+            {checkInOutAllowance.reason}
           </p>
         )}
-        {buttonState?.countdown !== undefined && (
+        {checkInOutAllowance?.countdown !== undefined && (
           <p className="text-blue-500 text-center text-sm mt-2">
-            สามารถลงเวลาได้ในอีก {buttonState.countdown} นาที
+            สามารถลงเวลาได้ในอีก {checkInOutAllowance.countdown} นาที
+          </p>
+        )}
+        {checkInOutAllowance?.isLate && (
+          <p className="text-yellow-500 text-center text-sm mt-2">
+            คุณกำลังเข้างานสาย
+          </p>
+        )}
+        {checkInOutAllowance?.isOvertime && (
+          <p className="text-purple-500 text-center text-sm mt-2">
+            คุณกำลังทำงานล่วงเวลา
           </p>
         )}
       </>
     );
   }, [
-    buttonState,
+    checkInOutAllowance,
     attendanceStatus.isCheckingIn,
     confirmEarlyCheckOut,
+    isCheckInOutAllowed,
     setStep,
     setIsCameraActive,
     resetDetection,
     addDebugLog,
+    setError,
   ]);
 
   const renderStep1 = useMemo(

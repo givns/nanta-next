@@ -14,7 +14,6 @@ import {
   formatDateTime,
   getCurrentTime,
 } from '../utils/dateUtils';
-import { CheckInOut } from '@/lib/types';
 import { debounce } from 'lodash';
 
 export const useAttendance = (
@@ -33,13 +32,8 @@ export const useAttendance = (
   const [address, setAddress] = useState<string>('');
   const [inPremises, setInPremises] = useState(false);
   const [isOutsideShift, setIsOutsideShift] = useState(false);
-  const [checkInOutAllowance, setCheckInOutAllowance] = useState<{
-    allowed: boolean;
-    reason?: string;
-    isLate?: boolean;
-    isOvertime?: boolean;
-    countdown?: number;
-  } | null>(initialCheckInOutAllowance);
+  const [checkInOutAllowance, setCheckInOutAllowance] =
+    useState<CheckInOutAllowance | null>(initialCheckInOutAllowance);
 
   const processAttendanceStatus = useCallback(
     (status: AttendanceStatusInfo) => {
@@ -105,13 +99,16 @@ export const useAttendance = (
     }
 
     try {
-      const response = await axios.get('/api/attendance/allowed', {
-        params: {
-          employeeId: userData.employeeId,
-          lat: location.lat,
-          lng: location.lng,
+      const response = await axios.get<CheckInOutAllowance>(
+        '/api/attendance/allowed',
+        {
+          params: {
+            employeeId: userData.employeeId,
+            lat: location.lat,
+            lng: location.lng,
+          },
         },
-      });
+      );
       const allowanceData = response.data;
       setCheckInOutAllowance(allowanceData);
       return allowanceData;

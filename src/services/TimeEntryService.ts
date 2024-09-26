@@ -107,10 +107,11 @@ export class TimeEntryService {
     attendance: Attendance,
     isCheckIn: boolean,
   ): Promise<TimeEntry> {
-    let effectiveShift = await this.shiftManagementService.getEffectiveShift(
-      attendance.employeeId,
-      attendance.date,
-    );
+    let effectiveShift =
+      await this.shiftManagementService.getEffectiveShiftAndStatus(
+        attendance.employeeId,
+        attendance.date,
+      );
 
     if (!effectiveShift) {
       console.warn(

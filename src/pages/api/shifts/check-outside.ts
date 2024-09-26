@@ -23,7 +23,8 @@ export default async function handler(
   }
 
   try {
-    const shiftStatus = await shiftManagementService.getShiftStatus(employeeId);
+    const shiftStatus =
+      await shiftManagementService.getEffectiveShiftAndStatus(employeeId);
     console.log(
       `Current time: ${formatDateTime(getCurrentTime(), 'yyyy-MM-dd HH:mm:ss')}`,
     );

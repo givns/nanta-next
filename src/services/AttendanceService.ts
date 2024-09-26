@@ -42,14 +42,13 @@ import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
 import {
-  formatDate,
   formatDateTime,
   formatTime,
   getCurrentTime,
   toBangkokTime,
 } from '../utils/dateUtils';
-import { toZonedTime } from 'date-fns-tz';
-import { Redis } from 'ioredis';
+import { cacheService } from '../services/CacheService';
+import Redis from 'ioredis';
 import { AppError } from '@/utils/errorHandler';
 
 const USER_CACHE_TTL = 24 * 60 * 60; // 24 hours
@@ -66,39 +65,15 @@ export class AttendanceService {
     private overtimeService: OvertimeServiceServer,
     private notificationService: NotificationService,
     private timeEntryService: TimeEntryService,
-  ) {
-    this.initializeRedis();
-  }
-
-  private initializeRedis() {
-    const redisUrl = process.env.REDIS_URL;
-    if (redisUrl) {
-      this.redis = new Redis(redisUrl);
-      this.redis.on('error', (error) => {
-        console.error('Redis error:', error);
-      });
-    } else {
-      console.warn('REDIS_URL is not set. Caching will be disabled.');
-    }
-  }
+  ) {}
 
   async invalidateAttendanceCache(employeeId: string): Promise<void> {
-    if (this.redis) {
-      const attendanceCacheKey = `attendance:${employeeId}`;
-      await this.redis.del(attendanceCacheKey);
-    }
+    await cacheService.invalidatePattern(`attendance:${employeeId}*`);
   }
 
   private async getCachedUserData(employeeId: string): Promise<User | null> {
-    if (!this.redis) {
-      return this.prisma.user.findUnique({
-        where: { employeeId },
-        include: { department: true },
-      });
-    }
-
     const cacheKey = `user:${employeeId}`;
-    const cachedUser = await this.redis.get(cacheKey);
+    const cachedUser = await cacheService.get(cacheKey);
 
     if (cachedUser) {
       return JSON.parse(cachedUser);
@@ -110,15 +85,146 @@ export class AttendanceService {
     });
 
     if (user) {
-      await this.redis.set(
-        cacheKey,
-        JSON.stringify(user),
-        'EX',
-        USER_CACHE_TTL,
-      );
+      await cacheService.set(cacheKey, JSON.stringify(user), USER_CACHE_TTL);
     }
 
     return user;
+  }
+
+  public async isCheckInOutAllowed(
+    employeeId: string,
+    location: { lat: number; lng: number },
+  ): Promise<{
+    allowed: boolean;
+    reason?: string;
+    isLate?: boolean;
+    isOvertime?: boolean;
+    countdown?: number;
+  }> {
+    const user = await this.prisma.user.findUnique({ where: { employeeId } });
+    if (!user) throw new Error('User not found');
+
+    const now = getCurrentTime();
+    console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
+
+    // Check holiday
+    const isHoliday = await this.holidayService.isHoliday(
+      now,
+      [],
+      user.shiftCode === 'SHIFT104',
+    );
+    if (isHoliday)
+      return {
+        allowed: true,
+        reason: 'Holiday: Overtime will be recorded',
+        isOvertime: true,
+      };
+
+    // Check leave
+    const leaveRequest = await this.leaveService.checkUserOnLeave(
+      employeeId,
+      now,
+    );
+    if (leaveRequest) {
+      return { allowed: false, reason: 'User is on approved leave' };
+    }
+
+    // Check premises
+    const inPremises = await this.shiftManagementService.isWithinPremises(
+      location.lat,
+      location.lng,
+    );
+    if (!inPremises) {
+      return { allowed: false, reason: 'คุณไม่ได้อยู่ในพื้นที่เข้า-ออกงานได้' };
+    }
+
+    const shiftData =
+      await this.shiftManagementService.getEffectiveShiftAndStatus(
+        employeeId,
+        now,
+      );
+
+    if (!shiftData) {
+      return {
+        allowed: false,
+        reason: 'No shift data available for the user',
+      };
+    }
+
+    const { regularShift, effectiveShift, shiftstatus } = shiftData;
+    console.log('Regular shift:', regularShift);
+    console.log('Effective shift:', effectiveShift);
+    console.log('Shift status:', shiftstatus);
+
+    // Check work days
+    const today = now.getDay();
+    if (!effectiveShift.workDays.includes(today)) {
+      return {
+        allowed: false,
+        reason: 'Today is not a working day for your shift',
+      };
+    }
+
+    const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+    const earlyCheckInWindow = subMinutes(shiftStart, 30);
+
+    console.log(
+      `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+    console.log(
+      `Early check-in window: ${formatDateTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+    const minutesUntilAllowed = Math.ceil(
+      differenceInMinutes(earlyCheckInWindow, now),
+    );
+
+    if (now < earlyCheckInWindow) {
+      return {
+        allowed: false,
+        reason: `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
+        countdown: minutesUntilAllowed,
+      };
+    }
+
+    if (isAfter(now, earlyCheckInWindow) && isBefore(now, shiftStart)) {
+      return {
+        allowed: true,
+        reason: 'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
+        isOvertime: false,
+      };
+    }
+
+    if (shiftstatus.isOutsideShift) {
+      if (shiftstatus.isOvertime) {
+        return {
+          allowed: true,
+          reason: 'คุณกำลังลงเวลานอกกะการทำงาน',
+          isOvertime: true,
+        };
+      } else {
+        return {
+          allowed: true,
+          reason:
+            'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
+          isOvertime: false,
+        };
+      }
+    }
+
+    if (shiftstatus.isLate) {
+      return {
+        allowed: true,
+        reason: 'คุณกำลังลงเวลาเข้างานสาย',
+        isLate: true,
+        isOvertime: false,
+      };
+    }
+    return {
+      allowed: true,
+      isLate: shiftstatus.isLate,
+      isOvertime: shiftstatus.isOvertime,
+      countdown: minutesUntilAllowed,
+    };
   }
 
   async processAttendance(
@@ -130,8 +236,9 @@ export class AttendanceService {
 
       const { isCheckIn, checkTime } = attendanceData;
       const parsedCheckTime = toBangkokTime(new Date(checkTime));
-      // Adjust this logic for late-night check-outs
-      // Determine the attendance date
+      console.log(
+        `Parsed check time in processAttendance: ${formatDateTime(parsedCheckTime, 'yyyy-MM-dd HH:mm:ss')}`,
+      );
       let attendanceDate = startOfDay(parsedCheckTime);
       if (!isCheckIn && parsedCheckTime.getHours() < 4) {
         attendanceDate = subDays(attendanceDate, 1);
@@ -141,12 +248,15 @@ export class AttendanceService {
         `Determined attendance date: ${formatDateTime(attendanceDate, 'yyyy-MM-dd')}`,
       );
 
-      const effectiveShift =
-        await this.shiftManagementService.getEffectiveShift(
+      const shiftData =
+        await this.shiftManagementService.getEffectiveShiftAndStatus(
           user.employeeId,
           attendanceDate,
         );
-      if (!effectiveShift) throw new AppError('Effective shift not found', 404);
+      if (!shiftData || !shiftData.effectiveShift)
+        throw new AppError('Effective shift not found', 404);
+
+      const { effectiveShift } = shiftData;
 
       console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
 
@@ -168,13 +278,6 @@ export class AttendanceService {
       );
       console.log(
         `Shift end: ${formatDateTime(adjustedShiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
-      );
-
-      console.log(
-        `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
-      );
-      console.log(
-        `Shift end: ${formatDateTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
       );
 
       let existingAttendance = await this.prisma.attendance.findFirst({
@@ -324,6 +427,9 @@ export class AttendanceService {
       };
 
       await this.invalidateAttendanceCache(attendanceData.employeeId);
+      await this.shiftManagementService.invalidateShiftCache(
+        attendanceData.employeeId,
+      );
 
       return processedAttendance;
     } catch (error) {
@@ -340,21 +446,19 @@ export class AttendanceService {
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatusInfo> {
-    if (!this.redis) {
-      return this.fetchLatestAttendanceStatus(employeeId);
-    }
-
     const cacheKey = `attendance:${employeeId}`;
-    const cachedStatus = await this.redis.get(cacheKey);
+    const cachedStatus = await cacheService.get(cacheKey);
 
     if (cachedStatus) {
       const parsedStatus = JSON.parse(cachedStatus);
+      // Check if the cached data is still valid
       if (parsedStatus.latestAttendance) {
         const latestAttendance = await this.getLatestAttendance(employeeId);
         if (
           !latestAttendance ||
           latestAttendance.id !== parsedStatus.latestAttendance.id
         ) {
+          // If the latest attendance in the database doesn't match the cached one, fetch fresh data
           return this.fetchLatestAttendanceStatus(employeeId);
         }
       }
@@ -362,10 +466,9 @@ export class AttendanceService {
     }
 
     const status = await this.fetchLatestAttendanceStatus(employeeId);
-    await this.redis.set(
+    await cacheService.set(
       cacheKey,
       JSON.stringify(status),
-      'EX',
       ATTENDANCE_CACHE_TTL,
     );
     return status;
@@ -382,11 +485,15 @@ export class AttendanceService {
 
     if (!user.shiftCode) throw new Error('User shift not found');
 
-    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
-      employeeId,
-      today,
-    );
-    if (!effectiveShift) throw new Error('Shift not found');
+    const shiftData =
+      await this.shiftManagementService.getEffectiveShiftAndStatus(
+        employeeId,
+        today,
+      );
+    if (!shiftData || !shiftData.effectiveShift)
+      throw new Error('Shift not found');
+
+    const { effectiveShift } = shiftData;
 
     const isHoliday = await this.holidayService.isHoliday(
       today,
@@ -787,129 +894,6 @@ export class AttendanceService {
     }
   }
 
-  public async isCheckInOutAllowed(
-    employeeId: string,
-    location: { lat: number; lng: number },
-  ): Promise<{
-    allowed: boolean;
-    reason?: string;
-    isLate?: boolean;
-    isOvertime?: boolean;
-    countdown?: number;
-  }> {
-    const user = await this.prisma.user.findUnique({ where: { employeeId } });
-    if (!user) throw new Error('User not found');
-
-    const inPremises = await this.shiftManagementService.isWithinPremises(
-      location.lat,
-      location.lng,
-    );
-    if (!inPremises) {
-      return { allowed: false, reason: 'คุณไม่ได้อยู่ในพื้นที่เข้า-ออกงานได้' };
-    }
-
-    const now = getCurrentTime();
-    console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
-
-    const shiftStatus =
-      await this.shiftManagementService.getShiftStatus(employeeId);
-    console.log('Shift status:', shiftStatus);
-
-    if (!shiftStatus.effectiveShift) {
-      return { allowed: false, reason: 'No shift assigned for today' };
-    }
-
-    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
-      employeeId,
-      now,
-    );
-
-    if (!effectiveShift) {
-      return { allowed: false, reason: 'No shift assigned for today' };
-    }
-
-    console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
-
-    const shiftStart = this.parseShiftTime(
-      shiftStatus.effectiveShift.startTime,
-      now,
-    );
-    const earlyCheckInWindow = subMinutes(shiftStart, 30);
-
-    console.log(
-      `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
-    console.log(
-      `Early check-in window: ${formatDateTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
-
-    const isHoliday = await this.holidayService.isHoliday(
-      now,
-      [],
-      user.shiftCode === 'SHIFT104',
-    );
-    if (isHoliday)
-      return {
-        allowed: true,
-        reason: 'Holiday: Overtime will be recorded',
-        isOvertime: true,
-      };
-
-    const leaveRequest = await this.leaveService.checkUserOnLeave(
-      employeeId,
-      now,
-    );
-    if (leaveRequest)
-      return { allowed: false, reason: 'User is on approved leave' };
-
-    if (now < earlyCheckInWindow) {
-      const minutesUntilAllowed = Math.ceil(
-        differenceInMinutes(earlyCheckInWindow, now),
-      );
-      console.log(`Minutes until allowed: ${minutesUntilAllowed}`);
-      return {
-        allowed: false,
-        reason: `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
-        countdown: minutesUntilAllowed,
-      };
-    }
-
-    if (isAfter(now, earlyCheckInWindow) && isBefore(now, shiftStart)) {
-      return {
-        allowed: true,
-        reason: 'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
-        isOvertime: false,
-      };
-    }
-
-    if (shiftStatus.isOutsideShift) {
-      if (shiftStatus.isOvertime) {
-        return {
-          allowed: true,
-          reason: 'คุณกำลังลงเวลานอกกะการทำงาน',
-          isOvertime: true,
-        };
-      } else {
-        return {
-          allowed: true,
-          reason:
-            'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
-          isOvertime: false,
-        };
-      }
-    }
-    if (shiftStatus.isLate) {
-      return {
-        allowed: true,
-        reason: 'คุณกำลังลงเวลาเข้างานสาย',
-        isLate: true,
-        isOvertime: false,
-      };
-    }
-
-    return { allowed: true };
-  }
-
   private async checkUserAttendance(
     user: User & { attendances: Attendance[] },
     now: Date,
@@ -917,12 +901,14 @@ export class AttendanceService {
     const cachedUser = await this.getCachedUserData(user.employeeId);
     if (!cachedUser) return;
 
-    const effectiveShift = await this.shiftManagementService.getEffectiveShift(
-      cachedUser.id,
-      now,
-    );
-    if (!effectiveShift) return;
+    const shiftData =
+      await this.shiftManagementService.getEffectiveShiftAndStatus(
+        cachedUser.id,
+        now,
+      );
+    if (!shiftData || !shiftData.effectiveShift) return;
 
+    const { effectiveShift } = shiftData;
     const { shiftStart, shiftEnd } = this.getShiftTimes(effectiveShift, now);
     const latestAttendance = user.attendances[0];
 

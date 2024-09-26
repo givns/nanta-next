@@ -76,6 +76,13 @@ export default async function handler(
 
     const today = new Date();
     let effectiveShift, attendanceStatus, approvedOvertime, checkInOutAllowance;
+    const shiftData = await shiftManagementService.getEffectiveShiftAndStatus(
+      user.employeeId,
+      today,
+    );
+    if (!shiftData) {
+      return res.status(404).json({ error: 'Shift data not found' });
+    }
 
     try {
       [
@@ -84,7 +91,10 @@ export default async function handler(
         approvedOvertime,
         checkInOutAllowance,
       ] = await Promise.all([
-        shiftManagementService.getEffectiveShift(user.employeeId, today),
+        shiftManagementService.getEffectiveShiftAndStatus(
+          user.employeeId,
+          today,
+        ),
         attendanceService.getLatestAttendanceStatus(user.employeeId),
         overtimeService.getApprovedOvertimeRequest(user.employeeId, today),
         attendanceService.isCheckInOutAllowed(user.employeeId, {
@@ -147,8 +157,8 @@ export default async function handler(
         departmentName: user.departmentName || '',
         role: user.role as UserRole,
         profilePictureUrl: user.profilePictureUrl,
-        shiftId: effectiveShift?.id || null,
-        shiftCode: effectiveShift?.shiftCode || null,
+        shiftId: shiftData.effectiveShift?.id || null,
+        shiftCode: shiftData.effectiveShift?.shiftCode || null,
         overtimeHours: user.overtimeHours,
         potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
           ...overtime,
@@ -170,7 +180,7 @@ export default async function handler(
         updatedAt: user.updatedAt ?? new Date(),
       },
       attendanceStatus,
-      effectiveShift,
+      effectiveShift: shiftData.effectiveShift,
       approvedOvertime,
       checkInOutAllowance,
     };

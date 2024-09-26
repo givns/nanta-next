@@ -61,7 +61,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   }, [router]);
 
   if (!isLiffInitialized) {
-    return <div>Loading...</div>;
+    return <div>กรุณารอสักครู่...</div>;
   }
 
   return (

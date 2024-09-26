@@ -15,19 +15,16 @@ import {
   isBefore,
   isAfter,
   addDays,
-  setHours,
-  setMinutes,
   subDays,
   set,
 } from 'date-fns';
 import {
+  formatDate,
   formatDateTime,
-  formatTime,
   getCurrentTime,
   toBangkokTime,
 } from '@/utils/dateUtils';
-import { toZonedTime } from 'date-fns-tz';
-
+import { cacheService } from './CacheService';
 interface Premise {
   lat: number;
   lng: number;
@@ -68,13 +65,19 @@ export class ShiftManagementService {
     ฝ่ายรักษาความปลอดภัย: 'SHIFT102',
   };
 
-  async getEffectiveShift(
+  async getEffectiveShiftAndStatus(
     employeeId: string,
-    date: Date,
-  ): Promise<ShiftData | null> {
-    const effectiveDate = startOfDay(toBangkokTime(date));
+    date: Date = getCurrentTime(),
+  ) {
+    const cacheKey = `shift:${employeeId}:${formatDate(date)}`;
+    const cachedShift = await cacheService.get(cacheKey);
+
+    if (cachedShift) {
+      return JSON.parse(cachedShift);
+    }
+    const now = getCurrentTime();
     console.log(
-      `Getting effective shift for date: ${formatDateTime(effectiveDate, 'yyyy-MM-dd')}`,
+      `Getting effective shift and status for time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`,
     );
 
     const user = await this.prisma.user.findUnique({
@@ -87,7 +90,9 @@ export class ShiftManagementService {
     }
 
     const regularShift = await this.getShiftByCode(user.shiftCode);
+    if (!regularShift) throw new Error('No regular shift found for user');
 
+    const effectiveDate = startOfDay(toBangkokTime(date));
     const shiftAdjustment = await this.prisma.shiftAdjustmentRequest.findFirst({
       where: {
         employeeId,
@@ -100,17 +105,58 @@ export class ShiftManagementService {
       include: { requestedShift: true },
     });
 
-    if (shiftAdjustment && shiftAdjustment.requestedShift) {
-      console.log('Using adjusted shift:', shiftAdjustment.requestedShift);
-      return this.convertToShiftData(shiftAdjustment.requestedShift);
+    const effectiveShift = shiftAdjustment?.requestedShift
+      ? this.convertToShiftData(shiftAdjustment.requestedShift)
+      : this.convertToShiftData(regularShift);
+
+    console.log('Effective shift:', effectiveShift);
+
+    let shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+    let shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+
+    // Handle overnight shifts
+    if (shiftEnd < shiftStart) {
+      if (now < shiftEnd) {
+        shiftStart = subDays(shiftStart, 1);
+      } else {
+        shiftEnd = addDays(shiftEnd, 1);
+      }
     }
 
-    if (regularShift) {
-      console.log('Using regular shift:', regularShift);
-      return this.convertToShiftData(regularShift);
-    }
+    console.log(
+      `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+    console.log(
+      `Shift end: ${formatDateTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
 
-    return null;
+    const lateThreshold = addMinutes(shiftStart, 30);
+    const overtimeThreshold = addMinutes(shiftEnd, 5);
+
+    const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
+    const isLate = isAfter(now, lateThreshold) && isBefore(now, shiftEnd);
+    const isOvertime = isAfter(now, overtimeThreshold);
+
+    const result = {
+      regularShift: this.convertToShiftData(regularShift),
+      effectiveShift: this.convertToShiftData(effectiveShift),
+      status: {
+        isOutsideShift,
+        isLate,
+        isOvertime,
+      },
+    };
+    await cacheService.set(cacheKey, JSON.stringify(result), 3600); // Cache for 1 hour
+    return result;
+  }
+
+  async invalidateShiftCache(employeeId: string): Promise<void> {
+    await cacheService.invalidatePattern(`shift:${employeeId}*`);
+  }
+
+  private parseShiftTime(timeString: string, referenceDate: Date): Date {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return set(referenceDate, { hours, minutes, seconds: 0, milliseconds: 0 });
   }
 
   public async getShiftByCode(shiftCode: string): Promise<Shift | null> {
@@ -305,64 +351,5 @@ export class ShiftManagementService {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c; // Distance in meters
-  }
-
-  public async getShiftStatus(employeeId: string): Promise<{
-    isOutsideShift: boolean;
-    isLate: boolean;
-    isOvertime: boolean;
-    effectiveShift: ShiftData | null;
-  }> {
-    const now = getCurrentTime();
-    console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
-
-    const effectiveShift = await this.getEffectiveShift(employeeId, now);
-
-    if (!effectiveShift) {
-      return {
-        isOutsideShift: true,
-        isLate: false,
-        isOvertime: false,
-        effectiveShift: null,
-      };
-    }
-
-    let shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
-    let shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
-
-    // Handle overnight shifts
-    if (shiftEnd < shiftStart) {
-      if (now < shiftEnd) {
-        shiftStart = subDays(shiftStart, 1);
-      } else {
-        shiftEnd = addDays(shiftEnd, 1);
-      }
-    }
-
-    console.log(
-      `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
-    console.log(
-      `Shift end: ${formatDateTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
-    );
-
-    const lateThreshold = addDays(shiftStart, 30); // 30 minutes grace period
-    const overtimeThreshold = addDays(shiftEnd, 5); // 5 minutes after shift end
-
-    const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
-    const isLate = isAfter(now, lateThreshold) && isBefore(now, shiftEnd);
-    const isOvertime = isAfter(now, overtimeThreshold);
-
-    return {
-      isOutsideShift,
-      isLate,
-      isOvertime,
-      effectiveShift,
-    };
-  }
-
-  private parseShiftTime(timeString: string, referenceDate: Date): Date {
-    const [hours, minutes] = timeString.split(':').map(Number);
-    return set(referenceDate, { hours, minutes, seconds: 0, milliseconds: 0 });
   }
 }

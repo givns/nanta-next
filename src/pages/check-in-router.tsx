@@ -140,9 +140,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   > | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState(
-    getBangkokTime().toLocaleTimeString(),
-  );
   const [formError, setFormError] = useState<string | null>(null);
   const [isCachedData, setIsCachedData] = useState(false);
 
