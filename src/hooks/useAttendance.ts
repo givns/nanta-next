@@ -247,21 +247,6 @@ export const useAttendance = (
     getCurrentLocation();
   }, []);
 
-  useEffect(() => {
-    const checkOutsideShift = async () => {
-      try {
-        const response = await axios.get(
-          `/api/shifts/check-outside?employeeId=${userData.employeeId}`,
-        );
-        setIsOutsideShift(response.data.isOutsideShift);
-      } catch (error) {
-        console.error('Error checking if outside shift:', error);
-      }
-    };
-
-    checkOutsideShift();
-  }, [userData.employeeId]);
-
   return {
     attendanceStatus,
     isLoading,

@@ -10,7 +10,6 @@ import React, {
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
 import axios from 'axios';
-import { getBangkokTime } from '../utils/dateUtils';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
@@ -278,10 +277,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     [fullData, lineUserId, debouncedFetchFreshData, invalidateCache],
   );
 
-  const handleRefresh = useCallback(() => {
-    debouncedFetchFreshData();
-  }, [debouncedFetchFreshData]);
-
   if (isLoading) {
     return <SkeletonLoader />;
   }
@@ -316,12 +311,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           {isCachedData && (
             <div className="text-sm text-gray-500 text-center mb-2">
               Viewing cached data.{' '}
-              <button
-                onClick={handleRefresh}
-                className="text-blue-500 underline"
-              >
-                Refresh
-              </button>
             </div>
           )}
           {formError && (

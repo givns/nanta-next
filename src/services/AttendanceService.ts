@@ -141,6 +141,7 @@ export class AttendanceService {
       location.lat,
       location.lng,
     );
+    console.log(`In premises: ${inPremises ? 'Yes' : 'No'}`);
     if (!inPremises) {
       return { allowed: false, reason: 'คุณไม่ได้อยู่ในพื้นที่เข้า-ออกงานได้' };
     }

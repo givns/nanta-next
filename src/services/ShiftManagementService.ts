@@ -326,6 +326,7 @@ export class ShiftManagementService {
   }
 
   public isWithinPremises(lat: number, lng: number): Premise | null {
+    const ERROR_MARGIN = 50; // 50 meters error margin
     for (const premise of PREMISES) {
       const distance = this.calculateDistance(
         lat,
@@ -333,7 +334,8 @@ export class ShiftManagementService {
         premise.lat,
         premise.lng,
       );
-      if (distance <= premise.radius) {
+      console.log(`Distance to ${premise.name}: ${distance.toFixed(2)} meters`);
+      if (distance <= premise.radius + ERROR_MARGIN) {
         return premise;
       }
     }
