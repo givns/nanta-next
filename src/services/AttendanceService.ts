@@ -114,7 +114,7 @@ export class AttendanceService {
     const now = getCurrentTime();
     console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
 
-    // Check holiday
+    // Check holiday status
     const isHoliday = await this.holidayService.isHoliday(
       now,
       [],
