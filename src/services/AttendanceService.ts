@@ -36,6 +36,7 @@ import {
   ApprovedOvertime,
   AttendanceStatusValue,
   AttendanceStatusType,
+  CheckInOutAllowance,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
@@ -49,7 +50,14 @@ import {
 } from '../utils/dateUtils';
 import { cacheService } from '../services/CacheService';
 import Redis from 'ioredis';
-import { AppError } from '@/utils/errorHandler';
+import {
+  getCacheData,
+  setCacheData,
+  deleteCacheData,
+  invalidateCachePattern,
+} from '../lib/serverCache';
+import { AppErrors } from '@/utils/errorHandler';
+import { ErrorCode, AppError } from '../types/errors';
 
 const USER_CACHE_TTL = 24 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
@@ -68,12 +76,12 @@ export class AttendanceService {
   ) {}
 
   async invalidateAttendanceCache(employeeId: string): Promise<void> {
-    await cacheService.invalidatePattern(`attendance:${employeeId}*`);
+    await invalidateCachePattern(`attendance:${employeeId}*`);
   }
 
   private async getCachedUserData(employeeId: string): Promise<User | null> {
     const cacheKey = `user:${employeeId}`;
-    const cachedUser = await cacheService.get(cacheKey);
+    const cachedUser = await getCacheData(cacheKey);
 
     if (cachedUser) {
       return JSON.parse(cachedUser);
@@ -85,7 +93,7 @@ export class AttendanceService {
     });
 
     if (user) {
-      await cacheService.set(cacheKey, JSON.stringify(user), USER_CACHE_TTL);
+      await setCacheData(cacheKey, JSON.stringify(user), USER_CACHE_TTL);
     }
 
     return user;
@@ -94,15 +102,14 @@ export class AttendanceService {
   public async isCheckInOutAllowed(
     employeeId: string,
     location: { lat: number; lng: number },
-  ): Promise<{
-    allowed: boolean;
-    reason?: string;
-    isLate?: boolean;
-    isOvertime?: boolean;
-    countdown?: number;
-  }> {
-    const user = await this.prisma.user.findUnique({ where: { employeeId } });
-    if (!user) throw new Error('User not found');
+  ): Promise<CheckInOutAllowance> {
+    const user = await this.getCachedUserData(employeeId);
+    if (!user) {
+      throw new AppError({
+        code: ErrorCode.USER_NOT_FOUND,
+        message: 'User not found',
+      });
+    }
 
     const now = getCurrentTime();
     console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
@@ -232,7 +239,7 @@ export class AttendanceService {
   ): Promise<ProcessedAttendance> {
     try {
       const user = await this.getCachedUserData(attendanceData.employeeId);
-      if (!user) throw new AppError('User not found', 404);
+      if (!user) throw new AppErrors('User not found', 404);
 
       const { isCheckIn, checkTime } = attendanceData;
       const parsedCheckTime = toBangkokTime(new Date(checkTime));
@@ -254,7 +261,7 @@ export class AttendanceService {
           attendanceDate,
         );
       if (!shiftData || !shiftData.effectiveShift)
-        throw new AppError('Effective shift not found', 404);
+        throw new AppErrors('Effective shift not found', 404);
 
       const { effectiveShift } = shiftData;
 
@@ -434,7 +441,7 @@ export class AttendanceService {
       return processedAttendance;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      throw new AppError('Error processing attendance', 500);
+      throw new AppErrors('Error processing attendance', 500);
     }
   }
 
@@ -447,7 +454,7 @@ export class AttendanceService {
     employeeId: string,
   ): Promise<AttendanceStatusInfo> {
     const cacheKey = `attendance:${employeeId}`;
-    const cachedStatus = await cacheService.get(cacheKey);
+    const cachedStatus = await getCacheData(cacheKey);
 
     if (cachedStatus) {
       const parsedStatus = JSON.parse(cachedStatus);
@@ -466,11 +473,7 @@ export class AttendanceService {
     }
 
     const status = await this.fetchLatestAttendanceStatus(employeeId);
-    await cacheService.set(
-      cacheKey,
-      JSON.stringify(status),
-      ATTENDANCE_CACHE_TTL,
-    );
+    await setCacheData(cacheKey, JSON.stringify(status), ATTENDANCE_CACHE_TTL);
     return status;
   }
 

@@ -25,6 +25,12 @@ import {
   toBangkokTime,
 } from '@/utils/dateUtils';
 import { cacheService } from './CacheService';
+import {
+  getCacheData,
+  setCacheData,
+  invalidateCachePattern,
+} from '../lib/serverCache';
+
 interface Premise {
   lat: number;
   lng: number;
@@ -70,11 +76,12 @@ export class ShiftManagementService {
     date: Date = getCurrentTime(),
   ) {
     const cacheKey = `shift:${employeeId}:${formatDate(date)}`;
-    const cachedShift = await cacheService.get(cacheKey);
+    const cachedShift = await getCacheData(cacheKey);
 
     if (cachedShift) {
       return JSON.parse(cachedShift);
     }
+
     const now = getCurrentTime();
     console.log(
       `Getting effective shift and status for time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`,
@@ -146,12 +153,12 @@ export class ShiftManagementService {
         isOvertime,
       },
     };
-    await cacheService.set(cacheKey, JSON.stringify(result), 3600); // Cache for 1 hour
+    await setCacheData(cacheKey, JSON.stringify(result), 3600); // Cache for 1 hour
     return result;
   }
 
   async invalidateShiftCache(employeeId: string): Promise<void> {
-    await cacheService.invalidatePattern(`shift:${employeeId}*`);
+    await invalidateCachePattern(`shift:${employeeId}*`);
   }
 
   private parseShiftTime(timeString: string, referenceDate: Date): Date {

@@ -11,7 +11,7 @@ const logger = winston.createLogger({
   ],
 });
 
-export class AppError extends Error {
+export class AppErrors extends Error {
   statusCode: number;
   isOperational: boolean;
 
@@ -23,8 +23,8 @@ export class AppError extends Error {
   }
 }
 
-export const handleError = (err: Error | AppError, res: NextApiResponse) => {
-  if (err instanceof AppError) {
+export const handleError = (err: Error | AppErrors, res: NextApiResponse) => {
+  if (err instanceof AppErrors) {
     logger.error(err.message, { stack: err.stack });
     res.status(err.statusCode).json({
       status: 'error',
