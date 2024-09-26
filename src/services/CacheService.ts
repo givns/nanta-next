@@ -5,7 +5,9 @@ class CacheService {
   private client: Redis | null = null;
 
   constructor() {
-    this.initializeRedis();
+    if (typeof window === 'undefined') {
+      this.initializeRedis();
+    }
   }
 
   private initializeRedis() {
@@ -52,4 +54,5 @@ class CacheService {
   }
 }
 
-export const cacheService = new CacheService();
+export const cacheService =
+  typeof window === 'undefined' ? new CacheService() : null;
