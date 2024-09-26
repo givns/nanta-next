@@ -18,6 +18,7 @@ import {
   setHours,
   setMinutes,
   subDays,
+  set,
 } from 'date-fns';
 import {
   formatDateTime,
@@ -360,10 +361,8 @@ export class ShiftManagementService {
     };
   }
 
-  public parseShiftTime(timeString: string, referenceDate: Date): Date {
+  private parseShiftTime(timeString: string, referenceDate: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
-    const shiftTime = new Date(referenceDate);
-    shiftTime.setHours(hours, minutes, 0, 0);
-    return toBangkokTime(shiftTime);
+    return set(referenceDate, { hours, minutes, seconds: 0, milliseconds: 0 });
   }
 }

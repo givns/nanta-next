@@ -150,19 +150,25 @@ export class AttendanceService {
 
       console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
 
-      let shiftStart = this.parseShiftTime(
+      const shiftStart = this.parseShiftTime(
         effectiveShift.startTime,
         attendanceDate,
       );
-      let shiftEnd = this.parseShiftTime(
+      const shiftEnd = this.parseShiftTime(
         effectiveShift.endTime,
         attendanceDate,
       );
 
       // Handle overnight shifts
-      if (shiftEnd < shiftStart) {
-        shiftEnd = addDays(shiftEnd, 1);
-      }
+      const adjustedShiftEnd =
+        shiftEnd <= shiftStart ? addDays(shiftEnd, 1) : shiftEnd;
+
+      console.log(
+        `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
+      );
+      console.log(
+        `Shift end: ${formatDateTime(adjustedShiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
+      );
 
       console.log(
         `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
@@ -328,9 +334,7 @@ export class AttendanceService {
 
   private parseShiftTime(timeString: string, date: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
-    const result = new Date(date);
-    result.setHours(hours, minutes, 0, 0);
-    return result;
+    return set(date, { hours, minutes, seconds: 0, milliseconds: 0 });
   }
 
   async getLatestAttendanceStatus(
@@ -826,7 +830,7 @@ export class AttendanceService {
 
     console.log(`Effective shift: ${JSON.stringify(effectiveShift)}`);
 
-    const shiftStart = this.shiftManagementService.parseShiftTime(
+    const shiftStart = this.parseShiftTime(
       shiftStatus.effectiveShift.startTime,
       now,
     );
