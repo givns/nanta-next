@@ -163,6 +163,12 @@ export class AttendanceService {
     console.log('Effective shift:', effectiveShift);
     console.log('Shift status:', shiftstatus);
 
+    const {
+      isOutsideShift = false,
+      isLate = false,
+      isOvertime = false,
+    } = shiftstatus || {};
+
     // Check work days
     const today = now.getDay();
     if (!effectiveShift.workDays.includes(today)) {
@@ -201,8 +207,8 @@ export class AttendanceService {
       };
     }
 
-    if (shiftstatus.isOutsideShift) {
-      if (shiftstatus.isOvertime) {
+    if (isOutsideShift) {
+      if (isOvertime) {
         return {
           allowed: true,
           reason: 'คุณกำลังลงเวลานอกกะการทำงาน',
@@ -218,7 +224,7 @@ export class AttendanceService {
       }
     }
 
-    if (shiftstatus.isLate) {
+    if (isLate) {
       return {
         allowed: true,
         reason: 'คุณกำลังลงเวลาเข้างานสาย',
@@ -228,8 +234,8 @@ export class AttendanceService {
     }
     return {
       allowed: true,
-      isLate: shiftstatus.isLate,
-      isOvertime: shiftstatus.isOvertime,
+      isLate,
+      isOvertime,
       countdown: minutesUntilAllowed,
     };
   }

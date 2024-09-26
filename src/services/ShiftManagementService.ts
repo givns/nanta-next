@@ -147,7 +147,7 @@ export class ShiftManagementService {
     const result = {
       regularShift: this.convertToShiftData(regularShift),
       effectiveShift: this.convertToShiftData(effectiveShift),
-      status: {
+      shiftstatus: {
         isOutsideShift,
         isLate,
         isOvertime,
