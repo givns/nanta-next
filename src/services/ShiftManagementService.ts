@@ -145,7 +145,7 @@ export class ShiftManagementService {
     );
 
     const lateThreshold = addMinutes(shiftStart, 30);
-    const overtimeThreshold = addMinutes(shiftEnd, 5);
+    const overtimeThreshold = addMinutes(shiftEnd, 30);
 
     const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
     const isLate = isAfter(now, lateThreshold) && isBefore(now, shiftEnd);
@@ -155,7 +155,7 @@ export class ShiftManagementService {
       // Check for approved overtime
       const approvedOvertime =
         await this.overtimeService.getApprovedOvertimeRequest(employeeId, date);
-      isOvertime = !!approvedOvertime && isAfter(now, shiftEnd);
+      isOvertime = !!approvedOvertime && isAfter(now, overtimeThreshold);
     }
 
     const result = {

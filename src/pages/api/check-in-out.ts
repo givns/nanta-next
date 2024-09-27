@@ -25,19 +25,21 @@ import MemoryStore from 'better-queue-memory';
 const limiter = new RateLimiter({ tokensPerInterval: 5, interval: 'minute' });
 
 const prisma = new PrismaClient();
+const holidayService = new HolidayService(prisma);
+const notificationService = new NotificationService();
 const overtimeNotificationService = new OvertimeNotificationService();
-const timeEntryService = new TimeEntryService(
-  prisma,
-  new ShiftManagementService(prisma),
-);
+
+const shiftService = new ShiftManagementService(prisma);
+
+const timeEntryService = new TimeEntryService(prisma, shiftService);
+
 const overtimeService = new OvertimeServiceServer(
   prisma,
   overtimeNotificationService,
   timeEntryService,
 );
-const notificationService = new NotificationService();
-const shiftService = new ShiftManagementService(prisma);
-const holidayService = new HolidayService(prisma);
+
+shiftService.setOvertimeService(overtimeService);
 
 const attendanceService = new AttendanceService(
   prisma,

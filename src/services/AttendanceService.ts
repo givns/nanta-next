@@ -24,7 +24,6 @@ import {
   min,
   subMinutes,
   subHours,
-  addHours,
   set,
   subDays,
 } from 'date-fns';
@@ -48,12 +47,10 @@ import {
   getCurrentTime,
   toBangkokTime,
 } from '../utils/dateUtils';
-import { cacheService } from '../services/CacheService';
 import Redis from 'ioredis';
 import {
   getCacheData,
   setCacheData,
-  deleteCacheData,
   invalidateCachePattern,
 } from '../lib/serverCache';
 import { AppErrors } from '@/utils/errorHandler';

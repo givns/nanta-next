@@ -3,31 +3,23 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/AttendanceService';
 import { HolidayService } from '@/services/HolidayService';
-import { Shift104HolidayService } from '@/services/Shift104HolidayService';
-import { UserData } from '../../types/user';
-import {
-  ShiftAdjustment,
-  ApprovedOvertime,
-  AttendanceStatusInfo,
-} from '@/types/attendance';
 import { UserRole } from '@/types/enum';
-import { startOfDay } from 'date-fns';
 import { LeaveServiceServer } from '@/services/LeaveServiceServer';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { NotificationService } from '@/services/NotificationService';
 import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
-import { Redis } from 'ioredis';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
-const shift104HolidayService = new Shift104HolidayService();
-const shiftManagementService = new ShiftManagementService(prisma);
 const notificationService = new NotificationService();
 const overtimeNotificationService = new OvertimeNotificationService();
-const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
 const leaveServiceServer = new LeaveServiceServer();
+
+const shiftService = new ShiftManagementService(prisma);
+
+const timeEntryService = new TimeEntryService(prisma, shiftService);
 
 const overtimeService = new OvertimeServiceServer(
   prisma,
@@ -35,9 +27,11 @@ const overtimeService = new OvertimeServiceServer(
   timeEntryService,
 );
 
+shiftService.setOvertimeService(overtimeService);
+
 const attendanceService = new AttendanceService(
   prisma,
-  shiftManagementService,
+  shiftService,
   holidayService,
   leaveServiceServer,
   overtimeService,
@@ -92,10 +86,7 @@ export default async function handler(
 
     const [shiftData, attendanceStatus, approvedOvertime, checkInOutAllowance] =
       await Promise.all([
-        shiftManagementService.getEffectiveShiftAndStatus(
-          user.employeeId,
-          today,
-        ),
+        shiftService.getEffectiveShiftAndStatus(user.employeeId, today),
         attendanceService.getLatestAttendanceStatus(user.employeeId),
         overtimeService.getApprovedOvertimeRequest(user.employeeId, today),
         latitude !== undefined && longitude !== undefined
