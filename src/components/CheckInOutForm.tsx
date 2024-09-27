@@ -29,7 +29,6 @@ interface CheckInOutFormProps {
   userData: UserData;
   initialAttendanceStatus: AttendanceStatusInfo;
   effectiveShift: ShiftData | null;
-  initialCheckInOutAllowance: CheckInOutAllowance;
   onStatusChange: (newStatus: boolean) => void;
   onError: () => void;
   isActionButtonReady: boolean;
@@ -41,7 +40,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
   initialAttendanceStatus,
   effectiveShift,
-  initialCheckInOutAllowance,
   onStatusChange,
   onError,
   isActionButtonReady,
@@ -54,7 +52,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [buttonState, setButtonState] = useState(initialCheckInOutAllowance);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -101,14 +98,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     isOutsideShift,
     checkInOutAllowance,
     checkInOut,
-    debouncedIsCheckInOutAllowed,
+    refreshCheckInOutAllowance,
     getCurrentLocation,
     refreshAttendanceStatus,
-  } = useAttendance(
-    userData,
-    initialAttendanceStatus,
-    initialCheckInOutAllowance,
-  );
+  } = useAttendance(userData, initialAttendanceStatus);
 
   useEffect(() => {
     addDebugLog('CheckInOutForm mounted');
@@ -161,14 +154,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   }, [userData, initialAttendanceStatus, effectiveShift, addDebugLog, onError]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setButtonState(checkInOutAllowance || { allowed: false });
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [checkInOutAllowance]);
-
   const closeLiffWindow = useCallback(async () => {
     try {
       await liff.init({
@@ -186,19 +171,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   let retryCount = 0;
 
   const submitCheckInOut = useCallback(
-    async (photo: string, lateReasonInput?: string) => {
-      if (isSubmitting || !location || !photo) {
-        addDebugLog(
-          `Cannot submit: isSubmitting: ${isSubmitting}, location: ${!!location}, photo: ${!!photo}`,
-        );
+    async (photo: string, lateReason?: string) => {
+      if (!location) {
+        addDebugLog('Cannot submit: location not available');
+        setError('Location not available. Please try again.');
         return;
-      }
-
-      setIsSubmitting(true);
-      addDebugLog('Setting isSubmitting to true');
-
-      if (submitTimeoutRef.current) {
-        clearTimeout(submitTimeoutRef.current);
       }
 
       const checkInOutData: AttendanceData = {
@@ -207,54 +184,28 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         checkTime: new Date(),
         [attendanceStatus.isCheckingIn ? 'checkInAddress' : 'checkOutAddress']:
           address,
-        reason: lateReasonInput || reason,
+        reason: lateReason || reason,
         isCheckIn: attendanceStatus.isCheckingIn,
-        isOvertime,
-        isLate,
+        isOvertime: checkInOutAllowance?.isOvertime || false,
+        isLate: checkInOutAllowance?.isLate || false,
         photo,
       };
 
       addDebugLog(`Sending data to API: ${JSON.stringify(checkInOutData)}`);
 
-      const attemptSubmit = async () => {
-        try {
-          const response = await checkInOut(checkInOutData);
-          addDebugLog(`API response received: ${JSON.stringify(response)}`);
+      try {
+        const response = await checkInOut(checkInOutData);
+        addDebugLog(`API response received: ${JSON.stringify(response)}`);
 
-          onStatusChange(!attendanceStatus.isCheckingIn);
-          await refreshAttendanceStatus();
-          setStep('info');
-          await closeLiffWindow();
-        } catch (error: any) {
-          if (
-            error.response &&
-            error.response.status === 429 &&
-            retryCount < MAX_RETRIES
-          ) {
-            addDebugLog(
-              `Rate limit reached. Retry ${retryCount + 1} of ${MAX_RETRIES} in 5 seconds...`,
-            );
-            retryCount++;
-            submitTimeoutRef.current = setTimeout(attemptSubmit, 5000);
-          } else if (!error.response && error.request) {
-            addDebugLog(
-              'Network error. Please check your connection and try again.',
-            );
-            setError(
-              'Network error. Please check your connection and try again.',
-            );
-          } else {
-            addDebugLog(`Error during check-in/out: ${error.message}`);
-            setError('Failed to submit check-in/out. Please try again.');
-          }
-        } finally {
-          if (!submitTimeoutRef.current) {
-            setIsSubmitting(false);
-          }
-        }
-      };
-
-      attemptSubmit();
+        onStatusChange(!attendanceStatus.isCheckingIn);
+        await refreshAttendanceStatus();
+        await refreshCheckInOutAllowance(true);
+        setStep('info');
+        await closeLiffWindow();
+      } catch (error: any) {
+        addDebugLog(`Error during check-in/out: ${error.message}`);
+        setError('Failed to submit check-in/out. Please try again.');
+      }
     },
     [
       location,
@@ -262,13 +213,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       attendanceStatus,
       address,
       reason,
-      isOvertime,
-      isLate,
+      checkInOutAllowance,
       checkInOut,
-      closeLiffWindow,
       onStatusChange,
       refreshAttendanceStatus,
-
+      refreshCheckInOutAllowance,
+      closeLiffWindow,
       addDebugLog,
     ],
   );
@@ -301,25 +251,26 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       if (!capturedPhoto) return;
 
       try {
-        const allowance = await debouncedIsCheckInOutAllowed();
+        await refreshCheckInOutAllowance(true);
 
-        if (allowance) {
+        if (checkInOutAllowance) {
           addDebugLog(
-            `Check-in/out allowed: ${allowance.allowed}, isLate: ${allowance.isLate ?? false}, isOvertime: ${allowance.isOvertime ?? false}`,
+            `Check-in/out allowed: ${checkInOutAllowance.allowed}, isLate: ${checkInOutAllowance.isLate ?? false}, isOvertime: ${checkInOutAllowance.isOvertime ?? false}`,
           );
 
-          if (!allowance.allowed) {
+          if (!checkInOutAllowance.allowed) {
             setError(
-              allowance.reason || 'Check-in/out is not allowed at this time.',
+              checkInOutAllowance.reason ||
+                'Check-in/out is not allowed at this time.',
             );
             resetStates();
             return;
           }
 
-          setIsLate(allowance.isLate ?? false);
-          setIsOvertime(allowance.isOvertime ?? false);
+          setIsLate(checkInOutAllowance.isLate ?? false);
+          setIsOvertime(checkInOutAllowance.isOvertime ?? false);
 
-          if (allowance.isLate && attendanceStatus.isCheckingIn) {
+          if (checkInOutAllowance.isLate && attendanceStatus.isCheckingIn) {
             setIsLateModalOpen(true);
             setReason('');
             addDebugLog('Late modal opened');
@@ -342,25 +293,29 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     processCapture();
   }, [
     capturedPhoto,
-    debouncedIsCheckInOutAllowed,
+    refreshCheckInOutAllowance,
+    checkInOutAllowance,
     attendanceStatus.isCheckingIn,
     submitCheckInOut,
     addDebugLog,
     resetStates,
   ]);
 
-  const handleLateReasonSubmit = useCallback(
-    async (lateReason: string) => {
-      setIsLateModalOpen(false);
-      setStep('processing');
-      if (capturedPhoto) {
-        await submitCheckInOut(capturedPhoto, lateReason);
-      } else {
-        setError('Failed to capture photo. Please try again.');
+  const processAttendanceSubmission = useCallback(
+    async (photo: string, lateReason?: string) => {
+      try {
+        addDebugLog('Proceeding to submit check-in/out');
+        setStep('processing');
+        await submitCheckInOut(photo, lateReason);
+      } catch (error) {
+        addDebugLog(`Error in processAttendanceSubmission: ${error}`);
+        setError('An error occurred. Please try again.');
         resetStates();
+      } finally {
+        setIsSubmitting(false);
       }
     },
-    [submitCheckInOut, capturedPhoto, resetStates],
+    [addDebugLog, submitCheckInOut, setStep, setError, resetStates],
   );
 
   const confirmEarlyCheckOut = useCallback(() => {
@@ -395,22 +350,26 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         return;
       }
 
-      const allowance = await debouncedIsCheckInOutAllowed();
-      if (allowance?.allowed) {
+      // Refresh checkInOutAllowance immediately before proceeding
+      await refreshCheckInOutAllowance(true);
+
+      if (checkInOutAllowance?.allowed) {
         setStep('camera');
         setIsCameraActive(true);
         resetDetection();
         addDebugLog('Camera activated for check-in/out');
       } else {
         setError(
-          allowance?.reason || 'Check-in/out is not allowed at this time.',
+          checkInOutAllowance?.reason ||
+            'Check-in/out is not allowed at this time.',
         );
       }
     },
     [
       getCurrentLocation,
-      debouncedIsCheckInOutAllowed,
       confirmEarlyCheckOut,
+      refreshCheckInOutAllowance,
+      checkInOutAllowance,
       setStep,
       setIsCameraActive,
       resetDetection,
@@ -425,7 +384,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           className="w-full bg-gray-400 text-white py-3 px-4 rounded-lg"
           disabled
         >
-          กำลังโหลดข้อมูลตำแหน่ง...
+          กำลังโหลดข้อมูล...
         </button>
       );
     }
@@ -434,7 +393,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <div className="text-red-500 text-center">
           {locationError}
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              refreshCheckInOutAllowance(true);
+              window.location.reload();
+            }}
             className="mt-2 text-blue-500 underline"
           >
             Retry
@@ -499,6 +461,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     isActionButtonReady,
     locationError,
     handleAction,
+    refreshCheckInOutAllowance,
   ]);
 
   const renderStep1 = useMemo(
@@ -610,8 +573,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         )}
         <LateReasonModal
           isOpen={isLateModalOpen}
-          onClose={() => setIsLateModalOpen(false)}
-          onSubmit={handleLateReasonSubmit}
+          onClose={() => {
+            setIsLateModalOpen(false);
+            resetStates();
+          }}
+          onSubmit={(lateReason) => {
+            setIsLateModalOpen(false);
+            processAttendanceSubmission(capturedPhoto!, lateReason);
+          }}
         />
         {renderDebugLog}
       </div>

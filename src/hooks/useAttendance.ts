@@ -13,7 +13,6 @@ import { debounce, get } from 'lodash';
 export const useAttendance = (
   userData: UserData,
   initialAttendanceStatus: AttendanceStatusInfo,
-  initialCheckInOutAllowance: CheckInOutAllowance,
 ) => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo>(initialAttendanceStatus);
@@ -28,7 +27,7 @@ export const useAttendance = (
   const [inPremises, setInPremises] = useState(false);
   const [isOutsideShift, setIsOutsideShift] = useState(false);
   const [checkInOutAllowance, setCheckInOutAllowance] =
-    useState<CheckInOutAllowance | null>(initialCheckInOutAllowance);
+    useState<CheckInOutAllowance | null>(null);
 
   const processAttendanceStatus = useCallback(
     (status: AttendanceStatusInfo) => {
@@ -99,39 +98,58 @@ export const useAttendance = (
     getCurrentLocation();
   }, [getCurrentLocation]);
 
-  const debouncedIsCheckInOutAllowedRef = useRef(
-    debounce(async () => {
-      const currentLocation = await getCurrentLocation();
-      if (!currentLocation) {
-        return { allowed: false, reason: 'Location not available' };
-      }
+  const fetchCheckInOutAllowance = useCallback(async () => {
+    const currentLocation = await getCurrentLocation();
+    if (!currentLocation) {
+      setCheckInOutAllowance({
+        allowed: false,
+        reason: 'Location not available',
+      });
+      return;
+    }
 
-      try {
-        const response = await axios.get('/api/attendance/allowed', {
+    try {
+      const response = await axios.get<CheckInOutAllowance>(
+        '/api/attendance/allowed',
+        {
           params: {
             employeeId: userData.employeeId,
             lat: currentLocation.lat,
             lng: currentLocation.lng,
           },
-        });
-        setCheckInOutAllowance(response.data);
-        return response.data;
-      } catch (error) {
-        console.error('Error checking if check-in/out is allowed:', error);
-        return { allowed: false, reason: 'Error checking permissions' };
-      }
-    }, 300),
-  );
+        },
+      );
+      setCheckInOutAllowance(response.data);
+    } catch (error) {
+      console.error('Error checking if check-in/out is allowed:', error);
+      setCheckInOutAllowance({
+        allowed: false,
+        reason: 'Error checking permissions',
+      });
+    }
+  }, [userData.employeeId, getCurrentLocation]);
 
-  const debouncedIsCheckInOutAllowed = useCallback(() => {
-    return debouncedIsCheckInOutAllowedRef.current();
-  }, []);
+  const debouncedFetchCheckInOutAllowance = useRef(
+    debounce(fetchCheckInOutAllowance, 300),
+  ).current;
 
   useEffect(() => {
+    fetchCheckInOutAllowance(); // Initial fetch without debounce
     return () => {
-      debouncedIsCheckInOutAllowedRef.current.cancel();
+      debouncedFetchCheckInOutAllowance.cancel(); // Clean up debounced function
     };
-  }, []);
+  }, [fetchCheckInOutAllowance, debouncedFetchCheckInOutAllowance]);
+
+  const refreshCheckInOutAllowance = useCallback(
+    (immediate: boolean = false) => {
+      if (immediate) {
+        fetchCheckInOutAllowance();
+      } else {
+        debouncedFetchCheckInOutAllowance();
+      }
+    },
+    [fetchCheckInOutAllowance, debouncedFetchCheckInOutAllowance],
+  );
 
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
@@ -257,9 +275,9 @@ export const useAttendance = (
     inPremises,
     isOutsideShift,
     checkInOut,
-    debouncedIsCheckInOutAllowed,
-    refreshAttendanceStatus: getAttendanceStatus,
     checkInOutAllowance,
+    refreshCheckInOutAllowance,
+    refreshAttendanceStatus: getAttendanceStatus,
     isSubmitting: isSubmittingRef.current,
   };
 };

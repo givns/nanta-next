@@ -357,7 +357,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
                   }}
                   initialAttendanceStatus={fullData.attendanceStatus}
                   effectiveShift={fullData.effectiveShift}
-                  initialCheckInOutAllowance={fullData.checkInOutAllowance}
                   onStatusChange={handleStatusChange}
                   onError={() => debouncedFetchData()}
                   isActionButtonReady={isActionButtonReady}
