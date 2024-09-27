@@ -218,6 +218,7 @@ export type CheckInOutAllowance = {
   allowed: boolean;
   reason?: string;
   isLate?: boolean;
+  isOutsideShift?: boolean;
   isOvertime?: boolean;
   countdown?: number;
 };

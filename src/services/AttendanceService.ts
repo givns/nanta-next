@@ -113,7 +113,7 @@ export class AttendanceService {
     const now = getCurrentTime();
     console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
 
-    //check holiday
+    // Check holiday
     const isHoliday = await this.holidayService.isHoliday(
       now,
       [],
@@ -126,7 +126,7 @@ export class AttendanceService {
         isOvertime: true,
       };
 
-    // check if user is on leave
+    // Check if user is on leave
     const leaveRequest = await this.leaveService.checkUserOnLeave(
       employeeId,
       now,
@@ -169,14 +169,20 @@ export class AttendanceService {
     }
 
     const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
     const earlyCheckInWindow = subMinutes(shiftStart, 30);
+    const lateCheckOutWindow = addMinutes(shiftEnd, 30);
 
     console.log(
       `Shift start: ${formatDateTime(shiftStart, 'yyyy-MM-dd HH:mm:ss')}`,
     );
     console.log(
+      `Shift end: ${formatDateTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
+    );
+    console.log(
       `Early check-in window: ${formatDateTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss')}`,
     );
+
     const minutesUntilAllowed = Math.ceil(
       differenceInMinutes(earlyCheckInWindow, now),
     );
@@ -198,18 +204,24 @@ export class AttendanceService {
     }
 
     if (isOutsideShift) {
-      if (isOvertime) {
+      if (isOvertime || isAfter(now, lateCheckOutWindow)) {
         return {
           allowed: true,
-          reason: 'คุณกำลังลงเวลานอกกะการทำงาน',
+          reason: 'คุณกำลังลงเวลานอกกะการทำงาน (ทำงานล่วงเวลา)',
           isOvertime: true,
         };
-      } else {
+      } else if (isBefore(now, shiftStart)) {
         return {
           allowed: true,
           reason:
             'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
           isOvertime: false,
+        };
+      } else {
+        return {
+          allowed: false,
+          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกช่วงเวลาทำงาน',
+          isOutsideShift: true,
         };
       }
     }

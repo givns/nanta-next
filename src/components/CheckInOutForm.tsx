@@ -476,6 +476,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             สามารถลงเวลาได้ในอีก {checkInOutAllowance.countdown} นาที
           </p>
         )}
+        {checkInOutAllowance?.isOutsideShift && (
+          <p className="text-yellow-500 text-center text-sm mt-2">
+            คุณอยู่นอกเวลาทำงานของกะ
+          </p>
+        )}
         {checkInOutAllowance?.isLate && (
           <p className="text-yellow-500 text-center text-sm mt-2">
             คุณกำลังเข้างานสาย
