@@ -30,6 +30,7 @@ import {
   setCacheData,
   invalidateCachePattern,
 } from '../lib/serverCache';
+import { OvertimeServiceServer } from './OvertimeServiceServer';
 
 interface Premise {
   lat: number;
@@ -50,7 +51,13 @@ const PREMISES: Premise[] = [
 ];
 
 export class ShiftManagementService {
+  private overtimeService: OvertimeServiceServer | null = null;
+
   constructor(private prisma: PrismaClient) {}
+
+  setOvertimeService(overtimeService: OvertimeServiceServer) {
+    this.overtimeService = overtimeService;
+  }
 
   private departmentShiftMap: { [key: string]: string } = {
     ฝ่ายขนส่ง: 'SHIFT101',
@@ -142,7 +149,14 @@ export class ShiftManagementService {
 
     const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
     const isLate = isAfter(now, lateThreshold) && isBefore(now, shiftEnd);
-    const isOvertime = isAfter(now, overtimeThreshold);
+
+    let isOvertime = false;
+    if (this.overtimeService) {
+      // Check for approved overtime
+      const approvedOvertime =
+        await this.overtimeService.getApprovedOvertimeRequest(employeeId, date);
+      isOvertime = !!approvedOvertime && isAfter(now, shiftEnd);
+    }
 
     const result = {
       regularShift: this.convertToShiftData(regularShift),
