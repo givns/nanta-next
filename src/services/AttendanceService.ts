@@ -91,7 +91,6 @@ export class AttendanceService {
       where: { employeeId },
       include: { department: true },
     });
-
     if (user) {
       await setCacheData(cacheKey, JSON.stringify(user), USER_CACHE_TTL);
     }
@@ -114,7 +113,7 @@ export class AttendanceService {
     const now = getCurrentTime();
     console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
 
-    // Check holiday status
+    //check holiday
     const isHoliday = await this.holidayService.isHoliday(
       now,
       [],
@@ -127,7 +126,7 @@ export class AttendanceService {
         isOvertime: true,
       };
 
-    // Check leave
+    // check if user is on leave
     const leaveRequest = await this.leaveService.checkUserOnLeave(
       employeeId,
       now,
