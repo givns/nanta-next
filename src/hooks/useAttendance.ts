@@ -8,7 +8,7 @@ import {
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { formatDateTime, getCurrentTime } from '../utils/dateUtils';
-import { debounce } from 'lodash';
+import { debounce, get } from 'lodash';
 
 export const useAttendance = (
   userData: UserData,
@@ -60,45 +60,9 @@ export const useAttendance = (
     setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
   }, [initialAttendanceStatus, processAttendanceStatus]);
 
-  const getAttendanceStatus = useCallback(
-    async (forceRefresh: boolean = false) => {
-      try {
-        setIsLoading(true);
-        const response = await axios.get(
-          `/api/user-check-in-status?lineUserId=${userData.lineUserId}&forceRefresh=${forceRefresh}`,
-        );
-        const { attendanceStatus, effectiveShift, checkInOutAllowance } =
-          response.data;
-        setAttendanceStatus(processAttendanceStatus(attendanceStatus));
-        setEffectiveShift(effectiveShift);
-        setCheckInOutAllowance(checkInOutAllowance);
-        return response.data;
-      } catch (error) {
-        console.error('Error fetching attendance status:', error);
-        setError('Failed to fetch attendance status');
-        throw error;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [userData.lineUserId, processAttendanceStatus],
-  );
-
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        await getAttendanceStatus();
-      } catch (error) {
-        console.error('Error fetching initial data:', error);
-      }
-    };
-
-    fetchInitialData();
-  }, [getAttendanceStatus]);
-
   const getCurrentLocation = useCallback(async () => {
     if (!navigator.geolocation) {
-      console.error('Geolocation is not supported by this browser.');
+      setLocationError('Geolocation is not supported by this browser.');
       return null;
     }
 
@@ -119,9 +83,14 @@ export const useAttendance = (
       };
 
       setLocation(newLocation);
+      setLocationError(null);
       return newLocation;
     } catch (error) {
       console.error('Error getting location:', error);
+      setLocationError(
+        'Unable to get precise location. Please enable location services and try again.',
+      );
+      setLocation(null);
       return null;
     }
   }, []);
@@ -131,8 +100,8 @@ export const useAttendance = (
   }, [getCurrentLocation]);
 
   const debouncedIsCheckInOutAllowed = useCallback(
-    debounce(async (): Promise<CheckInOutAllowance> => {
-      const currentLocation = location || (await getCurrentLocation());
+    debounce(async () => {
+      const currentLocation = await getCurrentLocation();
       if (!currentLocation) {
         return { allowed: false, reason: 'Location not available' };
       }
@@ -155,26 +124,46 @@ export const useAttendance = (
         return { allowed: false, reason: 'Error checking permissions' };
       }
     }, 300),
-    [userData.employeeId, location, getCurrentLocation],
+    [userData.employeeId, getCurrentLocation],
+  );
+
+  useEffect(() => {
+    debouncedIsCheckInOutAllowed();
+  }, [debouncedIsCheckInOutAllowed]);
+
+  const getAttendanceStatus = useCallback(
+    async (forceRefresh: boolean = false) => {
+      try {
+        setIsLoading(true);
+        const currentLocation = await getCurrentLocation();
+        const response = await axios.get(`/api/user-check-in-status`, {
+          params: {
+            lineUserId: userData.lineUserId,
+            forceRefresh,
+            lat: currentLocation?.lat,
+            lng: currentLocation?.lng,
+          },
+        });
+        const { attendanceStatus, effectiveShift, checkInOutAllowance } =
+          response.data;
+        setAttendanceStatus(processAttendanceStatus(attendanceStatus));
+        setEffectiveShift(effectiveShift);
+        setCheckInOutAllowance(checkInOutAllowance);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching attendance status:', error);
+        setError('Failed to fetch attendance status');
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [userData.lineUserId, processAttendanceStatus, getCurrentLocation],
   );
 
   const refreshAttendanceStatus = useCallback(async () => {
-    try {
-      const currentLocation = location || (await getCurrentLocation());
-      const response = await axios.get('/api/user-check-in-status', {
-        params: {
-          lineUserId: userData.lineUserId,
-          forceRefresh: true,
-          lat: currentLocation?.lat,
-          lng: currentLocation?.lng,
-        },
-      });
-      setAttendanceStatus(response.data.attendanceStatus);
-      setCheckInOutAllowance(response.data.checkInOutAllowance);
-    } catch (error) {
-      console.error('Error refreshing attendance status:', error);
-    }
-  }, [userData.lineUserId, location, getCurrentLocation]);
+    return getAttendanceStatus(true);
+  }, [getAttendanceStatus]);
 
   const isSubmittingRef = useRef(false);
 
@@ -242,6 +231,18 @@ export const useAttendance = (
     }, 1000),
     [refreshAttendanceStatus],
   );
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        await getAttendanceStatus();
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+      }
+    };
+
+    fetchInitialData();
+  }, [getAttendanceStatus]);
 
   return {
     attendanceStatus,
