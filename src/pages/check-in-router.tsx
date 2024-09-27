@@ -226,15 +226,14 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           setFormError('Unable to get location. Some features may be limited.');
         }
 
+        const params: any = { lineUserId, forceRefresh };
+        if (currentLocation) {
+          params.lat = currentLocation.lat;
+          params.lng = currentLocation.lng;
+        }
+
         const response = await axios.get(`/api/user-check-in-status`, {
-          params: {
-            lineUserId,
-            ...(currentLocation && {
-              lat: currentLocation.lat,
-              lng: currentLocation.lng,
-            }),
-            forceRefresh,
-          },
+          params,
         });
 
         const validatedData = ResponseDataSchema.parse(response.data);
