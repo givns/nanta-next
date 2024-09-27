@@ -99,7 +99,7 @@ export const useAttendance = (
     getCurrentLocation();
   }, [getCurrentLocation]);
 
-  const debouncedIsCheckInOutAllowed = useCallback(
+  const debouncedIsCheckInOutAllowedRef = useRef(
     debounce(async () => {
       const currentLocation = await getCurrentLocation();
       if (!currentLocation) {
@@ -107,16 +107,13 @@ export const useAttendance = (
       }
 
       try {
-        const response = await axios.get<CheckInOutAllowance>(
-          '/api/attendance/allowed',
-          {
-            params: {
-              employeeId: userData.employeeId,
-              lat: currentLocation.lat,
-              lng: currentLocation.lng,
-            },
+        const response = await axios.get('/api/attendance/allowed', {
+          params: {
+            employeeId: userData.employeeId,
+            lat: currentLocation.lat,
+            lng: currentLocation.lng,
           },
-        );
+        });
         setCheckInOutAllowance(response.data);
         return response.data;
       } catch (error) {
@@ -124,12 +121,17 @@ export const useAttendance = (
         return { allowed: false, reason: 'Error checking permissions' };
       }
     }, 300),
-    [userData.employeeId, getCurrentLocation],
   );
 
+  const debouncedIsCheckInOutAllowed = useCallback(() => {
+    return debouncedIsCheckInOutAllowedRef.current();
+  }, []);
+
   useEffect(() => {
-    debouncedIsCheckInOutAllowed();
-  }, [debouncedIsCheckInOutAllowed]);
+    return () => {
+      debouncedIsCheckInOutAllowedRef.current.cancel();
+    };
+  }, []);
 
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
