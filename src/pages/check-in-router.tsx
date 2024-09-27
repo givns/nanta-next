@@ -222,6 +222,49 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     }
   }, [lineUserId, setCachedData]);
 
+  // Keep the existing fetchFreshData function
+  const fetchFreshData = useCallback(async () => {
+    if (!lineUserId) return;
+
+    try {
+      let currentLocation = location;
+      if (!currentLocation) {
+        currentLocation = await getLocation();
+        setLocation(currentLocation);
+      }
+
+      console.log(
+        `Sending location: lat ${currentLocation.lat}, lng ${currentLocation.lng}`,
+      );
+
+      const response = await axios.get(`/api/user-check-in-status`, {
+        params: {
+          lineUserId,
+          lat: currentLocation.lat,
+          lng: currentLocation.lng,
+          forceRefresh: false,
+        },
+      });
+      const validatedData = ResponseDataSchema.parse(response.data);
+
+      setFullData(validatedData);
+      setCachedData(validatedData);
+      setIsCachedData(false);
+      setIsLoading(false);
+      setIsActionButtonReady(true);
+    } catch (err) {
+      console.error('Error fetching full data:', err);
+      // ... existing error handling
+    }
+  }, [lineUserId, setCachedData, location, getLocation]);
+
+  useEffect(() => {
+    if (lineUserId) {
+      fetchInitialData(); // Fetch initial data without location
+      fetchFreshData(); // Then fetch fresh data with location
+    }
+  }, [lineUserId, fetchInitialData, fetchFreshData]);
+
   const updateWithLocation = useCallback(
     async (newLocation: { lat: number; lng: number }) => {
       if (!fullData) return;
@@ -250,23 +293,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     [fullData],
   );
 
-  useEffect(() => {
-    if (lineUserId) {
-      fetchInitialData();
-
-      getLocation()
-        .then((newLocation) => {
-          setLocation(newLocation);
-          updateWithLocation(newLocation);
-        })
-        .catch((error) => {
-          console.error('Error getting location:', error);
-          setFormError('Unable to get location. Some features may be limited.');
-          setIsActionButtonReady(true); // Enable button anyway, with a warning
-        });
-    }
-  }, [lineUserId, fetchInitialData, getLocation, updateWithLocation]);
-
   const staleWhileRevalidate = useCallback(async () => {
     setIsLoading(true);
     const cachedData = getCachedData();
@@ -284,16 +310,36 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     setIsLoading,
   ]);
 
+  const debouncedFetchFreshData = useMemo(
+    () => debounce(fetchFreshData, 300),
+    [fetchFreshData],
+  );
+
   useEffect(() => {
     if (lineUserId) {
-      staleWhileRevalidate();
-    }
-  }, [lineUserId, staleWhileRevalidate]);
+      const fetchData = async () => {
+        await staleWhileRevalidate(); // Use staleWhileRevalidate instead of fetchInitialData
+        try {
+          const newLocation = await getLocation();
+          setLocation(newLocation);
+          await updateWithLocation(newLocation);
+          await fetchFreshData(); // Fetch fresh data with location
+        } catch (error) {
+          console.error('Error getting location:', error);
+          setFormError('Unable to get location. Some features may be limited.');
+          setIsActionButtonReady(true); // Enable button anyway, with a warning
+        }
+      };
 
-  const debouncedFetchInitialData = useMemo(
-    () => debounce(fetchInitialData, 300),
-    [fetchInitialData],
-  );
+      fetchData();
+    }
+  }, [
+    lineUserId,
+    staleWhileRevalidate,
+    fetchFreshData,
+    getLocation,
+    updateWithLocation,
+  ]);
 
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
@@ -327,14 +373,14 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             },
           }));
           invalidateCache();
-          debouncedFetchInitialData();
+          debouncedFetchFreshData();
         } catch (error) {
           console.error('Error during check-in/out:', error);
           setFormError('Failed to update status. Please try again.');
         }
       }
     },
-    [fullData, lineUserId, debouncedFetchInitialData, invalidateCache],
+    [fullData, lineUserId, debouncedFetchFreshData, invalidateCache],
   );
 
   if (isLoading) {
@@ -404,7 +450,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
                   effectiveShift={fullData.effectiveShift}
                   initialCheckInOutAllowance={fullData.checkInOutAllowance}
                   onStatusChange={handleStatusChange}
-                  onError={() => debouncedFetchInitialData()}
+                  onError={() => debouncedFetchFreshData()}
                   isActionButtonReady={isActionButtonReady}
                 />
               </div>
