@@ -53,13 +53,22 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { lineUserId } = req.query;
+  const { lineUserId, lat, lng } = req.query;
 
   if (!lineUserId || typeof lineUserId !== 'string') {
     return res
       .status(400)
       .json({ error: 'Missing or invalid lineUserId parameter' });
   }
+  // Parse and validate lat and lng
+  const latitude = parseFloat(lat as string);
+  const longitude = parseFloat(lng as string);
+
+  if (isNaN(latitude) || isNaN(longitude)) {
+    return res.status(400).json({ error: 'Invalid latitude or longitude' });
+  }
+
+  console.log(`Received location: lat ${latitude}, lng ${longitude}`);
 
   try {
     const user = await prisma.user.findUnique({
@@ -98,9 +107,9 @@ export default async function handler(
         attendanceService.getLatestAttendanceStatus(user.employeeId),
         overtimeService.getApprovedOvertimeRequest(user.employeeId, today),
         attendanceService.isCheckInOutAllowed(user.employeeId, {
-          lat: 0,
-          lng: 0,
-        }), // Replace { lat: 0, lng: 0 } with the actual location object
+          lat: latitude,
+          lng: longitude,
+        }),
       ]);
     } catch (error) {
       console.error('Unexpected error in user check-in status:', error);
@@ -137,7 +146,7 @@ export default async function handler(
     try {
       checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
         user.employeeId,
-        { lat: 0, lng: 0 }, // Replace { lat: 0, lng: 0 } with the actual location object
+        { lat: latitude, lng: longitude },
       );
     } catch (allowanceError) {
       console.error('Error checking check-in/out allowance:', allowanceError);

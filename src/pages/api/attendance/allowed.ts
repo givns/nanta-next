@@ -53,6 +53,7 @@ export default async function handler(
 
   try {
     const location = { lat: parseFloat(lat), lng: parseFloat(lng) };
+    console.log(`Received location: lat ${lat}, lng ${lng}`);
     const isAllowed = await attendanceService.isCheckInOutAllowed(
       employeeId,
       location,
