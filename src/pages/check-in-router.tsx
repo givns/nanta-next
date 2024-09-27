@@ -141,6 +141,9 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isCachedData, setIsCachedData] = useState(false);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
 
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
@@ -181,54 +184,57 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
   }, []);
 
+  const getLocation = useCallback(async () => {
+    return new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          resolve({ lat: latitude, lng: longitude });
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          reject(error);
+        },
+        { timeout: 10000, maximumAge: 0, enableHighAccuracy: true },
+      );
+    });
+  }, []);
+
   const fetchFreshData = useCallback(async () => {
     if (!lineUserId) return;
 
     try {
-      // Get current position
-      const position = await new Promise<GeolocationPosition>(
-        (resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            timeout: 10000,
-            maximumAge: 0,
-            enableHighAccuracy: true,
-          });
-        },
+      let currentLocation = location;
+      if (!currentLocation) {
+        currentLocation = await getLocation();
+        setLocation(currentLocation);
+      }
+
+      console.log(
+        `Sending location: lat ${currentLocation.lat}, lng ${currentLocation.lng}`,
       );
-
-      const { latitude, longitude } = position.coords;
-
-      console.log(`Sending location: lat ${latitude}, lng ${longitude}`);
 
       const response = await axios.get(`/api/user-check-in-status`, {
         params: {
           lineUserId,
-          lat: latitude,
-          lng: longitude,
+          lat: currentLocation.lat,
+          lng: currentLocation.lng,
+          forceRefresh: false,
         },
       });
       const validatedData = ResponseDataSchema.parse(response.data);
 
-      const parsedData = {
-        ...validatedData,
-        user: parseUserData(validatedData.user),
-        attendanceStatus: {
-          ...validatedData.attendanceStatus,
-          user: parseUserData(validatedData.attendanceStatus.user),
-          approvedOvertime:
-            validatedData.attendanceStatus.approvedOvertime || null,
-          futureShifts: validatedData.attendanceStatus.futureShifts || [],
-          futureOvertimes: validatedData.attendanceStatus.futureOvertimes || [],
-        },
-      };
-
-      setFullData(parsedData);
-      setCachedData(parsedData);
+      setFullData(validatedData);
+      setCachedData(validatedData);
       setIsCachedData(false);
       setIsLoading(false);
     } catch (err) {
       console.error('Error fetching full data:', err);
-      if (err instanceof z.ZodError) {
+      if (err instanceof GeolocationPositionError) {
+        setError(
+          'Unable to get location. Please enable location services and try again.',
+        );
+      } else if (err instanceof z.ZodError) {
         setError(
           `Data validation error: ${err.errors.map((e) => e.message).join(', ')}`,
         );
@@ -239,7 +245,13 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       }
       setIsLoading(false);
     }
-  }, [lineUserId, setCachedData]);
+  }, [lineUserId, setCachedData, location, getLocation]);
+
+  useEffect(() => {
+    if (lineUserId) {
+      fetchFreshData();
+    }
+  }, [lineUserId, fetchFreshData]);
 
   const staleWhileRevalidate = useCallback(async () => {
     setIsLoading(true);

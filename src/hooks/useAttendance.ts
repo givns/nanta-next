@@ -7,13 +7,7 @@ import {
   CheckInOutAllowance,
 } from '../types/attendance';
 import { UserData } from '../types/user';
-import { parseISO, isValid } from 'date-fns';
-import {
-  formatTime,
-  formatDate,
-  formatDateTime,
-  getCurrentTime,
-} from '../utils/dateUtils';
+import { formatDateTime, getCurrentTime } from '../utils/dateUtils';
 import { debounce } from 'lodash';
 
 export const useAttendance = (
@@ -94,36 +88,6 @@ export const useAttendance = (
     return getAttendanceStatus(true);
   }, [getAttendanceStatus]);
 
-  const isCheckInOutAllowed = useCallback(async () => {
-    if (!location) {
-      return { allowed: false, reason: 'Location not available' };
-    }
-
-    try {
-      const response = await axios.get<CheckInOutAllowance>(
-        '/api/attendance/allowed',
-        {
-          params: {
-            employeeId: userData.employeeId,
-            lat: location.lat,
-            lng: location.lng,
-          },
-        },
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error checking if check-in/out is allowed:', error);
-      setError('Failed to check if check-in/out is allowed');
-      return { allowed: false, reason: 'Error checking permissions' };
-    }
-  }, [location, userData.employeeId]);
-
-  useEffect(() => {
-    if (location) {
-      isCheckInOutAllowed();
-    }
-  }, [location, isCheckInOutAllowed]);
-
   const isSubmittingRef = useRef(false);
 
   const checkInOut = useCallback(
@@ -198,61 +162,73 @@ export const useAttendance = (
     fetchInitialData();
   }, [getAttendanceStatus]);
 
-  useEffect(() => {
-    const getCurrentLocation = async () => {
-      if (!navigator.geolocation) {
-        setLocationError('Geolocation is not supported by this browser.');
-        return;
-      }
+  const getCurrentLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by this browser.');
+      return null;
+    }
 
-      try {
-        const position = await new Promise<GeolocationPosition>(
-          (resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              timeout: 10000,
-              maximumAge: 0,
-              enableHighAccuracy: true,
-            });
-          },
-        );
-
-        const newLocation = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-
-        setLocation(newLocation);
-        setLocationError(null);
-
-        const response = await axios.post('/api/location/check', newLocation);
-        setAddress(response.data.address);
-        setInPremises(response.data.inPremises);
-
-        if (!response.data.inPremises) {
-          setCheckInOutAllowance({
-            allowed: false,
-            reason: 'คุณไม่ได้อยู่ในพื้นที่เข้า-ออกงานได้',
+    try {
+      const position = await new Promise<GeolocationPosition>(
+        (resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 10000,
+            maximumAge: 0,
+            enableHighAccuracy: true,
           });
-        } else {
-          // Only check other conditions if user is in premises
-          const allowance = await isCheckInOutAllowed();
-          setCheckInOutAllowance(allowance);
-        }
-      } catch (error) {
-        console.error('Error getting location:', error);
-        setLocationError(
-          'Unable to get precise location. Please enable location services and try again.',
-        );
-        setLocation(null);
-        setCheckInOutAllowance({
-          allowed: false,
-          reason: 'Unable to determine your location',
-        });
-      }
-    };
+        },
+      );
 
-    getCurrentLocation();
+      const newLocation = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      };
+
+      setLocation(newLocation);
+      setLocationError(null);
+      return newLocation;
+    } catch (error) {
+      console.error('Error getting location:', error);
+      setLocationError(
+        'Unable to get precise location. Please enable location services and try again.',
+      );
+      setLocation(null);
+      return null;
+    }
   }, []);
+
+  useEffect(() => {
+    getCurrentLocation();
+  }, [getCurrentLocation]);
+
+  const isCheckInOutAllowed = useCallback(async () => {
+    const currentLocation = await getCurrentLocation();
+    if (!currentLocation) {
+      return { allowed: false, reason: 'Location not available' };
+    }
+
+    try {
+      const response = await axios.get<CheckInOutAllowance>(
+        '/api/attendance/allowed',
+        {
+          params: {
+            employeeId: userData.employeeId,
+            lat: currentLocation.lat,
+            lng: currentLocation.lng,
+          },
+        },
+      );
+      setCheckInOutAllowance(response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error checking if check-in/out is allowed:', error);
+      return { allowed: false, reason: 'Error checking permissions' };
+    }
+  }, [userData.employeeId, getCurrentLocation]);
+
+  useEffect(() => {
+    isCheckInOutAllowed();
+  }, [isCheckInOutAllowed]);
 
   return {
     attendanceStatus,
@@ -260,6 +236,7 @@ export const useAttendance = (
     error,
     location,
     locationError,
+    getCurrentLocation,
     address,
     inPremises,
     isOutsideShift,

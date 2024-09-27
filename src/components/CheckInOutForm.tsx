@@ -100,6 +100,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     checkInOutAllowance,
     checkInOut,
     isCheckInOutAllowed,
+    getCurrentLocation,
     refreshAttendanceStatus,
   } = useAttendance(
     userData,
@@ -380,6 +381,43 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     return true;
   }, [effectiveShift]);
 
+  const handleAction = useCallback(
+    async (action: 'checkIn' | 'checkOut') => {
+      const currentLocation = await getCurrentLocation();
+      if (!currentLocation) {
+        setError(
+          'Unable to get location. Please enable location services and try again.',
+        );
+        return;
+      }
+
+      if (action === 'checkOut' && !confirmEarlyCheckOut()) {
+        return;
+      }
+
+      const allowance = await isCheckInOutAllowed();
+      if (allowance.allowed) {
+        setStep('camera');
+        setIsCameraActive(true);
+        resetDetection();
+        addDebugLog('Camera activated for check-in/out');
+      } else {
+        setError(
+          allowance.reason || 'Check-in/out is not allowed at this time.',
+        );
+      }
+    },
+    [
+      getCurrentLocation,
+      isCheckInOutAllowed,
+      confirmEarlyCheckOut,
+      setStep,
+      setIsCameraActive,
+      resetDetection,
+      addDebugLog,
+    ],
+  );
+
   const renderActionButton = useCallback(() => {
     if (locationError) {
       return (
@@ -394,22 +432,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         </div>
       );
     }
-    const handleAction = async (action: 'checkIn' | 'checkOut') => {
-      if (action === 'checkOut' && !confirmEarlyCheckOut()) {
-        return;
-      }
-      const allowance = await isCheckInOutAllowed();
-      if (allowance.allowed) {
-        setStep('camera');
-        setIsCameraActive(true);
-        resetDetection();
-        addDebugLog('Camera activated for check-in/out');
-      } else {
-        setError(
-          allowance.reason || 'Check-in/out is not allowed at this time.',
-        );
-      }
-    };
 
     const buttonClass = `w-full ${
       checkInOutAllowance?.allowed
@@ -460,13 +482,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     checkInOutAllowance,
     attendanceStatus.isCheckingIn,
     locationError,
-    confirmEarlyCheckOut,
-    isCheckInOutAllowed,
-    setStep,
-    setIsCameraActive,
-    resetDetection,
-    addDebugLog,
-    setError,
+    handleAction,
   ]);
 
   const renderStep1 = useMemo(
