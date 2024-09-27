@@ -123,7 +123,7 @@ export class AttendanceService {
     if (isHoliday)
       return {
         allowed: true,
-        reason: 'Holiday: Overtime will be recorded',
+        reason: 'วันหยุด: การลงเวลาจะถูกบันทึกเป็นการทำงานล่วงเวลา',
         isOvertime: true,
       };
 
@@ -134,16 +134,6 @@ export class AttendanceService {
     );
     if (leaveRequest) {
       return { allowed: false, reason: 'User is on approved leave' };
-    }
-
-    // Check premises
-    const inPremises = await this.shiftManagementService.isWithinPremises(
-      location.lat,
-      location.lng,
-    );
-    console.log(`In premises: ${inPremises ? 'Yes' : 'No'}`);
-    if (!inPremises) {
-      return { allowed: false, reason: 'คุณไม่ได้อยู่ในพื้นที่เข้า-ออกงานได้' };
     }
 
     const shiftData =

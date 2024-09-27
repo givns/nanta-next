@@ -109,9 +109,7 @@ export const useAttendance = (
           },
         },
       );
-      const allowanceData = response.data;
-      setCheckInOutAllowance(allowanceData);
-      return allowanceData;
+      return response.data;
     } catch (error) {
       console.error('Error checking if check-in/out is allowed:', error);
       setError('Failed to check if check-in/out is allowed');
@@ -224,23 +222,25 @@ export const useAttendance = (
         setAddress(response.data.address);
         setInPremises(response.data.inPremises);
 
-        setCheckInOutAllowance((prevAllowance) => ({
-          ...prevAllowance,
-          allowed: response.data.inPremises,
-          reason: response.data.inPremises
-            ? undefined
-            : 'คุณไม่ได้อยู่ที่ทำงาน',
-        }));
+        if (!response.data.inPremises) {
+          setCheckInOutAllowance({
+            allowed: false,
+            reason: 'คุณไม่ได้อยู่ในพื้นที่เข้า-ออกงานได้',
+          });
+        } else {
+          // Only check other conditions if user is in premises
+          const allowance = await isCheckInOutAllowed();
+          setCheckInOutAllowance(allowance);
+        }
       } catch (error) {
         console.error('Error getting location:', error);
         setError('Unable to get precise location.');
         setAddress('Unknown');
         setInPremises(false);
-        setCheckInOutAllowance((prevAllowance) => ({
-          ...prevAllowance,
+        setCheckInOutAllowance({
           allowed: false,
           reason: 'Unable to determine your location',
-        }));
+        });
       }
     };
 

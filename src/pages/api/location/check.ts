@@ -15,17 +15,26 @@ export default async function handler(
 
   const { lat, lng } = req.body;
 
-  try {
-    const address = await shiftManagementService.getAddressFromCoordinates(
-      lat,
-      lng,
-    );
-    const inPremises = await shiftManagementService.isWithinPremises(lat, lng);
-    console.log('Address:', address);
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    return res.status(400).json({ error: 'Invalid latitude or longitude' });
+  }
 
-    res.status(200).json({ address, inPremises });
+  try {
+    const premise = shiftManagementService.isWithinPremises(lat, lng);
+
+    if (premise) {
+      res.status(200).json({
+        inPremises: true,
+        address: premise.name,
+      });
+    } else {
+      res.status(200).json({
+        inPremises: false,
+        address: 'นอกพื้นที่',
+      });
+    }
   } catch (error) {
     console.error('Error checking location:', error);
-    res.status(500).json({ error: 'Failed to check location' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
