@@ -185,9 +185,24 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     if (!lineUserId) return;
 
     try {
-      const response = await axios.get(
-        `/api/user-check-in-status?lineUserId=${lineUserId}`,
+      // Get current position
+      const position = await new Promise<GeolocationPosition>(
+        (resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        },
       );
+
+      const { latitude, longitude } = position.coords;
+
+      console.log(`Sending location: lat ${latitude}, lng ${longitude}`);
+
+      const response = await axios.get(`/api/user-check-in-status`, {
+        params: {
+          lineUserId,
+          lat: latitude,
+          lng: longitude,
+        },
+      });
       const validatedData = ResponseDataSchema.parse(response.data);
 
       const parsedData = {
@@ -254,9 +269,24 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     async (newStatus: boolean) => {
       if (fullData) {
         try {
+          // Get current position
+          const position = await new Promise<GeolocationPosition>(
+            (resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject);
+            },
+          );
+
+          const { latitude, longitude } = position.coords;
+
+          console.log(
+            `Sending location for check-in/out: lat ${latitude}, lng ${longitude}`,
+          );
+
           await axios.post('/api/check-in-out', {
             lineUserId,
             isCheckIn: newStatus,
+            lat: latitude,
+            lng: longitude,
           });
 
           setFullData((prevData) => ({
