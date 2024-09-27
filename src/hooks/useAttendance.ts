@@ -111,7 +111,6 @@ export const useAttendance = (
 
       while (attempt < 3) {
         try {
-          console.log('Sending check-in/out data:', attendanceData);
           const response = await axios.post(
             '/api/check-in-out',
             attendanceData,
@@ -125,6 +124,8 @@ export const useAttendance = (
           }));
 
           await refreshAttendanceStatus();
+          isSubmittingRef.current = false;
+          setIsLoading(false);
           return response.data;
         } catch (err) {
           console.error('Error during check-in/out:', err);
@@ -140,11 +141,15 @@ export const useAttendance = (
             setError(
               'An error occurred during check-in/out. Please try again.',
             );
+            isSubmittingRef.current = false;
+            setIsLoading(false);
             throw err;
           }
         }
       }
       setError('Max retries reached. Please try again later.');
+      isSubmittingRef.current = false;
+      setIsLoading(false);
       throw new Error('Max retries reached');
     }, 1000),
     [refreshAttendanceStatus],
@@ -201,34 +206,37 @@ export const useAttendance = (
     getCurrentLocation();
   }, [getCurrentLocation]);
 
-  const isCheckInOutAllowed = useCallback(async () => {
-    const currentLocation = await getCurrentLocation();
-    if (!currentLocation) {
-      return { allowed: false, reason: 'Location not available' };
-    }
+  const debouncedIsCheckInOutAllowed = useCallback(
+    debounce(async () => {
+      const currentLocation = await getCurrentLocation();
+      if (!currentLocation) {
+        return { allowed: false, reason: 'Location not available' };
+      }
 
-    try {
-      const response = await axios.get<CheckInOutAllowance>(
-        '/api/attendance/allowed',
-        {
-          params: {
-            employeeId: userData.employeeId,
-            lat: currentLocation.lat,
-            lng: currentLocation.lng,
+      try {
+        const response = await axios.get<CheckInOutAllowance>(
+          '/api/attendance/allowed',
+          {
+            params: {
+              employeeId: userData.employeeId,
+              lat: currentLocation.lat,
+              lng: currentLocation.lng,
+            },
           },
-        },
-      );
-      setCheckInOutAllowance(response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error checking if check-in/out is allowed:', error);
-      return { allowed: false, reason: 'Error checking permissions' };
-    }
-  }, [userData.employeeId, getCurrentLocation]);
+        );
+        setCheckInOutAllowance(response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error checking if check-in/out is allowed:', error);
+        return { allowed: false, reason: 'Error checking permissions' };
+      }
+    }, 300),
+    [userData.employeeId, getCurrentLocation],
+  );
 
   useEffect(() => {
-    isCheckInOutAllowed();
-  }, [isCheckInOutAllowed]);
+    debouncedIsCheckInOutAllowed();
+  }, [debouncedIsCheckInOutAllowed]);
 
   return {
     attendanceStatus,
@@ -241,7 +249,7 @@ export const useAttendance = (
     inPremises,
     isOutsideShift,
     checkInOut,
-    isCheckInOutAllowed,
+    debouncedIsCheckInOutAllowed,
     refreshAttendanceStatus: getAttendanceStatus,
     checkInOutAllowance,
     isSubmitting: isSubmittingRef.current,

@@ -101,7 +101,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     isOutsideShift,
     checkInOutAllowance,
     checkInOut,
-    isCheckInOutAllowed,
+    debouncedIsCheckInOutAllowed,
     getCurrentLocation,
     refreshAttendanceStatus,
   } = useAttendance(
@@ -301,36 +301,35 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       if (!capturedPhoto) return;
 
       try {
-        const {
-          allowed,
-          reason: checkInOutReason,
-          isLate,
-          isOvertime,
-        } = await isCheckInOutAllowed();
+        const allowance = await debouncedIsCheckInOutAllowed();
 
-        addDebugLog(
-          `Check-in/out allowed: ${allowed}, isLate: ${isLate}, isOvertime: ${isOvertime}`,
-        );
-
-        if (!allowed) {
-          setError(
-            checkInOutReason || 'Check-in/out is not allowed at this time.',
+        if (allowance) {
+          addDebugLog(
+            `Check-in/out allowed: ${allowance.allowed}, isLate: ${allowance.isLate ?? false}, isOvertime: ${allowance.isOvertime ?? false}`,
           );
-          resetStates();
-          return;
-        }
 
-        setIsLate(isLate ?? false);
-        setIsOvertime(isOvertime || false);
+          if (!allowance.allowed) {
+            setError(
+              allowance.reason || 'Check-in/out is not allowed at this time.',
+            );
+            resetStates();
+            return;
+          }
 
-        if ((isLate ?? false) && attendanceStatus.isCheckingIn) {
-          setIsLateModalOpen(true);
-          setReason('');
-          addDebugLog('Late modal opened');
+          setIsLate(allowance.isLate ?? false);
+          setIsOvertime(allowance.isOvertime ?? false);
+
+          if (allowance.isLate && attendanceStatus.isCheckingIn) {
+            setIsLateModalOpen(true);
+            setReason('');
+            addDebugLog('Late modal opened');
+          } else {
+            addDebugLog('Proceeding to submit check-in/out');
+            setStep('processing');
+            await submitCheckInOut(capturedPhoto);
+          }
         } else {
-          addDebugLog('Proceeding to submit check-in/out');
-          setStep('processing');
-          await submitCheckInOut(capturedPhoto);
+          throw new Error('Failed to get check-in/out allowance');
         }
       } catch (error) {
         addDebugLog(`Error in processCapture: ${error}`);
@@ -343,12 +342,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     processCapture();
   }, [
     capturedPhoto,
-    isCheckInOutAllowed,
+    debouncedIsCheckInOutAllowed,
     attendanceStatus.isCheckingIn,
     submitCheckInOut,
     addDebugLog,
     resetStates,
-    isSubmitting,
   ]);
 
   const handleLateReasonSubmit = useCallback(
@@ -397,21 +395,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         return;
       }
 
-      const allowance = await isCheckInOutAllowed();
-      if (allowance.allowed) {
+      const allowance = await debouncedIsCheckInOutAllowed();
+      if (allowance?.allowed) {
         setStep('camera');
         setIsCameraActive(true);
         resetDetection();
         addDebugLog('Camera activated for check-in/out');
       } else {
         setError(
-          allowance.reason || 'Check-in/out is not allowed at this time.',
+          allowance?.reason || 'Check-in/out is not allowed at this time.',
         );
       }
     },
     [
       getCurrentLocation,
-      isCheckInOutAllowed,
+      debouncedIsCheckInOutAllowed,
       confirmEarlyCheckOut,
       setStep,
       setIsCameraActive,
