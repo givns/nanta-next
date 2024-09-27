@@ -32,6 +32,7 @@ interface CheckInOutFormProps {
   initialCheckInOutAllowance: CheckInOutAllowance;
   onStatusChange: (newStatus: boolean) => void;
   onError: () => void;
+  isActionButtonReady: boolean;
 }
 
 const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
@@ -43,6 +44,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   initialCheckInOutAllowance,
   onStatusChange,
   onError,
+  isActionButtonReady,
 }) => {
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [reason, setReason] = useState<string>('');
@@ -419,6 +421,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderActionButton = useCallback(() => {
+    if (!isActionButtonReady) {
+      return (
+        <button
+          className="w-full bg-gray-400 text-white py-3 px-4 rounded-lg"
+          disabled
+        >
+          กำลังโหลดข้อมูลตำแหน่ง...
+        </button>
+      );
+    }
     if (locationError) {
       return (
         <div className="text-red-500 text-center">
@@ -481,6 +493,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [
     checkInOutAllowance,
     attendanceStatus.isCheckingIn,
+    isActionButtonReady,
     locationError,
     handleAction,
   ]);
