@@ -150,7 +150,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     localStorage.removeItem(CACHE_KEY);
   }, []);
 
-  // Updated: Modified getCachedData with timing and logging
   const getCachedData = useCallback(() => {
     console.time('Cache retrieval');
     const cachedString = localStorage.getItem(CACHE_KEY);
@@ -222,27 +221,18 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     }
   }, [lineUserId, setCachedData]);
 
-  // Keep the existing fetchFreshData function
   const fetchFreshData = useCallback(async () => {
-    if (!lineUserId) return;
+    if (!lineUserId || !location) return;
 
     try {
-      let currentLocation = location;
-      if (!currentLocation) {
-        currentLocation = await getLocation();
-        setLocation(currentLocation);
-      }
-
-      console.log(
-        `Sending location: lat ${currentLocation.lat}, lng ${currentLocation.lng}`,
-      );
+      console.log(`Sending location: lat ${location.lat}, lng ${location.lng}`);
 
       const response = await axios.get(`/api/user-check-in-status`, {
         params: {
           lineUserId,
-          lat: currentLocation.lat,
-          lng: currentLocation.lng,
-          forceRefresh: false,
+          lat: location.lat,
+          lng: location.lng,
+          forceRefresh: true,
         },
       });
       const validatedData = ResponseDataSchema.parse(response.data);
@@ -251,19 +241,13 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       setCachedData(validatedData);
       setIsCachedData(false);
       setIsLoading(false);
-      setIsActionButtonReady(true);
     } catch (err) {
       console.error('Error fetching full data:', err);
-      // ... existing error handling
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
     }
-  }, [lineUserId, setCachedData, location, getLocation]);
-
-  useEffect(() => {
-    if (lineUserId) {
-      fetchInitialData(); // Fetch initial data without location
-      fetchFreshData(); // Then fetch fresh data with location
-    }
-  }, [lineUserId, fetchInitialData, fetchFreshData]);
+  }, [lineUserId, location, setCachedData]);
 
   const updateWithLocation = useCallback(
     async (newLocation: { lat: number; lng: number }) => {
@@ -281,13 +265,13 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           ...prevData!,
           checkInOutAllowance: response.data,
         }));
-        setIsActionButtonReady(true);
       } catch (err) {
         console.error('Error updating with location:', err);
         setFormError(
           'Failed to update location data. Action button may not be accurate.',
         );
-        setIsActionButtonReady(true); // Enable button anyway, with a warning
+      } finally {
+        setIsActionButtonReady(true);
       }
     },
     [fullData],
@@ -302,13 +286,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       setIsLoading(false);
     }
     await fetchInitialData();
-  }, [
-    getCachedData,
-    fetchInitialData,
-    setFullData,
-    setIsCachedData,
-    setIsLoading,
-  ]);
+  }, [getCachedData, fetchInitialData]);
 
   const debouncedFetchFreshData = useMemo(
     () => debounce(fetchFreshData, 300),
@@ -318,16 +296,17 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   useEffect(() => {
     if (lineUserId) {
       const fetchData = async () => {
-        await staleWhileRevalidate(); // Use staleWhileRevalidate instead of fetchInitialData
+        await staleWhileRevalidate();
         try {
           const newLocation = await getLocation();
           setLocation(newLocation);
           await updateWithLocation(newLocation);
-          await fetchFreshData(); // Fetch fresh data with location
+          await fetchFreshData();
         } catch (error) {
           console.error('Error getting location:', error);
           setFormError('Unable to get location. Some features may be limited.');
-          setIsActionButtonReady(true); // Enable button anyway, with a warning
+        } finally {
+          setIsActionButtonReady(true);
         }
       };
 
@@ -336,33 +315,24 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   }, [
     lineUserId,
     staleWhileRevalidate,
-    fetchFreshData,
     getLocation,
     updateWithLocation,
+    fetchFreshData,
   ]);
 
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
-      if (fullData) {
+      if (fullData && location) {
         try {
-          // Get current position
-          const position = await new Promise<GeolocationPosition>(
-            (resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject);
-            },
-          );
-
-          const { latitude, longitude } = position.coords;
-
           console.log(
-            `Sending location for check-in/out: lat ${latitude}, lng ${longitude}`,
+            `Sending location for check-in/out: lat ${location.lat}, lng ${location.lng}`,
           );
 
           await axios.post('/api/check-in-out', {
             lineUserId,
             isCheckIn: newStatus,
-            lat: latitude,
-            lng: longitude,
+            lat: location.lat,
+            lng: location.lng,
           });
 
           setFullData((prevData) => ({
@@ -380,7 +350,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         }
       }
     },
-    [fullData, lineUserId, debouncedFetchFreshData, invalidateCache],
+    [fullData, location, lineUserId, debouncedFetchFreshData, invalidateCache],
   );
 
   if (isLoading) {
