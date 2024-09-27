@@ -188,7 +188,11 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       // Get current position
       const position = await new Promise<GeolocationPosition>(
         (resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject);
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 10000,
+            maximumAge: 0,
+            enableHighAccuracy: true,
+          });
         },
       );
 

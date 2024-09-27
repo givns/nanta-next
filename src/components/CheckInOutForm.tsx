@@ -57,6 +57,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isDebugLogExpanded, setIsDebugLogExpanded] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const addDebugLog = useCallback((message: string) => {
     setDebugLog((prev) => {
@@ -380,6 +381,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [effectiveShift]);
 
   const renderActionButton = useCallback(() => {
+    if (locationError) {
+      return (
+        <div className="text-red-500 text-center">
+          {locationError}
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-2 text-blue-500 underline"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
     const handleAction = async (action: 'checkIn' | 'checkOut') => {
       if (action === 'checkOut' && !confirmEarlyCheckOut()) {
         return;
@@ -445,6 +459,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [
     checkInOutAllowance,
     attendanceStatus.isCheckingIn,
+    locationError,
     confirmEarlyCheckOut,
     isCheckInOutAllowed,
     setStep,

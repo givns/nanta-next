@@ -29,6 +29,7 @@ export const useAttendance = (
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [address, setAddress] = useState<string>('');
   const [inPremises, setInPremises] = useState(false);
   const [isOutsideShift, setIsOutsideShift] = useState(false);
@@ -200,14 +201,18 @@ export const useAttendance = (
   useEffect(() => {
     const getCurrentLocation = async () => {
       if (!navigator.geolocation) {
-        setError('Geolocation is not supported by this browser.');
+        setLocationError('Geolocation is not supported by this browser.');
         return;
       }
 
       try {
         const position = await new Promise<GeolocationPosition>(
           (resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject);
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              timeout: 10000,
+              maximumAge: 0,
+              enableHighAccuracy: true,
+            });
           },
         );
 
@@ -217,6 +222,7 @@ export const useAttendance = (
         };
 
         setLocation(newLocation);
+        setLocationError(null);
 
         const response = await axios.post('/api/location/check', newLocation);
         setAddress(response.data.address);
@@ -234,9 +240,10 @@ export const useAttendance = (
         }
       } catch (error) {
         console.error('Error getting location:', error);
-        setError('Unable to get precise location.');
-        setAddress('Unknown');
-        setInPremises(false);
+        setLocationError(
+          'Unable to get precise location. Please enable location services and try again.',
+        );
+        setLocation(null);
         setCheckInOutAllowance({
           allowed: false,
           reason: 'Unable to determine your location',
@@ -252,6 +259,7 @@ export const useAttendance = (
     isLoading,
     error,
     location,
+    locationError,
     address,
     inPremises,
     isOutsideShift,
