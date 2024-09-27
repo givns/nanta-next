@@ -1,6 +1,9 @@
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
+  pooled   = true 
+  pool     = 80
+
 }
 
 generator client {
