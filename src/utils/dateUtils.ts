@@ -43,9 +43,20 @@ export function formatDate(date: Date | string | number): string {
 }
 
 export function formatTime(time: Date | string | number): string {
-  if (typeof time === 'string' && time.includes(':')) {
-    // If it's already in HH:mm:ss format, return as is
-    return time;
+  if (typeof time === 'string') {
+    // Try to parse the string as a time
+    const [hours, minutes, seconds] = time.split(':').map(Number);
+    if (
+      isNaN(hours) ||
+      isNaN(minutes) ||
+      (seconds !== undefined && isNaN(seconds))
+    ) {
+      return 'Invalid Time';
+    }
+    // Create a new date object with the parsed time
+    const parsedTime = new Date();
+    parsedTime.setHours(hours, minutes, seconds || 0);
+    return format(parsedTime, 'HH:mm:ss');
   }
   const parsedTime = ensureDate(time);
   if (!parsedTime) return 'Invalid Time';

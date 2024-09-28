@@ -172,9 +172,18 @@ async function processCheckInOut(data: any) {
             'Raw checkInTime:',
             updatedStatus.latestAttendance.checkInTime,
           );
-          updatedStatus.latestAttendance.checkInTime = formatTime(
-            new Date(updatedStatus.latestAttendance.checkInTime),
+          const formattedCheckInTime = formatTime(
+            updatedStatus.latestAttendance.checkInTime,
           );
+          if (formattedCheckInTime === 'Invalid Time') {
+            console.error(
+              'Invalid checkInTime:',
+              updatedStatus.latestAttendance.checkInTime,
+            );
+            updatedStatus.latestAttendance.checkInTime = null;
+          } else {
+            updatedStatus.latestAttendance.checkInTime = formattedCheckInTime;
+          }
           console.log(
             'Formatted checkInTime:',
             updatedStatus.latestAttendance.checkInTime,
@@ -185,9 +194,18 @@ async function processCheckInOut(data: any) {
             'Raw checkOutTime:',
             updatedStatus.latestAttendance.checkOutTime,
           );
-          updatedStatus.latestAttendance.checkOutTime = formatTime(
-            new Date(updatedStatus.latestAttendance.checkOutTime),
+          const formattedCheckOutTime = formatTime(
+            updatedStatus.latestAttendance.checkOutTime,
           );
+          if (formattedCheckOutTime === 'Invalid Time') {
+            console.error(
+              'Invalid checkOutTime:',
+              updatedStatus.latestAttendance.checkOutTime,
+            );
+            updatedStatus.latestAttendance.checkOutTime = null;
+          } else {
+            updatedStatus.latestAttendance.checkOutTime = formattedCheckOutTime;
+          }
           console.log(
             'Formatted checkOutTime:',
             updatedStatus.latestAttendance.checkOutTime,
@@ -201,10 +219,8 @@ async function processCheckInOut(data: any) {
       } catch (formatError: any) {
         console.error('Error formatting attendance times:', formatError);
         console.error('Error details:', formatError.stack);
-        // Set to null or use a fallback value if formatting fails
         updatedStatus.latestAttendance.checkInTime = null;
         updatedStatus.latestAttendance.checkOutTime = null;
-        updatedStatus.latestAttendance.date = '';
       }
     }
 
