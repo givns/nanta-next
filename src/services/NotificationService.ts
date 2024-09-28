@@ -72,17 +72,19 @@ export class NotificationService {
   async sendCheckInConfirmation(
     userId: string,
     checkInTime: Date,
+    lineUserId?: string,
   ): Promise<void> {
-    const message = `${format(checkInTime, 'HH:mm')}: บันทึกเวลาเข้างานเรีบร้อยแล้ว`;
-    await this.sendNotification(userId, message);
+    const message = `${format(checkInTime, 'HH:mm')}: บันทึกเวลาเข้างานเรียบร้อยแล้ว`;
+    await this.sendNotification(userId, message, lineUserId);
   }
 
   async sendCheckOutConfirmation(
     userId: string,
     checkOutTime: Date,
+    lineUserId?: string,
   ): Promise<void> {
     const message = `${format(checkOutTime, 'HH:mm')}: บันทึกเวลาออกงานเรียบร้อยแล้ว`;
-    await this.sendNotification(userId, message);
+    await this.sendNotification(userId, message, lineUserId);
   }
 
   async sendMissingCheckInNotification(lineUserId: string): Promise<void> {

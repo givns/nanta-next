@@ -304,10 +304,16 @@ async function sendNotificationAsync(
 ) {
   try {
     const currentTime = getCurrentTime();
+    console.log(
+      `Attempting to send notification for employee ${attendanceData.employeeId}`,
+    );
+    console.log(`Notification data:`, JSON.stringify(attendanceData));
+
     if (attendanceData.isCheckIn) {
       await notificationService.sendCheckInConfirmation(
         attendanceData.employeeId,
         currentTime,
+        attendanceData.lineUserId || undefined,
       );
       console.log(
         `Check-in notification sent for employee ${attendanceData.employeeId}`,
@@ -316,6 +322,7 @@ async function sendNotificationAsync(
       await notificationService.sendCheckOutConfirmation(
         attendanceData.employeeId,
         currentTime,
+        attendanceData.lineUserId || undefined,
       );
       console.log(
         `Check-out notification sent for employee ${attendanceData.employeeId}`,
@@ -323,5 +330,6 @@ async function sendNotificationAsync(
     }
   } catch (error) {
     console.error('Failed to send notification:', error);
+    console.error('Error details:', JSON.stringify(error, null, 2));
   }
 }
