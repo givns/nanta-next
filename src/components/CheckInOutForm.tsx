@@ -406,7 +406,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         : 'bg-gray-400 cursor-not-allowed'
     } text-white py-3 px-4 rounded-lg transition duration-300`;
 
-    let buttonText = 'ไม่สามารถลงเวลาได้ในขณะนี้';
+    let buttonText = 'กรุณารอสักครู่...';
     if (checkInOutAllowance?.allowed) {
       buttonText = `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
     }
