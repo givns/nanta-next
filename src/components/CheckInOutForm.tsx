@@ -248,8 +248,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       if (!capturedPhoto) return;
 
       try {
-        await refreshCheckInOutAllowance(true);
-
         if (checkInOutAllowance) {
           addDebugLog(
             `Check-in/out allowed: ${checkInOutAllowance.allowed}, isLate: ${checkInOutAllowance.isLate ?? false}, isOvertime: ${checkInOutAllowance.isOvertime ?? false}`,
@@ -277,7 +275,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             await submitCheckInOut(capturedPhoto);
           }
         } else {
-          throw new Error('Failed to get check-in/out allowance');
+          throw new Error('Check-in/out allowance information is missing');
         }
       } catch (error) {
         addDebugLog(`Error in processCapture: ${error}`);
@@ -290,7 +288,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     processCapture();
   }, [
     capturedPhoto,
-    refreshCheckInOutAllowance,
     checkInOutAllowance,
     attendanceStatus.isCheckingIn,
     submitCheckInOut,
@@ -348,23 +345,37 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
-      if (!checkInOutAllowance?.allowed) {
-        setError('Check-in/out is not allowed at this time.');
+      const currentLocation = await getCurrentLocation();
+      if (!currentLocation) {
+        setError(
+          'Unable to get location. Please enable location services and try again.',
+        );
         return;
       }
 
       if (action === 'checkOut' && !confirmEarlyCheckOut()) {
         return;
       }
+      await refreshCheckInOutAllowance();
 
-      setStep('camera');
-      setIsCameraActive(true);
-      resetDetection();
-      addDebugLog('Camera activated for check-in/out');
+      // Use the existing checkInOutAllowance
+      if (checkInOutAllowance?.allowed) {
+        setStep('camera');
+        setIsCameraActive(true);
+        resetDetection();
+        addDebugLog('Camera activated for check-in/out');
+      } else {
+        setError(
+          checkInOutAllowance?.reason ||
+            'Check-in/out is not allowed at this time.',
+        );
+      }
     },
     [
-      checkInOutAllowance,
+      getCurrentLocation,
       confirmEarlyCheckOut,
+      refreshCheckInOutAllowance,
+      checkInOutAllowance,
       setStep,
       setIsCameraActive,
       resetDetection,
@@ -379,7 +390,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           {locationError}
           <button
             onClick={() => {
-              refreshCheckInOutAllowance(true);
               window.location.reload();
             }}
             className="mt-2 text-blue-500 underline"

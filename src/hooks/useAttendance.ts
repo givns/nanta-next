@@ -129,27 +129,10 @@ export const useAttendance = (
     }
   }, [userData.employeeId, getCurrentLocation]);
 
-  const debouncedFetchCheckInOutAllowance = useRef(
-    debounce(fetchCheckInOutAllowance, 300),
-  ).current;
-
+  // Initial fetch only
   useEffect(() => {
-    fetchCheckInOutAllowance(); // Initial fetch without debounce
-    return () => {
-      debouncedFetchCheckInOutAllowance.cancel(); // Clean up debounced function
-    };
-  }, [fetchCheckInOutAllowance, debouncedFetchCheckInOutAllowance]);
-
-  const refreshCheckInOutAllowance = useCallback(
-    (immediate: boolean = false) => {
-      if (immediate) {
-        fetchCheckInOutAllowance();
-      } else {
-        debouncedFetchCheckInOutAllowance();
-      }
-    },
-    [fetchCheckInOutAllowance, debouncedFetchCheckInOutAllowance],
-  );
+    fetchCheckInOutAllowance();
+  }, [fetchCheckInOutAllowance]);
 
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
@@ -276,7 +259,7 @@ export const useAttendance = (
     isOutsideShift,
     checkInOut,
     checkInOutAllowance,
-    refreshCheckInOutAllowance,
+    refreshCheckInOutAllowance: fetchCheckInOutAllowance,
     refreshAttendanceStatus: getAttendanceStatus,
     isSubmitting: isSubmittingRef.current,
   };
