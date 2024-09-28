@@ -107,41 +107,34 @@ export class TimeEntryService {
     attendance: Attendance,
     isCheckIn: boolean,
   ): Promise<TimeEntry> {
-    let effectiveShift =
-      await this.shiftManagementService.getEffectiveShiftAndStatus(
+    try {
+      console.log(
+        `Starting createOrUpdateTimeEntry for employee ${attendance.employeeId}`,
+      );
+
+      const effectiveShift = await this.getEffectiveShift(
         attendance.employeeId,
         attendance.date,
       );
+      console.log('Effective shift:', JSON.stringify(effectiveShift));
 
-    if (!effectiveShift) {
-      console.warn(
-        `No effective shift found for employee ${attendance.employeeId} on ${attendance.date}`,
-      );
-      // For example, you could use a default 9-5 shift:
-      const defaultShift: ShiftData = {
-        id: 'default',
-        name: 'Default Shift',
-        shiftCode: 'DEFAULT',
-        startTime: '08:00',
-        endTime: '17:00',
-        workDays: [1, 2, 3, 4, 5],
-      };
-      effectiveShift = defaultShift;
-    }
+      const existingEntry = await this.prisma.timeEntry.findFirst({
+        where: { employeeId: attendance.employeeId, date: attendance.date },
+      });
 
-    const existingEntry = await this.prisma.timeEntry.findFirst({
-      where: { employeeId: attendance.employeeId, date: attendance.date },
-    });
-
-    if (existingEntry) {
-      return this.updateTimeEntry(
-        existingEntry.id,
-        attendance,
-        effectiveShift,
-        isCheckIn,
-      );
-    } else {
-      return this.createTimeEntry(attendance, effectiveShift, isCheckIn);
+      if (existingEntry) {
+        return this.updateTimeEntry(
+          existingEntry.id,
+          attendance,
+          effectiveShift,
+          isCheckIn,
+        );
+      } else {
+        return this.createTimeEntry(attendance, effectiveShift, isCheckIn);
+      }
+    } catch (error) {
+      console.error('Error in createOrUpdateTimeEntry:', error);
+      throw error;
     }
   }
 
@@ -235,6 +228,35 @@ export class TimeEntryService {
         overtimeHours,
       },
     });
+  }
+
+  private async getEffectiveShift(
+    employeeId: string,
+    date: Date,
+  ): Promise<ShiftData> {
+    const shiftData =
+      await this.shiftManagementService.getEffectiveShiftAndStatus(
+        employeeId,
+        date,
+      );
+    if (!shiftData || !shiftData.effectiveShift) {
+      console.warn(
+        `No effective shift found for employee ${employeeId} on ${date}`,
+      );
+      return this.getDefaultShift();
+    }
+    return shiftData.effectiveShift;
+  }
+
+  private getDefaultShift(): ShiftData {
+    return {
+      id: 'default',
+      name: 'Default Shift',
+      shiftCode: 'DEFAULT',
+      startTime: '08:00',
+      endTime: '17:00',
+      workDays: [1, 2, 3, 4, 5],
+    };
   }
 
   private parseShiftTime(timeString: string, referenceDate: Date): Date {

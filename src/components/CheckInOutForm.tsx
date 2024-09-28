@@ -198,7 +198,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
-        setStep('info');
         await closeLiffWindow();
       } catch (error: any) {
         addDebugLog(`Error during check-in/out: ${error.message}`);
@@ -335,7 +334,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน กรุณายื่นคำขอลาในระบบ คุณต้องการลงเวลาออกหรือไม่?',
       );
       if (confirmed) {
-        // Redirect to leave request page
         window.location.href = '/leave-request';
         return false;
       }
@@ -356,8 +354,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       if (action === 'checkOut' && !confirmEarlyCheckOut()) {
         return;
       }
-      await refreshCheckInOutAllowance();
-
       // Use the existing checkInOutAllowance
       if (checkInOutAllowance?.allowed) {
         setStep('camera');
@@ -428,18 +424,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             {checkInOutAllowance.reason}
           </p>
         )}
-        {checkInOutAllowance?.countdown !== undefined && (
-          <p className="text-blue-500 text-center text-sm mt-2">
-            สามารถลงเวลาได้ในอีก {checkInOutAllowance.countdown} นาที
-          </p>
-        )}
         {checkInOutAllowance?.isOutsideShift && (
           <p className="text-yellow-500 text-center text-sm mt-2">
             คุณอยู่นอกเวลาทำงานของกะ
           </p>
         )}
         {checkInOutAllowance?.isLate && (
-          <p className="text-yellow-500 text-center text-sm mt-2">
+          <p className="text-red-500 text-center text-sm mt-2">
             คุณกำลังเข้างานสาย
           </p>
         )}
