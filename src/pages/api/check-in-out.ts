@@ -157,7 +157,7 @@ async function processCheckInOut(data: any) {
     const updatedStatus = await attendanceService.getLatestAttendanceStatus(
       attendanceData.employeeId,
     );
-    console.log('Latest attendance status retrieved');
+    console.log('Raw latest attendance status:', JSON.stringify(updatedStatus));
 
     if (!validateUpdatedStatus(updatedStatus)) {
       console.error('Invalid updatedStatus:', JSON.stringify(updatedStatus));
@@ -165,18 +165,50 @@ async function processCheckInOut(data: any) {
     }
 
     if (updatedStatus.latestAttendance) {
-      updatedStatus.latestAttendance.checkInTime = updatedStatus
-        .latestAttendance.checkInTime
-        ? formatTime(new Date(updatedStatus.latestAttendance.checkInTime))
-        : null;
-      updatedStatus.latestAttendance.checkOutTime = updatedStatus
-        .latestAttendance.checkOutTime
-        ? formatTime(new Date(updatedStatus.latestAttendance.checkOutTime))
-        : null;
-      updatedStatus.latestAttendance.date = formatDate(
-        new Date(updatedStatus.latestAttendance.date),
-      );
+      console.log('Formatting attendance times');
+      try {
+        if (updatedStatus.latestAttendance.checkInTime) {
+          console.log(
+            'Raw checkInTime:',
+            updatedStatus.latestAttendance.checkInTime,
+          );
+          updatedStatus.latestAttendance.checkInTime = formatTime(
+            new Date(updatedStatus.latestAttendance.checkInTime),
+          );
+          console.log(
+            'Formatted checkInTime:',
+            updatedStatus.latestAttendance.checkInTime,
+          );
+        }
+        if (updatedStatus.latestAttendance.checkOutTime) {
+          console.log(
+            'Raw checkOutTime:',
+            updatedStatus.latestAttendance.checkOutTime,
+          );
+          updatedStatus.latestAttendance.checkOutTime = formatTime(
+            new Date(updatedStatus.latestAttendance.checkOutTime),
+          );
+          console.log(
+            'Formatted checkOutTime:',
+            updatedStatus.latestAttendance.checkOutTime,
+          );
+        }
+        console.log('Raw date:', updatedStatus.latestAttendance.date);
+        updatedStatus.latestAttendance.date = formatDate(
+          new Date(updatedStatus.latestAttendance.date),
+        );
+        console.log('Formatted date:', updatedStatus.latestAttendance.date);
+      } catch (formatError: any) {
+        console.error('Error formatting attendance times:', formatError);
+        console.error('Error details:', formatError.stack);
+        // Set to null or use a fallback value if formatting fails
+        updatedStatus.latestAttendance.checkInTime = null;
+        updatedStatus.latestAttendance.checkOutTime = null;
+        updatedStatus.latestAttendance.date = '';
+      }
     }
+
+    console.log('Formatted updatedStatus:', JSON.stringify(updatedStatus));
 
     console.log('Sending notification');
     sendNotificationAsync(attendanceData, updatedStatus).catch(console.error);
@@ -216,6 +248,7 @@ export default async function handler(
       checkInOutQueue.push(req.body, (err: Error | null, result: any) => {
         if (err) {
           console.error('Error in queue processing:', err);
+          console.error('Error stack:', err.stack);
           reject(err);
         } else {
           console.log('Queue processing completed successfully');
