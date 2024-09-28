@@ -443,6 +443,8 @@ export class AttendanceService {
         attendanceData.employeeId,
       );
 
+      console.log('Processed attendance:', JSON.stringify(processedAttendance));
+
       return processedAttendance;
     } catch (error) {
       if (error instanceof AppError) throw error;
