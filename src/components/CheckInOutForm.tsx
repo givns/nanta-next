@@ -57,6 +57,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isDebugLogExpanded, setIsDebugLogExpanded] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [storedAllowance, setStoredAllowance] =
+    useState<CheckInOutAllowance | null>(null);
 
   const addDebugLog = useCallback((message: string) => {
     setDebugLog((prev) => {
@@ -167,9 +169,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   }, []);
 
-  const MAX_RETRIES = 3;
-  let retryCount = 0;
-
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {
       if (!location) {
@@ -199,7 +198,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
-        await refreshCheckInOutAllowance(true);
         setStep('info');
         await closeLiffWindow();
       } catch (error: any) {
@@ -217,7 +215,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       checkInOut,
       onStatusChange,
       refreshAttendanceStatus,
-      refreshCheckInOutAllowance,
       closeLiffWindow,
       addDebugLog,
     ],
@@ -303,6 +300,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const processAttendanceSubmission = useCallback(
     async (photo: string, lateReason?: string) => {
+      if (!checkInOutAllowance?.allowed) {
+        setError('Check-in/out is no longer allowed. Please try again.');
+        resetStates();
+        return;
+      }
+
       try {
         addDebugLog('Proceeding to submit check-in/out');
         setStep('processing');
@@ -315,7 +318,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setIsSubmitting(false);
       }
     },
-    [addDebugLog, submitCheckInOut, setStep, setError, resetStates],
+    [
+      checkInOutAllowance,
+      submitCheckInOut,
+      addDebugLog,
+      setStep,
+      setError,
+      resetStates,
+    ],
   );
 
   const confirmEarlyCheckOut = useCallback(() => {
@@ -338,11 +348,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
-      const currentLocation = await getCurrentLocation();
-      if (!currentLocation) {
-        setError(
-          'Unable to get location. Please enable location services and try again.',
-        );
+      if (!checkInOutAllowance?.allowed) {
+        setError('Check-in/out is not allowed at this time.');
         return;
       }
 
@@ -350,26 +357,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         return;
       }
 
-      // Refresh checkInOutAllowance immediately before proceeding
-      await refreshCheckInOutAllowance(true);
-
-      if (checkInOutAllowance?.allowed) {
-        setStep('camera');
-        setIsCameraActive(true);
-        resetDetection();
-        addDebugLog('Camera activated for check-in/out');
-      } else {
-        setError(
-          checkInOutAllowance?.reason ||
-            'Check-in/out is not allowed at this time.',
-        );
-      }
+      setStep('camera');
+      setIsCameraActive(true);
+      resetDetection();
+      addDebugLog('Camera activated for check-in/out');
     },
     [
-      getCurrentLocation,
-      confirmEarlyCheckOut,
-      refreshCheckInOutAllowance,
       checkInOutAllowance,
+      confirmEarlyCheckOut,
       setStep,
       setIsCameraActive,
       resetDetection,
@@ -378,16 +373,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderActionButton = useCallback(() => {
-    if (!isActionButtonReady) {
-      return (
-        <button
-          className="w-full bg-gray-400 text-white py-3 px-4 rounded-lg"
-          disabled
-        >
-          กำลังโหลดข้อมูล...
-        </button>
-      );
-    }
     if (locationError) {
       return (
         <div className="text-red-500 text-center">
@@ -458,7 +443,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [
     checkInOutAllowance,
     attendanceStatus.isCheckingIn,
-    isActionButtonReady,
     locationError,
     handleAction,
     refreshCheckInOutAllowance,
