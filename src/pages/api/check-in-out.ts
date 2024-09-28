@@ -293,10 +293,16 @@ async function sendNotificationAsync(
         attendanceData.employeeId,
         currentTime,
       );
+      console.log(
+        `Check-in notification sent for employee ${attendanceData.employeeId}`,
+      );
     } else {
       await notificationService.sendCheckOutConfirmation(
         attendanceData.employeeId,
         currentTime,
+      );
+      console.log(
+        `Check-out notification sent for employee ${attendanceData.employeeId}`,
       );
     }
   } catch (error) {

@@ -43,6 +43,10 @@ export function formatDate(date: Date | string | number): string {
 }
 
 export function formatTime(time: Date | string | number): string {
+  if (typeof time === 'string' && time.includes(':')) {
+    // If it's already in HH:mm:ss format, return as is
+    return time;
+  }
   const parsedTime = ensureDate(time);
   if (!parsedTime) return 'Invalid Time';
   return format(parsedTime, 'HH:mm:ss');
