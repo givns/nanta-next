@@ -40,12 +40,12 @@ export class NotificationService {
         await this.sendLineMessage(lineUserId, message);
       } else {
         const user = await this.prisma.user.findUnique({
-          where: { employeeId: employeeId }, // Changed from id to employeeId
+          where: { lineUserId: lineUserId },
         });
         if (user && user.lineUserId) {
           await this.sendLineMessage(user.lineUserId, message);
         } else {
-          console.warn(`No LINE user ID found for user ${employeeId}`);
+          console.warn(`No LINE user ID found for user ${lineUserId}`);
         }
       }
     } catch (error) {
@@ -70,26 +70,28 @@ export class NotificationService {
   }
 
   async sendCheckInConfirmation(
-    employeeId: string,
     lineUserId: string,
     checkInTime: Date,
   ): Promise<void> {
-    console.log(`Starting sendCheckInConfirmation for employee ${employeeId}`);
+    console.log(`Starting sendCheckInConfirmation for LINE user ${lineUserId}`);
     const message = `${format(checkInTime, 'HH:mm')}: บันทึกเวลาเข้างานเรียบร้อยแล้ว`;
-    await this.sendNotification(employeeId, message, lineUserId);
-    console.log(`Completed sendCheckInConfirmation for employee ${employeeId}`);
+    await this.sendNotification(lineUserId, message);
+    console.log(
+      `Completed sendCheckInConfirmation for LINE user ${lineUserId}`,
+    );
   }
 
   async sendCheckOutConfirmation(
-    employeeId: string,
     lineUserId: string,
     checkOutTime: Date,
   ): Promise<void> {
-    console.log(`Starting sendCheckOutConfirmation for employee ${employeeId}`);
-    const message = `${format(checkOutTime, 'HH:mm')}: บันทึกเวลาออกงานเรียบร้อยแล้ว`;
-    await this.sendNotification(employeeId, message, lineUserId);
     console.log(
-      `Completed sendCheckOutConfirmation for employee ${employeeId}`,
+      `Starting sendCheckOutConfirmation for LINE user ${lineUserId}`,
+    );
+    const message = `${format(checkOutTime, 'HH:mm')}: บันทึกเวลาออกงานเรียบร้อยแล้ว`;
+    await this.sendNotification(lineUserId, message);
+    console.log(
+      `Completed sendCheckOutConfirmation for LINE user ${lineUserId}`,
     );
   }
 

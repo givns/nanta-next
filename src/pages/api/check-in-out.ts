@@ -305,44 +305,40 @@ async function sendNotificationAsync(
   try {
     const currentTime = getCurrentTime();
     console.log(
-      `Starting sendNotificationAsync for employee ${attendanceData.employeeId}`,
+      `Starting sendNotificationAsync for LINE user ${attendanceData.lineUserId}`,
     );
 
     if (!attendanceData.lineUserId) {
-      console.warn(
-        `No LINE user ID provided for employee ${attendanceData.employeeId}`,
-      );
+      console.warn(`No LINE user ID provided for attendance data`);
       return;
     }
 
     if (attendanceData.isCheckIn) {
       console.log(
-        `Calling sendCheckInConfirmation for employee ${attendanceData.employeeId}`,
+        `Calling sendCheckInConfirmation for LINE user ${attendanceData.lineUserId}`,
       );
       await notificationService.sendCheckInConfirmation(
-        attendanceData.employeeId,
         attendanceData.lineUserId,
         currentTime,
       );
       console.log(
-        `sendCheckInConfirmation completed for employee ${attendanceData.employeeId}`,
+        `sendCheckInConfirmation completed for LINE user ${attendanceData.lineUserId}`,
       );
     } else {
       console.log(
-        `Calling sendCheckOutConfirmation for employee ${attendanceData.employeeId}`,
+        `Calling sendCheckOutConfirmation for LINE user ${attendanceData.lineUserId}`,
       );
       await notificationService.sendCheckOutConfirmation(
-        attendanceData.employeeId,
         attendanceData.lineUserId,
         currentTime,
       );
       console.log(
-        `sendCheckOutConfirmation completed for employee ${attendanceData.employeeId}`,
+        `sendCheckOutConfirmation completed for LINE user ${attendanceData.lineUserId}`,
       );
     }
 
     console.log(
-      `sendNotificationAsync completed for employee ${attendanceData.employeeId}`,
+      `sendNotificationAsync completed for LINE user ${attendanceData.lineUserId}`,
     );
   } catch (error: any) {
     console.error('Failed to send notification:', error);
