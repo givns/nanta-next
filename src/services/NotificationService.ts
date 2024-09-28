@@ -20,36 +20,30 @@ import {
 import { format } from 'date-fns';
 
 export class NotificationService {
-  private lineClient: Client;
-  private prisma: PrismaClient;
+  private lineClient: Client = new Client({
+    channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+  });
+  prisma: any;
 
-  constructor() {
-    this.lineClient = new Client({
-      channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-    });
-    this.prisma = new PrismaClient();
-  }
-
-  async sendNotification(
-    userId: string,
-    message: string,
-    lineUserId?: string,
-  ): Promise<void> {
+  async sendNotification(userId: string, message: string): Promise<void> {
     try {
-      if (lineUserId) {
-        await this.sendLineMessage(lineUserId, message);
+      console.log(`Starting sendNotification for user ${userId}`);
+      const user = await this.prisma.user.findUnique({
+        where: { employeeId: userId },
+      });
+      if (user && user.lineUserId) {
+        console.log(
+          `Found LINE user ID for user ${userId}: ${user.lineUserId}`,
+        );
+        await this.sendLineMessage(user.lineUserId, message);
+        console.log(`LINE message sent successfully for user ${userId}`);
       } else {
-        const user = await this.prisma.user.findUnique({
-          where: { employeeId: userId }, // Changed from id to employeeId
-        });
-        if (user && user.lineUserId) {
-          await this.sendLineMessage(user.lineUserId, message);
-        } else {
-          console.warn(`No LINE user ID found for user ${userId}`);
-        }
+        console.warn(`No LINE user ID found for user ${userId}`);
       }
-    } catch (error) {
-      console.error('Error sending notification:', error);
+      console.log(`Completed sendNotification for user ${userId}`);
+    } catch (error: any) {
+      console.error(`Error in sendNotification for user ${userId}:`, error);
+      console.error('Error stack:', error.stack);
     }
   }
 
@@ -58,33 +52,37 @@ export class NotificationService {
     message: string,
   ): Promise<void> {
     try {
+      console.log(`Sending LINE message to user ${lineUserId}`);
       await this.lineClient.pushMessage(lineUserId, {
         type: 'text',
         text: message,
       });
-      console.log(`Notification sent to LINE user ${lineUserId}: ${message}`);
-    } catch (error) {
-      console.error('Error sending LINE message:', error);
-      throw new Error('Failed to send LINE message');
+      console.log(`LINE message sent successfully to user ${lineUserId}`);
+    } catch (error: any) {
+      console.error(`Error sending LINE message to user ${lineUserId}:`, error);
+      console.error('Error stack:', error.stack);
+      throw error;
     }
   }
 
   async sendCheckInConfirmation(
     userId: string,
     checkInTime: Date,
-    lineUserId?: string,
   ): Promise<void> {
+    console.log(`Starting sendCheckInConfirmation for user ${userId}`);
     const message = `${format(checkInTime, 'HH:mm')}: บันทึกเวลาเข้างานเรียบร้อยแล้ว`;
-    await this.sendNotification(userId, message, lineUserId);
+    await this.sendNotification(userId, message);
+    console.log(`Completed sendCheckInConfirmation for user ${userId}`);
   }
 
   async sendCheckOutConfirmation(
     userId: string,
     checkOutTime: Date,
-    lineUserId?: string,
   ): Promise<void> {
+    console.log(`Starting sendCheckOutConfirmation for user ${userId}`);
     const message = `${format(checkOutTime, 'HH:mm')}: บันทึกเวลาออกงานเรียบร้อยแล้ว`;
-    await this.sendNotification(userId, message, lineUserId);
+    await this.sendNotification(userId, message);
+    console.log(`Completed sendCheckOutConfirmation for user ${userId}`);
   }
 
   async sendMissingCheckInNotification(lineUserId: string): Promise<void> {
@@ -112,11 +110,7 @@ export class NotificationService {
     }
 
     const message = `คำขอทำงานล่วงเวลา ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) ได้รับการอนุมิติโดย ${approver.name}.`;
-    await this.sendNotification(
-      overtimeRequest.employeeId,
-      message,
-      overtimeRequest.user.lineUserId,
-    );
+    await this.sendNotification(overtimeRequest.employeeId, message);
   }
 
   async sendOvertimeAutoApprovalNotification(
@@ -130,11 +124,7 @@ export class NotificationService {
     }
 
     const message = `คำขอทำงานล่วงเวลา ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) ได้รับการอนุมิติโดยระบบอัตโนมัติ`;
-    await this.sendNotification(
-      overtimeRequest.employeeId,
-      message,
-      overtimeRequest.user.lineUserId,
-    );
+    await this.sendNotification(overtimeRequest.employeeId, message);
   }
 
   async sendRequestNotification(

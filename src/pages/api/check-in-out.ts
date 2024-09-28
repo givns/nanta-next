@@ -305,31 +305,38 @@ async function sendNotificationAsync(
   try {
     const currentTime = getCurrentTime();
     console.log(
-      `Attempting to send notification for employee ${attendanceData.employeeId}`,
+      `Starting sendNotificationAsync for employee ${attendanceData.employeeId}`,
     );
-    console.log(`Notification data:`, JSON.stringify(attendanceData));
 
     if (attendanceData.isCheckIn) {
+      console.log(
+        `Calling sendCheckInConfirmation for employee ${attendanceData.employeeId}`,
+      );
       await notificationService.sendCheckInConfirmation(
         attendanceData.employeeId,
         currentTime,
-        attendanceData.lineUserId || undefined,
       );
       console.log(
-        `Check-in notification sent for employee ${attendanceData.employeeId}`,
+        `sendCheckInConfirmation completed for employee ${attendanceData.employeeId}`,
       );
     } else {
+      console.log(
+        `Calling sendCheckOutConfirmation for employee ${attendanceData.employeeId}`,
+      );
       await notificationService.sendCheckOutConfirmation(
         attendanceData.employeeId,
         currentTime,
-        attendanceData.lineUserId || undefined,
       );
       console.log(
-        `Check-out notification sent for employee ${attendanceData.employeeId}`,
+        `sendCheckOutConfirmation completed for employee ${attendanceData.employeeId}`,
       );
     }
-  } catch (error) {
+
+    console.log(
+      `sendNotificationAsync completed for employee ${attendanceData.employeeId}`,
+    );
+  } catch (error: any) {
     console.error('Failed to send notification:', error);
-    console.error('Error details:', JSON.stringify(error, null, 2));
+    console.error('Error stack:', error.stack);
   }
 }
