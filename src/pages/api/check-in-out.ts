@@ -308,12 +308,20 @@ async function sendNotificationAsync(
       `Starting sendNotificationAsync for employee ${attendanceData.employeeId}`,
     );
 
+    if (!attendanceData.lineUserId) {
+      console.warn(
+        `No LINE user ID provided for employee ${attendanceData.employeeId}`,
+      );
+      return;
+    }
+
     if (attendanceData.isCheckIn) {
       console.log(
         `Calling sendCheckInConfirmation for employee ${attendanceData.employeeId}`,
       );
       await notificationService.sendCheckInConfirmation(
         attendanceData.employeeId,
+        attendanceData.lineUserId,
         currentTime,
       );
       console.log(
@@ -325,6 +333,7 @@ async function sendNotificationAsync(
       );
       await notificationService.sendCheckOutConfirmation(
         attendanceData.employeeId,
+        attendanceData.lineUserId,
         currentTime,
       );
       console.log(
