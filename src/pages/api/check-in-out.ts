@@ -72,6 +72,15 @@ const attendanceSchema = Yup.object()
     },
   );
 
+function validateUpdatedStatus(status: any): boolean {
+  if (!status || typeof status !== 'object') return false;
+  if (!status.latestAttendance || typeof status.latestAttendance !== 'object')
+    return false;
+
+  // Add more specific checks as needed
+  return true;
+}
+
 const checkInOutQueue = new BetterQueue(
   async (task, cb) => {
     try {
@@ -150,6 +159,11 @@ async function processCheckInOut(data: any) {
     );
     console.log('Latest attendance status retrieved');
 
+    if (!validateUpdatedStatus(updatedStatus)) {
+      console.error('Invalid updatedStatus:', JSON.stringify(updatedStatus));
+      throw new Error('Invalid attendance status format');
+    }
+
     if (updatedStatus.latestAttendance) {
       updatedStatus.latestAttendance.checkInTime = updatedStatus
         .latestAttendance.checkInTime
@@ -202,7 +216,6 @@ export default async function handler(
       checkInOutQueue.push(req.body, (err: Error | null, result: any) => {
         if (err) {
           console.error('Error in queue processing:', err);
-          console.error('Error stack:', err.stack);
           reject(err);
         } else {
           console.log('Queue processing completed successfully');
@@ -210,6 +223,12 @@ export default async function handler(
         }
       });
     });
+
+    if (!validateUpdatedStatus(queueResult)) {
+      throw new Error(
+        'Invalid attendance status format returned from processing',
+      );
+    }
 
     console.log(
       'Check-in/out processed successfully:',
