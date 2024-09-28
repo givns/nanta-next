@@ -135,7 +135,7 @@ async function processCheckInOut(data: any) {
     console.log('Current time:', formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'));
 
     const attendanceData: AttendanceData = {
-      employeeId,
+      employeeId: validatedData.employeeId ?? '',
       lineUserId: user.lineUserId,
       isCheckIn: validatedData.isCheckIn,
       checkTime: validatedData.checkTime || now.toISOString(),
@@ -305,41 +305,27 @@ async function sendNotificationAsync(
   try {
     const currentTime = getCurrentTime();
     console.log(
-      `Starting sendNotificationAsync for LINE user ${attendanceData.lineUserId}`,
+      `Attempting to send notification for employee ${attendanceData.employeeId}`,
     );
-
-    if (!attendanceData.lineUserId) {
-      console.warn(`No LINE user ID provided for attendance data`);
-      return;
-    }
+    console.log(`Notification data:`, JSON.stringify(attendanceData));
 
     if (attendanceData.isCheckIn) {
-      console.log(
-        `Calling sendCheckInConfirmation for LINE user ${attendanceData.lineUserId}`,
-      );
       await notificationService.sendCheckInConfirmation(
-        attendanceData.lineUserId,
+        attendanceData.employeeId,
         currentTime,
       );
       console.log(
-        `sendCheckInConfirmation completed for LINE user ${attendanceData.lineUserId}`,
+        `Check-in notification sent for employee ${attendanceData.employeeId}`,
       );
     } else {
-      console.log(
-        `Calling sendCheckOutConfirmation for LINE user ${attendanceData.lineUserId}`,
-      );
       await notificationService.sendCheckOutConfirmation(
-        attendanceData.lineUserId,
+        attendanceData.employeeId,
         currentTime,
       );
       console.log(
-        `sendCheckOutConfirmation completed for LINE user ${attendanceData.lineUserId}`,
+        `Check-out notification sent for employee ${attendanceData.employeeId}`,
       );
     }
-
-    console.log(
-      `sendNotificationAsync completed for LINE user ${attendanceData.lineUserId}`,
-    );
   } catch (error: any) {
     console.error('Failed to send notification:', error);
     console.error('Error stack:', error.stack);
