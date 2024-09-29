@@ -4,7 +4,6 @@ import { Formik, Field, Form, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
-import LeaveBalanceComponent from './LeaveBalanceComponent';
 import { calculateFullDayCount } from '../lib/holidayUtils';
 
 export interface FormValues {
@@ -19,6 +18,7 @@ interface LeaveRequestFormProps {
   initialData?: FormValues;
   isResubmission?: boolean;
   userData: UserData;
+  leaveBalance: LeaveBalanceData;
 }
 
 const leaveTypeMapping = {
@@ -43,22 +43,16 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   initialData,
   isResubmission = false,
   userData,
+  leaveBalance,
 }) => {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [leaveBalance, setLeaveBalance] = useState<LeaveBalanceData | null>(
-    null,
-  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoading(false);
   }, []);
-
-  const handleBalanceLoaded = (balance: LeaveBalanceData) => {
-    setLeaveBalance(balance);
-  };
 
   const handleSubmit = async (values: FormValues) => {
     try {
@@ -103,14 +97,26 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     </div>
   );
 
+  // LeaveRequestForm.tsx
+
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
       {renderUserInfo()}
       <div className="rounded-box bg-yellow-200 p-6">
-        <LeaveBalanceComponent
-          employeeId={userData.employeeId}
-          onBalanceLoaded={handleBalanceLoaded}
-        />
+        <h2 className="text-xl font-bold mb-4">วันลาคงเหลือ</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p>ลาป่วย:</p>
+            <p>ลากิจ:</p>
+            <p>ลาพักร้อน:</p>
+            <p className="font-bold">รวมวันลา:</p>
+          </div>
+          <div>
+            <p>{leaveBalance.sickLeave} วัน</p>
+            <p>{leaveBalance.businessLeave} วัน</p>
+            <p>{leaveBalance.annualLeave} วัน</p>
+          </div>
+        </div>
       </div>
       <button
         onClick={() => setStep(2)}

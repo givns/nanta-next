@@ -4,6 +4,7 @@ import LeaveRequestForm, { FormValues } from '../components/LeaveRequestForm';
 import liff from '@line/liff';
 import axios from 'axios';
 import { UserData } from '@/types/user';
+import { LeaveBalanceData } from '@/types/LeaveService';
 
 const LeaveRequestPage: React.FC = () => {
   const router = useRouter();
@@ -14,6 +15,9 @@ const LeaveRequestPage: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [leaveBalance, setLeaveBalance] = useState<LeaveBalanceData | null>(
+    null,
+  );
 
   useEffect(() => {
     const initializeLiff = async () => {
@@ -50,6 +54,9 @@ const LeaveRequestPage: React.FC = () => {
         throw new Error('Failed to fetch user data');
       }
       setUserData(response.data.user);
+      if (response.data.leaveBalance) {
+        setLeaveBalance(response.data.leaveBalance);
+      }
     } catch (error) {
       console.error('Error fetching user data:', error);
       setError(
@@ -70,7 +77,7 @@ const LeaveRequestPage: React.FC = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !leaveBalance) {
     return <div>Loading...</div>;
   }
 
@@ -90,6 +97,7 @@ const LeaveRequestPage: React.FC = () => {
             initialData={originalLeaveData || undefined}
             isResubmission={resubmit === 'true'}
             userData={userData}
+            leaveBalance={leaveBalance}
           />
         </div>
       </div>
