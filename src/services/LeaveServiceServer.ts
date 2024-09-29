@@ -1,6 +1,6 @@
 // services/LeaveServiceServer.ts
 
-import { PrismaClient, LeaveRequest, User, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, LeaveRequest, User } from '@prisma/client';
 import { Client } from '@line/bot-sdk';
 import {
   sendApproveNotification,
@@ -24,9 +24,9 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     this.notificationService = new NotificationService();
   }
 
-  async checkLeaveBalance(userId: string): Promise<LeaveBalanceData> {
+  async checkLeaveBalance(employeeId: string): Promise<LeaveBalanceData> {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { employeeId },
       include: { leaveRequests: true },
     });
 
@@ -107,11 +107,10 @@ export class LeaveServiceServer implements ILeaveServiceServer {
   ): Promise<LeaveRequest> {
     const user = await this.prisma.user.findUnique({
       where: { lineUserId },
-      include: { leaveRequests: true },
     });
     if (!user) throw new Error(`User not found for lineUserId: ${lineUserId}`);
 
-    const leaveBalance = this.calculateLeaveBalance(user);
+    const leaveBalance = await this.checkLeaveBalance(user.employeeId);
 
     // Check if user has enough leave balance
     let availableDays: number;
@@ -148,12 +147,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     };
 
     if (resubmitted && originalRequestId) {
-      const originalRequest =
-        await this.getOriginalLeaveRequest(originalRequestId);
-      leaveRequestData = {
-        ...leaveRequestData,
-        originalRequestId,
-      };
+      leaveRequestData.originalRequestId = originalRequestId;
     }
 
     try {
