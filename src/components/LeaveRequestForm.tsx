@@ -120,9 +120,9 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       </div>
       <button
         onClick={() => setStep(2)}
-        className="mt-4 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+        className="mt-4 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
       >
-        Next: Choose Leave Type
+        ถัดไป: เลือกประเภทการลา
       </button>
     </div>
   );

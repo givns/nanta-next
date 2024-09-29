@@ -518,9 +518,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const renderStep3 = useCallback(
     () => (
       <div className="h-full flex flex-col justify-center items-center">
-        <p className="text-lg font-semibold mb-4">
-          Processing your attendance...
-        </p>
+        <p className="text-lg font-semibold mb-4">ระบบกำลังลงเวลา...</p>
         <SkeletonLoader />
       </div>
     ),
