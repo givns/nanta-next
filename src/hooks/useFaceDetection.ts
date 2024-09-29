@@ -18,18 +18,35 @@ export const useFaceDetection = (
   const webcamRef = useRef<Webcam>(null);
   const faceDetectionCount = useRef(0);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [faceDetectionCountState, setFaceDetectionCountState] = useState(0);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const loadModel = async () => {
+      setIsModelLoading(true);
+      const [{ default: tf }, faceDetection] = await Promise.all([
+        import('@tensorflow/tfjs'),
+        import('@tensorflow-models/face-detection'),
+      ]);
+
       await tf.ready();
       const loadedModel = await faceDetection.createDetector(
         faceDetection.SupportedModels.MediaPipeFaceDetector,
         { runtime: 'tfjs', modelType: 'short' },
       );
-      setModel(loadedModel);
-      setIsModelLoading(false);
+
+      if (!isCancelled) {
+        setModel(loadedModel);
+        setIsModelLoading(false);
+      }
     };
+
     loadModel();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   const capturePhoto = useCallback(() => {
@@ -64,6 +81,7 @@ export const useFaceDetection = (
     if (detections.length > 0) {
       setFaceDetected(true);
       faceDetectionCount.current += 1;
+      setFaceDetectionCountState(faceDetectionCount.current);
       setMessage('ระบบตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...');
 
       if (faceDetectionCount.current >= captureThreshold) {
@@ -73,6 +91,7 @@ export const useFaceDetection = (
     } else {
       setFaceDetected(false);
       faceDetectionCount.current = 0;
+      setFaceDetectionCountState(faceDetectionCount.current);
       setMessage('ไม่พบใบหน้าของพนักงาน..');
     }
   }, [model, captureThreshold, capturePhoto]);
@@ -106,9 +125,11 @@ export const useFaceDetection = (
     webcamRef,
     isModelLoading,
     faceDetected,
+    faceDetectionCount: faceDetectionCountState,
     photo,
     setPhoto,
     message,
     resetDetection,
+    captureThreshold,
   };
 };

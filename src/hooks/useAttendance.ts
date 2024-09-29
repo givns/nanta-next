@@ -60,6 +60,8 @@ export const useAttendance = (
   }, [initialAttendanceStatus, processAttendanceStatus]);
 
   const getCurrentLocation = useCallback(async () => {
+    const controller = new AbortController();
+    const { signal } = controller;
     if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported by this browser.');
       return null;
