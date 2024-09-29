@@ -1,6 +1,6 @@
 // services/LeaveServiceServer.ts
 
-import { PrismaClient, LeaveRequest, User } from '@prisma/client';
+import { PrismaClient, LeaveRequest, User, Prisma } from '@prisma/client';
 import { Client } from '@line/bot-sdk';
 import {
   sendApproveNotification,
@@ -109,7 +109,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       where: { lineUserId },
       include: { leaveRequests: true },
     });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new Error(`User not found for lineUserId: ${lineUserId}`);
 
     const leaveBalance = this.calculateLeaveBalance(user);
 
@@ -126,15 +126,17 @@ export class LeaveServiceServer implements ILeaveServiceServer {
         availableDays = leaveBalance.annualLeave;
         break;
       default:
-        throw new Error('Invalid leave type');
+        throw new Error(`Invalid leave type: ${leaveType}`);
     }
 
     if (fullDayCount > availableDays) {
-      throw new Error(`ไม่มีวันลา${leaveType}เพียงพอ`);
+      throw new Error(
+        `ไม่มีวันลา${leaveType}เพียงพอ (ขอลา ${fullDayCount} วัน, เหลือ ${availableDays} วัน)`,
+      );
     }
 
-    let leaveRequestData: any = {
-      employeeId: user.employeeId,
+    let leaveRequestData: Prisma.LeaveRequestCreateInput = {
+      user: { connect: { employeeId: user.employeeId } },
       leaveType,
       leaveFormat,
       reason,
@@ -149,22 +151,23 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       const originalRequest =
         await this.getOriginalLeaveRequest(originalRequestId);
       leaveRequestData = {
-        ...originalRequest,
         ...leaveRequestData,
         originalRequestId,
-        id: undefined,
-        createdAt: undefined,
-        updatedAt: undefined,
       };
     }
 
-    const newLeaveRequest = await this.prisma.leaveRequest.create({
-      data: leaveRequestData,
-    });
+    try {
+      const newLeaveRequest = await this.prisma.leaveRequest.create({
+        data: leaveRequestData,
+      });
 
-    await this.notifyAdmins(newLeaveRequest);
+      await this.notifyAdmins(newLeaveRequest);
 
-    return newLeaveRequest;
+      return newLeaveRequest;
+    } catch (error) {
+      console.error('Error creating leave request:', error);
+      throw new Error('Failed to create leave request. Please try again.');
+    }
   }
 
   async approveLeaveRequest(
