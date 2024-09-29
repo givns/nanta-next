@@ -161,7 +161,7 @@ export class AttendanceService {
     if (!effectiveShift.workDays.includes(today)) {
       return {
         allowed: false,
-        reason: 'Today is not a working day for your shift',
+        reason: 'วันนี้ไม่ใช่วันทำทำงาน',
       };
     }
 
