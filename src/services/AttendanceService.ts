@@ -161,8 +161,7 @@ export class AttendanceService {
     if (!effectiveShift.workDays.includes(today)) {
       return {
         allowed: false,
-        reason:
-          'วันหยุด: การลงเวลาจะต้องได้รับการอนุมัติ กรุณาติดต่อหัวหน้างาน',
+        reason: 'วันหยุด: การลงเวลาจะต้องได้รับการอนุมัติ',
       };
     }
 

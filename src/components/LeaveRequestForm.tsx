@@ -102,8 +102,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
       {renderUserInfo()}
-      <div className="rounded-box bg-yellow-200 p-6">
-        <h2 className="text-xl font-bold mb-4">วันลาคงเหลือ</h2>
+      <div className="rounded-box bg-yellow-100 p-6">
+        <h2 className="text-lg font-bold mb-4">วันลาคงเหลือ</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p>ลาป่วย:</p>
