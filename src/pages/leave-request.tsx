@@ -6,7 +6,19 @@ import axios from 'axios';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
 
-const LeaveRequestPage: React.FC = () => {
+interface LeaveRequestPageProps {
+  lineUserId: string | null;
+}
+
+interface UserCheckInStatusResponse {
+  user: UserData & {
+    sickLeaveBalance: number;
+    businessLeaveBalance: number;
+    annualLeaveBalance: number;
+  };
+}
+
+const LeaveRequestPage: React.FC<LeaveRequestPageProps> = ({ lineUserId }) => {
   const router = useRouter();
   const { resubmit, originalId } = router.query;
   const [originalLeaveData, setOriginalLeaveData] = useState<FormValues | null>(
@@ -20,50 +32,42 @@ const LeaveRequestPage: React.FC = () => {
   );
 
   useEffect(() => {
-    const initializeLiff = async () => {
-      try {
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
-        if (!liff.isLoggedIn()) {
-          liff.login();
-        } else {
-          const profile = await liff.getProfile();
-          await fetchUserData(profile.userId);
+    const fetchData = async () => {
+      if (!lineUserId) {
+        setError('No LINE User ID available');
+        setIsLoading(false);
+        return;
+      }
 
-          if (resubmit === 'true' && originalId) {
-            await fetchOriginalLeaveRequest(originalId as string);
-          }
+      try {
+        const response = await axios.get<UserCheckInStatusResponse>(
+          `/api/user-check-in-status?lineUserId=${lineUserId}`,
+        );
+
+        if (!response.data || !response.data.user) {
+          throw new Error('Failed to fetch user data');
         }
-      } catch (err) {
-        console.error('LIFF initialization failed', err);
-        setError('Failed to initialize LIFF');
+
+        setUserData(response.data.user);
+        setLeaveBalance({
+          sickLeave: response.data.user.sickLeaveBalance,
+          businessLeave: response.data.user.businessLeaveBalance,
+          annualLeave: response.data.user.annualLeaveBalance,
+        });
+
+        if (resubmit === 'true' && originalId) {
+          await fetchOriginalLeaveRequest(originalId as string);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setError('Failed to fetch necessary data');
       } finally {
         setIsLoading(false);
       }
     };
 
-    initializeLiff();
-  }, [resubmit, originalId]);
-
-  const fetchUserData = async (lineUserId: string) => {
-    try {
-      const response = await axios.get(
-        `/api/user-check-in-status?lineUserId=${lineUserId}`,
-      );
-      console.log('User data response:', response.data);
-      if (!response.data || !response.data.user) {
-        throw new Error('Failed to fetch user data');
-      }
-      setUserData(response.data.user);
-      if (response.data.leaveBalance) {
-        setLeaveBalance(response.data.leaveBalance);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      setError(
-        error instanceof Error ? error.message : 'An unknown error occurred',
-      );
-    }
-  };
+    fetchData();
+  }, [lineUserId, resubmit, originalId]);
 
   const fetchOriginalLeaveRequest = async (id: string) => {
     try {

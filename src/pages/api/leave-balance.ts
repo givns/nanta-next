@@ -5,8 +5,6 @@ interface LeaveBalanceData {
   sickLeave: number;
   businessLeave: number;
   annualLeave: number;
-  overtimeLeave: number;
-  totalLeaveDays: number;
 }
 
 export default async function handler(
@@ -70,9 +68,6 @@ function calculateLeaveBalance(user: any): LeaveBalanceData {
       case 'annual':
         usedLeave.annualLeave += request.fullDayCount;
         break;
-      case 'overtime':
-        usedLeave.overtimeLeave += request.fullDayCount;
-        break;
     }
   });
 
@@ -80,12 +75,7 @@ function calculateLeaveBalance(user: any): LeaveBalanceData {
     sickLeave: user.sickLeaveBalance - usedLeave.sickLeave,
     businessLeave: user.businessLeaveBalance - usedLeave.businessLeave,
     annualLeave: user.annualLeaveBalance - usedLeave.annualLeave,
-    overtimeLeave: user.overtimeLeaveBalance - usedLeave.overtimeLeave,
-    totalLeaveDays: 0,
   };
-
-  balance.totalLeaveDays =
-    balance.sickLeave + balance.businessLeave + balance.annualLeave;
 
   return balance;
 }
