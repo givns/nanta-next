@@ -258,10 +258,10 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
 
   useEffect(() => {
-    if (lineUserId) {
-      fetchData(false); // Initial fetch, use cache if available
+    if (lineUserId && !fullData) {
+      fetchData(false);
     }
-  }, [lineUserId, fetchData]);
+  }, [lineUserId, fetchData, fullData]);
 
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {

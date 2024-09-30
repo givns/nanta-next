@@ -81,6 +81,8 @@ export const useAttendance = (
         lng: position.coords.longitude,
       };
 
+      console.log('Current location:', newLocation); // Add this log
+
       setLocation(newLocation);
       setLocationError(null);
       return newLocation;
