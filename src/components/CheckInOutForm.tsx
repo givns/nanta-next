@@ -148,15 +148,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [userData, initialAttendanceStatus, effectiveShift, onError]);
 
   const closeLiffWindow = useCallback(async () => {
-    try {
-      await liff.init({
-        liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
-      });
-      setTimeout(() => {
-        liff.closeWindow();
-      }, 2000);
-    } catch (error) {
-      console.error('Error closing LIFF window:', error);
+    if ((liff as any).isReady) {
+      try {
+        await liff.init({
+          liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
+        });
+        setTimeout(() => {
+          liff.closeWindow();
+        }, 2000);
+      } catch (error) {
+        console.error('Error closing LIFF window:', error);
+      }
+    } else {
+      console.warn('LIFF is not ready');
     }
   }, []);
 

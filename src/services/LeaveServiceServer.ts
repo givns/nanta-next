@@ -10,6 +10,7 @@ import { sendRequestNotification } from '../utils/sendRequestNotification';
 import { UserRole } from '../types/enum';
 import { ILeaveServiceServer, LeaveBalanceData } from '@/types/LeaveService';
 import { NotificationService } from './NotificationService';
+import { cacheService } from './CacheService';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -22,6 +23,41 @@ export class LeaveServiceServer implements ILeaveServiceServer {
   constructor() {
     this.prisma = new PrismaClient();
     this.notificationService = new NotificationService();
+  }
+
+  private async invalidateUserCache(employeeId: string) {
+    if (!cacheService) {
+      console.warn(
+        'Cache service is not available. Skipping cache invalidation.',
+      );
+      return;
+    }
+
+    try {
+      // 1. Invalidate user-specific cache
+      await cacheService.invalidatePattern(`user:${employeeId}*`);
+
+      // 2. Invalidate attendance-related cache
+      await cacheService.invalidatePattern(`attendance:${employeeId}*`);
+
+      // 3. Invalidate leave request cache
+      await cacheService.invalidatePattern(`leaveRequest:${employeeId}*`);
+
+      // 4. Invalidate any other user-specific cache patterns
+      // For example, if you have overtime request caches:
+      await cacheService.invalidatePattern(`overtimeRequest:${employeeId}*`);
+
+      // 5. Invalidate any list caches that might include this user's data
+      await cacheService.invalidatePattern('userList*');
+      await cacheService.invalidatePattern('leaveRequestList*');
+
+      console.log(`Cache invalidated for employee ${employeeId}`);
+    } catch (error) {
+      console.error(
+        `Error invalidating cache for employee ${employeeId}:`,
+        error,
+      );
+    }
   }
 
   async checkLeaveBalance(employeeId: string): Promise<LeaveBalanceData> {
@@ -192,6 +228,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       data: { status: 'Approved', approverId: lineUserId },
       include: { user: true },
     });
+    await this.invalidateUserCache(leaveRequest.employeeId);
 
     const admin = await this.prisma.user.findUnique({ where: { lineUserId } });
 
@@ -240,6 +277,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       data: { status: 'Denied', denialReason },
       include: { user: true },
     });
+    await this.invalidateUserCache(leaveRequest.employeeId);
 
     const admin = await this.prisma.user.findUnique({ where: { lineUserId } });
 
