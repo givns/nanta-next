@@ -262,7 +262,12 @@ export const createResubmittedRequest = async (
     });
 
     for (const admin of admins) {
-      await sendRequestNotification(admin, newRequest, requestType);
+      await sendRequestNotification(
+        admin,
+        newRequest,
+        requestType,
+        newRequest.user,
+      );
     }
 
     return newRequest;
