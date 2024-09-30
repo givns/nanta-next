@@ -99,6 +99,7 @@ export const useAttendance = (
   }, [getCurrentLocation]);
 
   const fetchCheckInOutAllowance = useCallback(async () => {
+    console.log('Fetching check-in/out allowance'); // Add this log
     const currentLocation = await getCurrentLocation();
     if (!currentLocation) {
       setCheckInOutAllowance({
@@ -132,7 +133,7 @@ export const useAttendance = (
   // Initial fetch only
   useEffect(() => {
     fetchCheckInOutAllowance();
-  }, [fetchCheckInOutAllowance]);
+  }, []);
 
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
@@ -151,7 +152,6 @@ export const useAttendance = (
           response.data;
         setAttendanceStatus(processAttendanceStatus(attendanceStatus));
         setEffectiveShift(effectiveShift);
-        setCheckInOutAllowance(checkInOutAllowance);
         return response.data;
       } catch (error) {
         console.error('Error fetching attendance status:', error);
@@ -259,7 +259,7 @@ export const useAttendance = (
     isOutsideShift,
     checkInOut,
     checkInOutAllowance,
-    refreshCheckInOutAllowance: fetchCheckInOutAllowance,
+    refreshCheckInOutAllowance: fetchCheckInOutAllowance, // Add this line
     refreshAttendanceStatus: getAttendanceStatus,
     isSubmitting: isSubmittingRef.current,
   };
