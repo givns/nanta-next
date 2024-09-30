@@ -272,6 +272,7 @@ export class AttendanceProcessingService {
       approvedOvertime,
       futureShifts: [], // This would need to be implemented if future shifts are still needed
       futureOvertimes: [], // This would need to be implemented if future overtimes are still needed
+      pendingLeaveRequest: false, // This would need to be implemented if pending leave requests are still
     };
   }
 
