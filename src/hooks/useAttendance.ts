@@ -1,5 +1,5 @@
 // hooks/useAttendance.ts
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import {
   AttendanceData,
@@ -101,7 +101,6 @@ export const useAttendance = (
   }, [getCurrentLocation]);
 
   const fetchCheckInOutAllowance = useCallback(async () => {
-    console.log('Fetching check-in/out allowance'); // Add this log
     const currentLocation = await getCurrentLocation();
     if (!currentLocation) {
       setCheckInOutAllowance({
@@ -109,6 +108,30 @@ export const useAttendance = (
         reason: 'Location not available',
       });
       return;
+    }
+
+    // Check if location has changed significantly (e.g., more than 10 meters)
+    const hasLocationChangedSignificantly = (
+      prevLocation: { lat: number; lng: number } | null,
+      newLocation: { lat: number; lng: number },
+    ) => {
+      if (!prevLocation) return true;
+      const R = 6371e3; // Earth's radius in meters
+      const dLat = ((newLocation.lat - prevLocation.lat) * Math.PI) / 180;
+      const dLon = ((newLocation.lng - prevLocation.lng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((prevLocation.lat * Math.PI) / 180) *
+          Math.cos((newLocation.lat * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distance = R * c;
+      return distance > 10; // 10 meters threshold
+    };
+
+    if (!hasLocationChangedSignificantly(location, currentLocation)) {
+      return; // Don't refetch if location hasn't changed significantly
     }
 
     try {
@@ -123,6 +146,7 @@ export const useAttendance = (
         },
       );
       setCheckInOutAllowance(response.data);
+      setLocation(currentLocation); // Update stored location
     } catch (error) {
       console.error('Error checking if check-in/out is allowed:', error);
       setCheckInOutAllowance({
@@ -130,12 +154,21 @@ export const useAttendance = (
         reason: 'Error checking permissions',
       });
     }
-  }, [userData.employeeId, getCurrentLocation]);
+  }, [userData.employeeId, getCurrentLocation, location]);
 
   // Initial fetch only
+  const debouncedFetchCheckInOutAllowance = useMemo(
+    () => debounce(fetchCheckInOutAllowance, 1000),
+    [fetchCheckInOutAllowance],
+  );
+
   useEffect(() => {
-    fetchCheckInOutAllowance();
-  }, []);
+    const intervalId = setInterval(() => {
+      debouncedFetchCheckInOutAllowance();
+    }, 60000); // Check every minute
+
+    return () => clearInterval(intervalId);
+  }, [debouncedFetchCheckInOutAllowance]);
 
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
