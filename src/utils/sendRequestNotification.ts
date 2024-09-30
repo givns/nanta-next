@@ -41,11 +41,9 @@ export const sendRequestNotification = async (
   admin: User,
   request: LeaveRequest | OvertimeRequest,
   requestType: 'leave' | 'overtime',
+  user: User,
 ) => {
   const requestCount = await getRequestCountForAdmin(admin.id);
-  const user = await prisma.user.findUnique({
-    where: { id: request.employeeId },
-  });
 
   if (!user) {
     throw new Error(`User with ID ${request.employeeId} not found`);
@@ -276,6 +274,7 @@ export const sendRequestNotification = async (
 export const notifyAdmins = async (
   request: LeaveRequest | OvertimeRequest,
   requestType: 'leave' | 'overtime',
+  user: User,
 ) => {
   const admins = await prisma.user.findMany({
     where: {
@@ -287,6 +286,6 @@ export const notifyAdmins = async (
   });
 
   for (const admin of admins) {
-    await sendRequestNotification(admin, request, requestType);
+    await sendRequestNotification(admin, request, requestType, user);
   }
 };

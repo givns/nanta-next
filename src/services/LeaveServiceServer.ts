@@ -210,7 +210,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
         data: leaveRequestData,
       });
 
-      await this.notifyAdmins(newLeaveRequest);
+      await this.notifyAdmins(newLeaveRequest, user);
 
       return newLeaveRequest;
     } catch (error) {
@@ -320,7 +320,10 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     });
   }
 
-  private async notifyAdmins(leaveRequest: LeaveRequest): Promise<void> {
+  private async notifyAdmins(
+    leaveRequest: LeaveRequest,
+    requestUser: User,
+  ): Promise<void> {
     const admins = await this.prisma.user.findMany({
       where: {
         role: {
@@ -330,7 +333,7 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     });
 
     for (const admin of admins) {
-      await sendRequestNotification(admin, leaveRequest, 'leave');
+      await sendRequestNotification(admin, leaveRequest, 'leave', requestUser);
     }
   }
 
