@@ -405,6 +405,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     let buttonText = 'ไม่สามารถลงเวลาได้ในขณะนี้';
     if (checkInOutAllowance?.allowed) {
       buttonText = `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
+    } else if (attendanceStatus.pendingLeaveRequest) {
+      buttonText = 'รออนุมัติการลา';
     }
 
     return (

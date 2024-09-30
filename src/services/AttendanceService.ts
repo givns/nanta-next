@@ -128,10 +128,11 @@ export class AttendanceService {
       employeeId,
       now,
     );
-    if (leaveRequest) {
+    if (leaveRequest && leaveRequest.status === 'approved') {
       return { allowed: false, reason: 'User is on approved leave' };
     }
-
+    console.log('Leave request:', leaveRequest);
+    console.log('Leave request status:', leaveRequest?.status);
     const shiftData =
       await this.shiftManagementService.getEffectiveShiftAndStatus(
         employeeId,
@@ -520,6 +521,11 @@ export class AttendanceService {
     const futureOvertimes =
       await this.overtimeService.getFutureApprovedOvertimes(employeeId, today);
 
+    const pendingLeaveRequest = await this.leaveService.hasPendingLeaveRequest(
+      employeeId,
+      today,
+    );
+
     const userData: UserData = {
       employeeId: user.employeeId,
       name: user.name,
@@ -550,6 +556,7 @@ export class AttendanceService {
       approvedOvertime,
       futureShifts,
       futureOvertimes,
+      pendingLeaveRequest,
     );
   }
 
@@ -607,6 +614,7 @@ export class AttendanceService {
     approvedOvertime: ApprovedOvertime | null,
     futureShifts: Array<{ date: string; shift: ShiftData }>,
     futureOvertimes: Array<ApprovedOvertime>,
+    pendingLeaveRequest: boolean,
   ): AttendanceStatusInfo {
     const shiftStart = shift ? this.parseShiftTime(shift.startTime, now) : null;
     const shiftEnd = shift ? this.parseShiftTime(shift.endTime, now) : null;
@@ -627,7 +635,7 @@ export class AttendanceService {
     if (isHoliday) {
       status = 'holiday';
       isCheckingIn = false;
-    } else if (leaveRequest) {
+    } else if (leaveRequest && leaveRequest.status === 'approved') {
       status = 'off';
       isCheckingIn = false;
     } else if (!attendance) {
@@ -686,6 +694,7 @@ export class AttendanceService {
       approvedOvertime,
       futureShifts,
       futureOvertimes,
+      pendingLeaveRequest,
     };
   }
 
@@ -923,7 +932,7 @@ export class AttendanceService {
     const latestAttendance = user.attendances[0];
 
     const isOnLeave = await this.leaveService.checkUserOnLeave(user.id, now);
-    if (isOnLeave) return;
+    if (isOnLeave) return; //might need to use employeeId instead of user.id
 
     const approvedOvertime =
       await this.overtimeService.getApprovedOvertimeRequest(user.id, now);

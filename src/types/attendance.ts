@@ -71,6 +71,7 @@ export interface AttendanceStatusInfo {
     shift: ShiftData;
   }>;
   futureOvertimes: Array<ApprovedOvertime>;
+  pendingLeaveRequest: boolean;
 }
 
 export type AttendanceStatusValue =

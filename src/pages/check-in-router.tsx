@@ -114,6 +114,7 @@ const AttendanceStatusInfoSchema = z
       }),
     ),
     futureOvertimes: z.array(z.any()), // You might want to define a more specific schema for ApprovedOvertime
+    pendingLeaveRequest: z.boolean(),
   })
   .transform((data) => ({
     ...data,
@@ -355,7 +356,11 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
                       ? new Date(fullData.user.updatedAt)
                       : undefined,
                   }}
-                  initialAttendanceStatus={fullData.attendanceStatus}
+                  initialAttendanceStatus={{
+                    ...fullData.attendanceStatus,
+                    pendingLeaveRequest:
+                      fullData.attendanceStatus.pendingLeaveRequest || false,
+                  }}
                   effectiveShift={fullData.effectiveShift}
                   onStatusChange={handleStatusChange}
                   onError={() => debouncedFetchData()}

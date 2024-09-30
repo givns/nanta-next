@@ -39,6 +39,9 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     if (attendanceStatus.isDayOff) {
       return { message: 'วันหยุด', color: 'blue' };
     }
+    if (attendanceStatus.pendingLeaveRequest) {
+      return { message: 'รออนุมัติการลา', color: 'orange' };
+    }
 
     if (!latestAttendance) {
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
