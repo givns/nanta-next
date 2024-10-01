@@ -5,5 +5,4 @@ export enum UserRole {
   ADMIN = 'Admin',
   OPERATION = 'Operation',
   DRIVER = 'Driver',
-  Employee = 'Employee',
 }

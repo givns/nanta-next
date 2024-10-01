@@ -72,7 +72,71 @@ export default async function handler(
     const affectedUsers = new Map();
 
     await prisma.$transaction(async (prisma) => {
-      // ... (rest of the transaction logic remains the same)
+      if (targetType === 'department') {
+        for (const adjustment of adjustments) {
+          const { department, shiftId } = adjustment;
+
+          const users = await prisma.user.findMany({
+            where: { departmentId: department },
+          });
+
+          console.log(
+            `Found ${users.length} users for department ${department}`,
+          );
+
+          for (const user of users) {
+            const shiftAdjustment = await prisma.shiftAdjustmentRequest.create({
+              data: {
+                employeeId: user.employeeId,
+                requestedShiftId: shiftId,
+                date: adjustmentDate,
+                reason: reason,
+                status: 'approved',
+              },
+              include: {
+                requestedShift: true,
+              },
+            });
+            shiftAdjustments.push(shiftAdjustment);
+            affectedUsers.set(
+              user.id.toString(),
+              shiftAdjustment.requestedShift,
+            );
+          }
+        }
+      } else if (targetType === 'individual') {
+        for (const adjustment of adjustments) {
+          const { employeeId, shiftId } = adjustment;
+
+          const user = await prisma.user.findUnique({
+            where: { employeeId: employeeId },
+          });
+
+          if (!user) {
+            throw new Error(`User with employee ID ${employeeId} not found`);
+          }
+
+          const shiftAdjustment = await prisma.shiftAdjustmentRequest.create({
+            data: {
+              employeeId: user.employeeId,
+              requestedShiftId: shiftId,
+              date: adjustmentDate,
+              reason: reason,
+              status: 'approved',
+            },
+            include: {
+              requestedShift: true,
+            },
+          });
+          shiftAdjustments.push(shiftAdjustment);
+          affectedUsers.set(
+            user.employeeId.toString(),
+            shiftAdjustment.requestedShift,
+          );
+        }
+      } else {
+        throw new Error('Invalid target type');
+      }
     });
 
     // Create a set of all users who need to be notified
