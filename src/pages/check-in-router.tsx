@@ -15,6 +15,7 @@ import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
 import Clock from '../components/Clock';
+import { useLiff } from '../contexts/LiffContext';
 
 const MemoizedCheckInOutForm = React.memo(
   dynamic(() => import('../components/CheckInOutForm'), {
@@ -146,6 +147,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     null,
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
+  const liff = useLiff();
 
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
@@ -365,6 +367,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
                   onStatusChange={handleStatusChange}
                   onError={() => debouncedFetchData()}
                   isActionButtonReady={isActionButtonReady}
+                  liff={liff}
                 />
               </div>
             </ErrorBoundary>

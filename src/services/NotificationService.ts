@@ -7,7 +7,6 @@ import {
   LeaveRequest,
   OvertimeRequest,
   ShiftAdjustmentRequest,
-  EmployeeType,
 } from '@prisma/client';
 import {
   generateApprovalMessage,
@@ -18,39 +17,53 @@ import {
   generateDenialMessageForAdmins,
 } from '../utils/generateDenialMessage';
 import { format } from 'date-fns';
+import { NotificationQueue } from './NotificationQueue';
 
 export class NotificationService {
+  private notificationQueue: NotificationQueue;
   private lineClient: Client;
   private prisma: PrismaClient;
 
-  constructor() {
+  constructor(prisma: PrismaClient) {
     this.lineClient = new Client({
       channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     });
-    this.prisma = new PrismaClient();
+    this.prisma = prisma;
+    this.notificationQueue = new NotificationQueue(
+      this.lineClient,
+      this.prisma,
+    );
   }
 
   async sendNotification(
     userId: string,
     message: string,
-    lineUserId?: string,
+    type:
+      | 'check-in'
+      | 'check-out'
+      | 'leave'
+      | 'overtime'
+      | 'overtime-digest'
+      | 'overtime-batch-approval'
+      | 'shift',
   ): Promise<void> {
-    try {
-      if (lineUserId) {
-        await this.sendLineMessage(lineUserId, message);
-      } else {
-        const user = await this.prisma.user.findUnique({
-          where: { employeeId: userId }, // Changed from id to employeeId
-        });
-        if (user && user.lineUserId) {
-          await this.sendLineMessage(user.lineUserId, message);
-        } else {
-          console.warn(`No LINE user ID found for user ${userId}`);
-        }
-      }
-    } catch (error) {
-      console.error('Error sending notification:', error);
-    }
+    await this.notificationQueue.addNotification({ userId, message, type });
+  }
+
+  async sendCheckInConfirmation(
+    userId: string,
+    checkInTime: Date,
+  ): Promise<void> {
+    const message = `${format(checkInTime, 'HH:mm')}: บันทึกเวลาเข้างานเรียบร้อยแล้ว`;
+    await this.sendNotification(userId, message, 'check-in');
+  }
+
+  async sendCheckOutConfirmation(
+    userId: string,
+    checkOutTime: Date,
+  ): Promise<void> {
+    const message = `${format(checkOutTime, 'HH:mm')}: บันทึกเวลาออกงานเรียบร้อยแล้ว`;
+    await this.sendNotification(userId, message, 'check-out');
   }
 
   private async sendLineMessage(
@@ -67,27 +80,6 @@ export class NotificationService {
       console.error('Error sending LINE message:', error);
       throw new Error('Failed to send LINE message');
     }
-  }
-
-  async sendCheckInConfirmation(
-    userId: string,
-    checkInTime: Date,
-  ): Promise<void> {
-    console.log(`Sending check-in confirmation for user ${userId}`);
-
-    const message = `${format(checkInTime, 'HH:mm')}: บันทึกเวลาเข้างานเรีบร้อยแล้ว`;
-    console.log(`Check-in confirmation sent for user ${userId}`);
-    await this.sendNotification(userId, message);
-  }
-
-  async sendCheckOutConfirmation(
-    userId: string,
-    checkOutTime: Date,
-  ): Promise<void> {
-    console.log(`Sending check-out confirmation for user ${userId}`);
-    const message = `${format(checkOutTime, 'HH:mm')}: บันทึกเวลาออกงานเรียบร้อยแล้ว`;
-    console.log(`Check-out confirmation sent for user ${userId}`);
-    await this.sendNotification(userId, message);
   }
 
   async sendMissingCheckInNotification(lineUserId: string): Promise<void> {
@@ -118,7 +110,7 @@ export class NotificationService {
     await this.sendNotification(
       overtimeRequest.employeeId,
       message,
-      overtimeRequest.user.lineUserId,
+      'overtime',
     );
   }
 
@@ -136,7 +128,7 @@ export class NotificationService {
     await this.sendNotification(
       overtimeRequest.employeeId,
       message,
-      overtimeRequest.user.lineUserId,
+      'overtime',
     );
   }
 
@@ -238,7 +230,7 @@ export class NotificationService {
     },
   ): Promise<void> {
     const message = `Your shift for ${format(shiftAdjustment.date, 'yyyy-MM-dd')} has been adjusted to ${shiftAdjustment.requestedShift.name}`;
-    await this.sendNotification(userId, message);
+    await this.sendNotification(userId, message, 'shift'); // Assuming shift adjustments are related to leave
   }
 
   async sendPotentialOvertimeNotification(
@@ -248,7 +240,7 @@ export class NotificationService {
     duration: number,
   ): Promise<void> {
     const message = `Employee ${employeeId} has potential overtime of ${duration} minutes on ${format(date, 'yyyy-MM-dd')}. Please review.`;
-    await this.sendNotification(adminId, message);
+    await this.sendNotification(adminId, message, 'overtime');
   }
 
   private async getRequestCountForAdmin(adminId: string): Promise<number> {
@@ -274,6 +266,223 @@ export class NotificationService {
     ]);
 
     return leaveRequests + overtimeRequests;
+  }
+
+  async sendOvertimeDigest(
+    managerId: string,
+    pendingRequests: OvertimeRequest[],
+  ): Promise<void> {
+    const message = this.createDigestMessage(pendingRequests);
+    await this.notificationQueue.addNotification({
+      userId: managerId,
+      message: JSON.stringify(message),
+      type: 'overtime-digest',
+    });
+  }
+
+  async sendBatchApprovalNotification(
+    admin: User,
+    approvedRequests: OvertimeRequest[],
+  ): Promise<void> {
+    const message = this.createBatchApprovalMessage(approvedRequests);
+    if (admin.lineUserId) {
+      await this.notificationQueue.addNotification({
+        userId: admin.id,
+        message: JSON.stringify(message),
+        type: 'overtime-batch-approval',
+      });
+    }
+  }
+
+  private createBatchApprovalMessage(
+    approvedRequests: OvertimeRequest[],
+  ): FlexMessage {
+    // Implement the batch approval message creation logic
+    return {
+      type: 'flex',
+      altText: 'Overtime Requests Batch Approval',
+      contents: {
+        type: 'bubble',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'Overtime Requests Approved',
+              weight: 'bold',
+              size: 'xl',
+            },
+            {
+              type: 'text',
+              text: `You have approved ${approvedRequests.length} overtime requests.`,
+              margin: 'md',
+            },
+            // Add more details about the approved requests here
+          ],
+        },
+      },
+    };
+  }
+
+  private createDigestMessage(pendingRequests: OvertimeRequest[]): FlexMessage {
+    return {
+      type: 'flex',
+      altText: 'Overtime Requests Digest',
+      contents: {
+        type: 'bubble',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'Overtime Requests Digest',
+              weight: 'bold',
+              size: 'xl',
+            },
+            {
+              type: 'text',
+              text: `You have ${pendingRequests.length} pending overtime requests.`,
+              margin: 'md',
+            },
+            // Add more details about the pending requests here
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'button',
+              action: {
+                type: 'uri',
+                label: 'View Requests',
+                uri: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/overtime`,
+              },
+              style: 'primary',
+            },
+          ],
+        },
+      },
+    };
+  }
+
+  async sendOvertimeRequestNotification(
+    overtimeRequest: OvertimeRequest,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { employeeId: overtimeRequest.employeeId },
+    });
+    if (!user || !user.lineUserId) {
+      console.warn('User not found or no LINE user ID available');
+      return;
+    }
+
+    const message = {
+      type: 'flex',
+      altText: 'Overtime Request',
+      contents: {
+        type: 'bubble',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'Overtime Request',
+              weight: 'bold',
+              size: 'xl',
+            },
+            {
+              type: 'text',
+              text: `Date: ${overtimeRequest.date.toLocaleDateString()}`,
+            },
+            {
+              type: 'text',
+              text: `Time: ${overtimeRequest.startTime} - ${overtimeRequest.endTime}`,
+            },
+            {
+              type: 'text',
+              text: `Reason: ${overtimeRequest.reason}`,
+            },
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'horizontal',
+          spacing: 'sm',
+          contents: [
+            {
+              type: 'button',
+              style: 'primary',
+              action: {
+                type: 'postback',
+                label: 'Accept',
+                data: `action=accept&requestId=${overtimeRequest.id}`,
+              },
+            },
+            {
+              type: 'button',
+              style: 'secondary',
+              action: {
+                type: 'postback',
+                label: 'Decline',
+                data: `action=decline&requestId=${overtimeRequest.id}`,
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    await this.sendNotification(user.id, JSON.stringify(message), 'overtime');
+  }
+
+  async sendOvertimeResponseNotification(
+    managerId: string,
+    employee: User,
+    overtimeRequest: OvertimeRequest,
+  ): Promise<void> {
+    const message = {
+      type: 'flex',
+      altText: 'Overtime Request Response',
+      contents: {
+        type: 'bubble',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'Overtime Request Response',
+              weight: 'bold',
+              size: 'xl',
+            },
+            {
+              type: 'text',
+              text: `Employee: ${employee.name}`,
+            },
+            {
+              type: 'text',
+              text: `Date: ${overtimeRequest.date.toLocaleDateString()}`,
+            },
+            {
+              type: 'text',
+              text: `Time: ${overtimeRequest.startTime} - ${overtimeRequest.endTime}`,
+            },
+            {
+              type: 'text',
+              text: `Status: ${overtimeRequest.status}`,
+              color:
+                overtimeRequest.status === 'accepted' ? '#27AE60' : '#E74C3C',
+            },
+          ],
+        },
+      },
+    };
+
+    await this.sendNotification(managerId, JSON.stringify(message), 'overtime');
   }
 
   private createRequestFlexMessage(
@@ -510,4 +719,8 @@ export class NotificationService {
   }
 }
 
-export const notificationService = new NotificationService();
+export function createNotificationService(
+  prisma: PrismaClient,
+): NotificationService {
+  return new NotificationService(prisma);
+}

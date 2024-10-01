@@ -1,7 +1,6 @@
 // services/OvertimeServiceServer.ts
 import { PrismaClient, OvertimeRequest, Prisma } from '@prisma/client';
 import { IOvertimeServiceServer } from '@/types/OvertimeService';
-import { OvertimeNotificationService } from './OvertimeNotificationService';
 import { TimeEntryService } from './TimeEntryService';
 import { ApprovedOvertime } from '@/types/attendance';
 import {
@@ -12,15 +11,15 @@ import {
   differenceInHours,
   differenceInMinutes,
 } from 'date-fns';
-import { notificationService } from './NotificationService';
+import { NotificationService } from './NotificationService';
 
 const prisma = new PrismaClient();
 
 export class OvertimeServiceServer implements IOvertimeServiceServer {
   constructor(
     private prisma: PrismaClient,
-    private overtimeNotificationService: OvertimeNotificationService,
     private timeEntryService: TimeEntryService,
+    private notificationService: NotificationService,
   ) {}
 
   async createOvertimeRequest(
@@ -62,7 +61,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     if (durationInHours <= 1) {
       await this.autoApproveOvertimeRequest(newOvertimeRequest.id);
     } else {
-      await this.overtimeNotificationService.sendOvertimeRequestNotification(
+      await this.notificationService.sendOvertimeRequestNotification(
         newOvertimeRequest,
       );
     }
@@ -125,7 +124,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     });
 
     await this.timeEntryService.createPendingOvertimeEntry(approvedRequest);
-    await this.overtimeNotificationService.sendOvertimeAutoApprovalNotification(
+    await this.notificationService.sendOvertimeAutoApprovalNotification(
       approvedRequest,
     );
 
@@ -148,7 +147,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     const admin = await prisma.user.findUnique({ where: { id: approverId } });
     if (admin) {
-      await this.overtimeNotificationService.sendBatchApprovalNotification(
+      await this.notificationService.sendBatchApprovalNotification(
         admin,
         approvedRequests,
       );
@@ -176,7 +175,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       where: { id: approverId },
     });
     if (approver) {
-      await this.overtimeNotificationService.sendOvertimeApprovalNotification(
+      await this.notificationService.sendOvertimeApprovalNotification(
         overtimeRequest,
         approver,
       );
@@ -296,7 +295,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       await this.timeEntryService.createPendingOvertimeEntry(overtimeRequest);
     }
 
-    await this.overtimeNotificationService.sendOvertimeRequestNotification(
+    await this.notificationService.sendOvertimeRequestNotification(
       overtimeRequest,
     );
 
@@ -335,9 +334,10 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     // Send notifications to admins
     for (const admin of admins) {
-      await notificationService.sendNotification(
+      await this.notificationService.sendNotification(
         admin.id,
         `New unapproved overtime request from user ${employeeId} for ${overtimeMinutes} minutes. Please review.`,
+        'overtime',
       );
     }
   }

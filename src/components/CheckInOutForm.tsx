@@ -32,6 +32,7 @@ interface CheckInOutFormProps {
   onStatusChange: (newStatus: boolean) => void;
   onError: () => void;
   isActionButtonReady: boolean;
+  liff: any;
 }
 
 const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
@@ -43,6 +44,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onStatusChange,
   onError,
   isActionButtonReady,
+  liff,
 }) => {
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [reason, setReason] = useState<string>('');
@@ -54,7 +56,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [isDebugLogExpanded, setIsDebugLogExpanded] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [storedAllowance, setStoredAllowance] =
     useState<CheckInOutAllowance | null>(null);
@@ -148,11 +149,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [userData, initialAttendanceStatus, effectiveShift, onError]);
 
   const closeLiffWindow = useCallback(async () => {
-    if ((liff as any).isReady) {
+    if (liff.isReady) {
       try {
-        await liff.init({
-          liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
-        });
         setTimeout(() => {
           liff.closeWindow();
         }, 2000);
@@ -162,7 +160,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     } else {
       console.warn('LIFF is not ready');
     }
-  }, []);
+  }, [liff]);
 
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {

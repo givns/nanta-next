@@ -47,7 +47,6 @@ import {
   getCurrentTime,
   toBangkokTime,
 } from '../utils/dateUtils';
-import Redis from 'ioredis';
 import {
   getCacheData,
   setCacheData,
@@ -55,13 +54,12 @@ import {
 } from '../lib/serverCache';
 import { AppErrors } from '@/utils/errorHandler';
 import { ErrorCode, AppError } from '../types/errors';
+import { cacheService } from './CacheService';
 
 const USER_CACHE_TTL = 24 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
 
 export class AttendanceService {
-  private redis: Redis | null = null;
-
   constructor(
     private prisma: PrismaClient,
     private shiftManagementService: ShiftManagementService,
@@ -74,6 +72,30 @@ export class AttendanceService {
 
   async invalidateAttendanceCache(employeeId: string): Promise<void> {
     await invalidateCachePattern(`attendance:${employeeId}*`);
+  }
+
+  private async invalidateUserCache(employeeId: string) {
+    if (cacheService) {
+      await cacheService.invalidatePattern(`user:${employeeId}*`);
+      await cacheService.invalidatePattern(`attendance:${employeeId}*`);
+    }
+  }
+
+  async updateUserData(employeeId: string, updateData: Partial<User>) {
+    const updatedUser = await this.prisma.user.update({
+      where: { employeeId },
+      data: updateData,
+    });
+
+    // Invalidate cache asynchronously
+    this.invalidateUserCache(employeeId).catch((error) =>
+      console.error(
+        `Failed to invalidate cache for user ${employeeId}:`,
+        error,
+      ),
+    );
+
+    return updatedUser;
   }
 
   private async getCachedUserData(employeeId: string): Promise<User | null> {
@@ -982,25 +1004,6 @@ export class AttendanceService {
         user.lineUserId,
       );
     }
-  }
-
-  // Helper method to invalidate user cache
-  private async invalidateUserCache(employeeId: string) {
-    if (this.redis) {
-      const cacheKey = `user:${employeeId}`;
-      await this.redis.del(cacheKey);
-    }
-  }
-
-  // Add this method to update user data and invalidate cache
-  async updateUserData(employeeId: string, updateData: Partial<User>) {
-    const updatedUser = await this.prisma.user.update({
-      where: { employeeId },
-      data: updateData,
-    });
-
-    await this.invalidateUserCache(employeeId);
-    return updatedUser;
   }
 
   private calculateAttendanceStatus(

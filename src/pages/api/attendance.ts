@@ -3,27 +3,33 @@ import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
-import { LeaveServiceServer } from '@/services/LeaveServiceServer';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { notificationService } from '@/services/NotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
-import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
+import { createNotificationService } from '@/services/NotificationService';
+import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
-const leaveServiceServer = new LeaveServiceServer();
-const overtimeNotificationService = new OvertimeNotificationService(); // Add this line
-const shiftManagementService = new ShiftManagementService(prisma);
-const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
+export const notificationService = createNotificationService(prisma);
+export const leaveServiceServer = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
+const shiftService = new ShiftManagementService(prisma);
+
+const timeEntryService = new TimeEntryService(prisma, shiftService);
+
 const overtimeService = new OvertimeServiceServer(
   prisma,
-  overtimeNotificationService, // Add this line
   timeEntryService,
+  notificationService,
 );
+
+shiftService.setOvertimeService(overtimeService);
 
 const attendanceService = new AttendanceService(
   prisma,
-  shiftManagementService,
+  shiftService,
   holidayService,
   leaveServiceServer,
   overtimeService,

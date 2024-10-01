@@ -5,11 +5,10 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
-import { leaveServiceServer } from '@/services/LeaveServiceServer';
 import { AttendanceData, AttendanceStatusInfo } from '@/types/attendance';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { NotificationService } from '@/services/NotificationService';
-import { OvertimeNotificationService } from '@/services/OvertimeNotificationService';
+import { createNotificationService } from '../../services/NotificationService';
+import { createLeaveServiceServer } from '../../services/LeaveServiceServer';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import {
   formatTime,
@@ -26,17 +25,19 @@ const limiter = new RateLimiter({ tokensPerInterval: 5, interval: 'minute' });
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
-const notificationService = new NotificationService();
-const overtimeNotificationService = new OvertimeNotificationService();
-
+export const notificationService = createNotificationService(prisma);
+export const leaveServiceServer = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
 const shiftService = new ShiftManagementService(prisma);
 
 const timeEntryService = new TimeEntryService(prisma, shiftService);
 
 const overtimeService = new OvertimeServiceServer(
   prisma,
-  overtimeNotificationService,
   timeEntryService,
+  notificationService,
 );
 
 shiftService.setOvertimeService(overtimeService);

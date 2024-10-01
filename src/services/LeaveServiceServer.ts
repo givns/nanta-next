@@ -6,7 +6,6 @@ import {
   sendApproveNotification,
   sendDenyNotification,
 } from '../utils/sendNotifications';
-import { sendRequestNotification } from '../utils/sendRequestNotification';
 import { UserRole } from '../types/enum';
 import { ILeaveServiceServer, LeaveBalanceData } from '@/types/LeaveService';
 import { NotificationService } from './NotificationService';
@@ -20,43 +19,37 @@ export class LeaveServiceServer implements ILeaveServiceServer {
   private prisma: PrismaClient;
   private notificationService: NotificationService;
 
-  constructor() {
-    this.prisma = new PrismaClient();
-    this.notificationService = new NotificationService();
+  constructor(prisma: PrismaClient, notificationService: NotificationService) {
+    this.prisma = prisma;
+    this.notificationService = notificationService;
   }
 
-  private async invalidateUserCache(employeeId: string) {
+  private async invalidateUserCache(employeeId: string): Promise<boolean> {
     if (!cacheService) {
       console.warn(
         'Cache service is not available. Skipping cache invalidation.',
       );
-      return;
+      return false;
     }
 
     try {
-      // 1. Invalidate user-specific cache
-      await cacheService.invalidatePattern(`user:${employeeId}*`);
-
-      // 2. Invalidate attendance-related cache
-      await cacheService.invalidatePattern(`attendance:${employeeId}*`);
-
-      // 3. Invalidate leave request cache
-      await cacheService.invalidatePattern(`leaveRequest:${employeeId}*`);
-
-      // 4. Invalidate any other user-specific cache patterns
-      // For example, if you have overtime request caches:
-      await cacheService.invalidatePattern(`overtimeRequest:${employeeId}*`);
-
-      // 5. Invalidate any list caches that might include this user's data
-      await cacheService.invalidatePattern('userList*');
-      await cacheService.invalidatePattern('leaveRequestList*');
+      await Promise.all([
+        cacheService.invalidatePattern(`user:${employeeId}*`),
+        cacheService.invalidatePattern(`attendance:${employeeId}*`),
+        cacheService.invalidatePattern(`leaveRequest:${employeeId}*`),
+        cacheService.invalidatePattern(`overtimeRequest:${employeeId}*`),
+        cacheService.invalidatePattern('userList*'),
+        cacheService.invalidatePattern('leaveRequestList*'),
+      ]);
 
       console.log(`Cache invalidated for employee ${employeeId}`);
+      return true;
     } catch (error) {
       console.error(
         `Error invalidating cache for employee ${employeeId}:`,
         error,
       );
+      return false;
     }
   }
 
@@ -333,7 +326,11 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     });
 
     for (const admin of admins) {
-      await sendRequestNotification(admin, leaveRequest, 'leave', requestUser);
+      await this.notificationService.sendRequestNotification(
+        admin,
+        leaveRequest,
+        'leave',
+      );
     }
   }
 
@@ -361,13 +358,17 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     if (cancelledLeave.user.lineUserId) {
       await this.notificationService.sendNotification(
         cancelledLeave.user.id,
-        `Your approved leave from ${cancelledLeave.startDate} to ${cancelledLeave.endDate} has been cancelled.`,
-        cancelledLeave.user.lineUserId,
+        `การลาที่ได้รับการอนุมัติในวันที่ ${cancelledLeave.startDate} to ${cancelledLeave.endDate} ได้ถูกยกเลิกเรียบร้อยแล้ว`,
+        'leave',
       );
     }
 
     return cancelledLeave;
   }
 }
-
-export const leaveServiceServer = new LeaveServiceServer();
+export function createLeaveServiceServer(
+  prisma: PrismaClient,
+  notificationService: NotificationService,
+): LeaveServiceServer {
+  return new LeaveServiceServer(prisma, notificationService);
+}

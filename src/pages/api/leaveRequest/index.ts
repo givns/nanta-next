@@ -1,11 +1,17 @@
 // pages/api/leaveRequest/index.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { LeaveServiceServer } from '../../../services/LeaveServiceServer';
+import { createLeaveServiceServer } from '../../../services/LeaveServiceServer';
 import { ILeaveServiceBase } from '../../../types/LeaveService';
+import { PrismaClient } from '@prisma/client';
+import { createNotificationService } from '../../../services/NotificationService';
 
-const leaveService: ILeaveServiceBase =
-  new LeaveServiceServer() as ILeaveServiceBase;
+const prisma = new PrismaClient();
+const notificationService = createNotificationService(prisma);
+const leaveService: ILeaveServiceBase = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
 
 export default async function handler(
   req: NextApiRequest,

@@ -2,15 +2,12 @@
 
 import '../styles/globals.css';
 import { useState, useEffect, ErrorInfo } from 'react';
-import { useRouter } from 'next/router';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
-import liff from '@line/liff';
+import { LiffProvider } from '../contexts/LiffContext';
 
 function MyApp({ Component, pageProps }: AppProps) {
-  const router = useRouter();
-  const [isLiffInitialized, setIsLiffInitialized] = useState(false);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,38 +25,11 @@ function MyApp({ Component, pageProps }: AppProps) {
     };
   }, []);
 
-  useEffect(() => {
-    const initializeLiff = async () => {
-      try {
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-        if (!liffId) {
-          throw new Error('LIFF ID is not defined');
-        }
-
-        await liff.init({ liffId });
-        setIsLiffInitialized(true);
-
-        if (liff.isLoggedIn()) {
-          const profile = await liff.getProfile();
-          setLineUserId(profile.userId);
-        } else {
-          liff.login();
-        }
-      } catch (error) {
-        console.error('Error initializing LIFF:', error);
-      }
-    };
-
-    initializeLiff();
-  }, []);
-
-  if (!isLiffInitialized) {
-    return <div>กรุณารอสักครู่...</div>;
-  }
-
   return (
     <Provider store={store}>
-      <Component {...pageProps} lineUserId={lineUserId} />
+      <LiffProvider>
+        <Component {...pageProps} lineUserId={lineUserId} />
+      </LiffProvider>
     </Provider>
   );
 }

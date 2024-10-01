@@ -1,7 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { LeaveServiceServer } from '../../../services/LeaveServiceServer';
+import { createLeaveServiceServer } from '../../../services/LeaveServiceServer';
+import { PrismaClient } from '@prisma/client';
+import { createNotificationService } from '@/services/NotificationService';
 
-const leaveService = new LeaveServiceServer();
+const prisma = new PrismaClient();
+export const notificationService = createNotificationService(prisma);
+export const leaveServiceServer = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,8 +30,7 @@ export default async function handler(
   } = req.body;
 
   try {
-    const leaveService = new LeaveServiceServer();
-    const newLeaveRequest = await leaveService.createLeaveRequest(
+    const newLeaveRequest = await leaveServiceServer.createLeaveRequest(
       lineUserId,
       leaveType,
       leaveFormat,

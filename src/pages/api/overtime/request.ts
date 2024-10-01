@@ -1,18 +1,19 @@
+//api/overTime/request.ts
 import { PrismaClient } from '@prisma/client';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
-import { OvertimeNotificationService } from '../../../services/OvertimeNotificationService'; // Import the overtimeNotificationService
 import { TimeEntryService } from '../../../services/TimeEntryService';
 import { ShiftManagementService } from '../../../services/ShiftManagementService';
+import { createNotificationService } from '../../../services/NotificationService';
 
 const prisma = new PrismaClient();
+export const notificationService = createNotificationService(prisma);
 const shiftManagementService = new ShiftManagementService(prisma);
 const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
-const overtimeNotificationService = new OvertimeNotificationService(); // Instantiate an instance of the OvertimeNotificationService class
 const overtimeService = new OvertimeServiceServer(
   prisma,
-  overtimeNotificationService,
   timeEntryService,
+  notificationService,
 );
 
 export default async function handler(

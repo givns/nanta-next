@@ -1,34 +1,39 @@
 // pages/api/attendance/allowed.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../../services/AttendanceService';
-import prisma from '../../../lib/prisma';
+import { PrismaClient } from '@prisma/client';
 import { ShiftManagementService } from '../../../services/ShiftManagementService';
 import { HolidayService } from '../../../services/HolidayService';
-import { LeaveServiceServer } from '../../../services/LeaveServiceServer';
+import { createLeaveServiceServer } from '../../../services/LeaveServiceServer';
+import { createNotificationService } from '../../../services/NotificationService';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
-import { NotificationService } from '../../../services/NotificationService';
 import { TimeEntryService } from '../../../services/TimeEntryService';
-import { OvertimeNotificationService } from '../../../services/OvertimeNotificationService';
 
+const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
-const leaveServiceServer = new LeaveServiceServer();
-const notificationService = new NotificationService();
-const shiftManagementService = new ShiftManagementService(prisma);
-const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
-const overtimeNotificationService = new OvertimeNotificationService();
-
-const overtimeServiceServer = new OvertimeServiceServer(
+export const notificationService = createNotificationService(prisma);
+export const leaveServiceServer = createLeaveServiceServer(
   prisma,
-  overtimeNotificationService,
-  timeEntryService,
+  notificationService,
 );
+const shiftService = new ShiftManagementService(prisma);
+
+const timeEntryService = new TimeEntryService(prisma, shiftService);
+
+const overtimeService = new OvertimeServiceServer(
+  prisma,
+  timeEntryService,
+  notificationService,
+);
+
+shiftService.setOvertimeService(overtimeService);
 
 const attendanceService = new AttendanceService(
   prisma,
-  shiftManagementService,
+  shiftService,
   holidayService,
   leaveServiceServer,
-  overtimeServiceServer,
+  overtimeService,
   notificationService,
   timeEntryService,
 );

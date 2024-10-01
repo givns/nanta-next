@@ -1,19 +1,19 @@
 // jobs/sendOvertimeDigests.ts
 
 import { PrismaClient } from '@prisma/client';
-import { OvertimeNotificationService } from '../services/OvertimeNotificationService';
 import { OvertimeServiceServer } from '../services/OvertimeServiceServer';
 import { TimeEntryService } from '../services/TimeEntryService';
 import { ShiftManagementService } from '../services/ShiftManagementService';
+import { createNotificationService } from '@/services/NotificationService';
 
 const prisma = new PrismaClient();
-const notificationService = new OvertimeNotificationService();
+export const notificationService = createNotificationService(prisma);
 const shiftManagementService = new ShiftManagementService(prisma);
 const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
 const overtimeService = new OvertimeServiceServer(
   prisma,
-  notificationService,
   timeEntryService,
+  notificationService,
 );
 
 export async function sendOvertimeDigests() {

@@ -2,10 +2,10 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { NotificationService } from '../../../services/NotificationService';
+import { createNotificationService } from '../../../services/NotificationService';
 
 const prisma = new PrismaClient();
-const notificationService = new NotificationService();
+export const notificationService = createNotificationService(prisma);
 
 export default async function handler(
   req: NextApiRequest,
