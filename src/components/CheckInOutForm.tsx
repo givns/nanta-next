@@ -21,7 +21,6 @@ import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
-import liff from '@line/liff';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
 
@@ -148,6 +147,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   }, [userData, initialAttendanceStatus, effectiveShift, onError]);
 
+  if (typeof window === 'undefined' || !liff) {
+    return <div>Loading...</div>;
+  }
   const closeLiffWindow = useCallback(async () => {
     if (liff.isReady) {
       try {

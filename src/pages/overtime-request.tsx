@@ -5,6 +5,11 @@ import { useLiff } from '../contexts/LiffContext';
 const OvertimeRequestPage: React.FC = () => {
   const liff = useLiff();
 
+  // During static generation, return a placeholder or loading state
+  if (typeof window === 'undefined') {
+    return <div>Loading...</div>;
+  }
+
   if (!liff) {
     return <div>Loading LIFF...</div>;
   }

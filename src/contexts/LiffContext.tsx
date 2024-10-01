@@ -11,6 +11,9 @@ const LiffContext = createContext<typeof liff | null>(null);
 
 export const useLiff = () => {
   const context = useContext(LiffContext);
+  if (typeof window === 'undefined') {
+    return null; // Return null during server-side rendering
+  }
   if (!context) {
     throw new Error('useLiff must be used within a LiffProvider');
   }
@@ -34,7 +37,9 @@ export const LiffProvider: React.FC<LiffProviderProps> = ({ children }) => {
       }
     };
 
-    initializeLiff();
+    if (typeof window !== 'undefined') {
+      initializeLiff();
+    }
   }, []);
 
   return (
