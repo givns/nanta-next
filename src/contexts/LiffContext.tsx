@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react';
 import liff from '@line/liff';
 
 const LiffContext = createContext<typeof liff | null>(null);
@@ -11,9 +17,11 @@ export const useLiff = () => {
   return context;
 };
 
-export const LiffProvider: React.FC<React.PropsWithChildren<{}>> = ({
-  children,
-}) => {
+interface LiffProviderProps {
+  children: ReactNode;
+}
+
+export const LiffProvider: React.FC<LiffProviderProps> = ({ children }) => {
   const [liffObject, setLiffObject] = useState<typeof liff | null>(null);
 
   useEffect(() => {
