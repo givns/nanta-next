@@ -382,3 +382,4 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ liff, lineUserId }) => {
     </ErrorBoundary>
   );
 };
+export default React.memo(CheckInRouter);
