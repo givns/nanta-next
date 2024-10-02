@@ -149,18 +149,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     null,
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
-  const [isLiffReady, setIsLiffReady] = useState(false);
-  const [userProfile, setUserProfile] = useState<LiffProfile | null>(null);
-
-  useEffect(() => {
-    const initLiff = async () => {
-      await initializeLiff(process.env.NEXT_PUBLIC_LIFF_ID!);
-      setIsLiffReady(true);
-      const profile = await getProfile();
-      setUserProfile(profile);
-    };
-    initLiff();
-  }, []);
 
   const handleCloseWindow = useCallback(() => {
     closeWindow();
