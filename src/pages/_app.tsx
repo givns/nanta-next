@@ -1,3 +1,5 @@
+// _app.tsx
+
 import '../styles/globals.css';
 import { useState, useEffect, ErrorInfo } from 'react';
 import { AppProps } from 'next/app';
@@ -8,6 +10,7 @@ import liff from '@line/liff';
 function MyApp({ Component, pageProps }: AppProps) {
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [isLiffReady, setIsLiffReady] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
     const handleError = (error: Error, errorInfo: ErrorInfo) => {
@@ -29,8 +32,6 @@ function MyApp({ Component, pageProps }: AppProps) {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
         setIsLiffReady(true);
-
-        // Check if the user is logged in
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
@@ -40,18 +41,25 @@ function MyApp({ Component, pageProps }: AppProps) {
         }
       } catch (error) {
         console.error('Error initializing LIFF:', error);
+      } finally {
+        setIsInitializing(false);
       }
     };
 
     initializeLiff();
   }, []);
 
-  if (!isLiffReady) {
-    return <div>Initializing LIFF...</div>;
+  if (isInitializing) {
+    return <div>Initializing application...</div>;
   }
 
-  if (!lineUserId && !liff.isLoggedIn()) {
-    return <div>Redirecting to LINE login...</div>;
+  if (!isLiffReady) {
+    return <div>LIFF is not ready. Please try refreshing the page.</div>;
+  }
+
+  if (!lineUserId && liff.isLoggedIn()) {
+    // This case handles when LIFF is ready but we're still waiting for the user profile
+    return <div>Loading user profile...</div>;
   }
 
   return (
