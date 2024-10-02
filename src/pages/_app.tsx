@@ -28,7 +28,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   return (
     <Provider store={store}>
       <LiffProvider>
-        <Component {...pageProps} lineUserId={lineUserId} />
+        <Component {...pageProps} />
       </LiffProvider>
     </Provider>
   );

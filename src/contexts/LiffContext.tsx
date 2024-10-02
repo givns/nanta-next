@@ -1,45 +1,33 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from 'react';
+// contexts/LiffContext.tsx
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import liff from '@line/liff';
 
 const LiffContext = createContext<typeof liff | null>(null);
 
 export const useLiff = () => {
   const context = useContext(LiffContext);
-  if (typeof window === 'undefined') {
-    return null; // Return null during server-side rendering
-  }
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useLiff must be used within a LiffProvider');
   }
   return context;
 };
 
-interface LiffProviderProps {
-  children: ReactNode;
-}
-
-export const LiffProvider: React.FC<LiffProviderProps> = ({ children }) => {
+export const LiffProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [liffObject, setLiffObject] = useState<typeof liff | null>(null);
 
   useEffect(() => {
-    const initializeLiff = async () => {
+    const initLiff = async () => {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
         setLiffObject(liff);
       } catch (error) {
-        console.error('Error initializing LIFF:', error);
+        console.error('LIFF initialization failed', error);
       }
     };
 
-    if (typeof window !== 'undefined') {
-      initializeLiff();
-    }
+    initLiff();
   }, []);
 
   return (

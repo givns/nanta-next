@@ -3,7 +3,7 @@ import OvertimeRequestForm from '../components/OvertimeRequestForm';
 import { useLiff } from '../contexts/LiffContext';
 
 const OvertimeRequestPage: React.FC = () => {
-  const liff = useLiff();
+  const liff = typeof window !== 'undefined' ? useLiff() : null;
 
   // During static generation, return a placeholder or loading state
   if (typeof window === 'undefined') {

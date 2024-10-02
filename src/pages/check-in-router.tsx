@@ -147,7 +147,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     null,
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
-  const liff = useLiff();
+  const liff = typeof window !== 'undefined' ? useLiff() : null;
 
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
