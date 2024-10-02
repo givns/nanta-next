@@ -9,6 +9,7 @@ import liff from '@line/liff';
 
 function MyApp({ Component, pageProps }: AppProps) {
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [isLiffReady, setIsLiffReady] = useState(false);
 
   useEffect(() => {
     const handleError = (error: Error, errorInfo: ErrorInfo) => {
@@ -25,27 +26,39 @@ function MyApp({ Component, pageProps }: AppProps) {
     };
   }, []);
 
-  function MyApp({ Component, pageProps }: AppProps) {
-    useEffect(() => {
-      const initLiff = async () => {
-        try {
-          await liff.init({
-            liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
-          });
-          console.log('LIFF initialized globally');
-        } catch (error) {
-          console.error('Failed to initialize LIFF globally:', error);
+  useEffect(() => {
+    const initializeLiff = async () => {
+      try {
+        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
+        setIsLiffReady(true);
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          setLineUserId(profile.userId);
+        } else {
+          console.log('User not logged in. Redirecting to LINE login...');
+          liff.login();
         }
-      };
+      } catch (error) {
+        console.error('Error initializing LIFF:', error);
+      }
+    };
 
-      initLiff();
-    }, []);
+    initializeLiff();
+  }, []);
 
-    return (
-      <Provider store={store}>
-        <Component {...pageProps} />
-      </Provider>
-    );
+  if (!isLiffReady) {
+    return <div>Initializing LIFF...</div>;
   }
+
+  if (!lineUserId) {
+    return <div>Redirecting to LINE login...</div>;
+  }
+
+  return (
+    <Provider store={store}>
+      <Component {...pageProps} liff={liff} lineUserId={lineUserId} />
+    </Provider>
+  );
 }
+
 export default MyApp;

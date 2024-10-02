@@ -12,7 +12,7 @@ import { UserData } from '../types/user';
 import axios from 'axios';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { z } from 'zod'; // Import Zod for runtime type checking
-import { UserRole } from '@/types/enum';
+import { UserRole } from '../types/enum';
 import { debounce } from 'lodash';
 import Clock from '../components/Clock';
 import liff from '@line/liff';
@@ -30,6 +30,7 @@ const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 const CACHE_VERSION = '2'; // Change this value if the cache schema changes
 
 interface CheckInRouterProps {
+  liff: typeof liff;
   lineUserId: string | null;
 }
 
@@ -135,7 +136,7 @@ const ResponseDataSchema = z.object({
   }),
 });
 
-const CheckInRouter: React.FC = () => {
+const CheckInRouter: React.FC<CheckInRouterProps> = ({ liff, lineUserId }) => {
   const [fullData, setFullData] = useState<z.infer<
     typeof ResponseDataSchema
   > | null>(null);
@@ -148,7 +149,6 @@ const CheckInRouter: React.FC = () => {
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
   const [isLiffReady, setIsLiffReady] = useState(false);
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
 
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
@@ -262,36 +262,13 @@ const CheckInRouter: React.FC = () => {
   );
 
   useEffect(() => {
-    const initLiff = async () => {
-      try {
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
-        if (liff.isLoggedIn()) {
-          const profile = await liff.getProfile();
-          setLineUserId(profile.userId);
-          setIsLiffReady(true);
-        } else {
-          liff.login();
-        }
-        console.log('LIFF initialized in CheckInRouter');
-      } catch (error) {
-        console.error('Failed to initialize LIFF in CheckInRouter:', error);
-        setError(
-          'Failed to initialize LIFF or get user profile. Please try again.',
-        );
-      }
-    };
-
-    initLiff();
-  }, []);
-
-  useEffect(() => {
-    if (isLiffReady && lineUserId && !fullData) {
+    if (lineUserId && !fullData) {
       fetchData(false).catch((error) => {
         console.error('Error fetching data:', error);
         setError('Failed to fetch user data. Please try again.');
       });
     }
-  }, [isLiffReady, lineUserId, fetchData, fullData]);
+  }, [lineUserId, fetchData, fullData]);
 
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
@@ -395,7 +372,7 @@ const CheckInRouter: React.FC = () => {
                   onError={() => debouncedFetchData()}
                   isActionButtonReady={isActionButtonReady}
                   liff={liff}
-                  lineUserId=""
+                  lineUserId={lineUserId!}
                 />
               </div>
             </ErrorBoundary>
@@ -405,5 +382,3 @@ const CheckInRouter: React.FC = () => {
     </ErrorBoundary>
   );
 };
-
-export default React.memo(CheckInRouter);
