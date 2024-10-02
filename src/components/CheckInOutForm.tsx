@@ -66,7 +66,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     isOutsideShift,
     checkInOutAllowance,
     checkInOut,
-    refreshCheckInOutAllowance,
+    fetchCheckInOutAllowance,
     getCurrentLocation,
     refreshAttendanceStatus,
   } = useAttendance(userData, initialAttendanceStatus);
@@ -343,14 +343,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      refreshCheckInOutAllowance();
+      fetchCheckInOutAllowance();
     }, 60000); // Refresh every minute
     return () => clearInterval(interval);
-  }, [refreshCheckInOutAllowance]);
+  }, [fetchCheckInOutAllowance]);
 
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
-      await refreshCheckInOutAllowance();
+      await fetchCheckInOutAllowance();
       const currentLocation = await getCurrentLocation();
       if (!currentLocation) {
         setError(
@@ -377,7 +377,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [
       getCurrentLocation,
       confirmEarlyCheckOut,
-      refreshCheckInOutAllowance,
+      fetchCheckInOutAllowance,
       checkInOutAllowance,
       setStep,
       setIsCameraActive,
@@ -455,7 +455,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     attendanceStatus.pendingLeaveRequest,
     locationError,
     handleAction,
-    refreshCheckInOutAllowance,
+    fetchCheckInOutAllowance,
+    isActionButtonReady,
   ]);
   const renderStep1 = useMemo(
     () => (

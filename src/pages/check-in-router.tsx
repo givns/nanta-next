@@ -268,13 +268,14 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     async (newStatus: boolean) => {
       if (fullData && location) {
         try {
+          console.log('Sending check-in/out request');
           await axios.post('/api/check-in-out', {
             lineUserId,
             isCheckIn: newStatus,
             lat: location.lat,
             lng: location.lng,
           });
-
+          console.log('Check-in/out request successful');
           setFullData((prevData) => ({
             ...prevData!,
             attendanceStatus: {

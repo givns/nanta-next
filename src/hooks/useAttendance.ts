@@ -8,7 +8,7 @@ import {
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { formatDateTime, getCurrentTime } from '../utils/dateUtils';
-import { debounce, get } from 'lodash';
+import { debounce } from 'lodash';
 
 export const useAttendance = (
   userData: UserData,
@@ -294,7 +294,7 @@ export const useAttendance = (
     isOutsideShift,
     checkInOut,
     checkInOutAllowance,
-    refreshCheckInOutAllowance: fetchCheckInOutAllowance, // Add this line
+    fetchCheckInOutAllowance,
     refreshAttendanceStatus: getAttendanceStatus,
     isSubmitting: isSubmittingRef.current,
   };
