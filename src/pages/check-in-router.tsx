@@ -15,7 +15,12 @@ import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
 import Clock from '../components/Clock';
-import liff from '@line/liff';
+import {
+  initializeLiff,
+  getProfile,
+  closeWindow,
+  LiffProfile,
+} from '../services/liff';
 
 const MemoizedCheckInOutForm = React.memo(
   dynamic(() => import('../components/CheckInOutForm'), {
@@ -147,7 +152,22 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     null,
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
+  const [isLiffReady, setIsLiffReady] = useState(false);
+  const [userProfile, setUserProfile] = useState<LiffProfile | null>(null);
 
+  useEffect(() => {
+    const initLiff = async () => {
+      await initializeLiff(process.env.NEXT_PUBLIC_LIFF_ID!);
+      setIsLiffReady(true);
+      const profile = await getProfile();
+      setUserProfile(profile);
+    };
+    initLiff();
+  }, []);
+
+  const handleCloseWindow = useCallback(() => {
+    closeWindow();
+  }, []);
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
   }, []);
@@ -260,12 +280,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
 
   useEffect(() => {
-    if (!liff.isLoggedIn()) {
-      liff.login();
-    }
-  }, []);
-
-  useEffect(() => {
     if (lineUserId && !fullData) {
       fetchData(false);
     }
@@ -301,8 +315,8 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     [fullData, location, lineUserId, debouncedFetchData, invalidateCache],
   );
 
-  if (isLoading) {
-    return <SkeletonLoader />;
+  if (!isLiffReady || !userProfile) {
+    return <div>Loading...</div>;
   }
 
   if (error) {
@@ -355,6 +369,8 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             >
               <div className="w-full max-w-md">
                 <MemoizedCheckInOutForm
+                  userProfile={userProfile}
+                  onCloseWindow={handleCloseWindow}
                   userData={{
                     ...fullData.user,
                     createdAt: fullData.user.createdAt

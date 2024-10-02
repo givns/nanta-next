@@ -11,8 +11,7 @@ declare module '@line/liff' {
       statusMessage?: string;
     }>;
     closeWindow(): void;
-    isInClientAndroid(): boolean;
-    isInClientIOS(): boolean;
+    isInClient(): boolean;
   }
 
   const liff: Liff;

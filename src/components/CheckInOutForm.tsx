@@ -23,9 +23,11 @@ import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
-import liff from '@line/liff';
+import { LiffProfile } from '../services/liff';
 
 interface CheckInOutFormProps {
+  userProfile: LiffProfile;
+  onCloseWindow: () => void;
   userData: UserData;
   initialAttendanceStatus: AttendanceStatusInfo;
   effectiveShift: ShiftData | null;
@@ -37,6 +39,8 @@ interface CheckInOutFormProps {
 const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
+  userProfile,
+  onCloseWindow,
   userData,
   initialAttendanceStatus,
   effectiveShift,
@@ -156,20 +160,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   }, [userData, initialAttendanceStatus, effectiveShift, onError]);
 
-  const closeLiffWindow = useCallback(async () => {
-    if (liff.isInClientAndroid() || liff.isInClientIOS()) {
-      try {
-        setTimeout(() => {
-          liff.closeWindow();
-        }, 2000);
-      } catch (error) {
-        console.error('Error closing LIFF window:', error);
-      }
-    } else {
-      console.warn('LIFF is not ready');
-    }
-  }, [liff]);
-
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {
       if (!location) {
@@ -199,7 +189,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
-        await closeLiffWindow();
+        await onCloseWindow();
       } catch (error: any) {
         console.log(`Error during check-in/out: ${error.message}`);
         setError('Failed to submit check-in/out. Please try again.');
@@ -215,7 +205,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       checkInOut,
       onStatusChange,
       refreshAttendanceStatus,
-      closeLiffWindow,
+      onCloseWindow,
     ],
   );
 
