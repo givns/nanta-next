@@ -157,7 +157,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [userData, initialAttendanceStatus, effectiveShift, onError]);
 
   const closeLiffWindow = useCallback(async () => {
-    if ((liff as any).isReady) {
+    if (liff.isInClientAndroid() || liff.isInClientIOS()) {
       try {
         setTimeout(() => {
           liff.closeWindow();
@@ -350,8 +350,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
+      console.log('handleAction called with:', action);
       await fetchCheckInOutAllowance();
       const currentLocation = await getCurrentLocation();
+      console.log('Current location:', currentLocation);
       if (!currentLocation) {
         setError(
           'Unable to get location. Please enable location services and try again.',
@@ -421,7 +423,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           onClick={() =>
             handleAction(attendanceStatus.isCheckingIn ? 'checkIn' : 'checkOut')
           }
-          disabled={!checkInOutAllowance?.allowed}
+          disabled={!isActionButtonReady || !checkInOutAllowance?.allowed}
           className={buttonClass}
           aria-label={buttonText}
         >

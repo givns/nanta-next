@@ -15,6 +15,7 @@ import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
 import Clock from '../components/Clock';
+import liff from '@line/liff';
 
 const MemoizedCheckInOutForm = React.memo(
   dynamic(() => import('../components/CheckInOutForm'), {
@@ -257,6 +258,12 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     () => debounce(fetchData, 300),
     [fetchData],
   );
+
+  useEffect(() => {
+    if (!liff.isLoggedIn()) {
+      liff.login();
+    }
+  }, []);
 
   useEffect(() => {
     if (lineUserId && !fullData) {
