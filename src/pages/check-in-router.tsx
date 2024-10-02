@@ -10,7 +10,6 @@ import React, {
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
 import axios from 'axios';
-import SkeletonLoader from '../components/SkeletonLoader';
 import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
@@ -31,7 +30,6 @@ const MemoizedCheckInOutForm = React.memo(
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
 const CACHE_KEY = 'attendanceStatus';
-const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 const CACHE_VERSION = '2'; // Change this value if the cache schema changes
 
 interface CheckInRouterProps {

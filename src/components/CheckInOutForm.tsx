@@ -12,7 +12,6 @@ import {
   AttendanceData,
   AttendanceStatusInfo,
   ShiftData,
-  CheckInOutAllowance,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { useFaceDetection } from '../hooks/useFaceDetection';
@@ -24,6 +23,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
 import { LiffProfile } from '../services/liff';
+import { AppErrors } from '../utils/errorHandler';
 
 interface CheckInOutFormProps {
   userProfile: LiffProfile;
@@ -39,7 +39,6 @@ interface CheckInOutFormProps {
 const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
-  userProfile,
   onCloseWindow,
   userData,
   initialAttendanceStatus,
@@ -54,14 +53,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [reason, setReason] = useState<string>('');
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
-  const [isLate, setIsLate] = useState(false);
-  const [isOvertime, setIsOvertime] = useState(false);
+  const [, setIsLate] = useState(false);
+  const [, setIsOvertime] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [, setIsCameraActive] = useState(false);
+  const [locationError] = useState<string | null>(null);
 
   const {
     attendanceStatus,
@@ -78,13 +77,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const {
     webcamRef,
     isModelLoading,
-    faceDetected,
     faceDetectionCount,
-    photo,
     message,
     resetDetection,
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture.current);
+
+  const handleError = useCallback(
+    (error: Error | AppErrors) => {
+      console.error('Error in CheckInOutForm:', error);
+      setError(
+        error instanceof AppErrors
+          ? error.message
+          : 'An unexpected error occurred',
+      );
+      onError();
+    },
+    [onError],
+  );
 
   // Reset function to clear any stuck states
   const resetStates = useCallback(() => {
@@ -157,16 +167,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         console.log('Shift end time:', effectiveShift.endTime);
       }
     } catch (err) {
-      console.error('Error in CheckInOutForm:', err);
-      onError(); // Remove the argument from the function call
+      handleError(err as Error);
     }
-  }, [userData, initialAttendanceStatus, effectiveShift, onError]);
+  }, [userData, initialAttendanceStatus, effectiveShift, handleError]);
 
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {
       if (!location) {
-        console.log('Cannot submit: location not available');
-        setError('Location not available. Please try again.');
+        handleError(new Error('Location not available'));
         return;
       }
 
@@ -208,6 +216,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       onStatusChange,
       refreshAttendanceStatus,
       onCloseWindow,
+      handleError,
     ],
   );
 
@@ -371,7 +380,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [
       getCurrentLocation,
       confirmEarlyCheckOut,
-      fetchCheckInOutAllowance,
       checkInOutAllowance,
       setStep,
       setIsCameraActive,

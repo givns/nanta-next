@@ -74,6 +74,23 @@ export interface AttendanceStatusInfo {
   pendingLeaveRequest: boolean;
 }
 
+export interface AttendanceHookReturn {
+  attendanceStatus: AttendanceStatusInfo;
+  isLoading: boolean;
+  error: string | null;
+  location: { lat: number; lng: number } | null;
+  locationError: string | null;
+  getCurrentLocation: () => Promise<{ lat: number; lng: number } | null>;
+  address: string;
+  inPremises: boolean;
+  isOutsideShift: boolean;
+  checkInOut: (data: AttendanceData) => Promise<any>;
+  checkInOutAllowance: CheckInOutAllowance | null;
+  fetchCheckInOutAllowance: () => Promise<void>;
+  refreshAttendanceStatus: (forceRefresh?: boolean) => Promise<any>;
+  isSubmitting: boolean;
+}
+
 export type AttendanceStatusValue =
   | 'present'
   | 'absent'

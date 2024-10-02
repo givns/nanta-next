@@ -5,29 +5,32 @@ import {
   AttendanceData,
   AttendanceStatusInfo,
   CheckInOutAllowance,
+  AttendanceHookReturn,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { formatDateTime, getCurrentTime } from '../utils/dateUtils';
-import { debounce } from 'lodash';
+import { debounce, DebouncedFunc } from 'lodash';
+import { AppErrors } from '../utils/errorHandler';
 
 export const useAttendance = (
   userData: UserData,
   initialAttendanceStatus: AttendanceStatusInfo,
-) => {
+): AttendanceHookReturn => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo>(initialAttendanceStatus);
-  const [effectiveShift, setEffectiveShift] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [address, setAddress] = useState<string>('');
-  const [inPremises, setInPremises] = useState(false);
-  const [isOutsideShift, setIsOutsideShift] = useState(false);
+  const [address] = useState<string>('');
+  const [inPremises] = useState(false);
+  const [isOutsideShift] = useState(false);
   const [checkInOutAllowance, setCheckInOutAllowance] =
     useState<CheckInOutAllowance | null>(null);
+
+  const isSubmittingRef = useRef(false);
 
   const processAttendanceStatus = useCallback(
     (status: AttendanceStatusInfo) => {
@@ -163,10 +166,8 @@ export const useAttendance = (
   );
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      debouncedFetchCheckInOutAllowance();
-    }, 60000); // Check every minute
-
+    debouncedFetchCheckInOutAllowance();
+    const intervalId = setInterval(debouncedFetchCheckInOutAllowance, 60000);
     return () => clearInterval(intervalId);
   }, [debouncedFetchCheckInOutAllowance]);
 
@@ -183,10 +184,9 @@ export const useAttendance = (
             lng: currentLocation?.lng,
           },
         });
-        const { attendanceStatus, effectiveShift, checkInOutAllowance } =
-          response.data;
+        const { attendanceStatus, effectiveShift } = response.data;
         setAttendanceStatus(processAttendanceStatus(attendanceStatus));
-        setEffectiveShift(effectiveShift);
+        effectiveShift(effectiveShift);
         return response.data;
       } catch (error) {
         console.error('Error fetching attendance status:', error);
@@ -203,70 +203,76 @@ export const useAttendance = (
     return getAttendanceStatus(true);
   }, [getAttendanceStatus]);
 
-  const isSubmittingRef = useRef(false);
-
   const checkInOut = useCallback(
-    debounce(async (attendanceData: AttendanceData) => {
-      if (isSubmittingRef.current) {
-        console.log('Submission already in progress');
-        return;
-      }
+    (attendanceData: AttendanceData): Promise<any> => {
+      return new Promise((resolve, reject) => {
+        const debouncedFunction: DebouncedFunc<
+          (data: AttendanceData) => Promise<any>
+        > = debounce(async (data: AttendanceData) => {
+          if (isSubmittingRef.current) {
+            console.log('Submission already in progress');
+            reject(new Error('Submission already in progress'));
+            return;
+          }
 
-      isSubmittingRef.current = true;
-      setIsLoading(true);
-      setError(null);
+          isSubmittingRef.current = true;
+          setIsLoading(true);
+          setError(null);
 
-      console.log(
-        `Initiating check-in/out at: ${formatDateTime(getCurrentTime(), 'yyyy-MM-dd HH:mm:ss')}`,
-      );
-      console.log('Sending check-in/out data:', attendanceData);
-
-      const backoff = (attempt: number) => Math.pow(2, attempt) * 1000;
-      let attempt = 0;
-
-      while (attempt < 3) {
-        try {
-          const response = await axios.post(
-            '/api/check-in-out',
-            attendanceData,
+          console.log(
+            `Initiating check-in/out at: ${formatDateTime(getCurrentTime(), 'yyyy-MM-dd HH:mm:ss')}`,
           );
-          console.log('Check-in/out response:', response.data);
+          console.log('Sending check-in/out data:', data);
 
-          setAttendanceStatus((prevStatus) => ({
-            ...prevStatus,
-            isCheckingIn: !prevStatus.isCheckingIn,
-            latestAttendance: response.data.latestAttendance,
-          }));
+          const backoff = (attempt: number) => Math.pow(2, attempt) * 1000;
+          let attempt = 0;
 
-          await refreshAttendanceStatus();
+          while (attempt < 3) {
+            try {
+              const response = await axios.post('/api/check-in-out', data);
+              console.log('Check-in/out response:', response.data);
+
+              setAttendanceStatus((prevStatus) => ({
+                ...prevStatus,
+                isCheckingIn: !prevStatus.isCheckingIn,
+                latestAttendance: response.data.latestAttendance,
+              }));
+
+              await refreshAttendanceStatus();
+              isSubmittingRef.current = false;
+              setIsLoading(false);
+              resolve(response.data);
+              return;
+            } catch (err) {
+              console.error('Error during check-in/out:', err);
+              if (axios.isAxiosError(err) && err.response?.status === 429) {
+                console.log(
+                  `Rate limit reached. Retry attempt ${attempt + 1} of 3...`,
+                );
+                attempt++;
+                await new Promise((resolveTimeout) =>
+                  setTimeout(resolveTimeout, backoff(attempt)),
+                );
+              } else {
+                setError(
+                  'An error occurred during check-in/out. Please try again.',
+                );
+                isSubmittingRef.current = false;
+                setIsLoading(false);
+                reject(err);
+                return;
+              }
+            }
+          }
+          setError('Max retries reached. Please try again later.');
           isSubmittingRef.current = false;
           setIsLoading(false);
-          return response.data;
-        } catch (err) {
-          console.error('Error during check-in/out:', err);
-          if (axios.isAxiosError(err) && err.response?.status === 429) {
-            console.log(
-              `Rate limit reached. Retry attempt ${attempt + 1} of 3...`,
-            );
-            attempt++;
-            await new Promise((resolve) =>
-              setTimeout(resolve, backoff(attempt)),
-            );
-          } else {
-            setError(
-              'An error occurred during check-in/out. Please try again.',
-            );
-            isSubmittingRef.current = false;
-            setIsLoading(false);
-            throw err;
-          }
-        }
-      }
-      setError('Max retries reached. Please try again later.');
-      isSubmittingRef.current = false;
-      setIsLoading(false);
-      throw new Error('Max retries reached');
-    }, 1000),
+          reject(new Error('Max retries reached'));
+        }, 1000);
+
+        debouncedFunction(attendanceData);
+      });
+    },
     [refreshAttendanceStatus],
   );
 
@@ -276,26 +282,48 @@ export const useAttendance = (
         await getAttendanceStatus();
       } catch (error) {
         console.error('Error fetching initial data:', error);
+        setError(
+          error instanceof AppErrors
+            ? error.message
+            : 'An unexpected error occurred',
+        );
       }
     };
 
     fetchInitialData();
   }, [getAttendanceStatus]);
 
-  return {
-    attendanceStatus,
-    isLoading,
-    error,
-    location,
-    locationError,
-    getCurrentLocation,
-    address,
-    inPremises,
-    isOutsideShift,
-    checkInOut,
-    checkInOutAllowance,
-    fetchCheckInOutAllowance,
-    refreshAttendanceStatus: getAttendanceStatus,
-    isSubmitting: isSubmittingRef.current,
-  };
+  return useMemo<AttendanceHookReturn>(
+    () => ({
+      attendanceStatus,
+      isLoading,
+      error,
+      location,
+      locationError,
+      getCurrentLocation,
+      address,
+      inPremises,
+      isOutsideShift,
+      checkInOut,
+      checkInOutAllowance,
+      fetchCheckInOutAllowance,
+      refreshAttendanceStatus: getAttendanceStatus,
+      isSubmitting: isSubmittingRef.current,
+    }),
+    [
+      attendanceStatus,
+      isLoading,
+      error,
+      location,
+      locationError,
+      getCurrentLocation,
+      address,
+      inPremises,
+      isOutsideShift,
+      checkInOut,
+      checkInOutAllowance,
+      fetchCheckInOutAllowance,
+      getAttendanceStatus,
+    ],
+  );
 };
