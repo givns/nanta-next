@@ -24,6 +24,7 @@ import {
 const MemoizedCheckInOutForm = React.memo(
   dynamic(() => import('../components/CheckInOutForm'), {
     loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
+    ssr: false, // Disable server-side rendering for this component
   }),
 );
 
@@ -166,6 +167,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const handleCloseWindow = useCallback(() => {
     closeWindow();
   }, []);
+
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
   }, []);
@@ -313,8 +315,8 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     [fullData, location, lineUserId, debouncedFetchData, invalidateCache],
   );
 
-  if (!isLiffReady || !userProfile) {
-    return <div>Loading...</div>;
+  if (isLoading) {
+    return <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>;
   }
 
   if (error) {
@@ -367,7 +369,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             >
               <div className="w-full max-w-md">
                 <MemoizedCheckInOutForm
-                  userProfile={userProfile}
                   onCloseWindow={handleCloseWindow}
                   userData={{
                     ...fullData.user,

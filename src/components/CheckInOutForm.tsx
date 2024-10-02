@@ -22,11 +22,9 @@ import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
-import { LiffProfile } from '../services/liff';
 import { AppErrors } from '../utils/errorHandler';
 
 interface CheckInOutFormProps {
-  userProfile: LiffProfile;
   onCloseWindow: () => void;
   userData: UserData;
   initialAttendanceStatus: AttendanceStatusInfo;
