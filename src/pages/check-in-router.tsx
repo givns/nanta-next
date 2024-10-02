@@ -262,7 +262,10 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
   useEffect(() => {
     if (lineUserId && !fullData) {
-      fetchData(false);
+      fetchData(false).catch((error) => {
+        console.error('Error fetching data:', error);
+        setError('Failed to fetch user data. Please try again.');
+      });
     }
   }, [lineUserId, fetchData, fullData]);
 
@@ -294,6 +297,10 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     },
     [fullData, location, lineUserId, debouncedFetchData, invalidateCache],
   );
+
+  if (!liff) {
+    return <div>Loading LIFF...</div>;
+  }
 
   if (isLoading) {
     return <SkeletonLoader />;
