@@ -135,7 +135,7 @@ const ResponseDataSchema = z.object({
   }),
 });
 
-const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
+const CheckInRouter: React.FC = () => {
   const [fullData, setFullData] = useState<z.infer<
     typeof ResponseDataSchema
   > | null>(null);
@@ -148,6 +148,8 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
   const [isLiffReady, setIsLiffReady] = useState(false);
+  const [lineUserId, setLineUserId] = useState<string | null>(null);
+
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
   }, []);
@@ -260,13 +262,36 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
 
   useEffect(() => {
-    if (lineUserId && !fullData) {
+    const initLiff = async () => {
+      try {
+        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          setLineUserId(profile.userId);
+          setIsLiffReady(true);
+        } else {
+          liff.login();
+        }
+        console.log('LIFF initialized in CheckInRouter');
+      } catch (error) {
+        console.error('Failed to initialize LIFF in CheckInRouter:', error);
+        setError(
+          'Failed to initialize LIFF or get user profile. Please try again.',
+        );
+      }
+    };
+
+    initLiff();
+  }, []);
+
+  useEffect(() => {
+    if (isLiffReady && lineUserId && !fullData) {
       fetchData(false).catch((error) => {
         console.error('Error fetching data:', error);
         setError('Failed to fetch user data. Please try again.');
       });
     }
-  }, [lineUserId, fetchData, fullData]);
+  }, [isLiffReady, lineUserId, fetchData, fullData]);
 
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
@@ -296,34 +321,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     },
     [fullData, location, lineUserId, debouncedFetchData, invalidateCache],
   );
-
-  useEffect(() => {
-    const initLiff = async () => {
-      try {
-        if (!liff.isLoggedIn()) {
-          await liff.init({
-            liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
-          });
-        }
-        setIsLiffReady(true);
-        console.log('LIFF initialized in CheckInRouter');
-      } catch (error) {
-        console.error('Failed to initialize LIFF in CheckInRouter:', error);
-        setError('Failed to initialize LIFF. Please try again.');
-      }
-    };
-
-    initLiff();
-  }, []);
-
-  useEffect(() => {
-    if (lineUserId && !fullData && isLiffReady) {
-      fetchData(false).catch((error) => {
-        console.error('Error fetching data:', error);
-        setError('Failed to fetch user data. Please try again.');
-      });
-    }
-  }, [lineUserId, fetchData, fullData, isLiffReady]);
 
   if (!isLiffReady || isLoading) {
     return <SkeletonLoader />;
@@ -398,6 +395,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
                   onError={() => debouncedFetchData()}
                   isActionButtonReady={isActionButtonReady}
                   liff={liff}
+                  lineUserId=""
                 />
               </div>
             </ErrorBoundary>

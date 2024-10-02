@@ -1,19 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import OvertimeRequestForm from '../components/OvertimeRequestForm';
 import liff from '@line/liff';
-import SkeletonLoader from '../components/SkeletonLoader'; // Assuming you have this component
+import SkeletonLoader from '../components/SkeletonLoader';
 
 const OvertimeRequestPage: React.FC = () => {
   const [isLiffReady, setIsLiffReady] = useState(false);
+  const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const initLiff = async () => {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
-        if (!liff.isLoggedIn()) {
+
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          setLineUserId(profile.userId);
+        } else {
           liff.login(); // Redirect to LINE login if not logged in
         }
+
         setIsLiffReady(true);
         console.log('LIFF initialized in OvertimeRequestPage');
       } catch (error) {
@@ -21,7 +27,9 @@ const OvertimeRequestPage: React.FC = () => {
           'Failed to initialize LIFF in OvertimeRequestPage:',
           error,
         );
-        setError('Failed to initialize LIFF. Please try again.');
+        setError(
+          'Failed to initialize LIFF or get user profile. Please try again.',
+        );
       }
     };
 
@@ -37,13 +45,13 @@ const OvertimeRequestPage: React.FC = () => {
     );
   }
 
-  if (!isLiffReady) {
-    return <SkeletonLoader />; // Or any other loading component
+  if (!isLiffReady || !lineUserId) {
+    return <SkeletonLoader />;
   }
 
   return (
     <div className="overtime-request-page">
-      <OvertimeRequestForm liff={liff} />
+      <OvertimeRequestForm liff={liff} lineUserId={lineUserId} />
     </div>
   );
 };

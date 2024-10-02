@@ -11,13 +11,17 @@ import TimePickerField from './TimePickerField';
 import { UserData } from '@/types/user';
 import { format, parseISO } from 'date-fns';
 import { UserRole } from '@/types/enum';
+import liff from '@line/liff';
 
 interface OvertimeRequestFormProps {
-  liff: any;
+  liff: typeof liff;
+  lineUserId: string;
 }
 
-const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({ liff }) => {
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
+const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
+  liff,
+  lineUserId,
+}) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [existingRequests, setExistingRequests] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -61,12 +65,10 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({ liff }) => {
     const initializeData = async () => {
       try {
         if (liff.isLoggedIn()) {
-          const profile = await liff.getProfile();
-          setLineUserId(profile.userId);
-          await fetchUserData(profile.userId);
-          await fetchExistingRequests(profile.userId);
+          await fetchUserData(lineUserId);
+          await fetchExistingRequests(lineUserId);
           if (isManager) {
-            await fetchEmployees(profile.userId);
+            await fetchEmployees(lineUserId);
           }
         } else {
           liff.login();

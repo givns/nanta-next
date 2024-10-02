@@ -23,6 +23,7 @@ import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
+import liff from '@line/liff';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -31,7 +32,8 @@ interface CheckInOutFormProps {
   onStatusChange: (newStatus: boolean) => void;
   onError: () => void;
   isActionButtonReady: boolean;
-  liff: any;
+  liff: typeof liff;
+  lineUserId: string;
 }
 
 const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
@@ -44,6 +46,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onError,
   isActionButtonReady,
   liff,
+  lineUserId,
 }) => {
   const handlePhotoCapture = useRef<(photo: string) => Promise<void>>(
     async () => {},
@@ -158,7 +161,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [userData, initialAttendanceStatus, effectiveShift, onError]);
 
   const closeLiffWindow = useCallback(async () => {
-    if (liff.isReady) {
+    if ((liff as any).isReady) {
       try {
         setTimeout(() => {
           liff.closeWindow();
@@ -217,6 +220,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       onStatusChange,
       refreshAttendanceStatus,
       closeLiffWindow,
+      lineUserId, // Add lineUserId to the dependency array
     ],
   );
 
