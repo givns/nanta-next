@@ -117,6 +117,7 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^14.2.3",
+    "@types/axios": "^0.9.36",
     "@types/better-queue": "^3.8.6",
     "@types/bull": "^4.10.0",
     "@types/exceljs": "^0.5.3",
