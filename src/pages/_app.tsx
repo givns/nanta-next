@@ -1,5 +1,3 @@
-// _app.tsx
-
 import '../styles/globals.css';
 import { useState, useEffect, ErrorInfo } from 'react';
 import { AppProps } from 'next/app';
@@ -31,6 +29,8 @@ function MyApp({ Component, pageProps }: AppProps) {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
         setIsLiffReady(true);
+
+        // Check if the user is logged in
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
@@ -50,7 +50,7 @@ function MyApp({ Component, pageProps }: AppProps) {
     return <div>Initializing LIFF...</div>;
   }
 
-  if (!lineUserId) {
+  if (!lineUserId && !liff.isLoggedIn()) {
     return <div>Redirecting to LINE login...</div>;
   }
 
