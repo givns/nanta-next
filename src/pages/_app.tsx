@@ -2,14 +2,16 @@
 
 import '../styles/globals.css';
 import { useState, useEffect, ErrorInfo } from 'react';
+import { useRouter } from 'next/router';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
 import liff from '@line/liff';
 
 function MyApp({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+  const [isLiffInitialized, setIsLiffInitialized] = useState(false);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
     const handleError = (error: Error, errorInfo: ErrorInfo) => {
@@ -29,41 +31,42 @@ function MyApp({ Component, pageProps }: AppProps) {
   useEffect(() => {
     const initializeLiff = async () => {
       try {
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+        if (!liffId) {
+          throw new Error('LIFF ID is not defined');
+        }
+
+        await liff.init({ liffId });
 
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
+
+          const urlParams = new URLSearchParams(window.location.search);
+          const path = urlParams.get('path');
+          if (path) {
+            router.push(path);
+          }
         } else {
-          await liff.login(); // Wait for login to complete
-          const profile = await liff.getProfile(); // Fetch profile after login
-          setLineUserId(profile.userId);
+          liff.login();
         }
       } catch (error) {
         console.error('Error initializing LIFF:', error);
       } finally {
-        setIsInitializing(false);
+        setIsLiffInitialized(true);
       }
     };
 
     initializeLiff();
-  }, []);
+  }, [router]);
 
-  if (isInitializing) {
-    return <div>Initializing application...</div>;
-  }
-
-  if (!lineUserId) {
-    return (
-      <div>
-        Unable to fetch user information. Please try refreshing the page.
-      </div>
-    );
+  if (!isLiffInitialized) {
+    return <div>กรุณารอสักครู่...</div>;
   }
 
   return (
     <Provider store={store}>
-      <Component {...pageProps} liff={liff} lineUserId={lineUserId} />
+      <Component {...pageProps} lineUserId={lineUserId} />
     </Provider>
   );
 }
