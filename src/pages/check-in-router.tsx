@@ -149,6 +149,13 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     null,
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
+  const [isFormLoading, setIsFormLoading] = useState(true);
+
+  useEffect(() => {
+    if (fullData) {
+      setIsFormLoading(false);
+    }
+  }, [fullData]);
 
   const handleCloseWindow = useCallback(() => {
     closeWindow();
@@ -300,6 +307,10 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     },
     [fullData, location, lineUserId, debouncedFetchData, invalidateCache],
   );
+
+  if (!lineUserId) {
+    return <div>กรุณาเข้าสู่ระบบ LINE ก่อนใช้งาน</div>;
+  }
 
   if (isLoading) {
     return <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>;
