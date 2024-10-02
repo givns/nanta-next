@@ -21,12 +21,10 @@ import {
   LiffProfile,
 } from '../services/liff';
 
-const MemoizedCheckInOutForm = React.memo(
-  dynamic(() => import('../components/CheckInOutForm'), {
-    loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
-    ssr: false, // Disable server-side rendering for this component
-  }),
-);
+const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
+  loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
+  ssr: false, // Disable server-side rendering for this component
+});
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
@@ -368,7 +366,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               }}
             >
               <div className="w-full max-w-md">
-                <MemoizedCheckInOutForm
+                <CheckInOutForm
                   onCloseWindow={handleCloseWindow}
                   userData={{
                     ...fullData.user,
