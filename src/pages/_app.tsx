@@ -9,7 +9,6 @@ import liff from '@line/liff';
 
 function MyApp({ Component, pageProps }: AppProps) {
   const [lineUserId, setLineUserId] = useState<string | null>(null);
-  const [isLiffReady, setIsLiffReady] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
@@ -31,13 +30,14 @@ function MyApp({ Component, pageProps }: AppProps) {
     const initializeLiff = async () => {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
-        setIsLiffReady(true);
+
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
         } else {
-          console.log('User not logged in. Redirecting to LINE login...');
-          liff.login();
+          await liff.login(); // Wait for login to complete
+          const profile = await liff.getProfile(); // Fetch profile after login
+          setLineUserId(profile.userId);
         }
       } catch (error) {
         console.error('Error initializing LIFF:', error);
@@ -53,13 +53,12 @@ function MyApp({ Component, pageProps }: AppProps) {
     return <div>Initializing application...</div>;
   }
 
-  if (!isLiffReady) {
-    return <div>LIFF is not ready. Please try refreshing the page.</div>;
-  }
-
-  if (!lineUserId && liff.isLoggedIn()) {
-    // This case handles when LIFF is ready but we're still waiting for the user profile
-    return <div>Loading user profile...</div>;
+  if (!lineUserId) {
+    return (
+      <div>
+        Unable to fetch user information. Please try refreshing the page.
+      </div>
+    );
   }
 
   return (
