@@ -45,6 +45,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   isActionButtonReady,
   liff,
 }) => {
+  const handlePhotoCapture = useRef<(photo: string) => Promise<void>>(
+    async () => {},
+  );
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [reason, setReason] = useState<string>('');
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
@@ -56,8 +59,27 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [storedAllowance, setStoredAllowance] =
-    useState<CheckInOutAllowance | null>(null);
+
+  const {
+    attendanceStatus,
+    location,
+    address,
+    isOutsideShift,
+    checkInOutAllowance,
+    checkInOut,
+    refreshCheckInOutAllowance,
+    getCurrentLocation,
+    refreshAttendanceStatus,
+  } = useAttendance(userData, initialAttendanceStatus);
+
+  const {
+    webcamRef,
+    isModelLoading,
+    message,
+    faceDetectionCount,
+    resetDetection,
+    captureThreshold,
+  } = useFaceDetection(5, handlePhotoCapture.current);
 
   // Reset function to clear any stuck states
   const resetStates = useCallback(() => {
@@ -83,18 +105,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     };
   }, [isSubmitting, resetStates]);
-
-  const {
-    attendanceStatus,
-    location,
-    address,
-    isOutsideShift,
-    checkInOutAllowance,
-    checkInOut,
-    refreshCheckInOutAllowance,
-    getCurrentLocation,
-    refreshAttendanceStatus,
-  } = useAttendance(userData, initialAttendanceStatus);
 
   useEffect(() => {
     console.log('CheckInOutForm mounted');
@@ -147,9 +157,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   }, [userData, initialAttendanceStatus, effectiveShift, onError]);
 
-  if (typeof window === 'undefined' || !liff) {
-    return <div>Loading...</div>;
-  }
   const closeLiffWindow = useCallback(async () => {
     if (liff.isReady) {
       try {
@@ -243,7 +250,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [checkInOutAllowance, submitCheckInOut, setError, resetStates],
   );
 
-  const handlePhotoCapture = useCallback(
+  handlePhotoCapture.current = useCallback(
     async (photo: string) => {
       if (isSubmitting) return; // Prevent multiple captures while submitting
       setCapturedPhoto(photo);
@@ -257,17 +264,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         resetStates();
       }
     },
-    [isSubmitting, processAttendanceSubmission],
+    [
+      isSubmitting,
+      processAttendanceSubmission,
+      setCapturedPhoto,
+      setIsCameraActive,
+      setError,
+      resetStates,
+    ],
   );
-
-  const {
-    webcamRef,
-    isModelLoading,
-    message,
-    faceDetectionCount,
-    resetDetection,
-    captureThreshold,
-  } = useFaceDetection(5, handlePhotoCapture);
 
   useEffect(() => {
     const processCapture = async () => {
@@ -336,8 +341,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
     return true;
   }, [effectiveShift]);
-
-  // components/CheckInOutForm.tsx
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -450,11 +453,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [
     checkInOutAllowance,
     attendanceStatus.isCheckingIn,
+    attendanceStatus.pendingLeaveRequest,
     locationError,
     handleAction,
     refreshCheckInOutAllowance,
   ]);
-
   const renderStep1 = useMemo(
     () => (
       <div className="flex flex-col h-full">
