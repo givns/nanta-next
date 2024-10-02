@@ -149,13 +149,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     null,
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
-  const [isFormLoading, setIsFormLoading] = useState(true);
-
-  useEffect(() => {
-    if (fullData) {
-      setIsFormLoading(false);
-    }
-  }, [fullData]);
 
   const handleCloseWindow = useCallback(() => {
     closeWindow();
@@ -217,7 +210,11 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
   const fetchData = useCallback(
     async (forceRefresh: boolean = false) => {
-      if (!lineUserId) return;
+      if (!lineUserId) {
+        console.error('No LINE User ID available');
+        setError('LINE User ID not available. Please log in.');
+        return;
+      }
 
       setIsLoading(true);
       let currentLocation = null;
@@ -273,10 +270,10 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
 
   useEffect(() => {
-    if (lineUserId && !fullData) {
+    if (lineUserId) {
       fetchData(false);
     }
-  }, [lineUserId, fetchData, fullData]);
+  }, [lineUserId, fetchData]);
 
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
