@@ -6,25 +6,34 @@ import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import Webcam from 'react-webcam';
 
+interface FaceDetectionState {
+  isModelLoading: boolean;
+  faceDetected: boolean;
+  faceDetectionCount: number;
+  photo: string | null;
+  message: string;
+}
+
 export const useFaceDetection = (
   captureThreshold: number = 5,
   onPhotoCapture: (photo: string) => void,
 ) => {
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
-  const [isModelLoading, setIsModelLoading] = useState(true);
-  const [faceDetected, setFaceDetected] = useState(false);
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [message, setMessage] = useState<string>('');
+  const [state, setState] = useState<FaceDetectionState>({
+    isModelLoading: true,
+    faceDetected: false,
+    faceDetectionCount: 0,
+    photo: null,
+    message: '',
+  });
   const webcamRef = useRef<Webcam>(null);
-  const faceDetectionCount = useRef(0);
-  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [faceDetectionCountState, setFaceDetectionCountState] = useState(0);
+  const animationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
 
     const loadModel = async () => {
-      setIsModelLoading(true);
+      setState((prev) => ({ ...prev, isModelLoading: true }));
       const [{ default: tf }, faceDetection] = await Promise.all([
         import('@tensorflow/tfjs'),
         import('@tensorflow-models/face-detection'),
@@ -38,7 +47,7 @@ export const useFaceDetection = (
 
       if (!isCancelled) {
         setModel(loadedModel);
-        setIsModelLoading(false);
+        setState((prev) => ({ ...prev, isModelLoading: false }));
       }
     };
 
@@ -52,10 +61,10 @@ export const useFaceDetection = (
   const capturePhoto = useCallback(() => {
     const imageSrc = webcamRef.current?.getScreenshot();
     if (imageSrc) {
-      setPhoto(imageSrc);
+      setState((prev) => ({ ...prev, photo: imageSrc }));
       onPhotoCapture(imageSrc);
-      if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
       return imageSrc;
     }
@@ -63,7 +72,7 @@ export const useFaceDetection = (
   }, [onPhotoCapture]);
 
   const detectFace = useCallback(async () => {
-    if (!webcamRef.current || !model) return;
+    if (!webcamRef.current || !model || state.photo) return;
 
     const imageSrc = webcamRef.current.getScreenshot();
     if (!imageSrc) return;
@@ -78,57 +87,62 @@ export const useFaceDetection = (
       flipHorizontal: false,
     });
 
-    if (detections.length > 0) {
-      setFaceDetected(true);
-      faceDetectionCount.current += 1;
-      setFaceDetectionCountState(faceDetectionCount.current);
-      setMessage('ระบบตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...');
+    setState((prev) => {
+      const newCount = detections.length > 0 ? prev.faceDetectionCount + 1 : 0;
+      const newMessage =
+        detections.length > 0
+          ? 'ระบบตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...'
+          : 'ไม่พบใบหน้าของพนักงาน..';
 
-      if (faceDetectionCount.current >= captureThreshold) {
+      if (newCount >= captureThreshold) {
         capturePhoto();
-        setMessage('ระบบบันทึกรูปภาพแล้ว');
+        return {
+          ...prev,
+          faceDetected: true,
+          faceDetectionCount: newCount,
+          message: 'ระบบบันทึกรูปภาพแล้ว',
+        };
       }
-    } else {
-      setFaceDetected(false);
-      faceDetectionCount.current = 0;
-      setFaceDetectionCountState(faceDetectionCount.current);
-      setMessage('ไม่พบใบหน้าของพนักงาน..');
-    }
-  }, [model, captureThreshold, capturePhoto]);
 
-  const startDetection = useCallback(() => {
-    if (!isModelLoading && !photo) {
-      detectionIntervalRef.current = setInterval(detectFace, 500);
-    }
-  }, [detectFace, isModelLoading, photo]);
+      return {
+        ...prev,
+        faceDetected: detections.length > 0,
+        faceDetectionCount: newCount,
+        message: newMessage,
+      };
+    });
 
-  const stopDetection = useCallback(() => {
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
-    }
-  }, []);
+    animationFrameRef.current = requestAnimationFrame(detectFace);
+  }, [model, captureThreshold, capturePhoto, state.photo]);
 
   useEffect(() => {
-    startDetection();
-    return () => stopDetection();
-  }, [startDetection, stopDetection]);
+    if (!state.isModelLoading && !state.photo) {
+      animationFrameRef.current = requestAnimationFrame(detectFace);
+    }
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [detectFace, state.isModelLoading, state.photo]);
 
   const resetDetection = useCallback(() => {
-    setPhoto(null);
-    setFaceDetected(false);
-    faceDetectionCount.current = 0;
-    stopDetection();
-    startDetection();
-  }, [stopDetection, startDetection]);
+    setState((prev) => ({
+      ...prev,
+      photo: null,
+      faceDetected: false,
+      faceDetectionCount: 0,
+    }));
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    animationFrameRef.current = requestAnimationFrame(detectFace);
+  }, [detectFace]);
 
   return {
     webcamRef,
-    isModelLoading,
-    faceDetected,
-    faceDetectionCount: faceDetectionCountState,
-    photo,
-    setPhoto,
-    message,
+    ...state,
     resetDetection,
     captureThreshold,
   };

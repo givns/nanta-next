@@ -78,8 +78,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const {
     webcamRef,
     isModelLoading,
-    message,
+    faceDetected,
     faceDetectionCount,
+    photo,
+    message,
     resetDetection,
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture.current);
