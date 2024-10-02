@@ -15,7 +15,7 @@ import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
 import Clock from '../components/Clock';
-import { useLiff } from '../contexts/LiffContext';
+import liff from '@line/liff';
 
 const MemoizedCheckInOutForm = React.memo(
   dynamic(() => import('../components/CheckInOutForm'), {
@@ -147,8 +147,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     null,
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
-  const liff = typeof window !== 'undefined' ? useLiff() : null;
-
+  const [isLiffReady, setIsLiffReady] = useState(false);
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
   }, []);
@@ -202,6 +201,28 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       );
     });
   }, []);
+
+  useEffect(() => {
+    const initLiff = async () => {
+      try {
+        if (!liff.isLoggedIn()) {
+          await liff.init({
+            liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
+          });
+        }
+        setIsLiffReady(true);
+        console.log('LIFF initialized in CheckInRouter');
+      } catch (error) {
+        console.error('Failed to initialize LIFF in CheckInRouter:', error);
+      }
+    };
+
+    initLiff();
+  }, []);
+
+  if (!isLiffReady) {
+    return <div>Initializing LIFF...</div>;
+  }
 
   const fetchData = useCallback(
     async (forceRefresh: boolean = false) => {

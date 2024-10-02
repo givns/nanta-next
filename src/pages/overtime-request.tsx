@@ -1,13 +1,30 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import OvertimeRequestForm from '../components/OvertimeRequestForm';
-import { useLiff } from '../contexts/LiffContext';
+import liff from '@line/liff';
 
 const OvertimeRequestPage: React.FC = () => {
-  const liff = typeof window !== 'undefined' ? useLiff() : null;
+  const [isLiffReady, setIsLiffReady] = useState(false);
 
-  // During static generation, return a placeholder or loading state
-  if (typeof window === 'undefined') {
-    return <div>Loading...</div>;
+  useEffect(() => {
+    const initLiff = async () => {
+      try {
+        if (!liff.isLoggedIn()) {
+          await liff.init({
+            liffId: process.env.NEXT_PUBLIC_LIFF_ID as string,
+          });
+        }
+        setIsLiffReady(true);
+        console.log('LIFF initialized in CheckInRouter');
+      } catch (error) {
+        console.error('Failed to initialize LIFF in CheckInRouter:', error);
+      }
+    };
+
+    initLiff();
+  }, []);
+
+  if (!isLiffReady) {
+    return <div>Initializing LIFF...</div>;
   }
 
   if (!liff) {
