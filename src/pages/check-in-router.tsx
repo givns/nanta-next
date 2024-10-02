@@ -12,10 +12,9 @@ import { UserData } from '../types/user';
 import axios from 'axios';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { z } from 'zod'; // Import Zod for runtime type checking
-import { UserRole } from '../types/enum';
+import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
 import Clock from '../components/Clock';
-import liff from '@line/liff';
 
 const MemoizedCheckInOutForm = React.memo(
   dynamic(() => import('../components/CheckInOutForm'), {
@@ -30,7 +29,6 @@ const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 const CACHE_VERSION = '2'; // Change this value if the cache schema changes
 
 interface CheckInRouterProps {
-  liff: typeof liff;
   lineUserId: string | null;
 }
 
@@ -136,7 +134,7 @@ const ResponseDataSchema = z.object({
   }),
 });
 
-const CheckInRouter: React.FC<CheckInRouterProps> = ({ liff, lineUserId }) => {
+const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [fullData, setFullData] = useState<z.infer<
     typeof ResponseDataSchema
   > | null>(null);
@@ -148,7 +146,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ liff, lineUserId }) => {
     null,
   );
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
-  const [isLiffReady, setIsLiffReady] = useState(false);
 
   const invalidateCache = useCallback(() => {
     localStorage.removeItem(CACHE_KEY);
@@ -263,10 +260,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ liff, lineUserId }) => {
 
   useEffect(() => {
     if (lineUserId && !fullData) {
-      fetchData(false).catch((error) => {
-        console.error('Error fetching data:', error);
-        setError('Failed to fetch user data. Please try again.');
-      });
+      fetchData(false);
     }
   }, [lineUserId, fetchData, fullData]);
 
@@ -299,7 +293,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ liff, lineUserId }) => {
     [fullData, location, lineUserId, debouncedFetchData, invalidateCache],
   );
 
-  if (!isLiffReady || isLoading) {
+  if (isLoading) {
     return <SkeletonLoader />;
   }
 
@@ -371,8 +365,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ liff, lineUserId }) => {
                   onStatusChange={handleStatusChange}
                   onError={() => debouncedFetchData()}
                   isActionButtonReady={isActionButtonReady}
-                  liff={liff}
-                  lineUserId={lineUserId!}
                 />
               </div>
             </ErrorBoundary>
@@ -382,4 +374,5 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ liff, lineUserId }) => {
     </ErrorBoundary>
   );
 };
+
 export default React.memo(CheckInRouter);

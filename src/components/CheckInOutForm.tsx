@@ -32,8 +32,6 @@ interface CheckInOutFormProps {
   onStatusChange: (newStatus: boolean) => void;
   onError: () => void;
   isActionButtonReady: boolean;
-  liff: typeof liff;
-  lineUserId: string;
 }
 
 const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
@@ -45,8 +43,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onStatusChange,
   onError,
   isActionButtonReady,
-  liff,
-  lineUserId,
 }) => {
   const handlePhotoCapture = useRef<(photo: string) => Promise<void>>(
     async () => {},
@@ -220,7 +216,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       onStatusChange,
       refreshAttendanceStatus,
       closeLiffWindow,
-      lineUserId, // Add lineUserId to the dependency array
     ],
   );
 
