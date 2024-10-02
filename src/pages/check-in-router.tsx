@@ -271,10 +271,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     }
   }, [lineUserId, fetchData, fullData]);
 
-  if (!lineUserId) {
-    return <div>กรุณาเข้าสู่ระบบ LINE ก่อนใช้งาน</div>;
-  }
-
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
       if (fullData && location) {
