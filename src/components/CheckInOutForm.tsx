@@ -19,7 +19,7 @@ import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
-//import ErrorBoundary from './ErrorBoundary';
+import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
 import { AppErrors } from '../utils/errorHandler';
@@ -45,9 +45,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onError,
   isActionButtonReady,
 }) => {
-  const handlePhotoCapture = useRef<(photo: string) => Promise<void>>(
-    async () => {},
-  );
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [reason, setReason] = useState<string>('');
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
@@ -71,15 +68,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     getCurrentLocation,
     refreshAttendanceStatus,
   } = useAttendance(userData, initialAttendanceStatus);
-
-  const {
-    webcamRef,
-    isModelLoading,
-    faceDetectionCount,
-    message,
-    resetDetection,
-    captureThreshold,
-  } = useFaceDetection(5, handlePhotoCapture.current);
 
   const handleError = useCallback(
     (error: Error | AppErrors) => {
@@ -248,7 +236,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [checkInOutAllowance, submitCheckInOut, setError, resetStates],
   );
 
-  handlePhotoCapture.current = useCallback(
+  const handlePhotoCapture = useCallback(
     async (photo: string) => {
       if (isSubmitting) return; // Prevent multiple captures while submitting
       setCapturedPhoto(photo);
@@ -322,6 +310,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     submitCheckInOut,
     resetStates,
   ]);
+
+  const {
+    webcamRef,
+    isModelLoading,
+    faceDetectionCount,
+    message,
+    resetDetection,
+    captureThreshold,
+  } = useFaceDetection(5, handlePhotoCapture);
 
   const confirmEarlyCheckOut = useCallback(() => {
     if (!effectiveShift) return true;
@@ -461,12 +458,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const renderStep1 = useMemo(
     () => (
       <div className="flex flex-col h-full">
-        <MemoizedUserShiftInfo
-          userData={userData}
-          attendanceStatus={attendanceStatus}
-          effectiveShift={effectiveShift}
-          isOutsideShift={isOutsideShift}
-        />
+        <ErrorBoundary>
+          <MemoizedUserShiftInfo
+            userData={userData}
+            attendanceStatus={attendanceStatus}
+            effectiveShift={effectiveShift}
+            isOutsideShift={isOutsideShift}
+          />
+        </ErrorBoundary>
         <div className="flex-shrink-0 mt-4">{renderActionButton()}</div>
       </div>
     ),
@@ -533,36 +532,38 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const content = (
-    <div className="h-screen flex flex-col relative">
-      {isSubmitting && (
-        <div className="absolute inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="text-white text-lg">กำลังบันทึกข้อมูล...</div>
+    <ErrorBoundary>
+      <div className="h-screen flex flex-col relative">
+        {isSubmitting && (
+          <div className="absolute inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+            <div className="text-white text-lg">กำลังบันทึกข้อมูล...</div>
+          </div>
+        )}
+        <div className="flex-grow overflow-hidden flex flex-col">
+          {step === 'info' && renderStep1}
+          {step === 'camera' && renderStep2()}
+          {step === 'processing' && renderStep3()}
         </div>
-      )}
-      <div className="flex-grow overflow-hidden flex flex-col">
-        {step === 'info' && renderStep1}
-        {step === 'camera' && renderStep2()}
-        {step === 'processing' && renderStep3()}
+        {error && (
+          <div className="mt-4">
+            <p className="text-red-500" role="alert">
+              {error}
+            </p>
+          </div>
+        )}
+        <LateReasonModal
+          isOpen={isLateModalOpen}
+          onClose={() => {
+            setIsLateModalOpen(false);
+            resetStates();
+          }}
+          onSubmit={(lateReason) => {
+            setIsLateModalOpen(false);
+            processAttendanceSubmission(capturedPhoto!, lateReason);
+          }}
+        />
       </div>
-      {error && (
-        <div className="mt-4">
-          <p className="text-red-500" role="alert">
-            {error}
-          </p>
-        </div>
-      )}
-      <LateReasonModal
-        isOpen={isLateModalOpen}
-        onClose={() => {
-          setIsLateModalOpen(false);
-          resetStates();
-        }}
-        onSubmit={(lateReason) => {
-          setIsLateModalOpen(false);
-          processAttendanceSubmission(capturedPhoto!, lateReason);
-        }}
-      />
-    </div>
+    </ErrorBoundary>
   );
 
   if (error) {
