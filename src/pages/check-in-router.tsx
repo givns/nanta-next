@@ -25,14 +25,16 @@ const CheckInOutForm = dynamic(
   () =>
     import('../components/CheckInOutForm')
       .then((module) => {
+        console.log('CheckInOutForm module loaded successfully', module);
         const Component = module.default;
         Component.displayName = 'CheckInOutForm';
         return Component;
       })
       .catch((err) => {
-        console.error('Error loading CheckInOutForm:', err);
+        console.error('Detailed error loading CheckInOutForm:', err);
+        console.error('Error stack:', err.stack);
         const ErrorComponent = () => (
-          <div>Error loading form. Please try again.</div>
+          <div>Error loading form. Please check console for details.</div>
         );
         ErrorComponent.displayName = 'ErrorComponent';
         return ErrorComponent;
