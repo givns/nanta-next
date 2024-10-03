@@ -20,30 +20,7 @@ import {
   closeWindow,
   LiffProfile,
 } from '../services/liff';
-
-const CheckInOutForm = dynamic(
-  () =>
-    import('../components/CheckInOutForm')
-      .then((module) => {
-        console.log('CheckInOutForm module loaded successfully', module);
-        const Component = module.default;
-        Component.displayName = 'CheckInOutForm';
-        return Component;
-      })
-      .catch((err) => {
-        console.error('Detailed error loading CheckInOutForm:', err);
-        console.error('Error stack:', err.stack);
-        const ErrorComponent = () => (
-          <div>Error loading form. Please check console for details.</div>
-        );
-        ErrorComponent.displayName = 'ErrorComponent';
-        return ErrorComponent;
-      }),
-  {
-    loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
-    ssr: false,
-  },
-);
+import CheckInOutForm from '../components/CheckInOutForm';
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
