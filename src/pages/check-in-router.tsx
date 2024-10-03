@@ -21,8 +21,12 @@ import {
   LiffProfile,
 } from '../services/liff';
 
-import CheckInOutForm from '../components/CheckInOutForm';
-import ErrorBoundary from '../components/ErrorBoundary';
+const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
+  loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
+  ssr: false, // Disable server-side rendering for this component
+});
+
+const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
 const CACHE_KEY = 'attendanceStatus';
 const CACHE_VERSION = '2'; // Change this value if the cache schema changes
@@ -206,6 +210,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
   const fetchData = useCallback(
     async (forceRefresh: boolean = false) => {
+      console.log('fetchData started', { lineUserId, forceRefresh });
       if (!lineUserId) {
         console.error('No LINE User ID available');
         setError('LINE User ID not available. Please log in.');
@@ -216,24 +221,30 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       let currentLocation = null;
 
       try {
+        console.log('Checking for cached data');
         if (!forceRefresh) {
           const cachedData = getCachedData();
           if (cachedData) {
+            console.log('Using cached data');
             setFullData(cachedData);
             setIsCachedData(true);
             setIsLoading(false);
+            console.log('Cached data set, function should end here');
             return;
           }
         }
 
+        console.log('No cache or force refresh, proceeding to get location');
         try {
           currentLocation = await getLocation();
+          console.log('Location obtained', currentLocation);
           setLocation(currentLocation);
         } catch (locationError) {
           console.error('Error getting location:', locationError);
           setFormError('Unable to get location. Some features may be limited.');
         }
 
+        console.log('Preparing to make API call');
         const response = await axios.get(`/api/user-check-in-status`, {
           params: {
             lineUserId,
@@ -243,16 +254,19 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           },
         });
 
+        console.log('API call successful, validating data');
         const validatedData = ResponseDataSchema.parse(response.data);
+        console.log('Data validated successfully');
         setFullData(validatedData);
         setCachedData(validatedData);
         setIsCachedData(false);
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error('Error in fetchData:', err);
         setError(
           err instanceof Error ? err.message : 'An unknown error occurred',
         );
       } finally {
+        console.log('fetchData completed');
         setIsLoading(false);
         setIsActionButtonReady(true);
       }
@@ -266,7 +280,9 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
 
   useEffect(() => {
+    console.log('useEffect triggered', { lineUserId });
     if (lineUserId) {
+      console.log('Calling fetchData from useEffect');
       fetchData(false);
     }
   }, [lineUserId, fetchData]);
@@ -301,15 +317,25 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     [fullData, location, lineUserId, debouncedFetchData, invalidateCache],
   );
 
+  console.log('Component rendering', {
+    isLoading,
+    fullData,
+    error,
+    lineUserId,
+  });
+
   if (!lineUserId) {
+    console.log('No lineUserId, showing login prompt');
     return <div>กรุณาเข้าสู่ระบบ LINE ก่อนใช้งาน</div>;
   }
 
   if (isLoading) {
+    console.log('Still loading, showing loading message');
     return <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>;
   }
 
   if (error) {
+    console.log('Error occurred, showing error message');
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">เกิดข้อผิดพลาด</h1>
@@ -319,12 +345,15 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   }
 
   if (!fullData) {
+    console.log('No fullData, showing no user data message');
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
       </div>
     );
   }
+
+  console.log('All checks passed, preparing to render main component');
 
   return (
     <ErrorBoundary>
@@ -350,36 +379,38 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               <span className="block sm:inline"> {formError}</span>
             </div>
           )}
-          <ErrorBoundary
-            onError={(error: Error) => {
-              console.error('Error in CheckInOutForm:', error);
-              setFormError(error.message);
-            }}
-          >
-            <div className="w-full max-w-md">
-              <CheckInOutForm
-                onCloseWindow={handleCloseWindow}
-                userData={{
-                  ...fullData.user,
-                  createdAt: fullData.user.createdAt
-                    ? new Date(fullData.user.createdAt)
-                    : undefined,
-                  updatedAt: fullData.user.updatedAt
-                    ? new Date(fullData.user.updatedAt)
-                    : undefined,
-                }}
-                initialAttendanceStatus={{
-                  ...fullData.attendanceStatus,
-                  pendingLeaveRequest:
-                    fullData.attendanceStatus.pendingLeaveRequest || false,
-                }}
-                effectiveShift={fullData.effectiveShift}
-                onStatusChange={handleStatusChange}
-                onError={() => debouncedFetchData()}
-                isActionButtonReady={isActionButtonReady}
-              />
-            </div>
-          </ErrorBoundary>
+          <Suspense fallback={<p>Loading additional information...</p>}>
+            <ErrorBoundary
+              onError={(error: Error) => {
+                console.error('Error in CheckInOutForm:', error);
+                setFormError(error.message);
+              }}
+            >
+              <div className="w-full max-w-md">
+                <CheckInOutForm
+                  onCloseWindow={handleCloseWindow}
+                  userData={{
+                    ...fullData.user,
+                    createdAt: fullData.user.createdAt
+                      ? new Date(fullData.user.createdAt)
+                      : undefined,
+                    updatedAt: fullData.user.updatedAt
+                      ? new Date(fullData.user.updatedAt)
+                      : undefined,
+                  }}
+                  initialAttendanceStatus={{
+                    ...fullData.attendanceStatus,
+                    pendingLeaveRequest:
+                      fullData.attendanceStatus.pendingLeaveRequest || false,
+                  }}
+                  effectiveShift={fullData.effectiveShift}
+                  onStatusChange={handleStatusChange}
+                  onError={() => debouncedFetchData()}
+                  isActionButtonReady={isActionButtonReady}
+                />
+              </div>
+            </ErrorBoundary>
+          </Suspense>
         </div>
       </div>
     </ErrorBoundary>
