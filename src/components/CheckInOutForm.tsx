@@ -22,7 +22,6 @@ import { useAttendance } from '../hooks/useAttendance';
 import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
-import { AppErrors } from '../utils/errorHandler';
 
 interface CheckInOutFormProps {
   onCloseWindow: () => void;
@@ -34,13 +33,14 @@ interface CheckInOutFormProps {
   isActionButtonReady: boolean;
 }
 
+const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
+
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onCloseWindow,
   userData,
   initialAttendanceStatus,
   effectiveShift,
   onStatusChange,
-  onError,
   isActionButtonReady,
 }) => {
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
@@ -66,19 +66,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     getCurrentLocation,
     refreshAttendanceStatus,
   } = useAttendance(userData, initialAttendanceStatus);
-
-  const handleError = useCallback(
-    (error: Error | AppErrors) => {
-      console.error('Error in CheckInOutForm:', error);
-      setError(
-        error instanceof AppErrors
-          ? error.message
-          : 'An unexpected error occurred',
-      );
-      onError();
-    },
-    [onError],
-  );
 
   // Reset function to clear any stuck states
   const resetStates = useCallback(() => {
@@ -457,7 +444,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     () => (
       <div className="flex flex-col h-full">
         <ErrorBoundary>
-          <UserShiftInfo
+          <MemoizedUserShiftInfo
             userData={userData}
             attendanceStatus={attendanceStatus}
             effectiveShift={effectiveShift}
@@ -580,3 +567,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 };
 
 export default React.memo(CheckInOutForm);
+function handleError(arg0: Error) {
+  throw new Error('Function not implemented.');
+}
