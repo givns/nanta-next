@@ -34,8 +34,6 @@ interface CheckInOutFormProps {
   isActionButtonReady: boolean;
 }
 
-const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
-
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onCloseWindow,
   userData,
@@ -114,7 +112,48 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       `initialAttendanceStatus: ${JSON.stringify(initialAttendanceStatus)}`,
     );
     console.log(`effectiveShift: ${JSON.stringify(effectiveShift)}`);
-  }, [userData, initialAttendanceStatus, effectiveShift]);
+
+    try {
+      if (initialAttendanceStatus?.latestAttendance) {
+        const { checkInTime, checkOutTime, status } =
+          initialAttendanceStatus.latestAttendance;
+        console.log('Latest attendance:', {
+          checkInTime,
+          checkOutTime,
+          status,
+        });
+
+        if (checkInTime) {
+          const parsedCheckInTime = parseISO(checkInTime);
+          if (isValid(parsedCheckInTime)) {
+            console.log('Check-in time:', formatTime(parsedCheckInTime));
+          } else {
+            console.log('Invalid check-in time:', checkInTime);
+          }
+        } else {
+          console.log('No check-in time available');
+        }
+
+        if (checkOutTime) {
+          const parsedCheckOutTime = parseISO(checkOutTime);
+          if (isValid(parsedCheckOutTime)) {
+            console.log('Check-out time:', formatTime(parsedCheckOutTime));
+          } else {
+            console.log('Invalid check-out time:', checkOutTime);
+          }
+        } else {
+          console.log('No check-out time available');
+        }
+      }
+
+      if (effectiveShift) {
+        console.log('Shift start time:', effectiveShift.startTime);
+        console.log('Shift end time:', effectiveShift.endTime);
+      }
+    } catch (err) {
+      handleError(err as Error);
+    }
+  }, [userData, initialAttendanceStatus, effectiveShift, handleError]);
 
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {
@@ -418,7 +457,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     () => (
       <div className="flex flex-col h-full">
         <ErrorBoundary>
-          <MemoizedUserShiftInfo
+          <UserShiftInfo
             userData={userData}
             attendanceStatus={attendanceStatus}
             effectiveShift={effectiveShift}
