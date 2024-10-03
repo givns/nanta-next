@@ -34,10 +34,6 @@ export const useFaceDetection = (
 
     const loadModel = async () => {
       setState((prev) => ({ ...prev, isModelLoading: true }));
-      const [{ default: tf }, faceDetection] = await Promise.all([
-        import('@tensorflow/tfjs'),
-        import('@tensorflow-models/face-detection'),
-      ]);
 
       await tf.ready();
       const loadedModel = await faceDetection.createDetector(
