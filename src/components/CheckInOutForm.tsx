@@ -23,6 +23,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
 import { AppErrors } from '../utils/errorHandler';
+import { useSimpleAttendance } from '../hooks/useSimpleAttendance';
 
 interface CheckInOutFormProps {
   onCloseWindow: () => void;
@@ -34,86 +35,21 @@ interface CheckInOutFormProps {
   isActionButtonReady: boolean;
 }
 
-const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
-  onCloseWindow,
-  userData,
-  initialAttendanceStatus,
-  effectiveShift,
-  onStatusChange,
-  onError,
-  isActionButtonReady,
-}) => {
-  console.log('CheckInOutForm render start', {
-    userData,
-    initialAttendanceStatus,
-    effectiveShift,
-    isActionButtonReady,
+const CheckInOutForm: React.FC<CheckInOutFormProps> = (props) => {
+  console.log('CheckInOutForm initialized with props:', props);
+
+  const { attendanceStatus, isLoading, error, location, checkInOutAllowance } =
+    useSimpleAttendance(props.userData, props.initialAttendanceStatus);
+
+  console.log('useSimpleAttendance result:', {
+    attendanceStatus,
+    isLoading,
+    error,
+    location,
+    checkInOutAllowance,
   });
 
-  const [error, setError] = useState<string | null>(null);
-
-  const {
-    attendanceStatus,
-    location,
-    address,
-    isOutsideShift,
-    checkInOutAllowance,
-    checkInOut,
-    fetchCheckInOutAllowance,
-    getCurrentLocation,
-    refreshAttendanceStatus,
-    isLoading,
-    locationError,
-  } = useAttendance(userData, initialAttendanceStatus);
-
-  useEffect(() => {
-    console.log('CheckInOutForm useEffect', {
-      attendanceStatus,
-      location,
-      checkInOutAllowance,
-      isLoading,
-      locationError,
-    });
-  }, [
-    attendanceStatus,
-    location,
-    checkInOutAllowance,
-    isLoading,
-    locationError,
-  ]);
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
-
-  return (
-    <div>
-      <h2>Check In/Out Form</h2>
-      <p>User: {userData.name}</p>
-      <p>Status: {attendanceStatus.status}</p>
-      <p>
-        Location: {location ? `${location.lat}, ${location.lng}` : 'Unknown'}
-      </p>
-      <p>Allowed: {checkInOutAllowance?.allowed ? 'Yes' : 'No'}</p>
-      <button
-        onClick={() =>
-          checkInOut({
-            employeeId: userData.employeeId,
-            lineUserId: userData.lineUserId,
-            isCheckIn: attendanceStatus.isCheckingIn,
-            checkTime: new Date().toISOString(),
-          })
-        }
-        disabled={!isActionButtonReady || !checkInOutAllowance?.allowed}
-      >
-        {attendanceStatus.isCheckingIn ? 'Check In' : 'Check Out'}
-      </button>
-    </div>
-  );
+  return <div>CheckInOutForm Loaded Successfully</div>;
 };
 
 export default React.memo(CheckInOutForm);
