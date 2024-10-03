@@ -222,44 +222,49 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
       try {
         console.log('Checking for cached data');
-        if (!forceRefresh) {
-          const cachedData = getCachedData();
-          if (cachedData) {
-            console.log('Using cached data');
-            setFullData(cachedData);
-            setIsCachedData(true);
-            setIsLoading(false);
-            console.log('Cached data set, function should end here');
-            return;
+        const cachedData = getCachedData();
+
+        // Start fetching fresh data immediately
+        const fetchFreshData = async () => {
+          try {
+            currentLocation = await getLocation();
+            console.log('Location obtained', currentLocation);
+            setLocation(currentLocation);
+
+            console.log('Preparing to make API call');
+            const response = await axios.get(`/api/user-check-in-status`, {
+              params: {
+                lineUserId,
+                forceRefresh: true,
+                lat: currentLocation?.lat,
+                lng: currentLocation?.lng,
+              },
+            });
+
+            console.log('API call successful, validating data');
+            const validatedData = ResponseDataSchema.parse(response.data);
+            console.log('Data validated successfully');
+            setFullData(validatedData);
+            setCachedData(validatedData);
+            setIsCachedData(false);
+          } catch (err) {
+            console.error('Error fetching fresh data:', err);
+            throw err;
           }
+        };
+
+        // Start fetching fresh data
+        const freshDataPromise = fetchFreshData();
+
+        // If we have cached data and we're not forcing a refresh, use it immediately
+        if (cachedData && !forceRefresh) {
+          console.log('Using cached data');
+          setFullData(cachedData);
+          setIsCachedData(true);
         }
 
-        console.log('No cache or force refresh, proceeding to get location');
-        try {
-          currentLocation = await getLocation();
-          console.log('Location obtained', currentLocation);
-          setLocation(currentLocation);
-        } catch (locationError) {
-          console.error('Error getting location:', locationError);
-          setFormError('Unable to get location. Some features may be limited.');
-        }
-
-        console.log('Preparing to make API call');
-        const response = await axios.get(`/api/user-check-in-status`, {
-          params: {
-            lineUserId,
-            forceRefresh,
-            lat: currentLocation?.lat,
-            lng: currentLocation?.lng,
-          },
-        });
-
-        console.log('API call successful, validating data');
-        const validatedData = ResponseDataSchema.parse(response.data);
-        console.log('Data validated successfully');
-        setFullData(validatedData);
-        setCachedData(validatedData);
-        setIsCachedData(false);
+        // Wait for fresh data to be fetched
+        await freshDataPromise;
       } catch (err) {
         console.error('Error in fetchData:', err);
         setError(
