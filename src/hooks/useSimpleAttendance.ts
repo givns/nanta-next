@@ -1,5 +1,5 @@
 // hooks/useSimpleAttendance.ts
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   AttendanceStatusInfo,
   AttendanceHookReturn,
@@ -54,6 +54,10 @@ export const useSimpleAttendance = (
       return null;
     }
   }, []);
+
+  useEffect(() => {
+    getCurrentLocation();
+  }, [getCurrentLocation]);
 
   const fetchCheckInOutAllowance = useCallback(async () => {
     console.log('Fetching check-in/out allowance'); // Debug log
@@ -111,6 +115,14 @@ export const useSimpleAttendance = (
       });
     }
   }, [userData.employeeId, getCurrentLocation]);
+
+  useEffect(() => {
+    console.log('Setting up check-in/out allowance fetch interval'); // Debug log
+    fetchCheckInOutAllowance();
+    const intervalId = setInterval(fetchCheckInOutAllowance, 60000);
+    return () => clearInterval(intervalId);
+  }, [fetchCheckInOutAllowance]);
+
   console.log('useSimpleAttendance called with:', {
     userData,
     initialAttendanceStatus,
