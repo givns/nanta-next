@@ -23,10 +23,20 @@ import {
 
 const CheckInOutForm = dynamic(
   () =>
-    import('../components/CheckInOutForm').catch((err) => {
-      console.error('Error loading CheckInOutForm:', err);
-      return () => <div>Error loading form. Please try again.</div>;
-    }),
+    import('../components/CheckInOutForm')
+      .then((module) => {
+        const Component = module.default;
+        Component.displayName = 'CheckInOutForm';
+        return Component;
+      })
+      .catch((err) => {
+        console.error('Error loading CheckInOutForm:', err);
+        const ErrorComponent = () => (
+          <div>Error loading form. Please try again.</div>
+        );
+        ErrorComponent.displayName = 'ErrorComponent';
+        return ErrorComponent;
+      }),
   {
     loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
     ssr: false,
