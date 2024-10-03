@@ -324,16 +324,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     lineUserId,
   });
 
-  if (!lineUserId) {
-    console.log('No lineUserId, showing login prompt');
-    return <div>กรุณาเข้าสู่ระบบ LINE ก่อนใช้งาน</div>;
-  }
-
-  if (isLoading) {
-    console.log('Still loading, showing loading message');
-    return <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>;
-  }
-
   if (error) {
     console.log('Error occurred, showing error message');
     return (
