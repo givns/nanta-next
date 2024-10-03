@@ -20,14 +20,9 @@ import {
   closeWindow,
   LiffProfile,
 } from '../services/liff';
-import { AppErrors } from '@/utils/errorHandler';
 
-const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
-  loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
-  ssr: false,
-});
-
-const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
+import CheckInOutForm from '../components/CheckInOutForm';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const CACHE_KEY = 'attendanceStatus';
 const CACHE_VERSION = '2'; // Change this value if the cache schema changes
