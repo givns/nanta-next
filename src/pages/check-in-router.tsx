@@ -21,10 +21,10 @@ import {
   LiffProfile,
 } from '../services/liff';
 
-const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
-  loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
-  ssr: false, // Disable server-side rendering for this component
-});
+const CheckInOutForm = dynamic(
+  () => import('../components/CheckInOutForm'),
+  {},
+);
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
