@@ -116,6 +116,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^14.2.14",
     "@next/eslint-plugin-next": "^14.2.3",
     "@types/axios": "^0.9.36",
     "@types/better-queue": "^3.8.6",

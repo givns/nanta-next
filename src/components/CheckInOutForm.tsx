@@ -14,12 +14,12 @@ import {
   ShiftData,
 } from '../types/attendance';
 import { UserData } from '../types/user';
-//import { useFaceDetection } from '../hooks/useFaceDetection';
+import { useFaceDetection } from '../hooks/useFaceDetection';
 import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import { useAttendance } from '../hooks/useAttendance';
-import ErrorBoundary from './ErrorBoundary';
+//import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
 import { AppErrors } from '../utils/errorHandler';
@@ -71,6 +71,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     getCurrentLocation,
     refreshAttendanceStatus,
   } = useAttendance(userData, initialAttendanceStatus);
+
+  const {
+    webcamRef,
+    isModelLoading,
+    faceDetectionCount,
+    message,
+    resetDetection,
+    captureThreshold,
+  } = useFaceDetection(5, handlePhotoCapture.current);
 
   const handleError = useCallback(
     (error: Error | AppErrors) => {
@@ -358,6 +367,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       if (checkInOutAllowance?.allowed) {
         setStep('camera');
         setIsCameraActive(true);
+        resetDetection();
       } else {
         setError(
           checkInOutAllowance?.reason ||
@@ -371,6 +381,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       checkInOutAllowance,
       setStep,
       setIsCameraActive,
+      resetDetection,
     ],
   );
 
@@ -450,14 +461,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const renderStep1 = useMemo(
     () => (
       <div className="flex flex-col h-full">
-        <ErrorBoundary>
-          <MemoizedUserShiftInfo
-            userData={userData}
-            attendanceStatus={attendanceStatus}
-            effectiveShift={effectiveShift}
-            isOutsideShift={isOutsideShift}
-          />
-        </ErrorBoundary>
+        <MemoizedUserShiftInfo
+          userData={userData}
+          attendanceStatus={attendanceStatus}
+          effectiveShift={effectiveShift}
+          isOutsideShift={isOutsideShift}
+        />
         <div className="flex-shrink-0 mt-4">{renderActionButton()}</div>
       </div>
     ),
@@ -471,7 +480,46 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderStep2 = () => (
-    <div className="h-full flex flex-col justify-center items-center"></div>
+    <div className="h-full flex flex-col justify-center items-center relative">
+      {isModelLoading ? (
+        <SkeletonLoader />
+      ) : (
+        <>
+          <div className="relative">
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              className="w-full rounded-lg mb-4"
+              videoConstraints={{
+                facingMode: 'user',
+              }}
+            />
+            {/* Overlay Frame */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="border-4 border-blue-500 rounded-full w-48 h-48"></div>
+            </div>
+          </div>
+          <p className="text-center mb-2">{message}</p>
+          {/* Progress Indicator */}
+          {faceDetectionCount > 0 && (
+            <div className="w-full px-4">
+              <div className="bg-gray-200 h-2 rounded-full">
+                <div
+                  className="bg-blue-500 h-2 rounded-full"
+                  style={{
+                    width: `${(faceDetectionCount / captureThreshold) * 100}%`,
+                  }}
+                ></div>
+              </div>
+              <p className="text-center text-sm mt-1">
+                {faceDetectionCount} / {captureThreshold}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 
   const renderStep3 = useCallback(
@@ -485,38 +533,36 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const content = (
-    <ErrorBoundary>
-      <div className="h-screen flex flex-col relative">
-        {isSubmitting && (
-          <div className="absolute inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-            <div className="text-white text-lg">กำลังบันทึกข้อมูล...</div>
-          </div>
-        )}
-        <div className="flex-grow overflow-hidden flex flex-col">
-          {step === 'info' && renderStep1}
-          {step === 'camera' && renderStep2()}
-          {step === 'processing' && renderStep3()}
+    <div className="h-screen flex flex-col relative">
+      {isSubmitting && (
+        <div className="absolute inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="text-white text-lg">กำลังบันทึกข้อมูล...</div>
         </div>
-        {error && (
-          <div className="mt-4">
-            <p className="text-red-500" role="alert">
-              {error}
-            </p>
-          </div>
-        )}
-        <LateReasonModal
-          isOpen={isLateModalOpen}
-          onClose={() => {
-            setIsLateModalOpen(false);
-            resetStates();
-          }}
-          onSubmit={(lateReason) => {
-            setIsLateModalOpen(false);
-            processAttendanceSubmission(capturedPhoto!, lateReason);
-          }}
-        />
+      )}
+      <div className="flex-grow overflow-hidden flex flex-col">
+        {step === 'info' && renderStep1}
+        {step === 'camera' && renderStep2()}
+        {step === 'processing' && renderStep3()}
       </div>
-    </ErrorBoundary>
+      {error && (
+        <div className="mt-4">
+          <p className="text-red-500" role="alert">
+            {error}
+          </p>
+        </div>
+      )}
+      <LateReasonModal
+        isOpen={isLateModalOpen}
+        onClose={() => {
+          setIsLateModalOpen(false);
+          resetStates();
+        }}
+        onSubmit={(lateReason) => {
+          setIsLateModalOpen(false);
+          processAttendanceSubmission(capturedPhoto!, lateReason);
+        }}
+      />
+    </div>
   );
 
   if (error) {
