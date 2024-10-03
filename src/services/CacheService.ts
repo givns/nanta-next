@@ -2,7 +2,7 @@
 import Redis from 'ioredis';
 
 class CacheService {
-  private client: Redis | null = null;
+  private client: any = null;
 
   constructor() {
     if (typeof window === 'undefined') {
@@ -10,13 +10,18 @@ class CacheService {
     }
   }
 
-  private initializeRedis() {
+  private async initializeRedis() {
     const redisUrl = process.env.REDIS_URL;
     if (redisUrl) {
-      this.client = new Redis(redisUrl);
-      this.client.on('error', (error) => {
-        console.error('Redis error:', error);
-      });
+      try {
+        const Redis = await import('ioredis');
+        this.client = new Redis.default(redisUrl);
+        this.client.on('error', (error: any) => {
+          console.error('Redis error:', error);
+        });
+      } catch (error) {
+        console.error('Failed to initialize Redis:', error);
+      }
     } else {
       console.warn('REDIS_URL is not set. Caching will be disabled.');
     }
