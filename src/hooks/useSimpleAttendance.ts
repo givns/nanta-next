@@ -1,5 +1,5 @@
 // hooks/useSimpleAttendance.ts
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AttendanceStatusInfo,
   AttendanceHookReturn,
@@ -16,9 +16,14 @@ export const useSimpleAttendance = (
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
+  const [address] = useState<string>('');
+  const [inPremises] = useState(false);
+  const [isOutsideShift] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [checkInOutAllowance, setCheckInOutAllowance] =
     useState<CheckInOutAllowance | null>(null);
+
+  const isSubmittingRef = useRef(false);
 
   const getCurrentLocation = useCallback(async () => {
     if (!navigator.geolocation) {
@@ -136,8 +141,8 @@ export const useSimpleAttendance = (
     locationError,
     getCurrentLocation,
     effectiveShift: null,
-    address: '',
-    inPremises: false,
+    address,
+    inPremises,
     isOutsideShift: false,
     checkInOut: async () => {},
     checkInOutAllowance,
