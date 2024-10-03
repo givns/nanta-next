@@ -22,8 +22,15 @@ import {
 } from '../services/liff';
 
 const CheckInOutForm = dynamic(
-  () => import('../components/CheckInOutForm'),
-  {},
+  () =>
+    import('../components/CheckInOutForm').catch((err) => {
+      console.error('Error loading CheckInOutForm:', err);
+      return () => <div>Error loading form. Please try again.</div>;
+    }),
+  {
+    loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
+    ssr: false,
+  },
 );
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
@@ -380,38 +387,36 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               <span className="block sm:inline"> {formError}</span>
             </div>
           )}
-          <Suspense fallback={<p>Loading additional information...</p>}>
-            <ErrorBoundary
-              onError={(error: Error) => {
-                console.error('Error in CheckInOutForm:', error);
-                setFormError(error.message);
-              }}
-            >
-              <div className="w-full max-w-md">
-                <CheckInOutForm
-                  onCloseWindow={handleCloseWindow}
-                  userData={{
-                    ...fullData.user,
-                    createdAt: fullData.user.createdAt
-                      ? new Date(fullData.user.createdAt)
-                      : undefined,
-                    updatedAt: fullData.user.updatedAt
-                      ? new Date(fullData.user.updatedAt)
-                      : undefined,
-                  }}
-                  initialAttendanceStatus={{
-                    ...fullData.attendanceStatus,
-                    pendingLeaveRequest:
-                      fullData.attendanceStatus.pendingLeaveRequest || false,
-                  }}
-                  effectiveShift={fullData.effectiveShift}
-                  onStatusChange={handleStatusChange}
-                  onError={() => debouncedFetchData()}
-                  isActionButtonReady={isActionButtonReady}
-                />
-              </div>
-            </ErrorBoundary>
-          </Suspense>
+          <ErrorBoundary
+            onError={(error: Error) => {
+              console.error('Error in CheckInOutForm:', error);
+              setFormError(error.message);
+            }}
+          >
+            <div className="w-full max-w-md">
+              <CheckInOutForm
+                onCloseWindow={handleCloseWindow}
+                userData={{
+                  ...fullData.user,
+                  createdAt: fullData.user.createdAt
+                    ? new Date(fullData.user.createdAt)
+                    : undefined,
+                  updatedAt: fullData.user.updatedAt
+                    ? new Date(fullData.user.updatedAt)
+                    : undefined,
+                }}
+                initialAttendanceStatus={{
+                  ...fullData.attendanceStatus,
+                  pendingLeaveRequest:
+                    fullData.attendanceStatus.pendingLeaveRequest || false,
+                }}
+                effectiveShift={fullData.effectiveShift}
+                onStatusChange={handleStatusChange}
+                onError={() => debouncedFetchData()}
+                isActionButtonReady={isActionButtonReady}
+              />
+            </div>
+          </ErrorBoundary>
         </div>
       </div>
     </ErrorBoundary>

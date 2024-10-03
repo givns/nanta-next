@@ -6,6 +6,7 @@ import {
   AttendanceStatusInfo,
   CheckInOutAllowance,
   AttendanceHookReturn,
+  ShiftData,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { formatDateTime, getCurrentTime } from '../utils/dateUtils';
@@ -18,6 +19,8 @@ export const useAttendance = (
 ): AttendanceHookReturn => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo>(initialAttendanceStatus);
+  const [effectiveShiftState, setEffectiveShiftState] =
+    useState<ShiftData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
@@ -186,7 +189,7 @@ export const useAttendance = (
         });
         const { attendanceStatus, effectiveShift } = response.data;
         setAttendanceStatus(processAttendanceStatus(attendanceStatus));
-        effectiveShift(effectiveShift);
+        setEffectiveShiftState(effectiveShift); // Corrected line
         return response.data;
       } catch (error) {
         console.error('Error fetching attendance status:', error);
@@ -301,6 +304,7 @@ export const useAttendance = (
       location,
       locationError,
       getCurrentLocation,
+      effectiveShift: effectiveShiftState,
       address,
       inPremises,
       isOutsideShift,
@@ -317,6 +321,7 @@ export const useAttendance = (
       location,
       locationError,
       getCurrentLocation,
+      effectiveShiftState,
       address,
       inPremises,
       isOutsideShift,
