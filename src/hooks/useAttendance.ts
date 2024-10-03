@@ -17,6 +17,8 @@ export const useAttendance = (
   userData: UserData,
   initialAttendanceStatus: AttendanceStatusInfo,
 ): AttendanceHookReturn => {
+  console.log('useAttendance hook initialized');
+
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo>(initialAttendanceStatus);
   const [effectiveShiftState, setEffectiveShiftState] =
@@ -37,6 +39,8 @@ export const useAttendance = (
 
   const processAttendanceStatus = useCallback(
     (status: AttendanceStatusInfo) => {
+      console.log('Processing attendance status', status); // Debug log
+
       if (status.latestAttendance) {
         const {
           checkInTime,
@@ -62,6 +66,7 @@ export const useAttendance = (
   );
 
   useEffect(() => {
+    console.log('Setting initial attendance status'); // Debug log
     setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
   }, [initialAttendanceStatus, processAttendanceStatus]);
 
@@ -107,6 +112,8 @@ export const useAttendance = (
   }, [getCurrentLocation]);
 
   const fetchCheckInOutAllowance = useCallback(async () => {
+    console.log('Fetching check-in/out allowance'); // Debug log
+
     const currentLocation = await getCurrentLocation();
     if (!currentLocation) {
       setCheckInOutAllowance({
@@ -115,7 +122,6 @@ export const useAttendance = (
       });
       return;
     }
-
     // Check if location has changed significantly (e.g., more than 10 meters)
     const hasLocationChangedSignificantly = (
       prevLocation: { lat: number; lng: number } | null,
@@ -160,22 +166,19 @@ export const useAttendance = (
         reason: 'Error checking permissions',
       });
     }
-  }, [userData.employeeId, getCurrentLocation, location]);
-
-  // Initial fetch only
-  const debouncedFetchCheckInOutAllowance = useMemo(
-    () => debounce(fetchCheckInOutAllowance, 1000),
-    [fetchCheckInOutAllowance],
-  );
+  }, [userData.employeeId, getCurrentLocation]);
 
   useEffect(() => {
-    debouncedFetchCheckInOutAllowance();
-    const intervalId = setInterval(debouncedFetchCheckInOutAllowance, 60000);
+    console.log('Setting up check-in/out allowance fetch interval'); // Debug log
+    fetchCheckInOutAllowance();
+    const intervalId = setInterval(fetchCheckInOutAllowance, 60000);
     return () => clearInterval(intervalId);
-  }, [debouncedFetchCheckInOutAllowance]);
+  }, [fetchCheckInOutAllowance]);
 
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
+      console.log('Getting attendance status', { forceRefresh }); // Debug log
+
       try {
         setIsLoading(true);
         const currentLocation = await getCurrentLocation();
@@ -280,6 +283,8 @@ export const useAttendance = (
   );
 
   useEffect(() => {
+    console.log('Fetching initial data'); // Debug log
+
     const fetchInitialData = async () => {
       try {
         await getAttendanceStatus();
