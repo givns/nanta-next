@@ -82,6 +82,31 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [onError],
   );
 
+  // Reset function to clear any stuck states
+  const resetStates = useCallback(() => {
+    setIsSubmitting(false);
+    setCapturedPhoto(null);
+    if (submitTimeoutRef.current) {
+      clearTimeout(submitTimeoutRef.current);
+    }
+    console.log('States reset');
+  }, []);
+
+  // Use effect to reset states if stuck in submitting for too long
+  useEffect(() => {
+    if (isSubmitting) {
+      submitTimeoutRef.current = setTimeout(() => {
+        console.log('Submission timeout - resetting states');
+        resetStates();
+      }, 30000); // 30 seconds timeout
+    }
+    return () => {
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
+    };
+  }, [isSubmitting, resetStates]);
+
   useEffect(() => {
     console.log('CheckInOutForm mounted');
     console.log(`userData: ${JSON.stringify(userData)}`);
@@ -89,48 +114,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       `initialAttendanceStatus: ${JSON.stringify(initialAttendanceStatus)}`,
     );
     console.log(`effectiveShift: ${JSON.stringify(effectiveShift)}`);
-
-    try {
-      if (initialAttendanceStatus?.latestAttendance) {
-        const { checkInTime, checkOutTime, status } =
-          initialAttendanceStatus.latestAttendance;
-        console.log('Latest attendance:', {
-          checkInTime,
-          checkOutTime,
-          status,
-        });
-
-        if (checkInTime) {
-          const parsedCheckInTime = parseISO(checkInTime);
-          if (isValid(parsedCheckInTime)) {
-            console.log('Check-in time:', formatTime(parsedCheckInTime));
-          } else {
-            console.log('Invalid check-in time:', checkInTime);
-          }
-        } else {
-          console.log('No check-in time available');
-        }
-
-        if (checkOutTime) {
-          const parsedCheckOutTime = parseISO(checkOutTime);
-          if (isValid(parsedCheckOutTime)) {
-            console.log('Check-out time:', formatTime(parsedCheckOutTime));
-          } else {
-            console.log('Invalid check-out time:', checkOutTime);
-          }
-        } else {
-          console.log('No check-out time available');
-        }
-      }
-
-      if (effectiveShift) {
-        console.log('Shift start time:', effectiveShift.startTime);
-        console.log('Shift end time:', effectiveShift.endTime);
-      }
-    } catch (err) {
-      handleError(err as Error);
-    }
-  }, [userData, initialAttendanceStatus, effectiveShift, handleError]);
+  }, [userData, initialAttendanceStatus, effectiveShift]);
 
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {
@@ -193,6 +177,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     async (photo: string, lateReason?: string) => {
       if (!checkInOutAllowance?.allowed) {
         setError('Check-in/out is no longer allowed. Please try again.');
+        resetStates();
         return;
       }
 
@@ -202,11 +187,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         await submitCheckInOut(photo, lateReason);
       } catch (error) {
         setError('An error occurred. Please try again.');
+        resetStates();
       } finally {
         setIsSubmitting(false);
       }
     },
-    [checkInOutAllowance, submitCheckInOut, setError],
+    [checkInOutAllowance, submitCheckInOut, setError, resetStates],
   );
 
   const handlePhotoCapture = useCallback(
@@ -220,6 +206,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       } catch (error) {
         console.error('Error processing photo:', error);
         setError('An error occurred. Please try again.');
+        resetStates();
       }
     },
     [
@@ -228,6 +215,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setCapturedPhoto,
       setIsCameraActive,
       setError,
+      resetStates,
     ],
   );
 
@@ -246,6 +234,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               checkInOutAllowance.reason ||
                 'Check-in/out is not allowed at this time.',
             );
+            resetStates();
             return;
           }
 
@@ -267,6 +256,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       } catch (error) {
         console.log(`Error in processCapture: ${error}`);
         setError('An error occurred. Please try again.');
+        resetStates();
       } finally {
         setIsSubmitting(false);
       }
@@ -277,6 +267,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     checkInOutAllowance,
     attendanceStatus.isCheckingIn,
     submitCheckInOut,
+    resetStates,
   ]);
 
   const {
@@ -523,6 +514,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           isOpen={isLateModalOpen}
           onClose={() => {
             setIsLateModalOpen(false);
+            resetStates();
           }}
           onSubmit={(lateReason) => {
             setIsLateModalOpen(false);
