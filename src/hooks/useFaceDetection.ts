@@ -1,9 +1,7 @@
 // hooks/useFaceDetection.ts
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
-import '@tensorflow/tfjs-backend-webgl';
 import Webcam from 'react-webcam';
 
 interface FaceDetectionState {
@@ -35,7 +33,6 @@ export const useFaceDetection = (
     const loadModel = async () => {
       setState((prev) => ({ ...prev, isModelLoading: true }));
 
-      await tf.ready();
       const loadedModel = await faceDetection.createDetector(
         faceDetection.SupportedModels.MediaPipeFaceDetector,
         { runtime: 'tfjs', modelType: 'short' },
