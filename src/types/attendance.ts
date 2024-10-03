@@ -76,6 +76,7 @@ export interface AttendanceStatusInfo {
 
 export interface AttendanceHookReturn {
   attendanceStatus: AttendanceStatusInfo;
+  effectiveShift: ShiftData | null;
   isLoading: boolean;
   error: string | null;
   location: { lat: number; lng: number } | null;
