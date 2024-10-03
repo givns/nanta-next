@@ -5,7 +5,6 @@ import {
   AttendanceData,
   AttendanceStatusInfo,
   CheckInOutAllowance,
-  AttendanceHookReturn,
   ShiftData,
 } from '../types/attendance';
 import { UserData } from '../types/user';
@@ -16,9 +15,7 @@ import { AppErrors } from '../utils/errorHandler';
 export const useAttendance = (
   userData: UserData,
   initialAttendanceStatus: AttendanceStatusInfo,
-): AttendanceHookReturn => {
-  console.log('useAttendance hook initialized');
-
+) => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo>(initialAttendanceStatus);
   const [effectiveShiftState, setEffectiveShiftState] =
@@ -284,56 +281,43 @@ export const useAttendance = (
 
   useEffect(() => {
     console.log('Fetching initial data'); // Debug log
-
-    const fetchInitialData = async () => {
-      try {
-        await getAttendanceStatus();
-      } catch (error) {
-        console.error('Error fetching initial data:', error);
-        setError(
-          error instanceof AppErrors
-            ? error.message
-            : 'An unexpected error occurred',
-        );
-      }
-    };
-
-    fetchInitialData();
+    getAttendanceStatus().catch((error) => {
+      console.error('Error fetching initial data:', error);
+      setError(
+        error instanceof AppErrors
+          ? error.message
+          : 'An unexpected error occurred',
+      );
+    });
   }, [getAttendanceStatus]);
 
-  return useMemo<AttendanceHookReturn>(
-    () => ({
-      attendanceStatus,
-      isLoading,
-      error,
-      location,
-      locationError,
-      getCurrentLocation,
-      effectiveShift: effectiveShiftState,
-      address,
-      inPremises,
-      isOutsideShift,
-      checkInOut,
-      checkInOutAllowance,
-      fetchCheckInOutAllowance,
-      refreshAttendanceStatus: getAttendanceStatus,
-      isSubmitting: isSubmittingRef.current,
-    }),
-    [
-      attendanceStatus,
-      isLoading,
-      error,
-      location,
-      locationError,
-      getCurrentLocation,
-      effectiveShiftState,
-      address,
-      inPremises,
-      isOutsideShift,
-      checkInOut,
-      checkInOutAllowance,
-      fetchCheckInOutAllowance,
-      getAttendanceStatus,
-    ],
-  );
+  // Log the values before returning
+  console.log('useAttendance hook values:', {
+    attendanceStatus,
+    isLoading,
+    error,
+    location,
+    effectiveShiftState,
+    checkInOutAllowance,
+    isSubmitting: isSubmittingRef.current,
+  });
+
+  // Return the object directly without useMemo
+  return {
+    attendanceStatus,
+    isLoading,
+    error,
+    location,
+    locationError,
+    getCurrentLocation,
+    effectiveShift: effectiveShiftState,
+    address: '',
+    inPremises: false,
+    isOutsideShift: false,
+    checkInOut,
+    checkInOutAllowance,
+    fetchCheckInOutAllowance,
+    refreshAttendanceStatus: getAttendanceStatus,
+    isSubmitting: isSubmittingRef.current,
+  };
 };
