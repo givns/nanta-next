@@ -1,5 +1,4 @@
 // services/CacheService.ts
-import Redis from 'ioredis';
 
 class CacheService {
   private client: any = null;
