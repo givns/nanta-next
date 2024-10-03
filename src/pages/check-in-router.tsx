@@ -349,6 +349,12 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   }
 
   console.log('All checks passed, preparing to render main component');
+  console.log('About to render CheckInOutForm', {
+    userData: fullData.user,
+    attendanceStatus: fullData.attendanceStatus,
+    effectiveShift: fullData.effectiveShift,
+    isActionButtonReady,
+  });
 
   return (
     <ErrorBoundary>
