@@ -253,6 +253,7 @@ export const useSimpleAttendance = (
         lat: location?.lat,
         lng: location?.lng,
       });
+      console.log('Check-in/out response:', response.data);
 
       setAttendanceStatus((prevStatus) => ({
         ...prevStatus,

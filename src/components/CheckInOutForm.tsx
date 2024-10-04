@@ -172,7 +172,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         onStatusChange(!attendanceStatus.isCheckingIn);
         await refreshAttendanceStatus();
-        await onCloseWindow();
       } catch (error: any) {
         console.log(`Error during check-in/out: ${error.message}`);
         setError('Failed to submit check-in/out. Please try again.');
@@ -188,7 +187,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       checkInOut,
       onStatusChange,
       refreshAttendanceStatus,
-      onCloseWindow,
       onError,
     ],
   );
