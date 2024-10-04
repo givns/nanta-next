@@ -300,6 +300,11 @@ export class AttendanceService {
       );
 
       const user = await this.getCachedUserData(attendanceData.employeeId);
+      console.log(
+        'Attempting to get user with employeeId:',
+        attendanceData.employeeId,
+      );
+      console.log('User data retrieved:', user);
       if (!user) {
         console.error(
           `User not found for employeeId: ${attendanceData.employeeId}`,
