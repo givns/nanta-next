@@ -208,11 +208,11 @@ export const useSimpleAttendance = (
 
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
-      console.log('Getting attendance status', { forceRefresh }); // Debug log
+      console.log('Getting attendance status', { forceRefresh });
       try {
         setIsLoading(true);
         const currentLocation = await getCurrentLocation();
-        const response = await axios.get(`/api/user-check-in-status`, {
+        const response = await axios.get('/api/user-check-in-status', {
           params: {
             lineUserId: userData.lineUserId,
             forceRefresh,
@@ -236,14 +236,10 @@ export const useSimpleAttendance = (
   );
 
   useEffect(() => {
-    console.log('Fetching initial data'); // Debug log
+    console.log('Fetching initial data');
     getAttendanceStatus().catch((error) => {
       console.error('Error fetching initial data:', error);
-      setError(
-        error instanceof AppErrors
-          ? error.message
-          : 'An unexpected error occurred',
-      );
+      setError('An unexpected error occurred');
     });
   }, [getAttendanceStatus]);
 
@@ -259,7 +255,7 @@ export const useSimpleAttendance = (
     location,
     locationError,
     getCurrentLocation,
-    effectiveShift: null,
+    effectiveShift,
     address,
     inPremises,
     isOutsideShift,
