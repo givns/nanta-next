@@ -14,14 +14,6 @@ const LateReasonModal: React.FC<LateReasonModalProps> = ({
   const [reason, setReason] = useState('');
   const [isValid, setIsValid] = useState(false);
 
-  useEffect(() => {
-    const wordCount = reason
-      .trim()
-      .split(/\s+/)
-      .filter((word) => word.length > 0).length;
-    setIsValid(wordCount >= 2);
-  }, [reason]);
-
   if (!isOpen) return null;
 
   const commonReasons = ['รถติด', 'ป่วย', 'เหตุสุดวิสัย'];
