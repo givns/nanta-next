@@ -39,6 +39,7 @@ export const useSimpleAttendance = (
   const [locationError, setLocationError] = useState<string | null>(null);
   const [checkInOutAllowance, setCheckInOutAllowance] =
     useState<CheckInOutAllowance | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const isSubmittingRef = useRef(false);
 
   const calculateDistance = (
@@ -122,47 +123,21 @@ export const useSimpleAttendance = (
     }
   }, [isWithinPremises]);
 
-  const hasLocationChangedSignificantly = useCallback(
-    (
-      prevLocation: { lat: number; lng: number } | null,
-      newLocation: { lat: number; lng: number },
-    ) => {
-      if (!prevLocation) return true;
-      const distance = calculateDistance(
-        prevLocation.lat,
-        prevLocation.lng,
-        newLocation.lat,
-        newLocation.lng,
-      );
-      const previousPremise = isWithinPremises(
-        prevLocation.lat,
-        prevLocation.lng,
-      );
-      const newPremise = isWithinPremises(newLocation.lat, newLocation.lng);
-      return distance > 10 || previousPremise !== newPremise;
-    },
-    [isWithinPremises],
-  );
-
   const fetchCheckInOutAllowance = useCallback(async () => {
     console.log('Fetching check-in/out allowance');
-
-    const currentLocation = await getCurrentLocation();
-    if (!currentLocation) {
-      setCheckInOutAllowance({
-        allowed: false,
-        reason: 'Location not available',
-        inPremises,
-        address,
-      });
-      return;
-    }
-
-    if (!hasLocationChangedSignificantly(location, currentLocation)) {
-      return; // Don't refetch if location hasn't changed significantly
-    }
-
+    setIsLoading(true);
     try {
+      const currentLocation = await getCurrentLocation();
+      if (!currentLocation) {
+        setCheckInOutAllowance({
+          allowed: false,
+          reason: 'Location not available',
+          inPremises,
+          address,
+        });
+        return;
+      }
+
       const response = await axios.get<CheckInOutAllowance>(
         '/api/attendance/allowed',
         {
@@ -174,22 +149,18 @@ export const useSimpleAttendance = (
         },
       );
       setCheckInOutAllowance(response.data);
-      setLocation(currentLocation);
     } catch (error) {
       console.error('Error checking if check-in/out is allowed:', error);
       setCheckInOutAllowance({
         allowed: false,
         reason: 'Error checking permissions',
-        inPremises,
-        address,
+        inPremises: false,
+        address: 'Unknown location',
       });
+    } finally {
+      setIsLoading(false);
     }
-  }, [
-    userData.employeeId,
-    getCurrentLocation,
-    hasLocationChangedSignificantly,
-    location,
-  ]);
+  }, [userData.employeeId, getCurrentLocation]);
 
   useEffect(() => {
     console.log('Setting up check-in/out allowance fetch interval'); // Debug log
