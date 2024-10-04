@@ -7,6 +7,7 @@ import {
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import axios from 'axios';
+import { AppErrors } from '@/utils/errorHandler';
 
 interface Premise {
   lat: number;
@@ -31,6 +32,7 @@ export const useSimpleAttendance = (
 ): AttendanceHookReturn => {
   const [attendanceStatus, setAttendanceStatus] =
     useState<AttendanceStatusInfo>(initialAttendanceStatus);
+  const [effectiveShift, setEffectiveShift] = useState(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
@@ -41,6 +43,7 @@ export const useSimpleAttendance = (
   const [checkInOutAllowance, setCheckInOutAllowance] =
     useState<CheckInOutAllowance | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const isSubmittingRef = useRef(false);
 
   const processAttendanceStatus = useCallback(
@@ -203,6 +206,47 @@ export const useSimpleAttendance = (
     return () => clearInterval(intervalId);
   }, [fetchCheckInOutAllowance]);
 
+  const getAttendanceStatus = useCallback(
+    async (forceRefresh: boolean = false) => {
+      console.log('Getting attendance status', { forceRefresh }); // Debug log
+      try {
+        setIsLoading(true);
+        const currentLocation = await getCurrentLocation();
+        const response = await axios.get(`/api/user-check-in-status`, {
+          params: {
+            lineUserId: userData.lineUserId,
+            forceRefresh,
+            lat: currentLocation?.lat,
+            lng: currentLocation?.lng,
+          },
+        });
+        const { attendanceStatus, effectiveShift } = response.data;
+        setAttendanceStatus(processAttendanceStatus(attendanceStatus));
+        setEffectiveShift(effectiveShift);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching attendance status:', error);
+        setError('Failed to fetch attendance status');
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [userData.lineUserId, processAttendanceStatus, getCurrentLocation],
+  );
+
+  useEffect(() => {
+    console.log('Fetching initial data'); // Debug log
+    getAttendanceStatus().catch((error) => {
+      console.error('Error fetching initial data:', error);
+      setError(
+        error instanceof AppErrors
+          ? error.message
+          : 'An unexpected error occurred',
+      );
+    });
+  }, [getAttendanceStatus]);
+
   console.log('useSimpleAttendance called with:', {
     userData,
     initialAttendanceStatus,
@@ -210,19 +254,18 @@ export const useSimpleAttendance = (
 
   return {
     attendanceStatus,
-    isLoading: false,
-    error: null,
+    isLoading,
+    error,
     location,
     locationError,
     getCurrentLocation,
-    effectiveShift: null,
+    effectiveShift,
     address,
     inPremises,
-    isOutsideShift: false,
+    isOutsideShift,
     checkInOut: async () => {},
     checkInOutAllowance,
     fetchCheckInOutAllowance,
-    refreshAttendanceStatus: async () => attendanceStatus,
     isSubmitting: false,
   };
 };
