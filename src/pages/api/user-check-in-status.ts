@@ -3,7 +3,6 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/AttendanceService';
 import { HolidayService } from '@/services/HolidayService';
-import { UserRole } from '@/types/enum';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { TimeEntryService } from '@/services/TimeEntryService';
@@ -68,24 +67,37 @@ export default async function handler(
 
   try {
     const cacheKey = `user-status:${lineUserId}`;
-    let cachedData = null;
-
-    if (cacheService) {
-      cachedData = await cacheService.get(cacheKey);
-    }
-
     let responseData;
 
-    if (cachedData) {
-      responseData = JSON.parse(cachedData);
-      console.log('Using cached data for user status');
+    if (cacheService) {
+      responseData = await cacheService.getWithSWR(
+        cacheKey,
+        async () => {
+          const user = await prisma.user.findUnique({ where: { lineUserId } });
+          if (!user) throw new Error('User not found');
+
+          const [shiftData, attendanceStatus, approvedOvertime] =
+            await Promise.all([
+              shiftService.getEffectiveShiftAndStatus(
+                user.employeeId,
+                new Date(),
+              ),
+              attendanceService.getLatestAttendanceStatus(user.employeeId),
+              overtimeService.getApprovedOvertimeRequest(
+                user.employeeId,
+                new Date(),
+              ),
+            ]);
+
+          return { user, shiftData, attendanceStatus, approvedOvertime };
+        },
+        300, // 5 minutes TTL
+      );
     } else {
+      // Fallback to fetching fresh data if cacheService is not available
       const user = await prisma.user.findUnique({
         where: { lineUserId },
-        include: {
-          department: true,
-          potentialOvertimes: true,
-        },
+        include: { department: true, potentialOvertimes: true },
       });
 
       if (!user) {
@@ -102,50 +114,7 @@ export default async function handler(
         ],
       );
 
-      if (!shiftData) {
-        return res.status(404).json({ error: 'Shift data not found' });
-      }
-
-      responseData = {
-        user: {
-          employeeId: user.employeeId,
-          name: user.name,
-          lineUserId: user.lineUserId,
-          nickname: user.nickname,
-          departmentId: user.departmentId,
-          departmentName: user.departmentName || '',
-          role: user.role as UserRole,
-          profilePictureUrl: user.profilePictureUrl,
-          shiftId: shiftData.effectiveShift?.id || null,
-          shiftCode: shiftData.effectiveShift?.shiftCode || null,
-          overtimeHours: user.overtimeHours,
-          potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
-            ...overtime,
-            type: overtime.type as
-              | 'early-check-in'
-              | 'late-check-out'
-              | 'day-off',
-            status: overtime.status as 'approved' | 'pending' | 'rejected',
-            periods: overtime.periods as
-              | { start: string; end: string }[]
-              | undefined,
-            reviewedBy: overtime.reviewedBy || undefined,
-            reviewedAt: overtime.reviewedAt ?? undefined,
-          })),
-          sickLeaveBalance: user.sickLeaveBalance,
-          businessLeaveBalance: user.businessLeaveBalance,
-          annualLeaveBalance: user.annualLeaveBalance,
-          createdAt: user.createdAt ?? new Date(),
-          updatedAt: user.updatedAt ?? new Date(),
-        },
-        attendanceStatus,
-        effectiveShift: shiftData.effectiveShift,
-        approvedOvertime,
-      };
-
-      if (cacheService) {
-        await cacheService.set(cacheKey, JSON.stringify(responseData), 300); // Cache for 5 minutes
-      }
+      responseData = { user, shiftData, attendanceStatus, approvedOvertime };
     }
 
     // Always fetch fresh check-in/out allowance
@@ -153,10 +122,7 @@ export default async function handler(
       latitude !== undefined && longitude !== undefined
         ? await attendanceService.isCheckInOutAllowed(
             responseData.user.employeeId,
-            {
-              lat: latitude,
-              lng: longitude,
-            },
+            { lat: latitude, lng: longitude },
           )
         : { allowed: true, reason: 'Location not provided' };
 

@@ -22,9 +22,6 @@ export interface AttendanceData {
   isCheckIn: boolean;
   isOvertime?: boolean;
   isLate?: boolean;
-  isFlexibleStart?: boolean;
-  isFlexibleEnd?: boolean;
-  isWithinGracePeriod?: boolean;
 }
 
 export type ApprovedOvertime = {
@@ -87,7 +84,6 @@ export interface AttendanceHookReturn {
   isOutsideShift: boolean;
   checkInOut: (data: AttendanceData) => Promise<any>;
   checkInOutAllowance: CheckInOutAllowance | null;
-  fetchCheckInOutAllowance: () => Promise<void>;
   refreshAttendanceStatus: (forceRefresh?: boolean) => Promise<any>;
   isSubmitting: boolean;
 }
@@ -242,21 +238,6 @@ export interface CheckInOutAllowance {
   isOutsideShift?: boolean;
   inPremises: boolean;
   address: string;
-}
-
-export interface CheckInFormData {
-  employeeId: string;
-  checkTime: Date;
-  location: Location;
-  address: string;
-  reason?: string;
-  photo?: string;
-  deviceSerial: string;
-}
-
-export interface CheckOutFormData
-  extends Omit<CheckInFormData, 'userId' | 'employeeId'> {
-  checkInId: string;
 }
 
 export interface CheckInData {

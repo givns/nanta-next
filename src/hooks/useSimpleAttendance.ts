@@ -74,7 +74,7 @@ export const useSimpleAttendance = (
   );
 
   useEffect(() => {
-    console.log('Setting initial attendance status'); // Debug log
+    console.log('Setting initial attendance status');
     setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
   }, [initialAttendanceStatus, processAttendanceStatus]);
 
@@ -160,52 +160,6 @@ export const useSimpleAttendance = (
     }
   }, [isWithinPremises]);
 
-  const fetchCheckInOutAllowance = useCallback(async () => {
-    console.log('Fetching check-in/out allowance');
-    setIsLoading(true);
-    try {
-      const currentLocation = await getCurrentLocation();
-      if (!currentLocation) {
-        setCheckInOutAllowance({
-          allowed: false,
-          reason: 'Location not available',
-          inPremises,
-          address,
-        });
-        return;
-      }
-
-      const response = await axios.get<CheckInOutAllowance>(
-        '/api/attendance/allowed',
-        {
-          params: {
-            employeeId: userData.employeeId,
-            lat: currentLocation.lat,
-            lng: currentLocation.lng,
-          },
-        },
-      );
-      setCheckInOutAllowance(response.data);
-    } catch (error) {
-      console.error('Error checking if check-in/out is allowed:', error);
-      setCheckInOutAllowance({
-        allowed: false,
-        reason: 'Error checking permissions',
-        inPremises: false,
-        address: 'Unknown location',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userData.employeeId, getCurrentLocation]);
-
-  useEffect(() => {
-    console.log('Setting up check-in/out allowance fetch interval');
-    fetchCheckInOutAllowance();
-    const intervalId = setInterval(fetchCheckInOutAllowance, 60000);
-    return () => clearInterval(intervalId);
-  }, [fetchCheckInOutAllowance]);
-
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
       console.log('Getting attendance status', { forceRefresh });
@@ -221,9 +175,11 @@ export const useSimpleAttendance = (
             useDefaultLocation: !currentLocation,
           },
         });
-        const { attendanceStatus, effectiveShift } = response.data;
+        const { attendanceStatus, effectiveShift, checkInOutAllowance } =
+          response.data;
         setAttendanceStatus(processAttendanceStatus(attendanceStatus));
         setEffectiveShift(effectiveShift);
+        setCheckInOutAllowance(checkInOutAllowance);
         return response.data;
       } catch (error) {
         console.error('Error fetching attendance status:', error);
@@ -242,16 +198,14 @@ export const useSimpleAttendance = (
     setIsLoading(true);
 
     try {
-      await fetchCheckInOutAllowance();
-
       if (!checkInOutAllowance?.allowed) {
-        throw new Error('Check-in/out not allowed');
+        throw new Error('ไม่สามารถลงเวลาได้เพราะไม่เข้าเงื่อนไขของดารลงเวลา');
       }
 
       const response = await axios.post('/api/check-in-out', {
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId,
-        isCheckIn: attendanceStatus.isCheckingIn, // Add this line
+        isCheckIn: attendanceStatus.isCheckingIn,
         lat: location?.lat,
         lng: location?.lng,
       });
@@ -264,7 +218,7 @@ export const useSimpleAttendance = (
       }));
 
       // Refresh the check-in/out allowance after successful check-in/out
-      await fetchCheckInOutAllowance();
+      await getAttendanceStatus(true);
     } catch (error) {
       console.error('Error during check-in/out:', error);
       // Handle error (e.g., show an error message to the user)
@@ -274,9 +228,11 @@ export const useSimpleAttendance = (
     }
   }, [
     userData.employeeId,
+    userData.lineUserId,
     location,
     checkInOutAllowance,
-    fetchCheckInOutAllowance,
+    attendanceStatus.isCheckingIn,
+    getAttendanceStatus,
   ]);
 
   useEffect(() => {
@@ -305,7 +261,6 @@ export const useSimpleAttendance = (
     isOutsideShift,
     checkInOut,
     checkInOutAllowance,
-    fetchCheckInOutAllowance,
     refreshAttendanceStatus: getAttendanceStatus,
     isSubmitting: isSubmittingRef.current,
   };

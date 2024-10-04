@@ -11,6 +11,7 @@ import Webcam from 'react-webcam';
 import {
   AttendanceData,
   AttendanceStatusInfo,
+  CheckInOutAllowance,
   ShiftData,
 } from '../types/attendance';
 import { UserData } from '../types/user';
@@ -66,7 +67,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     isOutsideShift,
     checkInOutAllowance,
     checkInOut,
-    fetchCheckInOutAllowance,
     refreshAttendanceStatus,
   } = useSimpleAttendance(userData, initialAttendanceStatus);
 
@@ -479,7 +479,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     attendanceStatus.pendingLeaveRequest,
     locationError,
     handleAction,
-    fetchCheckInOutAllowance,
     isActionButtonReady,
   ]);
 

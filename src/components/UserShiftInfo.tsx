@@ -23,18 +23,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 }) => {
   const { latestAttendance, shiftAdjustment } = attendanceStatus;
 
-  const debugLog = useMemo(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('UserShiftInfo props:', {
-        userData,
-        attendanceStatus,
-        effectiveShift,
-        isOutsideShift,
-      });
-      console.log('Latest Attendance:', attendanceStatus.latestAttendance);
-    }
-  }, [userData, attendanceStatus, effectiveShift, isOutsideShift]);
-
   const getStatusMessage = useMemo(() => {
     if (attendanceStatus.isDayOff) {
       return { message: 'วันหยุด', color: 'blue' };

@@ -1,12 +1,6 @@
 // check-in-router.tsx
 
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  Suspense,
-} from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
 import axios from 'axios';
@@ -14,31 +8,14 @@ import { z } from 'zod'; // Import Zod for runtime type checking
 import { UserRole } from '@/types/enum';
 import { debounce } from 'lodash';
 import Clock from '../components/Clock';
-import {
-  initializeLiff,
-  getProfile,
-  closeWindow,
-  LiffProfile,
-} from '../services/liff';
+import { closeWindow } from '../services/liff';
 
 const CheckInOutForm = dynamic(
   () =>
-    import('../components/CheckInOutForm')
-      .then((module) => {
-        console.log('CheckInOutForm module loaded successfully', module);
-        const Component = module.default;
-        Component.displayName = 'CheckInOutForm';
-        return Component;
-      })
-      .catch((err) => {
-        console.error('Detailed error loading CheckInOutForm:', err);
-        console.error('Error stack:', err.stack);
-        const ErrorComponent = () => (
-          <div>Error loading form. Please check console for details.</div>
-        );
-        ErrorComponent.displayName = 'ErrorComponent';
-        return ErrorComponent;
-      }),
+    import('../components/CheckInOutForm').then((module) => {
+      console.log('CheckInOutForm module loaded successfully', module);
+      return module.default;
+    }),
   {
     loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
     ssr: false,
@@ -231,8 +208,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     async (forceRefresh: boolean = false) => {
       console.log('fetchData started', { lineUserId, forceRefresh });
       if (!lineUserId) {
-        console.error('No LINE User ID available');
-        setError('LINE User ID not available. Please log in.');
         return;
       }
 
