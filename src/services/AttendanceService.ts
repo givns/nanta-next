@@ -98,19 +98,35 @@ export class AttendanceService {
   }
 
   private async getCachedUserData(employeeId: string): Promise<User | null> {
+    console.log(
+      'Attempting to get cached user data for employeeId:',
+      employeeId,
+    );
+
+    if (!employeeId) {
+      console.error('Empty employeeId provided to getCachedUserData');
+      return null;
+    }
+
     const cacheKey = `user:${employeeId}`;
     const cachedUser = await getCacheData(cacheKey);
 
     if (cachedUser) {
+      console.log('User found in cache');
       return JSON.parse(cachedUser);
     }
 
+    console.log('User not found in cache, fetching from database');
     const user = await this.prisma.user.findUnique({
       where: { employeeId },
       include: { department: true },
     });
+
     if (user) {
+      console.log('User found in database, caching user data');
       await setCacheData(cacheKey, JSON.stringify(user), USER_CACHE_TTL);
+    } else {
+      console.log('User not found in database');
     }
 
     return user;
@@ -298,6 +314,23 @@ export class AttendanceService {
         'Starting processAttendance with data:',
         JSON.stringify(attendanceData),
       );
+
+      if (!attendanceData.employeeId && attendanceData.lineUserId) {
+        console.log(
+          'employeeId not provided, attempting to find user by lineUserId',
+        );
+        const user = await this.prisma.user.findUnique({
+          where: { lineUserId: attendanceData.lineUserId },
+        });
+        if (user) {
+          attendanceData.employeeId = user.employeeId;
+        }
+      }
+
+      if (!attendanceData.employeeId) {
+        console.error('Unable to process attendance: No employeeId provided');
+        throw new Error('Employee ID is required');
+      }
 
       const user = await this.getCachedUserData(attendanceData.employeeId);
       console.log(

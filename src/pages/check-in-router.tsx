@@ -315,7 +315,17 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     async (newStatus: boolean) => {
       if (fullData && location) {
         try {
+          const employeeId = fullData.user.employeeId;
+          if (!employeeId) {
+            console.error('Employee ID is missing from fullData');
+            setFormError(
+              'Employee ID is missing. Please try logging in again.',
+            );
+            return;
+          }
+
           console.log('Sending check-in/out request with data:', {
+            employeeId,
             lineUserId,
             isCheckIn: newStatus,
             lat: location.lat,
@@ -323,6 +333,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           });
 
           const response = await axios.post('/api/check-in-out', {
+            employeeId,
             lineUserId,
             isCheckIn: newStatus,
             lat: location.lat,
