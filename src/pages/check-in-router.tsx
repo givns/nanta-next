@@ -315,14 +315,25 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     async (newStatus: boolean) => {
       if (fullData && location) {
         try {
-          console.log('Sending check-in/out request');
-          await axios.post('/api/check-in-out', {
+          console.log('Sending check-in/out request with data:', {
             lineUserId,
             isCheckIn: newStatus,
             lat: location.lat,
             lng: location.lng,
           });
-          console.log('Check-in/out request successful');
+
+          const response = await axios.post('/api/check-in-out', {
+            lineUserId,
+            isCheckIn: newStatus,
+            lat: location.lat,
+            lng: location.lng,
+          });
+
+          console.log(
+            'Check-in/out request successful. Response:',
+            response.data,
+          );
+
           setFullData((prevData) => ({
             ...prevData!,
             attendanceStatus: {
@@ -330,12 +341,24 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               isCheckingIn: !prevData!.attendanceStatus.isCheckingIn,
             },
           }));
+
           invalidateCache();
-          debouncedFetchData(true); // Force refresh after status change
-        } catch (error) {
+          console.log('Cache invalidated, fetching new data');
+          await debouncedFetchData(true); // Force refresh after status change
+          console.log('Data refresh completed');
+        } catch (error: any) {
           console.error('Error during check-in/out:', error);
-          setFormError('Failed to update status. Please try again.');
+          console.error('Error response:', error.response?.data);
+          setFormError(
+            `Failed to update status. ${error.response?.data?.error || error.message}`,
+          );
         }
+      } else {
+        console.error('Missing data for check-in/out:', {
+          fullData: !!fullData,
+          location,
+        });
+        setFormError('Missing data for check-in/out. Please try again.');
       }
     },
     [fullData, location, lineUserId, debouncedFetchData, invalidateCache],
