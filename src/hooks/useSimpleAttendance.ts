@@ -250,6 +250,8 @@ export const useSimpleAttendance = (
 
       const response = await axios.post('/api/check-in-out', {
         employeeId: userData.employeeId,
+        lineUserId: userData.lineUserId,
+        isCheckIn: attendanceStatus.isCheckingIn, // Add this line
         lat: location?.lat,
         lng: location?.lng,
       });

@@ -67,7 +67,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     checkInOutAllowance,
     checkInOut,
     fetchCheckInOutAllowance,
-    getCurrentLocation,
     refreshAttendanceStatus,
   } = useSimpleAttendance(userData, initialAttendanceStatus);
 

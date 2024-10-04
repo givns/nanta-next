@@ -334,7 +334,7 @@ export class AttendanceService {
       }
 
       const { isCheckIn, checkTime } = attendanceData;
-      const parsedCheckTime = toBangkokTime(new Date(checkTime));
+      const parsedCheckTime = new Date(checkTime);
       console.log(
         `Parsed check time in processAttendance: ${formatDateTime(parsedCheckTime, 'yyyy-MM-dd HH:mm:ss')}`,
       );
