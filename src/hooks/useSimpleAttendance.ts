@@ -122,9 +122,8 @@ export const useSimpleAttendance = (
       const position = await new Promise<GeolocationPosition>(
         (resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
-            timeout: 10000,
+            timeout: 20000,
             maximumAge: 0,
-            enableHighAccuracy: true,
           });
         },
       );
@@ -150,12 +149,14 @@ export const useSimpleAttendance = (
     } catch (error) {
       console.error('Error getting location:', error);
       setLocationError(
-        'Unable to get precise location. Please enable location services and try again.',
+        'Unable to get precise location. Using default location.',
       );
-      setLocation(null);
-      setAddress('');
-      setInPremises(false);
-      return null;
+      // Use a default location (e.g., company headquarters)
+      const defaultLocation = { lat: 13.50821, lng: 100.76405 };
+      setLocation(defaultLocation);
+      setAddress('Default location');
+      setInPremises(true);
+      return defaultLocation;
     }
   }, [isWithinPremises]);
 
@@ -217,6 +218,7 @@ export const useSimpleAttendance = (
             forceRefresh,
             lat: currentLocation?.lat,
             lng: currentLocation?.lng,
+            useDefaultLocation: !currentLocation,
           },
         });
         const { attendanceStatus, effectiveShift } = response.data;
