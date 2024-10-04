@@ -8,6 +8,23 @@ import {
 import { UserData } from '../types/user';
 import axios from 'axios';
 
+interface Premise {
+  lat: number;
+  lng: number;
+  radius: number;
+  name: string;
+}
+const PREMISES: Premise[] = [
+  { lat: 13.50821, lng: 100.76405, radius: 50, name: 'บริษัท นันตา ฟู้ด' },
+  { lat: 13.51444, lng: 100.70922, radius: 50, name: 'บริษัท ปัตตานี ฟู้ด' },
+  {
+    lat: 13.747920392683099,
+    lng: 100.63441771348242,
+    radius: 50,
+    name: 'สำนักงานใหญ่',
+  },
+];
+
 export const useSimpleAttendance = (
   userData: UserData,
   initialAttendanceStatus: AttendanceStatusInfo,
@@ -16,14 +33,47 @@ export const useSimpleAttendance = (
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
-  const [address] = useState<string>('');
-  const [inPremises] = useState(false);
+  const [address, setAddress] = useState<string>('');
+  const [inPremises, setInPremises] = useState(false);
   const [isOutsideShift] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [checkInOutAllowance, setCheckInOutAllowance] =
     useState<CheckInOutAllowance | null>(null);
-
   const isSubmittingRef = useRef(false);
+
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
+
+  const isWithinPremises = useCallback(
+    (lat: number, lng: number): Premise | null => {
+      const ERROR_MARGIN = 50; // 50 meters error margin
+      for (const premise of PREMISES) {
+        const distance = calculateDistance(lat, lng, premise.lat, premise.lng);
+        if (distance <= premise.radius + ERROR_MARGIN) {
+          return premise;
+        }
+      }
+      return null;
+    },
+    [],
+  );
 
   const getCurrentLocation = useCallback(async () => {
     if (!navigator.geolocation) {
@@ -49,6 +99,16 @@ export const useSimpleAttendance = (
 
       setLocation(newLocation);
       setLocationError(null);
+
+      const premise = isWithinPremises(newLocation.lat, newLocation.lng);
+      if (premise) {
+        setAddress(premise.name);
+        setInPremises(true);
+      } else {
+        setAddress('Unknown location');
+        setInPremises(false);
+      }
+
       return newLocation;
     } catch (error) {
       console.error('Error getting location:', error);
@@ -56,44 +116,47 @@ export const useSimpleAttendance = (
         'Unable to get precise location. Please enable location services and try again.',
       );
       setLocation(null);
+      setAddress('');
+      setInPremises(false);
       return null;
     }
-  }, []);
+  }, [isWithinPremises]);
 
-  useEffect(() => {
-    getCurrentLocation();
-  }, [getCurrentLocation]);
+  const hasLocationChangedSignificantly = useCallback(
+    (
+      prevLocation: { lat: number; lng: number } | null,
+      newLocation: { lat: number; lng: number },
+    ) => {
+      if (!prevLocation) return true;
+      const distance = calculateDistance(
+        prevLocation.lat,
+        prevLocation.lng,
+        newLocation.lat,
+        newLocation.lng,
+      );
+      const previousPremise = isWithinPremises(
+        prevLocation.lat,
+        prevLocation.lng,
+      );
+      const newPremise = isWithinPremises(newLocation.lat, newLocation.lng);
+      return distance > 10 || previousPremise !== newPremise;
+    },
+    [isWithinPremises],
+  );
 
   const fetchCheckInOutAllowance = useCallback(async () => {
-    console.log('Fetching check-in/out allowance'); // Debug log
+    console.log('Fetching check-in/out allowance');
 
     const currentLocation = await getCurrentLocation();
     if (!currentLocation) {
       setCheckInOutAllowance({
         allowed: false,
         reason: 'Location not available',
+        inPremises,
+        address,
       });
       return;
     }
-    // Check if location has changed significantly (e.g., more than 10 meters)
-    const hasLocationChangedSignificantly = (
-      prevLocation: { lat: number; lng: number } | null,
-      newLocation: { lat: number; lng: number },
-    ) => {
-      if (!prevLocation) return true;
-      const R = 6371e3; // Earth's radius in meters
-      const dLat = ((newLocation.lat - prevLocation.lat) * Math.PI) / 180;
-      const dLon = ((newLocation.lng - prevLocation.lng) * Math.PI) / 180;
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos((prevLocation.lat * Math.PI) / 180) *
-          Math.cos((newLocation.lat * Math.PI) / 180) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = R * c;
-      return distance > 10; // 10 meters threshold
-    };
 
     if (!hasLocationChangedSignificantly(location, currentLocation)) {
       return; // Don't refetch if location hasn't changed significantly
@@ -111,15 +174,22 @@ export const useSimpleAttendance = (
         },
       );
       setCheckInOutAllowance(response.data);
-      setLocation(currentLocation); // Update stored location
+      setLocation(currentLocation);
     } catch (error) {
       console.error('Error checking if check-in/out is allowed:', error);
       setCheckInOutAllowance({
         allowed: false,
         reason: 'Error checking permissions',
+        inPremises,
+        address,
       });
     }
-  }, [userData.employeeId, getCurrentLocation]);
+  }, [
+    userData.employeeId,
+    getCurrentLocation,
+    hasLocationChangedSignificantly,
+    location,
+  ]);
 
   useEffect(() => {
     console.log('Setting up check-in/out allowance fetch interval'); // Debug log

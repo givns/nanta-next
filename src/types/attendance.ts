@@ -233,14 +233,16 @@ export interface ManualEntryData {
   reason: string;
 }
 
-export type CheckInOutAllowance = {
+export interface CheckInOutAllowance {
   allowed: boolean;
   reason?: string;
   isLate?: boolean;
-  isOutsideShift?: boolean;
   isOvertime?: boolean;
   countdown?: number;
-};
+  isOutsideShift?: boolean;
+  inPremises: boolean;
+  address: string;
+}
 
 export interface CheckInFormData {
   employeeId: string;

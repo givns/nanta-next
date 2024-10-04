@@ -132,6 +132,23 @@ export class AttendanceService {
     const now = getCurrentTime();
     console.log(`Current time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`);
 
+    // Check if user is within premises
+    const premise = this.shiftManagementService.isWithinPremises(
+      location.lat,
+      location.lng,
+    );
+    const inPremises = !!premise;
+    const address = premise ? premise.name : 'Unknown location';
+    // If not in premises, deny check-in/out
+    if (!inPremises) {
+      return {
+        allowed: false,
+        reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
+        inPremises: false,
+        address,
+      };
+    }
+
     // Check holiday
     const isHoliday = await this.holidayService.isHoliday(
       now,
@@ -143,6 +160,8 @@ export class AttendanceService {
         allowed: true,
         reason: 'วันหยุด: การลงเวลาจะถูกบันทึกเป็นการทำงานล่วงเวลา',
         isOvertime: true,
+        inPremises,
+        address,
       };
 
     // Check if user is on leave
@@ -151,7 +170,12 @@ export class AttendanceService {
       now,
     );
     if (leaveRequest && leaveRequest.status === 'approved') {
-      return { allowed: false, reason: 'User is on approved leave' };
+      return {
+        allowed: false,
+        reason: 'User is on approved leave',
+        inPremises,
+        address,
+      };
     }
     console.log('Leave request:', leaveRequest);
     console.log('Leave request status:', leaveRequest?.status);
@@ -165,6 +189,8 @@ export class AttendanceService {
       return {
         allowed: false,
         reason: 'No shift data available for the user',
+        inPremises,
+        address,
       };
     }
 
@@ -185,6 +211,8 @@ export class AttendanceService {
       return {
         allowed: false,
         reason: 'วันหยุด: การลงเวลาจะต้องได้รับการอนุมัติ',
+        inPremises,
+        address,
       };
     }
 
@@ -212,6 +240,8 @@ export class AttendanceService {
         allowed: false,
         reason: `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
         countdown: minutesUntilAllowed,
+        inPremises,
+        address,
       };
     }
 
@@ -220,6 +250,8 @@ export class AttendanceService {
         allowed: true,
         reason: 'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
         isOvertime: false,
+        inPremises,
+        address,
       };
     }
 
@@ -229,6 +261,8 @@ export class AttendanceService {
           allowed: true,
           reason: 'คุณกำลังลงเวลานอกกะการทำงาน (ทำงานล่วงเวลา)',
           isOvertime: true,
+          inPremises,
+          address,
         };
       } else if (isBefore(now, shiftStart)) {
         return {
@@ -236,12 +270,16 @@ export class AttendanceService {
           reason:
             'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
           isOvertime: false,
+          inPremises,
+          address,
         };
       } else {
         return {
           allowed: false,
           reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกช่วงเวลาทำงาน',
           isOutsideShift: true,
+          inPremises,
+          address,
         };
       }
     }
@@ -252,6 +290,8 @@ export class AttendanceService {
         reason: 'คุณกำลังลงเวลาเข้างานสาย',
         isLate: true,
         isOvertime: false,
+        inPremises,
+        address,
       };
     }
     return {
@@ -259,6 +299,8 @@ export class AttendanceService {
       isLate,
       isOvertime,
       countdown: minutesUntilAllowed,
+      inPremises,
+      address,
     };
   }
 

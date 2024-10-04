@@ -119,6 +119,8 @@ export const useAttendance = (
       setCheckInOutAllowance({
         allowed: false,
         reason: 'Location not available',
+        inPremises,
+        address,
       });
       return;
     }
@@ -164,6 +166,8 @@ export const useAttendance = (
       setCheckInOutAllowance({
         allowed: false,
         reason: 'Error checking permissions',
+        inPremises,
+        address,
       });
     }
   }, [userData.employeeId, getCurrentLocation]);
