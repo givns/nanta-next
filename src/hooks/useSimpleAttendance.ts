@@ -29,7 +29,8 @@ export const useSimpleAttendance = (
   userData: UserData,
   initialAttendanceStatus: AttendanceStatusInfo,
 ): AttendanceHookReturn => {
-  const [attendanceStatus] = useState(initialAttendanceStatus);
+  const [attendanceStatus, setAttendanceStatus] =
+    useState<AttendanceStatusInfo>(initialAttendanceStatus);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
@@ -41,6 +42,39 @@ export const useSimpleAttendance = (
     useState<CheckInOutAllowance | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const isSubmittingRef = useRef(false);
+
+  const processAttendanceStatus = useCallback(
+    (status: AttendanceStatusInfo) => {
+      console.log('Processing attendance status', status); // Debug log
+
+      if (status.latestAttendance) {
+        const {
+          checkInTime,
+          checkOutTime,
+          status: attendanceStatus,
+        } = status.latestAttendance;
+        status.detailedStatus = attendanceStatus;
+        status.isCheckingIn = !!checkInTime && !checkOutTime;
+        if (!checkInTime && !checkOutTime) {
+          status.isCheckingIn = true;
+          status.detailedStatus = 'pending';
+        } else if (checkInTime && !checkOutTime) {
+          status.isCheckingIn = false;
+          status.detailedStatus = 'checked-in';
+        } else if (checkInTime && checkOutTime) {
+          status.isCheckingIn = true;
+          status.detailedStatus = 'checked-out';
+        }
+      }
+      return status;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    console.log('Setting initial attendance status'); // Debug log
+    setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
+  }, [initialAttendanceStatus, processAttendanceStatus]);
 
   const calculateDistance = (
     lat1: number,
