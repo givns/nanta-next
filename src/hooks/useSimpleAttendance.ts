@@ -7,7 +7,6 @@ import {
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import axios from 'axios';
-import { AppErrors } from '@/utils/errorHandler';
 
 interface Premise {
   lat: number;
@@ -200,7 +199,7 @@ export const useSimpleAttendance = (
   }, [userData.employeeId, getCurrentLocation]);
 
   useEffect(() => {
-    console.log('Setting up check-in/out allowance fetch interval'); // Debug log
+    console.log('Setting up check-in/out allowance fetch interval');
     fetchCheckInOutAllowance();
     const intervalId = setInterval(fetchCheckInOutAllowance, 60000);
     return () => clearInterval(intervalId);
@@ -235,6 +234,46 @@ export const useSimpleAttendance = (
     [userData.lineUserId, processAttendanceStatus, getCurrentLocation],
   );
 
+  const checkInOut = useCallback(async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsLoading(true);
+
+    try {
+      await fetchCheckInOutAllowance();
+
+      if (!checkInOutAllowance?.allowed) {
+        throw new Error('Check-in/out not allowed');
+      }
+
+      const response = await axios.post('/api/check-in-out', {
+        employeeId: userData.employeeId,
+        lat: location?.lat,
+        lng: location?.lng,
+      });
+
+      setAttendanceStatus((prevStatus) => ({
+        ...prevStatus,
+        isCheckingIn: !prevStatus.isCheckingIn,
+        latestAttendance: response.data.latestAttendance,
+      }));
+
+      // Refresh the check-in/out allowance after successful check-in/out
+      await fetchCheckInOutAllowance();
+    } catch (error) {
+      console.error('Error during check-in/out:', error);
+      // Handle error (e.g., show an error message to the user)
+    } finally {
+      isSubmittingRef.current = false;
+      setIsLoading(false);
+    }
+  }, [
+    userData.employeeId,
+    location,
+    checkInOutAllowance,
+    fetchCheckInOutAllowance,
+  ]);
+
   useEffect(() => {
     console.log('Fetching initial data');
     getAttendanceStatus().catch((error) => {
@@ -259,9 +298,10 @@ export const useSimpleAttendance = (
     address,
     inPremises,
     isOutsideShift,
-    checkInOut: async () => {},
+    checkInOut,
     checkInOutAllowance,
     fetchCheckInOutAllowance,
-    isSubmitting: false,
+    refreshAttendanceStatus: getAttendanceStatus,
+    isSubmitting: isSubmittingRef.current,
   };
 };

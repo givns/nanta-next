@@ -11,7 +11,6 @@ import {
 import { UserData } from '../types/user';
 import { formatDateTime, getCurrentTime } from '../utils/dateUtils';
 import { debounce, DebouncedFunc } from 'lodash';
-import { AppErrors } from '../utils/errorHandler';
 
 export const useAttendance = (
   userData: UserData,
@@ -286,14 +285,10 @@ export const useAttendance = (
   );
 
   useEffect(() => {
-    console.log('Fetching initial data'); // Debug log
+    console.log('Fetching initial data');
     getAttendanceStatus().catch((error) => {
       console.error('Error fetching initial data:', error);
-      setError(
-        error instanceof AppErrors
-          ? error.message
-          : 'An unexpected error occurred',
-      );
+      setError('An unexpected error occurred');
     });
   }, [getAttendanceStatus]);
 

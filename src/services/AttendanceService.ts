@@ -52,7 +52,6 @@ import {
   setCacheData,
   invalidateCachePattern,
 } from '../lib/serverCache';
-import { AppErrors } from '@/utils/errorHandler';
 import { ErrorCode, AppError } from '../types/errors';
 import { cacheService } from './CacheService';
 
@@ -309,7 +308,7 @@ export class AttendanceService {
   ): Promise<ProcessedAttendance> {
     try {
       const user = await this.getCachedUserData(attendanceData.employeeId);
-      if (!user) throw new AppErrors('User not found', 404);
+      if (!user) throw new Error('User not found');
 
       const { isCheckIn, checkTime } = attendanceData;
       const parsedCheckTime = toBangkokTime(new Date(checkTime));
@@ -331,7 +330,7 @@ export class AttendanceService {
           attendanceDate,
         );
       if (!shiftData || !shiftData.effectiveShift)
-        throw new AppErrors('Effective shift not found', 404);
+        throw new Error('Effective shift not found');
 
       const { effectiveShift } = shiftData;
 
@@ -513,7 +512,7 @@ export class AttendanceService {
       return processedAttendance;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      throw new AppErrors('Error processing attendance', 500);
+      throw new Error('Error processing attendance');
     }
   }
 

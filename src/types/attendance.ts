@@ -88,6 +88,7 @@ export interface AttendanceHookReturn {
   checkInOut: (data: AttendanceData) => Promise<any>;
   checkInOutAllowance: CheckInOutAllowance | null;
   fetchCheckInOutAllowance: () => Promise<void>;
+  refreshAttendanceStatus: (forceRefresh?: boolean) => Promise<any>;
   isSubmitting: boolean;
 }
 
