@@ -259,7 +259,7 @@ export const useSimpleAttendance = (
     location,
     locationError,
     getCurrentLocation,
-    effectiveShift,
+    effectiveShift: null,
     address,
     inPremises,
     isOutsideShift,
