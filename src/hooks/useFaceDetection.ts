@@ -1,5 +1,4 @@
 // hooks/useFaceDetection.ts
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
@@ -35,15 +34,40 @@ export const useFaceDetection = (
     const loadModel = async () => {
       setState((prev) => ({ ...prev, isModelLoading: true }));
 
-      await tf.ready();
-      const loadedModel = await faceDetection.createDetector(
-        faceDetection.SupportedModels.MediaPipeFaceDetector,
-        { runtime: 'tfjs', modelType: 'short' },
-      );
+      try {
+        await tf.ready();
+        console.log('TensorFlow.js initialized successfully');
+        console.log('Available backends:', tf.engine().backendNames());
 
-      if (!isCancelled) {
-        setModel(loadedModel);
-        setState((prev) => ({ ...prev, isModelLoading: false }));
+        // Try to set WebGL backend, fall back to CPU if not available
+        if (!tf.getBackend()) {
+          try {
+            await tf.setBackend('webgl');
+          } catch (e) {
+            console.warn('WebGL not available, falling back to CPU', e);
+            await tf.setBackend('cpu');
+          }
+        }
+
+        const loadedModel = await faceDetection.createDetector(
+          faceDetection.SupportedModels.MediaPipeFaceDetector,
+          { runtime: 'tfjs', modelType: 'short' },
+        );
+
+        if (!isCancelled) {
+          setModel(loadedModel);
+          setState((prev) => ({ ...prev, isModelLoading: false }));
+        }
+      } catch (error) {
+        console.error(
+          'Error initializing TensorFlow.js or loading the model:',
+          error,
+        );
+        setState((prev) => ({
+          ...prev,
+          isModelLoading: false,
+          message: 'Error loading face detection model',
+        }));
       }
     };
 
@@ -79,34 +103,40 @@ export const useFaceDetection = (
       img.onload = resolve;
     });
 
-    const detections = await model.estimateFaces(img, {
-      flipHorizontal: false,
-    });
+    try {
+      const detections = await model.estimateFaces(img, {
+        flipHorizontal: false,
+      });
 
-    setState((prev) => {
-      const newCount = detections.length > 0 ? prev.faceDetectionCount + 1 : 0;
-      const newMessage =
-        detections.length > 0
-          ? 'ระบบตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...'
-          : 'ไม่พบใบหน้าของพนักงาน..';
+      setState((prev) => {
+        const newCount =
+          detections.length > 0 ? prev.faceDetectionCount + 1 : 0;
+        const newMessage =
+          detections.length > 0
+            ? 'ระบบตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...'
+            : 'ไม่พบใบหน้าของพนักงาน..';
 
-      if (newCount >= captureThreshold) {
-        capturePhoto();
+        if (newCount >= captureThreshold) {
+          capturePhoto();
+          return {
+            ...prev,
+            faceDetected: true,
+            faceDetectionCount: newCount,
+            message: 'ระบบบันทึกรูปภาพแล้ว',
+          };
+        }
+
         return {
           ...prev,
-          faceDetected: true,
+          faceDetected: detections.length > 0,
           faceDetectionCount: newCount,
-          message: 'ระบบบันทึกรูปภาพแล้ว',
+          message: newMessage,
         };
-      }
-
-      return {
-        ...prev,
-        faceDetected: detections.length > 0,
-        faceDetectionCount: newCount,
-        message: newMessage,
-      };
-    });
+      });
+    } catch (error) {
+      console.error('Error detecting face:', error);
+      setState((prev) => ({ ...prev, message: 'Error detecting face' }));
+    }
 
     animationFrameRef.current = requestAnimationFrame(detectFace);
   }, [model, captureThreshold, capturePhoto, state.photo]);
