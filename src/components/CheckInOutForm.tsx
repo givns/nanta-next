@@ -22,7 +22,6 @@ import ErrorBoundary from './ErrorBoundary';
 import { parseISO, isValid } from 'date-fns';
 import { formatTime, getCurrentTime } from '../utils/dateUtils';
 import { useSimpleAttendance } from '../hooks/useSimpleAttendance';
-import { on } from 'events';
 
 interface CheckInOutFormProps {
   onCloseWindow: () => void;
@@ -56,6 +55,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [, setIsCameraActive] = useState(false);
   const [locationError] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState(15);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     attendanceStatus,
@@ -68,6 +70,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     getCurrentLocation,
     refreshAttendanceStatus,
   } = useSimpleAttendance(userData, initialAttendanceStatus);
+
+  const memoizedUserShiftInfo = useMemo(
+    () => (
+      <MemoizedUserShiftInfo
+        userData={userData}
+        attendanceStatus={attendanceStatus}
+        effectiveShift={effectiveShift}
+        isOutsideShift={isOutsideShift}
+      />
+    ),
+    [userData, attendanceStatus, effectiveShift, isOutsideShift],
+  );
 
   // Reset function to clear any stuck states
   const resetStates = useCallback(() => {
@@ -324,36 +338,70 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     return true;
   }, [effectiveShift]);
 
+  useEffect(() => {
+    if (step === 'info') {
+      setTimeRemaining(15);
+      timerRef.current = setInterval(() => {
+        setTimeRemaining((prevTime) => {
+          if (prevTime <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            onCloseWindow();
+            return 0;
+          }
+          return prevTime - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [step, onCloseWindow]);
+
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
       console.log('handleAction called with:', action);
-      await fetchCheckInOutAllowance();
-      const currentLocation = await getCurrentLocation();
-      console.log('Current location:', currentLocation);
-      if (!currentLocation) {
-        setError(
-          'Unable to get location. Please enable location services and try again.',
-        );
-        return;
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
 
-      if (action === 'checkOut' && !confirmEarlyCheckOut()) {
-        return;
-      }
-      // Use the existing checkInOutAllowance
-      if (checkInOutAllowance?.allowed) {
-        setStep('camera');
-        setIsCameraActive(true);
-        resetDetection();
-      } else {
-        setError(
-          checkInOutAllowance?.reason ||
-            'Check-in/out is not allowed at this time.',
-        );
+      try {
+        // Determine if it's a check-in or check-out based on the current attendance status
+        const isCheckIn = attendanceStatus.isCheckingIn;
+        console.log(`Action is ${isCheckIn ? 'check-in' : 'check-out'}`);
+
+        if (action === 'checkOut' && !confirmEarlyCheckOut()) {
+          return;
+        }
+
+        // Use the existing checkInOutAllowance without fetching again
+        if (checkInOutAllowance?.allowed) {
+          setStep('camera');
+          setIsCameraActive(true);
+          resetDetection();
+        } else {
+          setError(
+            checkInOutAllowance?.reason ||
+              'Check-in/out is not allowed at this time.',
+          );
+        }
+      } catch (error) {
+        console.error('Error in handleAction:', error);
+        setError('An unexpected error occurred. Please try again.');
+      } finally {
+        setIsLoading(false);
       }
     },
     [
-      getCurrentLocation,
+      attendanceStatus.isCheckingIn,
       confirmEarlyCheckOut,
       checkInOutAllowance,
       setStep,
@@ -435,6 +483,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     fetchCheckInOutAllowance,
     isActionButtonReady,
   ]);
+
   const renderStep1 = useMemo(
     () => (
       <div className="flex flex-col h-full">
@@ -446,7 +495,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             isOutsideShift={isOutsideShift}
           />
         </ErrorBoundary>
-        <div className="flex-shrink-0 mt-4">{renderActionButton()}</div>
+        <div className="flex-shrink-0 mt-4">
+          {renderActionButton()}
+          <p className="text-center mt-2">
+            ท่านมีเวลาในการทำรายการ {timeRemaining} วินาที
+          </p>
+        </div>
       </div>
     ),
     [
@@ -455,6 +509,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       effectiveShift,
       isOutsideShift,
       renderActionButton,
+      timeRemaining,
     ],
   );
 

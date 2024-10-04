@@ -77,8 +77,6 @@ function validateUpdatedStatus(status: any): boolean {
   if (!status || typeof status !== 'object') return false;
   if (!status.latestAttendance || typeof status.latestAttendance !== 'object')
     return false;
-
-  // Add more specific checks as needed
   return true;
 }
 

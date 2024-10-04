@@ -97,39 +97,27 @@ export class AttendanceService {
     return updatedUser;
   }
 
+  // AttendanceService.ts
+
   private async getCachedUserData(employeeId: string): Promise<User | null> {
-    console.log(
-      'Attempting to get cached user data for employeeId:',
-      employeeId,
-    );
-
-    if (!employeeId) {
-      console.error('Empty employeeId provided to getCachedUserData');
-      return null;
-    }
-
     const cacheKey = `user:${employeeId}`;
-    const cachedUser = await getCacheData(cacheKey);
+    let cachedUser = await getCacheData(cacheKey);
 
-    if (cachedUser) {
-      console.log('User found in cache');
-      return JSON.parse(cachedUser);
+    if (!cachedUser) {
+      console.log('User not found in cache, fetching from database');
+      const user = await this.prisma.user.findUnique({
+        where: { employeeId },
+        include: { department: true },
+      });
+
+      if (user) {
+        console.log('User found in database, caching user data');
+        await setCacheData(cacheKey, JSON.stringify(user), USER_CACHE_TTL);
+        cachedUser = JSON.stringify(user);
+      }
     }
 
-    console.log('User not found in cache, fetching from database');
-    const user = await this.prisma.user.findUnique({
-      where: { employeeId },
-      include: { department: true },
-    });
-
-    if (user) {
-      console.log('User found in database, caching user data');
-      await setCacheData(cacheKey, JSON.stringify(user), USER_CACHE_TTL);
-    } else {
-      console.log('User not found in database');
-    }
-
-    return user;
+    return cachedUser ? JSON.parse(cachedUser) : null;
   }
 
   public async isCheckInOutAllowed(
