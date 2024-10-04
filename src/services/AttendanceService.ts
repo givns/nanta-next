@@ -129,7 +129,7 @@ export class AttendanceService {
     }
 
     const now = getCurrentTime();
-
+    console.log('Current time:', formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'));
     // Check if user is within premises
     const premise = this.shiftManagementService.isWithinPremises(
       location.lat,
