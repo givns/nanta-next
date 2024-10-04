@@ -9,6 +9,7 @@ import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { createNotificationService } from '@/services/NotificationService';
+import { cacheService } from '@/services/CacheService';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
@@ -18,17 +19,13 @@ export const leaveServiceServer = createLeaveServiceServer(
   notificationService,
 );
 const shiftService = new ShiftManagementService(prisma);
-
 const timeEntryService = new TimeEntryService(prisma, shiftService);
-
 const overtimeService = new OvertimeServiceServer(
   prisma,
   timeEntryService,
   notificationService,
 );
-
 shiftService.setOvertimeService(overtimeService);
-
 const attendanceService = new AttendanceService(
   prisma,
   shiftService,
@@ -70,74 +67,100 @@ export default async function handler(
   console.log(`Received location: lat ${latitude}, lng ${longitude}`);
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { lineUserId },
-      include: {
-        department: true,
-        potentialOvertimes: true,
-      },
-    });
+    const cacheKey = `user-status:${lineUserId}`;
+    let cachedData = null;
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    if (cacheService) {
+      cachedData = await cacheService.get(cacheKey);
     }
 
-    const today = new Date();
+    let responseData;
 
-    const [shiftData, attendanceStatus, approvedOvertime, checkInOutAllowance] =
-      await Promise.all([
-        shiftService.getEffectiveShiftAndStatus(user.employeeId, today),
-        attendanceService.getLatestAttendanceStatus(user.employeeId),
-        overtimeService.getApprovedOvertimeRequest(user.employeeId, today),
-        latitude !== undefined && longitude !== undefined
-          ? attendanceService.isCheckInOutAllowed(user.employeeId, {
+    if (cachedData) {
+      responseData = JSON.parse(cachedData);
+      console.log('Using cached data for user status');
+    } else {
+      const user = await prisma.user.findUnique({
+        where: { lineUserId },
+        include: {
+          department: true,
+          potentialOvertimes: true,
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const today = new Date();
+
+      const [shiftData, attendanceStatus, approvedOvertime] = await Promise.all(
+        [
+          shiftService.getEffectiveShiftAndStatus(user.employeeId, today),
+          attendanceService.getLatestAttendanceStatus(user.employeeId),
+          overtimeService.getApprovedOvertimeRequest(user.employeeId, today),
+        ],
+      );
+
+      if (!shiftData) {
+        return res.status(404).json({ error: 'Shift data not found' });
+      }
+
+      responseData = {
+        user: {
+          employeeId: user.employeeId,
+          name: user.name,
+          lineUserId: user.lineUserId,
+          nickname: user.nickname,
+          departmentId: user.departmentId,
+          departmentName: user.departmentName || '',
+          role: user.role as UserRole,
+          profilePictureUrl: user.profilePictureUrl,
+          shiftId: shiftData.effectiveShift?.id || null,
+          shiftCode: shiftData.effectiveShift?.shiftCode || null,
+          overtimeHours: user.overtimeHours,
+          potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
+            ...overtime,
+            type: overtime.type as
+              | 'early-check-in'
+              | 'late-check-out'
+              | 'day-off',
+            status: overtime.status as 'approved' | 'pending' | 'rejected',
+            periods: overtime.periods as
+              | { start: string; end: string }[]
+              | undefined,
+            reviewedBy: overtime.reviewedBy || undefined,
+            reviewedAt: overtime.reviewedAt ?? undefined,
+          })),
+          sickLeaveBalance: user.sickLeaveBalance,
+          businessLeaveBalance: user.businessLeaveBalance,
+          annualLeaveBalance: user.annualLeaveBalance,
+          createdAt: user.createdAt ?? new Date(),
+          updatedAt: user.updatedAt ?? new Date(),
+        },
+        attendanceStatus,
+        effectiveShift: shiftData.effectiveShift,
+        approvedOvertime,
+      };
+
+      if (cacheService) {
+        await cacheService.set(cacheKey, JSON.stringify(responseData), 300); // Cache for 5 minutes
+      }
+    }
+
+    // Always fetch fresh check-in/out allowance
+    const checkInOutAllowance =
+      latitude !== undefined && longitude !== undefined
+        ? await attendanceService.isCheckInOutAllowed(
+            responseData.user.employeeId,
+            {
               lat: latitude,
               lng: longitude,
-            })
-          : { allowed: true, reason: 'Location not provided' },
-      ]);
+            },
+          )
+        : { allowed: true, reason: 'Location not provided' };
 
-    if (!shiftData) {
-      return res.status(404).json({ error: 'Shift data not found' });
-    }
-
-    const responseData = {
-      user: {
-        employeeId: user.employeeId,
-        name: user.name,
-        lineUserId: user.lineUserId,
-        nickname: user.nickname,
-        departmentId: user.departmentId,
-        departmentName: user.departmentName || '',
-        role: user.role as UserRole,
-        profilePictureUrl: user.profilePictureUrl,
-        shiftId: shiftData.effectiveShift?.id || null,
-        shiftCode: shiftData.effectiveShift?.shiftCode || null,
-        overtimeHours: user.overtimeHours,
-        potentialOvertimes: user.potentialOvertimes.map((overtime) => ({
-          ...overtime,
-          type: overtime.type as
-            | 'early-check-in'
-            | 'late-check-out'
-            | 'day-off',
-          status: overtime.status as 'approved' | 'pending' | 'rejected',
-          periods: overtime.periods as
-            | { start: string; end: string }[]
-            | undefined,
-          reviewedBy: overtime.reviewedBy || undefined,
-          reviewedAt: overtime.reviewedAt ?? undefined,
-        })),
-        sickLeaveBalance: user.sickLeaveBalance,
-        businessLeaveBalance: user.businessLeaveBalance,
-        annualLeaveBalance: user.annualLeaveBalance,
-        createdAt: user.createdAt ?? new Date(),
-        updatedAt: user.updatedAt ?? new Date(),
-      },
-      attendanceStatus,
-      effectiveShift: shiftData.effectiveShift,
-      approvedOvertime,
-      checkInOutAllowance,
-    };
+    responseData.checkInOutAllowance = checkInOutAllowance;
 
     res.status(200).json(responseData);
   } catch (error) {

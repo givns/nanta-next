@@ -41,12 +41,7 @@ import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
 import { UserRole } from '../types/enum';
 import { TimeEntryService } from './TimeEntryService';
-import {
-  formatDateTime,
-  formatTime,
-  getCurrentTime,
-  toBangkokTime,
-} from '../utils/dateUtils';
+import { formatDateTime, formatTime, getCurrentTime } from '../utils/dateUtils';
 import {
   getCacheData,
   setCacheData,
