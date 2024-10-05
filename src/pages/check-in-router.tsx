@@ -95,12 +95,13 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     initialAttendanceStatus,
   );
 
+  console.log('useSimpleAttendance result:', {
+    attendanceStatus,
+    effectiveShift,
+  });
+
   useEffect(() => {
-    if (effectiveShift) {
-      console.log('Effective shift:', effectiveShift);
-    } else {
-      console.warn('Effective shift is undefined');
-    }
+    console.log('Effect in check-in-router - effectiveShift:', effectiveShift);
   }, [effectiveShift]);
 
   const handleStatusChange = useCallback(

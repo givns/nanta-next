@@ -1,5 +1,5 @@
 // hooks/useSimpleAttendance.ts
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AttendanceStatusInfo,
   AttendanceHookReturn,
@@ -8,6 +8,7 @@ import {
   ShiftData,
 } from '../types/attendance';
 import axios from 'axios';
+import { debounce } from 'lodash';
 
 interface Premise {
   lat: number;
@@ -176,6 +177,8 @@ export const useSimpleAttendance = (
           },
         });
 
+        console.log('API response:', response.data); // Log the entire response
+
         setAttendanceStatus(
           processAttendanceStatus(response.data.attendanceStatus),
         );
@@ -192,17 +195,33 @@ export const useSimpleAttendance = (
     [employeeId, getCurrentLocation, processAttendanceStatus],
   );
 
-  useEffect(() => {
-    if (employeeId) {
-      getAttendanceStatus();
-    }
-  }, [employeeId, getCurrentLocation, getAttendanceStatus]);
+  const debouncedGetAttendanceStatus = useMemo(
+    () =>
+      debounce((forceRefresh: boolean) => {
+        console.log('Debounced fetch of attendance status');
+        getAttendanceStatus(forceRefresh).catch((error) => {
+          console.error('Error fetching attendance status:', error);
+          setError('An unexpected error occurred');
+        });
+      }, 1000), // 1000ms debounce time
+    [getAttendanceStatus],
+  );
 
   useEffect(() => {
     if (employeeId) {
-      getAttendanceStatus();
+      console.log('Triggering debounced fetch of attendance status');
+      debouncedGetAttendanceStatus(false);
     }
-  }, [employeeId, getAttendanceStatus]);
+
+    // Cleanup function to cancel any pending debounced calls when the component unmounts or employeeId changes
+    return () => {
+      debouncedGetAttendanceStatus.cancel();
+    };
+  }, [employeeId, debouncedGetAttendanceStatus]);
+
+  useEffect(() => {
+    console.log('effectiveShift changed:', effectiveShift);
+  }, [effectiveShift]);
 
   const checkInOut = useCallback(async () => {
     if (isSubmittingRef.current) return;
@@ -246,20 +265,6 @@ export const useSimpleAttendance = (
     getAttendanceStatus,
     location?.lat,
     location?.lng,
-  ]);
-
-  useEffect(() => {
-    if (employeeId && (!initialAttendanceStatus || !effectiveShift)) {
-      getAttendanceStatus().catch((error) => {
-        console.error('Error fetching initial data:', error);
-        setError('An unexpected error occurred');
-      });
-    }
-  }, [
-    employeeId,
-    initialAttendanceStatus,
-    effectiveShift,
-    getAttendanceStatus,
   ]);
 
   return {
