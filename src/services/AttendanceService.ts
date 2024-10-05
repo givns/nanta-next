@@ -573,22 +573,19 @@ export class AttendanceService {
 
     if (cachedStatus) {
       const parsedStatus = JSON.parse(cachedStatus);
-      // Check if the cached data is still valid
-      if (parsedStatus.latestAttendance) {
-        const latestAttendance = await this.getLatestAttendance(employeeId);
-        if (
-          !latestAttendance ||
-          latestAttendance.id !== parsedStatus.latestAttendance.id
-        ) {
-          // If the latest attendance in the database doesn't match the cached one, fetch fresh data
-          return this.fetchLatestAttendanceStatus(employeeId);
-        }
+      const cacheAge = Date.now() - parsedStatus.timestamp;
+      if (cacheAge < 5 * 60 * 1000) {
+        // 5 minutes
+        return parsedStatus;
       }
-      return parsedStatus;
     }
 
     const status = await this.fetchLatestAttendanceStatus(employeeId);
-    await setCacheData(cacheKey, JSON.stringify(status), ATTENDANCE_CACHE_TTL);
+    await setCacheData(
+      cacheKey,
+      JSON.stringify({ ...status, timestamp: Date.now() }),
+      ATTENDANCE_CACHE_TTL,
+    );
     return status;
   }
 

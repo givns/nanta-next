@@ -86,6 +86,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     console.log('States reset');
   }, []);
 
+  useEffect(() => {
+    if (effectiveShift) {
+      console.log('Effective shift:', effectiveShift);
+    } else {
+      console.log('Effective shift is not available');
+    }
+  }, [effectiveShift]);
+
   // Use effect to reset states if stuck in submitting for too long
   useEffect(() => {
     if (isSubmitting) {

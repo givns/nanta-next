@@ -177,12 +177,12 @@ export const useSimpleAttendance = (
           },
         });
 
-        console.log('API response:', response.data); // Log the entire response
+        console.log('API response:', response.data);
 
         setAttendanceStatus(
           processAttendanceStatus(response.data.attendanceStatus),
         );
-        setEffectiveShift(response.data.effectiveShift);
+        setEffectiveShift(response.data.effectiveShift || null);
         setCheckInOutAllowance(response.data.checkInOutAllowance);
         setAddress(response.data.address);
       } catch (error) {
@@ -196,28 +196,23 @@ export const useSimpleAttendance = (
   );
 
   const debouncedGetAttendanceStatus = useMemo(
-    () =>
-      debounce((forceRefresh: boolean) => {
-        console.log('Debounced fetch of attendance status');
-        getAttendanceStatus(forceRefresh).catch((error) => {
-          console.error('Error fetching attendance status:', error);
-          setError('An unexpected error occurred');
-        });
-      }, 1000), // 1000ms debounce time
+    () => debounce(getAttendanceStatus, 1000),
     [getAttendanceStatus],
   );
 
   useEffect(() => {
-    if (employeeId) {
-      console.log('Triggering debounced fetch of attendance status');
+    if (employeeId && (!attendanceStatus || !effectiveShift)) {
       debouncedGetAttendanceStatus(false);
     }
-
-    // Cleanup function to cancel any pending debounced calls when the component unmounts or employeeId changes
     return () => {
       debouncedGetAttendanceStatus.cancel();
     };
-  }, [employeeId, debouncedGetAttendanceStatus]);
+  }, [
+    employeeId,
+    attendanceStatus,
+    effectiveShift,
+    debouncedGetAttendanceStatus,
+  ]);
 
   useEffect(() => {
     console.log('effectiveShift changed:', effectiveShift);

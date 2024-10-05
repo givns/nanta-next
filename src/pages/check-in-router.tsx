@@ -57,21 +57,12 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         const userResponse = await axios.get(
           `/api/user-data?lineUserId=${lineUserId}`,
         );
-        const attendanceResponse = await axios.get(
-          `/api/attendance-status?lineUserId=${lineUserId}`,
-        );
-
         const parsedUserData = UserDataSchema.parse(userResponse.data.user);
-        const parsedAttendanceData = ResponseDataSchema.parse(
-          attendanceResponse.data,
-        );
-
         setUserData(parseUserData(parsedUserData));
-        setInitialAttendanceStatus(parsedAttendanceData.attendanceStatus);
+        setIsLoading(false);
       } catch (error) {
         console.error('Error fetching initial data:', error);
         setError('Failed to fetch initial data');
-      } finally {
         setIsLoading(false);
       }
     };

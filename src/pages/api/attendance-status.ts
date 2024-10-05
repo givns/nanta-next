@@ -85,6 +85,7 @@ export default async function handler(
       responseData = await cacheService.getWithSWR(
         cacheKey,
         async () => {
+          console.log(`Cache miss for key: ${cacheKey}`);
           const [shiftData, attendanceStatus, approvedOvertime] =
             await Promise.all([
               shiftService.getEffectiveShiftAndStatus(
@@ -102,21 +103,25 @@ export default async function handler(
         },
         300, // 5 minutes TTL
       );
-    } else {
-      const [shiftData, attendanceStatus, approvedOvertime] = await Promise.all(
-        [
-          shiftService.getEffectiveShiftAndStatus(user.employeeId, new Date()),
-          attendanceService.getLatestAttendanceStatus(user.employeeId),
-          overtimeService.getApprovedOvertimeRequest(
-            user.employeeId,
-            new Date(),
-          ),
-        ],
-      );
+      if (responseData) {
+        console.log(`Cache hit for key: ${cacheKey}`);
+      } else {
+        const [shiftData, attendanceStatus, approvedOvertime] =
+          await Promise.all([
+            shiftService.getEffectiveShiftAndStatus(
+              user.employeeId,
+              new Date(),
+            ),
+            attendanceService.getLatestAttendanceStatus(user.employeeId),
+            overtimeService.getApprovedOvertimeRequest(
+              user.employeeId,
+              new Date(),
+            ),
+          ]);
 
-      responseData = { shiftData, attendanceStatus, approvedOvertime };
+        responseData = { shiftData, attendanceStatus, approvedOvertime };
+      }
     }
-
     // Always fetch fresh check-in/out allowance
     const checkInOutAllowance =
       lat && lng
