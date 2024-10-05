@@ -341,7 +341,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   useEffect(() => {
     if (step === 'info') {
-      setTimeRemaining(15);
+      setTimeRemaining(30);
       timerRef.current = setInterval(() => {
         setTimeRemaining((prevTime) => {
           if (prevTime <= 1) {

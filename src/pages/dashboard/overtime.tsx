@@ -38,7 +38,7 @@ const OvertimePage: React.FC<OvertimePageProps> = ({ liffId }) => {
 
         console.log('Fetching user data');
         const userResponse = await axios.get(
-          `/api/user-check-in-status?lineUserId=${profile.userId}`,
+          `/api/user-data?lineUserId=${profile.userId}`,
         );
         const user = userResponse.data.user;
         console.log('User data:', user);

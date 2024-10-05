@@ -40,7 +40,7 @@ const AdminDashboard: React.FC = () => {
 
         console.log('Fetching user data');
         const response = await axios.get(
-          `/api/user-check-in-status?lineUserId=${profile.userId}`,
+          `/api/user-data?lineUserId=${profile.userId}`,
         );
         console.log('User data response:', response.data);
         setUserDetails(response.data);

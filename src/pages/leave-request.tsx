@@ -41,7 +41,7 @@ const LeaveRequestPage: React.FC<LeaveRequestPageProps> = ({ lineUserId }) => {
 
       try {
         const response = await axios.get<UserCheckInStatusResponse>(
-          `/api/user-check-in-status?lineUserId=${lineUserId}`,
+          `/api/user-data?lineUserId=${lineUserId}`,
         );
 
         if (!response.data || !response.data.user) {

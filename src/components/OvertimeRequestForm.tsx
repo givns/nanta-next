@@ -87,7 +87,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   const fetchUserData = async (lineUserId: string) => {
     try {
       const response = await axios.get(
-        `/api/user-check-in-status?lineUserId=${lineUserId}`,
+        `/api/user-data?lineUserId=${lineUserId}`,
       );
       setUserData(response.data.user);
     } catch (error) {

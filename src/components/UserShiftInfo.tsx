@@ -227,7 +227,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         </div>
       </div>
       {renderTodayInfo}
-      <h2 className="text-xl font-bold mt-8 mb-4">กระดานข่าวสาร</h2>
       {renderFutureInfo}
     </div>
   );

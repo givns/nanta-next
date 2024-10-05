@@ -23,10 +23,6 @@ function MyApp({ Component, pageProps }: AppProps) {
     };
   }, []);
 
-  if (!isLiffInitialized) {
-    return <div>กรุณารอสักครู่...</div>;
-  }
-
   return (
     <Provider store={store}>
       <Component {...pageProps} lineUserId={lineUserId} />
