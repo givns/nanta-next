@@ -78,13 +78,6 @@ export const useSimpleAttendance = (
     [],
   );
 
-  useEffect(() => {
-    console.log('Setting initial attendance status');
-    if (initialAttendanceStatus) {
-      setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
-    }
-  }, [initialAttendanceStatus, processAttendanceStatus]);
-
   const calculateDistance = (
     lat1: number,
     lon1: number,
@@ -186,7 +179,7 @@ export const useSimpleAttendance = (
         setAttendanceStatus(
           processAttendanceStatus(response.data.attendanceStatus),
         );
-        setEffectiveShift(response.data.shiftData.effectiveShift);
+        setEffectiveShift(response.data.effectiveShift);
         setCheckInOutAllowance(response.data.checkInOutAllowance);
         setAddress(response.data.address);
       } catch (error) {
@@ -256,24 +249,18 @@ export const useSimpleAttendance = (
   ]);
 
   useEffect(() => {
-    if (employeeId) {
-      getAttendanceStatus();
-    }
-  }, [employeeId, getAttendanceStatus]);
-
-  useEffect(() => {
-    console.log('Fetching initial data');
-    if (employeeId && !initialAttendanceStatus) {
+    if (employeeId && (!initialAttendanceStatus || !effectiveShift)) {
       getAttendanceStatus().catch((error) => {
         console.error('Error fetching initial data:', error);
         setError('An unexpected error occurred');
       });
     }
-  }, [employeeId, initialAttendanceStatus, getAttendanceStatus]);
-
-  console.log('useSimpleAttendance called with:', {
+  }, [
+    employeeId,
     initialAttendanceStatus,
-  });
+    effectiveShift,
+    getAttendanceStatus,
+  ]);
 
   return {
     attendanceStatus,

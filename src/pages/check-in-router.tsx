@@ -135,7 +135,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         onCloseWindow={handleCloseWindow}
         userData={userData!}
         initialAttendanceStatus={attendanceStatus}
-        effectiveShift={effectiveShift}
+        effectiveShift={effectiveShift || null} // Add null check here
         onStatusChange={handleStatusChange}
         onError={() => refreshAttendanceStatus(true)}
         isActionButtonReady={!isAttendanceLoading}
