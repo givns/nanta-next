@@ -35,14 +35,15 @@ export const useSimpleAttendance = (
     useState<AttendanceStatusInfo>(
       initialAttendanceStatus || DEFAULT_ATTENDANCE_STATUS,
     );
-  const [effectiveShift, setEffectiveShift] = useState<ShiftData | null>(null);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
-    null,
-  );
+  const [effectiveShift, setEffectiveShift] = useState(null);
+
   const [address, setAddress] = useState<string>('');
   const [inPremises, setInPremises] = useState(false);
   const [isOutsideShift] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
   const [checkInOutAllowance, setCheckInOutAllowance] =
     useState<CheckInOutAllowance | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -182,12 +183,11 @@ export const useSimpleAttendance = (
           },
         });
 
-        const { attendanceStatus, shiftData, checkInOutAllowance } =
-          response.data;
-
-        setAttendanceStatus(processAttendanceStatus(attendanceStatus));
-        setEffectiveShift(shiftData?.effectiveShift || null);
-        setCheckInOutAllowance(checkInOutAllowance);
+        setAttendanceStatus(
+          processAttendanceStatus(response.data.attendanceStatus),
+        );
+        setEffectiveShift(response.data.shiftData.effectiveShift);
+        setCheckInOutAllowance(response.data.checkInOutAllowance);
         setAddress(response.data.address);
       } catch (error) {
         console.error('Error fetching attendance status:', error);
@@ -198,6 +198,12 @@ export const useSimpleAttendance = (
     },
     [employeeId, getCurrentLocation, processAttendanceStatus],
   );
+
+  useEffect(() => {
+    if (employeeId) {
+      getAttendanceStatus();
+    }
+  }, [employeeId, getCurrentLocation, getAttendanceStatus]);
 
   useEffect(() => {
     if (employeeId) {
