@@ -39,7 +39,7 @@ export default async function handler(
   try {
     const user = await prisma.user.findUnique({
       where: { lineUserId },
-      include: { department: true },
+      include: { department: true, potentialOvertimes: true },
     });
 
     if (!user) {
