@@ -20,7 +20,7 @@ const UserDataSchema = z.object({
   shiftId: z.string().nullable(),
   shiftCode: z.string().nullable(),
   overtimeHours: z.number(),
-  potentialOvertimes: z.array(z.any()), // You might want to define a more specific schema for PotentialOvertime
+  potentialOvertimes: z.array(z.any()).optional().default([]),
   sickLeaveBalance: z.number(),
   businessLeaveBalance: z.number(),
   annualLeaveBalance: z.number(),
