@@ -92,22 +92,24 @@ const AttendanceStatusInfoSchema = z
     approvedOvertime: data.approvedOvertime || null,
   }));
 
-const ResponseDataSchema = z.object({
+const CheckInOutAllowanceSchema = z.object({
+  allowed: z.boolean(),
+  reason: z.string().optional(),
+  isLate: z.boolean().optional(),
+  isOvertime: z.boolean().optional(),
+});
+
+const UpdatedResponseDataSchema = z.object({
   user: UserDataSchema,
-  attendanceStatus: AttendanceStatusInfoSchema,
-  effectiveShift: ShiftDataSchema,
-  checkInOutAllowance: z.object({
-    allowed: z.boolean(),
-    reason: z.string().optional(),
-    isLate: z.boolean().optional(),
-    isOvertime: z.boolean().optional(),
-  }),
+  attendanceStatus: AttendanceStatusInfoSchema.nullable(),
+  effectiveShift: ShiftDataSchema.nullable(),
+  checkInOutAllowance: CheckInOutAllowanceSchema,
   approvedOvertime: z.any().nullable(),
 });
 
 export {
   AttendanceStatusInfoSchema,
-  ResponseDataSchema,
+  UpdatedResponseDataSchema as ResponseDataSchema,
   UserDataSchema,
   ShiftDataSchema,
   parseUserData,

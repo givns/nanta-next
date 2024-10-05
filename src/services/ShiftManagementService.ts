@@ -157,7 +157,6 @@ export class ShiftManagementService {
         await this.overtimeService.getApprovedOvertimeRequest(employeeId, date);
       isOvertime = !!approvedOvertime && isAfter(now, overtimeThreshold);
     }
-
     const result = {
       regularShift: this.convertToShiftData(regularShift),
       effectiveShift: this.convertToShiftData(effectiveShift),

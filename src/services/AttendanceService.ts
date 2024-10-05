@@ -585,13 +585,21 @@ export class AttendanceService {
       }
     }
 
-    const status = await this.fetchLatestAttendanceStatus(employeeId);
-    await setCacheData(
-      cacheKey,
-      JSON.stringify({ ...status, timestamp: Date.now() }),
-      ATTENDANCE_CACHE_TTL,
-    );
-    return status;
+    try {
+      const status = await this.fetchLatestAttendanceStatus(employeeId);
+      await setCacheData(
+        cacheKey,
+        JSON.stringify(status),
+        ATTENDANCE_CACHE_TTL,
+      );
+      return status;
+    } catch (error) {
+      console.error(
+        `Error fetching attendance status for ${employeeId}:`,
+        error,
+      );
+      throw new Error('Failed to fetch attendance status');
+    }
   }
 
   private async fetchLatestAttendanceStatus(
