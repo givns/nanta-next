@@ -60,7 +60,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           `/api/user-data?lineUserId=${lineUserId}`,
         );
         const attendanceResponse = await axios.get(
-          `/api/user-attendance?lineUserId=${lineUserId}`,
+          `/api/attendance-status?lineUserId=${lineUserId}`,
         );
 
         const parsedUserData = UserDataSchema.parse(userResponse.data.user);
