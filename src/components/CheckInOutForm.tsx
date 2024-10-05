@@ -32,6 +32,8 @@ interface CheckInOutFormProps {
   onStatusChange: (newStatus: boolean) => void;
   onError: () => void;
   isActionButtonReady: boolean;
+  checkInOutAllowance: CheckInOutAllowance | null;
+  isCheckingIn: boolean;
 }
 
 const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
@@ -68,18 +70,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     checkInOutAllowance,
     checkInOut,
     refreshAttendanceStatus,
-  } = useSimpleAttendance(userData, initialAttendanceStatus);
-
-  const memoizedUserShiftInfo = useMemo(
-    () => (
-      <MemoizedUserShiftInfo
-        userData={userData}
-        attendanceStatus={attendanceStatus}
-        effectiveShift={effectiveShift}
-        isOutsideShift={isOutsideShift}
-      />
-    ),
-    [userData, attendanceStatus, effectiveShift, isOutsideShift],
+  } = useSimpleAttendance(
+    userData.employeeId,
+    userData.lineUserId,
+    initialAttendanceStatus,
   );
 
   // Reset function to clear any stuck states

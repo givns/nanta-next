@@ -88,6 +88,26 @@ export interface AttendanceHookReturn {
   isSubmitting: boolean;
 }
 
+// In types/attendance.ts or where you define your types
+export const DEFAULT_ATTENDANCE_STATUS: AttendanceStatusInfo = {
+  status: 'absent',
+  isOvertime: false,
+  detailedStatus: 'pending',
+  isEarlyCheckIn: false,
+  isLateCheckIn: false,
+  isLateCheckOut: false,
+  isCheckingIn: true,
+  isDayOff: false,
+  user: {} as UserData, // This will be replaced with actual user data
+  latestAttendance: null,
+  potentialOvertimes: [],
+  shiftAdjustment: null,
+  approvedOvertime: null,
+  futureShifts: [],
+  futureOvertimes: [],
+  pendingLeaveRequest: false,
+};
+
 export type AttendanceStatusValue =
   | 'present'
   | 'absent'

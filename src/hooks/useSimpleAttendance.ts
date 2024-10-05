@@ -4,8 +4,8 @@ import {
   AttendanceStatusInfo,
   AttendanceHookReturn,
   CheckInOutAllowance,
+  DEFAULT_ATTENDANCE_STATUS,
 } from '../types/attendance';
-import { UserData } from '../types/user';
 import axios from 'axios';
 
 interface Premise {
@@ -26,11 +26,14 @@ const PREMISES: Premise[] = [
 ];
 
 export const useSimpleAttendance = (
-  userData: UserData,
-  initialAttendanceStatus: AttendanceStatusInfo,
+  employeeId: string | undefined,
+  lineUserId: string | null | undefined,
+  initialAttendanceStatus: AttendanceStatusInfo | null,
 ): AttendanceHookReturn => {
   const [attendanceStatus, setAttendanceStatus] =
-    useState<AttendanceStatusInfo>(initialAttendanceStatus);
+    useState<AttendanceStatusInfo>(
+      initialAttendanceStatus || DEFAULT_ATTENDANCE_STATUS,
+    );
   const [effectiveShift, setEffectiveShift] = useState(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
@@ -75,7 +78,9 @@ export const useSimpleAttendance = (
 
   useEffect(() => {
     console.log('Setting initial attendance status');
-    setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
+    if (initialAttendanceStatus) {
+      setAttendanceStatus(processAttendanceStatus(initialAttendanceStatus));
+    }
   }, [initialAttendanceStatus, processAttendanceStatus]);
 
   const calculateDistance = (
@@ -162,35 +167,40 @@ export const useSimpleAttendance = (
 
   const getAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
-      console.log('Getting attendance status', { forceRefresh });
+      if (!employeeId) return;
+
       try {
         setIsLoading(true);
         const currentLocation = await getCurrentLocation();
-        const response = await axios.get('/api/user-check-in-status', {
+        const response = await axios.get('/api/attendance-status', {
           params: {
-            lineUserId: userData.lineUserId,
+            employeeId,
             forceRefresh,
             lat: currentLocation?.lat,
             lng: currentLocation?.lng,
-            useDefaultLocation: !currentLocation,
           },
         });
-        const { attendanceStatus, effectiveShift, checkInOutAllowance } =
-          response.data;
-        setAttendanceStatus(processAttendanceStatus(attendanceStatus));
-        setEffectiveShift(effectiveShift);
-        setCheckInOutAllowance(checkInOutAllowance);
-        return response.data;
+        setAttendanceStatus(
+          processAttendanceStatus(response.data.attendanceStatus),
+        );
+        setEffectiveShift(response.data.shiftData.effectiveShift);
+        setCheckInOutAllowance(response.data.checkInOutAllowance);
+        setAddress(response.data.address);
       } catch (error) {
         console.error('Error fetching attendance status:', error);
         setError('Failed to fetch attendance status');
-        throw error;
       } finally {
         setIsLoading(false);
       }
     },
-    [userData.lineUserId, processAttendanceStatus, getCurrentLocation],
+    [employeeId, getCurrentLocation, processAttendanceStatus],
   );
+
+  useEffect(() => {
+    if (employeeId) {
+      getAttendanceStatus();
+    }
+  }, [employeeId, getAttendanceStatus]);
 
   const checkInOut = useCallback(async () => {
     if (isSubmittingRef.current) return;
@@ -203,17 +213,17 @@ export const useSimpleAttendance = (
       }
 
       const response = await axios.post('/api/check-in-out', {
-        employeeId: userData.employeeId,
-        lineUserId: userData.lineUserId,
-        isCheckIn: attendanceStatus.isCheckingIn,
+        employeeId,
+        lineUserId,
+        isCheckIn: attendanceStatus?.isCheckingIn,
         lat: location?.lat,
         lng: location?.lng,
       });
       console.log('Check-in/out response:', response.data);
 
       setAttendanceStatus((prevStatus) => ({
-        ...prevStatus,
-        isCheckingIn: !prevStatus.isCheckingIn,
+        ...prevStatus!,
+        isCheckingIn: !prevStatus!.isCheckingIn,
         latestAttendance: response.data.latestAttendance,
       }));
 
@@ -227,24 +237,31 @@ export const useSimpleAttendance = (
       setIsLoading(false);
     }
   }, [
-    userData.employeeId,
-    userData.lineUserId,
-    location,
+    employeeId,
+    lineUserId,
+    ,
     checkInOutAllowance,
-    attendanceStatus.isCheckingIn,
+    attendanceStatus,
     getAttendanceStatus,
   ]);
 
   useEffect(() => {
+    if (employeeId) {
+      getAttendanceStatus();
+    }
+  }, [employeeId, getAttendanceStatus]);
+
+  useEffect(() => {
     console.log('Fetching initial data');
-    getAttendanceStatus().catch((error) => {
-      console.error('Error fetching initial data:', error);
-      setError('An unexpected error occurred');
-    });
-  }, [getAttendanceStatus]);
+    if (employeeId && !initialAttendanceStatus) {
+      getAttendanceStatus().catch((error) => {
+        console.error('Error fetching initial data:', error);
+        setError('An unexpected error occurred');
+      });
+    }
+  }, [employeeId, initialAttendanceStatus, getAttendanceStatus]);
 
   console.log('useSimpleAttendance called with:', {
-    userData,
     initialAttendanceStatus,
   });
 
