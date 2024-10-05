@@ -242,6 +242,8 @@ export const useSimpleAttendance = (
     checkInOutAllowance,
     attendanceStatus,
     getAttendanceStatus,
+    location?.lat,
+    location?.lng,
   ]);
 
   useEffect(() => {
