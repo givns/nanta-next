@@ -8,7 +8,7 @@ class CacheService {
       this.initializeRedis();
     }
   }
-
+  private locks: Map<string, Promise<any>> = new Map();
   private async initializeRedis() {
     const redisUrl = process.env.REDIS_URL;
     if (redisUrl) {
@@ -68,21 +68,37 @@ class CacheService {
     fetchFunction: () => Promise<any>,
     ttl: number,
   ): Promise<any> {
+    // Check if there's an ongoing request for this key
+    if (this.locks.has(key)) {
+      console.log(`Waiting for ongoing request for key: ${key}`);
+      return this.locks.get(key);
+    }
+
     const cachedData = await this.get(key);
 
     if (cachedData) {
       // Asynchronously update the cache
-      fetchFunction().then((newData) =>
-        this.set(key, JSON.stringify(newData), ttl),
+      this.locks.set(
+        key,
+        fetchFunction().then((newData) => {
+          this.set(key, JSON.stringify(newData), ttl);
+          this.locks.delete(key);
+          return newData;
+        }),
       );
       return JSON.parse(cachedData);
     }
 
-    const freshData = await fetchFunction();
-    await this.set(key, JSON.stringify(freshData), ttl);
-    return freshData;
+    // If no cached data, fetch fresh data
+    const fetchPromise = fetchFunction().then((freshData) => {
+      this.set(key, JSON.stringify(freshData), ttl);
+      this.locks.delete(key);
+      return freshData;
+    });
+
+    this.locks.set(key, fetchPromise);
+    return fetchPromise;
   }
 }
-
 export const cacheService =
   typeof window === 'undefined' ? new CacheService() : null;

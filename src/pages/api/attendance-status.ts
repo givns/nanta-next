@@ -131,8 +131,6 @@ export default async function handler(
           })
         : { allowed: true, reason: 'Location not provided' };
 
-    responseData.checkInOutAllowance = checkInOutAllowance;
-
     const finalResponseData = {
       user,
       attendanceStatus: responseData.attendanceStatus,
@@ -140,6 +138,9 @@ export default async function handler(
       checkInOutAllowance,
       approvedOvertime: responseData.approvedOvertime,
     };
+    console.log('responseData:', responseData);
+    console.log('checkInOutAllowance:', checkInOutAllowance);
+    console.log('finalResponseData:', finalResponseData);
 
     const parsedResponseData = ResponseDataSchema.parse(finalResponseData);
     res.status(200).json(parsedResponseData);

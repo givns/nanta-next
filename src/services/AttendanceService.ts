@@ -98,18 +98,23 @@ export class AttendanceService {
     const cacheKey = `user:${employeeId}`;
     let cachedUser = await getCacheData(cacheKey);
 
-    if (!cachedUser) {
-      console.log('User not found in cache, fetching from database');
-      const user = await this.prisma.user.findUnique({
-        where: { employeeId },
-        include: { department: true },
-      });
+    if (cachedUser) {
+      console.log(`User data found in cache for key: ${cacheKey}`);
+      return JSON.parse(cachedUser);
+    }
 
-      if (user) {
-        console.log('User found in database, caching user data');
-        await setCacheData(cacheKey, JSON.stringify(user), USER_CACHE_TTL);
-        cachedUser = JSON.stringify(user);
-      }
+    console.log(
+      `User data not found in cache for key: ${cacheKey}, fetching from database`,
+    );
+    const user = await this.prisma.user.findUnique({
+      where: { employeeId },
+      include: { department: true },
+    });
+
+    if (user) {
+      console.log(`Caching user data for key: ${cacheKey}`);
+      await setCacheData(cacheKey, JSON.stringify(user), USER_CACHE_TTL);
+      cachedUser = JSON.stringify(user);
     }
 
     return cachedUser ? JSON.parse(cachedUser) : null;
