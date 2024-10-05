@@ -239,7 +239,6 @@ export const useSimpleAttendance = (
   }, [
     employeeId,
     lineUserId,
-    ,
     checkInOutAllowance,
     attendanceStatus,
     getAttendanceStatus,
