@@ -139,12 +139,10 @@ export default async function handler(
     res.status(200).json(parsedResponseData);
   } catch (error: any) {
     console.error('Detailed error in attendance-status API:', error);
-    res
-      .status(500)
-      .json({
-        error: 'Internal server error',
-        details: error.message,
-        stack: error.stack,
-      });
+    res.status(500).json({
+      error: 'Internal server error',
+      details: error.message,
+      stack: error.stack,
+    });
   }
 }
