@@ -8,6 +8,7 @@ import { TimeEntryService } from '@/services/TimeEntryService';
 import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { createNotificationService } from '@/services/NotificationService';
 import { UserDataSchema } from '../../schemas/attendance';
+import { cacheService } from '@/services/CacheService';
 
 const prisma = new PrismaClient();
 export const notificationService = createNotificationService(prisma);
@@ -37,17 +38,31 @@ export default async function handler(
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { lineUserId },
-      include: { department: true, potentialOvertimes: true },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    const cacheKey = `user:${lineUserId}`;
+    let userData = null;
+    if (cacheService) {
+      userData = await cacheService.get(cacheKey);
     }
 
-    const parsedUser = UserDataSchema.parse(user);
-    res.status(200).json({ user: parsedUser });
+    if (!userData) {
+      const user = await prisma.user.findUnique({
+        where: { lineUserId },
+        include: { department: true, potentialOvertimes: true },
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      userData = UserDataSchema.parse(user);
+      if (cacheService) {
+        await cacheService.set(cacheKey, JSON.stringify(userData), 3600); // Cache for 1 hour
+      }
+    } else {
+      userData = JSON.parse(userData);
+    }
+
+    res.status(200).json({ user: userData });
   } catch (error) {
     console.error('Error fetching user data:', error);
     res.status(500).json({ error: 'Internal server error' });

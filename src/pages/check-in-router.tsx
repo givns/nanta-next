@@ -7,11 +7,9 @@ import axios from 'axios';
 import { z } from 'zod'; // Import Zod for runtime type checking
 import {
   UserDataSchema,
-  AttendanceStatusInfoSchema,
   ResponseDataSchema,
   parseUserData,
 } from '../schemas/attendance'; // Adjust the import path as needed
-import { UserRole } from '@/types/enum';
 import Clock from '../components/Clock';
 import { closeWindow } from '../services/liff';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
@@ -100,6 +98,8 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   useEffect(() => {
     if (effectiveShift) {
       console.log('Effective shift:', effectiveShift);
+    } else {
+      console.warn('Effective shift is undefined');
     }
   }, [effectiveShift]);
 
@@ -127,6 +127,32 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       }
     },
     [userData, location, checkInOut, refreshAttendanceStatus, address],
+  );
+
+  const memoizedCheckInOutForm = useMemo(
+    () => (
+      <CheckInOutForm
+        onCloseWindow={handleCloseWindow}
+        userData={userData!}
+        initialAttendanceStatus={attendanceStatus}
+        effectiveShift={effectiveShift}
+        onStatusChange={handleStatusChange}
+        onError={() => refreshAttendanceStatus(true)}
+        isActionButtonReady={!isAttendanceLoading}
+        checkInOutAllowance={checkInOutAllowance}
+        isCheckingIn={attendanceStatus?.isCheckingIn}
+      />
+    ),
+    [
+      handleCloseWindow,
+      userData,
+      attendanceStatus,
+      effectiveShift,
+      handleStatusChange,
+      refreshAttendanceStatus,
+      isAttendanceLoading,
+      checkInOutAllowance,
+    ],
   );
 
   if (isLoading || isAttendanceLoading) {
@@ -175,19 +201,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               setFormError(error.message);
             }}
           >
-            <div className="w-full max-w-md">
-              <CheckInOutForm
-                onCloseWindow={handleCloseWindow}
-                userData={userData}
-                initialAttendanceStatus={attendanceStatus}
-                effectiveShift={effectiveShift}
-                onStatusChange={handleStatusChange}
-                onError={() => refreshAttendanceStatus(true)}
-                isActionButtonReady={!isAttendanceLoading}
-                checkInOutAllowance={checkInOutAllowance}
-                isCheckingIn={attendanceStatus.isCheckingIn}
-              />
-            </div>
+            <div className="w-full max-w-md">{memoizedCheckInOutForm}</div>
           </ErrorBoundary>
         </div>
       </div>
