@@ -1086,17 +1086,17 @@ export class AttendanceService {
   }
 
   private async sendMissingCheckInNotification(user: User) {
-    if (user.lineUserId) {
+    if (user.employeeId) {
       await this.notificationService.sendMissingCheckInNotification(
-        user.lineUserId,
+        user.employeeId,
       );
     }
   }
 
   private async sendMissingCheckOutNotification(user: User) {
-    if (user.lineUserId) {
+    if (user.employeeId) {
       await this.notificationService.sendMissingCheckInNotification(
-        user.lineUserId,
+        user.employeeId,
       );
     }
   }

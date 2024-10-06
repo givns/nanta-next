@@ -22,7 +22,6 @@ export interface ILeaveServiceBase {
   ): Promise<LeaveRequest>;
   getLeaveRequests(userId: string): Promise<LeaveRequest[]>;
   getAllLeaveRequests(): Promise<LeaveRequest[]>;
-  getOriginalLeaveRequest(requestId: string): Promise<LeaveRequest>;
   checkLeaveBalance(userId: string): Promise<LeaveBalanceData>;
 }
 

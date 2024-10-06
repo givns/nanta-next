@@ -2,26 +2,25 @@
 
 import { PrismaClient, Prisma, LeaveRequest, User } from '@prisma/client';
 import { Client } from '@line/bot-sdk';
-import {
-  sendApproveNotification,
-  sendDenyNotification,
-} from '../utils/sendNotifications';
 import { UserRole } from '../types/enum';
 import { ILeaveServiceServer, LeaveBalanceData } from '@/types/LeaveService';
 import { NotificationService } from './NotificationService';
 import { cacheService } from './CacheService';
+import { RequestService } from './RequestService';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
+export class LeaveServiceServer
+  extends RequestService
+  implements ILeaveServiceServer
+{
+  protected getRequestModel() {
+    return this.prisma.leaveRequest;
+  }
 
-export class LeaveServiceServer implements ILeaveServiceServer {
-  private prisma: PrismaClient;
-  private notificationService: NotificationService;
-
-  constructor(prisma: PrismaClient, notificationService: NotificationService) {
-    this.prisma = prisma;
-    this.notificationService = notificationService;
+  protected getRequestType() {
+    return 'leave' as const;
   }
 
   private async invalidateUserCache(employeeId: string): Promise<boolean> {
@@ -50,6 +49,94 @@ export class LeaveServiceServer implements ILeaveServiceServer {
         error,
       );
       return false;
+    }
+  }
+
+  async createLeaveRequest(
+    lineUserId: string,
+    leaveType: string,
+    leaveFormat: string,
+    reason: string,
+    startDate: string,
+    endDate: string,
+    fullDayCount: number,
+    resubmitted: boolean = false,
+    originalRequestId?: string,
+  ): Promise<LeaveRequest> {
+    const user = await this.prisma.user.findUnique({
+      where: { lineUserId },
+    });
+    if (!user) throw new Error(`User not found for lineUserId: ${lineUserId}`);
+
+    const leaveBalance = await this.checkLeaveBalance(user.employeeId);
+
+    // Check if user has enough leave balance
+    let availableDays: number;
+    switch (leaveType) {
+      case 'ลาป่วย':
+        availableDays = leaveBalance.sickLeave;
+        break;
+      case 'ลากิจ':
+        availableDays = leaveBalance.businessLeave;
+        break;
+      case 'ลาพักร้อน':
+        availableDays = leaveBalance.annualLeave;
+        break;
+      default:
+        throw new Error(`Invalid leave type: ${leaveType}`);
+    }
+
+    if (fullDayCount > availableDays) {
+      throw new Error(
+        `ไม่มีวันลา${leaveType}เพียงพอ (ขอลา ${fullDayCount} วัน, เหลือ ${availableDays} วัน)`,
+      );
+    }
+
+    let leaveRequestData: Prisma.LeaveRequestCreateInput = {
+      user: { connect: { employeeId: user.employeeId } },
+      leaveType,
+      leaveFormat,
+      reason,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      status: 'Pending',
+      fullDayCount,
+      resubmitted,
+    };
+
+    if (resubmitted && originalRequestId) {
+      leaveRequestData.originalRequestId = originalRequestId;
+    }
+
+    try {
+      const newLeaveRequest = await this.prisma.leaveRequest.create({
+        data: leaveRequestData,
+      });
+
+      await this.notifyAdmins(newLeaveRequest.id);
+
+      return newLeaveRequest;
+    } catch (error) {
+      console.error('Error creating leave request:', error);
+      throw new Error('Failed to create leave request. Please try again.');
+    }
+  }
+
+  private async notifyAdmins(leaveRequestId: string): Promise<void> {
+    const admins = await this.prisma.user.findMany({
+      where: {
+        role: {
+          in: [UserRole.ADMIN.toString(), UserRole.SUPERADMIN.toString()],
+        },
+      },
+    });
+
+    for (const admin of admins) {
+      await this.notificationService.sendRequestNotification(
+        admin.employeeId,
+        leaveRequestId,
+        'leave',
+      );
     }
   }
 
@@ -142,161 +229,92 @@ export class LeaveServiceServer implements ILeaveServiceServer {
     return !!pendingLeaveRequest;
   }
 
-  async createLeaveRequest(
-    lineUserId: string,
-    leaveType: string,
-    leaveFormat: string,
-    reason: string,
-    startDate: string,
-    endDate: string,
-    fullDayCount: number,
-    resubmitted: boolean = false,
-    originalRequestId?: string,
-  ): Promise<LeaveRequest> {
-    const user = await this.prisma.user.findUnique({
-      where: { lineUserId },
-    });
-    if (!user) throw new Error(`User not found for lineUserId: ${lineUserId}`);
-
-    const leaveBalance = await this.checkLeaveBalance(user.employeeId);
-
-    // Check if user has enough leave balance
-    let availableDays: number;
-    switch (leaveType) {
-      case 'ลาป่วย':
-        availableDays = leaveBalance.sickLeave;
-        break;
-      case 'ลากิจ':
-        availableDays = leaveBalance.businessLeave;
-        break;
-      case 'ลาพักร้อน':
-        availableDays = leaveBalance.annualLeave;
-        break;
-      default:
-        throw new Error(`Invalid leave type: ${leaveType}`);
-    }
-
-    if (fullDayCount > availableDays) {
-      throw new Error(
-        `ไม่มีวันลา${leaveType}เพียงพอ (ขอลา ${fullDayCount} วัน, เหลือ ${availableDays} วัน)`,
-      );
-    }
-
-    let leaveRequestData: Prisma.LeaveRequestCreateInput = {
-      user: { connect: { employeeId: user.employeeId } },
-      leaveType,
-      leaveFormat,
-      reason,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      status: 'Pending',
-      fullDayCount,
-      resubmitted,
-    };
-
-    if (resubmitted && originalRequestId) {
-      leaveRequestData.originalRequestId = originalRequestId;
-    }
-
-    try {
-      const newLeaveRequest = await this.prisma.leaveRequest.create({
-        data: leaveRequestData,
-      });
-
-      await this.notifyAdmins(newLeaveRequest, user);
-
-      return newLeaveRequest;
-    } catch (error) {
-      console.error('Error creating leave request:', error);
-      throw new Error('Failed to create leave request. Please try again.');
-    }
-  }
-
   async approveLeaveRequest(
     requestId: string,
-    lineUserId: string,
+    approverEmployeeId: string,
   ): Promise<LeaveRequest> {
-    const leaveRequest = await this.prisma.leaveRequest.update({
-      where: { id: requestId },
-      data: { status: 'Approved', approverId: lineUserId },
-      include: { user: true },
-    });
-    await this.invalidateUserCache(leaveRequest.employeeId);
-
-    const admin = await this.prisma.user.findUnique({ where: { lineUserId } });
-
-    if (leaveRequest.user && admin) {
-      await sendApproveNotification(
-        leaveRequest.user,
-        leaveRequest,
-        admin,
-        'leave',
-      );
-    }
-
-    return leaveRequest;
+    const approvedRequest = (await super.approveRequest(
+      requestId,
+      approverEmployeeId,
+    )) as LeaveRequest;
+    await this.invalidateUserCache(approvedRequest.employeeId);
+    return approvedRequest;
   }
 
   async initiateDenial(
     requestId: string,
-    lineUserId: string,
+    denierEmployeeId: string,
   ): Promise<LeaveRequest> {
-    const leaveRequest = await this.prisma.leaveRequest.update({
-      where: { id: requestId },
-      data: { status: 'DenialPending', approverId: lineUserId },
-      include: { user: true },
-    });
-
-    const admin = await this.prisma.user.findUnique({ where: { lineUserId } });
-
-    if (admin) {
-      const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&approverId=${lineUserId}`;
-      await client.pushMessage(lineUserId, {
-        type: 'text',
-        text: `กรุณาระบุเหตุผลในการไม่อนุมัติคำขอลา: ${liffUrl}`,
-      });
-    }
-
-    return leaveRequest;
+    const denialInitiatedRequest = (await super.initiateDenial(
+      requestId,
+      denierEmployeeId,
+    )) as LeaveRequest;
+    await this.invalidateUserCache(denialInitiatedRequest.employeeId);
+    return denialInitiatedRequest;
   }
 
   async finalizeDenial(
     requestId: string,
-    lineUserId: string,
+    denierEmployeeId: string,
     denialReason: string,
   ): Promise<LeaveRequest> {
-    const leaveRequest = await this.prisma.leaveRequest.update({
-      where: { id: requestId },
-      data: { status: 'Denied', denialReason },
-      include: { user: true },
-    });
-    await this.invalidateUserCache(leaveRequest.employeeId);
-
-    const admin = await this.prisma.user.findUnique({ where: { lineUserId } });
-
-    if (leaveRequest.user && admin) {
-      await sendDenyNotification(
-        leaveRequest.user,
-        leaveRequest,
-        admin,
-        denialReason,
-        'leave',
-      );
-    }
-
-    return leaveRequest;
+    const deniedRequest = (await super.finalizeDenial(
+      requestId,
+      denierEmployeeId,
+      denialReason,
+    )) as LeaveRequest;
+    await this.invalidateUserCache(deniedRequest.employeeId);
+    return deniedRequest;
   }
 
-  async getOriginalLeaveRequest(requestId: string): Promise<LeaveRequest> {
-    const leaveRequest = await this.prisma.leaveRequest.findUnique({
-      where: { id: requestId },
-    });
+  async createResubmittedRequest(
+    originalRequestId: string,
+    updatedData: Partial<LeaveRequest>,
+  ): Promise<LeaveRequest> {
+    try {
+      const originalRequest = await this.getOriginalRequest(originalRequestId);
 
-    if (!leaveRequest) {
-      throw new Error('Original leave request not found');
+      const newRequest = await this.prisma.leaveRequest.create({
+        data: {
+          ...originalRequest,
+          ...updatedData,
+          id: undefined,
+          status: 'Pending',
+          resubmitted: true,
+          originalRequestId,
+          createdAt: undefined,
+          updatedAt: undefined,
+        } as any,
+        include: { user: true },
+      });
+
+      await this.invalidateUserCache(newRequest.employeeId);
+
+      const admins = await this.prisma.user.findMany({
+        where: {
+          role: {
+            in: [UserRole.ADMIN.toString(), UserRole.SUPERADMIN.toString()],
+          },
+        },
+      });
+
+      for (const admin of admins) {
+        await this.notificationService.sendRequestNotification(
+          admin.employeeId,
+          newRequest.user.employeeId,
+          'leave',
+        );
+      }
+
+      return newRequest;
+    } catch (error: any) {
+      console.error('Error creating resubmitted leave request:', error.message);
+      throw error;
     }
+  }
 
-    return leaveRequest;
+  async getOriginalRequest(requestId: string): Promise<LeaveRequest> {
+    return super.getOriginalRequest(requestId) as Promise<LeaveRequest>;
   }
 
   async getLeaveRequests(employeeId: string): Promise<LeaveRequest[]> {
@@ -311,27 +329,6 @@ export class LeaveServiceServer implements ILeaveServiceServer {
       orderBy: { createdAt: 'desc' },
       include: { user: true },
     });
-  }
-
-  private async notifyAdmins(
-    leaveRequest: LeaveRequest,
-    requestUser: User,
-  ): Promise<void> {
-    const admins = await this.prisma.user.findMany({
-      where: {
-        role: {
-          in: [UserRole.ADMIN.toString(), UserRole.SUPERADMIN.toString()],
-        },
-      },
-    });
-
-    for (const admin of admins) {
-      await this.notificationService.sendRequestNotification(
-        admin,
-        leaveRequest,
-        'leave',
-      );
-    }
   }
 
   async getLeaveRequestForDate(

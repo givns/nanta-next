@@ -1,11 +1,12 @@
 // services/NotificationQueue.ts
 
-import { Client } from '@line/bot-sdk';
+import { Client, Message } from '@line/bot-sdk';
+import { UserMappingService } from './useMappingService';
 import { PrismaClient } from '@prisma/client';
 
 interface NotificationTask {
-  userId: string;
-  message: string;
+  employeeId: string;
+  message: string | Message;
   type:
     | 'check-in'
     | 'check-out'
@@ -19,13 +20,11 @@ interface NotificationTask {
 export class NotificationQueue {
   private queue: NotificationTask[] = [];
   private isProcessing: boolean = false;
-  private lineClient: Client;
-  private prisma: PrismaClient;
 
-  constructor(lineClient: Client, prisma: PrismaClient) {
-    this.lineClient = lineClient;
-    this.prisma = prisma;
-  }
+  constructor(
+    private lineClient: Client,
+    private userMappingService: UserMappingService,
+  ) {}
 
   async addNotification(task: NotificationTask) {
     this.queue.push(task);
@@ -58,18 +57,34 @@ export class NotificationQueue {
   }
 
   private async sendNotification(task: NotificationTask) {
-    const user = await this.prisma.user.findUnique({
-      where: { employeeId: task.userId },
-    });
-    if (!user || !user.lineUserId) {
-      throw new Error(
-        `User not found or no LINE User ID for user ${task.userId}`,
-      );
+    const lineUserId = await this.userMappingService.getLineUserId(
+      task.employeeId,
+    );
+    if (!lineUserId) {
+      throw new Error(`No LINE User ID found for employee ${task.employeeId}`);
     }
-    await this.lineClient.pushMessage(user.lineUserId, {
-      type: 'text',
-      text: task.message,
-    });
-    console.log(`Sent ${task.type} notification to user ${task.userId}`);
+
+    let messageToSend: Message;
+    if (typeof task.message === 'string') {
+      messageToSend = { type: 'text', text: task.message };
+    } else if (this.isLineMessage(task.message)) {
+      messageToSend = task.message;
+    } else {
+      throw new Error('Invalid message format');
+    }
+
+    await this.lineClient.pushMessage(lineUserId, messageToSend);
+    console.log(
+      `Sent ${task.type} notification to employee ${task.employeeId}`,
+    );
+  }
+
+  private isLineMessage(message: any): message is Message {
+    return (
+      typeof message === 'object' &&
+      message !== null &&
+      'type' in message &&
+      typeof message.type === 'string'
+    );
   }
 }

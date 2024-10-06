@@ -53,24 +53,38 @@ export default async function handler(
   try {
     let user;
     if (lineUserId && typeof lineUserId === 'string') {
-      user = await prisma.user.findUnique({ where: { lineUserId } });
-    } else {
-      user = await prisma.user.findUnique({
-        where: { employeeId: employeeId as string },
-      });
+      const cacheKey = `user:${lineUserId}`;
+      if (cacheService) {
+        user = await cacheService.get(cacheKey);
+      }
+      if (!user) {
+        user = await prisma.user.findUnique({ where: { lineUserId } });
+        if (user) {
+          if (cacheService) {
+            // Add null check for cacheService
+            await cacheService.set(cacheKey, JSON.stringify(user), 3600); // Cache for 1 hour
+          }
+        }
+      } else {
+        user = JSON.parse(user);
+      }
+    } else if (employeeId && typeof employeeId === 'string') {
+      user = await prisma.user.findUnique({ where: { employeeId } });
     }
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    console.log('User found:', user.employeeId);
-    let responseData;
+    console.log('User found:', user);
 
+    const cacheKey = `attendance-status:${user.lineUserId || user.employeeId}`;
+
+    let responseData;
     if (cacheService && !forceRefresh) {
       console.log('Attempting to fetch from cache');
       responseData = await cacheService.getWithSWR(
-        `attendance-status:${user.employeeId}`,
+        cacheKey,
         async () => {
           console.log('Cache miss, fetching fresh data');
           const [shiftData, attendanceStatus, approvedOvertime] =
@@ -91,7 +105,7 @@ export default async function handler(
         300, // 5 minutes TTL
       );
       if (responseData) {
-        console.log(`Cache hit for key: ${user.employeeId}`);
+        console.log(`Cache hit for key: ${cacheKey}`);
       }
     } else {
       console.log('Fetching fresh data');
