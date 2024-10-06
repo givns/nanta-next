@@ -231,5 +231,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
     );
   },
 );
+UserShiftInfo.displayName = 'UserShiftInfo';
 
 export default UserShiftInfo;
