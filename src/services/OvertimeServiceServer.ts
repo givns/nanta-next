@@ -1,5 +1,5 @@
 // services/OvertimeServiceServer.ts
-import { PrismaClient, OvertimeRequest, Prisma } from '@prisma/client';
+import { PrismaClient, OvertimeRequest, Prisma, User } from '@prisma/client';
 import { IOvertimeServiceServer } from '@/types/OvertimeService';
 import { TimeEntryService } from './TimeEntryService';
 import { ApprovedOvertime } from '@/types/attendance';
@@ -28,12 +28,16 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     startTime: string,
     endTime: string,
     reason: string,
-    resubmitted: boolean = false,
+    resubmitted: boolean,
     originalRequestId?: string,
   ): Promise<OvertimeRequest> {
-    const user = await this.prisma.user.findUnique({ where: { lineUserId } });
-    if (!user) throw new Error('User not found');
+    const user = await this.prisma.user.findUnique({
+      where: { lineUserId },
+    });
 
+    if (!user) {
+      throw new Error('User not found');
+    }
     const overtimeRequestData: Prisma.OvertimeRequestCreateInput = {
       user: { connect: { id: user.id } },
       date: parseISO(date),
@@ -61,9 +65,15 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     if (durationInHours <= 1) {
       await this.autoApproveOvertimeRequest(newOvertimeRequest.id);
     } else {
-      await this.notificationService.sendOvertimeRequestNotification(
-        newOvertimeRequest,
-      );
+      const admins = await this.prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPERADMIN'] } },
+      });
+      for (const admin of admins) {
+        await this.notificationService.sendOvertimeApprovalNotification(
+          newOvertimeRequest,
+          admin.employeeId,
+        );
+      }
     }
 
     return newOvertimeRequest;
@@ -135,9 +145,9 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     requestIds: string[],
     approverId: string,
   ): Promise<OvertimeRequest[]> {
-    const approvedRequests = await prisma.$transaction(
+    const approvedRequests = await this.prisma.$transaction(
       requestIds.map((id) =>
-        prisma.overtimeRequest.update({
+        this.prisma.overtimeRequest.update({
           where: { id },
           data: { status: 'approved', approverId },
           include: { user: true },
@@ -145,11 +155,11 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       ),
     );
 
-    const admin = await prisma.user.findUnique({ where: { id: approverId } });
-    if (admin) {
-      await this.notificationService.sendBatchApprovalNotification(
-        admin,
-        approvedRequests,
+    for (const request of approvedRequests) {
+      await this.timeEntryService.createPendingOvertimeEntry(request);
+      await this.notificationService.sendOvertimeApprovalNotification(
+        request,
+        approverId,
       );
     }
 
@@ -177,7 +187,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     if (approver) {
       await this.notificationService.sendOvertimeApprovalNotification(
         overtimeRequest,
-        approver,
+        approver.employeeId,
       );
     }
 
@@ -282,10 +292,9 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     const data: Prisma.OvertimeRequestUpdateInput = {
       status: action === 'approve' ? 'approved' : 'denied',
       approver: { connect: { id: approverId } },
-      denialReason: action === 'deny' ? denialReason : undefined,
     };
 
-    const overtimeRequest = await prisma.overtimeRequest.update({
+    const overtimeRequest = await this.prisma.overtimeRequest.update({
       where: { id: requestId },
       data,
       include: { user: true },
@@ -293,11 +302,16 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     if (action === 'approve') {
       await this.timeEntryService.createPendingOvertimeEntry(overtimeRequest);
+      await this.notificationService.sendOvertimeApprovalNotification(
+        overtimeRequest,
+        approverId,
+      );
+    } else if (action === 'deny' && denialReason) {
+      await this.notificationService.sendOvertimeDenialNotification(
+        overtimeRequest,
+        approverId,
+      );
     }
-
-    await this.notificationService.sendOvertimeRequestNotification(
-      overtimeRequest,
-    );
 
     return overtimeRequest;
   }

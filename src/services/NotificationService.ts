@@ -348,6 +348,29 @@ export class NotificationService {
     );
   }
 
+  async sendOvertimeDenialNotification(
+    overtimeRequest: OvertimeRequest,
+    denierEmployeeId: string,
+  ): Promise<void> {
+    const user = await this.userMappingService.getUserByEmployeeId(
+      overtimeRequest.employeeId,
+    );
+    const denier =
+      await this.userMappingService.getUserByEmployeeId(denierEmployeeId);
+
+    if (!user || !denier) {
+      console.warn('User or denier not found');
+      return;
+    }
+
+    const message = `คำขอทำงานล่วงเวลา ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) ไม่ได้รับการอนุมิติโดย ${denier.name}.`;
+    await this.sendNotification(
+      overtimeRequest.employeeId,
+      message,
+      'overtime',
+    );
+  }
+
   async sendOvertimeAutoApprovalNotification(
     overtimeRequest: OvertimeRequest,
   ): Promise<void> {
