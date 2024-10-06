@@ -3,15 +3,31 @@ import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
-import { handleApprove, handleDeny } from '../../utils/requestHandlers';
 import { createAndAssignRichMenu } from '../../utils/richMenuUtils';
 import getRawBody from 'raw-body';
+import { ShiftManagementService } from '@/services/ShiftManagementService';
+import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
+import { createNotificationService } from '@/services/NotificationService';
+import { TimeEntryService } from '@/services/TimeEntryService';
+import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 
 dotenv.config({ path: './.env.local' });
 
 const prisma = new PrismaClient();
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+const notificationService = createNotificationService(prisma);
+const shiftService = new ShiftManagementService(prisma);
+
+const timeEntryService = new TimeEntryService(prisma, shiftService);
+
+const leaveService = createLeaveServiceServer(prisma, notificationService);
+
+const overtimeService = new OvertimeServiceServer(
+  prisma,
+  timeEntryService,
+  notificationService,
+);
 
 if (!channelSecret || !channelAccessToken) {
   throw new Error(
@@ -89,15 +105,20 @@ const handler = async (event: WebhookEvent) => {
     }
   } else if (event.type === 'postback') {
     const data = event.postback.data;
-    const userId = event.source.userId;
+    const lineUserId = event.source.userId;
 
     const params = new URLSearchParams(data);
     const action = params.get('action');
     const requestId = params.get('requestId');
     const requestType = params.get('requestType') as 'leave' | 'overtime';
 
-    if (action && requestId && userId && requestType) {
+    if (action && requestId && lineUserId && requestType) {
       try {
+        const user = await prisma.user.findUnique({ where: { lineUserId } });
+        if (!user) {
+          throw new Error('User not found');
+        }
+
         let request;
         if (requestType === 'leave') {
           request = await prisma.leaveRequest.findUnique({
@@ -109,18 +130,32 @@ const handler = async (event: WebhookEvent) => {
           });
         }
 
-        if (action === 'approve' && request?.status === 'Pending') {
-          await handleApprove(requestId, userId, requestType);
-          await client.replyMessage(event.replyToken, {
-            type: 'text',
-            text: `${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}ได้รับการอนุมัติแล้ว`,
-          });
-        } else if (action === 'deny' && request?.status === 'Pending') {
-          await handleDeny(requestId, userId, requestType);
-          await client.replyMessage(event.replyToken, {
-            type: 'text',
-            text: `${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}ถูกปฏิเสธ กรุณาระบุเหตุผลในการปฏิเสธ`,
-          });
+        if (request?.status === 'Pending') {
+          if (action === 'approve') {
+            if (requestType === 'leave') {
+              await leaveService.approveRequest(requestId, user.employeeId);
+            } else {
+              await overtimeService.handleOvertimeRequest(
+                requestId,
+                user.employeeId,
+                'approve',
+              );
+            }
+            await client.replyMessage(event.replyToken, {
+              type: 'text',
+              text: `${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}ได้รับการอนุมัติแล้ว`,
+            });
+          } else if (action === 'deny') {
+            if (requestType === 'leave') {
+              await leaveService.initiateDenial(requestId, user.employeeId);
+            } else {
+              await overtimeService.initiateDenial(requestId, user.employeeId);
+            }
+            await client.replyMessage(event.replyToken, {
+              type: 'text',
+              text: `กรุณาระบุเหตุผลในการปฏิเสธ${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}: [LIFF URL for denial reason]`,
+            });
+          }
         } else {
           await client.replyMessage(event.replyToken, {
             type: 'text',
