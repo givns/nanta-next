@@ -1,6 +1,12 @@
 // check-in-router.tsx
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  Suspense,
+} from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
 import axios from 'axios';
@@ -26,6 +32,8 @@ const CheckInOutForm = dynamic(
     ssr: false,
   },
 );
+
+const ActionButton = React.lazy(() => import('../components/ActionButton'));
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
@@ -76,6 +84,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     isLoading: isAttendanceLoading,
     error: attendanceError,
     location,
+    setLocation,
     address,
     checkInOutAllowance,
     checkInOut,
@@ -95,6 +104,21 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     console.log('Effect in check-in-router - effectiveShift:', effectiveShift);
   }, [effectiveShift]);
 
+  useEffect(() => {
+    // Get current location when component mounts
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+      },
+    );
+  }, [setLocation]);
+
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
       if (userData && location) {
@@ -106,8 +130,9 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             checkTime: new Date().toISOString(),
             checkInAddress: newStatus ? address : undefined,
             checkOutAddress: !newStatus ? address : undefined,
+            location: `${location.lat},${location.lng}`, // Convert location to string
+            reason: '', // Add an empty reason or implement a way to get a reason from the user
           });
-          await refreshAttendanceStatus(true);
         } catch (error: any) {
           console.error('Error during check-in/out:', error);
           setFormError(
@@ -118,7 +143,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         setFormError('Missing data for check-in/out. Please try again.');
       }
     },
-    [userData, location, checkInOut, refreshAttendanceStatus, address],
+    [userData, location, checkInOut, address],
   );
 
   const memoizedCheckInOutForm = useMemo(
@@ -193,7 +218,17 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               setFormError(error.message);
             }}
           >
-            <div className="w-full max-w-md">{memoizedCheckInOutForm}</div>
+            <div className="w-full max-w-md">
+              {memoizedCheckInOutForm}
+              <Suspense fallback={<div>Loading action button...</div>}>
+                <ActionButton
+                  isLoading={isLoading}
+                  checkInOutAllowance={checkInOutAllowance}
+                  isCheckingIn={attendanceStatus.isCheckingIn}
+                  onAction={handleStatusChange}
+                />
+              </Suspense>
+            </div>
           </ErrorBoundary>
         </div>
       </div>

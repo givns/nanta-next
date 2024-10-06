@@ -77,6 +77,9 @@ export interface AttendanceHookReturn {
   isLoading: boolean;
   error: string | null;
   location: { lat: number; lng: number } | null;
+  setLocation: React.Dispatch<
+    React.SetStateAction<{ lat: number; lng: number } | null>
+  >;
   locationError: string | null;
   getCurrentLocation: () => Promise<{ lat: number; lng: number } | null>;
   address: string;
@@ -85,7 +88,6 @@ export interface AttendanceHookReturn {
   checkInOut: (data: AttendanceData) => Promise<any>;
   checkInOutAllowance: CheckInOutAllowance | null;
   refreshAttendanceStatus: (forceRefresh?: boolean) => Promise<any>;
-  isSubmitting: boolean;
 }
 
 // In types/attendance.ts or where you define your types

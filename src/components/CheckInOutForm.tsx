@@ -46,6 +46,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onStatusChange,
   onError,
   isActionButtonReady,
+  isCheckingIn,
 }) => {
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [reason, setReason] = useState<string>('');
@@ -428,17 +429,17 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       );
     }
 
-    const buttonClass = `w-full ${
-      checkInOutAllowance?.allowed
-        ? 'bg-red-600 hover:bg-red-700'
-        : 'bg-gray-400 cursor-not-allowed'
-    } text-white py-3 px-4 rounded-lg transition duration-300`;
+    const buttonClass = `w-full ${checkInOutAllowance?.allowed ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'} text-white py-3 px-4 rounded-lg transition duration-300`;
 
     let buttonText = 'ไม่สามารถลงเวลาได้ในขณะนี้';
-    if (checkInOutAllowance?.allowed) {
-      buttonText = `เปิดกล้องเพื่อ${attendanceStatus.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
-    } else if (attendanceStatus.pendingLeaveRequest) {
-      buttonText = 'รออนุมัติการลา';
+    if (isActionButtonReady) {
+      if (checkInOutAllowance?.allowed) {
+        buttonText = `เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
+      } else if (attendanceStatus.pendingLeaveRequest) {
+        buttonText = 'รออนุมัติการลา';
+      }
+    } else {
+      buttonText = 'กรุณารอสักครู่...';
     }
 
     return (
@@ -492,7 +493,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             userData={userData}
             attendanceStatus={attendanceStatus}
             effectiveShift={effectiveShift}
-            isOutsideShift={isOutsideShift}
           />
         </ErrorBoundary>
         <div className="flex-shrink-0 mt-4">
@@ -507,7 +507,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       userData,
       attendanceStatus,
       effectiveShift,
-      isOutsideShift,
       renderActionButton,
       timeRemaining,
     ],

@@ -28,7 +28,6 @@ export default async function handler(
           const request = await prisma.overtimeRequest.update({
             where: { id },
             data: { status: 'approved', approverId },
-            include: { user: true }, // Include the user data
           });
 
           // Create TimeEntry
@@ -52,21 +51,25 @@ export default async function handler(
             },
           });
 
-          await notificationService.sendOvertimeApprovalNotification(
-            request,
-            approver,
-          );
           approved.push(request);
         }
         return approved;
       });
 
+      // Send notifications after the transaction is complete
+      for (const request of approvedRequests) {
+        await notificationService.sendOvertimeApprovalNotification(
+          request,
+          approver.employeeId,
+        );
+      }
+
       res
         .status(200)
         .json({ message: 'Requests approved successfully', approvedRequests });
     } catch (error) {
-      console.error('Error approving requests:', error);
-      res.status(500).json({ message: 'Error approving requests' });
+      console.error('Error approving overtime requests:', error);
+      res.status(500).json({ message: 'Error approving overtime requests' });
     }
   } else {
     res.setHeader('Allow', ['POST']);

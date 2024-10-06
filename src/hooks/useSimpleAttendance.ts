@@ -1,14 +1,15 @@
 // hooks/useSimpleAttendance.ts
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AttendanceStatusInfo,
   AttendanceHookReturn,
   CheckInOutAllowance,
   DEFAULT_ATTENDANCE_STATUS,
-  ShiftData,
+  AttendanceData,
 } from '../types/attendance';
 import axios from 'axios';
 import { debounce } from 'lodash';
+import useSWR from 'swr';
 
 interface Premise {
   lat: number;
@@ -27,6 +28,8 @@ const PREMISES: Premise[] = [
   },
 ];
 
+const fetcher = (url: string) => axios.get(url).then((res) => res.data);
+
 export const useSimpleAttendance = (
   employeeId: string | undefined,
   lineUserId: string | null | undefined,
@@ -36,20 +39,40 @@ export const useSimpleAttendance = (
     useState<AttendanceStatusInfo>(
       initialAttendanceStatus || DEFAULT_ATTENDANCE_STATUS,
     );
-  const [effectiveShift, setEffectiveShift] = useState(null);
-
-  const [address, setAddress] = useState<string>('');
-  const [inPremises, setInPremises] = useState(false);
-  const [isOutsideShift] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null,
   );
-  const [checkInOutAllowance, setCheckInOutAllowance] =
-    useState<CheckInOutAllowance | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const isSubmittingRef = useRef(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [address, setAddress] = useState<string>('');
+  const [inPremises, setInPremises] = useState<boolean>(false);
+  const [isOutsideShift, setIsOutsideShift] = useState<boolean>(false);
+
+  const { data, error, isValidating, mutate } = useSWR(
+    employeeId
+      ? `/api/attendance-status?employeeId=${employeeId}&lat=${location?.lat || ''}&lng=${location?.lng || ''}`
+      : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      refreshInterval: 30000, // Refresh every 30 seconds
+    },
+  );
+
+  useEffect(() => {
+    if (data) {
+      setAttendanceStatus(data.attendanceStatus);
+      setAddress(data.address || '');
+      setInPremises(data.inPremises || false);
+      setIsOutsideShift(data.isOutsideShift || false);
+    }
+  }, [data]);
+
+  // Update the attendanceStatus when data is fetched
+  useEffect(() => {
+    if (data?.attendanceStatus) {
+      setAttendanceStatus(data.attendanceStatus);
+    }
+  }, [data]);
 
   const processAttendanceStatus = useCallback(
     (status: AttendanceStatusInfo) => {
@@ -161,121 +184,43 @@ export const useSimpleAttendance = (
     }
   }, [isWithinPremises]);
 
-  const getAttendanceStatus = useCallback(
+  const refreshAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
-      if (!employeeId) return;
-
-      try {
-        setIsLoading(true);
-        const currentLocation = await getCurrentLocation();
-        const response = await axios.get('/api/attendance-status', {
-          params: {
-            employeeId,
-            forceRefresh,
-            lat: currentLocation?.lat,
-            lng: currentLocation?.lng,
-          },
-        });
-
-        console.log('API response:', response.data);
-
-        setAttendanceStatus(
-          processAttendanceStatus(response.data.attendanceStatus),
-        );
-        setEffectiveShift(response.data.effectiveShift || null);
-        setCheckInOutAllowance(response.data.checkInOutAllowance);
-        setAddress(response.data.address);
-      } catch (error) {
-        console.error('Error fetching attendance status:', error);
-        setError('Failed to fetch attendance status');
-      } finally {
-        setIsLoading(false);
+      if (forceRefresh) {
+        await mutate();
       }
     },
-    [employeeId, getCurrentLocation, processAttendanceStatus],
+    [mutate],
   );
 
-  const debouncedGetAttendanceStatus = useMemo(
-    () => debounce(getAttendanceStatus, 1000),
-    [getAttendanceStatus],
-  );
-
-  useEffect(() => {
-    if (employeeId && (!attendanceStatus || !effectiveShift)) {
-      debouncedGetAttendanceStatus(false);
-    }
-    return () => {
-      debouncedGetAttendanceStatus.cancel();
-    };
-  }, [
-    employeeId,
-    attendanceStatus,
-    effectiveShift,
-    debouncedGetAttendanceStatus,
-  ]);
-
-  useEffect(() => {
-    console.log('effectiveShift changed:', effectiveShift);
-  }, [effectiveShift]);
-
-  const checkInOut = useCallback(async () => {
-    if (isSubmittingRef.current) return;
-    isSubmittingRef.current = true;
-    setIsLoading(true);
-
-    try {
-      if (!checkInOutAllowance?.allowed) {
-        throw new Error('ไม่สามารถลงเวลาได้เพราะไม่เข้าเงื่อนไขของดารลงเวลา');
+  const checkInOut = useCallback(
+    async (checkInOutData: AttendanceData) => {
+      try {
+        const response = await axios.post('/api/check-in-out', checkInOutData);
+        await mutate();
+        return response.data;
+      } catch (error) {
+        console.error('Error during check-in/out:', error);
+        throw error;
       }
-
-      const response = await axios.post('/api/check-in-out', {
-        employeeId,
-        lineUserId,
-        isCheckIn: attendanceStatus?.isCheckingIn,
-        lat: location?.lat,
-        lng: location?.lng,
-      });
-      console.log('Check-in/out response:', response.data);
-
-      setAttendanceStatus((prevStatus) => ({
-        ...prevStatus!,
-        isCheckingIn: !prevStatus!.isCheckingIn,
-        latestAttendance: response.data.latestAttendance,
-      }));
-
-      // Refresh the check-in/out allowance after successful check-in/out
-      await getAttendanceStatus(true);
-    } catch (error) {
-      console.error('Error during check-in/out:', error);
-      // Handle error (e.g., show an error message to the user)
-    } finally {
-      isSubmittingRef.current = false;
-      setIsLoading(false);
-    }
-  }, [
-    employeeId,
-    lineUserId,
-    checkInOutAllowance,
-    attendanceStatus,
-    getAttendanceStatus,
-    location?.lat,
-    location?.lng,
-  ]);
+    },
+    [mutate],
+  );
 
   return {
     attendanceStatus,
-    isLoading,
-    error,
+    effectiveShift: data?.effectiveShift || null,
+    isLoading: isValidating,
+    error: error ? 'Failed to fetch attendance status' : null,
     location,
+    setLocation,
     locationError,
     getCurrentLocation,
-    effectiveShift,
     address,
     inPremises,
     isOutsideShift,
     checkInOut,
-    checkInOutAllowance,
-    refreshAttendanceStatus: getAttendanceStatus,
-    isSubmitting: isSubmittingRef.current,
+    checkInOutAllowance: data?.checkInOutAllowance || null,
+    refreshAttendanceStatus,
   };
 };
