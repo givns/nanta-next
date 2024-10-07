@@ -7,8 +7,9 @@ import {
 } from '@prisma/client';
 import { UserRole } from '@/types/enum';
 
-const prisma = new PrismaClient();
-export { prisma };
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+});
 
 export class UserMappingService {
   constructor(private prisma: PrismaClient) {}

@@ -2,7 +2,6 @@
 
 import { Client, Message } from '@line/bot-sdk';
 import { UserMappingService } from './useMappingService';
-import { PrismaClient } from '@prisma/client';
 
 interface NotificationTask {
   employeeId: string;
