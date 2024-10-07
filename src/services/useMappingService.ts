@@ -1,56 +1,40 @@
-import {
-  LeaveRequest,
-  OvertimeRequest,
-  PrismaClient,
-  Prisma,
-  User,
-} from '@prisma/client';
+import { LeaveRequest, OvertimeRequest, User } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { UserRole } from '@/types/enum';
 
 export class UseMappingService {
-  constructor(private prisma: PrismaClient) {}
+  constructor() {}
 
   async getLineUserId(employeeId: string): Promise<string | null> {
     console.log(`Fetching LINE User ID for employee: ${employeeId}`);
     try {
-      const user = (await Promise.race([
-        this.prisma.user.findUnique({
-          where: { employeeId },
-          select: { lineUserId: true },
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database query timed out')), 5000),
-        ),
-      ])) as { lineUserId: string | null } | null;
+      console.log('Before Prisma query');
+      const user = await prisma.user.findUnique({
+        where: { employeeId },
+        select: { lineUserId: true },
+      });
+      console.log('After Prisma query', user);
 
-      console.log(`User data fetched:`, user);
       if (!user) {
         console.warn(`No user found for employeeId: ${employeeId}`);
         return null;
       }
-      if (!user.lineUserId) {
-        console.warn(`No LINE User ID found for employeeId: ${employeeId}`);
-      }
       return user.lineUserId;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        console.error(`Database error for employee ${employeeId}:`, error);
-      } else {
-        console.error(
-          `Error fetching LINE User ID for employee ${employeeId}:`,
-          error,
-        );
-      }
+      console.error(
+        `Error fetching LINE User ID for employee ${employeeId}:`,
+        error,
+      );
       return null;
     }
   }
 
   async getUserByEmployeeId(employeeId: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { employeeId } });
+    return prisma.user.findUnique({ where: { employeeId } });
   }
 
   async getAdminUsers(): Promise<User[]> {
-    return this.prisma.user.findMany({
+    return prisma.user.findMany({
       where: {
         role: {
           in: [UserRole.ADMIN, UserRole.SUPERADMIN],
@@ -64,11 +48,11 @@ export class UseMappingService {
     requestType: T,
   ): Promise<T extends 'leave' ? LeaveRequest | null : OvertimeRequest | null> {
     if (requestType === 'leave') {
-      return this.prisma.leaveRequest.findUnique({
+      return prisma.leaveRequest.findUnique({
         where: { id: requestId },
       }) as any;
     } else {
-      return this.prisma.overtimeRequest.findUnique({
+      return prisma.overtimeRequest.findUnique({
         where: { id: requestId },
       }) as any;
     }
@@ -82,13 +66,13 @@ export class UseMappingService {
         : new Date(now.getFullYear(), now.getMonth(), 26);
 
     const [leaveRequests, overtimeRequests] = await Promise.all([
-      this.prisma.leaveRequest.count({
+      prisma.leaveRequest.count({
         where: {
           createdAt: { gte: currentMonthStart },
           status: 'PENDING',
         },
       }),
-      this.prisma.overtimeRequest.count({
+      prisma.overtimeRequest.count({
         where: {
           createdAt: { gte: currentMonthStart },
           status: 'PENDING',

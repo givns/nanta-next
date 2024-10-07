@@ -29,7 +29,7 @@ export class NotificationService {
     this.lineClient = new Client({
       channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     });
-    this.userMappingService = new UseMappingService(prisma);
+    this.userMappingService = new UseMappingService();
     this.notificationQueue = new NotificationQueue(
       this.lineClient,
       this.userMappingService,
