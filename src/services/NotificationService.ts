@@ -50,9 +50,7 @@ export class NotificationService {
       | 'overtime-batch-approval'
       | 'shift',
   ): Promise<void> {
-    console.log(
-      `Sending notification to employee ${employeeId}, type: ${type}`,
-    );
+    console.log(`Sending ${type} notification to employee ${employeeId}`);
     try {
       await this.notificationQueue.addNotification({
         employeeId,
@@ -157,16 +155,14 @@ export class NotificationService {
         admin,
       );
 
-      console.log(`Adding notification to queue for admin ${adminEmployeeId}`);
-      await this.notificationQueue.addNotification({
-        employeeId: adminEmployeeId,
-        message: JSON.stringify(message),
-        type: requestType,
-      });
-      console.log(`Notification added to queue for admin ${adminEmployeeId}`);
+      await this.sendNotification(
+        adminEmployeeId,
+        JSON.stringify(message),
+        requestType,
+      );
     } catch (error) {
       console.error(
-        `Error preparing notification for admin ${adminEmployeeId}:`,
+        `Error sending ${requestType} request notification:`,
         error,
       );
     }

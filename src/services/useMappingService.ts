@@ -1,4 +1,4 @@
-import { LeaveRequest, OvertimeRequest, User } from '@prisma/client';
+import { LeaveRequest, OvertimeRequest, User, Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { UserRole } from '@/types/enum';
 
@@ -16,23 +16,60 @@ export class UseMappingService {
       console.log('Before Prisma query');
       console.log('Prisma client is', prisma ? 'defined' : 'undefined');
 
-      const user = await prisma.user.findUnique({
+      const isConnected = await this.checkDatabaseConnection();
+      if (!isConnected) {
+        console.error('Cannot fetch LINE User ID: Database connection failed');
+        return null;
+      }
+
+      const startTime = Date.now();
+      const userPromise = prisma.user.findUnique({
         where: { employeeId },
         select: { lineUserId: true },
       });
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Prisma query timed out')), 5000); // 5 second timeout
+      });
+
+      const user = (await Promise.race([userPromise, timeoutPromise])) as {
+        lineUserId: string | null;
+      } | null;
+      const endTime = Date.now();
+      console.log(`Prisma query took ${endTime - startTime}ms`);
+
       console.log('After Prisma query', user);
 
       if (!user) {
         console.warn(`No user found for employeeId: ${employeeId}`);
         return null;
       }
+      console.log(`Retrieved LINE User ID:`, user.lineUserId);
       return user.lineUserId;
     } catch (error) {
       console.error(
         `Error fetching LINE User ID for employee ${employeeId}:`,
         error,
       );
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        console.error('Prisma error code:', error.code);
+        console.error('Prisma error message:', error.message);
+        console.error('Prisma error meta:', error.meta);
+      }
       return null;
+    }
+  }
+
+  async checkDatabaseConnection(): Promise<boolean> {
+    try {
+      await prisma.$connect();
+      console.log('Database connection successful');
+      return true;
+    } catch (error) {
+      console.error('Database connection failed:', error);
+      return false;
+    } finally {
+      await prisma.$disconnect();
     }
   }
 
