@@ -18,7 +18,7 @@ import {
 } from '../utils/generateDenialMessage';
 import { format } from 'date-fns';
 import { NotificationQueue } from './NotificationQueue';
-import UserMappingService from './useMappingService';
+import { UserMappingService } from './useMappingService';
 
 export class NotificationService {
   private notificationQueue: NotificationQueue;
@@ -29,7 +29,7 @@ export class NotificationService {
     this.lineClient = new Client({
       channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     });
-    this.userMappingService = new UserMappingService();
+    this.userMappingService = new UserMappingService(prisma);
     this.notificationQueue = new NotificationQueue(
       this.lineClient,
       this.userMappingService,

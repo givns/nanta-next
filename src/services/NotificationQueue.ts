@@ -1,7 +1,7 @@
 // services/NotificationQueue.ts
 
 import { Client, Message } from '@line/bot-sdk';
-import UserMappingService from './useMappingService';
+import { UserMappingService } from './useMappingService';
 
 interface NotificationTask {
   employeeId: string;

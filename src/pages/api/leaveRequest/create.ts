@@ -1,8 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createLeaveServiceServer } from '../../../services/LeaveServiceServer';
-import prisma from '../../../lib/prisma';
+import { PrismaClient } from '@prisma/client';
 import { createNotificationService } from '@/services/NotificationService';
 
+const prisma = new PrismaClient();
 export const notificationService = createNotificationService(prisma);
 export const leaveServiceServer = createLeaveServiceServer(
   prisma,
