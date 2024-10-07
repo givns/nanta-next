@@ -27,7 +27,7 @@ export class UseMappingService {
       }
 
       const startTime = Date.now();
-      const userPromise = prisma.user.findUnique({
+      const userPromise = prisma.user.findFirst({
         where: { employeeId },
         select: { lineUserId: true },
       });
@@ -59,11 +59,14 @@ export class UseMappingService {
       }
       console.log(`Retrieved LINE User ID:`, user.lineUserId);
       return user.lineUserId;
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error fetching LINE User ID for employee ${employeeId}:`,
         error,
       );
+      console.error('Error stack:', error.stack);
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         console.error('Prisma error code:', error.code);
         console.error('Prisma error message:', error.message);
