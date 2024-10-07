@@ -92,8 +92,6 @@ export class AttendanceService {
     return updatedUser;
   }
 
-  // AttendanceService.ts
-
   private async getCachedUserData(employeeId: string): Promise<User | null> {
     const cacheKey = `user:${employeeId}`;
     let cachedUser = await getCacheData(cacheKey);
@@ -124,137 +122,158 @@ export class AttendanceService {
     employeeId: string,
     location: { lat: number; lng: number },
   ): Promise<CheckInOutAllowance> {
-    const user = await this.getCachedUserData(employeeId);
-    if (!user) {
-      throw new AppError({
-        code: ErrorCode.USER_NOT_FOUND,
-        message: 'User not found',
-      });
-    }
-
-    const now = getCurrentTime();
-    console.log('Current time:', formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'));
-    // Check if user is within premises
-    const premise = this.shiftManagementService.isWithinPremises(
-      location.lat,
-      location.lng,
-    );
-    const inPremises = !!premise;
-    const address = premise ? premise.name : 'Unknown location';
-    // If not in premises, deny check-in/out
-    if (!inPremises) {
-      return {
-        allowed: false,
-        reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
-        inPremises: false,
-        address,
-      };
-    }
-
-    // Check holiday
-    const isHoliday = await this.holidayService.isHoliday(
-      now,
-      [],
-      user.shiftCode === 'SHIFT104',
-    );
-    if (isHoliday)
-      return {
-        allowed: true,
-        reason: 'วันหยุด: การลงเวลาจะถูกบันทึกเป็นการทำงานล่วงเวลา',
-        isOvertime: true,
-        inPremises,
-        address,
-      };
-
-    // Check if user is on leave
-    const leaveRequest = await this.leaveService.checkUserOnLeave(
-      employeeId,
-      now,
-    );
-    if (leaveRequest && leaveRequest.status === 'approved') {
-      return {
-        allowed: false,
-        reason: 'User is on approved leave',
-        inPremises,
-        address,
-      };
-    }
-    const shiftData =
-      await this.shiftManagementService.getEffectiveShiftAndStatus(
-        employeeId,
-        now,
+    try {
+      console.log(
+        `Checking allowance for employee ${employeeId} at location:`,
+        location,
       );
 
-    if (!shiftData) {
-      return {
-        allowed: false,
-        reason: 'No shift data available for the user',
-        inPremises,
-        address,
-      };
-    }
+      if (!location.lat || !location.lng) {
+        console.log('Location data missing');
+        return {
+          allowed: false,
+          reason: 'ไม่สามารถระบุตำแหน่งได้ กรุณาเปิดการใช้งาน GPS',
+          inPremises: false,
+          address: 'Unknown',
+        };
+      }
 
-    const { regularShift, effectiveShift, shiftstatus } = shiftData;
-    console.log('Regular shift:', regularShift);
-    console.log('Effective shift:', effectiveShift);
-    console.log('Shift status:', shiftstatus);
+      const user = await this.getCachedUserData(employeeId);
+      if (!user) {
+        console.log(`User not found for employeeId: ${employeeId}`);
+        throw new AppError({
+          code: ErrorCode.USER_NOT_FOUND,
+          message: 'User not found',
+        });
+      }
 
-    const {
-      isOutsideShift = false,
-      isLate = false,
-      isOvertime = false,
-    } = shiftstatus || {};
+      const now = getCurrentTime();
+      console.log('Current time:', formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'));
 
-    // Check work days
-    const today = now.getDay();
-    if (!effectiveShift.workDays.includes(today)) {
-      return {
-        allowed: false,
-        reason: 'วันหยุด: การลงเวลาจะต้องได้รับการอนุมัติ',
-        inPremises,
-        address,
-      };
-    }
+      const premise = this.shiftManagementService.isWithinPremises(
+        location.lat,
+        location.lng,
+      );
+      const inPremises = !!premise;
+      const address = premise ? premise.name : 'Unknown location';
+      console.log(`In premises: ${inPremises}, Address: ${address}`);
 
-    const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
-    const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
-    const earlyCheckInWindow = subMinutes(shiftStart, 30);
-    const lateCheckOutWindow = addMinutes(shiftEnd, 30);
+      if (!inPremises) {
+        return {
+          allowed: false,
+          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
+          inPremises: false,
+          address,
+        };
+      }
 
-    const minutesUntilAllowed = Math.ceil(
-      differenceInMinutes(earlyCheckInWindow, now),
-    );
-
-    if (now < earlyCheckInWindow) {
-      return {
-        allowed: false,
-        reason: `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
-        countdown: minutesUntilAllowed,
-        inPremises,
-        address,
-      };
-    }
-
-    if (isAfter(now, earlyCheckInWindow) && isBefore(now, shiftStart)) {
-      return {
-        allowed: true,
-        reason: 'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
-        isOvertime: false,
-        inPremises,
-        address,
-      };
-    }
-
-    if (isOutsideShift) {
-      if (isOvertime || isAfter(now, lateCheckOutWindow)) {
+      const isHoliday = await this.holidayService.isHoliday(
+        now,
+        [],
+        user.shiftCode === 'SHIFT104',
+      );
+      console.log(`Is holiday: ${isHoliday}`);
+      if (isHoliday) {
         return {
           allowed: true,
-          reason: 'คุณกำลังลงเวลานอกกะการทำงาน (ทำงานล่วงเวลา)',
+          reason: 'วันหยุด: การลงเวลาจะถูกบันทึกเป็นการทำงานล่วงเวลา',
           isOvertime: true,
           inPremises,
           address,
         };
-      } else if (isBefore(now, shiftStart)) {
+      }
+
+      const leaveRequest = await this.leaveService.checkUserOnLeave(
+        employeeId,
+        now,
+      );
+      console.log('Leave request:', leaveRequest);
+      if (leaveRequest && leaveRequest.status === 'approved') {
+        return {
+          allowed: false,
+          reason: 'คุณอยู่ในช่วงการลาที่ได้รับอนุมัติ',
+          inPremises,
+          address,
+        };
+      }
+
+      const pendingLeave = await this.leaveService.hasPendingLeaveRequest(
+        employeeId,
+        now,
+      );
+      console.log(`Pending leave request: ${pendingLeave}`);
+      if (pendingLeave) {
+        return {
+          allowed: false,
+          reason: 'คุณมีคำขอลาที่รออนุมัติสำหรับวันนี้',
+          inPremises,
+          address,
+        };
+      }
+
+      const shiftData =
+        await this.shiftManagementService.getEffectiveShiftAndStatus(
+          employeeId,
+          now,
+        );
+      if (!shiftData) {
+        console.log('No shift data available');
+        return {
+          allowed: false,
+          reason: 'ไม่พบข้อมูลกะการทำงานของคุณ',
+          inPremises,
+          address,
+        };
+      }
+
+      const { effectiveShift, shiftstatus } = shiftData;
+      console.log('Effective shift:', effectiveShift);
+      console.log('Shift status:', shiftstatus);
+
+      const {
+        isOutsideShift = false,
+        isLate = false,
+        isOvertime = false,
+      } = shiftstatus || {};
+
+      if (!effectiveShift.workDays.includes(now.getDay())) {
+        return {
+          allowed: false,
+          reason: 'วันหยุด: การลงเวลาจะต้องได้รับการอนุมัติ',
+          inPremises,
+          address,
+        };
+      }
+
+      const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+      const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+      const earlyCheckInWindow = subMinutes(shiftStart, 30);
+      const lateCheckOutWindow = addMinutes(shiftEnd, 30);
+
+      console.log(
+        'Early check-in window:',
+        formatDateTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss'),
+      );
+      console.log(
+        'Late check-out window:',
+        formatDateTime(lateCheckOutWindow, 'yyyy-MM-dd HH:mm:ss'),
+      );
+
+      const minutesUntilAllowed = Math.ceil(
+        differenceInMinutes(earlyCheckInWindow, now),
+      );
+
+      if (now < earlyCheckInWindow) {
+        return {
+          allowed: false,
+          reason: `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
+          countdown: minutesUntilAllowed,
+          inPremises,
+          address,
+        };
+      }
+
+      if (isAfter(now, earlyCheckInWindow) && isBefore(now, shiftStart)) {
         return {
           allowed: true,
           reason:
@@ -263,35 +282,65 @@ export class AttendanceService {
           inPremises,
           address,
         };
-      } else {
+      }
+
+      if (isOutsideShift) {
+        if (isOvertime || isAfter(now, lateCheckOutWindow)) {
+          return {
+            allowed: true,
+            reason: 'คุณกำลังลงเวลานอกกะการทำงาน (ทำงานล่วงเวลา)',
+            isOvertime: true,
+            inPremises,
+            address,
+          };
+        } else if (isBefore(now, shiftStart)) {
+          return {
+            allowed: true,
+            reason:
+              'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
+            isOvertime: false,
+            inPremises,
+            address,
+          };
+        } else {
+          return {
+            allowed: false,
+            reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกช่วงเวลาทำงาน',
+            isOutsideShift: true,
+            inPremises,
+            address,
+          };
+        }
+      }
+
+      if (isLate) {
         return {
-          allowed: false,
-          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกช่วงเวลาทำงาน',
-          isOutsideShift: true,
+          allowed: true,
+          reason: 'คุณกำลังลงเวลาเข้างานสาย',
+          isLate: true,
+          isOvertime: false,
           inPremises,
           address,
         };
       }
-    }
 
-    if (isLate) {
       return {
         allowed: true,
-        reason: 'คุณกำลังลงเวลาเข้างานสาย',
-        isLate: true,
-        isOvertime: false,
+        isLate,
+        isOvertime,
+        countdown: minutesUntilAllowed,
         inPremises,
         address,
       };
+    } catch (error) {
+      console.error('Error in isCheckInOutAllowed:', error);
+      return {
+        allowed: false,
+        reason: 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์การลงเวลา',
+        inPremises: false,
+        address: 'Unknown',
+      };
     }
-    return {
-      allowed: true,
-      isLate,
-      isOvertime,
-      countdown: minutesUntilAllowed,
-      inPremises,
-      address,
-    };
   }
 
   async processAttendance(

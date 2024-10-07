@@ -14,21 +14,35 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   isCheckingIn,
   onAction,
 }) => {
-  const buttonClass = `w-full ${checkInOutAllowance?.allowed ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'} text-white py-3 px-4 rounded-lg transition duration-300`;
+  const buttonClass = `w-full ${
+    checkInOutAllowance?.allowed
+      ? 'bg-red-600 hover:bg-red-700'
+      : 'bg-gray-400 cursor-not-allowed'
+  } text-white py-3 px-4 rounded-lg transition duration-300`;
 
   let buttonText = 'ไม่สามารถลงเวลาได้ในขณะนี้';
-  if (!isLoading) {
-    if (checkInOutAllowance?.allowed) {
-      buttonText = `เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
-    } else if (checkInOutAllowance?.reason) {
-      buttonText = checkInOutAllowance.reason;
-    }
-  } else {
+  let statusText = '';
+
+  if (isLoading) {
     buttonText = 'กรุณารอสักครู่...';
+  } else if (checkInOutAllowance) {
+    if (checkInOutAllowance.allowed) {
+      buttonText = `เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
+      if (checkInOutAllowance.isOvertime) {
+        statusText = 'คุณกำลังทำงานล่วงเวลา';
+      } else if (checkInOutAllowance.isLate) {
+        statusText = 'คุณกำลังเข้างานสาย';
+      }
+    } else {
+      buttonText = checkInOutAllowance.reason || 'ไม่สามารถลงเวลาได้';
+      if (checkInOutAllowance.countdown) {
+        statusText = `สามารถลงเวลาได้ในอีก ${checkInOutAllowance.countdown} นาที`;
+      }
+    }
   }
 
   return (
-    <>
+    <div className="space-y-2">
       <button
         onClick={() => onAction(isCheckingIn)}
         disabled={isLoading || !checkInOutAllowance?.allowed}
@@ -37,27 +51,32 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       >
         {buttonText}
       </button>
-      {!checkInOutAllowance?.allowed && checkInOutAllowance?.reason && (
-        <p className="text-red-500 text-center text-sm mt-2">
-          {checkInOutAllowance.reason}
+      {statusText && (
+        <p
+          className="text-center text-sm mt-2"
+          style={{
+            color: checkInOutAllowance?.isOvertime ? '#9333ea' : '#ef4444',
+          }}
+        >
+          {statusText}
         </p>
       )}
       {checkInOutAllowance?.isOutsideShift && (
-        <p className="text-yellow-500 text-center text-sm mt-2">
+        <p className="text-yellow-500 text-center text-sm">
           คุณอยู่นอกเวลาทำงานของกะ
         </p>
       )}
-      {checkInOutAllowance?.isLate && (
-        <p className="text-red-500 text-center text-sm mt-2">
-          คุณกำลังเข้างานสาย
+      {!checkInOutAllowance?.inPremises && (
+        <p className="text-red-500 text-center text-sm">
+          คุณอยู่นอกสถานที่ทำงาน
         </p>
       )}
-      {checkInOutAllowance?.isOvertime && (
-        <p className="text-purple-500 text-center text-sm mt-2">
-          คุณกำลังทำงานล่วงเวลา
+      {checkInOutAllowance?.address && (
+        <p className="text-blue-500 text-center text-sm">
+          สถานที่: {checkInOutAllowance.address}
         </p>
       )}
-    </>
+    </div>
   );
 };
 
