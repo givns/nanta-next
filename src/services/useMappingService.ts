@@ -2,6 +2,10 @@ import { LeaveRequest, OvertimeRequest, User, Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { UserRole } from '@/types/enum';
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 export class UseMappingService {
   constructor() {
     console.log('UseMappingService constructor called');
@@ -32,14 +36,18 @@ export class UseMappingService {
 
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
-          console.log('Prisma query timed out');
+          console.log('Timeout reached');
           reject(new Error('Prisma query timed out'));
-        }, 15000); // Increased to 15 second timeout
+        }, 30000);
       });
+      console.log('Timeout promise defined');
 
+      console.log('About to await Promise.race');
       const user = (await Promise.race([userPromise, timeoutPromise])) as {
         lineUserId: string | null;
       } | null;
+      console.log('Promise.race completed');
+
       const endTime = Date.now();
       console.log(`Prisma query took ${endTime - startTime}ms`);
 
