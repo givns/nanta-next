@@ -11,7 +11,7 @@ export class UseMappingService {
       console.log('Before Prisma query');
       console.log('Prisma client is', prisma ? 'defined' : 'undefined');
 
-      const user = await prisma.user.findFirst({
+      const user = await prisma.user.findUnique({
         where: { employeeId },
         select: { lineUserId: true },
       });
@@ -32,7 +32,7 @@ export class UseMappingService {
   }
 
   async getUserByEmployeeId(employeeId: string): Promise<User | null> {
-    return prisma.user.findFirst({ where: { employeeId } });
+    return prisma.user.findUnique({ where: { employeeId } });
   }
 
   async getAdminUsers(): Promise<User[]> {
