@@ -11,7 +11,7 @@ export class UseMappingService {
       console.log('Before Prisma query');
       console.log('Prisma client is', prisma ? 'defined' : 'undefined');
 
-      const user = await prisma.user.findUnique({
+      const user = await prisma.user.findFirst({
         where: { employeeId },
         select: { lineUserId: true },
       });
