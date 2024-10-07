@@ -70,35 +70,43 @@ export class NotificationQueue {
   }
 
   private async sendNotification(task: NotificationTask) {
-    console.log(
-      `Attempting to send notification for task: ${JSON.stringify(task)}`,
-    );
-    const lineUserId = await this.userMappingService.getLineUserId(
-      task.employeeId,
-    );
-    console.log(
-      `Retrieved LINE User ID for employee ${task.employeeId}: ${lineUserId}`,
-    );
-    if (!lineUserId) {
-      throw new Error(`No LINE User ID found for employee ${task.employeeId}`);
-    }
+    try {
+      console.log(
+        `Attempting to send notification for task: ${JSON.stringify(task)}`,
+      );
+      const lineUserId = await this.userMappingService.getLineUserId(
+        task.employeeId,
+      );
+      console.log(
+        `Retrieved LINE User ID for employee ${task.employeeId}: ${lineUserId}`,
+      );
 
-    let messageToSend: Message;
-    if (typeof task.message === 'string') {
-      messageToSend = { type: 'text', text: task.message };
-    } else if (this.isLineMessage(task.message)) {
-      messageToSend = task.message;
-    } else {
-      throw new Error('Invalid message format');
-    }
+      if (!lineUserId) {
+        throw new Error(
+          `No LINE User ID found for employee ${task.employeeId}`,
+        );
+      }
 
-    console.log(
-      `Sending ${task.type} notification to LINE User ID: ${lineUserId}`,
-    );
-    await this.lineClient.pushMessage(lineUserId, messageToSend);
-    console.log(
-      `Sent ${task.type} notification to employee ${task.employeeId}`,
-    );
+      let messageToSend: Message;
+      if (typeof task.message === 'string') {
+        messageToSend = JSON.parse(task.message);
+      } else if (this.isLineMessage(task.message)) {
+        messageToSend = task.message;
+      } else {
+        throw new Error('Invalid message format');
+      }
+
+      console.log(
+        `Sending ${task.type} notification to LINE User ID: ${lineUserId}`,
+      );
+      await this.lineClient.pushMessage(lineUserId, messageToSend);
+      console.log(
+        `Successfully sent ${task.type} notification to employee ${task.employeeId}`,
+      );
+    } catch (error) {
+      console.error(`Error sending notification:`, error);
+      throw error; // Re-throw the error to be caught by the processQueue method
+    }
   }
 
   private isLineMessage(message: any): message is Message {
