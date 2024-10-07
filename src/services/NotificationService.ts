@@ -25,7 +25,8 @@ export class NotificationService {
   private lineClient: Client;
   private userMappingService: UseMappingService;
 
-  constructor(prisma: PrismaClient) {
+  constructor(private prisma: PrismaClient) {
+    console.log('Initializing NotificationService');
     this.lineClient = new Client({
       channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     });
@@ -34,6 +35,7 @@ export class NotificationService {
       this.lineClient,
       this.userMappingService,
     );
+    console.log('NotificationService initialized');
   }
 
   async sendNotification(

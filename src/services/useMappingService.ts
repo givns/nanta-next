@@ -3,7 +3,12 @@ import prisma from '../lib/prisma';
 import { UserRole } from '@/types/enum';
 
 export class UseMappingService {
-  constructor() {}
+  constructor() {
+    console.log('UseMappingService constructor called');
+    if (!prisma) {
+      console.error('Prisma client is not initialized');
+    }
+  }
 
   async getLineUserId(employeeId: string): Promise<string | null> {
     console.log(`Fetching LINE User ID for employee: ${employeeId}`);
@@ -32,56 +37,89 @@ export class UseMappingService {
   }
 
   async getUserByEmployeeId(employeeId: string): Promise<User | null> {
-    return prisma.user.findUnique({ where: { employeeId } });
+    console.log(`Getting user by employeeId: ${employeeId}`);
+    try {
+      const user = await prisma.user.findUnique({ where: { employeeId } });
+      console.log(`User found:`, user ? 'Yes' : 'No');
+      return user;
+    } catch (error) {
+      console.error(`Error getting user by employeeId ${employeeId}:`, error);
+      return null;
+    }
   }
 
   async getAdminUsers(): Promise<User[]> {
-    return prisma.user.findMany({
-      where: {
-        role: {
-          in: [UserRole.ADMIN, UserRole.SUPERADMIN],
+    console.log('Getting admin users');
+    try {
+      const users = await prisma.user.findMany({
+        where: {
+          role: {
+            in: [UserRole.ADMIN, UserRole.SUPERADMIN],
+          },
         },
-      },
-    });
+      });
+      console.log(`Found ${users.length} admin users`);
+      return users;
+    } catch (error) {
+      console.error('Error getting admin users:', error);
+      return [];
+    }
   }
 
   async getRequestById<T extends 'leave' | 'overtime'>(
     requestId: string,
     requestType: T,
   ): Promise<T extends 'leave' ? LeaveRequest | null : OvertimeRequest | null> {
-    if (requestType === 'leave') {
-      return prisma.leaveRequest.findUnique({
-        where: { id: requestId },
-      }) as any;
-    } else {
-      return prisma.overtimeRequest.findUnique({
-        where: { id: requestId },
-      }) as any;
+    console.log(`Getting ${requestType} request by id: ${requestId}`);
+    try {
+      if (requestType === 'leave') {
+        return prisma.leaveRequest.findUnique({
+          where: { id: requestId },
+        }) as any;
+      } else {
+        return prisma.overtimeRequest.findUnique({
+          where: { id: requestId },
+        }) as any;
+      }
+    } catch (error) {
+      console.error(
+        `Error getting ${requestType} request by id ${requestId}:`,
+        error,
+      );
+      return null;
     }
   }
 
   async getRequestCountForAllAdmins(): Promise<number> {
-    const now = new Date();
-    const currentMonthStart =
-      now.getDate() < 26
-        ? new Date(now.getFullYear(), now.getMonth() - 1, 26)
-        : new Date(now.getFullYear(), now.getMonth(), 26);
+    console.log('Getting request count for all admins');
+    try {
+      const now = new Date();
+      const currentMonthStart =
+        now.getDate() < 26
+          ? new Date(now.getFullYear(), now.getMonth() - 1, 26)
+          : new Date(now.getFullYear(), now.getMonth(), 26);
 
-    const [leaveRequests, overtimeRequests] = await Promise.all([
-      prisma.leaveRequest.count({
-        where: {
-          createdAt: { gte: currentMonthStart },
-          status: 'PENDING',
-        },
-      }),
-      prisma.overtimeRequest.count({
-        where: {
-          createdAt: { gte: currentMonthStart },
-          status: 'PENDING',
-        },
-      }),
-    ]);
+      const [leaveRequests, overtimeRequests] = await Promise.all([
+        prisma.leaveRequest.count({
+          where: {
+            createdAt: { gte: currentMonthStart },
+            status: 'PENDING',
+          },
+        }),
+        prisma.overtimeRequest.count({
+          where: {
+            createdAt: { gte: currentMonthStart },
+            status: 'PENDING',
+          },
+        }),
+      ]);
 
-    return leaveRequests + overtimeRequests;
+      const totalCount = leaveRequests + overtimeRequests;
+      console.log(`Total pending requests: ${totalCount}`);
+      return totalCount;
+    } catch (error) {
+      console.error('Error getting request count for all admins:', error);
+      return 0;
+    }
   }
 }

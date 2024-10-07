@@ -1,5 +1,3 @@
-// services/NotificationQueue.ts
-
 import { Client, Message } from '@line/bot-sdk';
 import { UseMappingService } from './useMappingService';
 
@@ -23,7 +21,13 @@ export class NotificationQueue {
   constructor(
     private lineClient: Client,
     private userMappingService: UseMappingService,
-  ) {}
+  ) {
+    console.log('NotificationQueue initialized');
+    console.log(
+      'userMappingService is',
+      this.userMappingService ? 'defined' : 'undefined',
+    );
+  }
 
   async addNotification(task: NotificationTask) {
     this.queue.push(task);
@@ -79,6 +83,7 @@ export class NotificationQueue {
         throw new Error(`No employeeId provided in the task`);
       }
 
+      console.log(`Fetching LINE User ID for employee: ${task.employeeId}`);
       const lineUserId = await this.userMappingService.getLineUserId(
         task.employeeId,
       );
@@ -95,7 +100,12 @@ export class NotificationQueue {
 
       let messageToSend: Message;
       if (typeof task.message === 'string') {
-        messageToSend = JSON.parse(task.message);
+        try {
+          messageToSend = JSON.parse(task.message);
+        } catch (error) {
+          console.error('Error parsing message:', error);
+          throw new Error('Invalid message format: unable to parse JSON');
+        }
       } else if (this.isLineMessage(task.message)) {
         messageToSend = task.message;
       } else {
