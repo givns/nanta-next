@@ -30,15 +30,20 @@ export class NotificationQueue {
     this.queue.push(task);
     console.log(`Added notification to queue: ${JSON.stringify(task)}`);
     if (!this.isProcessing) {
+      console.log('Starting queue processing');
       this.processQueue();
+    } else {
+      console.log('Queue is already being processed');
     }
   }
 
   private async processQueue() {
     this.isProcessing = true;
+    console.log(`Processing queue with ${this.queue.length} items`);
     while (this.queue.length > 0) {
       const task = this.queue.shift()!;
       try {
+        console.log(`Processing task: ${JSON.stringify(task)}`);
         await this.sendNotification(task);
         console.log(`Successfully sent notification: ${JSON.stringify(task)}`);
       } catch (error) {
@@ -50,10 +55,16 @@ export class NotificationQueue {
         if (this.queue.length < 100) {
           // Prevent queue from growing too large
           this.queue.push(task);
+          console.log(`Requeued failed task: ${JSON.stringify(task)}`);
+        } else {
+          console.warn(
+            `Queue is too large, discarding failed task: ${JSON.stringify(task)}`,
+          );
         }
       }
     }
     this.isProcessing = false;
+    console.log('Finished processing queue');
   }
 
   private async sendNotification(task: NotificationTask) {
@@ -73,6 +84,9 @@ export class NotificationQueue {
       throw new Error('Invalid message format');
     }
 
+    console.log(
+      `Sending ${task.type} notification to LINE User ID: ${lineUserId}`,
+    );
     await this.lineClient.pushMessage(lineUserId, messageToSend);
     console.log(
       `Sent ${task.type} notification to employee ${task.employeeId}`,

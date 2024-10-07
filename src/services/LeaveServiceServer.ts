@@ -123,6 +123,7 @@ export class LeaveServiceServer
   }
 
   private async notifyAdmins(leaveRequestId: string): Promise<void> {
+    console.log(`Notifying admins for leave request: ${leaveRequestId}`);
     const admins = await this.prisma.user.findMany({
       where: {
         role: {
@@ -130,13 +131,25 @@ export class LeaveServiceServer
         },
       },
     });
+    console.log(`Found ${admins.length} admins to notify`);
 
     for (const admin of admins) {
-      await this.notificationService.sendRequestNotification(
-        admin.employeeId,
-        leaveRequestId,
-        'leave',
-      );
+      console.log(`Sending notification to admin: ${admin.employeeId}`);
+      try {
+        await this.notificationService.sendRequestNotification(
+          admin.employeeId,
+          leaveRequestId,
+          'leave',
+        );
+        console.log(
+          `Notification queued successfully for admin: ${admin.employeeId}`,
+        );
+      } catch (error) {
+        console.error(
+          `Failed to queue notification for admin ${admin.employeeId}:`,
+          error,
+        );
+      }
     }
   }
 

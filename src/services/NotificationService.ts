@@ -101,45 +101,58 @@ export class NotificationService {
     requestId: string,
     requestType: 'leave' | 'overtime',
   ): Promise<void> {
-    const admin =
-      await this.userMappingService.getUserByEmployeeId(adminEmployeeId);
-    if (!admin) {
-      console.warn(`Admin with employee ID ${adminEmployeeId} not found`);
-      return;
+    console.log(
+      `Preparing to send ${requestType} request notification to admin: ${adminEmployeeId}`,
+    );
+
+    try {
+      const admin =
+        await this.userMappingService.getUserByEmployeeId(adminEmployeeId);
+      if (!admin) {
+        console.warn(`Admin with employee ID ${adminEmployeeId} not found`);
+        return;
+      }
+
+      const request = await this.userMappingService.getRequestById(
+        requestId,
+        requestType,
+      );
+      if (!request) {
+        console.warn(`${requestType} request with ID ${requestId} not found`);
+        return;
+      }
+
+      const user = await this.userMappingService.getUserByEmployeeId(
+        request.employeeId,
+      );
+      if (!user) {
+        console.warn(`User with employee ID ${request.employeeId} not found`);
+        return;
+      }
+
+      const requestCount =
+        await this.userMappingService.getRequestCountForAllAdmins();
+      const message = this.createRequestFlexMessage(
+        user,
+        request,
+        requestType,
+        requestCount,
+        admin,
+      );
+
+      console.log(`Adding notification to queue for admin ${adminEmployeeId}`);
+      await this.notificationQueue.addNotification({
+        employeeId: adminEmployeeId,
+        message: JSON.stringify(message),
+        type: requestType,
+      });
+      console.log(`Notification added to queue for admin ${adminEmployeeId}`);
+    } catch (error) {
+      console.error(
+        `Error preparing notification for admin ${adminEmployeeId}:`,
+        error,
+      );
     }
-
-    const request = await this.userMappingService.getRequestById(
-      requestId,
-      requestType,
-    );
-    if (!request) {
-      console.warn(`${requestType} request with ID ${requestId} not found`);
-      return;
-    }
-
-    const user = await this.userMappingService.getUserByEmployeeId(
-      request.employeeId,
-    );
-    if (!user) {
-      console.warn(`User with employee ID ${request.employeeId} not found`);
-      return;
-    }
-
-    const requestCount =
-      await this.userMappingService.getRequestCountForAllAdmins();
-    const message = this.createRequestFlexMessage(
-      user,
-      request,
-      requestType,
-      requestCount,
-      admin,
-    );
-
-    await this.sendNotification(
-      adminEmployeeId,
-      JSON.stringify(message),
-      requestType,
-    );
   }
 
   async sendApprovalNotification(
