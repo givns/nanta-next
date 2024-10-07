@@ -32,7 +32,7 @@ export class UseMappingService {
   }
 
   async getUserByEmployeeId(employeeId: string): Promise<User | null> {
-    return prisma.user.findUnique({ where: { employeeId } });
+    return prisma.user.findFirst({ where: { employeeId } });
   }
 
   async getAdminUsers(): Promise<User[]> {
