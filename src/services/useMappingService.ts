@@ -10,12 +10,30 @@ export class UserMappingService {
   constructor(private prisma: PrismaClient) {}
 
   async getLineUserId(employeeId: string): Promise<string | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { employeeId },
-      select: { lineUserId: true },
-    });
-    return user?.lineUserId || null;
+    try {
+      console.log(`Fetching LINE User ID for employee: ${employeeId}`);
+      const user = await this.prisma.user.findUnique({
+        where: { employeeId },
+        select: { lineUserId: true },
+      });
+      console.log(`User data fetched:`, user);
+      if (!user) {
+        console.warn(`No user found for employeeId: ${employeeId}`);
+        return null;
+      }
+      if (!user.lineUserId) {
+        console.warn(`No LINE User ID found for employeeId: ${employeeId}`);
+      }
+      return user.lineUserId || null;
+    } catch (error) {
+      console.error(
+        `Error fetching LINE User ID for employee ${employeeId}:`,
+        error,
+      );
+      return null;
+    }
   }
+
   async getUserByEmployeeId(employeeId: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { employeeId } });
   }

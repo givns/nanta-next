@@ -70,15 +70,18 @@ export class NotificationQueue {
   }
 
   private async sendNotification(task: NotificationTask) {
-    console.log(
-      `Attempting to send notification for task: ${JSON.stringify(task)}`,
-    );
+    console.log(`Starting sendNotification for task:`, task);
     try {
+      if (!task.employeeId) {
+        throw new Error(`No employeeId provided in the task`);
+      }
+
       const lineUserId = await this.userMappingService.getLineUserId(
         task.employeeId,
       );
       console.log(
-        `Retrieved LINE User ID for employee ${task.employeeId}: ${lineUserId}`,
+        `Retrieved LINE User ID for employee ${task.employeeId}:`,
+        lineUserId,
       );
 
       if (!lineUserId) {
