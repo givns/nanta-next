@@ -2,20 +2,30 @@ import {
   LeaveRequest,
   OvertimeRequest,
   PrismaClient,
+  Prisma,
   User,
 } from '@prisma/client';
 import { UserRole } from '@/types/enum';
+
+const prisma = new PrismaClient();
+export { prisma };
 
 export class UserMappingService {
   constructor(private prisma: PrismaClient) {}
 
   async getLineUserId(employeeId: string): Promise<string | null> {
+    console.log(`Fetching LINE User ID for employee: ${employeeId}`);
     try {
-      console.log(`Fetching LINE User ID for employee: ${employeeId}`);
-      const user = await this.prisma.user.findUnique({
-        where: { employeeId },
-        select: { lineUserId: true },
-      });
+      const user = (await Promise.race([
+        this.prisma.user.findUnique({
+          where: { employeeId },
+          select: { lineUserId: true },
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database query timed out')), 5000),
+        ),
+      ])) as { lineUserId: string | null } | null;
+
       console.log(`User data fetched:`, user);
       if (!user) {
         console.warn(`No user found for employeeId: ${employeeId}`);
@@ -24,12 +34,16 @@ export class UserMappingService {
       if (!user.lineUserId) {
         console.warn(`No LINE User ID found for employeeId: ${employeeId}`);
       }
-      return user.lineUserId || null;
+      return user.lineUserId;
     } catch (error) {
-      console.error(
-        `Error fetching LINE User ID for employee ${employeeId}:`,
-        error,
-      );
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        console.error(`Database error for employee ${employeeId}:`, error);
+      } else {
+        console.error(
+          `Error fetching LINE User ID for employee ${employeeId}:`,
+          error,
+        );
+      }
       return null;
     }
   }
