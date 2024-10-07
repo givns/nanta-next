@@ -18,18 +18,18 @@ import {
 } from '../utils/generateDenialMessage';
 import { format } from 'date-fns';
 import { NotificationQueue } from './NotificationQueue';
-import { UserMappingService } from './useMappingService';
+import { UseMappingService } from './useMappingService';
 
 export class NotificationService {
   private notificationQueue: NotificationQueue;
   private lineClient: Client;
-  private userMappingService: UserMappingService;
+  private userMappingService: UseMappingService;
 
   constructor(prisma: PrismaClient) {
     this.lineClient = new Client({
       channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     });
-    this.userMappingService = new UserMappingService(prisma);
+    this.userMappingService = new UseMappingService(prisma);
     this.notificationQueue = new NotificationQueue(
       this.lineClient,
       this.userMappingService,

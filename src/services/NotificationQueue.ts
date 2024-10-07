@@ -1,7 +1,7 @@
 // services/NotificationQueue.ts
 
 import { Client, Message } from '@line/bot-sdk';
-import { UserMappingService } from './useMappingService';
+import { UseMappingService } from './useMappingService';
 
 interface NotificationTask {
   employeeId: string;
@@ -22,7 +22,7 @@ export class NotificationQueue {
 
   constructor(
     private lineClient: Client,
-    private userMappingService: UserMappingService,
+    private userMappingService: UseMappingService,
   ) {}
 
   async addNotification(task: NotificationTask) {
@@ -70,6 +70,10 @@ export class NotificationQueue {
 
   private async sendNotification(task: NotificationTask) {
     console.log(`Starting sendNotification for task:`, task);
+    console.log(
+      `userMappingService is`,
+      this.userMappingService ? 'defined' : 'undefined',
+    );
     try {
       if (!task.employeeId) {
         throw new Error(`No employeeId provided in the task`);

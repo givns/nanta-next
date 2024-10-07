@@ -7,11 +7,7 @@ import {
 } from '@prisma/client';
 import { UserRole } from '@/types/enum';
 
-const prisma = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error'],
-});
-
-export class UserMappingService {
+export class UseMappingService {
   constructor(private prisma: PrismaClient) {}
 
   async getLineUserId(employeeId: string): Promise<string | null> {
