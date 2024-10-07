@@ -169,6 +169,8 @@ const handler = async (event: WebhookEvent) => {
           text: 'เกิดข้อผิดพลาดในการดำเนินการ โปรดลองอีกครั้งในภายหลัง',
         });
       }
+    } else {
+      console.log('Invalid postback data received');
     }
   } else if (event.type === 'unfollow') {
     console.log('Unfollow event for user ID:', event.source.userId);

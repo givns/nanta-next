@@ -48,7 +48,22 @@ export class NotificationService {
       | 'overtime-batch-approval'
       | 'shift',
   ): Promise<void> {
-    await this.notificationQueue.addNotification({ employeeId, message, type });
+    console.log(
+      `Sending notification to employee ${employeeId}, type: ${type}`,
+    );
+    try {
+      await this.notificationQueue.addNotification({
+        employeeId,
+        message,
+        type,
+      });
+      console.log(`Notification added to queue for employee ${employeeId}`);
+    } catch (error) {
+      console.error(
+        `Error adding notification to queue for employee ${employeeId}:`,
+        error,
+      );
+    }
   }
 
   async sendCheckInConfirmation(

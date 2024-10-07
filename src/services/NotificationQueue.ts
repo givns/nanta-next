@@ -29,6 +29,8 @@ export class NotificationQueue {
   async addNotification(task: NotificationTask) {
     this.queue.push(task);
     console.log(`Added notification to queue: ${JSON.stringify(task)}`);
+    console.log(`Current queue length: ${this.queue.length}`);
+
     if (!this.isProcessing) {
       console.log('Starting queue processing');
       this.processQueue();
@@ -68,8 +70,14 @@ export class NotificationQueue {
   }
 
   private async sendNotification(task: NotificationTask) {
+    console.log(
+      `Attempting to send notification for task: ${JSON.stringify(task)}`,
+    );
     const lineUserId = await this.userMappingService.getLineUserId(
       task.employeeId,
+    );
+    console.log(
+      `Retrieved LINE User ID for employee ${task.employeeId}: ${lineUserId}`,
     );
     if (!lineUserId) {
       throw new Error(`No LINE User ID found for employee ${task.employeeId}`);
