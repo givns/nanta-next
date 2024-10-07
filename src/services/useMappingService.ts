@@ -9,6 +9,8 @@ export class UseMappingService {
     console.log(`Fetching LINE User ID for employee: ${employeeId}`);
     try {
       console.log('Before Prisma query');
+      console.log('Prisma client is', prisma ? 'defined' : 'undefined');
+
       const user = await prisma.user.findUnique({
         where: { employeeId },
         select: { lineUserId: true },
