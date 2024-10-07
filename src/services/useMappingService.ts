@@ -28,8 +28,13 @@ export class UseMappingService {
         select: { lineUserId: true },
       });
 
+      console.log('Prisma query initiated, waiting for result or timeout');
+
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Prisma query timed out')), 5000); // 5 second timeout
+        setTimeout(() => {
+          console.log('Prisma query timed out');
+          reject(new Error('Prisma query timed out'));
+        }, 15000); // Increased to 15 second timeout
       });
 
       const user = (await Promise.race([userPromise, timeoutPromise])) as {
