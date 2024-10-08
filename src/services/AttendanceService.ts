@@ -1097,11 +1097,17 @@ export class AttendanceService {
     const { shiftStart, shiftEnd } = this.getShiftTimes(effectiveShift, now);
     const latestAttendance = user.attendances[0];
 
-    const isOnLeave = await this.leaveService.checkUserOnLeave(user.id, now);
+    const isOnLeave = await this.leaveService.checkUserOnLeave(
+      user.employeeId,
+      now,
+    );
     if (isOnLeave) return; //might need to use employeeId instead of user.id
 
     const approvedOvertime =
-      await this.overtimeService.getApprovedOvertimeRequest(user.id, now);
+      await this.overtimeService.getApprovedOvertimeRequest(
+        user.employeeId,
+        now,
+      );
 
     // Check for missing check-in
     if (
@@ -1135,17 +1141,19 @@ export class AttendanceService {
   }
 
   private async sendMissingCheckInNotification(user: User) {
-    if (user.employeeId) {
+    if (user.lineUserId) {
       await this.notificationService.sendMissingCheckInNotification(
         user.employeeId,
+        user.lineUserId,
       );
     }
   }
 
   private async sendMissingCheckOutNotification(user: User) {
-    if (user.employeeId) {
-      await this.notificationService.sendMissingCheckInNotification(
+    if (user.lineUserId) {
+      await this.notificationService.sendMissingCheckOutNotification(
         user.employeeId,
+        user.lineUserId,
       );
     }
   }

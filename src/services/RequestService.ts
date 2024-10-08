@@ -23,9 +23,9 @@ export abstract class RequestService {
     });
 
     await this.notificationService.sendApprovalNotification(
-      request.user.employeeId,
+      request.user,
       request,
-      approver.employeeId,
+      approver,
       this.getRequestType(),
     );
 

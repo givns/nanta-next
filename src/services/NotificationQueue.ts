@@ -3,6 +3,7 @@ import { UseMappingService } from './useMappingService';
 
 interface NotificationTask {
   employeeId: string;
+  lineUserId: string;
   message: string | Message;
   type:
     | 'check-in'
@@ -74,27 +75,10 @@ export class NotificationQueue {
 
   private async sendNotification(task: NotificationTask) {
     console.log(`Starting sendNotification for task:`, task);
-    console.log(
-      `userMappingService is`,
-      this.userMappingService ? 'defined' : 'undefined',
-    );
     try {
-      if (!task.employeeId) {
-        throw new Error(`No employeeId provided in the task`);
-      }
-
-      console.log(`Fetching LINE User ID for employee: ${task.employeeId}`);
-      const lineUserId = await this.userMappingService.getLineUserId(
-        task.employeeId,
-      );
-      console.log(
-        `Retrieved LINE User ID for employee ${task.employeeId}:`,
-        lineUserId,
-      );
-
-      if (!lineUserId) {
+      if (!task.lineUserId) {
         throw new Error(
-          `No LINE User ID found for employee ${task.employeeId}`,
+          `No LINE User ID provided for employee ${task.employeeId}`,
         );
       }
 
@@ -113,15 +97,15 @@ export class NotificationQueue {
       }
 
       console.log(
-        `Sending ${task.type} notification to LINE User ID: ${lineUserId}`,
+        `Sending ${task.type} notification to LINE User ID: ${task.lineUserId}`,
       );
-      await this.lineClient.pushMessage(lineUserId, messageToSend);
+      await this.lineClient.pushMessage(task.lineUserId, messageToSend);
       console.log(
         `Successfully sent ${task.type} notification to employee ${task.employeeId}`,
       );
     } catch (error) {
       console.error(`Error sending notification:`, error);
-      throw error; // Re-throw the error to be caught by the processQueue method
+      throw error;
     }
   }
 

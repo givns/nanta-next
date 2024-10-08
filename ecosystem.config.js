@@ -2,12 +2,10 @@ module.exports = {
   apps: [
     {
       name: 'nanta-next',
-      script: 'npm',
-      args: 'run start',
+      script: 'node_modules/next/dist/bin/next',
+      args: 'start',
+      cwd: '/Users/parunpatpatchaichaiyakorn/nanta-next', // Adjust if necessary
       env: {
-        NODE_ENV: 'development',
-      },
-      env_production: {
         NODE_ENV: 'production',
       },
     },

@@ -181,29 +181,25 @@ export default async function handler(
           const shift = affectedUsers.get(employeeId);
           message = `แจ้งเตือน: การเปลี่ยนแปลงเวลาทำงาน
 
-วันที่: ${formattedDate}
-กะใหม่: ${shift.name}
-เวลา: ${shift.startTime} - ${shift.endTime}
-
-เหตุผล: ${reason}`;
+                     วันที่: ${formattedDate}
+                     เวลาทำงาน: ${shift.name}
+                     เวลา: ${shift.startTime} - ${shift.endTime}
+                     เหตุผล: ${reason}`;
         }
-
         if (
           userInfo.role === 'SuperAdmin' &&
           employeeId !== requestingUser.id
         ) {
           message = `แจ้งเตือน: มีการเปลี่ยนแปลงเวลาทำงาน
-
-ผู้ดำเนินการ: ${requestingUser.name}
-วันที่: ${formattedDate}
-จำนวนผู้ได้รับการปรับเวลาการทำงาน: ${affectedUsers.size} คน
-
-เหตุผล: ${reason}`;
+                    ผู้ดำเนินการ: ${requestingUser.name}
+                    วันที่: ${formattedDate}
+                    จำนวนผู้ได้รับการปรับเวลาการทำงาน: ${affectedUsers.size} คน
+                    เหตุผล: ${reason}`;
         }
-
         if (message) {
           try {
             await notificationService.sendNotification(
+              lineUserId,
               employeeId,
               message,
               'shift',
@@ -223,6 +219,7 @@ export default async function handler(
       if (admin.lineUserId) {
         await notificationService.sendNotification(
           admin.id,
+          admin.lineUserId,
           `แจ้งเตือน: มีการเปลี่ยนแปลงเวลาทำงาน
 
           ผู้ดำเนินการ: ${requestingUser.name}

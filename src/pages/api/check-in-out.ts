@@ -309,21 +309,31 @@ async function sendNotificationAsync(
     console.log(`Notification data:`, JSON.stringify(attendanceData));
 
     if (attendanceData.isCheckIn) {
-      await notificationService.sendCheckInConfirmation(
-        attendanceData.employeeId,
-        currentTime,
-      );
-      console.log(
-        `Check-in notification sent for employee ${attendanceData.employeeId}`,
-      );
+      if (attendanceData.lineUserId) {
+        await notificationService.sendCheckInConfirmation(
+          attendanceData.employeeId,
+          attendanceData.lineUserId,
+          currentTime,
+        );
+        console.log(
+          `Check-in notification sent for employee ${attendanceData.employeeId}`,
+        );
+      } else {
+        console.log('Line user ID is null, skipping check-in notification');
+      }
     } else {
-      await notificationService.sendCheckOutConfirmation(
-        attendanceData.employeeId,
-        currentTime,
-      );
-      console.log(
-        `Check-out notification sent for employee ${attendanceData.employeeId}`,
-      );
+      if (attendanceData.lineUserId) {
+        await notificationService.sendCheckOutConfirmation(
+          attendanceData.employeeId,
+          attendanceData.lineUserId,
+          currentTime,
+        );
+        console.log(
+          `Check-out notification sent for employee ${attendanceData.employeeId}`,
+        );
+      } else {
+        console.log('Line user ID is null, skipping check-out notification');
+      }
     }
   } catch (error: any) {
     console.error('Failed to send notification:', error);

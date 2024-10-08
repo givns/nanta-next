@@ -111,9 +111,10 @@ export class LeaveServiceServer
     try {
       const newLeaveRequest = await this.prisma.leaveRequest.create({
         data: leaveRequestData,
+        include: { user: true }, // Include the full user object
       });
 
-      await this.notifyAdmins(newLeaveRequest.id);
+      await this.notifyAdmins(newLeaveRequest);
 
       return newLeaveRequest;
     } catch (error) {
@@ -122,13 +123,19 @@ export class LeaveServiceServer
     }
   }
 
-  private async notifyAdmins(leaveRequestId: string): Promise<void> {
-    console.log(`Notifying admins for leave request: ${leaveRequestId}`);
+  private async notifyAdmins(
+    leaveRequest: LeaveRequest & { user: User },
+  ): Promise<void> {
+    console.log(`Notifying admins for leave request: ${leaveRequest.id}`);
     const admins = await this.prisma.user.findMany({
       where: {
         role: {
           in: [UserRole.ADMIN.toString(), UserRole.SUPERADMIN.toString()],
         },
+      },
+      select: {
+        employeeId: true,
+        lineUserId: true,
       },
     });
     console.log(`Found ${admins.length} admins to notify`);
@@ -136,14 +143,21 @@ export class LeaveServiceServer
     for (const admin of admins) {
       console.log(`Sending notification to admin: ${admin.employeeId}`);
       try {
-        await this.notificationService.sendRequestNotification(
-          admin.employeeId,
-          leaveRequestId,
-          'leave',
-        );
-        console.log(
-          `Notification queued successfully for admin: ${admin.employeeId}`,
-        );
+        if (admin.lineUserId) {
+          await this.notificationService.sendRequestNotification(
+            admin.employeeId,
+            admin.lineUserId,
+            leaveRequest.id,
+            'leave',
+            leaveRequest.user,
+            leaveRequest,
+          );
+          console.log(
+            `Notification queued successfully for admin: ${admin.employeeId}`,
+          );
+        } else {
+          console.warn(`Admin ${admin.employeeId} does not have a lineUserId`);
+        }
       } catch (error) {
         console.error(
           `Failed to queue notification for admin ${admin.employeeId}:`,
@@ -211,12 +225,12 @@ export class LeaveServiceServer
   }
 
   async checkUserOnLeave(
-    userId: string,
+    employeeId: string,
     date: Date,
   ): Promise<LeaveRequest | null> {
     const leaveRequest = await this.prisma.leaveRequest.findFirst({
       where: {
-        employeeId: userId,
+        employeeId,
         status: { in: ['Approved', 'Pending'] },
         startDate: { lte: date },
         endDate: { gte: date },
@@ -286,38 +300,21 @@ export class LeaveServiceServer
   ): Promise<LeaveRequest> {
     try {
       const originalRequest = await this.getOriginalRequest(originalRequestId);
-
-      const newRequest = await this.prisma.leaveRequest.create({
+      console.log('originalRequest', originalRequest);
+      const newRequest = await this.prisma.leaveRequest.update({
+        where: { id: originalRequestId },
         data: {
-          ...originalRequest,
           ...updatedData,
-          id: undefined,
           status: 'Pending',
           resubmitted: true,
           originalRequestId,
-          createdAt: undefined,
-          updatedAt: undefined,
-        } as any,
+        },
         include: { user: true },
       });
 
       await this.invalidateUserCache(newRequest.employeeId);
 
-      const admins = await this.prisma.user.findMany({
-        where: {
-          role: {
-            in: [UserRole.ADMIN.toString(), UserRole.SUPERADMIN.toString()],
-          },
-        },
-      });
-
-      for (const admin of admins) {
-        await this.notificationService.sendRequestNotification(
-          admin.employeeId,
-          newRequest.user.employeeId,
-          'leave',
-        );
-      }
+      await this.notifyAdmins(newRequest);
 
       return newRequest;
     } catch (error: any) {
@@ -366,9 +363,12 @@ export class LeaveServiceServer
     });
 
     if (cancelledLeave.user.lineUserId) {
+      const message = `การลาที่ได้รับการอนุมัติในวันที่ ${cancelledLeave.startDate.toLocaleDateString()} ถึง ${cancelledLeave.endDate.toLocaleDateString()} ได้ถูกยกเลิกเรียบร้อยแล้ว`;
+
       await this.notificationService.sendNotification(
-        cancelledLeave.user.id,
-        `การลาที่ได้รับการอนุมัติในวันที่ ${cancelledLeave.startDate} to ${cancelledLeave.endDate} ได้ถูกยกเลิกเรียบร้อยแล้ว`,
+        cancelledLeave.user.employeeId,
+        cancelledLeave.user.lineUserId,
+        message,
         'leave',
       );
     }

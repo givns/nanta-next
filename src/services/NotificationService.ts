@@ -8,10 +8,7 @@ import {
   OvertimeRequest,
   ShiftAdjustmentRequest,
 } from '@prisma/client';
-import {
-  generateApprovalMessage,
-  generateApprovalMessageForAdmins,
-} from '../utils/generateApprovalMessage';
+import { generateApprovalMessageForAdmins } from '../utils/generateApprovalMessage';
 import {
   generateDenialMessage,
   generateDenialMessageForAdmins,
@@ -19,6 +16,7 @@ import {
 import { format } from 'date-fns';
 import { NotificationQueue } from './NotificationQueue';
 import { UseMappingService } from './useMappingService';
+import { th } from 'date-fns/locale';
 
 export class NotificationService {
   private notificationQueue: NotificationQueue;
@@ -40,6 +38,7 @@ export class NotificationService {
 
   async sendNotification(
     employeeId: string,
+    lineUserId: string,
     message: string | Message,
     type:
       | 'check-in'
@@ -54,6 +53,7 @@ export class NotificationService {
     try {
       await this.notificationQueue.addNotification({
         employeeId,
+        lineUserId,
         message,
         type,
       });
@@ -66,27 +66,16 @@ export class NotificationService {
     }
   }
 
-  async sendCheckInConfirmation(
-    employeeId: string,
-    checkInTime: Date,
-  ): Promise<void> {
-    const message = `${employeeId}  ลงเวลาเข้างาน ${format(checkInTime, 'HH:mm')} เรียบร้อยแล้ว`;
-    await this.sendNotification(employeeId, message, 'check-in');
-  }
-
-  async sendCheckOutConfirmation(
-    employeeId: string,
-    checkOutTime: Date,
-  ): Promise<void> {
-    const message = `${employeeId}  ลงเวลาออกงาน ${format(checkOutTime, 'HH:mm')} เรียบร้อยแล้ว`;
-    await this.sendNotification(employeeId, message, 'check-out');
-  }
-
   private async sendLineMessage(
     employeeId: string,
+    lineUserId: string,
     message: string,
   ): Promise<void> {
     try {
+      if (!lineUserId) {
+        console.warn(`No LINE User ID found for employee ${employeeId}`);
+        return;
+      }
       await this.lineClient.pushMessage(employeeId, {
         type: 'text',
         text: message,
@@ -98,65 +87,76 @@ export class NotificationService {
     }
   }
 
-  async sendMissingCheckInNotification(employeeId: string): Promise<void> {
-    const message = 'คุณยังไม่ได้ลงเวลาเข้างานวันนี้ กรุณาลงเวลาโดยเร็วที่สุด';
-    await this.sendLineMessage(employeeId, message);
+  async sendCheckInConfirmation(
+    employeeId: string,
+    lineUserId: string,
+    checkInTime: Date,
+  ): Promise<void> {
+    const formattedDateTime = format(
+      checkInTime,
+      'dd MMMM yyyy เวลา HH:mm น.',
+      { locale: th },
+    );
+    const message = `${employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime} เรียบร้อยแล้ว`;
+    await this.sendNotification(employeeId, lineUserId, message, 'check-in');
   }
 
-  async sendApprovedRequestNotification(
+  async sendCheckOutConfirmation(
+    employeeId: string,
     lineUserId: string,
-    requestType: 'leave' | 'overtime',
+    checkOutTime: Date,
   ): Promise<void> {
-    const message = `คำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}ของคุณได้รับการอนุมัติแล้ว`;
-    await this.sendLineMessage(lineUserId, message);
+    const formattedDateTime = format(
+      checkOutTime,
+      'dd MMMM yyyy เวลา HH:mm น.',
+      { locale: th },
+    );
+    const message = `${employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime} เรียบร้อยแล้ว`;
+    await this.sendNotification(employeeId, lineUserId, message, 'check-in');
+  }
+  async sendMissingCheckInNotification(
+    employeeId: string,
+    lineUserId: string,
+  ): Promise<void> {
+    const message = 'คุณยังไม่ได้ลงเวลาเข้างานวันนี้ กรุณาลงเวลาโดยเร็วที่สุด';
+    await this.sendLineMessage(employeeId, lineUserId, message);
+  }
+
+  async sendMissingCheckOutNotification(
+    employeeId: string,
+    lineUserId: string,
+  ): Promise<void> {
+    const message = 'คุณยังไม่ได้ลงเวลาออกงานวันนี้ กรุณาลงเวลาโดยเร็วที่สุด';
+    await this.sendLineMessage(employeeId, lineUserId, message);
   }
 
   async sendRequestNotification(
     adminEmployeeId: string,
-    requestId: string,
+    adminLineUserId: string,
+    _requestId: string,
     requestType: 'leave' | 'overtime',
+    requester: User,
+    request: LeaveRequest | OvertimeRequest,
   ): Promise<void> {
     console.log(
       `Preparing to send ${requestType} request notification to admin: ${adminEmployeeId}`,
     );
 
     try {
-      const admin =
-        await this.userMappingService.getUserByEmployeeId(adminEmployeeId);
-      if (!admin) {
-        console.warn(`Admin with employee ID ${adminEmployeeId} not found`);
-        return;
-      }
-
-      const request = await this.userMappingService.getRequestById(
-        requestId,
-        requestType,
-      );
-      if (!request) {
-        console.warn(`${requestType} request with ID ${requestId} not found`);
-        return;
-      }
-
-      const user = await this.userMappingService.getUserByEmployeeId(
-        request.employeeId,
-      );
-      if (!user) {
-        console.warn(`User with employee ID ${request.employeeId} not found`);
-        return;
-      }
-
       const requestCount =
         await this.userMappingService.getRequestCountForAllAdmins();
+
       const message = this.createRequestFlexMessage(
-        user,
+        requester,
         request,
         requestType,
         requestCount,
-        admin,
+        { employeeId: adminEmployeeId, lineUserId: adminLineUserId },
       );
 
       await this.sendNotification(
         adminEmployeeId,
+        adminLineUserId,
         JSON.stringify(message),
         requestType,
       );
@@ -168,31 +168,30 @@ export class NotificationService {
     }
   }
 
-  async sendApprovalNotification(
+  async sendApprovedRequestNotification(
     employeeId: string,
-    requestId: string,
-    approverEmployeeId: string,
+    lineUserId: string,
     requestType: 'leave' | 'overtime',
   ): Promise<void> {
-    const user = await this.userMappingService.getUserByEmployeeId(employeeId);
-    const approver =
-      await this.userMappingService.getUserByEmployeeId(approverEmployeeId);
-    const request = await this.userMappingService.getRequestById(
-      requestId,
-      requestType,
-    );
+    const message = `คำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}ของคุณได้รับการอนุมัติแล้ว`;
+    await this.sendLineMessage(employeeId, lineUserId, message);
+  }
 
-    if (!user || !approver || !request) {
-      console.warn('User, approver, or request not found');
-      return;
+  async sendApprovalNotification(
+    user: User,
+    request: LeaveRequest | OvertimeRequest,
+    approver: User,
+    requestType: 'leave' | 'overtime',
+  ): Promise<void> {
+    if (user.lineUserId) {
+      await this.sendApprovedRequestNotification(
+        user.employeeId,
+        user.lineUserId,
+        requestType,
+      );
+    } else {
+      console.warn(`User ${user.employeeId} does not have a LINE User ID`);
     }
-
-    const message = generateApprovalMessage(user, request, requestType);
-    await this.sendNotification(
-      employeeId,
-      JSON.stringify(message),
-      requestType,
-    );
 
     const adminMessage = generateApprovalMessageForAdmins(
       user,
@@ -202,11 +201,16 @@ export class NotificationService {
     );
     const admins = await this.getAdmins();
     for (const admin of admins) {
-      await this.sendNotification(
-        admin.employeeId,
-        JSON.stringify(adminMessage),
-        requestType,
-      );
+      if (admin.lineUserId) {
+        await this.sendNotification(
+          admin.employeeId,
+          admin.lineUserId,
+          JSON.stringify(adminMessage),
+          requestType,
+        );
+      } else {
+        console.warn(`Admin ${admin.employeeId} does not have a LINE User ID`);
+      }
     }
   }
 
@@ -253,11 +257,16 @@ export class NotificationService {
       denialReason,
       requestType,
     );
-    await this.sendNotification(
-      employeeId,
-      JSON.stringify(message),
-      requestType,
-    );
+    if (user.lineUserId) {
+      await this.sendNotification(
+        employeeId,
+        user.lineUserId,
+        JSON.stringify(message),
+        requestType,
+      );
+    } else {
+      console.warn(`User ${employeeId} does not have a LINE User ID`);
+    }
 
     const adminMessage = generateDenialMessageForAdmins(
       user,
@@ -268,53 +277,40 @@ export class NotificationService {
     );
     const admins = await this.getAdmins();
     for (const admin of admins) {
-      await this.sendNotification(
-        admin.employeeId,
-        JSON.stringify(adminMessage),
-        requestType,
-      );
+      if (admin.lineUserId) {
+        await this.sendNotification(
+          admin.employeeId,
+          admin.lineUserId,
+          JSON.stringify(adminMessage),
+          requestType,
+        );
+      } else {
+        console.warn(`Admin ${admin.employeeId} does not have a LINE User ID`);
+      }
     }
-  }
-
-  async sendShiftAdjustmentNotification(
-    employeeId: string,
-    shiftAdjustment: ShiftAdjustmentRequest & {
-      requestedShift: { name: string };
-    },
-  ): Promise<void> {
-    const message = `Your shift for ${format(shiftAdjustment.date, 'yyyy-MM-dd')} has been adjusted to ${shiftAdjustment.requestedShift.name}`;
-    await this.sendNotification(employeeId, message, 'shift');
   }
 
   async sendPotentialOvertimeNotification(
     adminId: string,
+    adminLineUserId: string,
     employeeId: string,
     date: Date,
     duration: number,
   ): Promise<void> {
     const message = `Employee ${employeeId} has potential overtime of ${duration} minutes on ${format(date, 'yyyy-MM-dd')}. Please review.`;
-    await this.sendNotification(adminId, message, 'overtime');
-  }
-
-  async sendOvertimeDigest(
-    managerId: string,
-    pendingRequests: OvertimeRequest[],
-  ): Promise<void> {
-    const message = this.createDigestMessage(pendingRequests);
-    await this.sendNotification(
-      managerId,
-      JSON.stringify(message),
-      'overtime-digest',
-    );
+    await this.sendNotification(adminId, adminLineUserId, message, 'overtime');
   }
 
   async sendBatchApprovalNotification(
     adminId: string,
+    adminLineUserId: string,
     approvedRequests: OvertimeRequest[],
+    _type: 'overtime' | 'leave',
   ): Promise<void> {
     const message = this.createBatchApprovalMessage(approvedRequests);
     await this.sendNotification(
       adminId,
+      adminLineUserId,
       JSON.stringify(message),
       'overtime-batch-approval',
     );
@@ -323,7 +319,6 @@ export class NotificationService {
   private createBatchApprovalMessage(
     approvedRequests: OvertimeRequest[],
   ): FlexMessage {
-    // Implement the batch approval message creation logic
     return {
       type: 'flex',
       altText: 'Overtime Requests Batch Approval',
@@ -344,7 +339,6 @@ export class NotificationService {
               text: `You have approved ${approvedRequests.length} overtime requests.`,
               margin: 'md',
             },
-            // Add more details about the approved requests here
           ],
         },
       },
@@ -371,6 +365,7 @@ export class NotificationService {
       overtimeRequest.employeeId,
       message,
       'overtime',
+      'overtime', // Add the missing argument 'requestType'
     );
   }
 
@@ -394,6 +389,7 @@ export class NotificationService {
       overtimeRequest.employeeId,
       message,
       'overtime',
+      'overtime', // Add the missing argument 'requestType'
     );
   }
 
@@ -405,50 +401,8 @@ export class NotificationService {
       overtimeRequest.employeeId,
       message,
       'overtime',
+      'overtime', // Add the missing argument 'requestType'
     );
-  }
-
-  private createDigestMessage(pendingRequests: OvertimeRequest[]): FlexMessage {
-    return {
-      type: 'flex',
-      altText: 'Overtime Requests Digest',
-      contents: {
-        type: 'bubble',
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          contents: [
-            {
-              type: 'text',
-              text: 'Overtime Requests Digest',
-              weight: 'bold',
-              size: 'xl',
-            },
-            {
-              type: 'text',
-              text: `You have ${pendingRequests.length} pending overtime requests.`,
-              margin: 'md',
-            },
-            // Add more details about the pending requests here
-          ],
-        },
-        footer: {
-          type: 'box',
-          layout: 'vertical',
-          contents: [
-            {
-              type: 'button',
-              action: {
-                type: 'uri',
-                label: 'View Requests',
-                uri: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/overtime`,
-              },
-              style: 'primary',
-            },
-          ],
-        },
-      },
-    };
   }
 
   async sendOvertimeRequestNotification(requestId: string): Promise<void> {
@@ -526,7 +480,12 @@ export class NotificationService {
       },
     };
 
-    await this.sendNotification(request.employeeId, message, 'overtime');
+    await this.sendNotification(
+      request.employeeId,
+      JSON.stringify(message),
+      'overtime',
+      'overtime',
+    );
   }
 
   async sendOvertimeResponseNotification(
@@ -572,7 +531,12 @@ export class NotificationService {
       },
     };
 
-    await this.sendNotification(managerId, JSON.stringify(message), 'overtime');
+    await this.sendNotification(
+      managerId,
+      JSON.stringify(message),
+      'overtime',
+      'overtime',
+    );
   }
 
   private createRequestFlexMessage(
@@ -580,7 +544,7 @@ export class NotificationService {
     request: LeaveRequest | OvertimeRequest,
     requestType: 'leave' | 'overtime',
     requestCount: number,
-    admin: User,
+    admin: { employeeId: string; lineUserId: string },
   ): FlexMessage {
     const isLeaveRequest = requestType === 'leave';
     const requestTypeText = isLeaveRequest ? 'Leave' : 'Overtime';
@@ -776,7 +740,7 @@ export class NotificationService {
               action: {
                 type: 'postback',
                 label: 'อนุมัติ',
-                data: `action=approve&requestType=${requestType}&requestId=${request.id}&approverId=${admin.id}`,
+                data: `action=approve&requestType=${requestType}&requestId=${request.id}&approverId=${admin.employeeId}`,
               },
               color: '#0662FF',
               style: 'primary',
@@ -787,7 +751,7 @@ export class NotificationService {
               action: {
                 type: 'postback',
                 label: 'ไม่อนุมัติ',
-                data: `action=deny&requestType=${requestType}&requestId=${request.id}&approverId=${admin.id}`,
+                data: `action=deny&requestType=${requestType}&requestId=${request.id}&approverId=${admin.employeeId}`,
               },
               color: '#F0F0F0',
               style: 'secondary',
