@@ -15,7 +15,6 @@ export class UseMappingService {
   }
 
   async getLineUserId(employeeId: string): Promise<string | null> {
-    debugger;
     console.log(`Fetching LINE User ID for employee: ${employeeId}`);
     try {
       console.log('Before Prisma query');
