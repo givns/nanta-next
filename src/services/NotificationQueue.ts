@@ -1,3 +1,4 @@
+//notificationQueue.ts
 import { Client, Message } from '@line/bot-sdk';
 import { UseMappingService } from './useMappingService';
 
@@ -13,6 +14,7 @@ interface NotificationTask {
     | 'overtime-digest'
     | 'overtime-batch-approval'
     | 'shift';
+  retryCount?: number; // Add the 'retryCount' property
 }
 
 export class NotificationQueue {
@@ -57,9 +59,14 @@ export class NotificationQueue {
           `Failed to send notification: ${JSON.stringify(task)}`,
           error,
         );
-        // Implement retry logic
         if (this.queue.length < 100) {
-          // Prevent queue from growing too large
+          task.retryCount = (task.retryCount || 0) + 1;
+          if (task.retryCount <= 3) {
+            this.queue.push(task);
+            console.log(
+              `Requeued failed task (attempt ${task.retryCount}): ${JSON.stringify(task)}`,
+            );
+          }
           this.queue.push(task);
           console.log(`Requeued failed task: ${JSON.stringify(task)}`);
         } else {
@@ -99,7 +106,16 @@ export class NotificationQueue {
       console.log(
         `Sending ${task.type} notification to LINE User ID: ${task.lineUserId}`,
       );
-      await this.lineClient.pushMessage(task.lineUserId, messageToSend);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error('LINE API request timed out')),
+          10000,
+        ),
+      );
+      await Promise.race([
+        this.lineClient.pushMessage(task.lineUserId, messageToSend),
+        timeoutPromise,
+      ]);
       console.log(
         `Successfully sent ${task.type} notification to employee ${task.employeeId}`,
       );
