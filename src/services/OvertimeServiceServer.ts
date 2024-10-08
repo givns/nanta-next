@@ -352,6 +352,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         admin.id,
         `New unapproved overtime request from user ${employeeId} for ${overtimeMinutes} minutes. Please review.`,
         'overtime',
+        'overtime', // Add the missing argument here
       );
     }
   }

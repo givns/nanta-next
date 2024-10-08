@@ -46,6 +46,7 @@ export default async function handler(
           employeeId,
           `New overtime request for ${new Date(date).toLocaleDateString()} from ${startTime} to ${endTime}`,
           'overtime',
+          'overtime', // Add the missing fourth argument
         );
 
         return request;
