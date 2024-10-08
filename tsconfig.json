@@ -18,7 +18,6 @@
     "paths": {
       "@/*": ["./src/*"],
       "@components/*": ["./src/components/*"],
-      "@prisma/client": ["./node_modules/@prisma/client"],
       "@/services/*": ["./src/services/*"]
     },
     "typeRoots": ["./node_modules/@types", "./src/types"],

@@ -15,6 +15,7 @@ export class UseMappingService {
   }
 
   async getLineUserId(employeeId: string): Promise<string | null> {
+    debugger;
     console.log(`Fetching LINE User ID for employee: ${employeeId}`);
     try {
       console.log('Before Prisma query');
@@ -27,26 +28,10 @@ export class UseMappingService {
       }
 
       const startTime = Date.now();
-      const userPromise = prisma.user.findFirst({
+      const user = await prisma.user.findUnique({
         where: { employeeId },
         select: { lineUserId: true },
       });
-
-      console.log('Prisma query initiated, waiting for result or timeout');
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          console.log('Timeout reached');
-          reject(new Error('Prisma query timed out'));
-        }, 30000);
-      });
-      console.log('Timeout promise defined');
-
-      console.log('About to await Promise.race');
-      const user = (await Promise.race([userPromise, timeoutPromise])) as {
-        lineUserId: string | null;
-      } | null;
-      console.log('Promise.race completed');
 
       const endTime = Date.now();
       console.log(`Prisma query took ${endTime - startTime}ms`);
@@ -58,7 +43,7 @@ export class UseMappingService {
         return null;
       }
       console.log(`Retrieved LINE User ID:`, user.lineUserId);
-      return user.lineUserId;
+      return user?.lineUserId ?? null;
     } catch (error: any) {
       console.error(
         `Error fetching LINE User ID for employee ${employeeId}:`,

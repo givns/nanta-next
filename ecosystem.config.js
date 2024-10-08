@@ -1,20 +1,15 @@
 module.exports = {
   apps: [
     {
-      name: 'registration-worker',
+      name: 'nanta-next',
       script: 'npm',
-      args: 'run start:worker',
+      args: 'run start',
       env: {
         NODE_ENV: 'development',
       },
       env_production: {
         NODE_ENV: 'production',
       },
-      output: './logs/worker-out.log',
-      error: './logs/worker-error.log',
-      log: './logs/worker-combined.log',
-      merge_logs: true,
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     },
     {
       name: 'attendance-worker',
