@@ -106,14 +106,10 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         <h2 className="text-lg font-bold mb-4">วันลาคงเหลือ</h2>
         <div className="flex flex-col items-center">
           <div>
-            <p>ลาป่วย:</p>
-            <p>ลากิจ:</p>
-            <p>ลาพักร้อน:</p>
-          </div>
-          <div>
-            <p>{leaveBalance.sickLeave} วัน</p>
-            <p>{leaveBalance.businessLeave} วัน</p>
-            <p>{leaveBalance.annualLeave} วัน</p>
+            <p>ลาป่วย: {leaveBalance.sickLeave} วัน</p>
+            <p>ลากิจ: {leaveBalance.sickLeave} วัน</p>
+            <p>ลาพักร้อน: {leaveBalance.annualLeave} วัน</p>
+            <p className="text-lg font-bold mt-2"></p>
           </div>
         </div>
       </div>
