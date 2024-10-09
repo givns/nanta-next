@@ -4,7 +4,7 @@ import liff from '@line/liff';
 
 const DenyReasonPage = () => {
   const router = useRouter();
-  const { requestId, approverId } = router.query;
+  const { requestId, denierEmployeeId } = router.query;
   const [denialReason, setDenialReason] = useState('');
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,7 +36,12 @@ const DenyReasonPage = () => {
     setLoading(true);
     setError(null);
 
-    if (!denialReason || !requestId || !lineUserId || !approverId) {
+    if (!denialReason || !requestId || !denierEmployeeId) {
+      console.error('Missing required information:', {
+        denialReason,
+        requestId,
+        denierEmployeeId,
+      });
       setError('Missing required information.');
       setLoading(false);
       return;
@@ -48,16 +53,13 @@ const DenyReasonPage = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId,
-          approverId,
-          lineUserId,
+          denierEmployeeId,
           denialReason,
         }),
       });
 
       if (response.ok) {
-        // Show success message
         setError('เหตุผลในการปฏิเสธได้ถูกส่งเรียบร้อยแล้ว');
-        // Close the LIFF window after a short delay
         setTimeout(() => {
           liff.closeWindow();
         }, 3000);
@@ -82,7 +84,11 @@ const DenyReasonPage = () => {
       <h1 className="text-2xl font-bold mb-4">ระบุเหตุผลในการไม่อนุมัติ</h1>
       <form onSubmit={handleSubmit}>
         <input type="hidden" name="requestId" value={requestId as string} />
-        <input type="hidden" name="approverId" value={approverId as string} />
+        <input
+          type="hidden"
+          name="denierEmployeeId"
+          value={denierEmployeeId as string}
+        />
         <input type="hidden" name="lineUserId" value={lineUserId as string} />
         <div>
           <label

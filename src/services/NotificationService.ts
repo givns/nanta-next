@@ -275,12 +275,46 @@ export class NotificationService {
       throw new Error('Denier not found or has no LINE User ID');
 
     const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&approverId=${denierEmployeeId}&requestType=${requestType}`;
+
     await this.lineClient.pushMessage(denier.lineUserId, {
-      type: 'text',
-      text: `กรุณาระบุเหตุผลในการไม่อนุมัติคำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}: ${liffUrl}`,
+      type: 'flex',
+      altText: `กรุณาระบุเหตุผลในการไม่อนุมัติคำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}`,
+      contents: {
+        type: 'bubble',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: `กรุณาระบุเหตุผลในการไม่อนุมัติคำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}`,
+              wrap: true,
+              weight: 'bold',
+              size: 'md',
+            },
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          contents: [
+            {
+              type: 'button',
+              style: 'primary',
+              height: 'sm',
+              action: {
+                type: 'uri',
+                label: 'ระบุเหตุผล',
+                uri: liffUrl,
+              },
+            },
+          ],
+          flex: 0,
+        },
+      },
     });
   }
-
   async sendDenialNotification(
     employeeId: string,
     requestId: string,
@@ -857,7 +891,7 @@ export class NotificationService {
       return totalCount;
     } catch (error) {
       console.error('Error getting request count for all admins:', error);
-      return 1;
+      return 0;
     }
   }
 }

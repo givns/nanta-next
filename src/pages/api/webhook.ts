@@ -147,10 +147,6 @@ const handler = async (event: WebhookEvent) => {
             } else {
               await overtimeService.initiateDenial(requestId, user.employeeId);
             }
-            await client.replyMessage(event.replyToken, {
-              type: 'text',
-              text: `กรุณาระบุเหตุผลในการปฏิเสธ${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}: [LIFF URL for denial reason]`,
-            });
           }
         } else {
           await client.replyMessage(event.replyToken, {
