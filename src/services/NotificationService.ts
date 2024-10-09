@@ -48,54 +48,22 @@ export class NotificationService {
       | 'overtime-digest'
       | 'overtime-batch-approval'
       | 'shift',
-  ): Promise<boolean> {
+  ): Promise<void> {
     console.log(`Sending ${type} notification to employee ${employeeId}`);
     try {
-      let messageToSend: Message;
-      if (typeof message === 'string') {
-        try {
-          messageToSend = JSON.parse(message);
-        } catch (error) {
-          console.error('Error parsing message:', error);
-          throw new Error('Invalid message format: unable to parse JSON');
-        }
-      } else if (this.isLineMessage(message)) {
-        messageToSend = message;
-      } else {
-        throw new Error('Invalid message format');
-      }
-
-      console.log(
-        `Sending ${type} notification to LINE User ID: ${lineUserId}`,
-      );
-      const result = await this.lineClient.pushMessage(
+      await this.notificationQueue.addNotification({
+        employeeId,
         lineUserId,
-        messageToSend,
-      );
-      console.log(
-        `Successfully sent ${type} notification to employee ${employeeId}. Result:`,
-        result,
-      );
-      return true;
+        message,
+        type,
+      });
+      console.log(`Notification added to queue for employee ${employeeId}`);
     } catch (error) {
       console.error(
-        `Error sending notification to employee ${employeeId}:`,
+        `Error adding notification to queue for employee ${employeeId}:`,
         error,
       );
-      if (error instanceof Error) {
-        console.error('Error stack:', error.stack);
-      }
-      return false;
     }
-  }
-
-  private isLineMessage(message: any): message is Message {
-    return (
-      typeof message === 'object' &&
-      message !== null &&
-      'type' in message &&
-      typeof message.type === 'string'
-    );
   }
 
   private async sendLineMessage(
@@ -186,27 +154,17 @@ export class NotificationService {
         { employeeId: adminEmployeeId, lineUserId: adminLineUserId },
       );
 
-      const success = await this.sendNotification(
+      await this.sendNotification(
         adminEmployeeId,
         adminLineUserId,
         JSON.stringify(message),
         requestType,
       );
-      if (success) {
-        console.log(
-          `Successfully sent ${requestType} request notification to admin: ${adminEmployeeId}`,
-        );
-      } else {
-        console.error(
-          `Failed to send ${requestType} request notification to admin: ${adminEmployeeId}`,
-        );
-      }
     } catch (error) {
       console.error(
         `Error sending ${requestType} request notification:`,
         error,
       );
-      throw error;
     }
   }
 

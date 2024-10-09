@@ -1,6 +1,8 @@
 //notificationQueue.ts
 import { Client, Message } from '@line/bot-sdk';
 import { UseMappingService } from './useMappingService';
+import { RateLimiter } from 'Limiter';
+const limiter = new RateLimiter({ tokensPerInterval: 1000, interval: 'hour' });
 
 interface NotificationTask {
   employeeId: string;
@@ -81,6 +83,7 @@ export class NotificationQueue {
   }
 
   private async sendNotification(task: NotificationTask) {
+    await limiter.removeTokens(1);
     console.log(`Starting sendNotification for task:`, task);
     try {
       if (!task.lineUserId) {

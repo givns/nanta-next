@@ -17,11 +17,8 @@ import {
   formatDateTime,
 } from '@/utils/dateUtils';
 import * as Yup from 'yup';
-import { RateLimiter } from 'limiter';
 import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
-
-const limiter = new RateLimiter({ tokensPerInterval: 5, interval: 'minute' });
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
@@ -243,12 +240,6 @@ export default async function handler(
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
-  }
-
-  if (!(await limiter.removeTokens(1))) {
-    return res
-      .status(429)
-      .json({ error: 'Too many requests, please try again later.' });
   }
 
   try {
