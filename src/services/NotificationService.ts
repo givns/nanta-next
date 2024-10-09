@@ -176,6 +176,7 @@ export class NotificationService {
 
     try {
       const requestCount = await this.getRequestCountForAllAdmins();
+      console.log(`Total pending requests: ${requestCount}`);
 
       const message = this.createRequestFlexMessage(
         requester,
@@ -816,6 +817,7 @@ export class NotificationService {
   private async getAdmins(): Promise<User[]> {
     return this.userMappingService.getAdminUsers();
   }
+
   async getRequestCountForAllAdmins(): Promise<number> {
     console.log('Getting request count for all admins');
     try {
