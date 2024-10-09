@@ -597,9 +597,9 @@ export class NotificationService {
     admin: { employeeId: string; lineUserId: string },
   ): FlexMessage {
     const isLeaveRequest = requestType === 'leave';
-    const requestTypeText = isLeaveRequest ? 'Leave' : 'Overtime';
-    const resubmissionText =
-      'resubmitted' in request && request.resubmitted ? ' (ส่งใหม่)' : '';
+    const requestTypeText = isLeaveRequest ? 'ลางาน' : 'ทำงานล่วงเลา';
+    const resubmissionText = 'อีกครั้ง';
+    'resubmitted' in request && request.resubmitted ? ' (ส่งใหม่)' : '';
 
     return {
       type: 'flex',
@@ -617,7 +617,7 @@ export class NotificationService {
               contents: [
                 {
                   type: 'text',
-                  text: `${requestTypeText} Request${resubmissionText}`,
+                  text: `ยื่นคำขอ${requestTypeText} ${resubmissionText}`,
                   color: '#000000',
                   size: 'xl',
                   flex: 4,
