@@ -142,17 +142,12 @@ const handler = async (event: WebhookEvent) => {
                 'accept',
               );
             }
-          } else if (action === 'deny' || action === 'decline') {
-            if (requestType === 'leave') {
-              await leaveService.denyRequest(requestId, user.employeeId);
-            } else {
-              // Employee declining overtime request
-              await overtimeService.employeeRespondToOvertimeRequest(
-                requestId,
-                user.employeeId,
-                'decline',
-              );
-            }
+          } else if (action === 'accept' || action === 'decline') {
+            await overtimeService.employeeRespondToOvertimeRequest(
+              requestId,
+              user.employeeId,
+              action as 'accept' | 'decline',
+            );
           }
 
           // Send a confirmation message to the user
