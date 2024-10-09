@@ -131,23 +131,35 @@ const handler = async (event: WebhookEvent) => {
         }
 
         if (request?.status === 'Pending') {
-          if (action === 'approve') {
+          if (action === 'approve' || action === 'accept') {
             if (requestType === 'leave') {
               await leaveService.approveRequest(requestId, user.employeeId);
             } else {
-              await overtimeService.handleOvertimeRequest(
+              // Employee accepting overtime request
+              await overtimeService.employeeRespondToOvertimeRequest(
                 requestId,
                 user.employeeId,
-                'approve',
+                'accept',
               );
             }
-          } else if (action === 'deny') {
+          } else if (action === 'deny' || action === 'decline') {
             if (requestType === 'leave') {
               await leaveService.denyRequest(requestId, user.employeeId);
             } else {
-              await overtimeService.initiateDenial(requestId, user.employeeId);
+              // Employee declining overtime request
+              await overtimeService.employeeRespondToOvertimeRequest(
+                requestId,
+                user.employeeId,
+                'decline',
+              );
             }
           }
+
+          // Send a confirmation message to the user
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: `คุณได้${action === 'approve' || action === 'accept' ? 'ยอมรับ' : 'ปฏิเสธ'}${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}แล้ว`,
+          });
         } else {
           await client.replyMessage(event.replyToken, {
             type: 'text',
@@ -164,13 +176,8 @@ const handler = async (event: WebhookEvent) => {
     } else {
       console.log('Invalid postback data received');
     }
-  } else if (event.type === 'unfollow') {
-    console.log('Unfollow event for user ID:', event.source.userId);
-  } else {
-    console.error('Unhandled event type:', event.type);
   }
 };
-
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
     return res.status(200).send('Webhook is set up and running!');

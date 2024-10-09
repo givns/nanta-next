@@ -369,7 +369,6 @@ export class NotificationService {
       },
     };
   }
-
   async sendOvertimeApprovalNotification(
     overtimeRequest: OvertimeRequest,
     approverEmployeeId: string,
@@ -394,27 +393,20 @@ export class NotificationService {
     );
   }
 
-  async sendOvertimeDenialNotification(
+  async sendOvertimeResponseNotification(
+    employeeId: string,
+    lineUserId: string,
     overtimeRequest: OvertimeRequest,
-    denierEmployeeId: string,
   ): Promise<void> {
-    const user = await this.userMappingService.getUserByEmployeeId(
-      overtimeRequest.employeeId,
-    );
-    const denier =
-      await this.userMappingService.getUserByEmployeeId(denierEmployeeId);
-
-    if (!user || !denier) {
-      console.warn('User or denier not found');
-      return;
-    }
-
-    const message = `คำขอทำงานล่วงเวลา ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) ไม่ได้รับการอนุมิติโดย ${denier.name}.`;
+    const message = {
+      type: 'text',
+      text: `Your overtime request for ${overtimeRequest.date.toLocaleDateString()} has been ${overtimeRequest.status}.`,
+    };
     await this.sendNotification(
-      overtimeRequest.employeeId,
-      message,
+      employeeId,
+      lineUserId,
+      JSON.stringify(message),
       'overtime',
-      'overtime', // Add the missing argument 'requestType'
     );
   }
 
@@ -495,85 +487,6 @@ export class NotificationService {
     await this.sendNotification(
       employeeId,
       lineUserId,
-      JSON.stringify(message),
-      'overtime',
-    );
-  }
-
-  async sendOvertimeResponseNotification(
-    approverEmployeeId: string,
-    approverLineUserId: string,
-    employee: User,
-    overtimeRequest: OvertimeRequest,
-  ): Promise<void> {
-    const message: FlexMessage = {
-      type: 'flex',
-      altText: 'Overtime Request Response',
-      contents: {
-        type: 'bubble',
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          contents: [
-            {
-              type: 'text',
-              text: 'Overtime Request Response',
-              weight: 'bold',
-              size: 'xl',
-            },
-            {
-              type: 'text',
-              text: `Employee: ${employee.name}`,
-            },
-            {
-              type: 'text',
-              text: `Date: ${overtimeRequest.date.toLocaleDateString()}`,
-            },
-            {
-              type: 'text',
-              text: `Time: ${overtimeRequest.startTime} - ${overtimeRequest.endTime}`,
-            },
-            {
-              type: 'text',
-              text: `Employee Response: ${overtimeRequest.employeeResponse}`,
-              color:
-                overtimeRequest.employeeResponse === 'accepted'
-                  ? '#27AE60'
-                  : '#E74C3C',
-            },
-          ],
-        },
-        footer: {
-          type: 'box',
-          layout: 'horizontal',
-          spacing: 'sm',
-          contents: [
-            {
-              type: 'button',
-              style: 'primary',
-              action: {
-                type: 'postback',
-                label: 'Approve',
-                data: `action=approve&requestId=${overtimeRequest.id}`,
-              },
-            },
-            {
-              type: 'button',
-              style: 'secondary',
-              action: {
-                type: 'postback',
-                label: 'Deny',
-                data: `action=deny&requestId=${overtimeRequest.id}`,
-              },
-            },
-          ],
-        },
-      },
-    };
-
-    await this.sendNotification(
-      approverEmployeeId,
-      approverLineUserId,
       JSON.stringify(message),
       'overtime',
     );
@@ -804,7 +717,7 @@ export class NotificationService {
           ? new Date(now.getFullYear(), now.getMonth() - 1, 26)
           : new Date(now.getFullYear(), now.getMonth(), 26);
 
-      const [leaveRequests, overtimeRequests] = await Promise.all([
+      const [leaveRequests] = await Promise.all([
         this.prisma.leaveRequest.count({
           where: {
             createdAt: { gte: currentMonthStart },
@@ -818,9 +731,8 @@ export class NotificationService {
       ]);
 
       console.log('Leave requests count:', leaveRequests);
-      console.log('Overtime requests count:', overtimeRequests);
 
-      const totalCount = leaveRequests + overtimeRequests;
+      const totalCount = leaveRequests;
       console.log(`Total pending requests: ${totalCount}`);
       return totalCount;
     } catch (error) {

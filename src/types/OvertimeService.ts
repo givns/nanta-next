@@ -27,14 +27,10 @@ export interface IOvertimeServiceServer extends IOvertimeServiceBase {
     requestId: string,
     lineUserId: string,
   ): Promise<OvertimeRequest>;
-  initiateDenial(
+  handleOvertimeRequest(
     requestId: string,
-    lineUserId: string,
-  ): Promise<OvertimeRequest>;
-  finalizeDenial(
-    requestId: string,
-    lineUserId: string,
-    denialReason: string,
+    approverId: string,
+    action: 'approve' | 'deny',
   ): Promise<OvertimeRequest>;
   getApprovedOvertimeRequest(
     employeeId: string,

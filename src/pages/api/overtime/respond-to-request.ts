@@ -40,10 +40,9 @@ export default async function handler(
     // Notify the approver about the employee's response
     if (overtimeRequest.approver && overtimeRequest.approver.lineUserId) {
       await notificationService.sendOvertimeResponseNotification(
-        overtimeRequest.approver.employeeId,
-        overtimeRequest.approver.lineUserId,
-        user,
-        updatedRequest,
+        overtimeRequest.employeeId,
+        user.lineUserId ?? '',
+        overtimeRequest,
       );
     }
 

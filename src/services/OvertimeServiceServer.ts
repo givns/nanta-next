@@ -217,50 +217,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     }));
   }
 
-  async initiateDenial(
-    requestId: string,
-    lineUserId: string,
-  ): Promise<OvertimeRequest> {
-    const admin = await prisma.user.findUnique({ where: { lineUserId } });
-    if (!admin) throw new Error('Admin not found');
-
-    const overtimeRequest = await prisma.overtimeRequest.update({
-      where: { id: requestId },
-      data: {
-        status: 'denialPending',
-        approver: { connect: { id: admin.id } },
-      },
-      include: { user: true },
-    });
-
-    // Add any additional logic for initiating denial here
-
-    return overtimeRequest;
-  }
-
-  async finalizeDenial(
-    requestId: string,
-    lineUserId: string,
-    denialReason: string,
-  ): Promise<OvertimeRequest> {
-    const admin = await prisma.user.findUnique({ where: { lineUserId } });
-    if (!admin) throw new Error('Admin not found');
-
-    const overtimeRequest = await prisma.overtimeRequest.update({
-      where: { id: requestId },
-      data: {
-        status: 'denied',
-        approver: { connect: { id: admin.id } },
-        denialReason,
-      },
-      include: { user: true },
-    });
-
-    // Add any additional logic for denial notification here
-
-    return overtimeRequest;
-  }
-
   async getOvertimeRequests(employeeId: string): Promise<OvertimeRequest[]> {
     return prisma.overtimeRequest.findMany({
       where: { employeeId },
@@ -292,6 +248,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     const data: Prisma.OvertimeRequestUpdateInput = {
       status: action === 'approve' ? 'approved' : 'denied',
       approver: { connect: { id: approverId } },
+      denialReason: action === 'deny' ? denialReason : undefined,
     };
 
     const overtimeRequest = await this.prisma.overtimeRequest.update({
@@ -301,19 +258,116 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     });
 
     if (action === 'approve') {
-      await this.timeEntryService.createPendingOvertimeEntry(overtimeRequest);
-      await this.notificationService.sendOvertimeApprovalNotification(
-        overtimeRequest,
-        approverId,
+      await this.timeEntryService.finalizePendingOvertimeEntry(overtimeRequest);
+    } else if (action === 'deny') {
+      await this.timeEntryService.deletePendingOvertimeEntry(
+        overtimeRequest.id,
       );
-    } else if (action === 'deny' && denialReason) {
-      await this.notificationService.sendOvertimeDenialNotification(
+    }
+
+    if (overtimeRequest.user.lineUserId) {
+      await this.notificationService.sendOvertimeResponseNotification(
+        overtimeRequest.employeeId,
+        overtimeRequest.user.lineUserId,
         overtimeRequest,
-        approverId,
       );
     }
 
     return overtimeRequest;
+  }
+
+  async employeeRespondToOvertimeRequest(
+    requestId: string,
+    employeeId: string,
+    response: 'accept' | 'decline',
+  ): Promise<OvertimeRequest> {
+    const request = await this.prisma.overtimeRequest.findUnique({
+      where: { id: requestId },
+      include: { user: true },
+    });
+
+    if (!request) {
+      throw new Error('Overtime request not found');
+    }
+
+    if (request.employeeId !== employeeId) {
+      throw new Error('Unauthorized to respond to this request');
+    }
+
+    const updatedRequest = await this.prisma.overtimeRequest.update({
+      where: { id: requestId },
+      data: {
+        employeeResponse: response,
+        status:
+          response === 'accept' ? 'pending_approval' : 'declined_by_employee',
+      },
+    });
+
+    // Notify admins about the employee's response
+    const message =
+      response === 'accept'
+        ? `${request.user.name} ได้ยืนยันการทำงานล่วงเวลา`
+        : `${request.user.name} ไม่ขอทำงานล่วงเวลา`;
+    await this.notifyAdmins(message, 'overtime'); // Added 'overtime' as the type
+
+    return updatedRequest;
+  }
+
+  async adminApproveOvertimeRequest(
+    requestId: string,
+    adminEmployeeId: string,
+    approved: boolean,
+  ): Promise<OvertimeRequest> {
+    const request = await this.prisma.overtimeRequest.findUnique({
+      where: { id: requestId },
+      include: { user: true },
+    });
+
+    if (!request) {
+      throw new Error('Overtime request not found');
+    }
+
+    const updatedRequest = await this.prisma.overtimeRequest.update({
+      where: { id: requestId },
+      data: {
+        status: approved ? 'approved' : 'denied',
+        approverId: adminEmployeeId,
+      },
+    });
+
+    // Notify employee about the decision
+    if (request.user.lineUserId) {
+      await this.notificationService.sendOvertimeResponseNotification(
+        request.user.employeeId,
+        request.user.lineUserId,
+        updatedRequest,
+      );
+    }
+
+    return updatedRequest;
+  }
+
+  private async notifyAdmins(
+    message: string,
+    type: 'overtime' | 'overtime-digest' | 'overtime-batch-approval',
+  ) {
+    const admins = await this.prisma.user.findMany({
+      where: { role: { in: ['ADMIN', 'SUPERADMIN'] } },
+    });
+
+    for (const admin of admins) {
+      if (admin.lineUserId) {
+        await this.notificationService.sendNotification(
+          admin.employeeId,
+          admin.lineUserId,
+          JSON.stringify({
+            type: 'text',
+            text: message,
+          }),
+          type,
+        );
+      }
+    }
   }
 
   async getPendingOvertimeRequests(): Promise<OvertimeRequest[]> {
@@ -330,7 +384,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     endTime: Date,
     overtimeMinutes: number,
   ): Promise<void> {
-    const overtimeRequest = await prisma.overtimeRequest.create({
+    const overtimeRequest = await this.prisma.overtimeRequest.create({
       data: {
         employeeId,
         date: startTime,
@@ -342,18 +396,23 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     });
 
     // Fetch admins
-    const admins = await prisma.user.findMany({
+    const admins = await this.prisma.user.findMany({
       where: { role: 'ADMIN' },
     });
 
     // Send notifications to admins
     for (const admin of admins) {
-      await this.notificationService.sendNotification(
-        admin.id,
-        `New unapproved overtime request from user ${employeeId} for ${overtimeMinutes} minutes. Please review.`,
-        'overtime',
-        'overtime', // Add the missing argument here
-      );
+      if (admin.lineUserId) {
+        await this.notificationService.sendNotification(
+          admin.employeeId,
+          admin.lineUserId,
+          JSON.stringify({
+            type: 'text',
+            text: `New unapproved overtime request from user ${employeeId} for ${overtimeMinutes} minutes. Please review.`,
+          }),
+          'overtime',
+        );
+      }
     }
   }
 
