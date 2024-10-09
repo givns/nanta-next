@@ -598,12 +598,12 @@ export class NotificationService {
   ): FlexMessage {
     const isLeaveRequest = requestType === 'leave';
     const requestTypeText = isLeaveRequest ? 'ลางาน' : 'ทำงานล่วงเลา';
-    const resubmissionText = 'อีกครั้ง';
-    'resubmitted' in request && request.resubmitted ? ' (ส่งใหม่)' : '';
+    const resubmissionText =
+      'resubmitted' in request && request.resubmitted ? ' (ส่งใหม่)' : '';
 
     return {
       type: 'flex',
-      altText: `${requestTypeText} Request Notification${resubmissionText}`,
+      altText: `มีคำขอ ${requestTypeText} รอการอนุมัตื`,
       contents: {
         type: 'bubble',
         size: 'giga',
@@ -690,7 +690,9 @@ export class NotificationService {
                   contents: [
                     {
                       type: 'text',
-                      text: `${user.name} (${user.nickname})`,
+                      text: user.nickname
+                        ? `${user.name} (${user.nickname})`
+                        : user.name,
                       weight: 'bold',
                       size: 'sm',
                       wrap: true,
@@ -842,12 +844,15 @@ export class NotificationService {
         }),
       ]);
 
+      console.log('Leave requests count:', leaveRequests);
+      console.log('Overtime requests count:', overtimeRequests);
+
       const totalCount = leaveRequests + overtimeRequests;
       console.log(`Total pending requests: ${totalCount}`);
       return totalCount;
     } catch (error) {
       console.error('Error getting request count for all admins:', error);
-      return 0;
+      return 1;
     }
   }
 }

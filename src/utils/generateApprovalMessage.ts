@@ -13,14 +13,16 @@ export const generateApprovalMessageForAdmins = (
   const bodyContents: FlexComponent[] = [
     {
       type: 'text',
-      text: `อนุมัติโดย: ${admin.name} (${admin.nickname})`,
+      text: `ผู้อนุมัติ: ${admin.name}`,
       size: 'sm',
+      weight: 'bold',
       wrap: true,
     },
     {
       type: 'text',
-      text: `ยื่นขอ${isLeaveRequest ? 'ลา' : 'ทำงานล่วงเวลา'} โดย ${user.name} (${user.nickname})`,
+      text: `ผู้ยื่น: ${user.name}`,
       size: 'sm',
+      weight: 'bold',
       wrap: true,
     },
     ...(isLeaveRequest
@@ -29,6 +31,7 @@ export const generateApprovalMessageForAdmins = (
             type: 'text',
             text: `ประเภทการลา: ${(request as LeaveRequest).leaveType}`,
             size: 'sm',
+            weight: 'bold',
             wrap: true,
           } as FlexText,
           {
@@ -47,6 +50,7 @@ export const generateApprovalMessageForAdmins = (
               day: 'numeric',
             })} (${(request as LeaveRequest).fullDayCount} วัน)`,
             size: 'sm',
+            weight: 'bold',
             wrap: true,
           } as FlexText,
         ]
@@ -67,6 +71,7 @@ export const generateApprovalMessageForAdmins = (
             type: 'text',
             text: `เวลา: ${(request as OvertimeRequest).startTime} - ${(request as OvertimeRequest).endTime}`,
             size: 'sm',
+            weight: 'bold',
             wrap: true,
           } as FlexText,
         ]),
@@ -74,6 +79,7 @@ export const generateApprovalMessageForAdmins = (
       type: 'text',
       text: `สาเหตุ: ${request.reason}`,
       size: 'sm',
+      weight: 'bold',
       wrap: true,
     } as FlexText,
   ];
@@ -95,8 +101,8 @@ export const generateApprovalMessageForAdmins = (
               {
                 type: 'text',
                 text: isLeaveRequest
-                  ? 'ใบลาถูกอนุมัติ'
-                  : 'คำขอทำงานล่วงเวลาถูกอนุมัติ',
+                  ? 'คำขอลาได้รับการอนุมัติ'
+                  : 'คำขอทำงานล่วงเวลาได้รับการอนุมัติ',
                 color: '#000000',
                 size: 'xl',
                 flex: 4,
