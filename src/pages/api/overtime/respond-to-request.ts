@@ -1,8 +1,6 @@
-// pages/api/overtime/respond-to-request.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { NotificationService } from '../../../services/NotificationService';
-import { UserRole } from '../../../types/enum';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService(prisma);
@@ -25,6 +23,7 @@ export default async function handler(
 
     const overtimeRequest = await prisma.overtimeRequest.findUnique({
       where: { id: requestId },
+      include: { approver: true },
     });
 
     if (!overtimeRequest || overtimeRequest.employeeId !== user.employeeId) {
@@ -35,21 +34,17 @@ export default async function handler(
 
     const updatedRequest = await prisma.overtimeRequest.update({
       where: { id: requestId },
-      data: { status: action === 'accept' ? 'accepted' : 'declined' },
+      data: { employeeResponse: action === 'accept' ? 'accepted' : 'declined' },
     });
 
     // Notify the approver about the employee's response
-    if (updatedRequest.approverId) {
-      const approver = await prisma.user.findUnique({
-        where: { id: updatedRequest.approverId },
-      });
-      if (approver) {
-        await notificationService.sendOvertimeResponseNotification(
-          approver.id,
-          user,
-          updatedRequest,
-        );
-      }
+    if (overtimeRequest.approver && overtimeRequest.approver.lineUserId) {
+      await notificationService.sendOvertimeResponseNotification(
+        overtimeRequest.approver.employeeId,
+        overtimeRequest.approver.lineUserId,
+        user,
+        updatedRequest,
+      );
     }
 
     res.status(200).json({

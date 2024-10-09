@@ -30,47 +30,58 @@ export default async function handler(
 
     const createdRequests = await Promise.all(
       employeeIds.map(async (employeeId: string) => {
-        const employee = await prisma.user.findUnique({
-          where: { id: employeeId },
-        });
-        if (!employee) {
-          throw new Error(`Employee with id ${employeeId} not found`);
-        }
+        try {
+          const employee = await prisma.user.findUnique({
+            where: { id: employeeId },
+          });
+          if (!employee) {
+            console.warn(`Employee with id ${employeeId} not found`);
+            return null;
+          }
 
-        const request = await prisma.overtimeRequest.create({
-          data: {
-            employeeId: employee.employeeId,
-            date: new Date(date),
-            startTime,
-            endTime,
-            reason,
-            status: 'pending',
-          },
-        });
+          const request = await prisma.overtimeRequest.create({
+            data: {
+              employeeId: employee.employeeId,
+              date: new Date(date),
+              startTime,
+              endTime,
+              reason,
+              status: 'pending',
+              approverId: manager.id,
+            },
+          });
 
-        if (employee.lineUserId) {
-          await notificationService.sendNotification(
-            employee.employeeId,
-            employee.lineUserId,
-            JSON.stringify({
-              type: 'text',
-              text: `New overtime request for ${new Date(date).toLocaleDateString()} from ${startTime} to ${endTime}`,
-            }),
-            'overtime',
+          if (employee.lineUserId) {
+            await notificationService.sendOvertimeRequestNotification(
+              request,
+              employee.employeeId,
+              employee.lineUserId,
+            );
+          } else {
+            console.warn(
+              `Employee ${employee.employeeId} does not have a LINE User ID`,
+            );
+          }
+
+          return request;
+        } catch (error) {
+          console.error(
+            `Error creating overtime request for employee ${employeeId}:`,
+            error,
           );
-        } else {
-          console.warn(
-            `Employee ${employee.employeeId} does not have a LINE User ID`,
-          );
+          return null;
         }
-
-        return request;
       }),
+    );
+
+    const successfulRequests = createdRequests.filter(
+      (request) => request !== null,
     );
 
     res.status(201).json({
       message: 'Overtime requests created successfully',
-      data: createdRequests,
+      data: successfulRequests,
+      failedCount: createdRequests.length - successfulRequests.length,
     });
   } catch (error: any) {
     console.error('Error creating overtime requests:', error);

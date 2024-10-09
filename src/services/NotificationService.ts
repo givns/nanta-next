@@ -430,24 +430,11 @@ export class NotificationService {
     );
   }
 
-  async sendOvertimeRequestNotification(requestId: string): Promise<void> {
-    const request = await this.userMappingService.getRequestById(
-      requestId,
-      'overtime',
-    );
-    if (!request) {
-      console.warn(`Request with ID ${requestId} not found`);
-      return;
-    }
-
-    const user = await this.userMappingService.getUserByEmployeeId(
-      request.employeeId,
-    );
-    if (!user) {
-      console.warn(`User with employee ID ${request.employeeId} not found`);
-      return;
-    }
-
+  async sendOvertimeRequestNotification(
+    request: OvertimeRequest,
+    employeeId: string,
+    lineUserId: string,
+  ): Promise<void> {
     const message: FlexMessage = {
       type: 'flex',
       altText: 'Overtime Request',
@@ -506,19 +493,20 @@ export class NotificationService {
     };
 
     await this.sendNotification(
-      request.employeeId,
+      employeeId,
+      lineUserId,
       JSON.stringify(message),
-      'overtime',
       'overtime',
     );
   }
 
   async sendOvertimeResponseNotification(
-    managerId: string,
+    approverEmployeeId: string,
+    approverLineUserId: string,
     employee: User,
     overtimeRequest: OvertimeRequest,
   ): Promise<void> {
-    const message = {
+    const message: FlexMessage = {
       type: 'flex',
       altText: 'Overtime Request Response',
       contents: {
@@ -547,9 +535,36 @@ export class NotificationService {
             },
             {
               type: 'text',
-              text: `Status: ${overtimeRequest.status}`,
+              text: `Employee Response: ${overtimeRequest.employeeResponse}`,
               color:
-                overtimeRequest.status === 'accepted' ? '#27AE60' : '#E74C3C',
+                overtimeRequest.employeeResponse === 'accepted'
+                  ? '#27AE60'
+                  : '#E74C3C',
+            },
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'horizontal',
+          spacing: 'sm',
+          contents: [
+            {
+              type: 'button',
+              style: 'primary',
+              action: {
+                type: 'postback',
+                label: 'Approve',
+                data: `action=approve&requestId=${overtimeRequest.id}`,
+              },
+            },
+            {
+              type: 'button',
+              style: 'secondary',
+              action: {
+                type: 'postback',
+                label: 'Deny',
+                data: `action=deny&requestId=${overtimeRequest.id}`,
+              },
             },
           ],
         },
@@ -557,9 +572,9 @@ export class NotificationService {
     };
 
     await this.sendNotification(
-      managerId,
+      approverEmployeeId,
+      approverLineUserId,
       JSON.stringify(message),
-      'overtime',
       'overtime',
     );
   }

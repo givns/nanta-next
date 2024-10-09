@@ -108,23 +108,24 @@ model LeaveRequest {
 
 model OvertimeRequest {
   id                 String    @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId              String   
-  user              User @relation(fields: [employeeId], references: [employeeId])
-  date                DateTime
-  startTime           String // Store as HH:mm
-  endTime             String // Store as HH:mm
-  status              String // 'pending', 'approved', 'rejected'
-  reason              String?
-  denialReason        String?
-  approverId          String?
-  approver            User?    @relation("OvertimeApprover", fields: [approverId], references: [id])
-  resubmitted         Boolean  @default(false)
-  originalRequestId   String?
-  originalRequest     OvertimeRequest? @relation("ResubmittedOvertimeRequest", fields: [originalRequestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employeeId         String   
+  user               User      @relation(fields: [employeeId], references: [employeeId])
+  date               DateTime
+  startTime          String    // Store as HH:mm
+  endTime            String    // Store as HH:mm
+  status             String    // 'pending', 'approved', 'rejected'
+  employeeResponse   String?   // Add this field: 'accepted', 'declined', or null
+  reason             String?
+  denialReason       String?
+  approverId         String?
+  approver           User?     @relation("OvertimeApprover", fields: [approverId], references: [id])
+  resubmitted        Boolean   @default(false)
+  originalRequestId  String?
+  originalRequest    OvertimeRequest? @relation("ResubmittedOvertimeRequest", fields: [originalRequestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   resubmittedRequests OvertimeRequest[] @relation("ResubmittedOvertimeRequest")
-  timeEntries         TimeEntry[]
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  timeEntries        TimeEntry[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   @@index([employeeId, date, status])
 }
 
