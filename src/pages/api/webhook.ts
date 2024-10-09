@@ -141,10 +141,6 @@ const handler = async (event: WebhookEvent) => {
                 'approve',
               );
             }
-            await client.replyMessage(event.replyToken, {
-              type: 'text',
-              text: `${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}ได้รับการอนุมัติแล้ว`,
-            });
           } else if (action === 'deny') {
             if (requestType === 'leave') {
               await leaveService.initiateDenial(requestId, user.employeeId);

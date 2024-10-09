@@ -214,9 +214,17 @@ export class NotificationService {
     employeeId: string,
     lineUserId: string,
     requestType: 'leave' | 'overtime',
+    replyToken?: string,
   ): Promise<void> {
     const message = `คำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}ของคุณได้รับการอนุมัติแล้ว`;
-    await this.sendLineMessage(employeeId, lineUserId, message);
+    if (replyToken) {
+      await this.lineClient.replyMessage(replyToken, {
+        type: 'text',
+        text: message,
+      });
+    } else {
+      await this.sendLineMessage(employeeId, lineUserId, message);
+    }
   }
 
   async sendApprovalNotification(
