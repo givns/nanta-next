@@ -143,7 +143,7 @@ const handler = async (event: WebhookEvent) => {
             }
           } else if (action === 'deny') {
             if (requestType === 'leave') {
-              await leaveService.initiateDenial(requestId, user.employeeId);
+              await leaveService.denyRequest(requestId, user.employeeId);
             } else {
               await overtimeService.initiateDenial(requestId, user.employeeId);
             }

@@ -8,7 +8,7 @@ export const generateApprovalMessageForAdmins = (
   requestType: 'leave' | 'overtime',
 ): FlexMessage => {
   const isLeaveRequest = requestType === 'leave';
-  const requestTypeText = isLeaveRequest ? 'Leave' : 'Overtime';
+  const requestTypeText = isLeaveRequest ? 'ลางาน' : 'ทำงานล่วงเวลา';
 
   const bodyContents: FlexComponent[] = [
     {
@@ -86,7 +86,7 @@ export const generateApprovalMessageForAdmins = (
 
   return {
     type: 'flex',
-    altText: `${requestTypeText} Request Approved Notification`,
+    altText: `แจ้งเตือน:คำขอ${requestTypeText}ได้ถูกอนุมัติ`,
     contents: {
       type: 'bubble',
       size: 'mega',

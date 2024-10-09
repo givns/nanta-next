@@ -32,45 +32,21 @@ export abstract class RequestService {
     return request;
   }
 
-  async initiateDenial(requestId: string, denierEmployeeId: string) {
+  async denyRequest(requestId: string, denierEmployeeId: string) {
     const denier = await this.getUserByEmployeeId(denierEmployeeId);
-    if (!denier) throw new Error('Denier not found');
+    if (!denier) throw new Error('Approver not found');
 
     const request = await this.getRequestModel().update({
       where: { id: requestId },
-      data: { status: 'DenialPending', approverId: denier.id },
-      include: { user: true },
-    });
-
-    await this.notificationService.sendDenialInitiationNotification(
-      denierEmployeeId,
-      requestId,
-      this.getRequestType(),
-    );
-
-    return request;
-  }
-
-  async finalizeDenial(
-    requestId: string,
-    denierEmployeeId: string,
-    denialReason: string,
-  ) {
-    const denier = await this.getUserByEmployeeId(denierEmployeeId);
-    if (!denier) throw new Error('Denier not found');
-
-    const request = await this.getRequestModel().update({
-      where: { id: requestId },
-      data: { status: 'Denied', denialReason },
+      data: { status: 'Denied', denierId: denier.id },
       include: { user: true },
     });
 
     await this.notificationService.sendDenialNotification(
-      request.user.employeeId,
+      request.user,
       request,
-      denierEmployeeId,
+      denier,
       this.getRequestType(),
-      denialReason,
     );
 
     return request;

@@ -32,10 +32,8 @@ export interface ILeaveServiceServer extends ILeaveServiceBase {
     requestId: string,
     lineUserId: string,
   ): Promise<LeaveRequest>;
-  initiateDenial(requestId: string, lineUserId: string): Promise<LeaveRequest>;
-  finalizeDenial(
+  denyLeaveRequest(
     requestId: string,
     lineUserId: string,
-    denialReason: string,
   ): Promise<LeaveRequest>;
 }

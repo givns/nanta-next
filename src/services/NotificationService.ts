@@ -9,10 +9,7 @@ import {
   ShiftAdjustmentRequest,
 } from '@prisma/client';
 import { generateApprovalMessageForAdmins } from '../utils/generateApprovalMessage';
-import {
-  generateDenialMessage,
-  generateDenialMessageForAdmins,
-} from '../utils/generateDenialMessage';
+import { generateDenialMessageForAdmins } from '../utils/generateDenialMessage';
 import { format } from 'date-fns';
 import { NotificationQueue } from './NotificationQueue';
 import { UseMappingService } from './useMappingService';
@@ -264,106 +261,43 @@ export class NotificationService {
     }
   }
 
-  async sendDenialInitiationNotification(
-    denierEmployeeId: string,
-    requestId: string,
-    requestType: 'leave' | 'overtime',
-  ) {
-    const denier =
-      await this.userMappingService.getUserByEmployeeId(denierEmployeeId);
-    if (!denier || !denier.lineUserId)
-      throw new Error('Denier not found or has no LINE User ID');
-
-    const liffUrl = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}/deny-reason?requestId=${requestId}&approverId=${denierEmployeeId}&requestType=${requestType}`;
-
-    await this.lineClient.pushMessage(denier.lineUserId, {
-      type: 'flex',
-      altText: `กรุณาระบุเหตุผลในการไม่อนุมัติคำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}`,
-      contents: {
-        type: 'bubble',
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          contents: [
-            {
-              type: 'text',
-              text: `กรุณาระบุเหตุผลในการไม่อนุมัติคำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}`,
-              wrap: true,
-              weight: 'bold',
-              size: 'md',
-            },
-          ],
-        },
-        footer: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          contents: [
-            {
-              type: 'button',
-              style: 'secondary',
-              height: 'sm',
-              action: {
-                type: 'uri',
-                label: 'ระบุเหตุผล',
-                uri: liffUrl,
-              },
-            },
-          ],
-          flex: 0,
-        },
-      },
-    });
-  }
-  async sendDenialNotification(
+  async sendDenialRequestNotification(
     employeeId: string,
-    requestId: string,
-    denierEmployeeId: string,
+    lineUserId: string,
     requestType: 'leave' | 'overtime',
-    denialReason: string,
+    replyToken?: string,
   ): Promise<void> {
-    console.log(
-      `Sending denial notification for ${requestType} request ${requestId}`,
-    );
-    const user = await this.userMappingService.getUserByEmployeeId(employeeId);
-    const denier =
-      await this.userMappingService.getUserByEmployeeId(denierEmployeeId);
-    const request = await this.userMappingService.getRequestById(
-      requestId,
-      requestType,
-    );
-
-    if (!user || !denier || !request) {
-      console.warn('User, denier, or request not found', {
-        employeeId,
-        denierEmployeeId,
-        requestId,
+    const message = `คำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}ไม่ได้รับการอนุมัติ กรุณาติดต่อฝ่ายบุคคล`;
+    if (replyToken) {
+      await this.lineClient.replyMessage(replyToken, {
+        type: 'text',
+        text: message,
       });
-      return;
+    } else {
+      await this.sendLineMessage(employeeId, lineUserId, message);
     }
+  }
 
-    const message = generateDenialMessage(
-      user,
-      request,
-      denialReason,
-      requestType,
-    );
+  async sendDenialNotification(
+    user: User,
+    request: LeaveRequest | OvertimeRequest,
+    denier: User,
+    requestType: 'leave' | 'overtime',
+  ): Promise<void> {
     if (user.lineUserId) {
-      await this.sendNotification(
-        employeeId,
+      await this.sendDenialRequestNotification(
+        user.employeeId,
         user.lineUserId,
-        JSON.stringify(message),
         requestType,
       );
     } else {
-      console.warn(`User ${employeeId} does not have a LINE User ID`);
+      console.warn(`User ${user.employeeId} does not have a LINE User ID`);
     }
 
     const adminMessage = generateDenialMessageForAdmins(
       user,
       request,
       denier,
-      denialReason,
       requestType,
     );
     const admins = await this.getAdmins();

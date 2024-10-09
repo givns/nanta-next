@@ -16,19 +16,13 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   if (req.method === 'POST') {
-    const { requestId, denierEmployeeId, denialReason } = req.body;
+    const { requestId, denierEmployeeId } = req.body;
 
     try {
-      // First, initiate the denial
-      await leaveRequestService.initiateDenial(requestId, denierEmployeeId);
-
-      // Then, finalize the denial
-      const deniedRequest = await leaveRequestService.finalizeDenial(
+      const deniedRequest = await leaveRequestService.denyRequest(
         requestId,
         denierEmployeeId,
-        denialReason,
       );
-
       res.status(200).json({
         success: true,
         message: 'Leave request denied successfully',
