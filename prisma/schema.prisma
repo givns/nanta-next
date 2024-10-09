@@ -97,6 +97,7 @@ model LeaveRequest {
   status            String
   fullDayCount      Float
   approverId        String?  @db.ObjectId
+  denierId          String?
   denialReason      String?
   resubmitted       Boolean  @default(false)
   originalRequestId String?  @db.ObjectId
