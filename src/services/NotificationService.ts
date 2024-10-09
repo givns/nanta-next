@@ -108,11 +108,11 @@ export class NotificationService {
         console.warn(`No LINE User ID found for employee ${employeeId}`);
         return;
       }
-      await this.lineClient.pushMessage(employeeId, {
+      await this.lineClient.pushMessage(lineUserId, {
         type: 'text',
         text: message,
       });
-      console.log(`Notification sent to LINE user ${employeeId}: ${message}`);
+      console.log(`Notification sent to LINE user ${lineUserId}: ${message}`);
     } catch (error) {
       console.error('Error sending LINE message:', error);
       throw new Error('Failed to send LINE message');
