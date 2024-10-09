@@ -74,11 +74,9 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('Error creating overtime requests:', error);
-    res
-      .status(500)
-      .json({
-        message: 'Error creating overtime requests',
-        error: error.message,
-      });
+    res.status(500).json({
+      message: 'Error creating overtime requests',
+      error: error.message,
+    });
   }
 }
