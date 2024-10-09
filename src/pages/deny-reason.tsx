@@ -4,7 +4,8 @@ import liff from '@line/liff';
 
 const DenyReasonPage = () => {
   const router = useRouter();
-  const { requestId, denierEmployeeId } = router.query;
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [denierEmployeeId, setDenierEmployeeId] = useState<string | null>(null);
   const [denialReason, setDenialReason] = useState('');
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,10 +32,27 @@ const DenyReasonPage = () => {
     initializeLiff();
   }, []);
 
+  useEffect(() => {
+    console.log('Router query:', router.query);
+  }, [router.query]);
+
+  useEffect(() => {
+    if (router.isReady) {
+      setRequestId(router.query.requestId as string);
+      setDenierEmployeeId(router.query.denierEmployeeId as string);
+    }
+  }, [router.isReady, router.query]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
+
+    console.log('Submitting form with:', {
+      requestId,
+      denierEmployeeId,
+      denialReason,
+    });
 
     if (!denialReason || !requestId || !denierEmployeeId) {
       console.error('Missing required information:', {
@@ -42,7 +60,9 @@ const DenyReasonPage = () => {
         requestId,
         denierEmployeeId,
       });
-      setError('Missing required information.');
+      setError(
+        'Missing required information. Please make sure all fields are filled.',
+      );
       setLoading(false);
       return;
     }
@@ -65,6 +85,7 @@ const DenyReasonPage = () => {
         }, 3000);
       } else {
         const errorData = await response.json();
+        console.error('Error response:', errorData);
         setError(`Failed to submit denial reason: ${errorData.error}`);
       }
     } catch (error) {
@@ -80,50 +101,36 @@ const DenyReasonPage = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">ระบุเหตุผลในการไม่อนุมัติ</h1>
-      <form onSubmit={handleSubmit}>
-        <input type="hidden" name="requestId" value={requestId as string} />
-        <input
-          type="hidden"
-          name="denierEmployeeId"
-          value={denierEmployeeId as string}
-        />
-        <input type="hidden" name="lineUserId" value={lineUserId as string} />
-        <div>
-          <label
-            htmlFor="denialReason"
-            className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-          >
-            เหตุผลในการปฏิเสธ
-          </label>
-          <textarea
-            id="denialReason"
-            className="w-full p-2 border rounded mb-4"
-            rows={4}
-            value={denialReason}
-            onChange={(e) => setDenialReason(e.target.value)}
-            placeholder="กรุณาระบุเหตุผล..."
-            required
-          />
-        </div>
-        <button
-          type="submit"
-          className="w-full p-2 bg-red-500 text-white rounded"
-          disabled={loading}
-        >
-          {loading ? 'กำลังส่งคำขอ...' : 'ยืนยัน'}
-        </button>
-      </form>
-      {error && (
-        <div
-          className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded"
-          role="alert"
-        >
-          {error}
-        </div>
+    <form onSubmit={handleSubmit}>
+      {requestId && <input type="hidden" name="requestId" value={requestId} />}
+      {denierEmployeeId && (
+        <input type="hidden" name="denierEmployeeId" value={denierEmployeeId} />
       )}
-    </div>
+      <div>
+        <label
+          htmlFor="denialReason"
+          className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+        >
+          เหตุผลในการปฏิเสธ
+        </label>
+        <textarea
+          id="denialReason"
+          className="w-full p-2 border rounded mb-4"
+          rows={4}
+          value={denialReason}
+          onChange={(e) => setDenialReason(e.target.value)}
+          placeholder="กรุณาระบุเหตุผล..."
+          required
+        />
+      </div>
+      <button
+        type="submit"
+        className="w-full p-2 bg-red-500 text-white rounded"
+        disabled={loading || !requestId || !denierEmployeeId}
+      >
+        {loading ? 'กำลังส่งคำขอ...' : 'ยืนยัน'}
+      </button>
+    </form>
   );
 };
 

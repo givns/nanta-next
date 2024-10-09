@@ -301,7 +301,7 @@ export class NotificationService {
           contents: [
             {
               type: 'button',
-              style: 'primary',
+              style: 'secondary',
               height: 'sm',
               action: {
                 type: 'uri',
