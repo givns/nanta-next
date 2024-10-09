@@ -120,7 +120,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       </div>
       <button
         onClick={() => setStep(2)}
-        className="mt-4 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
+        className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
       >
         ถัดไป: เลือกประเภทการลา
       </button>
@@ -211,7 +211,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       <button
         type="button"
         onClick={() => setStep(5)}
-        className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+        className="mt-4 w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
       >
         Next
       </button>
@@ -236,7 +236,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       </div>
       <button
         type="submit"
-        className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-300"
+        className="mt-4 w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
       >
         {isLoading ? 'กำลังสร้างแบบฟอร์ม...' : 'ยืนยัน'}
       </button>
