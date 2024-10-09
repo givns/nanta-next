@@ -288,6 +288,9 @@ export class NotificationService {
     requestType: 'leave' | 'overtime',
     denialReason: string,
   ): Promise<void> {
+    console.log(
+      `Sending denial notification for ${requestType} request ${requestId}`,
+    );
     const user = await this.userMappingService.getUserByEmployeeId(employeeId);
     const denier =
       await this.userMappingService.getUserByEmployeeId(denierEmployeeId);
@@ -297,7 +300,11 @@ export class NotificationService {
     );
 
     if (!user || !denier || !request) {
-      console.warn('User, denier, or request not found');
+      console.warn('User, denier, or request not found', {
+        employeeId,
+        denierEmployeeId,
+        requestId,
+      });
       return;
     }
 
@@ -833,13 +840,11 @@ export class NotificationService {
         this.prisma.leaveRequest.count({
           where: {
             createdAt: { gte: currentMonthStart },
-            status: 'PENDING',
           },
         }),
         this.prisma.overtimeRequest.count({
           where: {
             createdAt: { gte: currentMonthStart },
-            status: 'PENDING',
           },
         }),
       ]);

@@ -272,12 +272,28 @@ export class LeaveServiceServer
     requestId: string,
     denierEmployeeId: string,
   ): Promise<LeaveRequest> {
-    const denialInitiatedRequest = (await super.initiateDenial(
-      requestId,
+    console.log(
+      `Initiating denial for request ${requestId} by employee ${denierEmployeeId}`,
+    );
+    const denier = await this.prisma.user.findUnique({
+      where: { employeeId: denierEmployeeId },
+    });
+    if (!denier)
+      throw new Error(`Denier not found for employeeId: ${denierEmployeeId}`);
+
+    const request = await this.getRequestModel().update({
+      where: { id: requestId },
+      data: { status: 'DenialPending', approverId: denier.id },
+      include: { user: true },
+    });
+
+    await this.notificationService.sendDenialInitiationNotification(
       denierEmployeeId,
-    )) as LeaveRequest;
-    await this.invalidateUserCache(denialInitiatedRequest.employeeId);
-    return denialInitiatedRequest;
+      requestId,
+      this.getRequestType(),
+    );
+
+    return request;
   }
 
   async finalizeDenial(
