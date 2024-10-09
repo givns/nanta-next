@@ -581,7 +581,7 @@ export class NotificationService {
       altText: `มีคำขอ ${requestTypeText} รอการอนุมัตื`,
       contents: {
         type: 'bubble',
-        size: 'giga',
+        size: 'mega',
         header: {
           type: 'box',
           layout: 'horizontal',
@@ -644,21 +644,6 @@ export class NotificationService {
               type: 'box',
               layout: 'horizontal',
               contents: [
-                {
-                  type: 'box',
-                  layout: 'vertical',
-                  contents: [
-                    {
-                      type: 'image',
-                      url: user.profilePictureUrl || '',
-                      aspectMode: 'cover',
-                      size: 'full',
-                    },
-                  ],
-                  cornerRadius: '100px',
-                  width: '72px',
-                  height: '72px',
-                },
                 {
                   type: 'box',
                   layout: 'vertical',
