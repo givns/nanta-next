@@ -175,8 +175,7 @@ export class NotificationService {
     );
 
     try {
-      const requestCount =
-        await this.userMappingService.getRequestCountForAllAdmins();
+      const requestCount = await this.getRequestCountForAllAdmins();
 
       const message = this.createRequestFlexMessage(
         requester,
@@ -816,6 +815,38 @@ export class NotificationService {
 
   private async getAdmins(): Promise<User[]> {
     return this.userMappingService.getAdminUsers();
+  }
+  async getRequestCountForAllAdmins(): Promise<number> {
+    console.log('Getting request count for all admins');
+    try {
+      const now = new Date();
+      const currentMonthStart =
+        now.getDate() < 26
+          ? new Date(now.getFullYear(), now.getMonth() - 1, 26)
+          : new Date(now.getFullYear(), now.getMonth(), 26);
+
+      const [leaveRequests, overtimeRequests] = await Promise.all([
+        this.prisma.leaveRequest.count({
+          where: {
+            createdAt: { gte: currentMonthStart },
+            status: 'PENDING',
+          },
+        }),
+        this.prisma.overtimeRequest.count({
+          where: {
+            createdAt: { gte: currentMonthStart },
+            status: 'PENDING',
+          },
+        }),
+      ]);
+
+      const totalCount = leaveRequests + overtimeRequests;
+      console.log(`Total pending requests: ${totalCount}`);
+      return totalCount;
+    } catch (error) {
+      console.error('Error getting request count for all admins:', error);
+      return 0;
+    }
   }
 }
 export function createNotificationService(
