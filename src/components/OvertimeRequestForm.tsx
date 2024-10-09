@@ -166,9 +166,9 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8">
+    <div className="min-h-screen bg-gray-100 py-6">
       <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-box shadow-md p-6">
+        <div className="bg-white rounded-box p-4 mb-4">
           <h2 className="text-2xl font-bold mb-6 text-center">
             {isManager ? 'สร้างคำขอทำงานล่วงเวลา' : 'คำขอทำงานล่วงเวลา'}
           </h2>
