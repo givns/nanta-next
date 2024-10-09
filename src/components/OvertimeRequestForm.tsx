@@ -125,11 +125,31 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       const endpoint = isManager
         ? '/api/overtime/create-manager-request'
         : '/api/overtime/request';
-      const response = await axios.post(endpoint, {
-        lineUserId,
-        ...values,
-        date: newRequestDate,
-      });
+
+      let requestData;
+
+      if (isManager) {
+        requestData = {
+          lineUserId,
+          employeeIds: values.employeeIds,
+          date: newRequestDate,
+          startTime: values.startTime,
+          endTime: values.endTime,
+          reason: values.reason,
+        };
+      } else {
+        requestData = {
+          lineUserId,
+          employeeId: userData?.employeeId, // Use the logged-in user's employeeId
+          date: newRequestDate,
+          startTime: values.startTime,
+          endTime: values.endTime,
+          reason: values.reason,
+        };
+      }
+
+      const response = await axios.post(endpoint, requestData);
+      console.log('Overtime request submitted:', response.data);
 
       setMessage('คำขอทำงานล่วงเวลาถูกส่งเรียบร้อยแล้ว');
       setTimeout(() => {
@@ -140,7 +160,6 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       setMessage('ไม่สามารถส่งคำขอทำงานล่วงเวลาได้');
     }
   };
-
   const handleOvertimeResponse = async (
     requestId: string,
     action: 'accept' | 'decline',

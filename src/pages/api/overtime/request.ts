@@ -1,4 +1,3 @@
-//api/overTime/request.ts
 import { PrismaClient } from '@prisma/client';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
@@ -39,8 +38,13 @@ export default async function handler(
   }
 
   try {
+    const user = await prisma.user.findUnique({ where: { lineUserId } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     const newOvertimeRequest = await overtimeService.createOvertimeRequest(
-      lineUserId,
+      user.employeeId,
       date,
       startTime,
       endTime,

@@ -1,4 +1,3 @@
-// pages/api/overtime/create-manager-request.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { NotificationService } from '../../../services/NotificationService';
@@ -31,9 +30,16 @@ export default async function handler(
 
     const createdRequests = await Promise.all(
       employeeIds.map(async (employeeId: string) => {
+        const employee = await prisma.user.findUnique({
+          where: { id: employeeId },
+        });
+        if (!employee) {
+          throw new Error(`Employee with id ${employeeId} not found`);
+        }
+
         const request = await prisma.overtimeRequest.create({
           data: {
-            employeeId,
+            employeeId: employee.employeeId,
             date: new Date(date),
             startTime,
             endTime,
@@ -42,12 +48,21 @@ export default async function handler(
           },
         });
 
-        await notificationService.sendNotification(
-          employeeId,
-          `New overtime request for ${new Date(date).toLocaleDateString()} from ${startTime} to ${endTime}`,
-          'overtime',
-          'overtime', // Add the missing fourth argument
-        );
+        if (employee.lineUserId) {
+          await notificationService.sendNotification(
+            employee.employeeId,
+            employee.lineUserId,
+            JSON.stringify({
+              type: 'text',
+              text: `New overtime request for ${new Date(date).toLocaleDateString()} from ${startTime} to ${endTime}`,
+            }),
+            'overtime',
+          );
+        } else {
+          console.warn(
+            `Employee ${employee.employeeId} does not have a LINE User ID`,
+          );
+        }
 
         return request;
       }),
@@ -57,8 +72,13 @@ export default async function handler(
       message: 'Overtime requests created successfully',
       data: createdRequests,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating overtime requests:', error);
-    res.status(500).json({ message: 'Error creating overtime requests' });
+    res
+      .status(500)
+      .json({
+        message: 'Error creating overtime requests',
+        error: error.message,
+      });
   }
 }

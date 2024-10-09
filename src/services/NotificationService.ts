@@ -267,7 +267,7 @@ export class NotificationService {
     requestType: 'leave' | 'overtime',
     replyToken?: string,
   ): Promise<void> {
-    const message = `คำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}ไม่ได้รับการอนุมัติ กรุณาติดต่อฝ่ายบุคคล`;
+    const message = `คำขอ${requestType === 'leave' ? 'ลางาน' : 'ทำงานล่วงเวลา'}ไม่ได้รับการอนุมัติ กรุณาติดต่อฝ่ายบุคคล`;
     if (replyToken) {
       await this.lineClient.replyMessage(replyToken, {
         type: 'text',
