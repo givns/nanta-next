@@ -63,6 +63,7 @@ export class NotificationService {
         `Error adding notification to queue for employee ${employeeId}:`,
         error,
       );
+      throw error;
     }
   }
 
