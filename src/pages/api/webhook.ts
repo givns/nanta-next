@@ -50,130 +50,145 @@ export const config = {
 
 const handler = async (event: WebhookEvent) => {
   console.log('Handler received event:', JSON.stringify(event, null, 2));
-  if (!event) {
-    console.error('Event is undefined');
-    return;
-  }
-
-  if (typeof event !== 'object') {
-    console.error('Event is not an object:', event);
-    return;
-  }
-
-  if (!('type' in event)) {
-    console.error('Event does not have a type property:', event);
+  if (!event || typeof event !== 'object' || !('type' in event)) {
+    console.error('Invalid event:', event);
     return;
   }
 
   console.log('Event type:', event.type);
   if (event.type === 'follow') {
-    const userId = event.source.userId;
-    console.log('Follow event for user ID:', userId);
-
-    if (userId) {
-      try {
-        const user = await prisma.user.findUnique({
-          where: { lineUserId: userId },
-        });
-        console.log('User lookup result:', user);
-
-        if (!user) {
-          const registerRichMenuId =
-            'richmenu-7f6cc44cf3643bec7374eaeb449c6c71';
-          await client.linkRichMenuToUser(userId, registerRichMenuId);
-          console.log('Register Rich menu linked to user:', userId);
-        } else {
-          const department = user.departmentId;
-          if (department !== null) {
-            const richMenuId = await createAndAssignRichMenu(
-              department,
-              userId,
-              user.role as UserRole,
-            );
-            console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
-          }
-        }
-      } catch (error: any) {
-        console.error(
-          'Error processing follow event:',
-          error.message,
-          error.stack,
-        );
-      }
-    } else {
-      console.error('User ID not found in event:', event);
-    }
+    await handleFollow(event);
   } else if (event.type === 'postback') {
-    const data = event.postback.data;
-    const lineUserId = event.source.userId;
-
-    const params = new URLSearchParams(data);
-    const action = params.get('action');
-    const requestId = params.get('requestId');
-    const requestType = params.get('requestType') as 'leave' | 'overtime';
-
-    if (action && requestId && lineUserId && requestType) {
-      try {
-        const user = await prisma.user.findUnique({ where: { lineUserId } });
-        if (!user) {
-          throw new Error('User not found');
-        }
-
-        let request;
-        if (requestType === 'leave') {
-          request = await prisma.leaveRequest.findUnique({
-            where: { id: requestId },
-          });
-        } else if (requestType === 'overtime') {
-          request = await prisma.overtimeRequest.findUnique({
-            where: { id: requestId },
-          });
-        }
-
-        if (request?.status === 'Pending') {
-          if (action === 'approve') {
-            if (requestType === 'leave') {
-              await leaveService.approveRequest(requestId, user.employeeId);
-            } else {
-              await overtimeService.employeeRespondToOvertimeRequest(
-                requestId,
-                user.employeeId,
-                'approve',
-              );
-            }
-          } else if (action === 'deny') {
-            if (requestType === 'leave') {
-              await leaveService.denyRequest(requestId, user.employeeId);
-            } else {
-              await overtimeService.employeeRespondToOvertimeRequest(
-                requestId,
-                user.employeeId,
-                'deny',
-              );
-            }
-          }
-        } else {
-          await client.replyMessage(event.replyToken, {
-            type: 'text',
-            text: `${requestType === 'leave' ? 'คำขอลา' : 'คำขอทำงานล่วงเวลา'}นี้ได้รับการดำเนินการแล้ว`,
-          });
-        }
-      } catch (error) {
-        console.error('Error processing postback action:', error);
-        await client.replyMessage(event.replyToken, {
-          type: 'text',
-          text: 'เกิดข้อผิดพลาดในการดำเนินการ โปรดลองอีกครั้งในภายหลัง',
-        });
-      }
-    } else {
-      console.log('Invalid postback data received');
-    }
+    await handlePostback(event);
   } else if (event.type === 'unfollow') {
     console.log('Unfollow event for user ID:', event.source.userId);
   } else {
     console.error('Unhandled event type:', event.type);
   }
 };
+
+async function handleFollow(event: WebhookEvent) {
+  const userId = event.source.userId;
+  console.log('Follow event for user ID:', userId);
+
+  if (userId) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { lineUserId: userId },
+      });
+      console.log('User lookup result:', user);
+
+      if (!user) {
+        const registerRichMenuId = 'richmenu-7f6cc44cf3643bec7374eaeb449c6c71';
+        await client.linkRichMenuToUser(userId, registerRichMenuId);
+        console.log('Register Rich menu linked to user:', userId);
+      } else {
+        const department = user.departmentId;
+        if (department !== null) {
+          const richMenuId = await createAndAssignRichMenu(
+            department,
+            userId,
+            user.role as UserRole,
+          );
+          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+        }
+      }
+    } catch (error: any) {
+      console.error(
+        'Error processing follow event:',
+        error.message,
+        error.stack,
+      );
+    }
+  } else {
+    console.error('User ID not found in event:', event);
+  }
+}
+
+async function handlePostback(event: WebhookEvent) {
+  if (event.type !== 'postback') return;
+  const data = event.postback.data;
+  const lineUserId = event.source.userId;
+
+  const params = new URLSearchParams(data);
+  const action = params.get('action');
+  const requestId = params.get('requestId');
+  const requestType = params.get('requestType') as 'leave' | 'overtime';
+  const approverId = params.get('approverId');
+
+  if (action && requestId && lineUserId && requestType && approverId) {
+    try {
+      const user = await prisma.user.findUnique({ where: { lineUserId } });
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      let result: { message: string } | undefined;
+      if (requestType === 'leave') {
+        result = await handleLeaveRequest(action, requestId, approverId);
+      } else if (requestType === 'overtime') {
+        result = await handleOvertimeRequest(
+          action,
+          requestId,
+          user.employeeId,
+        );
+      }
+
+      if (result) {
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: result.message,
+        });
+      } else {
+        throw new Error('No result from request handler');
+      }
+    } catch (error) {
+      console.error('Error processing postback action:', error);
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: 'เกิดข้อผิดพลาดในการดำเนินการ โปรดลองอีกครั้งในภายหลัง',
+      });
+    }
+  } else {
+    console.log('Invalid postback data received');
+  }
+}
+
+async function handleLeaveRequest(
+  action: string,
+  requestId: string,
+  approverId: string,
+) {
+  if (action === 'approve') {
+    await leaveService.approveRequest(requestId, approverId);
+    return { message: 'คำขอลาได้รับการอนุมัติแล้ว' };
+  } else if (action === 'deny') {
+    await leaveService.denyRequest(requestId, approverId);
+    return { message: 'คำขอลาถูกปฏิเสธแล้ว' };
+  }
+  throw new Error('Invalid action for leave request');
+}
+
+async function handleOvertimeRequest(
+  action: string,
+  requestId: string,
+  employeeId: string,
+) {
+  if (action === 'approve' || action === 'deny') {
+    await overtimeService.employeeRespondToOvertimeRequest(
+      requestId,
+      employeeId,
+      action,
+    );
+    return {
+      message:
+        action === 'approve'
+          ? 'คุณได้ยืนยันการทำงานล่วงเวลาแล้ว'
+          : 'คุณได้ปฏิเสธการทำงานล่วงเวลาแล้ว',
+    };
+  }
+  throw new Error('Invalid action for overtime request');
+}
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
