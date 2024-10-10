@@ -279,7 +279,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   async employeeRespondToOvertimeRequest(
     requestId: string,
     employeeId: string,
-    response: 'accept' | 'decline',
+    response: 'approve' | 'deny',
   ): Promise<OvertimeRequest> {
     const request = await this.prisma.overtimeRequest.findUnique({
       where: { id: requestId },
@@ -299,13 +299,13 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       data: {
         employeeResponse: response,
         status:
-          response === 'accept' ? 'pending_approval' : 'declined_by_employee',
+          response === 'approve' ? 'pending_approval' : 'declined_by_employee',
       },
     });
 
     // Notify admins about the employee's response
     const message =
-      response === 'accept'
+      response === 'approve'
         ? `${request.user.name} ได้ยืนยันการทำงานล่วงเวลา`
         : `${request.user.name} ไม่ขอทำงานล่วงเวลา`;
     await this.notifyAdmins(message, 'overtime'); // Added 'overtime' as the type

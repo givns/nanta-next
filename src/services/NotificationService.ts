@@ -429,7 +429,7 @@ export class NotificationService {
   ): Promise<void> {
     const message: FlexMessage = {
       type: 'flex',
-      altText: 'Overtime Request',
+      altText: 'มีคำสั่งทำงานล่วงเวลา',
       contents: {
         type: 'bubble',
         body: {
@@ -438,7 +438,7 @@ export class NotificationService {
           contents: [
             {
               type: 'text',
-              text: 'Overtime Request',
+              text: 'คุณ',
               weight: 'bold',
               size: 'xl',
             },
@@ -467,7 +467,7 @@ export class NotificationService {
               action: {
                 type: 'postback',
                 label: 'Accept',
-                data: `action=accept&requestId=${request.id}`,
+                data: `action=approve&requestId=${request.id}`,
               },
             },
             {
@@ -476,7 +476,7 @@ export class NotificationService {
               action: {
                 type: 'postback',
                 label: 'Decline',
-                data: `action=decline&requestId=${request.id}`,
+                data: `action=deny&requestId=${request.id}`,
               },
             },
           ],
