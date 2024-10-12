@@ -76,15 +76,9 @@ export interface AttendanceHookReturn {
   effectiveShift: ShiftData | null;
   isLoading: boolean;
   error: string | null;
-  location: { lat: number; lng: number } | null;
-  setLocation: React.Dispatch<
-    React.SetStateAction<{ lat: number; lng: number } | null>
-  >;
-  locationError: string | null;
-  getCurrentLocation: () => Promise<{ lat: number; lng: number } | null>;
-  address: string;
   inPremises: boolean;
-  isOutsideShift: boolean;
+  address: string;
+  locationError: string | null;
   checkInOut: (data: AttendanceData) => Promise<any>;
   checkInOutAllowance: CheckInOutAllowance | null;
   refreshAttendanceStatus: (forceRefresh?: boolean) => Promise<any>;

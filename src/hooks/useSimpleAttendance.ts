@@ -49,19 +49,12 @@ export const useSimpleAttendance = (
 
   const { data, error, isValidating, mutate } = useSWR(
     employeeId
-      ? `/api/attendance-status?employeeId=${employeeId}&lat=${location?.lat || ''}&lng=${location?.lng || ''}`
+      ? `/api/attendance-status?employeeId=${employeeId}&inPremises=${inPremises}&address=${encodeURIComponent(address)}`
       : null,
     fetcher,
     {
       revalidateOnFocus: false,
-      refreshInterval: 0, // Refresh every 30 seconds
-      initialData: initialAttendanceStatus
-        ? {
-            attendanceStatus: initialAttendanceStatus,
-            effectiveShift: null, // You might want to provide initial shift data if available
-            checkInOutAllowance: null,
-          }
-        : undefined,
+      refreshInterval: 0,
     },
   );
 
@@ -153,7 +146,7 @@ export const useSimpleAttendance = (
   const getCurrentLocation = useCallback(async () => {
     if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported by this browser.');
-      return null;
+      return;
     }
 
     try {
@@ -171,9 +164,6 @@ export const useSimpleAttendance = (
         lng: position.coords.longitude,
       };
 
-      setLocation(newLocation);
-      setLocationError(null);
-
       const premise = isWithinPremises(newLocation.lat, newLocation.lng);
       if (premise) {
         setAddress(premise.name);
@@ -183,20 +173,18 @@ export const useSimpleAttendance = (
         setInPremises(false);
       }
 
-      return newLocation;
+      setLocationError(null);
     } catch (error) {
       console.error('Error getting location:', error);
-      setLocationError(
-        'Unable to get precise location. Using default location.',
-      );
-      // Use a default location (e.g., company headquarters)
-      const defaultLocation = { lat: 13.50821, lng: 100.76405 };
-      setLocation(defaultLocation);
-      setAddress('Default location');
-      setInPremises(true);
-      return defaultLocation;
+      setLocationError('Unable to get precise location.');
+      setAddress('Unknown location');
+      setInPremises(false);
     }
-  }, [isWithinPremises]);
+  }, []);
+
+  useEffect(() => {
+    getCurrentLocation();
+  }, [getCurrentLocation]);
 
   const refreshAttendanceStatus = useCallback(
     async (forceRefresh: boolean = false) => {
@@ -222,19 +210,15 @@ export const useSimpleAttendance = (
   );
 
   return {
-    attendanceStatus,
+    attendanceStatus: data?.attendanceStatus || initialAttendanceStatus,
     effectiveShift: data?.effectiveShift || null,
     isLoading: isValidating,
     error: error ? 'Failed to fetch attendance status' : null,
-    location,
-    setLocation,
-    locationError,
-    getCurrentLocation,
-    address,
     inPremises,
-    isOutsideShift,
+    address,
+    locationError,
     checkInOut,
     checkInOutAllowance: data?.checkInOutAllowance || null,
-    refreshAttendanceStatus,
+    refreshAttendanceStatus: mutate,
   };
 };

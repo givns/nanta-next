@@ -40,13 +40,14 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const { employeeId, lineUserId, lat, lng, forceRefresh } = req.query;
+  const { employeeId, lineUserId, inPremises, address, forceRefresh } =
+    req.query;
 
   console.log('Request params:', {
     employeeId,
     lineUserId,
-    lat,
-    lng,
+    inPremises,
+    address,
     forceRefresh,
   });
 
@@ -126,13 +127,11 @@ export default async function handler(
     console.log('ResponseData:', JSON.stringify(responseData, null, 2));
 
     // Always fetch fresh check-in/out allowance
-    const checkInOutAllowance =
-      lat && lng
-        ? await attendanceService.isCheckInOutAllowed(user.employeeId, {
-            lat: parseFloat(lat as string),
-            lng: parseFloat(lng as string),
-          })
-        : { allowed: false, reason: 'Location not provided' };
+    const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
+      user.employeeId,
+      inPremises === 'true',
+      address as string,
+    );
 
     console.log('CheckInOutAllowance:', checkInOutAllowance);
 

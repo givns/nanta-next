@@ -120,21 +120,20 @@ export class AttendanceService {
 
   public async isCheckInOutAllowed(
     employeeId: string,
-    location: { lat: number; lng: number },
+    inPremises: boolean,
+    address: string,
   ): Promise<CheckInOutAllowance> {
     try {
       console.log(
-        `Checking allowance for employee ${employeeId} at location:`,
-        location,
+        `Checking allowance for employee ${employeeId} at address: ${address}, inPremises: ${inPremises}`,
       );
 
-      if (!location.lat || !location.lng) {
-        console.log('Location data missing');
+      if (!inPremises) {
         return {
           allowed: false,
-          reason: 'ไม่สามารถระบุตำแหน่งได้ กรุณาเปิดการใช้งาน GPS',
+          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
           inPremises: false,
-          address: 'Unknown',
+          address,
         };
       }
 
@@ -149,23 +148,6 @@ export class AttendanceService {
 
       const now = getCurrentTime();
       console.log('Current time:', formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'));
-
-      const premise = this.shiftManagementService.isWithinPremises(
-        location.lat,
-        location.lng,
-      );
-      const inPremises = !!premise;
-      const address = premise ? premise.name : 'Unknown location';
-      console.log(`In premises: ${inPremises}, Address: ${address}`);
-
-      if (!inPremises) {
-        return {
-          allowed: false,
-          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
-          inPremises: false,
-          address,
-        };
-      }
 
       const isHoliday = await this.holidayService.isHoliday(
         now,

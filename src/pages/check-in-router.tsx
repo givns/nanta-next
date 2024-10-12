@@ -65,11 +65,11 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     effectiveShift,
     isLoading: isAttendanceLoading,
     error: attendanceError,
+    inPremises,
+    address,
     checkInOutAllowance,
     refreshAttendanceStatus,
     checkInOut,
-    location,
-    address,
   } = useSimpleAttendance(
     userData?.employeeId,
     lineUserId,
@@ -87,7 +87,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             checkTime: new Date().toISOString(),
             checkInAddress: newStatus ? address : undefined,
             checkOutAddress: !newStatus ? address : undefined,
-            location: `${location.lat},${location.lng}`,
             reason: '',
           });
         } catch (error: any) {

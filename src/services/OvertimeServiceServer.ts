@@ -84,14 +84,14 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     employeeId: string,
     date: Date,
   ): Promise<ApprovedOvertime | null> {
-    const overtimeRequest = await this.prisma.approvedOvertime.findFirst({
+    const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
       where: {
         employeeId,
         date: {
           gte: startOfDay(date),
           lt: endOfDay(date),
         },
-        status: 'APPROVED',
+        status: 'approved',
       },
     });
 
@@ -99,8 +99,14 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     return {
       ...overtimeRequest,
-      startTime: overtimeRequest.startTime.toISOString().substr(11, 8), // Convert to HH:mm:ss string
-      endTime: overtimeRequest.endTime.toISOString().substr(11, 8), // Convert to HH:mm:ss string
+      startTime: parseISO(overtimeRequest.startTime.toString())
+        .toISOString()
+        .substr(11, 8), // Convert to HH:mm:ss string
+      endTime: parseISO(overtimeRequest.endTime.toString())
+        .toISOString()
+        .substr(11, 8), // Convert to HH:mm:ss string
+      approvedBy: '', // Add the missing property 'approvedBy'
+      approvedAt: new Date(), // Add the missing property 'approvedAt'
     };
   }
 
@@ -108,11 +114,11 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     employeeId: string,
     startDate: Date,
   ): Promise<ApprovedOvertime[]> {
-    const futureOvertimes = await this.prisma.approvedOvertime.findMany({
+    const futureOvertimes = await this.prisma.overtimeRequest.findMany({
       where: {
         employeeId,
         date: { gte: startOfDay(startDate) },
-        status: 'APPROVED',
+        status: 'approved',
       },
       orderBy: { date: 'asc' },
     });
@@ -122,6 +128,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       reason: overtime.reason || null,
       startTime: format(parseISO(overtime.startTime.toString()), 'HH:mm:ss'),
       endTime: format(parseISO(overtime.endTime.toString()), 'HH:mm:ss'),
+      approvedBy: '', // Add the missing property 'approvedBy'
+      approvedAt: new Date(), // Add the missing property 'approvedAt'
     }));
   }
 
@@ -200,7 +208,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     startDate: Date,
     endDate: Date,
   ): Promise<ApprovedOvertime[]> {
-    const overtimes = await this.prisma.approvedOvertime.findMany({
+    const overtimes = await this.prisma.overtimeRequest.findMany({
       where: {
         employeeId,
         date: {
@@ -213,8 +221,10 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     return overtimes.map((overtime) => ({
       ...overtime,
       reason: overtime.reason || null,
-      startTime: overtime.startTime.toISOString(), // Convert startTime to string
-      endTime: overtime.endTime.toISOString(), // Convert endTime to string
+      startTime: overtime.startTime.toString(),
+      endTime: overtime.endTime.toString(),
+      approvedBy: overtime.approverId || '', // Provide a default value for approvedBy
+      approvedAt: new Date(), // Add the missing property 'approvedAt'
     }));
   }
 
