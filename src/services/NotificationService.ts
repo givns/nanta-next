@@ -213,7 +213,7 @@ export class NotificationService {
     requestType: 'leave' | 'overtime',
     replyToken?: string,
   ): Promise<void> {
-    const message = `คำขอ${requestType === 'leave' ? 'ลา' : 'ทำงานล่วงเวลา'}ของคุณได้รับการอนุมัติแล้ว`;
+    const message = `คำขอ${requestType === 'leave' ? 'ลางาน' : 'ทำงานล่วงเวลา'}ของคุณได้รับการอนุมัติแล้ว`;
     if (replyToken) {
       await this.lineClient.replyMessage(replyToken, {
         type: 'text',

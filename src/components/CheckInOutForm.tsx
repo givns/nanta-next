@@ -25,28 +25,27 @@ import { formatTime, getCurrentTime } from '../utils/dateUtils';
 import { useSimpleAttendance } from '../hooks/useSimpleAttendance';
 
 interface CheckInOutFormProps {
-  onCloseWindow: () => void;
   userData: UserData;
-  initialAttendanceStatus: AttendanceStatusInfo;
+  cachedAttendanceStatus: AttendanceStatusInfo | null;
+  liveAttendanceStatus: AttendanceStatusInfo | null;
   effectiveShift: ShiftData | null;
-  onStatusChange: (newStatus: boolean) => void;
-  onError: () => void;
-  isActionButtonReady: boolean;
+  isAttendanceLoading: boolean;
   checkInOutAllowance: CheckInOutAllowance | null;
-  isCheckingIn: boolean;
+  refreshAttendanceStatus: (forceRefresh: boolean) => Promise<void>;
+  onStatusChange: (newStatus: boolean) => Promise<void>;
+  onCloseWindow: () => void;
 }
 
-const MemoizedUserShiftInfo = React.memo(UserShiftInfo);
-
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
-  onCloseWindow,
   userData,
-  initialAttendanceStatus,
+  cachedAttendanceStatus,
+  liveAttendanceStatus,
   effectiveShift,
+  isAttendanceLoading,
+  checkInOutAllowance,
+  refreshAttendanceStatus,
   onStatusChange,
-  onError,
-  isActionButtonReady,
-  isCheckingIn,
+  onCloseWindow,
 }) => {
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [reason, setReason] = useState<string>('');
@@ -62,30 +61,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [timeRemaining, setTimeRemaining] = useState(15);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isActionButtonReady, setIsActionButtonReady] = useState(false);
 
-  const {
-    attendanceStatus,
-    location,
-    address,
-    isOutsideShift,
-    checkInOutAllowance,
-    checkInOut,
-    refreshAttendanceStatus,
-  } = useSimpleAttendance(
-    userData.employeeId,
-    userData.lineUserId,
-    initialAttendanceStatus,
-  );
-
-  // Reset function to clear any stuck states
   const resetStates = useCallback(() => {
     setIsSubmitting(false);
     setCapturedPhoto(null);
+    setError(null);
     if (submitTimeoutRef.current) {
       clearTimeout(submitTimeoutRef.current);
     }
-    console.log('States reset');
   }, []);
+
+  useEffect(() => {
+    if (checkInOutAllowance !== null) {
+      setIsActionButtonReady(true);
+    }
+  }, [checkInOutAllowance]);
 
   useEffect(() => {
     if (effectiveShift) {
@@ -110,112 +101,27 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
   }, [isSubmitting, resetStates]);
 
-  useEffect(() => {
-    console.log('CheckInOutForm mounted');
-    console.log(`userData: ${JSON.stringify(userData)}`);
-    console.log(
-      `initialAttendanceStatus: ${JSON.stringify(initialAttendanceStatus)}`,
-    );
-    console.log(`effectiveShift: ${JSON.stringify(effectiveShift)}`);
-
-    try {
-      if (initialAttendanceStatus?.latestAttendance) {
-        const { checkInTime, checkOutTime, status } =
-          initialAttendanceStatus.latestAttendance;
-        console.log('Latest attendance:', {
-          checkInTime,
-          checkOutTime,
-          status,
-        });
-
-        if (checkInTime) {
-          const parsedCheckInTime = parseISO(checkInTime);
-          if (isValid(parsedCheckInTime)) {
-            console.log('Check-in time:', formatTime(parsedCheckInTime));
-          } else {
-            console.log('Invalid check-in time:', checkInTime);
-          }
-        } else {
-          console.log('No check-in time available');
-        }
-
-        if (checkOutTime) {
-          const parsedCheckOutTime = parseISO(checkOutTime);
-          if (isValid(parsedCheckOutTime)) {
-            console.log('Check-out time:', formatTime(parsedCheckOutTime));
-          } else {
-            console.log('Invalid check-out time:', checkOutTime);
-          }
-        } else {
-          console.log('No check-out time available');
-        }
-      }
-
-      if (effectiveShift) {
-        console.log('Shift start time:', effectiveShift.startTime);
-        console.log('Shift end time:', effectiveShift.endTime);
-      }
-    } catch (err) {
-      onError();
-    }
-  }, [userData, initialAttendanceStatus, effectiveShift, onError]);
-
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {
-      if (!location) {
-        onError();
-        return;
-      }
-
-      const checkInOutData: AttendanceData = {
-        employeeId: userData.employeeId,
-        lineUserId: userData.lineUserId,
-        checkTime: new Date(),
-        [attendanceStatus.isCheckingIn ? 'checkInAddress' : 'checkOutAddress']:
-          address,
-        reason: lateReason || reason,
-        isCheckIn: attendanceStatus.isCheckingIn,
-        isOvertime: checkInOutAllowance?.isOvertime || false,
-        isLate: checkInOutAllowance?.isLate || false,
-        photo,
-      };
-
-      console.log(`Sending data to API: ${JSON.stringify(checkInOutData)}`);
-
       try {
-        const response = await checkInOut(checkInOutData);
-        console.log(`API response received: ${JSON.stringify(response)}`);
-
-        onStatusChange(!attendanceStatus.isCheckingIn);
-        await refreshAttendanceStatus();
+        setIsSubmitting(true);
+        await onStatusChange(liveAttendanceStatus?.isCheckingIn ?? true);
+        await refreshAttendanceStatus(true);
         await onCloseWindow();
       } catch (error: any) {
         console.log(`Error during check-in/out: ${error.message}`);
         setError('Failed to submit check-in/out. Please try again.');
+      } finally {
+        setIsSubmitting(false);
       }
     },
     [
-      location,
-      userData,
-      attendanceStatus,
-      address,
-      reason,
-      checkInOutAllowance,
-      checkInOut,
+      liveAttendanceStatus,
       onStatusChange,
       refreshAttendanceStatus,
       onCloseWindow,
-      onError,
     ],
   );
-
-  useEffect(() => {
-    return () => {
-      if (submitTimeoutRef.current) {
-        clearTimeout(submitTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const processAttendanceSubmission = useCallback(
     async (photo: string, lateReason?: string) => {
@@ -236,83 +142,67 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setIsSubmitting(false);
       }
     },
-    [checkInOutAllowance, submitCheckInOut, setError, resetStates],
+    [checkInOutAllowance, submitCheckInOut, resetStates],
   );
 
-  const handlePhotoCapture = useCallback(
-    async (photo: string) => {
-      if (isSubmitting) return; // Prevent multiple captures while submitting
-      setCapturedPhoto(photo);
-      setIsCameraActive(false); // Close the camera after capturing
+  const processCapture = useCallback(async () => {
+    if (!capturedPhoto) return;
 
-      try {
-        await processAttendanceSubmission(photo);
-      } catch (error) {
-        console.error('Error processing photo:', error);
-        setError('An error occurred. Please try again.');
-        resetStates();
-      }
-    },
-    [
-      isSubmitting,
-      processAttendanceSubmission,
-      setCapturedPhoto,
-      setIsCameraActive,
-      setError,
-      resetStates,
-    ],
-  );
+    try {
+      if (checkInOutAllowance) {
+        console.log(
+          `Check-in/out allowed: ${checkInOutAllowance.allowed}, isLate: ${checkInOutAllowance.isLate ?? false}, isOvertime: ${checkInOutAllowance.isOvertime ?? false}`,
+        );
 
-  useEffect(() => {
-    const processCapture = async () => {
-      if (!capturedPhoto) return;
-
-      try {
-        if (checkInOutAllowance) {
-          console.log(
-            `Check-in/out allowed: ${checkInOutAllowance.allowed}, isLate: ${checkInOutAllowance.isLate ?? false}, isOvertime: ${checkInOutAllowance.isOvertime ?? false}`,
+        if (!checkInOutAllowance.allowed) {
+          setError(
+            checkInOutAllowance.reason ||
+              'Check-in/out is not allowed at this time.',
           );
-
-          if (!checkInOutAllowance.allowed) {
-            setError(
-              checkInOutAllowance.reason ||
-                'Check-in/out is not allowed at this time.',
-            );
-            resetStates();
-            return;
-          }
-
-          setIsLate(checkInOutAllowance.isLate ?? false);
-          setIsOvertime(checkInOutAllowance.isOvertime ?? false);
-
-          if (checkInOutAllowance.isLate && attendanceStatus.isCheckingIn) {
-            setIsLateModalOpen(true);
-            setReason('');
-            console.log('Late modal opened');
-          } else {
-            console.log('Proceeding to submit check-in/out');
-            setStep('processing');
-            await submitCheckInOut(capturedPhoto);
-          }
-        } else {
-          throw new Error('Check-in/out allowance information is missing');
+          resetStates();
+          return;
         }
-      } catch (error) {
-        console.log(`Error in processCapture: ${error}`);
-        setError('An error occurred. Please try again.');
-        resetStates();
-      } finally {
-        setIsSubmitting(false);
+
+        if (checkInOutAllowance.isLate && liveAttendanceStatus?.isCheckingIn) {
+          setIsLateModalOpen(true);
+          setReason('');
+          console.log('Late modal opened');
+        } else {
+          console.log('Proceeding to submit check-in/out');
+          setStep('processing');
+          await submitCheckInOut(capturedPhoto);
+        }
+      } else {
+        throw new Error('Check-in/out allowance information is missing');
       }
-    };
-    processCapture();
+    } catch (error) {
+      console.log(`Error in processCapture: ${error}`);
+      setError('An error occurred. Please try again.');
+      resetStates();
+    } finally {
+      setIsSubmitting(false);
+    }
   }, [
     capturedPhoto,
     checkInOutAllowance,
-    attendanceStatus.isCheckingIn,
+    liveAttendanceStatus?.isCheckingIn,
     submitCheckInOut,
     resetStates,
   ]);
+
+  useEffect(() => {
+    if (capturedPhoto) {
+      processCapture();
+    }
+  }, [capturedPhoto, processCapture]);
+
+  const handlePhotoCapture = useCallback(
+    async (photo: string) => {
+      if (isSubmitting) return;
+      setCapturedPhoto(photo);
+    },
+    [isSubmitting],
+  );
 
   const {
     webcamRef,
@@ -376,18 +266,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
 
       try {
-        // Determine if it's a check-in or check-out based on the current attendance status
-        const isCheckIn = attendanceStatus.isCheckingIn;
+        const isCheckIn = liveAttendanceStatus?.isCheckingIn ?? true;
         console.log(`Action is ${isCheckIn ? 'check-in' : 'check-out'}`);
 
         if (action === 'checkOut' && !confirmEarlyCheckOut()) {
           return;
         }
 
-        // Use the existing checkInOutAllowance without fetching again
         if (checkInOutAllowance?.allowed) {
           setStep('camera');
-          setIsCameraActive(true);
           resetDetection();
         } else {
           setError(
@@ -398,118 +285,66 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       } catch (error) {
         console.error('Error in handleAction:', error);
         setError('An unexpected error occurred. Please try again.');
-      } finally {
-        setIsLoading(false);
       }
     },
     [
-      attendanceStatus.isCheckingIn,
+      liveAttendanceStatus,
       confirmEarlyCheckOut,
       checkInOutAllowance,
-      setStep,
-      setIsCameraActive,
       resetDetection,
     ],
   );
 
-  const renderActionButton = useCallback(() => {
-    if (locationError) {
-      return (
-        <div className="text-red-500 text-center">
-          {locationError}
-          <button
-            onClick={() => {
-              window.location.reload();
-            }}
-            className="mt-2 text-blue-500 underline"
-          >
-            Retry
-          </button>
-        </div>
-      );
-    }
+  const memoizedUserShiftInfo = useMemo(
+    () => (
+      <UserShiftInfo
+        userData={userData}
+        attendanceStatus={liveAttendanceStatus || cachedAttendanceStatus}
+        effectiveShift={effectiveShift}
+      />
+    ),
+    [userData, liveAttendanceStatus, cachedAttendanceStatus, effectiveShift],
+  );
 
-    const buttonClass = `w-full ${checkInOutAllowance?.allowed ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'} text-white py-3 px-4 rounded-lg transition duration-300`;
-
-    let buttonText = 'ไม่สามารถลงเวลาได้ในขณะนี้';
-    if (isActionButtonReady) {
-      if (checkInOutAllowance?.allowed) {
-        buttonText = `เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
-      } else if (attendanceStatus.pendingLeaveRequest) {
-        buttonText = 'รออนุมัติการลา';
-      }
-    } else {
-      buttonText = 'กรุณารอสักครู่...';
-    }
-
-    return (
-      <>
-        <button
-          onClick={() =>
-            handleAction(attendanceStatus.isCheckingIn ? 'checkIn' : 'checkOut')
-          }
-          disabled={!isActionButtonReady || !checkInOutAllowance?.allowed}
-          className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
-          aria-label={buttonText}
-        >
-          {buttonText}
-        </button>
-        {!checkInOutAllowance?.allowed && checkInOutAllowance?.reason && (
-          <p className="text-red-500 text-center text-sm mt-2">
-            {checkInOutAllowance.reason}
-          </p>
-        )}
-        {checkInOutAllowance?.isOutsideShift && (
-          <p className="text-yellow-500 text-center text-sm mt-2">
-            คุณอยู่นอกเวลาทำงานของกะ
-          </p>
-        )}
-        {checkInOutAllowance?.isLate && (
-          <p className="text-red-500 text-center text-sm mt-2">
-            คุณกำลังเข้างานสาย
-          </p>
-        )}
-        {checkInOutAllowance?.isOvertime && (
-          <p className="text-purple-500 text-center text-sm mt-2">
-            คุณกำลังทำงานล่วงเวลา
-          </p>
-        )}
-      </>
-    );
-  }, [
-    checkInOutAllowance,
-    attendanceStatus.isCheckingIn,
-    attendanceStatus.pendingLeaveRequest,
-    locationError,
-    handleAction,
-    isActionButtonReady,
-  ]);
+  const memoizedActionButton = useMemo(
+    () => (
+      <button
+        onClick={() =>
+          handleAction(
+            liveAttendanceStatus?.isCheckingIn ? 'checkIn' : 'checkOut',
+          )
+        }
+        disabled={!isActionButtonReady || !checkInOutAllowance?.allowed}
+        className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
+      >
+        {isActionButtonReady
+          ? checkInOutAllowance?.allowed
+            ? `เปิดกล้องเพื่อ${liveAttendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
+            : 'ไม่สามารถลงเวลาได้ในขณะนี้'
+          : 'กรุณารอสักครู่...'}
+      </button>
+    ),
+    [
+      liveAttendanceStatus,
+      isActionButtonReady,
+      checkInOutAllowance,
+      handleAction,
+    ],
+  );
 
   const renderStep1 = useMemo(
     () => (
       <div className="flex flex-col h-full">
-        <ErrorBoundary>
-          <MemoizedUserShiftInfo
-            userData={userData}
-            attendanceStatus={attendanceStatus}
-            effectiveShift={effectiveShift}
-          />
-        </ErrorBoundary>
+        <ErrorBoundary>{memoizedUserShiftInfo}</ErrorBoundary>
         <div className="flex-shrink-0 mt-4">
-          {renderActionButton()}
+          {memoizedActionButton}
           <p className="text-center mt-2">
             ท่านมีเวลาในการทำรายการ {timeRemaining} วินาที
           </p>
         </div>
       </div>
     ),
-    [
-      userData,
-      attendanceStatus,
-      effectiveShift,
-      renderActionButton,
-      timeRemaining,
-    ],
+    [memoizedUserShiftInfo, memoizedActionButton, timeRemaining],
   );
 
   const renderStep2 = () => (

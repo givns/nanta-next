@@ -55,6 +55,13 @@ export const useSimpleAttendance = (
     {
       revalidateOnFocus: false,
       refreshInterval: 30000, // Refresh every 30 seconds
+      initialData: initialAttendanceStatus
+        ? {
+            attendanceStatus: initialAttendanceStatus,
+            effectiveShift: null, // You might want to provide initial shift data if available
+            checkInOutAllowance: null,
+          }
+        : undefined,
     },
   );
 
@@ -76,7 +83,7 @@ export const useSimpleAttendance = (
 
   const processAttendanceStatus = useCallback(
     (status: AttendanceStatusInfo) => {
-      console.log('Processing attendance status', status); // Debug log
+      console.log('Processing attendance status', status);
 
       if (status.latestAttendance) {
         const {
@@ -101,6 +108,13 @@ export const useSimpleAttendance = (
     },
     [],
   );
+
+  useEffect(() => {
+    if (data) {
+      const processedStatus = processAttendanceStatus(data.attendanceStatus);
+      setAttendanceStatus(processedStatus);
+    }
+  }, [data, processAttendanceStatus]);
 
   const calculateDistance = (
     lat1: number,

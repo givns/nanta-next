@@ -1,57 +1,34 @@
-// check-in-router.tsx
-
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  Suspense,
-} from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { UserData } from '../types/user';
-import axios from 'axios';
-import { z } from 'zod'; // Import Zod for runtime type checking
-import {
-  UserDataSchema,
-  ResponseDataSchema,
-  parseUserData,
-} from '../schemas/attendance'; // Adjust the import path as needed
+import { AttendanceStatusInfo } from '@/types/attendance';
 import Clock from '../components/Clock';
 import { closeWindow } from '../services/liff';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
-import { AttendanceStatusInfo } from '@/types/attendance';
+import {
+  fetchUserData,
+  getCachedUserData,
+  getCachedAttendanceStatus,
+} from '../services/userService';
 
-const CheckInOutForm = dynamic(
-  () =>
-    import('../components/CheckInOutForm').then((module) => {
-      console.log('CheckInOutForm module loaded successfully', module);
-      return module.default;
-    }),
-  {
-    loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
-    ssr: false,
-  },
-);
-
-const ActionButton = React.lazy(() => import('../components/ActionButton'));
-
-const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
+const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
+  loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
+  ssr: false,
+});
 
 interface CheckInRouterProps {
   lineUserId: string | null;
 }
+
+const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
 const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [initialAttendanceStatus, setInitialAttendanceStatus] =
+  const [cachedAttendanceStatus, setCachedAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
-
-  const handleCloseWindow = useCallback(() => {
-    closeWindow();
-  }, []);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -62,15 +39,20 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       }
 
       try {
-        const userResponse = await axios.get(
-          `/api/user-data?lineUserId=${lineUserId}`,
-        );
-        const parsedUserData = UserDataSchema.parse(userResponse.data.user);
-        setUserData(parseUserData(parsedUserData));
-        setIsLoading(false);
+        const cachedUser = await getCachedUserData(lineUserId);
+        const cachedStatus = await getCachedAttendanceStatus(lineUserId);
+
+        if (cachedUser && cachedStatus) {
+          setUserData(cachedUser);
+          setCachedAttendanceStatus(cachedStatus);
+        } else {
+          const fetchedUser = await fetchUserData(lineUserId);
+          setUserData(fetchedUser);
+        }
       } catch (error) {
         console.error('Error fetching initial data:', error);
         setError('Failed to fetch initial data');
+      } finally {
         setIsLoading(false);
       }
     };
@@ -79,45 +61,20 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   }, [lineUserId]);
 
   const {
-    attendanceStatus,
+    attendanceStatus: liveAttendanceStatus,
     effectiveShift,
     isLoading: isAttendanceLoading,
     error: attendanceError,
-    location,
-    setLocation,
-    address,
     checkInOutAllowance,
-    checkInOut,
     refreshAttendanceStatus,
+    checkInOut,
+    location,
+    address,
   } = useSimpleAttendance(
     userData?.employeeId,
     lineUserId,
-    initialAttendanceStatus,
+    cachedAttendanceStatus,
   );
-
-  console.log('useSimpleAttendance result:', {
-    attendanceStatus,
-    effectiveShift,
-  });
-
-  useEffect(() => {
-    console.log('Effect in check-in-router - effectiveShift:', effectiveShift);
-  }, [effectiveShift]);
-
-  useEffect(() => {
-    // Get current location when component mounts
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-      },
-      (error) => {
-        console.error('Error getting location:', error);
-      },
-    );
-  }, [setLocation]);
 
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
@@ -130,8 +87,8 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             checkTime: new Date().toISOString(),
             checkInAddress: newStatus ? address : undefined,
             checkOutAddress: !newStatus ? address : undefined,
-            location: `${location.lat},${location.lng}`, // Convert location to string
-            reason: '', // Add an empty reason or implement a way to get a reason from the user
+            location: `${location.lat},${location.lng}`,
+            reason: '',
           });
         } catch (error: any) {
           console.error('Error during check-in/out:', error);
@@ -146,29 +103,34 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     [userData, location, checkInOut, address],
   );
 
+  const handleCloseWindow = useCallback(() => {
+    closeWindow();
+  }, []);
+
   const memoizedCheckInOutForm = useMemo(
     () => (
       <CheckInOutForm
-        onCloseWindow={handleCloseWindow}
         userData={userData!}
-        initialAttendanceStatus={attendanceStatus}
-        effectiveShift={effectiveShift || null}
-        onStatusChange={handleStatusChange}
-        onError={() => refreshAttendanceStatus(true)}
-        isActionButtonReady={!isAttendanceLoading}
+        cachedAttendanceStatus={cachedAttendanceStatus}
+        liveAttendanceStatus={liveAttendanceStatus}
+        effectiveShift={effectiveShift}
+        isAttendanceLoading={isAttendanceLoading}
         checkInOutAllowance={checkInOutAllowance}
-        isCheckingIn={attendanceStatus?.isCheckingIn}
+        refreshAttendanceStatus={refreshAttendanceStatus}
+        onStatusChange={handleStatusChange}
+        onCloseWindow={handleCloseWindow}
       />
     ),
     [
-      handleCloseWindow,
       userData,
-      attendanceStatus,
+      cachedAttendanceStatus,
+      liveAttendanceStatus,
       effectiveShift,
-      handleStatusChange,
-      refreshAttendanceStatus,
       isAttendanceLoading,
       checkInOutAllowance,
+      refreshAttendanceStatus,
+      handleStatusChange,
+      handleCloseWindow,
     ],
   );
 
@@ -185,20 +147,12 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     );
   }
 
-  if (!userData || !attendanceStatus) {
-    return (
-      <div className="flex flex-col justify-center items-center min-h-screen">
-        <h1 className="text-1xl mb-6 text-gray-800">ไม่พบข้อมูลผู้ใช้</h1>
-      </div>
-    );
-  }
-
   return (
     <ErrorBoundary>
       <div className="main-container flex flex-col min-h-screen bg-gray-100 p-4">
         <div className="flex-grow flex flex-col justify-start items-center">
           <h1 className="text-2xl font-bold text-center mt-8 mb-2 text-gray-800">
-            {attendanceStatus.isCheckingIn
+            {liveAttendanceStatus?.isCheckingIn
               ? 'ระบบบันทึกเวลาเข้างาน'
               : 'ระบบบันทึกเวลาออกงาน'}
           </h1>
@@ -219,15 +173,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             }}
           >
             <div className="w-full max-w-md">
-              {memoizedCheckInOutForm}
-              <Suspense fallback={<div>Loading action button...</div>}>
-                <ActionButton
-                  isLoading={isLoading}
-                  checkInOutAllowance={checkInOutAllowance}
-                  isCheckingIn={attendanceStatus.isCheckingIn}
-                  onAction={handleStatusChange}
-                />
-              </Suspense>
+              {userData && memoizedCheckInOutForm}
             </div>
           </ErrorBoundary>
         </div>
