@@ -41,7 +41,7 @@ const AttendanceStatusInfoSchema = z
   .object({
     status: z.enum(['present', 'absent', 'incomplete', 'holiday', 'off']),
     isOvertime: z.boolean(),
-    overtimeDuration: z.number().optional(),
+    overtimeDuration: z.number().nonnegative().default(0),
     detailedStatus: z.string(),
     isEarlyCheckIn: z.boolean(),
     isLateCheckIn: z.boolean(),

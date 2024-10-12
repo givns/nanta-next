@@ -708,50 +708,6 @@ export class AttendanceService {
     );
   }
 
-  async getAttendanceHistory(
-    employeeId: string,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<ProcessedAttendance[]> {
-    const attendances = await this.prisma.attendance.findMany({
-      where: {
-        employeeId,
-        date: {
-          gte: startOfDay(startDate),
-          lte: endOfDay(endDate),
-        },
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    const user = await this.prisma.user.findUnique({
-      where: { employeeId },
-      include: { department: true },
-    });
-    if (!user) throw new Error('User not found');
-
-    const shift = await this.shiftManagementService.getUserShift(user.id);
-    if (!shift) throw new Error('User shift not found');
-
-    const holidays = await this.holidayService.getHolidays(startDate, endDate);
-    const leaveRequests = await this.leaveService.getLeaveRequests(employeeId);
-    const approvedOvertimes =
-      await this.overtimeService.getApprovedOvertimesInRange(
-        employeeId,
-        startDate,
-        endDate,
-      );
-
-    return this.processAttendanceHistory(
-      attendances,
-      user,
-      shift,
-      holidays,
-      leaveRequests,
-      approvedOvertimes,
-    );
-  }
-
   private determineAttendanceStatus(
     user: UserData,
     attendance: Attendance | null,
@@ -796,20 +752,27 @@ export class AttendanceService {
         isAfter(attendance.checkOutTime, shiftEnd ?? new Date())
       ) {
         isOvertime = true;
-        overtimeDuration =
+        overtimeDuration = Math.max(
+          0,
           differenceInMinutes(attendance.checkOutTime, shiftEnd ?? new Date()) /
-          60;
+            60,
+        );
       }
     }
 
     if (approvedOvertime && isSameDay(now, approvedOvertime.date)) {
       isOvertime = true;
-      overtimeDuration =
+      overtimeDuration = Math.max(
+        overtimeDuration,
         differenceInMinutes(
           parseISO(approvedOvertime.endTime),
           parseISO(approvedOvertime.startTime),
-        ) / 60;
+        ) / 60,
+      );
     }
+
+    // Ensure overtimeDuration is always a valid number
+    overtimeDuration = isNaN(overtimeDuration) ? 0 : overtimeDuration;
 
     return {
       status,
@@ -858,6 +821,50 @@ export class AttendanceService {
       },
       orderBy: { date: 'desc' },
     });
+  }
+
+  async getAttendanceHistory(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<ProcessedAttendance[]> {
+    const attendances = await this.prisma.attendance.findMany({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(startDate),
+          lte: endOfDay(endDate),
+        },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: { employeeId },
+      include: { department: true },
+    });
+    if (!user) throw new Error('User not found');
+
+    const shift = await this.shiftManagementService.getUserShift(user.id);
+    if (!shift) throw new Error('User shift not found');
+
+    const holidays = await this.holidayService.getHolidays(startDate, endDate);
+    const leaveRequests = await this.leaveService.getLeaveRequests(employeeId);
+    const approvedOvertimes =
+      await this.overtimeService.getApprovedOvertimesInRange(
+        employeeId,
+        startDate,
+        endDate,
+      );
+
+    return this.processAttendanceHistory(
+      attendances,
+      user,
+      shift,
+      holidays,
+      leaveRequests,
+      approvedOvertimes,
+    );
   }
 
   private processAttendanceHistory(

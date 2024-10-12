@@ -137,14 +137,21 @@ export default async function handler(
 
     const finalResponseData = {
       user,
-      attendanceStatus: responseData?.attendanceStatus,
+      attendanceStatus: {
+        ...responseData?.attendanceStatus,
+        overtimeDuration: isNaN(
+          responseData?.attendanceStatus?.overtimeDuration,
+        )
+          ? 0
+          : responseData?.attendanceStatus?.overtimeDuration,
+      },
       effectiveShift: responseData?.shiftData?.effectiveShift,
       checkInOutAllowance,
       approvedOvertime: responseData?.approvedOvertime,
     };
 
     console.log(
-      'FinalResponseData:',
+      'FinalResponseData before parsing:',
       JSON.stringify(finalResponseData, null, 2),
     );
 
