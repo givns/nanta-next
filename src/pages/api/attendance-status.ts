@@ -132,7 +132,7 @@ export default async function handler(
             lat: parseFloat(lat as string),
             lng: parseFloat(lng as string),
           })
-        : { allowed: true, reason: 'Location not provided' };
+        : { allowed: false, reason: 'Location not provided' };
 
     console.log('CheckInOutAllowance:', checkInOutAllowance);
 
