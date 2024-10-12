@@ -107,31 +107,40 @@ async function handleFollow(event: WebhookEvent) {
 
 async function handlePostback(event: WebhookEvent) {
   if (event.type !== 'postback') return;
+
   const data = event.postback.data;
   const lineUserId = event.source.userId;
 
   const params = new URLSearchParams(data);
   const action = params.get('action');
   const requestId = params.get('requestId');
-  const requestType = params.get('requestType') as 'leave' | 'overtime';
-  const approverId = params.get('approverId');
 
-  if (action && requestId && lineUserId && requestType && approverId) {
+  if (action && requestId && lineUserId) {
     try {
       const user = await prisma.user.findUnique({ where: { lineUserId } });
       if (!user) {
         throw new Error('User not found');
       }
 
+      // Determine the request type based on the request in the database
+      const leaveRequest = await prisma.leaveRequest.findUnique({
+        where: { id: requestId },
+      });
+      const overtimeRequest = await prisma.overtimeRequest.findUnique({
+        where: { id: requestId },
+      });
+
       let result: { message: string } | undefined;
-      if (requestType === 'leave') {
-        result = await handleLeaveRequest(action, requestId, approverId);
-      } else if (requestType === 'overtime') {
+      if (leaveRequest) {
+        result = await handleLeaveRequest(action, requestId, user.employeeId);
+      } else if (overtimeRequest) {
         result = await handleOvertimeRequest(
           action,
           requestId,
           user.employeeId,
         );
+      } else {
+        throw new Error('Request not found');
       }
 
       if (result) {
@@ -151,6 +160,11 @@ async function handlePostback(event: WebhookEvent) {
     }
   } else {
     console.log('Invalid postback data received');
+    // You might want to reply to the user here as well
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: 'ข้อมูลไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
+    });
   }
 }
 

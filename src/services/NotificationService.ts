@@ -438,21 +438,27 @@ export class NotificationService {
           contents: [
             {
               type: 'text',
-              text: 'คุณ',
+              text: 'แจ้งเตือน OT',
               weight: 'bold',
               size: 'xl',
             },
             {
               type: 'text',
-              text: `Date: ${request.date.toLocaleDateString()}`,
+              text: 'กรุณาตรวจสอบ และยืนยันคำขอทำงานล่วงเวลา',
+              weight: 'bold',
+              size: 'xl',
             },
             {
               type: 'text',
-              text: `Time: ${request.startTime} - ${request.endTime}`,
+              text: `วันที่: ${request.date.toLocaleDateString()}`,
             },
             {
               type: 'text',
-              text: `Reason: ${request.reason}`,
+              text: `เวลา: ${request.startTime} - ${request.endTime}`,
+            },
+            {
+              type: 'text',
+              text: `สาเหตุ: ${request.reason}`,
             },
           ],
         },
@@ -466,7 +472,7 @@ export class NotificationService {
               style: 'primary',
               action: {
                 type: 'postback',
-                label: 'Accept',
+                label: 'ทำ OT',
                 data: `action=approve&requestId=${request.id}`,
               },
             },
@@ -475,7 +481,7 @@ export class NotificationService {
               style: 'secondary',
               action: {
                 type: 'postback',
-                label: 'Decline',
+                label: 'ไม่ทำ OT',
                 data: `action=deny&requestId=${request.id}`,
               },
             },
