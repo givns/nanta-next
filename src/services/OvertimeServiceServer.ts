@@ -10,6 +10,7 @@ import {
   endOfDay,
   differenceInHours,
   differenceInMinutes,
+  addDays,
 } from 'date-fns';
 import { NotificationService } from './NotificationService';
 
@@ -117,23 +118,31 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     employeeId: string,
     startDate: Date,
   ): Promise<ApprovedOvertime[]> {
+    const tomorrow = addDays(startOfDay(startDate), 1);
+
     const futureOvertimes = await this.prisma.overtimeRequest.findMany({
       where: {
         employeeId,
-        date: { gte: startOfDay(startDate) },
+        date: { gte: tomorrow },
         status: 'approved',
       },
       orderBy: { date: 'asc' },
     });
 
-    return futureOvertimes.map((overtime) => ({
-      ...overtime,
-      reason: overtime.reason || null,
-      startTime: overtime.startTime, // Assuming startTime is already a string in 'HH:mm' format
-      endTime: overtime.endTime, // Assuming endTime is already a string in 'HH:mm' format
-      approvedBy: overtime.approverId || '',
-      approvedAt: overtime.updatedAt || new Date(),
-    }));
+    return futureOvertimes.map(
+      (overtime): ApprovedOvertime => ({
+        id: overtime.id,
+        employeeId: overtime.employeeId,
+        name: overtime.name || '',
+        date: overtime.date,
+        startTime: overtime.startTime,
+        endTime: overtime.endTime,
+        status: overtime.status,
+        reason: overtime.reason || null,
+        approvedBy: overtime.approverId || '', // Use empty string as fallback
+        approvedAt: overtime.updatedAt || null,
+      }),
+    );
   }
 
   private async autoApproveOvertimeRequest(

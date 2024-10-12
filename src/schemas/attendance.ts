@@ -36,6 +36,25 @@ const ShiftDataSchema = z.object({
   endTime: z.string(),
   workDays: z.array(z.number()),
 });
+const ApprovedOvertimeSchema = z.object({
+  id: z.string(),
+  employeeId: z.string(),
+  name: z.string(),
+  date: z.string(), // ISO string
+  startTime: z.string(),
+  endTime: z.string(),
+  status: z.string(),
+  employeeResponse: z.string().nullable(),
+  reason: z.string().nullable(),
+  denialReason: z.string().nullable(),
+  approverId: z.string().nullable(),
+  resubmitted: z.boolean(),
+  originalRequestId: z.string().nullable(),
+  createdAt: z.string(), // ISO string
+  updatedAt: z.string(), // ISO string
+  approvedBy: z.string().nullable(),
+  approvedAt: z.string().nullable(), // ISO string
+});
 
 const AttendanceStatusInfoSchema = z
   .object({

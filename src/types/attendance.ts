@@ -27,6 +27,7 @@ export interface AttendanceData {
 export type ApprovedOvertime = {
   id: string;
   employeeId: string;
+  name: string;
   startTime: string;
   endTime: string;
   reason: string | null;

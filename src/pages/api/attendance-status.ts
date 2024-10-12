@@ -147,7 +147,14 @@ export default async function handler(
         approvedOvertime: responseData?.attendanceStatus?.approvedOvertime
           ? {
               ...responseData.attendanceStatus.approvedOvertime,
-              date: responseData.attendanceStatus.approvedOvertime.date.toISOString(),
+              date:
+                typeof responseData.attendanceStatus.approvedOvertime.date ===
+                'string'
+                  ? responseData.attendanceStatus.approvedOvertime.date
+                  : responseData.attendanceStatus.approvedOvertime
+                        .date instanceof Date
+                    ? responseData.attendanceStatus.approvedOvertime.date.toISOString()
+                    : new Date().toISOString(), // Fallback to current date if invalid
               startTime:
                 responseData.attendanceStatus.approvedOvertime.startTime || '',
               endTime:
@@ -166,7 +173,12 @@ export default async function handler(
       approvedOvertime: responseData?.approvedOvertime
         ? {
             ...responseData.approvedOvertime,
-            date: responseData.approvedOvertime.date.toISOString(),
+            date:
+              typeof responseData.approvedOvertime.date === 'string'
+                ? responseData.approvedOvertime.date
+                : responseData.approvedOvertime.date instanceof Date
+                  ? responseData.approvedOvertime.date.toISOString()
+                  : new Date().toISOString(), // Fallback to current date if invalid
             startTime: responseData.approvedOvertime.startTime || '',
             endTime: responseData.approvedOvertime.endTime || '',
             approvedAt: responseData.approvedOvertime.approvedAt
