@@ -48,8 +48,13 @@ export const useSimpleAttendance = (
   const locationRef = useRef({ inPremises: false, address: '' });
 
   const { data, error, isValidating, mutate } = useSWR(
-    employeeId
-      ? ['/api/attendance-status', employeeId, inPremises, address]
+    employeeId && !isLocationLoading
+      ? [
+          '/api/attendance-status',
+          employeeId,
+          locationRef.current.inPremises,
+          locationRef.current.address,
+        ]
       : null,
     ([url, id, inPremises, address]) =>
       fetcher(
@@ -186,8 +191,20 @@ export const useSimpleAttendance = (
       console.error('Error getting location:', error);
     } finally {
       setIsLocationLoading(false);
+      locationRef.current = { inPremises, address };
+      setInPremises(inPremises);
+      setAddress(address);
     }
   }, [isWithinPremises]);
+
+  useEffect(() => {
+    const fetchLocation = async () => {
+      setIsLocationLoading(true);
+      await getCurrentLocation();
+      setIsLocationLoading(false);
+    };
+    fetchLocation();
+  }, [getCurrentLocation]);
 
   useEffect(() => {
     isLocationFetching.current = true;
@@ -204,10 +221,10 @@ export const useSimpleAttendance = (
     console.log('Making API call with:', {
       employeeId,
       lineUserId,
-      inPremises,
-      address,
+      inPremises: locationRef.current.inPremises,
+      address: locationRef.current.address,
     });
-  }, [employeeId, lineUserId, inPremises, address]);
+  }, [employeeId, lineUserId]);
 
   useEffect(() => {
     console.log('CheckInOutForm mounted');
