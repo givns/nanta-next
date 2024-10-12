@@ -54,7 +54,7 @@ export const useSimpleAttendance = (
     fetcher,
     {
       revalidateOnFocus: false,
-      refreshInterval: 30000, // Refresh every 30 seconds
+      refreshInterval: 0, // Refresh every 30 seconds
       initialData: initialAttendanceStatus
         ? {
             attendanceStatus: initialAttendanceStatus,
