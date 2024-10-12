@@ -45,6 +45,7 @@ export const useSimpleAttendance = (
   const [isOutsideShift, setIsOutsideShift] = useState<boolean>(false);
   const [isLocationLoading, setIsLocationLoading] = useState(true);
   const isLocationFetching = useRef(false);
+  const locationRef = useRef({ inPremises: false, address: '' });
 
   const { data, error, isValidating, mutate } = useSWR(
     employeeId
@@ -172,20 +173,15 @@ export const useSimpleAttendance = (
 
       const premise = isWithinPremises(newLocation.lat, newLocation.lng);
       if (premise) {
-        console.log('Setting location:', {
-          inPremises: true,
-          address: premise.name,
-        });
-        setInPremises(true);
-        setAddress(premise.name);
+        locationRef.current = { inPremises: true, address: premise.name };
       } else {
-        console.log('Setting location:', {
+        locationRef.current = {
           inPremises: false,
           address: 'Unknown location',
-        });
-        setInPremises(false);
-        setAddress('Unknown location');
+        };
       }
+      setInPremises(locationRef.current.inPremises);
+      setAddress(locationRef.current.address);
     } catch (error) {
       console.error('Error getting location:', error);
     } finally {
