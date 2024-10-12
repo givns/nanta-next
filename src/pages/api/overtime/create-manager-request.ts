@@ -42,6 +42,7 @@ export default async function handler(
           const request = await prisma.overtimeRequest.create({
             data: {
               employeeId: employee.employeeId,
+              name: employee.name,
               date: new Date(date),
               startTime,
               endTime,

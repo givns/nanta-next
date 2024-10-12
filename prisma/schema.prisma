@@ -87,7 +87,7 @@ model ShiftAdjustmentRequest {
 
 model LeaveRequest {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId            String   
+  employeeId        String   
   user              User @relation(fields: [employeeId], references: [employeeId])
   leaveType         String
   leaveFormat       String
@@ -109,6 +109,7 @@ model LeaveRequest {
 model OvertimeRequest {
   id                 String    @id @default(auto()) @map("_id") @db.ObjectId
   employeeId         String   
+  name               String
   user               User      @relation(fields: [employeeId], references: [employeeId])
   date               DateTime
   startTime          String    // Store as HH:mm

@@ -444,9 +444,7 @@ export class NotificationService {
             },
             {
               type: 'text',
-              text: 'กรุณาตรวจสอบ และยืนยัน',
-              weight: 'bold',
-              size: 'xl',
+              text: 'กรุณาตรวจสอบ และยืนยันคำขอทำงานล่วงเวลา',
             },
             {
               type: 'text',

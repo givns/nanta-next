@@ -20,6 +20,7 @@ export class OvertimeServiceClient implements IOvertimeServiceClient {
 
     const overtimeRequestData: Prisma.OvertimeRequestCreateInput = {
       user: { connect: { id: user.id } },
+      name: user.name,
       date: new Date(date),
       startTime,
       endTime,

@@ -102,6 +102,7 @@ const OvertimeDashboard: React.FC<OvertimeDashboardProps> = ({
           <tr>
             <th className="py-2 px-4 border-b">Select</th>
             <th className="py-2 px-4 border-b">Employee</th>
+            <th className="py-2 px-4 border-b">Employee Name</th>
             <th className="py-2 px-4 border-b">Date</th>
             <th className="py-2 px-4 border-b">Time</th>
             <th className="py-2 px-4 border-b">Reason</th>
@@ -118,6 +119,7 @@ const OvertimeDashboard: React.FC<OvertimeDashboardProps> = ({
                 />
               </td>
               <td className="py-2 px-4 border-b">{request.employeeId}</td>
+              <td className="py-2 px-4 border-b">{request.user.name}</td>
               <td className="py-2 px-4 border-b">
                 {new Date(request.date).toLocaleDateString()}
               </td>

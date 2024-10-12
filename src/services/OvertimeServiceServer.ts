@@ -40,6 +40,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     }
     const overtimeRequestData: Prisma.OvertimeRequestCreateInput = {
       user: { connect: { id: user.id } },
+      name: user.name,
       date: parseISO(date),
       startTime,
       endTime,
@@ -386,6 +387,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   ): Promise<void> {
     const overtimeRequest = await this.prisma.overtimeRequest.create({
       data: {
+        name: '', // Add the 'name' property here
         employeeId,
         date: startTime,
         startTime: startTime.toISOString(),
