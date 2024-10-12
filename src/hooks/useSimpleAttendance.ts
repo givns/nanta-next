@@ -43,12 +43,16 @@ export const useSimpleAttendance = (
   const [address, setAddress] = useState<string>('');
   const [inPremises, setInPremises] = useState<boolean>(false);
   const [isOutsideShift, setIsOutsideShift] = useState<boolean>(false);
+  const locationRef = useRef({ inPremises: false, address: '' });
 
   const { data, error, isValidating, mutate } = useSWR(
     employeeId
-      ? `/api/attendance-status?employeeId=${employeeId}&lineUserId=${lineUserId}&inPremises=${inPremises}&address=${encodeURIComponent(address)}`
+      ? ['/api/attendance-status', employeeId, inPremises, address]
       : null,
-    fetcher,
+    ([url, id, inPremises, address]) =>
+      fetcher(
+        `${url}?employeeId=${id}&lineUserId=${lineUserId}&inPremises=${inPremises}&address=${encodeURIComponent(address)}`,
+      ),
     {
       revalidateOnFocus: false,
       refreshInterval: 0,
@@ -173,17 +177,25 @@ export const useSimpleAttendance = (
       }
 
       setLocationError(null);
+      return { inPremises, address }; // Add return statement with inPremises and address properties
     } catch (error) {
       console.error('Error getting location:', error);
-      setLocationError('Unable to get precise location.');
-      setAddress('Unknown location');
-      setInPremises(false);
+      //setLocationError('Unable to get precise location.');
+      //setAddress('Unknown location');
+      //setInPremises(false);
     }
   }, []);
 
   useEffect(() => {
-    getCurrentLocation();
-  }, [getCurrentLocation]);
+    getCurrentLocation().then((location) => {
+      if (location) {
+        const { inPremises, address } = location;
+        locationRef.current = { inPremises, address };
+        setInPremises(inPremises); // Provide a default value for inPremises
+        setAddress(address); // Provide a default value for address
+      }
+    });
+  }, []);
 
   useEffect(() => {
     console.log('Location state changed:', { inPremises, address });
