@@ -61,7 +61,7 @@ const OvertimePage: React.FC<OvertimePageProps> = ({ liffId }) => {
   }
 
   if (userData.role !== 'Admin' && userData.role !== 'SuperAdmin') {
-    return <div>You are not authorized to view this page.</div>;
+    return <div>คุณไม่ได้รับสิทธิการเข้าถึง</div>;
   }
 
   return (

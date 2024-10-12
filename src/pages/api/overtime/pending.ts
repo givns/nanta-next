@@ -1,5 +1,4 @@
 // pages/api/overtime/pending.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
@@ -16,7 +15,9 @@ export default async function handler(
     const itemsPerPage = parseInt(pageSize as string, 10);
 
     try {
-      let where: any = { status: 'pending' };
+      let where: any = {
+        status: { in: ['pending', 'pending_approval'] },
+      };
 
       // If the user is an admin (not super admin), filter by department
       if (userRole === 'ADMIN') {
