@@ -44,6 +44,7 @@ export const useSimpleAttendance = (
   const [inPremises, setInPremises] = useState<boolean>(false);
   const [isOutsideShift, setIsOutsideShift] = useState<boolean>(false);
   const [isLocationLoading, setIsLocationLoading] = useState(true);
+  const isLocationFetching = useRef(false);
 
   const { data, error, isValidating, mutate } = useSWR(
     employeeId
@@ -171,28 +172,32 @@ export const useSimpleAttendance = (
 
       const premise = isWithinPremises(newLocation.lat, newLocation.lng);
       if (premise) {
-        setAddress(premise.name);
+        console.log('Setting location:', {
+          inPremises: true,
+          address: premise.name,
+        });
         setInPremises(true);
+        setAddress(premise.name);
       } else {
-        setAddress('Unknown location');
+        console.log('Setting location:', {
+          inPremises: false,
+          address: 'Unknown location',
+        });
         setInPremises(false);
+        setAddress('Unknown location');
       }
-
-      setLocationError(null);
-      return { inPremises, address }; // Add return statement with inPremises and address properties
     } catch (error) {
       console.error('Error getting location:', error);
-      //setLocationError('Unable to get precise location.');
-      //setAddress('Unknown location');
-      //setInPremises(false);
     } finally {
       setIsLocationLoading(false);
     }
-  }, []);
+  }, [isWithinPremises]);
 
   useEffect(() => {
-    console.log('Component mounted, fetching location');
-    getCurrentLocation();
+    isLocationFetching.current = true;
+    getCurrentLocation().finally(() => {
+      isLocationFetching.current = false;
+    });
   }, [getCurrentLocation]);
 
   useEffect(() => {
