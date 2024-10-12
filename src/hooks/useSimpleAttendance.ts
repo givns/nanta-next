@@ -48,21 +48,18 @@ export const useSimpleAttendance = (
   const locationRef = useRef({ inPremises: false, address: '' });
 
   const { data, error, isValidating, mutate } = useSWR(
-    employeeId && !isLocationLoading
-      ? [
-          '/api/attendance-status',
-          employeeId,
-          locationRef.current.inPremises,
-          locationRef.current.address,
-        ]
-      : null,
-    ([url, id, inPremises, address]) =>
-      fetcher(
-        `${url}?employeeId=${id}&lineUserId=${lineUserId}&inPremises=${inPremises}&address=${encodeURIComponent(address)}`,
-      ),
+    employeeId ? ['/api/attendance-status', employeeId] : null,
+    async ([url, id]) => {
+      const currentLocation = locationRef.current;
+      console.log('SWR fetcher called with:', { id, ...currentLocation });
+      return fetcher(
+        `${url}?employeeId=${id}&lineUserId=${lineUserId}&inPremises=${currentLocation.inPremises}&address=${encodeURIComponent(currentLocation.address)}`,
+      );
+    },
     {
       revalidateOnFocus: false,
       refreshInterval: 0,
+      dedupingInterval: 5000, // Prevent rapid successive calls
     },
   );
 
@@ -230,6 +227,46 @@ export const useSimpleAttendance = (
     console.log('CheckInOutForm mounted');
     return () => console.log('CheckInOutForm unmounted');
   }, []);
+
+  useEffect(() => {
+    console.log('Location state updated', { inPremises, address });
+  }, [inPremises, address]);
+
+  useEffect(() => {
+    console.log('Data from SWR updated', { data });
+  }, [data]);
+
+  const setInPremisesWithLog = useCallback((value: boolean) => {
+    console.log('setInPremises called with:', value);
+    setInPremises(value);
+  }, []);
+
+  const setAddressWithLog = useCallback((value: string) => {
+    console.log('setAddress called with:', value);
+    setAddress(value);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLocation = async () => {
+      console.log('Fetching location');
+      setIsLocationLoading(true);
+      try {
+        await getCurrentLocation();
+        if (isMounted) {
+          console.log('Location fetched:', locationRef.current);
+          setInPremisesWithLog(locationRef.current.inPremises);
+          setAddressWithLog(locationRef.current.address);
+        }
+      } finally {
+        if (isMounted) setIsLocationLoading(false);
+      }
+    };
+    fetchLocation();
+    return () => {
+      isMounted = false;
+    };
+  }, [getCurrentLocation, setInPremisesWithLog, setAddressWithLog]);
 
   const checkInOut = useCallback(
     async (checkInOutData: AttendanceData) => {
