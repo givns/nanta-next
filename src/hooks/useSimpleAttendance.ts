@@ -49,7 +49,7 @@ export const useSimpleAttendance = (
 
   const { data, error, isValidating, mutate } = useSWR(
     employeeId
-      ? `/api/attendance-status?employeeId=${employeeId}&inPremises=${inPremises}&address=${encodeURIComponent(address)}`
+      ? `/api/attendance-status?employeeId=${employeeId}&lineUserId=${lineUserId}&inPremises=${inPremises}&address=${encodeURIComponent(address)}`
       : null,
     fetcher,
     {

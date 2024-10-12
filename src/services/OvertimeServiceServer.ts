@@ -129,10 +129,10 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     return futureOvertimes.map((overtime) => ({
       ...overtime,
       reason: overtime.reason || null,
-      startTime: format(overtime.startTime, 'HH:mm:ss'),
-      endTime: format(overtime.endTime, 'HH:mm:ss'),
-      approvedBy: '', // Add the missing property 'approvedBy'
-      approvedAt: new Date(), // Add the missing property 'approvedAt'
+      startTime: overtime.startTime, // Assuming startTime is already a string in 'HH:mm' format
+      endTime: overtime.endTime, // Assuming endTime is already a string in 'HH:mm' format
+      approvedBy: overtime.approverId || '',
+      approvedAt: overtime.updatedAt || new Date(),
     }));
   }
 
