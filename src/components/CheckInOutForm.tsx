@@ -1,5 +1,3 @@
-// components/CheckInOutForm.tsx
-
 import React, {
   useState,
   useCallback,
@@ -9,7 +7,6 @@ import React, {
 } from 'react';
 import Webcam from 'react-webcam';
 import {
-  AttendanceData,
   AttendanceStatusInfo,
   CheckInOutAllowance,
   ShiftData,
@@ -20,9 +17,8 @@ import SkeletonLoader from './SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from './LateReasonModal';
 import ErrorBoundary from './ErrorBoundary';
-import { parseISO, isValid } from 'date-fns';
-import { formatTime, getCurrentTime } from '../utils/dateUtils';
-import { useSimpleAttendance } from '../hooks/useSimpleAttendance';
+import ActionButton from './ActionButton';
+import { getCurrentTime } from '../utils/dateUtils';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -48,29 +44,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   onCloseWindow,
 }) => {
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
-  const [reason, setReason] = useState<string>('');
-  const [isLateModalOpen, setIsLateModalOpen] = useState(false);
-  const [, setIsLate] = useState(false);
-  const [, setIsOvertime] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
-  const [, setIsCameraActive] = useState(false);
-  const [locationError] = useState<string | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState(15);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(30);
   const [isActionButtonReady, setIsActionButtonReady] = useState(false);
-
-  const resetStates = useCallback(() => {
-    setIsSubmitting(false);
-    setCapturedPhoto(null);
-    setError(null);
-    if (submitTimeoutRef.current) {
-      clearTimeout(submitTimeoutRef.current);
-    }
-  }, []);
+  const [isLateModalOpen, setIsLateModalOpen] = useState(false);
+  const currentAttendanceStatus = useMemo(
+    () => liveAttendanceStatus || cachedAttendanceStatus,
+    [liveAttendanceStatus, cachedAttendanceStatus],
+  );
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (checkInOutAllowance !== null) {
@@ -86,13 +71,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   }, [effectiveShift]);
 
-  // Use effect to reset states if stuck in submitting for too long
+  const resetStates = useCallback(() => {
+    setIsSubmitting(false);
+    setCapturedPhoto(null);
+    setError(null);
+    if (submitTimeoutRef.current) {
+      clearTimeout(submitTimeoutRef.current);
+    }
+  }, []);
+
   useEffect(() => {
     if (isSubmitting) {
       submitTimeoutRef.current = setTimeout(() => {
         console.log('Submission timeout - resetting states');
         resetStates();
-      }, 30000); // 30 seconds timeout
+      }, 30000);
     }
     return () => {
       if (submitTimeoutRef.current) {
@@ -123,85 +116,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     ],
   );
 
-  const processAttendanceSubmission = useCallback(
-    async (photo: string, lateReason?: string) => {
-      if (!checkInOutAllowance?.allowed) {
-        setError('Check-in/out is no longer allowed. Please try again.');
-        resetStates();
-        return;
-      }
-
-      try {
-        setIsSubmitting(true);
-        setStep('processing');
-        await submitCheckInOut(photo, lateReason);
-      } catch (error) {
-        setError('An error occurred. Please try again.');
-        resetStates();
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [checkInOutAllowance, submitCheckInOut, resetStates],
-  );
-
-  const processCapture = useCallback(async () => {
-    if (!capturedPhoto) return;
-
-    try {
-      if (checkInOutAllowance) {
-        console.log(
-          `Check-in/out allowed: ${checkInOutAllowance.allowed}, isLate: ${checkInOutAllowance.isLate ?? false}, isOvertime: ${checkInOutAllowance.isOvertime ?? false}`,
-        );
-
-        if (!checkInOutAllowance.allowed) {
-          setError(
-            checkInOutAllowance.reason ||
-              'Check-in/out is not allowed at this time.',
-          );
-          resetStates();
-          return;
-        }
-
-        if (checkInOutAllowance.isLate && liveAttendanceStatus?.isCheckingIn) {
-          setIsLateModalOpen(true);
-          setReason('');
-          console.log('Late modal opened');
-        } else {
-          console.log('Proceeding to submit check-in/out');
-          setStep('processing');
-          await submitCheckInOut(capturedPhoto);
-        }
-      } else {
-        throw new Error('Check-in/out allowance information is missing');
-      }
-    } catch (error) {
-      console.log(`Error in processCapture: ${error}`);
-      setError('An error occurred. Please try again.');
-      resetStates();
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [
-    capturedPhoto,
-    checkInOutAllowance,
-    liveAttendanceStatus?.isCheckingIn,
-    submitCheckInOut,
-    resetStates,
-  ]);
-
-  useEffect(() => {
-    if (capturedPhoto) {
-      processCapture();
-    }
-  }, [capturedPhoto, processCapture]);
-
   const handlePhotoCapture = useCallback(
     async (photo: string) => {
       if (isSubmitting) return;
       setCapturedPhoto(photo);
+      try {
+        await submitCheckInOut(photo);
+      } catch (error) {
+        console.error('Error processing photo:', error);
+        setError('An error occurred. Please try again.');
+      }
     },
-    [isSubmitting],
+    [isSubmitting, submitCheckInOut],
   );
 
   const {
@@ -217,12 +143,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     if (!effectiveShift) return true;
 
     const now = getCurrentTime();
-    const shiftEnd = parseISO(effectiveShift.endTime);
+    const shiftEnd = new Date(now);
+    shiftEnd.setHours(parseInt(effectiveShift.endTime.split(':')[0], 10));
+    shiftEnd.setMinutes(parseInt(effectiveShift.endTime.split(':')[1], 10));
+
     if (now < shiftEnd) {
       const confirmed = window.confirm(
         'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน กรุณายื่นคำขอลาในระบบ คุณต้องการลงเวลาออกหรือไม่?',
       );
-      if (confirmed) {
+      if (!confirmed) {
         window.location.href = '/leave-request';
         return false;
       }
@@ -258,7 +187,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [step, onCloseWindow]);
 
   const handleAction = useCallback(
-    async (action: 'checkIn' | 'checkOut') => {
+    (action: 'checkIn' | 'checkOut') => {
       console.log('handleAction called with:', action);
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -266,9 +195,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
 
       try {
-        const isCheckIn = liveAttendanceStatus?.isCheckingIn ?? true;
-        console.log(`Action is ${isCheckIn ? 'check-in' : 'check-out'}`);
-
         if (action === 'checkOut' && !confirmEarlyCheckOut()) {
           return;
         }
@@ -287,56 +213,35 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setError('An unexpected error occurred. Please try again.');
       }
     },
-    [
-      liveAttendanceStatus,
-      confirmEarlyCheckOut,
-      checkInOutAllowance,
-      resetDetection,
-    ],
+    [confirmEarlyCheckOut, checkInOutAllowance, resetDetection],
   );
 
   const memoizedUserShiftInfo = useMemo(
     () => (
       <UserShiftInfo
         userData={userData}
-        attendanceStatus={liveAttendanceStatus || cachedAttendanceStatus}
+        attendanceStatus={liveAttendanceStatus}
         effectiveShift={effectiveShift}
       />
     ),
-    [userData, liveAttendanceStatus, cachedAttendanceStatus, effectiveShift],
+    [userData, liveAttendanceStatus, effectiveShift],
   );
-
-  const isCheckingIn = liveAttendanceStatus?.isCheckingIn;
-  const onAction: any = null;
-  console.log('Passing to ActionButton:', {
-    isLoading,
-    checkInOutAllowance,
-    isCheckingIn,
-    onAction: typeof onAction,
-  });
 
   const memoizedActionButton = useMemo(
     () => (
-      <button
-        onClick={() =>
-          handleAction(
-            liveAttendanceStatus?.isCheckingIn ? 'checkIn' : 'checkOut',
-          )
-        }
-        disabled={!isActionButtonReady || !checkInOutAllowance?.allowed}
-        className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
-      >
-        {isActionButtonReady
-          ? checkInOutAllowance?.allowed
-            ? `เปิดกล้องเพื่อ${liveAttendanceStatus?.isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-            : 'ไม่สามารถลงเวลาได้ในขณะนี้'
-          : 'กรุณารอสักครู่...'}
-      </button>
+      <ActionButton
+        isLoading={isAttendanceLoading}
+        isActionButtonReady={isActionButtonReady}
+        checkInOutAllowance={checkInOutAllowance}
+        isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
+        onAction={handleAction}
+      />
     ),
     [
-      liveAttendanceStatus,
+      isAttendanceLoading,
       isActionButtonReady,
       checkInOutAllowance,
+      currentAttendanceStatus,
       handleAction,
     ],
   );
@@ -372,13 +277,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 facingMode: 'user',
               }}
             />
-            {/* Overlay Frame */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="border-4 border-blue-500 rounded-full w-48 h-48"></div>
             </div>
           </div>
           <p className="text-center mb-2">{message}</p>
-          {/* Progress Indicator */}
           {faceDetectionCount > 0 && (
             <div className="w-full px-4">
               <div className="bg-gray-200 h-2 rounded-full">
@@ -437,7 +340,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           }}
           onSubmit={(lateReason) => {
             setIsLateModalOpen(false);
-            processAttendanceSubmission(capturedPhoto!, lateReason);
+            if (capturedPhoto) {
+              submitCheckInOut(capturedPhoto, lateReason);
+            }
           }}
         />
       </div>

@@ -3,24 +3,28 @@ import { CheckInOutAllowance } from '../types/attendance';
 
 interface ActionButtonProps {
   isLoading: boolean;
+  isActionButtonReady: boolean;
   checkInOutAllowance: CheckInOutAllowance | null;
   isCheckingIn: boolean;
-  onAction: (newStatus: boolean) => void;
+  onAction: (action: 'checkIn' | 'checkOut') => void;
 }
 
 const ActionButton: React.FC<ActionButtonProps> = ({
   isLoading,
+  isActionButtonReady,
   checkInOutAllowance,
   isCheckingIn,
   onAction,
 }) => {
   console.log('ActionButton props:', {
     isLoading,
+    isActionButtonReady,
     checkInOutAllowance,
     isCheckingIn,
   });
+
   const buttonClass = `w-full ${
-    checkInOutAllowance?.allowed
+    checkInOutAllowance?.allowed && isActionButtonReady
       ? 'bg-red-600 hover:bg-red-700'
       : 'bg-gray-400 cursor-not-allowed'
   } text-white py-3 px-4 rounded-lg transition duration-300`;
@@ -30,7 +34,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 
   if (isLoading) {
     buttonText = 'กรุณารอสักครู่...';
-  } else if (checkInOutAllowance) {
+  } else if (isActionButtonReady && checkInOutAllowance) {
     if (checkInOutAllowance.allowed) {
       buttonText = `เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
       if (checkInOutAllowance.isOvertime) {
@@ -49,8 +53,10 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   return (
     <div className="space-y-2">
       <button
-        onClick={() => onAction(isCheckingIn)}
-        disabled={isLoading || !checkInOutAllowance?.allowed}
+        onClick={() => onAction(isCheckingIn ? 'checkIn' : 'checkOut')}
+        disabled={
+          isLoading || !isActionButtonReady || !checkInOutAllowance?.allowed
+        }
         className={buttonClass}
         aria-label={buttonText}
       >
