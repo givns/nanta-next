@@ -39,9 +39,6 @@ export const useSimpleAttendance = (
     useState<AttendanceStatusInfo>(
       initialAttendanceStatus || DEFAULT_ATTENDANCE_STATUS,
     );
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
-    null,
-  );
   const [locationError, setLocationError] = useState<string | null>(null);
   const [address, setAddress] = useState<string>('');
   const [inPremises, setInPremises] = useState<boolean>(false);
@@ -144,6 +141,8 @@ export const useSimpleAttendance = (
   );
 
   const getCurrentLocation = useCallback(async () => {
+    console.log('getCurrentLocation called');
+
     if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported by this browser.');
       return;
@@ -186,14 +185,23 @@ export const useSimpleAttendance = (
     getCurrentLocation();
   }, [getCurrentLocation]);
 
-  const refreshAttendanceStatus = useCallback(
-    async (forceRefresh: boolean = false) => {
-      if (forceRefresh) {
-        await mutate();
-      }
-    },
-    [mutate],
-  );
+  useEffect(() => {
+    console.log('Location state changed:', { inPremises, address });
+  }, [inPremises, address]);
+
+  useEffect(() => {
+    console.log('Making API call with:', {
+      employeeId,
+      lineUserId,
+      inPremises,
+      address,
+    });
+  }, [employeeId, lineUserId, inPremises, address]);
+
+  useEffect(() => {
+    console.log('CheckInOutForm mounted');
+    return () => console.log('CheckInOutForm unmounted');
+  }, []);
 
   const checkInOut = useCallback(
     async (checkInOutData: AttendanceData) => {
