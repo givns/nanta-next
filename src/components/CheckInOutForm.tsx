@@ -306,6 +306,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [userData, liveAttendanceStatus, cachedAttendanceStatus, effectiveShift],
   );
 
+  const isCheckingIn = liveAttendanceStatus?.isCheckingIn;
+  const onAction: any = null;
+  console.log('Passing to ActionButton:', {
+    isLoading,
+    checkInOutAllowance,
+    isCheckingIn,
+    onAction: typeof onAction,
+  });
+
   const memoizedActionButton = useMemo(
     () => (
       <button

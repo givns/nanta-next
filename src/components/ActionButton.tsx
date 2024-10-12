@@ -14,6 +14,11 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   isCheckingIn,
   onAction,
 }) => {
+  console.log('ActionButton props:', {
+    isLoading,
+    checkInOutAllowance,
+    isCheckingIn,
+  });
   const buttonClass = `w-full ${
     checkInOutAllowance?.allowed
       ? 'bg-red-600 hover:bg-red-700'

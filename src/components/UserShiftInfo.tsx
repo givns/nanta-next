@@ -125,7 +125,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
                             new Date(
                               attendanceStatus.approvedOvertime.approvedAt,
                             ),
-                            'yyyy-MM-dd HH:mm:ss',
+                            'yyyy-MM-dd HH:mm',
                           )
                         : 'N/A'}
                     </span>
