@@ -97,19 +97,22 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     if (!overtimeRequest) return null;
 
+    const startDateTime = parseISO(
+      `${format(overtimeRequest.date, 'yyyy-MM-dd')}T${overtimeRequest.startTime}:00`,
+    );
+    const endDateTime = parseISO(
+      `${format(overtimeRequest.date, 'yyyy-MM-dd')}T${overtimeRequest.endTime}:00`,
+    );
+
     return {
       ...overtimeRequest,
-      startTime: parseISO(overtimeRequest.startTime.toString())
-        .toISOString()
-        .substr(11, 8), // Convert to HH:mm:ss string
-      endTime: parseISO(overtimeRequest.endTime.toString())
-        .toISOString()
-        .substr(11, 8), // Convert to HH:mm:ss string
-      approvedBy: '', // Add the missing property 'approvedBy'
-      approvedAt: new Date(), // Add the missing property 'approvedAt'
+      startTime: format(startDateTime, 'HH:mm:ss'),
+      endTime: format(endDateTime, 'HH:mm:ss'),
+      approvedBy: overtimeRequest.approverId || '',
+      approvedAt: overtimeRequest.updatedAt || new Date(),
+      date: overtimeRequest.date,
     };
   }
-
   async getFutureApprovedOvertimes(
     employeeId: string,
     startDate: Date,
@@ -126,8 +129,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     return futureOvertimes.map((overtime) => ({
       ...overtime,
       reason: overtime.reason || null,
-      startTime: format(parseISO(overtime.startTime.toString()), 'HH:mm:ss'),
-      endTime: format(parseISO(overtime.endTime.toString()), 'HH:mm:ss'),
+      startTime: format(overtime.startTime, 'HH:mm:ss'),
+      endTime: format(overtime.endTime, 'HH:mm:ss'),
       approvedBy: '', // Add the missing property 'approvedBy'
       approvedAt: new Date(), // Add the missing property 'approvedAt'
     }));
