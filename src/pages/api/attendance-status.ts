@@ -144,10 +144,36 @@ export default async function handler(
         )
           ? 0
           : responseData?.attendanceStatus?.overtimeDuration,
+        approvedOvertime: responseData?.attendanceStatus?.approvedOvertime
+          ? {
+              ...responseData.attendanceStatus.approvedOvertime,
+              date: responseData.attendanceStatus.approvedOvertime.date.toISOString(),
+              startTime:
+                responseData.attendanceStatus.approvedOvertime.startTime || '',
+              endTime:
+                responseData.attendanceStatus.approvedOvertime.endTime || '',
+              approvedAt: responseData.attendanceStatus.approvedOvertime
+                .approvedAt
+                ? new Date(
+                    responseData.attendanceStatus.approvedOvertime.approvedAt,
+                  ).toISOString()
+                : null,
+            }
+          : null,
       },
       effectiveShift: responseData?.shiftData?.effectiveShift,
       checkInOutAllowance,
-      approvedOvertime: responseData?.approvedOvertime,
+      approvedOvertime: responseData?.approvedOvertime
+        ? {
+            ...responseData.approvedOvertime,
+            date: responseData.approvedOvertime.date.toISOString(),
+            startTime: responseData.approvedOvertime.startTime || '',
+            endTime: responseData.approvedOvertime.endTime || '',
+            approvedAt: responseData.approvedOvertime.approvedAt
+              ? new Date(responseData.approvedOvertime.approvedAt).toISOString()
+              : null,
+          }
+        : null,
     };
 
     console.log(

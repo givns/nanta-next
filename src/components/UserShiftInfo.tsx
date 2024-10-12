@@ -5,7 +5,7 @@ import {
   ApprovedOvertime,
 } from '../types/attendance';
 import { UserData } from '../types/user';
-import { format, isToday, parseISO } from 'date-fns';
+import { format, isToday, isValid, parseISO } from 'date-fns';
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -51,11 +51,16 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
     ]);
 
     const isOvertimeForToday = useCallback((overtime: ApprovedOvertime) => {
-      return isToday(parseISO(overtime.date.toString()));
+      if (!overtime.date) return false;
+      const overtimeDate = parseISO(overtime.date.toString());
+      return isValid(overtimeDate) && isToday(overtimeDate);
     }, []);
 
     const renderTodayInfo = useMemo(() => {
-      if (!attendanceStatus?.isDayOff && (effectiveShift || latestAttendance)) {
+      if (
+        !attendanceStatus?.isDayOff &&
+        (effectiveShift || attendanceStatus?.latestAttendance)
+      ) {
         return (
           <>
             <div className="bg-white p-4 rounded-lg mb-4">
@@ -103,30 +108,26 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
                   <p className="text-gray-800">
                     เวลาเริ่ม:{' '}
                     <span className="font-medium">
-                      {format(
-                        attendanceStatus.approvedOvertime.startTime,
-                        'HH:mm:ss',
-                      )}
+                      {attendanceStatus.approvedOvertime.startTime}
                     </span>
                   </p>
                   <p className="text-gray-800">
                     เวลาสิ้นสุด:{' '}
                     <span className="font-medium">
-                      {format(
-                        attendanceStatus.approvedOvertime.endTime,
-                        'HH:mm:ss',
-                      )}
+                      {attendanceStatus.approvedOvertime.endTime}
                     </span>
                   </p>
                   <p className="text-gray-800">
                     เวลาที่อนุมัติ:{' '}
                     <span className="font-medium">
-                      {format(
-                        parseISO(
-                          attendanceStatus.approvedOvertime.approvedAt.toString(),
-                        ),
-                        'yyyy-MM-dd HH:mm:ss',
-                      )}
+                      {attendanceStatus.approvedOvertime.approvedAt
+                        ? format(
+                            new Date(
+                              attendanceStatus.approvedOvertime.approvedAt,
+                            ),
+                            'yyyy-MM-dd HH:mm:ss',
+                          )
+                        : 'N/A'}
                     </span>
                   </p>
                 </div>
@@ -159,12 +160,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
       }
 
       return null;
-    }, [
-      attendanceStatus,
-      effectiveShift,
-      latestAttendance,
-      isOvertimeForToday,
-    ]);
+    }, [attendanceStatus, effectiveShift, isOvertimeForToday]);
 
     const renderFutureInfo = useMemo(() => {
       const futureShiftAdjustments =

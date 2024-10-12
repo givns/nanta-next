@@ -4,7 +4,8 @@ import React, { ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
-  onError?: (error: Error, errorInfo: ErrorInfo) => void; // Add this line
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
+  fallback?: ReactNode; // Add this line
 }
 
 interface State {
@@ -27,29 +28,22 @@ class ErrorBoundary extends React.Component<Props, State> {
     console.error('Uncaught error:', error, errorInfo);
     this.setState({ error, errorInfo });
 
-    // Call the onError prop if it exists
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
   }
-
-  render() {
+  public render() {
     if (this.state.hasError) {
       return (
-        <div className="error-boundary p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-          <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
-          <p className="mb-2">Please try refreshing the page.</p>
-          <details className="mt-4">
-            <summary className="cursor-pointer">
-              Error Details (for debugging)
-            </summary>
-            <pre className="mt-2 p-2 bg-red-50 rounded overflow-auto">
-              {this.state.error && this.state.error.toString()}
-              <br />
-              {this.state.errorInfo && this.state.errorInfo.componentStack}
-            </pre>
-          </details>
-        </div>
+        this.props.fallback || (
+          <div className="error-boundary">
+            <h1>Sorry.. there was an error</h1>
+            <p>{this.state.error?.toString()}</p>
+            <button onClick={() => window.location.reload()}>
+              Reload page
+            </button>
+          </div>
+        )
       );
     }
 
