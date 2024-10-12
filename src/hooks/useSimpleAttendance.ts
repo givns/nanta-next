@@ -43,7 +43,7 @@ export const useSimpleAttendance = (
   const [address, setAddress] = useState<string>('');
   const [inPremises, setInPremises] = useState<boolean>(false);
   const [isOutsideShift, setIsOutsideShift] = useState<boolean>(false);
-  const locationRef = useRef({ inPremises: false, address: '' });
+  const [isLocationLoading, setIsLocationLoading] = useState(true);
 
   const { data, error, isValidating, mutate } = useSWR(
     employeeId
@@ -145,6 +145,8 @@ export const useSimpleAttendance = (
   );
 
   const getCurrentLocation = useCallback(async () => {
+    setIsLocationLoading(true);
+
     console.log('getCurrentLocation called');
 
     if (!navigator.geolocation) {
@@ -183,19 +185,15 @@ export const useSimpleAttendance = (
       //setLocationError('Unable to get precise location.');
       //setAddress('Unknown location');
       //setInPremises(false);
+    } finally {
+      setIsLocationLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    getCurrentLocation().then((location) => {
-      if (location) {
-        const { inPremises, address } = location;
-        locationRef.current = { inPremises, address };
-        setInPremises(inPremises); // Provide a default value for inPremises
-        setAddress(address); // Provide a default value for address
-      }
-    });
-  }, []);
+    console.log('Component mounted, fetching location');
+    getCurrentLocation();
+  }, [getCurrentLocation]);
 
   useEffect(() => {
     console.log('Location state changed:', { inPremises, address });
