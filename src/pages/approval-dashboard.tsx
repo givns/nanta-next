@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { GetServerSideProps } from 'next';
 import liff from '@line/liff';
 import axios from 'axios';
-import OvertimeDashboard from '../../components/OvertimeDashboard';
+import OvertimeDashboard from '../components/OvertimeDashboard';
 import { User } from '@prisma/client';
 
 interface OvertimePageProps {
