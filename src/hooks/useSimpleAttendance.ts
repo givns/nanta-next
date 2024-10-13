@@ -48,17 +48,18 @@ export const useSimpleAttendance = (
   const locationRef = useRef({ inPremises: false, address: '' });
 
   const { data, error, isValidating, mutate } = useSWR(
-    employeeId ? ['/api/attendance-status', employeeId] : null,
-    async ([url, id]) => {
-      const currentLocation = locationRef.current;
-      console.log('SWR fetcher called with:', { id, ...currentLocation });
+    employeeId
+      ? ['/api/attendance-status', employeeId, inPremises, address]
+      : null,
+    async ([url, id, inPremises, address]) => {
+      console.log('SWR fetcher called with:', { id, inPremises, address });
       return fetcher(
-        `${url}?employeeId=${id}&lineUserId=${lineUserId}&inPremises=${currentLocation.inPremises}&address=${encodeURIComponent(currentLocation.address)}`,
+        `${url}?employeeId=${id}&lineUserId=${lineUserId}&inPremises=${inPremises}&address=${encodeURIComponent(address)}`,
       );
     },
     {
       revalidateOnFocus: false,
-      refreshInterval: 0,
+      refreshInterval: 30000, // Refresh every 30 seconds
       dedupingInterval: 5000, // Prevent rapid successive calls
     },
   );

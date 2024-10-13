@@ -131,7 +131,7 @@ export class AttendanceService {
       if (!inPremises) {
         return {
           allowed: false,
-          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
+          reason: 'attendanceservice ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
           inPremises: false,
           address,
         };

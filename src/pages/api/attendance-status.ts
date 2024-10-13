@@ -129,8 +129,8 @@ export default async function handler(
     // Always fetch fresh check-in/out allowance
     const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
       user.employeeId,
-      inPremises === 'true',
-      address as string,
+      req.query.inPremises === 'true',
+      req.query.address as string,
     );
 
     console.log('CheckInOutAllowance:', checkInOutAllowance);
