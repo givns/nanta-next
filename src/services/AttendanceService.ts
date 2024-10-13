@@ -728,7 +728,6 @@ export class AttendanceService {
     if (attendance && attendance.checkInTime) {
       isCheckingIn = false;
       if (attendance.checkOutTime) {
-        // If both check-in and check-out exist, user should be able to check-in again
         isCheckingIn = true;
       }
     }
@@ -736,8 +735,10 @@ export class AttendanceService {
     let isOvertime = false;
     let overtimeDuration = 0;
 
-    if (isHoliday) {
-      status = 'holiday';
+    const isDayOff = isHoliday || !shift.workDays.includes(now.getDay());
+
+    if (isDayOff) {
+      status = 'off';
       isCheckingIn = false;
     } else if (leaveRequest && leaveRequest.status === 'approved') {
       status = 'off';
@@ -799,7 +800,7 @@ export class AttendanceService {
           }
         : null,
       isCheckingIn,
-      isDayOff: status === 'holiday' || status === 'off',
+      isDayOff,
       potentialOvertimes: user.potentialOvertimes,
       shiftAdjustment: null, // Implement if needed
       approvedOvertime,
