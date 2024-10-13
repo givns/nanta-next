@@ -236,6 +236,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         isActionButtonReady={isActionButtonReady}
         checkInOutAllowance={checkInOutAllowance}
         isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
+        isDayOff={currentAttendanceStatus?.isDayOff ?? false}
         onAction={handleAction}
       />
     ),

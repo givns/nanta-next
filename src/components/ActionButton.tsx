@@ -6,6 +6,7 @@ interface ActionButtonProps {
   isActionButtonReady: boolean;
   checkInOutAllowance: CheckInOutAllowance | null;
   isCheckingIn: boolean;
+  isDayOff: boolean;
   onAction: (action: 'checkIn' | 'checkOut') => void;
 }
 
@@ -14,6 +15,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   isActionButtonReady,
   checkInOutAllowance,
   isCheckingIn,
+  isDayOff,
   onAction,
 }) => {
   console.log('ActionButton props:', {
@@ -21,6 +23,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     isActionButtonReady,
     checkInOutAllowance,
     isCheckingIn,
+    isDayOff,
   });
 
   const buttonClass = `w-full ${
@@ -76,6 +79,9 @@ const ActionButton: React.FC<ActionButtonProps> = ({
         <p className="text-yellow-500 text-center text-sm">
           คุณอยู่นอกเวลาทำงานของกะ
         </p>
+      )}
+      {isDayOff && (
+        <p className="text-blue-500 text-center text-sm">วันนี้เป็นวันหยุด</p>
       )}
       {!checkInOutAllowance?.inPremises && (
         <p className="text-red-500 text-center text-sm">
