@@ -92,7 +92,7 @@ export const useSimpleAttendance = (
     },
     {
       revalidateOnFocus: false,
-      refreshInterval: 30000,
+      refreshInterval: 0,
       dedupingInterval: 5000,
     },
   );
