@@ -181,18 +181,14 @@ export class AttendanceService {
         };
       }
 
-      if (!inPremises) {
-        return {
-          allowed: false,
-          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
-          inPremises,
-          address,
-        };
-      }
-
       if (approvedOvertime) {
-        const overtimeStart = parseISO(approvedOvertime.startTime);
-        const overtimeEnd = parseISO(approvedOvertime.endTime);
+        const overtimeStart = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+        );
+        const overtimeEnd = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+        );
+
         if (now >= overtimeStart && now <= overtimeEnd) {
           return {
             allowed: true,
@@ -202,6 +198,15 @@ export class AttendanceService {
             address,
           };
         }
+      }
+
+      if (!inPremises) {
+        return {
+          allowed: false,
+          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
+          inPremises,
+          address,
+        };
       }
 
       const leaveRequest = await this.leaveService.checkUserOnLeave(

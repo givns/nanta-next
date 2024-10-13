@@ -84,7 +84,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       {isDayOff && !checkInOutAllowance?.isOvertime && (
         <p className="text-blue-500 text-center text-sm">วันนี้เป็นวันหยุด</p>
       )}
-      {!checkInOutAllowance?.inPremises && (
+      {checkInOutAllowance && !checkInOutAllowance.inPremises && (
         <p className="text-red-500 text-center text-sm">
           คุณอยู่นอกสถานที่ทำงาน
         </p>
