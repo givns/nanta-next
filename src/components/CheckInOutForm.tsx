@@ -27,6 +27,7 @@ interface CheckInOutFormProps {
   effectiveShift: ShiftData | null;
   isAttendanceLoading: boolean;
   checkInOutAllowance: CheckInOutAllowance | null;
+  getCurrentLocation: () => void;
   refreshAttendanceStatus: (forceRefresh: boolean) => Promise<void>;
   onStatusChange: (newStatus: boolean) => Promise<void>;
   onCloseWindow: () => void;
@@ -39,6 +40,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   effectiveShift,
   isAttendanceLoading,
   checkInOutAllowance,
+  getCurrentLocation,
   refreshAttendanceStatus,
   onStatusChange,
   onCloseWindow,

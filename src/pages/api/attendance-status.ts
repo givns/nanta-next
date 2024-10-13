@@ -137,59 +137,14 @@ export default async function handler(
 
     const finalResponseData = {
       user,
-      attendanceStatus: {
-        ...responseData?.attendanceStatus,
-        overtimeDuration: isNaN(
-          responseData?.attendanceStatus?.overtimeDuration,
-        )
-          ? 0
-          : responseData?.attendanceStatus?.overtimeDuration,
-        approvedOvertime: responseData?.attendanceStatus?.approvedOvertime
-          ? {
-              ...responseData.attendanceStatus.approvedOvertime,
-              date:
-                typeof responseData.attendanceStatus.approvedOvertime.date ===
-                'string'
-                  ? responseData.attendanceStatus.approvedOvertime.date
-                  : responseData.attendanceStatus.approvedOvertime
-                        .date instanceof Date
-                    ? responseData.attendanceStatus.approvedOvertime.date.toISOString()
-                    : new Date().toISOString(), // Fallback to current date if invalid
-              startTime:
-                responseData.attendanceStatus.approvedOvertime.startTime || '',
-              endTime:
-                responseData.attendanceStatus.approvedOvertime.endTime || '',
-              approvedAt: responseData.attendanceStatus.approvedOvertime
-                .approvedAt
-                ? new Date(
-                    responseData.attendanceStatus.approvedOvertime.approvedAt,
-                  ).toISOString()
-                : null,
-            }
-          : null,
-      },
+      attendanceStatus: responseData?.attendanceStatus,
       effectiveShift: responseData?.shiftData?.effectiveShift,
       checkInOutAllowance,
-      approvedOvertime: responseData?.approvedOvertime
-        ? {
-            ...responseData.approvedOvertime,
-            date:
-              typeof responseData.approvedOvertime.date === 'string'
-                ? responseData.approvedOvertime.date
-                : responseData.approvedOvertime.date instanceof Date
-                  ? responseData.approvedOvertime.date.toISOString()
-                  : new Date().toISOString(), // Fallback to current date if invalid
-            startTime: responseData.approvedOvertime.startTime || '',
-            endTime: responseData.approvedOvertime.endTime || '',
-            approvedAt: responseData.approvedOvertime.approvedAt
-              ? new Date(responseData.approvedOvertime.approvedAt).toISOString()
-              : null,
-          }
-        : null,
+      approvedOvertime: responseData?.approvedOvertime,
     };
 
     console.log(
-      'FinalResponseData before parsing:',
+      'FinalResponseData:',
       JSON.stringify(finalResponseData, null, 2),
     );
 

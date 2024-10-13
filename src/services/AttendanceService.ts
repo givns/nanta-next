@@ -128,15 +128,6 @@ export class AttendanceService {
         `Checking allowance for employee ${employeeId} at address: ${address}, inPremises: ${inPremises}`,
       );
 
-      if (!inPremises) {
-        return {
-          allowed: false,
-          reason: 'attendanceservice ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
-          inPremises: false,
-          address,
-        };
-      }
-
       const user = await this.getCachedUserData(employeeId);
       if (!user) {
         console.log(`User not found for employeeId: ${employeeId}`);
@@ -188,6 +179,15 @@ export class AttendanceService {
         return {
           allowed: false,
           reason: 'คุณมีคำขอลาที่รออนุมัติสำหรับวันนี้',
+          inPremises,
+          address,
+        };
+      }
+
+      if (!inPremises) {
+        return {
+          allowed: false,
+          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
           inPremises,
           address,
         };

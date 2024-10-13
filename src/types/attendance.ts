@@ -79,10 +79,10 @@ export interface AttendanceHookReturn {
   error: string | null;
   inPremises: boolean;
   address: string;
-  locationError: string | null;
   checkInOut: (data: AttendanceData) => Promise<any>;
   checkInOutAllowance: CheckInOutAllowance | null;
   refreshAttendanceStatus: (forceRefresh?: boolean) => Promise<any>;
+  getCurrentLocation: () => void;
 }
 
 // In types/attendance.ts or where you define your types
