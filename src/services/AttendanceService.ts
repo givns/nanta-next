@@ -146,14 +146,62 @@ export class AttendanceService {
         user.shiftCode === 'SHIFT104',
       );
       console.log(`Is holiday: ${isHoliday}`);
-      if (isHoliday) {
+
+      const shiftData =
+        await this.shiftManagementService.getEffectiveShiftAndStatus(
+          employeeId,
+          now,
+        );
+      if (!shiftData) {
+        console.log('No shift data available');
         return {
-          allowed: true,
-          reason: 'วันหยุด: การลงเวลาจะถูกบันทึกเป็นการทำงานล่วงเวลา',
-          isOvertime: true,
+          allowed: false,
+          reason: 'ไม่พบข้อมูลกะการทำงานของคุณ',
           inPremises,
           address,
         };
+      }
+
+      const { effectiveShift, shiftstatus } = shiftData;
+      console.log('Effective shift:', effectiveShift);
+      console.log('Shift status:', shiftstatus);
+
+      const isDayOff =
+        isHoliday || !shiftData.effectiveShift.workDays.includes(now.getDay());
+
+      const approvedOvertime =
+        await this.overtimeService.getApprovedOvertimeRequest(employeeId, now);
+
+      if (isDayOff && !approvedOvertime) {
+        return {
+          allowed: false,
+          reason: 'วันหยุด: การลงเวลาจะต้องได้รับการอนุมัติ',
+          inPremises,
+          address,
+        };
+      }
+
+      if (!inPremises) {
+        return {
+          allowed: false,
+          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
+          inPremises,
+          address,
+        };
+      }
+
+      if (approvedOvertime) {
+        const overtimeStart = parseISO(approvedOvertime.startTime);
+        const overtimeEnd = parseISO(approvedOvertime.endTime);
+        if (now >= overtimeStart && now <= overtimeEnd) {
+          return {
+            allowed: true,
+            reason: 'คุณกำลังลงเวลาในช่วงทำงานล่วงเวลาที่ได้รับอนุมัติ',
+            isOvertime: true,
+            inPremises,
+            address,
+          };
+        }
       }
 
       const leaveRequest = await this.leaveService.checkUserOnLeave(
@@ -184,48 +232,11 @@ export class AttendanceService {
         };
       }
 
-      if (!inPremises) {
-        return {
-          allowed: false,
-          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
-          inPremises,
-          address,
-        };
-      }
-
-      const shiftData =
-        await this.shiftManagementService.getEffectiveShiftAndStatus(
-          employeeId,
-          now,
-        );
-      if (!shiftData) {
-        console.log('No shift data available');
-        return {
-          allowed: false,
-          reason: 'ไม่พบข้อมูลกะการทำงานของคุณ',
-          inPremises,
-          address,
-        };
-      }
-
-      const { effectiveShift, shiftstatus } = shiftData;
-      console.log('Effective shift:', effectiveShift);
-      console.log('Shift status:', shiftstatus);
-
       const {
         isOutsideShift = false,
         isLate = false,
         isOvertime = false,
       } = shiftstatus || {};
-
-      if (!effectiveShift.workDays.includes(now.getDay())) {
-        return {
-          allowed: false,
-          reason: 'วันหยุด: การลงเวลาจะต้องได้รับการอนุมัติ',
-          inPremises,
-          address,
-        };
-      }
 
       const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
       const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
@@ -308,9 +319,8 @@ export class AttendanceService {
 
       return {
         allowed: true,
-        isLate,
-        isOvertime,
-        countdown: minutesUntilAllowed,
+        isLate: shiftData.shiftstatus.isLate,
+        isOvertime: shiftData.shiftstatus.isOvertime,
         inPremises,
         address,
       };
@@ -737,43 +747,35 @@ export class AttendanceService {
 
     const isDayOff = isHoliday || !shift.workDays.includes(now.getDay());
 
-    if (isDayOff) {
+    if (attendance && attendance.checkInTime) {
+      isCheckingIn = !attendance.checkOutTime;
+      status = attendance.checkOutTime ? 'present' : 'incomplete';
+
+      if (attendance.checkOutTime && approvedOvertime) {
+        const overtimeStart = parseISO(approvedOvertime.startTime);
+        const overtimeEnd = parseISO(approvedOvertime.endTime);
+        const effectiveStart = max([attendance.checkInTime, overtimeStart]);
+        const effectiveEnd = min([attendance.checkOutTime, overtimeEnd]);
+
+        if (effectiveEnd > effectiveStart) {
+          isOvertime = true;
+          overtimeDuration =
+            differenceInMinutes(effectiveEnd, effectiveStart) / 60;
+        }
+      }
+    }
+
+    if (isDayOff && !approvedOvertime) {
       status = 'off';
-      isCheckingIn = false;
+      isCheckingIn = true;
     } else if (leaveRequest && leaveRequest.status === 'approved') {
       status = 'off';
-      isCheckingIn = false;
-    } else if (!attendance) {
-      status = isBefore(now, shiftStart ?? new Date())
-        ? 'absent'
-        : 'incomplete';
-    } else {
-      if (
-        attendance.checkOutTime &&
-        isAfter(attendance.checkOutTime, shiftEnd ?? new Date())
-      ) {
-        isOvertime = true;
-        overtimeDuration = Math.max(
-          0,
-          differenceInMinutes(attendance.checkOutTime, shiftEnd ?? new Date()) /
-            60,
-        );
-      }
+      isCheckingIn = true;
     }
 
     if (approvedOvertime && isSameDay(now, approvedOvertime.date)) {
       isOvertime = true;
-      overtimeDuration = Math.max(
-        overtimeDuration,
-        differenceInMinutes(
-          parseISO(approvedOvertime.endTime),
-          parseISO(approvedOvertime.startTime),
-        ) / 60,
-      );
     }
-
-    // Ensure overtimeDuration is always a valid number
-    overtimeDuration = isNaN(overtimeDuration) ? 0 : overtimeDuration;
 
     return {
       status,
@@ -802,7 +804,7 @@ export class AttendanceService {
       isCheckingIn,
       isDayOff,
       potentialOvertimes: user.potentialOvertimes,
-      shiftAdjustment: null, // Implement if needed
+      shiftAdjustment: null,
       approvedOvertime,
       futureShifts,
       futureOvertimes,
