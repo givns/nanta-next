@@ -123,11 +123,14 @@ export const useSimpleAttendance = (
       : null,
     async ([url, id, inPremises, address]) => {
       console.log('SWR fetcher called with:', { id, inPremises, address });
-      return axios
-        .get(url, {
-          params: { employeeId: id, lineUserId, inPremises, address },
-        })
-        .then((res) => res.data);
+      const response = await axios.get(url, {
+        params: { employeeId: id, lineUserId, inPremises, address },
+      });
+      // Ensure inPremises is included in checkInOutAllowance
+      if (response.data.checkInOutAllowance) {
+        response.data.checkInOutAllowance.inPremises = inPremises;
+      }
+      return response.data;
     },
     {
       revalidateOnFocus: false,

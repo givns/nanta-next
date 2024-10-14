@@ -326,15 +326,15 @@ export class AttendanceService {
         allowed: true,
         isLate: shiftData.shiftstatus.isLate,
         isOvertime: shiftData.shiftstatus.isOvertime,
-        inPremises,
-        address,
+        inPremises: inPremises,
+        address: address,
       };
     } catch (error) {
       console.error('Error in isCheckInOutAllowed:', error);
       return {
         allowed: false,
         reason: 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์การลงเวลา',
-        inPremises: false,
+        inPremises: inPremises,
         address: 'Unknown',
       };
     }
