@@ -26,6 +26,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [formError, setFormError] = useState<string | null>(null);
   const [cachedAttendanceStatus, setCachedAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
 
@@ -78,7 +79,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
   const handleStatusChange = useCallback(
     async (newStatus: boolean) => {
-      if (userData) {
+      if (userData && address) {
         try {
           await checkInOut({
             employeeId: userData.employeeId,
@@ -91,15 +92,15 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           });
         } catch (error: any) {
           console.error('Error during check-in/out:', error);
-          setError(
+          setFormError(
             `Failed to update status. ${error.response?.data?.error || error.message}`,
           );
         }
       } else {
-        setError('Missing user data for check-in/out. Please try again.');
+        setFormError('Missing data for check-in/out. Please try again.');
       }
     },
-    [userData, checkInOut, address],
+    [userData, address, checkInOut],
   );
 
   const handleCloseWindow = useCallback(() => {
@@ -158,16 +159,35 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               : 'ระบบบันทึกเวลาออกงาน'}
           </h1>
           <Clock />
-          {error && (
+          {formError && (
             <div
               className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
               role="alert"
             >
-              <span className="block sm:inline">{error}</span>
+              <strong className="font-bold">Error in CheckInOutForm:</strong>
+              <span className="block sm:inline"> {formError}</span>
             </div>
           )}
-          <ErrorBoundary>
-            <div className="w-full max-w-md">{memoizedCheckInOutForm}</div>
+          {!inPremises && (
+            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative mt-4">
+              <span className="block sm:inline">คุณอยู่นอกสถานที่ทำงาน</span>
+              <button
+                onClick={getCurrentLocation}
+                className="mt-2 bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded text-sm"
+              >
+                ตรวจสอบตำแหน่งอีกครั้ง
+              </button>
+            </div>
+          )}
+          <ErrorBoundary
+            onError={(error: Error) => {
+              console.error('Error in CheckInOutForm:', error);
+              setFormError(error.message);
+            }}
+          >
+            <div className="w-full max-w-md">
+              {userData && memoizedCheckInOutForm}
+            </div>
           </ErrorBoundary>
         </div>
       </div>

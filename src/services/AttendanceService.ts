@@ -735,9 +735,6 @@ export class AttendanceService {
     futureOvertimes: Array<ApprovedOvertime>,
     pendingLeaveRequest: boolean,
   ): AttendanceStatusInfo {
-    const shiftStart = shift ? this.parseShiftTime(shift.startTime, now) : null;
-    const shiftEnd = shift ? this.parseShiftTime(shift.endTime, now) : null;
-
     let status: AttendanceStatusValue = 'absent';
     let isCheckingIn = true;
     if (attendance && attendance.checkInTime) {
