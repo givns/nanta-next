@@ -50,6 +50,7 @@ import {
 } from '../lib/serverCache';
 import { ErrorCode, AppError } from '../types/errors';
 import { cacheService } from './CacheService';
+import { is } from 'date-fns/locale';
 
 const USER_CACHE_TTL = 24 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
@@ -458,8 +459,6 @@ export class AttendanceService {
       let isEarlyCheckIn = false;
       let isLateCheckIn = false;
       let isLateCheckOut = false;
-      let isEarlyCheckOut = false;
-      let isPartialDay = false;
       let isOvertime = false;
 
       const approvedOvertimeRequest =
@@ -483,14 +482,6 @@ export class AttendanceService {
           attendanceDate,
         );
         if (checkInTime) {
-          const checkOutStatus = this.determineCheckOutStatus(
-            parsedCheckTime,
-            shiftStart,
-            shiftEnd,
-          );
-          isEarlyCheckOut = checkOutStatus === 'early-leave';
-          isLateCheckOut = checkOutStatus === 'overtime';
-
           const workedDurationMinutes = differenceInMinutes(
             parsedCheckTime,
             checkInTime,
@@ -504,7 +495,6 @@ export class AttendanceService {
             status = 'present';
           } else {
             status = 'incomplete';
-            isPartialDay = true;
           }
 
           isOvertime = this.isOvertimeCheckOut(
@@ -528,8 +518,6 @@ export class AttendanceService {
         isEarlyCheckIn,
         isLateCheckIn,
         isLateCheckOut,
-        isEarlyCheckOut,
-        isPartialDay,
         isOvertime,
       );
 
@@ -543,7 +531,7 @@ export class AttendanceService {
         isEarlyCheckIn,
         isLateCheckIn,
         isLateCheckOut,
-        isEarlyCheckOut,
+        isOvertime,
       );
 
       const processedAttendance: ProcessedAttendance = {
@@ -614,8 +602,6 @@ export class AttendanceService {
     isEarlyCheckIn: boolean,
     isLateCheckIn: boolean,
     isLateCheckOut: boolean,
-    isEarlyCheckOut: boolean,
-    isPartialDay: boolean,
     isOvertime: boolean,
   ): Promise<Attendance> {
     const shiftData =
@@ -824,8 +810,6 @@ export class AttendanceService {
     let isEarlyCheckIn = false;
     let isLateCheckIn = false;
     let isLateCheckOut = false;
-    let isEarlyCheckOut = false;
-    let isPartialDay = false;
 
     const isDayOff = isHoliday || !shift.workDays.includes(now.getDay());
     const shiftStart = this.parseShiftTime(shift.startTime, now);
@@ -839,8 +823,6 @@ export class AttendanceService {
       if (attendance.checkOutTime) {
         status = 'present';
         isLateCheckOut = isAfter(attendance.checkOutTime, shiftEnd);
-        isEarlyCheckOut = isBefore(attendance.checkOutTime, shiftEnd);
-        isPartialDay = isEarlyCheckOut || isLateCheckIn;
       } else {
         status = 'incomplete';
       }
@@ -910,7 +892,7 @@ export class AttendanceService {
             isManualEntry: attendance.isManualEntry,
           }
         : null,
-      isCheckingIn,
+      isCheckingIn: !isCheckingIn,
       isDayOff,
       potentialOvertimes: user.potentialOvertimes,
       shiftAdjustment: null,
@@ -1080,9 +1062,6 @@ export class AttendanceService {
       ? isAfter(attendance.checkOutTime, shiftEnd)
       : false;
     const isOvertime = overtimeHours > 0;
-    const isEarlyCheckOut = attendance.checkOutTime
-      ? isBefore(attendance.checkOutTime, shiftEnd)
-      : false;
 
     return {
       id: attendance.id,
