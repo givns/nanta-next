@@ -117,6 +117,11 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           throw error; // Rethrow the error to be caught in the CheckInOutForm
         }
       } else {
+        console.error('Missing data for check-in/out:', {
+          hasUserData: !!userData,
+          hasCheckInOutAllowance: !!checkInOutAllowance,
+          hasAddress: !!checkInOutAllowance?.address,
+        });
         const error = new Error(
           'Missing data for check-in/out. Please try again.',
         );
@@ -159,6 +164,8 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       handleCloseWindow,
     ],
   );
+
+  const isDataReady = userData && checkInOutAllowance && !isAttendanceLoading;
 
   if (isLoading || isAttendanceLoading) {
     return <div>Loading...</div>;
@@ -210,7 +217,11 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             }}
           >
             <div className="w-full max-w-md">
-              {userData && memoizedCheckInOutForm}
+              {isDataReady ? (
+                userData && memoizedCheckInOutForm
+              ) : (
+                <div>Loading necessary data...</div>
+              )}
             </div>
           </ErrorBoundary>
         </div>

@@ -36,6 +36,15 @@ export const useSimpleAttendance = (
   const [isLocationLoading, setIsLocationLoading] = useState(true);
   const locationRef = useRef({ inPremises: false, address: '' });
 
+  useEffect(() => {
+    console.log('useSimpleAttendance effect', {
+      employeeId,
+      lineUserId,
+      inPremises,
+      address,
+    });
+  }, [employeeId, lineUserId, inPremises, address]);
+
   const calculateDistance = (
     lat1: number,
     lon1: number,
@@ -82,8 +91,11 @@ export const useSimpleAttendance = (
         },
       );
 
+      console.log('Position obtained:', position);
       const { latitude, longitude } = position.coords;
       const premise = isWithinPremises(latitude, longitude);
+
+      console.log('Premise check result:', premise);
 
       const newInPremises = !!premise;
       const newAddress = premise ? premise.name : 'Unknown location';
@@ -138,6 +150,10 @@ export const useSimpleAttendance = (
       dedupingInterval: 5000,
     },
   );
+
+  useEffect(() => {
+    console.log('checkInOutAllowance updated:', data?.checkInOutAllowance);
+  }, [data?.checkInOutAllowance]);
 
   const checkInOut = useCallback(
     async (checkInOutData: AttendanceData) => {
