@@ -10,6 +10,7 @@ import {
   getCachedUserData,
   getCachedAttendanceStatus,
 } from '../services/userService';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
@@ -78,17 +79,25 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
 
   const handleStatusChange = useCallback(
-    async (newStatus: boolean) => {
-      if (userData && address) {
+    async (newStatus: boolean, photo?: string, lateReason?: string) => {
+      if (userData && checkInOutAllowance?.address) {
         try {
+          // Get the server time first
+          const serverTimeResponse = await fetch('/api/server-time');
+          const { serverTime } = await serverTimeResponse.json();
           await checkInOut({
             employeeId: userData.employeeId,
             lineUserId: userData.lineUserId,
             isCheckIn: newStatus,
-            checkTime: new Date().toISOString(),
-            checkInAddress: newStatus ? address : undefined,
-            checkOutAddress: !newStatus ? address : undefined,
-            reason: '',
+            checkTime: serverTime,
+            checkInAddress: newStatus ? checkInOutAllowance.address : undefined,
+            checkOutAddress: !newStatus
+              ? checkInOutAllowance.address
+              : undefined,
+            reason: lateReason || '',
+            photo: photo,
+            isLate: checkInOutAllowance?.isLate || false,
+            isOvertime: checkInOutAllowance?.isOvertime || false,
           });
         } catch (error: any) {
           console.error('Error during check-in/out:', error);
@@ -100,7 +109,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         setFormError('Missing data for check-in/out. Please try again.');
       }
     },
-    [userData, address, checkInOut],
+    [userData, checkInOutAllowance, checkInOut],
   );
 
   const handleCloseWindow = useCallback(() => {

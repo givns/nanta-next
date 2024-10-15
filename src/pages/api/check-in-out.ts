@@ -56,10 +56,10 @@ const attendanceSchema = Yup.object()
     isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
     checkTime: Yup.date().optional(),
     location: Yup.string().optional(),
-    checkInAddress: Yup.string().optional(), // Make checkInAddress optional
+    checkInAddress: Yup.string().optional(),
     checkOutAddress: Yup.string().optional(),
     reason: Yup.string(),
-    isOvertime: Yup.boolean().optional(), // Changed to optional
+    isOvertime: Yup.boolean().optional(),
     isLate: Yup.boolean().optional(),
   })
   .test(
