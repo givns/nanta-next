@@ -134,7 +134,7 @@ async function processCheckInOut(data: any) {
       employeeId: validatedData.employeeId ?? '',
       lineUserId: user.lineUserId,
       isCheckIn: validatedData.isCheckIn,
-      checkTime: validatedData.checkTime || now.toISOString(),
+      checkTime: (validatedData.checkTime || now).toISOString(),
       location: validatedData.location || '',
       [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
         validatedData.isCheckIn

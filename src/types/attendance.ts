@@ -13,7 +13,7 @@ export interface Location {
 export interface AttendanceData {
   employeeId: string;
   lineUserId: string | null;
-  checkTime: string | Date; // Add 'undefined' as a possible type
+  checkTime: string;
   location?: string;
   checkInAddress?: string;
   checkOutAddress?: string;
@@ -89,8 +89,11 @@ export type AttendanceStatusValue =
   | 'present'
   | 'absent'
   | 'incomplete'
+  | 'late'
+  | 'early'
   | 'holiday'
-  | 'off';
+  | 'off'
+  | 'overtime';
 
 export type AttendanceStatusType =
   | 'checked-in'
