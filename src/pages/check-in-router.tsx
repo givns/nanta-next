@@ -86,50 +86,77 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       isLate?: boolean,
       isOvertime?: boolean,
     ) => {
-      if (userData && checkInOutAllowance?.address) {
-        try {
-          // Get the server time first
-          const serverTimeResponse = await fetch('/api/server-time');
-          const { serverTime } = await serverTimeResponse.json();
+      console.log('handleStatusChange called with:', {
+        newStatus,
+        photo,
+        lateReason,
+        isLate,
+        isOvertime,
+      });
+      console.log('Current userData:', userData);
+      console.log('Current checkInOutAllowance:', checkInOutAllowance);
+      console.log('Current address:', address);
 
-          const checkInOutData = {
-            employeeId: userData.employeeId,
-            lineUserId: userData.lineUserId,
-            isCheckIn: newStatus,
-            checkTime: serverTime,
-            checkInAddress: newStatus ? address : undefined,
-            checkOutAddress: !newStatus ? address : undefined,
-            reason: lateReason || '',
-            photo: photo,
-            isLate: isLate || false,
-            isOvertime: isOvertime || false,
-          };
-
-          await checkInOut(checkInOutData);
-
-          // Refresh attendance status after successful check-in/out
-          await refreshAttendanceStatus(true);
-        } catch (error: any) {
-          console.error('Error during check-in/out:', error);
-          setFormError(
-            `Failed to update status. ${error.response?.data?.error || error.message}`,
-          );
-          throw error; // Rethrow the error to be caught in the CheckInOutForm
-        }
-      } else {
-        console.error('Missing data for check-in/out:', {
-          hasUserData: !!userData,
-          hasCheckInOutAllowance: !!checkInOutAllowance,
-          hasAddress: !!checkInOutAllowance?.address,
-        });
-        const error = new Error(
-          'Missing data for check-in/out. Please try again.',
-        );
+      if (!userData) {
+        const error = new Error('User data is missing. Please try again.');
+        console.error(error);
         setFormError(error.message);
         throw error;
       }
+
+      if (!checkInOutAllowance) {
+        const error = new Error(
+          'Check-in/out allowance data is missing. Please try again.',
+        );
+        console.error(error);
+        setFormError(error.message);
+        throw error;
+      }
+
+      if (!address) {
+        const error = new Error('Address is missing. Please try again.');
+        console.error(error);
+        setFormError(error.message);
+        throw error;
+      }
+      try {
+        // Get the server time first
+        const serverTimeResponse = await fetch('/api/server-time');
+        const { serverTime } = await serverTimeResponse.json();
+
+        const checkInOutData = {
+          employeeId: userData.employeeId,
+          lineUserId: userData.lineUserId,
+          isCheckIn: newStatus,
+          checkTime: serverTime,
+          checkInAddress: newStatus ? address : undefined,
+          checkOutAddress: !newStatus ? address : undefined,
+          reason: lateReason || '',
+          photo: photo,
+          isLate: isLate || false,
+          isOvertime: isOvertime || false,
+        };
+
+        console.log('Calling checkInOut with data:', checkInOutData);
+        await checkInOut(checkInOutData);
+
+        console.log('checkInOut successful, refreshing attendance status');
+        await refreshAttendanceStatus(true);
+      } catch (error: any) {
+        console.error('Error during check-in/out:', error);
+        setFormError(
+          `Failed to update status. ${error.response?.data?.error || error.message}`,
+        );
+        throw error; // Rethrow the error to be caught in the CheckInOutForm
+      }
     },
-    [userData, checkInOutAllowance, checkInOut, refreshAttendanceStatus],
+    [
+      userData,
+      checkInOutAllowance,
+      address,
+      checkInOut,
+      refreshAttendanceStatus,
+    ],
   );
 
   const handleCloseWindow = useCallback(() => {
