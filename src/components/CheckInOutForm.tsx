@@ -108,34 +108,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         // Check if it's a late check-in
         const isLate = checkInOutAllowance?.isLate || false;
-        const isOvertime = checkInOutAllowance?.isOvertime || false;
 
         if (isLate && !lateReason) {
           setIsLateModalOpen(true);
           return;
         }
-
-        // Get the server time
-        const serverTimeResponse = await fetch('/api/server-time');
-        const { serverTime } = await serverTimeResponse.json();
-
-        // Prepare the check-in/out data
-        const checkInOutData = {
-          employeeId: userData.employeeId,
-          lineUserId: userData.lineUserId,
-          isCheckIn: liveAttendanceStatus?.isCheckingIn ?? true,
-          checkTime: serverTime,
-          photo: photo,
-          reason: lateReason || '',
-          isLate: isLate,
-          isOvertime: isOvertime,
-          checkInAddress: liveAttendanceStatus?.isCheckingIn
-            ? checkInOutAllowance?.address
-            : undefined,
-          checkOutAddress: !liveAttendanceStatus?.isCheckingIn
-            ? checkInOutAllowance?.address
-            : undefined,
-        };
 
         // Call onStatusChange which internally uses checkInOut
         await onStatusChange(liveAttendanceStatus?.isCheckingIn ?? true);
