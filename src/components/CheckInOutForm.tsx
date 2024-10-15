@@ -19,6 +19,7 @@ import LateReasonModal from './LateReasonModal';
 import ErrorBoundary from './ErrorBoundary';
 import ActionButton from './ActionButton';
 import { getCurrentTime } from '../utils/dateUtils';
+import { is } from 'date-fns/locale';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -122,6 +123,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           liveAttendanceStatus?.isCheckingIn ?? true,
           photo,
           lateReason,
+          isLate,
+          isOvertime,
         );
 
         await onCloseWindow();
