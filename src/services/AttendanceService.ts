@@ -26,6 +26,7 @@ import {
   subHours,
   set,
   subDays,
+  isWithinInterval,
 } from 'date-fns';
 import {
   AttendanceData,
@@ -452,82 +453,71 @@ export class AttendanceService {
         effectiveShift.endTime,
         attendanceDate,
       );
-      const checkOutTime = parseISO(attendanceData.checkTime);
 
-      let status: AttendanceStatusValue = 'absent';
+      let status: AttendanceStatusValue = 'incomplete';
       let isEarlyCheckIn = false;
       let isLateCheckIn = false;
       let isLateCheckOut = false;
+      let isEarlyCheckOut = false;
+      let isPartialDay = false;
       let isOvertime = false;
-      let overtimeDuration = 0;
 
-      if (attendanceData.isCheckIn) {
-        isEarlyCheckIn = isBefore(parsedCheckTime, shiftStart);
-        isLateCheckIn = isAfter(parsedCheckTime, shiftStart);
-        status = isLateCheckIn
-          ? 'late'
-          : isEarlyCheckIn
-            ? 'early'
-            : 'incomplete';
-      } else {
-        isLateCheckOut = isAfter(parsedCheckTime, shiftEnd);
-        status = 'present';
-      }
-
-      if (!attendanceData.isCheckIn && checkOutTime > shiftEnd) {
-        isLateCheckOut = true;
-        // Potential overtime, but not approved
-        overtimeDuration = differenceInMinutes(checkOutTime, shiftEnd) / 60;
-      }
-
-      const approvedOvertime =
+      const approvedOvertimeRequest =
         await this.overtimeService.getApprovedOvertimeRequest(
           user.employeeId,
           attendanceDate,
         );
 
-      if (approvedOvertime) {
-        const overtimeStart = parseISO(approvedOvertime.startTime);
-        const overtimeEnd = parseISO(approvedOvertime.endTime);
-        if (
-          parsedCheckTime >= overtimeStart &&
-          parsedCheckTime <= overtimeEnd
-        ) {
-          isOvertime = true;
-          overtimeDuration =
-            differenceInMinutes(parsedCheckTime, overtimeStart) / 60;
-          status = 'overtime';
+      if (attendanceData.isCheckIn) {
+        const checkInStatus = this.determineCheckInStatus(
+          parsedCheckTime,
+          shiftStart,
+          shiftEnd,
+        );
+        isEarlyCheckIn = checkInStatus === 'early-check-in';
+        isLateCheckIn = checkInStatus === 'late-check-in';
+      } else {
+        // This is a check-out
+        const checkInTime = await this.getLatestCheckInTime(
+          attendanceData.employeeId,
+          attendanceDate,
+        );
+        if (checkInTime) {
+          const checkOutStatus = this.determineCheckOutStatus(
+            parsedCheckTime,
+            shiftStart,
+            shiftEnd,
+          );
+          isEarlyCheckOut = checkOutStatus === 'early-leave';
+          isLateCheckOut = checkOutStatus === 'overtime';
+
+          const workedDurationMinutes = differenceInMinutes(
+            parsedCheckTime,
+            checkInTime,
+          );
+          const shiftDurationMinutes = differenceInMinutes(
+            shiftEnd,
+            shiftStart,
+          );
+
+          if (workedDurationMinutes >= shiftDurationMinutes) {
+            status = 'present';
+          } else {
+            status = 'incomplete';
+            isPartialDay = true;
+          }
+
+          isOvertime = this.isOvertimeCheckOut(
+            parsedCheckTime,
+            shiftEnd,
+            approvedOvertimeRequest,
+          );
+        } else {
+          throw new Error(
+            'Check-out attempted without a corresponding check-in',
+          );
         }
       }
-
-      if (!attendanceData.isCheckIn && approvedOvertime) {
-        const overtimeStart = parseISO(approvedOvertime.startTime);
-        const overtimeEnd = parseISO(approvedOvertime.endTime);
-
-        if (checkOutTime > shiftEnd && checkOutTime <= overtimeEnd) {
-          isOvertime = true;
-          overtimeDuration =
-            differenceInMinutes(checkOutTime, overtimeStart) / 60;
-          isLateCheckOut = false; // It's not late if within approved overtime
-        } else if (checkOutTime > overtimeEnd) {
-          isOvertime = true;
-          overtimeDuration =
-            differenceInMinutes(overtimeEnd, overtimeStart) / 60;
-          isLateCheckOut = true; // It's late if after approved overtime
-        }
-      } else if (!attendanceData.isCheckIn && checkOutTime > shiftEnd) {
-        isLateCheckOut = true;
-      }
-
-      const combinedLateCheckOut = isLateCheckOut || isOvertime;
-
-      const detailedStatus = this.generateDetailedStatus(
-        status,
-        isEarlyCheckIn,
-        isLateCheckIn,
-        combinedLateCheckOut,
-        isOvertime,
-      );
 
       const attendanceRecord = await this.updateOrCreateAttendanceRecord(
         user.employeeId,
@@ -535,22 +525,30 @@ export class AttendanceService {
         parsedCheckTime,
         attendanceData.isCheckIn,
         status,
-        isOvertime,
-        overtimeDuration,
         isEarlyCheckIn,
         isLateCheckIn,
-        combinedLateCheckOut,
+        isLateCheckOut,
+        isEarlyCheckOut,
+        isPartialDay,
+        isOvertime,
       );
 
-      // Create or update time entry
-      await this.timeEntryService.createOrUpdateTimeEntry(
+      const timeEntry = await this.timeEntryService.createOrUpdateTimeEntry(
         attendanceRecord,
         attendanceData.isCheckIn,
+        approvedOvertimeRequest,
+      );
+      const detailedStatus = this.generateDetailedStatus(
+        status,
+        isEarlyCheckIn,
+        isLateCheckIn,
+        isLateCheckOut,
+        isEarlyCheckOut,
       );
 
       const processedAttendance: ProcessedAttendance = {
         id: attendanceRecord.id,
-        employeeId: user.employeeId,
+        employeeId: attendanceData.employeeId,
         date: attendanceDate,
         checkIn: attendanceRecord.checkInTime
           ? formatTime(attendanceRecord.checkInTime)
@@ -560,18 +558,18 @@ export class AttendanceService {
           : undefined,
         status,
         isOvertime,
-        overtimeDuration,
-        regularHours: this.calculateRegularHours(
-          attendanceRecord.checkInTime!,
-          attendanceRecord.checkOutTime || new Date(),
-          shiftStart,
-          shiftEnd,
-        ),
+        overtimeDuration: timeEntry.overtimeHours,
+        regularHours: timeEntry.regularHours,
         detailedStatus,
         isEarlyCheckIn,
         isLateCheckIn,
-        isLateCheckOut: combinedLateCheckOut,
+        isLateCheckOut,
         isManualEntry: false,
+        attendanceStatusType: this.mapStatusToAttendanceStatusType(
+          status,
+          attendanceData.isCheckIn,
+          isOvertime,
+        ),
       };
 
       await this.invalidateAttendanceCache(attendanceData.employeeId);
@@ -588,17 +586,37 @@ export class AttendanceService {
     }
   }
 
+  private isOvertimeCheckOut(
+    checkOutTime: Date,
+    shiftEnd: Date,
+    approvedOvertimeRequest: ApprovedOvertime | null,
+  ): boolean {
+    if (isAfter(checkOutTime, shiftEnd)) {
+      if (approvedOvertimeRequest) {
+        const overtimeStart = parseISO(approvedOvertimeRequest.startTime);
+        const overtimeEnd = parseISO(approvedOvertimeRequest.endTime);
+        return isWithinInterval(checkOutTime, {
+          start: overtimeStart,
+          end: overtimeEnd,
+        });
+      }
+      return true; // Consider it overtime even without approval, but it might be flagged differently
+    }
+    return false;
+  }
+
   private async updateOrCreateAttendanceRecord(
     employeeId: string,
     date: Date,
     checkTime: Date,
     isCheckIn: boolean,
     status: AttendanceStatusValue,
-    isOvertime: boolean,
-    overtimeDuration: number,
     isEarlyCheckIn: boolean,
     isLateCheckIn: boolean,
     isLateCheckOut: boolean,
+    isEarlyCheckOut: boolean,
+    isPartialDay: boolean,
+    isOvertime: boolean,
   ): Promise<Attendance> {
     const shiftData =
       await this.shiftManagementService.getEffectiveShiftAndStatus(
@@ -638,6 +656,10 @@ export class AttendanceService {
         date: 'desc',
       },
     });
+
+    const overtimeDuration = isOvertime
+      ? differenceInMinutes(checkTime, shiftEnd) / 60
+      : 0;
 
     if (existingAttendance) {
       return this.prisma.attendance.update({
@@ -802,6 +824,8 @@ export class AttendanceService {
     let isEarlyCheckIn = false;
     let isLateCheckIn = false;
     let isLateCheckOut = false;
+    let isEarlyCheckOut = false;
+    let isPartialDay = false;
 
     const isDayOff = isHoliday || !shift.workDays.includes(now.getDay());
     const shiftStart = this.parseShiftTime(shift.startTime, now);
@@ -815,6 +839,8 @@ export class AttendanceService {
       if (attendance.checkOutTime) {
         status = 'present';
         isLateCheckOut = isAfter(attendance.checkOutTime, shiftEnd);
+        isEarlyCheckOut = isBefore(attendance.checkOutTime, shiftEnd);
+        isPartialDay = isEarlyCheckOut || isLateCheckIn;
       } else {
         status = 'incomplete';
       }
@@ -1002,6 +1028,14 @@ export class AttendanceService {
         : false;
       const isOvertime = overtimeHours > 0;
 
+      const detailedStatus = this.generateDetailedStatus(
+        status,
+        isEarlyCheckIn,
+        isLateCheckIn,
+        isLateCheckOut,
+        isOvertime,
+      );
+
       return {
         ...processedAttendance,
         status,
@@ -1012,13 +1046,7 @@ export class AttendanceService {
               parseISO(overtimeRequest.startTime),
             )
           : 0,
-        detailedStatus: this.generateDetailedStatus(
-          status,
-          isEarlyCheckIn,
-          isLateCheckIn,
-          isLateCheckOut,
-          isOvertime,
-        ),
+        detailedStatus,
       };
     });
   }
@@ -1052,6 +1080,9 @@ export class AttendanceService {
       ? isAfter(attendance.checkOutTime, shiftEnd)
       : false;
     const isOvertime = overtimeHours > 0;
+    const isEarlyCheckOut = attendance.checkOutTime
+      ? isBefore(attendance.checkOutTime, shiftEnd)
+      : false;
 
     return {
       id: attendance.id,
@@ -1085,28 +1116,31 @@ export class AttendanceService {
         ? isAfter(attendance.checkOutTime, shiftEnd)
         : false,
       isManualEntry: attendance.isManualEntry,
+      attendanceStatusType: this.mapStatusToAttendanceStatusType(
+        status,
+        !attendance.checkOutTime,
+        isOvertime,
+      ),
     };
   }
 
-  private determineCheckInStatus(
-    checkTime: Date,
-    shiftStart: Date,
-    shiftEnd: Date,
-  ): string {
-    if (isBefore(checkTime, shiftStart)) return 'early-check-in';
-    if (isAfter(checkTime, shiftStart) && isBefore(checkTime, shiftEnd))
-      return 'on-time';
-    return 'late-check-in';
-  }
+  private async getLatestCheckInTime(
+    employeeId: string,
+    date: Date,
+  ): Promise<Date | null> {
+    const latestAttendance = await this.prisma.attendance.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(date),
+          lt: endOfDay(date),
+        },
+        checkInTime: { not: null },
+      },
+      orderBy: { checkInTime: 'desc' },
+    });
 
-  private determineCheckOutStatus(
-    checkTime: Date,
-    shiftStart: Date,
-    shiftEnd: Date,
-  ): string {
-    if (isBefore(checkTime, shiftEnd)) return 'early-leave';
-    if (isAfter(checkTime, shiftEnd)) return 'overtime';
-    return 'on-time';
+    return latestAttendance?.checkInTime || null;
   }
 
   private calculateRegularHours(
@@ -1131,6 +1165,27 @@ export class AttendanceService {
     return 0;
   }
 
+  private determineCheckInStatus(
+    checkTime: Date,
+    shiftStart: Date,
+    shiftEnd: Date,
+  ): string {
+    if (isBefore(checkTime, shiftStart)) return 'early-check-in';
+    if (isAfter(checkTime, shiftStart) && isBefore(checkTime, shiftEnd))
+      return 'on-time';
+    return 'late-check-in';
+  }
+
+  private determineCheckOutStatus(
+    checkTime: Date,
+    shiftStart: Date,
+    shiftEnd: Date,
+  ): string {
+    if (isBefore(checkTime, shiftEnd)) return 'early-leave';
+    if (isAfter(checkTime, shiftEnd)) return 'overtime';
+    return 'on-time';
+  }
+
   private mapStatusToAttendanceStatusType(
     status: AttendanceStatusValue,
     isCheckingIn: boolean,
@@ -1141,17 +1196,11 @@ export class AttendanceService {
         return 'checked-out';
       case 'incomplete':
         return isOvertime ? 'overtime-started' : 'checked-in';
-      case 'late':
-        return 'checked-in';
-      case 'early':
-        return isCheckingIn ? 'checked-in' : 'checked-out';
       case 'absent':
         return 'pending';
       case 'holiday':
       case 'off':
         return 'approved';
-      case 'overtime':
-        return isCheckingIn ? 'overtime-started' : 'overtime-ended';
       default:
         return 'pending';
     }
@@ -1283,7 +1332,6 @@ export class AttendanceService {
     attendance: Attendance,
     shift: Shift,
   ): AttendanceStatusValue {
-    const shiftStart = this.parseShiftTime(shift.startTime, attendance.date);
     const shiftEnd = this.parseShiftTime(shift.endTime, attendance.date);
 
     if (!attendance.checkInTime) return 'absent';

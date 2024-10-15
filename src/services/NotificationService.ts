@@ -50,12 +50,7 @@ export class NotificationService {
     try {
       let messageToSend: Message;
       if (typeof message === 'string') {
-        try {
-          messageToSend = JSON.parse(message);
-        } catch (error) {
-          console.error('Error parsing message:', error);
-          throw new Error('Invalid message format: unable to parse JSON');
-        }
+        messageToSend = { type: 'text', text: message };
       } else if (this.isLineMessage(message)) {
         messageToSend = message;
       } else {

@@ -37,6 +37,16 @@ export type ApprovedOvertime = {
   date: Date;
 };
 
+export interface ExtendedApprovedOvertime extends ApprovedOvertime {
+  createdAt: Date;
+  updatedAt: Date;
+  approverId: string | null;
+  denialReason: string | null;
+  resubmitted: boolean;
+  originalRequestId: string | null;
+  employeeResponse: string | null;
+}
+
 export interface AttendanceStatusInfo {
   status: AttendanceStatusValue;
   isOvertime: boolean;
@@ -89,8 +99,6 @@ export type AttendanceStatusValue =
   | 'present'
   | 'absent'
   | 'incomplete'
-  | 'late'
-  | 'early'
   | 'holiday'
   | 'off'
   | 'overtime';
@@ -172,6 +180,7 @@ export type ProcessedAttendance = {
   detailedStatus: string;
   overtimeDuration: number;
   isManualEntry: boolean;
+  attendanceStatusType: AttendanceStatusType;
 };
 
 export interface ShiftAdjustment {

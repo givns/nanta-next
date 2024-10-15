@@ -281,7 +281,21 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     });
 
     if (action === 'approve') {
-      await this.timeEntryService.finalizePendingOvertimeEntry(overtimeRequest);
+      const approvedOvertime: ApprovedOvertime = {
+        id: overtimeRequest.id,
+        employeeId: overtimeRequest.employeeId,
+        name: overtimeRequest.name,
+        startTime: overtimeRequest.startTime,
+        endTime: overtimeRequest.endTime,
+        reason: overtimeRequest.reason,
+        status: overtimeRequest.status,
+        approvedBy: approverId,
+        approvedAt: new Date(),
+        date: overtimeRequest.date,
+      };
+      await this.timeEntryService.finalizePendingOvertimeEntry(
+        approvedOvertime,
+      );
     } else if (action === 'deny') {
       await this.timeEntryService.deletePendingOvertimeEntry(
         overtimeRequest.id,
@@ -331,7 +345,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       response === 'approve'
         ? `${request.user.name} ได้ยืนยันการทำงานล่วงเวลา`
         : `${request.user.name} ไม่ขอทำงานล่วงเวลา`;
-    await this.notifyAdmins(message, 'overtime'); // Added 'overtime' as the type
+    await this.notifyAdmins(message, 'overtime');
 
     return updatedRequest;
   }
@@ -357,6 +371,26 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         approverId: adminEmployeeId,
       },
     });
+
+    if (approved) {
+      const approvedOvertime: ApprovedOvertime = {
+        id: updatedRequest.id,
+        employeeId: updatedRequest.employeeId,
+        name: updatedRequest.name,
+        startTime: updatedRequest.startTime,
+        endTime: updatedRequest.endTime,
+        reason: updatedRequest.reason,
+        status: updatedRequest.status,
+        approvedBy: adminEmployeeId,
+        approvedAt: new Date(),
+        date: updatedRequest.date,
+      };
+      await this.timeEntryService.finalizePendingOvertimeEntry(
+        approvedOvertime,
+      );
+    } else {
+      await this.timeEntryService.deletePendingOvertimeEntry(updatedRequest.id);
+    }
 
     // Notify employee about the decision
     if (request.user.lineUserId) {

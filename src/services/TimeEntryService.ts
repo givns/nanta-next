@@ -7,7 +7,7 @@ import {
 } from '@prisma/client';
 import { differenceInMinutes, isAfter, isBefore } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService';
-import { ShiftData } from '@/types/attendance';
+import { ApprovedOvertime, ShiftData } from '@/types/attendance';
 
 export class TimeEntryService {
   constructor(
@@ -107,10 +107,10 @@ export class TimeEntryService {
   }
 
   async finalizePendingOvertimeEntry(
-    overtimeRequest: OvertimeRequest,
+    approvedOvertime: ApprovedOvertime,
   ): Promise<void> {
     const timeEntry = await this.prisma.timeEntry.findFirst({
-      where: { overtimeRequestId: overtimeRequest.id },
+      where: { overtimeRequestId: approvedOvertime.id },
     });
 
     if (!timeEntry) {
@@ -118,23 +118,23 @@ export class TimeEntryService {
     }
 
     const effectiveShift = await this.getEffectiveShift(
-      overtimeRequest.employeeId,
-      overtimeRequest.date,
+      approvedOvertime.employeeId,
+      approvedOvertime.date,
     );
     const shiftStart = this.parseShiftTime(
       effectiveShift.startTime,
-      overtimeRequest.date,
+      approvedOvertime.date,
     );
     const shiftEnd = this.parseShiftTime(
       effectiveShift.endTime,
-      overtimeRequest.date,
+      approvedOvertime.date,
     );
 
     const overtimeStart = new Date(
-      `${overtimeRequest.date.toISOString().split('T')[0]}T${overtimeRequest.startTime}`,
+      `${approvedOvertime.date.toISOString().split('T')[0]}T${approvedOvertime.startTime}`,
     );
     const overtimeEnd = new Date(
-      `${overtimeRequest.date.toISOString().split('T')[0]}T${overtimeRequest.endTime}`,
+      `${approvedOvertime.date.toISOString().split('T')[0]}T${approvedOvertime.endTime}`,
     );
 
     const { regularHours, overtimeHours } = this.calculateHours(
@@ -142,7 +142,7 @@ export class TimeEntryService {
       timeEntry.endTime || overtimeEnd,
       shiftStart,
       shiftEnd,
-      overtimeRequest,
+      approvedOvertime,
     );
 
     await this.prisma.timeEntry.update({
@@ -211,6 +211,7 @@ export class TimeEntryService {
   async createOrUpdateTimeEntry(
     attendance: Attendance,
     isCheckIn: boolean,
+    approvedOvertimeRequest: ApprovedOvertime | null,
   ): Promise<TimeEntry> {
     try {
       console.log(
@@ -226,15 +227,6 @@ export class TimeEntryService {
       const existingEntry = await this.prisma.timeEntry.findFirst({
         where: { employeeId: attendance.employeeId, date: attendance.date },
       });
-
-      const approvedOvertimeRequest =
-        await this.prisma.overtimeRequest.findFirst({
-          where: {
-            employeeId: attendance.employeeId,
-            date: attendance.date,
-            status: 'approved',
-          },
-        });
 
       if (existingEntry) {
         return this.updateTimeEntry(
@@ -262,7 +254,7 @@ export class TimeEntryService {
     attendance: Attendance,
     effectiveShift: ShiftData,
     isCheckIn: boolean,
-    approvedOvertimeRequest: OvertimeRequest | null,
+    approvedOvertimeRequest: ApprovedOvertime | null,
   ): Promise<TimeEntry> {
     const checkInTime = attendance.checkInTime || attendance.date;
     const checkOutTime = isCheckIn
@@ -302,7 +294,7 @@ export class TimeEntryService {
     attendance: Attendance,
     effectiveShift: ShiftData,
     isCheckIn: boolean,
-    approvedOvertimeRequest: OvertimeRequest | null,
+    approvedOvertimeRequest: ApprovedOvertime | null,
   ): Promise<TimeEntry> {
     const checkOutTime = isCheckIn
       ? null
@@ -341,21 +333,23 @@ export class TimeEntryService {
     checkOutTime: Date,
     shiftStart: Date,
     shiftEnd: Date,
-    approvedOvertimeRequest: OvertimeRequest | null,
+    approvedOvertimeRequest: ApprovedOvertime | null,
   ): { regularHours: number; overtimeHours: number } {
-    const regularHours = this.calculateRegularHours(
-      checkInTime,
-      checkOutTime,
-      shiftStart,
-      shiftEnd,
+    let regularHours = 0;
+    let overtimeHours = 0;
+
+    // Calculate regular hours
+    const effectiveStart = Math.max(
+      checkInTime.getTime(),
+      shiftStart.getTime(),
     );
-    let overtimeHours = this.calculateOvertimeHours(
-      checkInTime,
-      checkOutTime,
-      shiftStart,
-      shiftEnd,
+    const effectiveEnd = Math.min(checkOutTime.getTime(), shiftEnd.getTime());
+    regularHours = Math.max(
+      0,
+      (effectiveEnd - effectiveStart) / (60 * 60 * 1000),
     );
 
+    // Calculate overtime hours
     if (approvedOvertimeRequest) {
       const overtimeStart = new Date(
         `${approvedOvertimeRequest.date.toISOString().split('T')[0]}T${approvedOvertimeRequest.startTime}`,
@@ -363,9 +357,22 @@ export class TimeEntryService {
       const overtimeEnd = new Date(
         `${approvedOvertimeRequest.date.toISOString().split('T')[0]}T${approvedOvertimeRequest.endTime}`,
       );
-      const approvedOvertimeHours =
-        differenceInMinutes(overtimeEnd, overtimeStart) / 60;
-      overtimeHours = Math.max(overtimeHours, approvedOvertimeHours);
+
+      const overtimeEffectiveStart = Math.max(
+        checkInTime.getTime(),
+        overtimeStart.getTime(),
+      );
+      const overtimeEffectiveEnd = Math.min(
+        checkOutTime.getTime(),
+        overtimeEnd.getTime(),
+      );
+      overtimeHours = Math.max(
+        0,
+        (overtimeEffectiveEnd - overtimeEffectiveStart) / (60 * 60 * 1000),
+      );
+    } else if (checkOutTime > shiftEnd) {
+      overtimeHours =
+        (checkOutTime.getTime() - shiftEnd.getTime()) / (60 * 60 * 1000);
     }
 
     return { regularHours, overtimeHours };
