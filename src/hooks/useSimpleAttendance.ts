@@ -142,11 +142,13 @@ export const useSimpleAttendance = (
   const checkInOut = useCallback(
     async (checkInOutData: AttendanceData) => {
       try {
+        console.log('Sending check-in/out data:', checkInOutData);
         const response = await axios.post('/api/check-in-out', {
           ...checkInOutData,
           inPremises,
           address,
         });
+        console.log('Check-in/out response:', response.data);
         await mutate();
         return response.data;
       } catch (error) {

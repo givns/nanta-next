@@ -122,8 +122,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           lateReason,
         );
 
-        // If successful, refresh attendance status and close window
-        await refreshAttendanceStatus(true);
         await onCloseWindow();
       } catch (error: any) {
         console.error(`Error in submitCheckInOut: ${error.message}`);
@@ -137,7 +135,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       userData,
       checkInOutAllowance,
       onStatusChange,
-      refreshAttendanceStatus,
       onCloseWindow,
     ],
   );

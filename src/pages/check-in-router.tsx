@@ -105,19 +105,26 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
             isOvertime: isOvertime || false,
           };
 
-          // Use checkInOut from useSimpleAttendance hook
           await checkInOut(checkInOutData);
+
+          // Refresh attendance status after successful check-in/out
+          await refreshAttendanceStatus(true);
         } catch (error: any) {
           console.error('Error during check-in/out:', error);
           setFormError(
             `Failed to update status. ${error.response?.data?.error || error.message}`,
           );
+          throw error; // Rethrow the error to be caught in the CheckInOutForm
         }
       } else {
-        setFormError('Missing data for check-in/out. Please try again.');
+        const error = new Error(
+          'Missing data for check-in/out. Please try again.',
+        );
+        setFormError(error.message);
+        throw error;
       }
     },
-    [userData, checkInOutAllowance, address, checkInOut],
+    [userData, checkInOutAllowance, checkInOut, refreshAttendanceStatus],
   );
 
   const handleCloseWindow = useCallback(() => {
