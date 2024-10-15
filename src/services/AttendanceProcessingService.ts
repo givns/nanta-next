@@ -132,6 +132,7 @@ export class AttendanceProcessingService {
       isLateCheckIn: isAfter(parsedCheckTime, shiftStart || new Date()),
       isLateCheckOut: isAfter(parsedCheckTime, shiftEnd || new Date()),
       isManualEntry: false,
+      attendanceStatusType: this.mapStatusToAttendanceStatusType(status),
     };
   }
 
