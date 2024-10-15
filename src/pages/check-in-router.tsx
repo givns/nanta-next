@@ -79,26 +79,34 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
   );
 
   const handleStatusChange = useCallback(
-    async (newStatus: boolean, photo?: string, lateReason?: string) => {
+    async (
+      newStatus: boolean,
+      photo?: string,
+      lateReason?: string,
+      isLate?: boolean,
+      isOvertime?: boolean,
+    ) => {
       if (userData && checkInOutAllowance?.address) {
         try {
           // Get the server time first
           const serverTimeResponse = await fetch('/api/server-time');
           const { serverTime } = await serverTimeResponse.json();
-          await checkInOut({
+
+          const checkInOutData = {
             employeeId: userData.employeeId,
             lineUserId: userData.lineUserId,
             isCheckIn: newStatus,
             checkTime: serverTime,
-            checkInAddress: newStatus ? checkInOutAllowance.address : undefined,
-            checkOutAddress: !newStatus
-              ? checkInOutAllowance.address
-              : undefined,
+            checkInAddress: newStatus ? address : undefined,
+            checkOutAddress: !newStatus ? address : undefined,
             reason: lateReason || '',
             photo: photo,
-            isLate: checkInOutAllowance?.isLate || false,
-            isOvertime: checkInOutAllowance?.isOvertime || false,
-          });
+            isLate: isLate || false,
+            isOvertime: isOvertime || false,
+          };
+
+          // Use checkInOut from useSimpleAttendance hook
+          await checkInOut(checkInOutData);
         } catch (error: any) {
           console.error('Error during check-in/out:', error);
           setFormError(
@@ -109,7 +117,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
         setFormError('Missing data for check-in/out. Please try again.');
       }
     },
-    [userData, checkInOutAllowance, checkInOut],
+    [userData, checkInOutAllowance, address, checkInOut],
   );
 
   const handleCloseWindow = useCallback(() => {

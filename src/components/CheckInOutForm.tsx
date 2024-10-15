@@ -108,19 +108,25 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         // Check if it's a late check-in
         const isLate = checkInOutAllowance?.isLate || false;
+        const isOvertime = checkInOutAllowance?.isOvertime || false;
 
         if (isLate && !lateReason) {
           setIsLateModalOpen(true);
+          setIsSubmitting(false);
           return;
         }
 
-        // Call onStatusChange which internally uses checkInOut
-        await onStatusChange(liveAttendanceStatus?.isCheckingIn ?? true);
+        await onStatusChange(
+          liveAttendanceStatus?.isCheckingIn ?? true,
+          photo,
+          lateReason,
+        );
 
+        // If successful, refresh attendance status and close window
         await refreshAttendanceStatus(true);
         await onCloseWindow();
       } catch (error: any) {
-        console.log(`Error during check-in/out: ${error.message}`);
+        console.error(`Error in submitCheckInOut: ${error.message}`);
         setError('Failed to submit check-in/out. Please try again.');
       } finally {
         setIsSubmitting(false);
@@ -129,7 +135,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [
       liveAttendanceStatus,
       checkInOutAllowance,
-      userData,
       onStatusChange,
       refreshAttendanceStatus,
       onCloseWindow,
