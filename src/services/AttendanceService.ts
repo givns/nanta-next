@@ -892,7 +892,7 @@ export class AttendanceService {
             isManualEntry: attendance.isManualEntry,
           }
         : null,
-      isCheckingIn: !isCheckingIn,
+      isCheckingIn,
       isDayOff,
       potentialOvertimes: user.potentialOvertimes,
       shiftAdjustment: null,
