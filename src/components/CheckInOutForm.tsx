@@ -134,6 +134,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     },
     [
       liveAttendanceStatus,
+      userData,
       checkInOutAllowance,
       onStatusChange,
       refreshAttendanceStatus,
