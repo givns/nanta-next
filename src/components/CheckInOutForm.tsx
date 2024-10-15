@@ -33,6 +33,8 @@ interface CheckInOutFormProps {
     newStatus: boolean,
     photo?: string,
     lateReason?: string,
+    isLate?: boolean,
+    isOvertime?: boolean,
   ) => Promise<void>;
   onCloseWindow: () => void;
 }
