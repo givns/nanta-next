@@ -161,7 +161,6 @@ export class AttendanceService {
 
       const user = await this.getCachedUserData(employeeId);
       if (!user) {
-        console.log(`User not found for employeeId: ${employeeId}`);
         throw new AppError({
           code: ErrorCode.USER_NOT_FOUND,
           message: 'User not found',
@@ -171,20 +170,12 @@ export class AttendanceService {
       const now = getCurrentTime();
       console.log('Current time:', formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'));
 
-      const isHoliday = await this.holidayService.isHoliday(
-        now,
-        [],
-        user.shiftCode === 'SHIFT104',
-      );
-      console.log(`Is holiday: ${isHoliday}`);
-
       const shiftData =
         await this.shiftManagementService.getEffectiveShiftAndStatus(
           employeeId,
           now,
         );
       if (!shiftData) {
-        console.log('No shift data available');
         return {
           allowed: false,
           reason: 'ไม่พบข้อมูลกะการทำงานของคุณ',
@@ -194,15 +185,50 @@ export class AttendanceService {
       }
 
       const { effectiveShift, shiftstatus } = shiftData;
-      console.log('Effective shift:', effectiveShift);
-      console.log('Shift status:', shiftstatus);
+      const {
+        isOutsideShift = false,
+        isLate = false,
+        isOvertime = false,
+      } = shiftstatus || {};
 
+      const isHoliday = await this.holidayService.isHoliday(
+        now,
+        [],
+        user.shiftCode === 'SHIFT104',
+      );
       const isDayOff =
-        isHoliday || !shiftData.effectiveShift.workDays.includes(now.getDay());
+        isHoliday || !effectiveShift.workDays.includes(now.getDay());
 
       const approvedOvertime =
         await this.overtimeService.getApprovedOvertimeRequest(employeeId, now);
+      const leaveRequest = await this.leaveService.checkUserOnLeave(
+        employeeId,
+        now,
+      );
+      const pendingLeave = await this.leaveService.hasPendingLeaveRequest(
+        employeeId,
+        now,
+      );
 
+      const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+      const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+      const earlyCheckInWindow = subMinutes(shiftStart, 30);
+      const lateCheckOutWindow = addMinutes(shiftEnd, 30);
+
+      const latestAttendance = await this.getLatestAttendance(employeeId);
+      const isCheckingIn = !latestAttendance || !latestAttendance.checkInTime;
+
+      // Scenario 1: Not in premises
+      if (!inPremises) {
+        return {
+          allowed: false,
+          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
+          inPremises,
+          address,
+        };
+      }
+
+      // Scenario 2: Day off or holiday
       if (isDayOff && !approvedOvertime) {
         return {
           allowed: false,
@@ -212,6 +238,27 @@ export class AttendanceService {
         };
       }
 
+      // Scenario 3: Approved leave
+      if (leaveRequest && leaveRequest.status === 'approved') {
+        return {
+          allowed: false,
+          reason: 'คุณอยู่ในช่วงการลาที่ได้รับอนุมัติ',
+          inPremises,
+          address,
+        };
+      }
+
+      // Scenario 4: Pending leave request
+      if (pendingLeave) {
+        return {
+          allowed: false,
+          reason: 'คุณมีคำขอลาที่รออนุมัติสำหรับวันนี้',
+          inPremises,
+          address,
+        };
+      }
+
+      // Scenario 5: Approved overtime
       if (approvedOvertime) {
         const overtimeStart = parseISO(
           `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
@@ -219,7 +266,6 @@ export class AttendanceService {
         const overtimeEnd = parseISO(
           `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
         );
-
         if (now >= overtimeStart && now <= overtimeEnd) {
           return {
             allowed: true,
@@ -231,68 +277,11 @@ export class AttendanceService {
         }
       }
 
-      if (!inPremises) {
-        return {
-          allowed: false,
-          reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกสถานที่ทำงาน',
-          inPremises,
-          address,
-        };
-      }
-
-      const leaveRequest = await this.leaveService.checkUserOnLeave(
-        employeeId,
-        now,
-      );
-      console.log('Leave request:', leaveRequest);
-      if (leaveRequest && leaveRequest.status === 'approved') {
-        return {
-          allowed: false,
-          reason: 'คุณอยู่ในช่วงการลาที่ได้รับอนุมัติ',
-          inPremises,
-          address,
-        };
-      }
-
-      const pendingLeave = await this.leaveService.hasPendingLeaveRequest(
-        employeeId,
-        now,
-      );
-      console.log(`Pending leave request: ${pendingLeave}`);
-      if (pendingLeave) {
-        return {
-          allowed: false,
-          reason: 'คุณมีคำขอลาที่รออนุมัติสำหรับวันนี้',
-          inPremises,
-          address,
-        };
-      }
-
-      const {
-        isOutsideShift = false,
-        isLate = false,
-        isOvertime = false,
-      } = shiftstatus || {};
-
-      const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
-      const shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
-      const earlyCheckInWindow = subMinutes(shiftStart, 30);
-      const lateCheckOutWindow = addMinutes(shiftEnd, 30);
-
-      console.log(
-        'Early check-in window:',
-        formatDateTime(earlyCheckInWindow, 'yyyy-MM-dd HH:mm:ss'),
-      );
-      console.log(
-        'Late check-out window:',
-        formatDateTime(lateCheckOutWindow, 'yyyy-MM-dd HH:mm:ss'),
-      );
-
-      const minutesUntilAllowed = Math.ceil(
-        differenceInMinutes(earlyCheckInWindow, now),
-      );
-
+      // Scenario 6: Early check-in
       if (now < earlyCheckInWindow) {
+        const minutesUntilAllowed = Math.ceil(
+          differenceInMinutes(earlyCheckInWindow, now),
+        );
         return {
           allowed: false,
           reason: `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
@@ -302,6 +291,7 @@ export class AttendanceService {
         };
       }
 
+      // Scenario 7: Check-in before shift start
       if (isAfter(now, earlyCheckInWindow) && isBefore(now, shiftStart)) {
         return {
           allowed: true,
@@ -313,35 +303,36 @@ export class AttendanceService {
         };
       }
 
-      if (isOutsideShift) {
-        if (isOvertime || isAfter(now, lateCheckOutWindow)) {
-          return {
-            allowed: true,
-            reason: 'คุณกำลังลงเวลานอกกะการทำงาน (ทำงานล่วงเวลา)',
-            isOvertime: true,
-            inPremises,
-            address,
-          };
-        } else if (isBefore(now, shiftStart)) {
-          return {
-            allowed: true,
-            reason:
-              'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
-            isOvertime: false,
-            inPremises,
-            address,
-          };
+      // Scenario 8: Check-out
+      if (!isCheckingIn) {
+        const graceMinutes = 15;
+        const overtimeThreshold = 30;
+        const isLateCheckOut = isAfter(now, addMinutes(shiftEnd, graceMinutes));
+        const isOvertime = isAfter(
+          now,
+          addMinutes(shiftEnd, overtimeThreshold),
+        );
+
+        let reason;
+        if (isOvertime) {
+          reason = 'คุณกำลังลงเวลาออกงาน (ทำงานล่วงเวลา)';
+        } else if (isLateCheckOut) {
+          reason = 'คุณกำลังลงเวลาออกงานช้า';
         } else {
-          return {
-            allowed: false,
-            reason: 'ไม่สามารถลงเวลาได้เนื่องจากอยู่นอกช่วงเวลาทำงาน',
-            isOutsideShift: true,
-            inPremises,
-            address,
-          };
+          reason = 'คุณกำลังลงเวลาออกงาน';
         }
+
+        return {
+          allowed: true,
+          reason,
+          isLate: isLateCheckOut,
+          isOvertime,
+          inPremises,
+          address,
+        };
       }
 
+      // Scenario 9: Late check-in
       if (isLate) {
         return {
           allowed: true,
@@ -353,19 +344,21 @@ export class AttendanceService {
         };
       }
 
+      // Scenario 10: Normal check-in
       return {
         allowed: true,
-        isLate: shiftData.shiftstatus.isLate,
-        isOvertime: shiftData.shiftstatus.isOvertime,
-        inPremises: inPremises,
-        address: address,
+        reason: 'คุณกำลังลงเวลาเข้างาน',
+        isLate: false,
+        isOvertime: false,
+        inPremises,
+        address,
       };
     } catch (error) {
       console.error('Error in isCheckInOutAllowed:', error);
       return {
         allowed: false,
         reason: 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์การลงเวลา',
-        inPremises: inPremises,
+        inPremises,
         address: 'Unknown',
       };
     }
@@ -810,13 +803,15 @@ export class AttendanceService {
     let isEarlyCheckIn = false;
     let isLateCheckIn = false;
     let isLateCheckOut = false;
+    let historicalIsLateCheckIn = false;
 
     const isDayOff = isHoliday || !shift.workDays.includes(now.getDay());
     const shiftStart = this.parseShiftTime(shift.startTime, now);
     const shiftEnd = this.parseShiftTime(shift.endTime, now);
 
     if (attendance && attendance.checkInTime) {
-      isCheckingIn = false; // If there's a checkInTime, we're checking out
+      isCheckingIn = false;
+      historicalIsLateCheckIn = isAfter(attendance.checkInTime, shiftStart);
       isEarlyCheckIn = isBefore(attendance.checkInTime, shiftStart);
       isLateCheckIn = isAfter(attendance.checkInTime, shiftStart);
 
@@ -825,6 +820,7 @@ export class AttendanceService {
         isLateCheckOut = isAfter(attendance.checkOutTime, shiftEnd);
       } else {
         status = 'incomplete';
+        isLateCheckOut = isAfter(now, shiftEnd);
       }
 
       if (approvedOvertime && isSameDay(now, approvedOvertime.date)) {
@@ -872,7 +868,7 @@ export class AttendanceService {
       overtimeDuration,
       detailedStatus,
       isEarlyCheckIn,
-      isLateCheckIn,
+      isLateCheckIn: isCheckingIn ? isLateCheckIn : historicalIsLateCheckIn,
       isLateCheckOut: combinedLateCheckOut,
       user,
       latestAttendance: attendance
