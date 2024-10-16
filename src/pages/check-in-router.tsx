@@ -10,7 +10,6 @@ import {
   getCachedUserData,
   getCachedAttendanceStatus,
 } from '../services/userService';
-import { getCurrentTime } from '@/utils/dateUtils';
 
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,

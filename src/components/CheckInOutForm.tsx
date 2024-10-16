@@ -74,6 +74,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [checkInOutAllowance]);
 
   useEffect(() => {
+    if (liveAttendanceStatus) {
+      console.log('Received attendanceStatus:', liveAttendanceStatus);
+      console.log('isCheckingIn:', liveAttendanceStatus.isCheckingIn);
+    }
+  }, [liveAttendanceStatus]);
+
+  useEffect(() => {
     if (effectiveShift) {
       console.log('Effective shift:', effectiveShift);
     } else {
