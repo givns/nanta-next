@@ -815,11 +815,7 @@ export class AttendanceService {
     const shiftEnd = this.parseShiftTime(shift.endTime, now);
 
     if (attendance && attendance.checkInTime) {
-      isCheckingIn = !attendance.checkOutTime; // If there's a checkInTime but no checkOutTime, we're checking out
-    }
-
-    if (attendance && attendance.checkInTime) {
-      isCheckingIn = !attendance.checkOutTime;
+      isCheckingIn = false; // If there's a checkInTime, we're checking out
       isEarlyCheckIn = isBefore(attendance.checkInTime, shiftStart);
       isLateCheckIn = isAfter(attendance.checkInTime, shiftStart);
 
