@@ -130,13 +130,13 @@ export class AttendanceService {
 
   private adjustDateForOvernightShift(
     date: Date,
-    isCheckIn: boolean,
+    isCheckingIn: boolean,
     shiftStart: Date,
     shiftEnd: Date,
   ): Date {
     if (
       this.isOvernightShift(shiftStart, shiftEnd) &&
-      !isCheckIn &&
+      !isCheckingIn &&
       date.getHours() < shiftStart.getHours()
     ) {
       return addDays(date, 1);
@@ -527,6 +527,7 @@ export class AttendanceService {
       );
       const detailedStatus = this.generateDetailedStatus(
         status,
+        isCheckIn,
         isEarlyCheckIn,
         isLateCheckIn,
         isLateCheckOut,
@@ -857,6 +858,7 @@ export class AttendanceService {
     const combinedLateCheckOut = isLateCheckOut || isOvertime;
     const detailedStatus = this.generateDetailedStatus(
       status,
+      isCheckingIn,
       isEarlyCheckIn,
       isLateCheckIn,
       combinedLateCheckOut,
@@ -1008,9 +1010,11 @@ export class AttendanceService {
         ? isAfter(attendance.checkOutTime, shiftEnd)
         : false;
       const isOvertime = overtimeHours > 0;
+      const isCheckingIn = !attendance.checkOutTime;
 
       const detailedStatus = this.generateDetailedStatus(
         status,
+        isCheckingIn,
         isEarlyCheckIn,
         isLateCheckIn,
         isLateCheckOut,
@@ -1061,6 +1065,7 @@ export class AttendanceService {
       ? isAfter(attendance.checkOutTime, shiftEnd)
       : false;
     const isOvertime = overtimeHours > 0;
+    const isCheckingIn = !attendance.checkOutTime;
 
     return {
       id: attendance.id,
@@ -1078,6 +1083,7 @@ export class AttendanceService {
       isOvertime: overtimeHours > 0,
       detailedStatus: this.generateDetailedStatus(
         status,
+        isCheckingIn,
         isEarlyCheckIn,
         isLateCheckIn,
         isLateCheckOut,
@@ -1186,18 +1192,29 @@ export class AttendanceService {
 
   private generateDetailedStatus(
     status: AttendanceStatusValue,
+    isCheckingIn: boolean,
     isEarlyCheckIn: boolean,
     isLateCheckIn: boolean,
     isLateCheckOut: boolean,
     isOvertime: boolean,
   ): string {
-    if (status !== 'present' && status !== 'incomplete') return status;
+    if (
+      status !== 'present' &&
+      status !== 'incomplete' &&
+      status !== 'overtime'
+    )
+      return status;
 
     const details: string[] = [];
-    if (isEarlyCheckIn) details.push('early-check-in');
-    if (isLateCheckIn) details.push('late-check-in');
-    if (isLateCheckOut) details.push('late-check-out');
-    if (isOvertime) details.push('overtime');
+    if (isCheckingIn) {
+      // This block won't be executed for check-out, but we'll keep it for completeness
+      if (isEarlyCheckIn) details.push('early-check-in');
+      if (isLateCheckIn) details.push('late-check-in');
+    } else {
+      // Check-out specific statuses
+      if (isLateCheckOut) details.push('late-check-out');
+      if (isOvertime) details.push('overtime');
+    }
 
     return details.length > 0 ? details.join('-') : 'on-time';
   }
