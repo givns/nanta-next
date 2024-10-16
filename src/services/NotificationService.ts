@@ -121,7 +121,7 @@ export class NotificationService {
       'dd MMMM yyyy เวลา HH:mm น.',
       { locale: th },
     );
-    const message = `${employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime} เรียบร้อยแล้ว`;
+    const message = `${employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`;
     await this.sendNotification(employeeId, lineUserId, message, 'check-in');
   }
 
@@ -135,7 +135,7 @@ export class NotificationService {
       'dd MMMM yyyy เวลา HH:mm น.',
       { locale: th },
     );
-    const message = `${employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime} เรียบร้อยแล้ว`;
+    const message = `${employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
     await this.sendNotification(employeeId, lineUserId, message, 'check-in');
   }
   async sendMissingCheckInNotification(

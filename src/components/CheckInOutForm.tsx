@@ -19,12 +19,12 @@ import LateReasonModal from './LateReasonModal';
 import ErrorBoundary from './ErrorBoundary';
 import ActionButton from './ActionButton';
 import { getCurrentTime } from '../utils/dateUtils';
-import { is } from 'date-fns/locale';
 
 interface CheckInOutFormProps {
   userData: UserData;
   cachedAttendanceStatus: AttendanceStatusInfo | null;
   liveAttendanceStatus: AttendanceStatusInfo | null;
+  isCheckingIn: boolean;
   effectiveShift: ShiftData | null;
   isAttendanceLoading: boolean;
   checkInOutAllowance: CheckInOutAllowance | null;
@@ -44,6 +44,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
   cachedAttendanceStatus,
   liveAttendanceStatus,
+  isCheckingIn,
   effectiveShift,
   isAttendanceLoading,
   checkInOutAllowance,

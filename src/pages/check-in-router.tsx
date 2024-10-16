@@ -170,6 +170,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           userData={userData}
           cachedAttendanceStatus={cachedAttendanceStatus}
           liveAttendanceStatus={attendanceStatus}
+          isCheckingIn={attendanceStatus?.isCheckingIn ?? true}
           effectiveShift={effectiveShift}
           isAttendanceLoading={isAttendanceLoading}
           checkInOutAllowance={checkInOutAllowance}

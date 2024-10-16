@@ -50,9 +50,8 @@ import {
 } from '../lib/serverCache';
 import { ErrorCode, AppError } from '../types/errors';
 import { cacheService } from './CacheService';
-import { is } from 'date-fns/locale';
 
-const USER_CACHE_TTL = 24 * 60 * 60; // 24 hours
+const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
 
 export class AttendanceService {
@@ -866,6 +865,7 @@ export class AttendanceService {
 
     return {
       status,
+      isCheckingIn,
       isOvertime,
       overtimeDuration,
       detailedStatus,
@@ -892,7 +892,6 @@ export class AttendanceService {
             isManualEntry: attendance.isManualEntry,
           }
         : null,
-      isCheckingIn,
       isDayOff,
       potentialOvertimes: user.potentialOvertimes,
       shiftAdjustment: null,
