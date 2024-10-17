@@ -415,24 +415,6 @@ export class NotificationService {
     );
   }
 
-  async sendOvertimeAutoApprovalNotification(
-    employeeId: string,
-    lineUserId: string,
-    approvedRequest: OvertimeRequest,
-  ): Promise<void> {
-    const message = {
-      type: 'text',
-      text: `คำขอทำงานล่วงเวลา ${format(approvedRequest.date, 'dd MMMM yyyy', { locale: th })} (${approvedRequest.startTime} - ${approvedRequest.endTime}) ได้รับการอนุมัติโดยระบบ`,
-    };
-
-    await this.sendNotification(
-      employeeId,
-      lineUserId,
-      JSON.stringify(message),
-      'overtime',
-    );
-  }
-
   async sendOvertimeRequestNotification(
     request: OvertimeRequest,
     employeeId: string,

@@ -144,9 +144,10 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       );
       if (overtimeDuration <= 60) {
         // 60 minutes or less
-        updatedRequest = await this.autoApproveOvertimeRequest(requestId);
+        const result = await this.autoApproveOvertimeRequest(requestId);
+        updatedRequest = result.updatedRequest;
+        message = result.message;
         isAutoApproved = true;
-        message = `คำขอทำงานล่วงเวลาของคุณสำหรับวันที่ ${format(request.date, 'dd MMMM yyyy', { locale: th })} เวลา ${request.startTime} - ${request.endTime} ได้รับการอนุมัติโดยอัตโนมัติ`;
       } else {
         updatedRequest = await this.prisma.overtimeRequest.update({
           where: { id: requestId },
@@ -178,15 +179,10 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       adminMessage = `${request.user.name} ไม่ขอทำงานล่วงเวลาสำหรับวันที่ ${format(request.date, 'dd MMMM yyyy', { locale: th })} เวลา ${request.startTime} - ${request.endTime}`;
     }
 
-    // Determine if we should notify admins
-    const shouldNotifyAdmins = !isAutoApproved || response === 'deny';
-
-    if (shouldNotifyAdmins) {
-      await this.notifyAdmins(adminMessage, 'overtime');
-    }
+    await this.notifyAdmins(adminMessage, 'overtime');
 
     // Notify employee
-    if (request.user.lineUserId) {
+    if (request.user.lineUserId && !isAutoApproved) {
       const employeeMessage = {
         type: 'text',
         text: message,
@@ -204,7 +200,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
   private async autoApproveOvertimeRequest(
     requestId: string,
-  ): Promise<OvertimeRequest> {
+  ): Promise<{ updatedRequest: OvertimeRequest; message: string }> {
     const approvedRequest = await this.prisma.overtimeRequest.update({
       where: { id: requestId },
       data: {
@@ -225,11 +221,18 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     await this.timeEntryService.createPendingOvertimeEntry(approvedRequest);
 
+    const message = `คำขอทำงานล่วงเวลาของคุณสำหรับวันที่ ${format(approvedRequest.date, 'dd MMMM yyyy', { locale: th })} เวลา ${approvedRequest.startTime} - ${approvedRequest.endTime} ได้รับการอนุมัติโดยอัตโนมัติ`;
+
     if (approvedRequest.user.lineUserId) {
-      await this.notificationService.sendOvertimeAutoApprovalNotification(
+      const notificationMessage = {
+        type: 'text',
+        text: message,
+      };
+      await this.notificationService.sendNotification(
         approvedRequest.employeeId,
         approvedRequest.user.lineUserId,
-        approvedRequest,
+        JSON.stringify(notificationMessage),
+        'overtime',
       );
     } else {
       console.warn(
@@ -237,7 +240,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       );
     }
 
-    return approvedRequest;
+    return { updatedRequest: approvedRequest, message };
   }
 
   private calculateOvertimeDuration(
