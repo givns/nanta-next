@@ -10,21 +10,30 @@ import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { createNotificationService } from '@/services/NotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
+import { HolidayService } from '@/services/HolidayService';
 
 dotenv.config({ path: './.env.local' });
 
 const prisma = new PrismaClient();
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+
+// Initialize services
+const holidayService = new HolidayService(prisma);
 const notificationService = createNotificationService(prisma);
 const shiftService = new ShiftManagementService(prisma);
-
+const leaveServiceServer = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
 const timeEntryService = new TimeEntryService(prisma, shiftService);
 
-const leaveService = createLeaveServiceServer(prisma, notificationService);
-
+// Initialize OvertimeServiceServer with new dependencies
 const overtimeService = new OvertimeServiceServer(
   prisma,
+  holidayService,
+  leaveServiceServer,
+  shiftService,
   timeEntryService,
   notificationService,
 );
@@ -173,14 +182,36 @@ async function handleLeaveRequest(
   requestId: string,
   approverId: string,
 ) {
-  if (action === 'approve') {
-    await leaveService.approveRequest(requestId, approverId);
-    return { message: 'คำขอลาได้รับการอนุมัติแล้ว' };
-  } else if (action === 'deny') {
-    await leaveService.denyRequest(requestId, approverId);
-    return { message: 'คำขอลาถูกปฏิเสธแล้ว' };
+  try {
+    let result;
+    if (action === 'approve') {
+      result = await leaveServiceServer.approveLeaveRequest(
+        requestId,
+        approverId,
+      );
+      return {
+        message: 'คำขอลาได้รับการอนุมัติแล้ว',
+        request: result,
+      };
+    } else if (action === 'deny') {
+      result = await leaveServiceServer.denyLeaveRequest(requestId, approverId);
+      return {
+        message: 'คำขอลาถูกปฏิเสธแล้ว',
+        request: result,
+      };
+    } else {
+      throw new Error('Invalid action for leave request');
+    }
+  } catch (error) {
+    console.error('Error handling leave request:', error);
+    if (error instanceof Error) {
+      throw new Error(`Failed to process leave request: ${error.message}`);
+    } else {
+      throw new Error(
+        'An unknown error occurred while processing the leave request',
+      );
+    }
   }
-  throw new Error('Invalid action for leave request');
 }
 
 async function handleOvertimeRequest(

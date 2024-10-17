@@ -15,10 +15,16 @@ import {
 } from 'date-fns';
 import { NotificationService } from './NotificationService';
 import { th } from 'date-fns/locale';
+import { HolidayService } from './HolidayService';
+import { LeaveServiceServer } from './LeaveServiceServer';
+import { ShiftManagementService } from './ShiftManagementService';
 
 export class OvertimeServiceServer implements IOvertimeServiceServer {
   constructor(
     private prisma: PrismaClient,
+    private holidayService: HolidayService,
+    private leaveService: LeaveServiceServer,
+    private shiftService: ShiftManagementService,
     private timeEntryService: TimeEntryService,
     private notificationService: NotificationService,
   ) {}
@@ -29,7 +35,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     startTime: string,
     endTime: string,
     reason: string,
-    isDayOff: boolean,
   ): Promise<OvertimeRequest> {
     const user = await this.prisma.user.findUnique({
       where: { lineUserId },
@@ -38,6 +43,11 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     if (!user) {
       throw new Error('User not found');
     }
+
+    const isDayOff = await this.isDayOffForEmployee(
+      user.employeeId,
+      parseISO(date),
+    );
 
     const overtimeRequestData: Prisma.OvertimeRequestCreateInput = {
       user: { connect: { id: user.id } },
@@ -68,6 +78,36 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     }
 
     return newOvertimeRequest;
+  }
+
+  private async isDayOffForEmployee(
+    employeeId: string,
+    date: Date,
+  ): Promise<boolean> {
+    // Get employee's shift
+    const shift = await this.shiftService.getEffectiveShiftAndStatus(
+      employeeId,
+      date,
+    );
+    if (!shift) return true; // If no shift is assigned, consider it a day off
+    // Check if it's a holiday
+    const isHoliday = await this.holidayService.isHoliday(
+      date,
+      [], // Pass an empty array for holidays if not needed
+      shift.shiftCode === 'SHIFT104', // Adjust this condition based on your business logic
+    );
+    if (isHoliday) return true;
+
+    // Check if the day is a working day for this shift
+    const dayOfWeek = date.getDay();
+    if (!shift.workDays.includes(dayOfWeek)) return true;
+
+    // Check if the employee has an approved leave for this day
+    const leave = await this.leaveService.checkUserOnLeave(employeeId, date);
+    if (leave) return true;
+
+    // If none of the above conditions are met, it's a working day
+    return false;
   }
 
   async employeeRespondToOvertimeRequest(

@@ -35,6 +35,9 @@ const timeEntryService = new TimeEntryService(prisma, shiftService);
 
 const overtimeService = new OvertimeServiceServer(
   prisma,
+  holidayService,
+  leaveServiceServer,
+  shiftService,
   timeEntryService,
   notificationService,
 );

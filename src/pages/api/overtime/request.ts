@@ -5,13 +5,25 @@ import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
 import { TimeEntryService } from '../../../services/TimeEntryService';
 import { ShiftManagementService } from '../../../services/ShiftManagementService';
 import { createNotificationService } from '../../../services/NotificationService';
+import { HolidayService } from '@/services/HolidayService';
+import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 
 const prisma = new PrismaClient();
-export const notificationService = createNotificationService(prisma);
-const shiftManagementService = new ShiftManagementService(prisma);
-const timeEntryService = new TimeEntryService(prisma, shiftManagementService);
+// Initialize services
+const holidayService = new HolidayService(prisma);
+const notificationService = createNotificationService(prisma);
+const shiftService = new ShiftManagementService(prisma);
+const leaveServiceServer = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
+const timeEntryService = new TimeEntryService(prisma, shiftService);
+
 const overtimeService = new OvertimeServiceServer(
   prisma,
+  holidayService,
+  leaveServiceServer,
+  shiftService,
   timeEntryService,
   notificationService,
 );
@@ -42,7 +54,6 @@ export default async function handler(
       startTime,
       endTime,
       reason,
-      isDayOff || false,
     );
 
     res.status(201).json({
