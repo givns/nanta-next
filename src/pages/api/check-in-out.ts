@@ -19,6 +19,8 @@ import {
 import * as Yup from 'yup';
 import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
+import { format } from 'date-fns';
+import { th } from 'date-fns/locale';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
@@ -299,32 +301,66 @@ async function sendNotificationAsync(
     );
     console.log(`Notification data:`, JSON.stringify(attendanceData));
 
+    if (!attendanceData.lineUserId) {
+      console.log('Line user ID is null, skipping notification');
+      return;
+    }
+
+    let success = false;
+
     if (attendanceData.isCheckIn) {
-      if (attendanceData.lineUserId) {
+      try {
         await notificationService.sendCheckInConfirmation(
           attendanceData.employeeId,
           attendanceData.lineUserId,
-          currentTime,
+          new Date(attendanceData.checkTime),
         );
-        console.log(
-          `Check-in notification sent for employee ${attendanceData.employeeId}`,
-        );
-      } else {
-        console.log('Line user ID is null, skipping check-in notification');
+        success = true;
+      } catch (error) {
+        console.error('Error sending check-in confirmation:', error);
       }
     } else {
-      if (attendanceData.lineUserId) {
+      try {
         await notificationService.sendCheckOutConfirmation(
           attendanceData.employeeId,
           attendanceData.lineUserId,
-          currentTime,
+          new Date(attendanceData.checkTime),
         );
-        console.log(
-          `Check-out notification sent for employee ${attendanceData.employeeId}`,
-        );
-      } else {
-        console.log('Line user ID is null, skipping check-out notification');
+        success = true;
+      } catch (error) {
+        console.error('Error sending check-out confirmation:', error);
       }
+    }
+
+    if (!success) {
+      // Fallback to direct sendNotification call
+      const formattedDateTime = format(
+        new Date(attendanceData.checkTime),
+        'dd MMMM yyyy เวลา HH:mm น.',
+        { locale: th },
+      );
+      const message = attendanceData.isCheckIn
+        ? `${attendanceData.employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`
+        : `${attendanceData.employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
+
+      const type = attendanceData.isCheckIn ? 'check-in' : 'check-out';
+
+      success = await notificationService.sendNotification(
+        attendanceData.employeeId,
+        attendanceData.lineUserId,
+        message,
+        type,
+      );
+    }
+
+    if (success) {
+      console.log(
+        `${attendanceData.isCheckIn ? 'Check-in' : 'Check-out'} notification sent for employee ${attendanceData.employeeId}`,
+      );
+    } else {
+      console.log(
+        `Failed to send ${attendanceData.isCheckIn ? 'check-in' : 'check-out'} notification for employee ${attendanceData.employeeId}`,
+      );
     }
   } catch (error: any) {
     console.error('Failed to send notification:', error);

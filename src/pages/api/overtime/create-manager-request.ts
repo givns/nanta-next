@@ -2,6 +2,11 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { NotificationService } from '../../../services/NotificationService';
 import { UserRole } from '../../../types/enum';
+import {
+  getCurrentTime,
+  formatDate,
+  formatTime,
+} from '../../../utils/dateUtils';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService(prisma);
@@ -47,7 +52,7 @@ export default async function handler(
               startTime,
               endTime,
               reason,
-              status: 'pending',
+              status: 'pending_response',
               approverId: manager.id,
             },
           });

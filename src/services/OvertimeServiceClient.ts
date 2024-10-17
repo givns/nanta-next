@@ -12,8 +12,7 @@ export class OvertimeServiceClient implements IOvertimeServiceClient {
     startTime: string,
     endTime: string,
     reason: string,
-    resubmitted: boolean = false,
-    originalRequestId?: string,
+    isDayOff: boolean,
   ): Promise<OvertimeRequest> {
     const user = await prisma.user.findUnique({ where: { lineUserId } });
     if (!user) throw new Error('User not found');
@@ -25,11 +24,9 @@ export class OvertimeServiceClient implements IOvertimeServiceClient {
       startTime,
       endTime,
       reason,
-      status: 'Pending',
-      resubmitted,
-      originalRequest: originalRequestId
-        ? { connect: { id: originalRequestId } }
-        : undefined,
+      status: 'pending_response',
+      employeeResponse: null,
+      isDayOffOvertime: isDayOff,
     };
 
     const newOvertimeRequest = await prisma.overtimeRequest.create({

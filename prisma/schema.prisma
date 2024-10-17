@@ -114,16 +114,14 @@ model OvertimeRequest {
   date               DateTime
   startTime          String    // Store as HH:mm
   endTime            String    // Store as HH:mm
-  status             String    // 'pending', 'approved', 'rejected'
-  employeeResponse   String?   // Add this field: 'accepted', 'declined', or null
+  status             String    // 'pending_response', 'pending', 'approved', 'rejected', 'declined_by_employee'
+  employeeResponse   String?   // 'accepted', 'declined', or null
   reason             String?
-  denialReason       String?
   approverId         String?
   approver           User?     @relation("OvertimeApprover", fields: [approverId], references: [id])
-  resubmitted        Boolean   @default(false)
-  originalRequestId  String?
-  originalRequest    OvertimeRequest? @relation("ResubmittedOvertimeRequest", fields: [originalRequestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  resubmittedRequests OvertimeRequest[] @relation("ResubmittedOvertimeRequest")
+  isDayOffOvertime   Boolean   @default(false)
+  actualStartTime    DateTime?
+  actualEndTime      DateTime?
   timeEntries        TimeEntry[]
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -131,16 +129,19 @@ model OvertimeRequest {
 }
 
 model ApprovedOvertime {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId     String  
-  user              User @relation(fields: [employeeId], references: [employeeId])
-  startTime  DateTime
-  endTime    DateTime
-  reason     String?
-  status     String
-  approvedBy String
-  approvedAt DateTime
-  date       DateTime
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId        String  
+  user              User     @relation(fields: [employeeId], references: [employeeId])
+  date              DateTime
+  startTime         String   // Store as HH:mm
+  endTime           String   // Store as HH:mm
+  actualStartTime   DateTime?
+  actualEndTime     DateTime?
+  reason            String?
+  status            String   // 'approved', 'in_progress', 'completed', 'not_started'
+  approvedBy        String
+  approvedAt        DateTime
+  isDayOffOvertime  Boolean  @default(false)
 }
 
 model Attendance {

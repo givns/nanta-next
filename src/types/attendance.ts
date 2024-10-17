@@ -24,26 +24,25 @@ export interface AttendanceData {
   isLate?: boolean;
 }
 
-export type ApprovedOvertime = {
+export interface ApprovedOvertime {
   id: string;
   employeeId: string;
-  name: string;
-  startTime: string;
-  endTime: string;
+  date: Date;
+  startTime: string; // HH:mm format
+  endTime: string; // HH:mm format
+  actualStartTime: Date | null;
+  actualEndTime: Date | null;
   reason: string | null;
-  status: string;
+  status: 'approved' | 'in_progress' | 'completed' | 'not_started';
   approvedBy: string;
   approvedAt: Date;
-  date: Date;
-};
+  isDayOffOvertime: boolean;
+}
 
 export interface ExtendedApprovedOvertime extends ApprovedOvertime {
   createdAt: Date;
   updatedAt: Date;
   approverId: string | null;
-  denialReason: string | null;
-  resubmitted: boolean;
-  originalRequestId: string | null;
   employeeResponse: string | null;
 }
 
@@ -240,13 +239,17 @@ export interface ManualEntryData {
 
 export interface CheckInOutAllowance {
   allowed: boolean;
-  reason?: string;
+  reason: string;
   isLate?: boolean;
   isOvertime?: boolean;
   countdown?: number;
   isOutsideShift?: boolean;
   inPremises: boolean;
   address: string;
+  isDayOffOvertime?: boolean;
+  isPendingDayOffOvertime?: boolean;
+  isPendingOvertime?: boolean;
+  isPotentialOvertime?: boolean;
 }
 
 export interface CheckInData {

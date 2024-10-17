@@ -1,3 +1,4 @@
+// api/overtime/request.ts
 import { PrismaClient } from '@prisma/client';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
@@ -23,15 +24,7 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const {
-    lineUserId,
-    date,
-    startTime,
-    endTime,
-    reason,
-    resubmitted,
-    originalRequestId,
-  } = req.body;
+  const { lineUserId, date, startTime, endTime, reason, isDayOff } = req.body;
 
   if (!lineUserId || !date || !startTime || !endTime || !reason) {
     return res.status(400).json({ message: 'Missing required fields' });
@@ -44,30 +37,21 @@ export default async function handler(
     }
 
     const newOvertimeRequest = await overtimeService.createOvertimeRequest(
-      user.employeeId,
+      lineUserId,
       date,
       startTime,
       endTime,
       reason,
-      resubmitted,
-      originalRequestId,
+      isDayOff || false,
     );
-
-    // Check if the request was auto-approved
-    const isAutoApproved = newOvertimeRequest.status === 'approved';
 
     res.status(201).json({
       success: true,
-      message: isAutoApproved
-        ? 'Overtime request auto-approved successfully'
-        : resubmitted
-          ? 'Overtime request resubmitted successfully'
-          : 'Overtime request created successfully',
+      message: 'Overtime request created successfully',
       data: newOvertimeRequest,
-      isAutoApproved,
     });
   } catch (error: any) {
-    console.error('Error creating/resubmitting overtime request:', error);
+    console.error('Error creating overtime request:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

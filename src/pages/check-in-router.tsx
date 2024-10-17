@@ -12,7 +12,6 @@ import {
 } from '../services/userService';
 
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
-  loading: () => <p>ระบบกำลังตรวจสอบข้อมูลผู้ใช้งาน...</p>,
   ssr: false,
 });
 
@@ -194,10 +193,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
   const isDataReady = userData && checkInOutAllowance && !isAttendanceLoading;
 
-  if (isLoading || isAttendanceLoading) {
-    return <div>Loading...</div>;
-  }
-
   if (error || attendanceError) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
@@ -247,7 +242,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               {isDataReady ? (
                 userData && memoizedCheckInOutForm
               ) : (
-                <div>Loading necessary data...</div>
+                <div>ระบบกำลังประมวลผล...</div>
               )}
             </div>
           </ErrorBoundary>

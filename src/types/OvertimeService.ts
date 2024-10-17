@@ -10,47 +10,50 @@ export interface IOvertimeServiceBase {
     startTime: string,
     endTime: string,
     reason: string,
-    resubmitted?: boolean,
-    originalRequestId?: string,
+    isDayOff: boolean,
   ): Promise<OvertimeRequest>;
-  getOvertimeRequests(userId: string): Promise<OvertimeRequest[]>;
-  getAllOvertimeRequests(): Promise<OvertimeRequest[]>;
-  getOriginalOvertimeRequest(
-    requestId: string,
-  ): Promise<OvertimeRequest | null>;
 }
 
 export interface IOvertimeServiceClient extends IOvertimeServiceBase {}
 
 export interface IOvertimeServiceServer extends IOvertimeServiceBase {
-  approveOvertimeRequest(
+  employeeRespondToOvertimeRequest(
     requestId: string,
-    lineUserId: string,
+    employeeId: string,
+    response: 'approve' | 'deny',
   ): Promise<OvertimeRequest>;
-  handleOvertimeRequest(
+
+  adminApproveOvertimeRequest(
     requestId: string,
-    approverId: string,
-    action: 'approve' | 'deny',
+    adminEmployeeId: string,
+    approved: boolean,
   ): Promise<OvertimeRequest>;
+
   getApprovedOvertimeRequest(
     employeeId: string,
     date: Date,
-  ): Promise<{
-    id: string;
-    employeeId: string;
-    startTime: string; // Changed to string
-    endTime: string; // Changed to string
-    reason: string | null;
-    status: string;
-    approvedBy: string;
-    approvedAt: Date;
-    date: Date;
-  } | null>;
-  getPendingOvertimeRequests(): Promise<OvertimeRequest[]>;
-  createUnapprovedOvertime(
-    userId: string,
-    startTime: Date,
-    endTime: Date,
-    overtimeMinutes: number,
-  ): Promise<void>;
+  ): Promise<ApprovedOvertime | null>;
+
+  getPendingOvertimeRequests(
+    employeeId: string,
+    date: Date,
+  ): Promise<OvertimeRequest | null>;
+
+  getDayOffOvertimeRequest(
+    employeeId: string,
+    date: Date,
+  ): Promise<OvertimeRequest | null>;
+
+  getApprovedOvertimesInRange(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<ApprovedOvertime[]>;
+
+  getFutureApprovedOvertimes(
+    employeeId: string,
+    startDate: Date,
+  ): Promise<ApprovedOvertime[]>;
+
+  calculateOvertimeHours(startTime: string, endTime: string): Promise<number>;
 }

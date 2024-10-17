@@ -10,9 +10,9 @@ import {
 } from '@prisma/client';
 import { generateApprovalMessageForAdmins } from '../utils/generateApprovalMessage';
 import { generateDenialMessageForAdmins } from '../utils/generateDenialMessage';
-import { format } from 'date-fns';
 import { NotificationQueue } from './NotificationQueue';
 import { UseMappingService } from './useMappingService';
+import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 
 export class NotificationService {
@@ -50,7 +50,12 @@ export class NotificationService {
     try {
       let messageToSend: Message;
       if (typeof message === 'string') {
-        messageToSend = { type: 'text', text: message };
+        try {
+          messageToSend = JSON.parse(message);
+        } catch (error) {
+          console.error('Error parsing message:', error);
+          throw new Error('Invalid message format: unable to parse JSON');
+        }
       } else if (this.isLineMessage(message)) {
         messageToSend = message;
       } else {
@@ -122,6 +127,7 @@ export class NotificationService {
       { locale: th },
     );
     const message = `${employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`;
+    console.log('Constructed message:', message);
     await this.sendNotification(employeeId, lineUserId, message, 'check-in');
   }
 
@@ -136,6 +142,7 @@ export class NotificationService {
       { locale: th },
     );
     const message = `${employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
+    console.log('Constructed message:', message);
     await this.sendNotification(employeeId, lineUserId, message, 'check-in');
   }
   async sendMissingCheckInNotification(

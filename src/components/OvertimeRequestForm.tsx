@@ -30,6 +30,10 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   const [newRequestDate, setNewRequestDate] = useState(
     formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
   );
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryData, setSummaryData] = useState(null);
+  const [holidays, setHolidays] = useState([]);
+  const [employeeShifts, setEmployeeShifts] = useState({});
 
   const isManager = useMemo(() => {
     return (
