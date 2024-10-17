@@ -372,26 +372,20 @@ export class NotificationService {
     };
   }
   async sendOvertimeApprovalNotification(
-    overtimeRequest: OvertimeRequest,
-    approverEmployeeId: string,
+    employeeId: string,
+    lineUserId: string,
+    approvedRequest: OvertimeRequest,
+    approverId: string,
   ): Promise<void> {
-    const user = await this.userMappingService.getUserByEmployeeId(
-      overtimeRequest.employeeId,
-    );
-    const approver =
-      await this.userMappingService.getUserByEmployeeId(approverEmployeeId);
-
-    if (!user || !approver) {
-      console.warn('User or approver not found');
-      return;
-    }
-
-    const message = `คำขอทำงานล่วงเวลา ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) ได้รับการอนุมิติโดย ${approver.name}.`;
+    const message = {
+      type: 'text',
+      text: `คำขอทำงานล่วงเวลา ${approvedRequest.date.toDateString()} (${approvedRequest.startTime} - ${approvedRequest.endTime}) ได้รับการอนุมิติโดย ${approverId}.`,
+    };
     await this.sendNotification(
-      overtimeRequest.employeeId,
-      message,
+      employeeId,
+      lineUserId,
+      JSON.stringify(message),
       'overtime',
-      'overtime', // Add the missing argument 'requestType'
     );
   }
 
@@ -413,14 +407,20 @@ export class NotificationService {
   }
 
   async sendOvertimeAutoApprovalNotification(
-    overtimeRequest: OvertimeRequest,
+    employeeId: string,
+    lineUserId: string,
+    approvedRequest: OvertimeRequest,
   ): Promise<void> {
-    const message = `คำขอทำงานล่วงเวลา ${overtimeRequest.date.toDateString()} (${overtimeRequest.startTime} - ${overtimeRequest.endTime}) ได้รับการอนุมิติโดยระบบอัตโนมัติ`;
+    const message = {
+      type: 'text',
+      text: `คำขอทำงานล่วงเวลา ${approvedRequest.date.toLocaleDateString()} (${approvedRequest.startTime} - ${approvedRequest.endTime}) ได้รับการอนุมิติโดยระบบ.`,
+    };
+
     await this.sendNotification(
-      overtimeRequest.employeeId,
-      message,
+      employeeId,
+      lineUserId,
+      JSON.stringify(message),
       'overtime',
-      'overtime', // Add the missing argument 'requestType'
     );
   }
 

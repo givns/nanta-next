@@ -135,13 +135,31 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         status: 'approved',
         employeeResponse: 'approve',
       },
-      include: { user: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            employeeId: true,
+            lineUserId: true,
+            name: true,
+          },
+        },
+      },
     });
 
     await this.timeEntryService.createPendingOvertimeEntry(approvedRequest);
-    await this.notificationService.sendOvertimeAutoApprovalNotification(
-      approvedRequest,
-    );
+
+    if (approvedRequest.user.lineUserId) {
+      await this.notificationService.sendOvertimeAutoApprovalNotification(
+        approvedRequest.employeeId,
+        approvedRequest.user.lineUserId,
+        approvedRequest,
+      );
+    } else {
+      console.warn(
+        `No LINE User ID found for employee ${approvedRequest.employeeId}`,
+      );
+    }
 
     return approvedRequest;
   }
@@ -382,17 +400,35 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         this.prisma.overtimeRequest.update({
           where: { id },
           data: { status: 'approved', approverId },
-          include: { user: true },
+          include: {
+            user: {
+              select: {
+                id: true,
+                employeeId: true,
+                lineUserId: true,
+                name: true,
+              },
+            },
+          },
         }),
       ),
     );
 
     for (const request of approvedRequests) {
       await this.timeEntryService.createPendingOvertimeEntry(request);
-      await this.notificationService.sendOvertimeApprovalNotification(
-        request,
-        approverId,
-      );
+
+      if (request.user.lineUserId) {
+        await this.notificationService.sendOvertimeApprovalNotification(
+          request.employeeId,
+          request.user.lineUserId,
+          request,
+          approverId,
+        );
+      } else {
+        console.warn(
+          `No LINE User ID found for employee ${request.employeeId}`,
+        );
+      }
     }
 
     return approvedRequests;
