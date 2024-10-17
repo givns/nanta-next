@@ -126,7 +126,11 @@ export class NotificationService {
       'dd MMMM yyyy เวลา HH:mm น.',
       { locale: th },
     );
-    const message = `${employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`;
+    const messageText = `${employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`;
+    const message: Message = {
+      type: 'text',
+      text: messageText,
+    };
     console.log('Constructed message:', message);
     await this.sendNotification(employeeId, lineUserId, message, 'check-in');
   }
@@ -141,7 +145,12 @@ export class NotificationService {
       'dd MMMM yyyy เวลา HH:mm น.',
       { locale: th },
     );
-    const message = `${employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
+    const messageText = `${employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
+
+    const message: Message = {
+      type: 'text',
+      text: messageText,
+    };
     console.log('Constructed message:', message);
     await this.sendNotification(employeeId, lineUserId, message, 'check-in');
   }

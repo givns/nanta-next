@@ -222,7 +222,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     }
 
-    const EarlyCheckOut = subMinutes(shiftStart, 30); // 15 minutes grace period
+    const EarlyCheckOut = subMinutes(shiftStart, 15); // 15 minutes grace period
 
     if (!EarlyCheckOut) {
       const confirmed = window.confirm(
