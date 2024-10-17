@@ -21,7 +21,7 @@ export interface IOvertimeServiceServer extends IOvertimeServiceBase {
     requestId: string,
     employeeId: string,
     response: 'approve' | 'deny',
-  ): Promise<OvertimeRequest>;
+  ): Promise<{ updatedRequest: OvertimeRequest; message: string }>;
 
   adminApproveOvertimeRequest(
     requestId: string,

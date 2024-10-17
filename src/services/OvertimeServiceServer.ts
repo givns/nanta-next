@@ -14,6 +14,7 @@ import {
   parse,
 } from 'date-fns';
 import { NotificationService } from './NotificationService';
+import { th } from 'date-fns/locale';
 
 export class OvertimeServiceServer implements IOvertimeServiceServer {
   constructor(
@@ -73,7 +74,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     requestId: string,
     employeeId: string,
     response: 'approve' | 'deny',
-  ): Promise<OvertimeRequest> {
+  ): Promise<{ updatedRequest: OvertimeRequest; message: string }> {
     const request = await this.prisma.overtimeRequest.findUnique({
       where: { id: requestId },
       include: { user: true },
@@ -94,6 +95,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     let newStatus = response === 'approve' ? 'pending' : 'declined_by_employee';
     let updatedRequest;
     let isAutoApproved = false;
+    let message = '';
 
     if (response === 'approve') {
       const overtimeDuration = this.calculateOvertimeDuration(
@@ -104,6 +106,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         // 60 minutes or less
         updatedRequest = await this.autoApproveOvertimeRequest(requestId);
         isAutoApproved = true;
+        message = `คำขอทำงานล่วงเวลาของคุณสำหรับวันที่ ${format(request.date, 'dd MMMM yyyy', { locale: th })} เวลา ${request.startTime} - ${request.endTime} ได้รับการอนุมัติโดยอัตโนมัติ`;
       } else {
         updatedRequest = await this.prisma.overtimeRequest.update({
           where: { id: requestId },
@@ -112,6 +115,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
             status: newStatus,
           },
         });
+        message = `คุณได้ยืนยันการทำงานล่วงเวลาสำหรับวันที่ ${format(request.date, 'dd MMMM yyyy', { locale: th })} เวลา ${request.startTime} - ${request.endTime} แล้ว กรุณารอการอนุมัติจากผู้บังคับบัญชา`;
       }
     } else {
       updatedRequest = await this.prisma.overtimeRequest.update({
@@ -121,24 +125,31 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
           status: newStatus,
         },
       });
+      message = `คุณได้ปฏิเสธการทำงานล่วงเวลาสำหรับวันที่ ${format(request.date, 'dd MMMM yyyy', { locale: th })} เวลา ${request.startTime} - ${request.endTime} แล้ว`;
     }
 
     // Notify admins
-    const adminMessage = isAutoApproved
-      ? `${request.user.name} ได้ยืนยันการทำงานล่วงเวลาและได้รับการอนุมัติอัตโนมัติ`
-      : response === 'approve'
-        ? `${request.user.name} ได้ยืนยันการทำงานล่วงเวลา และรอการอนุมัติจากผู้บังคับบัญชา`
-        : `${request.user.name} ไม่ขอทำงานล่วงเวลา`;
-    await this.notifyAdmins(adminMessage, 'overtime');
+    let adminMessage: string;
+    if (isAutoApproved) {
+      adminMessage = `${request.user.name} ได้รับการอนุมัติทำงานล่วงเวลาโดยอัตโนมัติสำหรับวันที่ ${format(request.date, 'dd MMMM yyyy', { locale: th })} เวลา ${request.startTime} - ${request.endTime}`;
+    } else if (response === 'approve') {
+      adminMessage = `${request.user.name} ได้ยืนยันการทำงานล่วงเวลาสำหรับวันที่ ${format(request.date, 'dd MMMM yyyy', { locale: th })} เวลา ${request.startTime} - ${request.endTime} กรุณาตรวจสอบและอนุมัติ`;
+    } else {
+      adminMessage = `${request.user.name} ไม่ขอทำงานล่วงเวลาสำหรับวันที่ ${format(request.date, 'dd MMMM yyyy', { locale: th })} เวลา ${request.startTime} - ${request.endTime}`;
+    }
 
-    // Notify employee if not auto-approved
-    if (!isAutoApproved && request.user.lineUserId) {
+    // Determine if we should notify admins
+    const shouldNotifyAdmins = !isAutoApproved || response === 'deny';
+
+    if (shouldNotifyAdmins) {
+      await this.notifyAdmins(adminMessage, 'overtime');
+    }
+
+    // Notify employee
+    if (request.user.lineUserId) {
       const employeeMessage = {
         type: 'text',
-        text:
-          response === 'approve'
-            ? 'คุณได้ยืนยันการทำงานล่วงเวลาแล้ว กรุณารอการอนุมัติจากผู้บังคับบัญชา'
-            : 'คุณได้ปฏิเสธการทำงานล่วงเวลาแล้ว',
+        text: message,
       };
       await this.notificationService.sendNotification(
         request.employeeId,
@@ -148,7 +159,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       );
     }
 
-    return updatedRequest;
+    return { updatedRequest, message };
   }
 
   private async autoApproveOvertimeRequest(

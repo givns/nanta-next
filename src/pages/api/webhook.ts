@@ -190,15 +190,14 @@ async function handleOvertimeRequest(
 ) {
   if (action === 'approve' || action === 'deny') {
     try {
-      const updatedRequest =
+      const { message } =
         await overtimeService.employeeRespondToOvertimeRequest(
           requestId,
           employeeId,
           action,
         );
-      return {
-        message: 'คำขอทำงานล่วงเวลาได้รับการตอบกลับเรียบร้อยแล้ว',
-      };
+
+      return { message };
     } catch (error) {
       console.error('Error in handleOvertimeRequest:', error);
       throw error;

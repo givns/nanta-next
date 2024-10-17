@@ -379,7 +379,7 @@ export class NotificationService {
   ): Promise<void> {
     const message = {
       type: 'text',
-      text: `คำขอทำงานล่วงเวลา ${approvedRequest.date.toDateString()} (${approvedRequest.startTime} - ${approvedRequest.endTime}) ได้รับการอนุมิติโดย ${approverId}.`,
+      text: `คำขอทำงานล่วงเวลา ${approvedRequest.date.toDateString()} (${approvedRequest.startTime} - ${approvedRequest.endTime}) ได้รับการอนุมัติโดย ${approverId}.`,
     };
     await this.sendNotification(
       employeeId,
@@ -413,7 +413,7 @@ export class NotificationService {
   ): Promise<void> {
     const message = {
       type: 'text',
-      text: `คำขอทำงานล่วงเวลา ${approvedRequest.date.toLocaleDateString()} (${approvedRequest.startTime} - ${approvedRequest.endTime}) ได้รับการอนุมิติโดยระบบ.`,
+      text: `คำขอทำงานล่วงเวลา ${format(approvedRequest.date, 'dd MMMM yyyy', { locale: th })} (${approvedRequest.startTime} - ${approvedRequest.endTime}) ได้รับการอนุมัติโดยระบบ`,
     };
 
     await this.sendNotification(

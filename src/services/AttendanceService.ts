@@ -819,7 +819,9 @@ export class AttendanceService {
       [],
       user.shiftCode === 'SHIFT104',
     );
+    console.log(`Is holiday: ${isHoliday}`);
     const leaveRequests = await this.leaveService.getLeaveRequests(employeeId);
+    console.log(`Leave requests: ${JSON.stringify(leaveRequests)}`);
     const approvedOvertime =
       await this.overtimeService.getApprovedOvertimeRequest(employeeId, today);
     const futureShifts = await this.shiftManagementService.getFutureShifts(
@@ -833,6 +835,7 @@ export class AttendanceService {
       employeeId,
       today,
     );
+    console.log(`Pending leave request: ${pendingLeaveRequest}`);
 
     const userData: UserData = {
       employeeId: user.employeeId,
