@@ -19,7 +19,7 @@ import LateReasonModal from './LateReasonModal';
 import ErrorBoundary from './ErrorBoundary';
 import ActionButton from './ActionButton';
 import { getCurrentTime, formatDate } from '../utils/dateUtils';
-import { isSameDay, parseISO } from 'date-fns';
+import { addMinutes, isBefore, isSameDay, parseISO } from 'date-fns';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -216,7 +216,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     }
 
-    if (now < shiftEnd) {
+    const EarlyCheckOut = isBefore(now, addMinutes(shiftEnd, 15)); // 15 minutes grace period
+
+    if (EarlyCheckOut) {
       const confirmed = window.confirm(
         'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
       );
