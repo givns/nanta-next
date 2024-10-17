@@ -79,6 +79,12 @@ export interface AttendanceStatusInfo {
   }>;
   futureOvertimes: Array<ApprovedOvertime>;
   pendingLeaveRequest: boolean;
+  leaveRequests?: {
+    status: string;
+    leaveFormat: string;
+    startDate: string;
+    endDate: string;
+  }[];
 }
 
 export interface AttendanceHookReturn {

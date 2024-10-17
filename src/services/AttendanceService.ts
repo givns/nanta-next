@@ -233,6 +233,17 @@ export class AttendanceService {
       }
 
       if (leaveRequest && leaveRequest.status === 'approved') {
+        if (leaveRequest.leaveFormat === 'ลาครึ่งวัน') {
+          return this.handleHalfDayLeave(
+            leaveRequest,
+            now,
+            shiftStart,
+            shiftEnd,
+            isCheckingIn,
+            inPremises,
+            address,
+          );
+        }
         return this.createResponse(
           false,
           'คุณอยู่ในช่วงการลาที่ได้รับอนุมัติ',
@@ -330,6 +341,85 @@ export class AttendanceService {
       'วันหยุด: การลงเวลาจะต้องได้รับการอนุมัติ',
       { inPremises, address },
     );
+  }
+
+  private handleHalfDayLeave(
+    leaveRequest: LeaveRequest,
+    now: Date,
+    shiftStart: Date,
+    shiftEnd: Date,
+    isCheckingIn: boolean,
+    inPremises: boolean,
+    address: string,
+  ): CheckInOutAllowance {
+    const shiftMidpoint = new Date(
+      (shiftStart.getTime() + shiftEnd.getTime()) / 2,
+    );
+
+    const isMorningLeave = leaveRequest.startDate < shiftMidpoint;
+    const isSecondHalfOfShift = now >= shiftMidpoint;
+
+    if (isMorningLeave) {
+      if (isCheckingIn) {
+        if (isSecondHalfOfShift) {
+          return this.createResponse(
+            true,
+            'คุณสามารถลงเวลาเข้างานสำหรับช่วงที่สองของกะได้',
+            { inPremises, address },
+          );
+        } else {
+          return this.createResponse(
+            false,
+            'คุณอยู่ในช่วงลาครึ่งแรกของกะ กรุณาลงเวลาเข้างานในช่วงที่สองของกะ',
+            { inPremises, address },
+          );
+        }
+      } else {
+        if (isSecondHalfOfShift) {
+          return this.createResponse(true, 'คุณสามารถลงเวลาออกงานได้', {
+            inPremises,
+            address,
+          });
+        } else {
+          return this.createResponse(
+            false,
+            'คุณอยู่ในช่วงลาครึ่งแรกของกะ ยังไม่สามารถลงเวลาออกได้',
+            { inPremises, address },
+          );
+        }
+      }
+    } else {
+      // Afternoon (second half) leave
+      if (isCheckingIn) {
+        if (isSecondHalfOfShift) {
+          return this.createResponse(
+            false,
+            'คุณอยู่ในช่วงลาครึ่งหลังของกะ ไม่สามารถลงเวลาเข้างานได้',
+            { inPremises, address },
+          );
+        } else {
+          return this.createResponse(
+            true,
+            'คุณสามารถลงเวลาเข้างานสำหรับช่วงแรกของกะได้',
+            { inPremises, address },
+          );
+        }
+      } else {
+        if (isSecondHalfOfShift) {
+          return this.createResponse(
+            false,
+            'คุณอยู่ในช่วงลาครึ่งหลังของกะ ไม่สามารถลงเวลาออกได้',
+            { inPremises, address },
+          );
+        } else {
+          return this.createResponse(
+            true,
+            'คุณสามารถลงเวลาออกงานสำหรับช่วงแรกของกะได้',
+            { inPremises, address },
+          );
+        }
+      }
+    }
   }
 
   private handleApprovedOvertime(
