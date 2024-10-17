@@ -189,17 +189,20 @@ async function handleOvertimeRequest(
   employeeId: string,
 ) {
   if (action === 'approve' || action === 'deny') {
-    await overtimeService.employeeRespondToOvertimeRequest(
-      requestId,
-      employeeId,
-      action,
-    );
-    return {
-      message:
-        action === 'approve'
-          ? 'คุณได้ยืนยันการทำงานล่วงเวลาแล้ว กรุณารอการอนุมัติจากผู้บังคับบัญชา'
-          : 'คุณได้ปฏิเสธการทำงานล่วงเวลาแล้ว',
-    };
+    try {
+      const updatedRequest =
+        await overtimeService.employeeRespondToOvertimeRequest(
+          requestId,
+          employeeId,
+          action,
+        );
+      return {
+        message: 'คำขอทำงานล่วงเวลาได้รับการตอบกลับเรียบร้อยแล้ว',
+      };
+    } catch (error) {
+      console.error('Error in handleOvertimeRequest:', error);
+      throw error;
+    }
   }
   throw new Error('Invalid action for overtime request');
 }

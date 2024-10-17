@@ -87,8 +87,13 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       throw new Error('Unauthorized to respond to this request');
     }
 
+    if (request.employeeResponse) {
+      throw new Error('You have already responded to this overtime request');
+    }
+
     let newStatus = response === 'approve' ? 'pending' : 'declined_by_employee';
     let updatedRequest;
+    let isAutoApproved = false;
 
     if (response === 'approve') {
       const overtimeDuration = this.calculateOvertimeDuration(
@@ -98,6 +103,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       if (overtimeDuration <= 60) {
         // 60 minutes or less
         updatedRequest = await this.autoApproveOvertimeRequest(requestId);
+        isAutoApproved = true;
       } else {
         updatedRequest = await this.prisma.overtimeRequest.update({
           where: { id: requestId },
@@ -117,11 +123,30 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       });
     }
 
-    const message =
-      response === 'approve'
-        ? `${request.user.name} ได้ยืนยันการทำงานล่วงเวลา`
+    // Notify admins
+    const adminMessage = isAutoApproved
+      ? `${request.user.name} ได้ยืนยันการทำงานล่วงเวลาและได้รับการอนุมัติอัตโนมัติ`
+      : response === 'approve'
+        ? `${request.user.name} ได้ยืนยันการทำงานล่วงเวลา และรอการอนุมัติจากผู้บังคับบัญชา`
         : `${request.user.name} ไม่ขอทำงานล่วงเวลา`;
-    await this.notifyAdmins(message, 'overtime');
+    await this.notifyAdmins(adminMessage, 'overtime');
+
+    // Notify employee if not auto-approved
+    if (!isAutoApproved && request.user.lineUserId) {
+      const employeeMessage = {
+        type: 'text',
+        text:
+          response === 'approve'
+            ? 'คุณได้ยืนยันการทำงานล่วงเวลาแล้ว กรุณารอการอนุมัติจากผู้บังคับบัญชา'
+            : 'คุณได้ปฏิเสธการทำงานล่วงเวลาแล้ว',
+      };
+      await this.notificationService.sendNotification(
+        request.employeeId,
+        request.user.lineUserId,
+        JSON.stringify(employeeMessage),
+        'overtime',
+      );
+    }
 
     return updatedRequest;
   }
