@@ -108,13 +108,13 @@ const RegisterForm: React.FC = () => {
     if (!workDays || workDays.length === 0) return 'ไม่ระบุ';
 
     const thaiDays = [
+      'อาทิตย์',
       'จันทร์',
       'อังคาร',
       'พุธ',
       'พฤหัสบดี',
       'ศุกร์',
       'เสาร์',
-      'อาทิตย์',
     ];
     const sortedDays = [...workDays].sort((a, b) => a - b);
 
