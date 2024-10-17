@@ -10,6 +10,7 @@ import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { createNotificationService } from '@/services/NotificationService';
 import { cacheService } from '@/services/CacheService';
 import { ResponseDataSchema } from '../../schemas/attendance';
+import { approveLeaveRequest } from '@/services/api';
 
 const prisma = new PrismaClient();
 
@@ -152,6 +153,7 @@ export default async function handler(
       effectiveShift: responseData?.shiftData?.effectiveShift,
       checkInOutAllowance,
       approvedOvertime: responseData?.approvedOvertime,
+      approveLeaveRequest: approveLeaveRequest,
     };
 
     console.log(
