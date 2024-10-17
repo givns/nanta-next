@@ -4,6 +4,7 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import liff from '@line/liff';
 import Image from 'next/image';
+import { tr } from 'date-fns/locale';
 
 const ExistingEmployeeSchema = Yup.object().shape({
   employeeId: Yup.string().required('Required'),
@@ -122,14 +123,18 @@ const RegisterForm: React.FC = () => {
 
     if (
       sortedDays.length > 2 &&
-      sortedDays.every((day, index) => day === sortedDays[0] + index)
+      (sortedDays.every((day, index) => day === sortedDays[0] + index) ||
+        (sortedDays[0] === 0 &&
+          sortedDays[sortedDays.length - 1] === 6 &&
+          sortedDays.every((day, index) => day === index)))
     ) {
-      // Continuous range
-      return `${thaiDays[sortedDays[0] - 1]} - ${thaiDays[sortedDays[sortedDays.length - 1] - 1]}`;
+      // Continuous range, including wrap-around from Sunday to Saturday
+      return `${thaiDays[sortedDays[0]]} - ${thaiDays[sortedDays[sortedDays.length - 1]]}`;
     }
+    console.log(translateWorkDays([0, 1, 2, 3, 4, 5, 6]));
 
     // Non-continuous or short range
-    return sortedDays.map((day) => thaiDays[day - 1]).join(', ');
+    return sortedDays.map((day) => thaiDays[day]).join(', ');
   };
 
   const translateEmployeeType = (employeeType: string): string => {
