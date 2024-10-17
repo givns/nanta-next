@@ -100,7 +100,7 @@ export default async function handler(
         cacheKey,
         async () => {
           console.log('Cache miss, fetching fresh data');
-          const [shiftData, attendanceStatus, approvedOvertime] =
+          const [shiftData, attendanceStatus, approvedOvertime, leaveRequests] =
             await Promise.all([
               shiftService.getEffectiveShiftAndStatus(
                 user.employeeId,
@@ -111,9 +111,15 @@ export default async function handler(
                 user.employeeId,
                 new Date(),
               ),
+              leaveServiceServer.getLeaveRequests(user.employeeId), // Fetch leave requests
             ]);
 
-          return { shiftData, attendanceStatus, approvedOvertime };
+          return {
+            shiftData,
+            attendanceStatus,
+            approvedOvertime,
+            leaveRequests,
+          };
         },
         300, // 5 minutes TTL
       );
@@ -122,18 +128,23 @@ export default async function handler(
       }
     } else {
       console.log('Fetching fresh data');
-      const [shiftData, attendanceStatus, approvedOvertime] = await Promise.all(
-        [
+      const [shiftData, attendanceStatus, approvedOvertime, leaveRequests] =
+        await Promise.all([
           shiftService.getEffectiveShiftAndStatus(user.employeeId, new Date()),
           attendanceService.getLatestAttendanceStatus(user.employeeId),
           overtimeService.getApprovedOvertimeRequest(
             user.employeeId,
             new Date(),
           ),
-        ],
-      );
+          leaveServiceServer.getLeaveRequests(user.employeeId), // Fetch leave requests
+        ]);
 
-      responseData = { shiftData, attendanceStatus, approvedOvertime };
+      responseData = {
+        shiftData,
+        attendanceStatus,
+        approvedOvertime,
+        leaveRequests,
+      };
     }
 
     console.log('ResponseData:', JSON.stringify(responseData, null, 2));
@@ -153,7 +164,7 @@ export default async function handler(
       effectiveShift: responseData?.shiftData?.effectiveShift,
       checkInOutAllowance,
       approvedOvertime: responseData?.approvedOvertime,
-      approveLeaveRequest: approveLeaveRequest,
+      leaveRequests: responseData?.leaveRequests, // Include leave requests in the final response
     };
 
     console.log(

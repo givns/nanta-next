@@ -227,7 +227,6 @@ export interface LeaveRequestData {
   startDate: string;
   endDate: string;
   reason: string;
-  useOvertimeHours: boolean;
 }
 
 export interface WorkHoursCalculation {

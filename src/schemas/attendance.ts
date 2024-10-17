@@ -118,12 +118,25 @@ const CheckInOutAllowanceSchema = z.object({
   isOvertime: z.boolean().optional(),
 });
 
+const LeaveRequestSchema = z.object({
+  id: z.string(),
+  employeeId: z.string(),
+  leaveType: z.string(),
+  leaveFormat: z.string(),
+  reason: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
+  fullDayCount: z.number(),
+  status: z.string(),
+});
+
 const UpdatedResponseDataSchema = z.object({
   user: UserDataSchema,
   attendanceStatus: AttendanceStatusInfoSchema.nullable(),
   effectiveShift: ShiftDataSchema.nullable(),
   checkInOutAllowance: CheckInOutAllowanceSchema,
-  approvedOvertime: z.any().nullable(),
+  approvedOvertime: ApprovedOvertimeSchema.nullable(),
+  leaveRequests: z.array(LeaveRequestSchema), // A
 });
 
 export {
