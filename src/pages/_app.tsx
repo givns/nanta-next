@@ -20,7 +20,8 @@ function MyApp({ Component, pageProps }: AppProps) {
     );
 
     if (isLiffInitialized) {
-      setIsLoading(false);
+      // Add a small delay to ensure the progress bar reaches 100%
+      setTimeout(() => setIsLoading(false), 1000);
     }
 
     return () => {
@@ -30,13 +31,13 @@ function MyApp({ Component, pageProps }: AppProps) {
     };
   }, [isLiffInitialized]);
 
-  if (isLoading) {
-    return <LoadingBar />;
-  }
-
   return (
     <Provider store={store}>
-      <Component {...pageProps} lineUserId={lineUserId} />
+      {isLoading ? (
+        <LoadingBar />
+      ) : (
+        <Component {...pageProps} lineUserId={lineUserId} />
+      )}
     </Provider>
   );
 }
