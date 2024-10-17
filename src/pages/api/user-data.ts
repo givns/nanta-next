@@ -9,20 +9,29 @@ import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { createNotificationService } from '@/services/NotificationService';
 import { UserDataSchema } from '../../schemas/attendance';
 import { cacheService } from '@/services/CacheService';
+import { HolidayService } from '@/services/HolidayService';
 
 const prisma = new PrismaClient();
-export const notificationService = createNotificationService(prisma);
-export const leaveServiceServer = createLeaveServiceServer(
+// Initialize services
+const holidayService = new HolidayService(prisma);
+const notificationService = createNotificationService(prisma);
+const shiftService = new ShiftManagementService(prisma);
+const leaveServiceServer = createLeaveServiceServer(
   prisma,
   notificationService,
 );
-const shiftService = new ShiftManagementService(prisma);
 const timeEntryService = new TimeEntryService(prisma, shiftService);
+// Initialize OvertimeServiceServer with new dependencies
+
 const overtimeService = new OvertimeServiceServer(
   prisma,
+  holidayService,
+  leaveServiceServer,
+  shiftService,
   timeEntryService,
   notificationService,
 );
+// Set overtime service in shift service if needed
 shiftService.setOvertimeService(overtimeService);
 
 export default async function handler(

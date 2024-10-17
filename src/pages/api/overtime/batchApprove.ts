@@ -4,15 +4,31 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
 import { TimeEntryService } from '../../../services/TimeEntryService';
-import { NotificationService } from '../../../services/NotificationService';
+import {
+  NotificationService,
+  createNotificationService,
+} from '../../../services/NotificationService';
 import { ShiftManagementService } from '../../../services/ShiftManagementService';
+import { HolidayService } from '@/services/HolidayService';
+import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 
 const prisma = new PrismaClient();
-const notificationService = new NotificationService(prisma);
+// Initialize services
+const holidayService = new HolidayService(prisma);
+const notificationService = createNotificationService(prisma);
 const shiftService = new ShiftManagementService(prisma);
+const leaveServiceServer = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
 const timeEntryService = new TimeEntryService(prisma, shiftService);
+// Initialize OvertimeServiceServer with new dependencies
+
 const overtimeService = new OvertimeServiceServer(
   prisma,
+  holidayService,
+  leaveServiceServer,
+  shiftService,
   timeEntryService,
   notificationService,
 );
