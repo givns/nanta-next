@@ -187,7 +187,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
           {futureShiftAdjustments.map((adjustment, index) => (
             <div
               key={`shift-${index}`}
-              className="bg-yellow-400 p-6 rounded-lg shadow-md"
+              className="bg-white p-6 rounded-lg shadow-md"
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold flex items-center">
@@ -223,7 +223,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
           {attendanceStatus?.futureOvertimes.map((overtime, index) => (
             <div
               key={`overtime-${index}`}
-              className="bg-yellow-400 p-6 rounded-lg shadow-md"
+              className="bg-white p-6 rounded-lg shadow-md"
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold flex items-center">

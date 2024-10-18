@@ -1,49 +1,44 @@
-import React, { useEffect, useState } from 'react';
-import { getLeaveRequests, approveLeaveRequest } from '../services/api';
+import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import OvertimeDashboard from '../components/OvertimeDashboard';
+import AdminShiftAdjustmentForm from '../components/AdminShiftAdjustmentForm';
+import NoWorkDayManagement from '../components/NoWorkDayManagement';
+import { User } from '@prisma/client';
 
-interface LeaveRequest {
-  _id: string;
-  details: string;
+interface AdminDashboardProps {
+  userData: User;
 }
 
-const AdminsDashboard: React.FC = () => {
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-
-  useEffect(() => {
-    fetchLeaveRequests();
-  }, []);
-
-  const fetchLeaveRequests = async () => {
-    try {
-      const requests = await getLeaveRequests();
-      setLeaveRequests(requests);
-    } catch (error) {
-      console.error('Error fetching leave requests:', error);
-    }
-  };
-
-  const handleApprove = async (requestId: string) => {
-    try {
-      await approveLeaveRequest(requestId);
-      fetchLeaveRequests(); // Refresh the list
-    } catch (error) {
-      console.error('Error approving leave request:', error);
-    }
-  };
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ userData }) => {
+  const [activeTab, setActiveTab] = useState('overtime');
 
   return (
-    <div>
-      <h1>Admin Dashboard</h1>
-      <ul>
-        {leaveRequests.map((request) => (
-          <li key={request._id}>
-            {request.details}
-            <button onClick={() => handleApprove(request._id)}>Approve</button>
-          </li>
-        ))}
-      </ul>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overtime">Approve Overtime</TabsTrigger>
+          <TabsTrigger value="shift">Adjust Shift</TabsTrigger>
+          <TabsTrigger value="noworkday">No Work Day Management</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overtime">
+          <OvertimeDashboard
+            employeeId={userData.employeeId}
+            userRole={userData.role}
+            userDepartmentId={userData.departmentId ?? ''}
+          />
+        </TabsContent>
+        <TabsContent value="shift">
+          <AdminShiftAdjustmentForm
+            lineUserId={userData.lineUserId ?? undefined}
+          />
+        </TabsContent>
+        <TabsContent value="noworkday">
+          <NoWorkDayManagement />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
 
-export default AdminsDashboard;
+export default AdminDashboard;
