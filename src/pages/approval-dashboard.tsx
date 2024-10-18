@@ -38,7 +38,7 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
 
         if (authResponse.data.isAuthorized) {
           const userResponse = await axios.get(
-            `/api/user-data?lineUserId=${lineUserId}`,
+            `/api/user?lineUserId=${lineUserId}`,
           );
           setUserData(userResponse.data.user);
         } else {
