@@ -1,10 +1,8 @@
-// pages/approval-dashboard.tsx
-
 import { useEffect, useState } from 'react';
 import { GetServerSideProps } from 'next';
 import liff from '@line/liff';
 import axios from 'axios';
-import AdminDashboard from '../components/AdminDashboard';
+import ConsolidatedApprovalDashboard from '../components/ConsolidatedApprovalDashboard';
 import { User } from '@prisma/client';
 
 interface ApprovalDashboardProps {
@@ -18,30 +16,22 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
   useEffect(() => {
     const initializeLiffAndFetchData = async () => {
       try {
-        console.log('Starting LIFF initialization');
         if (!liffId) {
           throw new Error('LIFF ID is not defined');
         }
 
         await liff.init({ liffId });
-        console.log('LIFF initialized successfully');
 
         if (!liff.isLoggedIn()) {
-          console.log('User not logged in, redirecting to login');
           liff.login();
           return;
         }
 
-        console.log('Fetching user profile');
         const profile = await liff.getProfile();
-        console.log('User profile:', profile);
-
-        console.log('Fetching user data');
         const userResponse = await axios.get(
           `/api/user-data?lineUserId=${profile.userId}`,
         );
         const user = userResponse.data.user;
-        console.log('User data:', user);
         setUserData(user);
       } catch (err) {
         console.error('Error during initialization or data fetching:', err);
@@ -64,7 +54,16 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
     return <div>คุณไม่ได้รับสิทธิการเข้าถึง</div>;
   }
 
-  return <AdminDashboard userData={userData} />;
+  return (
+    <ConsolidatedApprovalDashboard
+      userData={{
+        employeeId: userData.employeeId,
+        role: userData.role,
+        departmentId: userData.departmentId ?? '',
+        lineUserId: userData.lineUserId ?? '',
+      }}
+    />
+  );
 };
 
 export const getServerSideProps: GetServerSideProps = async () => {

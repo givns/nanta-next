@@ -19,13 +19,7 @@ import LateReasonModal from './LateReasonModal';
 import ErrorBoundary from './ErrorBoundary';
 import ActionButton from './ActionButton';
 import { getCurrentTime, formatDate } from '../utils/dateUtils';
-import {
-  addMinutes,
-  isBefore,
-  isSameDay,
-  parseISO,
-  subMinutes,
-} from 'date-fns';
+import { isSameDay, parseISO, subMinutes } from 'date-fns';
 
 interface CheckInOutFormProps {
   userData: UserData;
