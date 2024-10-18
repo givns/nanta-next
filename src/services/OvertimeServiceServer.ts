@@ -500,23 +500,45 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
   private async notifyAdmins(
     message: string,
-    type: 'overtime' | 'overtime-digest' | 'overtime-batch-approval',
-  ) {
+    type: 'overtime' | 'overtime-batch-approval',
+  ): Promise<void> {
+    console.log('notifyAdmins called with:', { message, type });
+
     const admins = await this.prisma.user.findMany({
-      where: { role: { in: ['ADMIN', 'SUPERADMIN'] } },
+      where: {
+        role: {
+          in: ['ADMIN', 'SUPERADMIN'],
+        },
+      },
     });
+
+    console.log(`Found ${admins.length} admins to notify`);
 
     for (const admin of admins) {
       if (admin.lineUserId) {
-        await this.notificationService.sendNotification(
-          admin.employeeId,
-          admin.lineUserId,
-          JSON.stringify({
-            type: 'text',
-            text: message,
-          }),
-          type,
-        );
+        const adminMessage = {
+          type: 'text',
+          text: message,
+        };
+        console.log(`Sending notification to admin ${admin.employeeId}`);
+        try {
+          await this.notificationService.sendNotification(
+            admin.employeeId,
+            admin.lineUserId,
+            JSON.stringify(adminMessage),
+            type,
+          );
+          console.log(
+            `Notification sent successfully to admin ${admin.employeeId}`,
+          );
+        } catch (error) {
+          console.error(
+            `Error sending notification to admin ${admin.employeeId}:`,
+            error,
+          );
+        }
+      } else {
+        console.log(`Admin ${admin.employeeId} has no LINE user ID`);
       }
     }
   }

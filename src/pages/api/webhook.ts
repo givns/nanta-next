@@ -148,6 +148,7 @@ async function handlePostback(event: WebhookEvent) {
           requestId,
           user.employeeId,
         );
+        console.log('Overtime request handled:', result);
       } else {
         throw new Error('Request not found');
       }
@@ -157,6 +158,7 @@ async function handlePostback(event: WebhookEvent) {
           type: 'text',
           text: result.message,
         });
+        console.log('Reply message sent to user');
       } else {
         throw new Error('No result from request handler');
       }
@@ -219,6 +221,12 @@ async function handleOvertimeRequest(
   requestId: string,
   employeeId: string,
 ) {
+  console.log('handleOvertimeRequest called with:', {
+    action,
+    requestId,
+    employeeId,
+  });
+
   if (action === 'approve' || action === 'deny') {
     try {
       const { message } =
@@ -227,6 +235,8 @@ async function handleOvertimeRequest(
           employeeId,
           action,
         );
+
+      console.log('employeeRespondToOvertimeRequest result:', message);
 
       return { message };
     } catch (error) {
