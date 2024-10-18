@@ -49,7 +49,7 @@ const ApprovedOvertimeSchema = z
     actualStartTime: z.string().or(z.date()).nullable(),
     actualEndTime: z.string().or(z.date()).nullable(),
     approvedBy: z.string().nullable(),
-    approvedAt: z.string().nullable(), // ISO string
+    approvedAt: z.string().or(z.date()),
     name: z.string().optional(),
     employeeResponse: z.string().optional(),
     approverId: z.string().optional(),

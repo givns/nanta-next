@@ -182,7 +182,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     await this.notifyAdmins(adminMessage, 'overtime');
 
     // Notify employee
-    if (request.user.lineUserId && !isAutoApproved) {
+    if (request.user.lineUserId) {
       const employeeMessage = {
         type: 'text',
         text: message,
@@ -221,24 +221,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     await this.timeEntryService.createPendingOvertimeEntry(approvedRequest);
 
-    const message = `คำขอทำงานล่วงเวลาของคุณสำหรับวันที่ ${format(approvedRequest.date, 'dd MMMM yyyy', { locale: th })} เวลา ${approvedRequest.startTime} - ${approvedRequest.endTime} ได้รับการอนุมัติโดยอัตโนมัติ`;
-
-    if (approvedRequest.user.lineUserId) {
-      const notificationMessage = {
-        type: 'text',
-        text: message,
-      };
-      await this.notificationService.sendNotification(
-        approvedRequest.employeeId,
-        approvedRequest.user.lineUserId,
-        JSON.stringify(notificationMessage),
-        'overtime',
-      );
-    } else {
-      console.warn(
-        `No LINE User ID found for employee ${approvedRequest.employeeId}`,
-      );
-    }
+    const message = `คำขอทำงานล่วงเวลาของคุณสำหรับวันที่ ${format(approvedRequest.date, 'dd MMMM yyyy', { locale: th })} เวลา ${approvedRequest.startTime} - ${approvedRequest.endTime} ได้รับการอนุมัติโดยระบบ`;
 
     return { updatedRequest: approvedRequest, message };
   }
