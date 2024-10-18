@@ -66,8 +66,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       include: { user: true },
     });
 
-    await this.timeEntryService.createPendingOvertimeEntry(newOvertimeRequest);
-
     // Notify the employee about the new overtime request
     if (user.lineUserId) {
       await this.notificationService.sendOvertimeRequestNotification(
@@ -221,8 +219,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       },
     });
 
-    await this.timeEntryService.createPendingOvertimeEntry(approvedRequest);
-
     const message = `คำขอทำงานล่วงเวลาของคุณสำหรับวันที่ ${format(approvedRequest.date, 'dd MMMM yyyy', { locale: th })} เวลา ${approvedRequest.startTime} - ${approvedRequest.endTime} ได้รับการอนุมัติโดยอัตโนมัติ`;
 
     return { updatedRequest: approvedRequest, message };
@@ -368,15 +364,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       },
     });
 
-    if (approved) {
-      const approvedOvertime = this.convertToApprovedOvertime(updatedRequest);
-      await this.timeEntryService.finalizePendingOvertimeEntry(
-        approvedOvertime,
-      );
-    } else {
-      await this.timeEntryService.deletePendingOvertimeEntry(updatedRequest.id);
-    }
-
     // Notify employee about the decision
     if (request.user.lineUserId) {
       await this.notificationService.sendOvertimeResponseNotification(
@@ -479,8 +466,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     );
 
     for (const request of approvedRequests) {
-      await this.timeEntryService.createPendingOvertimeEntry(request);
-
       if (request.user.lineUserId) {
         await this.notificationService.sendOvertimeApprovalNotification(
           request.employeeId,
