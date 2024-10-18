@@ -7,6 +7,7 @@ import {
 import { UserData } from '../types/user';
 import { format, isToday, isValid, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
+import { Calendar, Clock, Briefcase, AlertCircle } from 'lucide-react';
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -62,78 +63,82 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
         !attendanceStatus?.isDayOff &&
         (effectiveShift || attendanceStatus?.latestAttendance)
       ) {
+        const todayOvertime =
+          attendanceStatus?.approvedOvertime &&
+          isOvertimeForToday(attendanceStatus.approvedOvertime)
+            ? attendanceStatus.approvedOvertime
+            : null;
+
         return (
-          <>
-            <div className="bg-white p-4 rounded-lg mb-4">
-              {effectiveShift && (
-                <>
-                  <h3 className="text-md font-semibold mt-4 mb-1">
-                    เวลาการทำงานของคุณวันนี้:
-                  </h3>
-                  <p className="text-gray-800">
-                    <span className="font-medium">{effectiveShift.name}</span> (
-                    {effectiveShift.startTime} - {effectiveShift.endTime})
+          <div className="bg-white p-6 rounded-lg shadow-md mb-4">
+            <h3 className="text-lg font-semibold mb-4 flex items-center">
+              <Calendar className="mr-2" /> เวลาการทำงานของคุณวันนี้
+            </h3>
+            {effectiveShift && (
+              <div className="mb-4">
+                <p className="text-gray-800">
+                  <span className="font-medium">{effectiveShift.name}</span>
+                </p>
+                <p className="text-gray-600 flex items-center mt-1">
+                  <Clock className="mr-2" size={16} />
+                  {effectiveShift.startTime} - {effectiveShift.endTime}
+                </p>
+                {attendanceStatus?.shiftAdjustment && (
+                  <p className="text-blue-600 mt-2 text-sm">
+                    * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
                   </p>
-                  {attendanceStatus?.shiftAdjustment && (
-                    <p className="text-blue-600 mt-1">
-                      * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
-                    </p>
-                  )}
-                </>
-              )}
-
-              {latestAttendance && (
-                <>
-                  <p className="text-gray-800">
-                    เวลาเข้างาน:{' '}
-                    <span className="font-medium">
-                      {latestAttendance.checkInTime || 'ยังไม่ได้ลงเวลา'}
-                    </span>
-                  </p>
-                  <p className="text-gray-800">
-                    เวลาออกงาน:{' '}
-                    <span className="font-medium">
-                      {latestAttendance.checkOutTime || 'ยังไม่ได้ลงเวลา'}
-                    </span>
-                  </p>
-                </>
-              )}
-            </div>
-
-            {attendanceStatus?.approvedOvertime &&
-              isOvertimeForToday(attendanceStatus.approvedOvertime) && (
-                <div className="bg-white p-4 rounded-lg mb-4">
-                  <h3 className="text-md font-semibold mt-4 mb-1">
-                    รายละเอียดการทำงานล่วงเวลาที่ได้รับอนุมัติ:
-                  </h3>
-                  <p className="text-gray-800">
-                    เวลาเริ่ม:{' '}
-                    <span className="font-medium">
-                      {attendanceStatus.approvedOvertime.startTime}
-                    </span>
-                  </p>
-                  <p className="text-gray-800">
-                    เวลาสิ้นสุด:{' '}
-                    <span className="font-medium">
-                      {attendanceStatus.approvedOvertime.endTime}
-                    </span>
-                  </p>
-                  <p className="text-gray-800">
-                    เวลาที่อนุมัติ:{' '}
-                    <span className="font-medium">
-                      {attendanceStatus.approvedOvertime.approvedAt
-                        ? format(
-                            new Date(
-                              attendanceStatus.approvedOvertime.approvedAt,
-                            ),
-                            'yyyy-MM-dd HH:mm',
-                          )
-                        : 'N/A'}
-                    </span>
+                )}
+              </div>
+            )}
+            {attendanceStatus?.latestAttendance && (
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p className="text-gray-600">เวลาเข้างาน</p>
+                  <p className="font-medium">
+                    {attendanceStatus.latestAttendance.checkInTime ||
+                      'ยังไม่ได้ลงเวลา'}
                   </p>
                 </div>
-              )}
-          </>
+                <div>
+                  <p className="text-gray-600">เวลาออกงาน</p>
+                  <p className="font-medium">
+                    {attendanceStatus.latestAttendance.checkOutTime ||
+                      'ยังไม่ได้ลงเวลา'}
+                  </p>
+                </div>
+              </div>
+            )}
+            {todayOvertime && (
+              <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
+                <h4 className="text-md font-semibold mb-2 flex items-center">
+                  <AlertCircle className="mr-2" size={18} />{' '}
+                  การทำงานล่วงเวลาที่ได้รับอนุมัติ
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-gray-600">เวลาเริ่ม</p>
+                    <p className="font-medium">{todayOvertime.startTime}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">เวลาสิ้นสุด</p>
+                    <p className="font-medium">{todayOvertime.endTime}</p>
+                  </div>
+                </div>
+                <p className="text-gray-600 mt-2">
+                  เวลาที่อนุมัติ:{' '}
+                  <span className="font-medium">
+                    {todayOvertime.approvedAt
+                      ? format(
+                          new Date(todayOvertime.approvedAt),
+                          'dd/MM/yyyy HH:mm',
+                          { locale: th },
+                        )
+                      : 'N/A'}
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
         );
       }
 
@@ -142,19 +147,20 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
         attendanceStatus.potentialOvertimes?.length > 0
       ) {
         return (
-          <div className="bg-white p-4 rounded-lg mb-4 mt-2 text-yellow-600">
-            <p>พบการทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ:</p>
+          <div className="bg-white p-6 rounded-lg shadow-md mb-4">
+            <h3 className="text-lg font-semibold mb-4 flex items-center">
+              <AlertCircle className="mr-2" />{' '}
+              การทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ
+            </h3>
             {attendanceStatus.potentialOvertimes.map((overtime, index) => (
-              <p key={index} className="text-gray-800">
+              <div key={index} className="mb-2">
                 {overtime.periods &&
                   overtime.periods.map((period, periodIndex) => (
-                    <span key={periodIndex}>
+                    <p key={periodIndex} className="text-gray-800">
                       {period.start} - {period.end}
-                      {periodIndex < (overtime.periods?.length ?? 0) - 1 &&
-                        ', '}
-                    </span>
+                    </p>
                   ))}
-              </p>
+              </div>
             ))}
           </div>
         );
@@ -177,58 +183,83 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
       }
 
       return (
-        <>
+        <div className="space-y-4">
           {futureShiftAdjustments.map((adjustment, index) => (
             <div
               key={`shift-${index}`}
-              className="bg-yellow-300 p-4 rounded-box mb-4"
+              className="bg-white p-6 rounded-lg shadow-md relative"
             >
-              <h3 className="font-bold">
-                Shift Adjustment on{' '}
-                {format(parseISO(adjustment.date), 'dd MMM yyyy')}
+              <div className="absolute top-4 right-4 text-right">
+                <p className="text-sm text-gray-500">
+                  {format(parseISO(adjustment.date), 'EEEE', { locale: th })}
+                </p>
+                <p className="text-lg font-semibold">
+                  {format(parseISO(adjustment.date), 'd MMM yyyy', {
+                    locale: th,
+                  })}
+                </p>
+              </div>
+              <h3 className="text-lg font-semibold mb-2 flex items-center">
+                <Briefcase className="mr-2" /> การปรับเปลี่ยนกะการทำงาน
               </h3>
-              <p>Shift: {adjustment.shift?.name}</p>
-              <p>
-                Time: {adjustment.shift?.startTime} -{' '}
-                {adjustment.shift?.endTime}{' '}
+              <p className="text-gray-700">กะ: {adjustment.shift?.name}</p>
+              <p className="text-gray-600 flex items-center mt-1">
+                <Clock className="mr-2" size={16} />
+                {adjustment.shift?.startTime} - {adjustment.shift?.endTime}
               </p>
             </div>
           ))}
           {attendanceStatus?.futureOvertimes.map((overtime, index) => (
             <div
               key={`overtime-${index}`}
-              className="bg-green-300 p-4 rounded-box mb-4"
+              className="bg-white p-6 rounded-lg shadow-md relative"
             >
-              <h3 className="font-bold">
-                แจ้งเตือน OT ล่วงหน้า{' '}
-                {format(overtime.date, 'dd MMMM yyyy', { locale: th })}
+              <div className="absolute top-4 right-4 text-right">
+                <p className="text-sm text-gray-500">
+                  {format(overtime.date, 'EEEE', { locale: th })}
+                </p>
+                <p className="text-lg font-semibold">
+                  {format(overtime.date, 'd MMM yyyy', { locale: th })}
+                </p>
+              </div>
+              <h3 className="text-lg font-semibold mb-2 flex items-center">
+                <AlertCircle className="mr-2" /> แจ้งเตือน OT ล่วงหน้า
               </h3>
-              <p>
-                เวลา: {overtime.startTime} - {overtime.endTime}
+              <p className="text-gray-600 flex items-center mt-1">
+                <Clock className="mr-2" size={16} />
+                {overtime.startTime} - {overtime.endTime}
               </p>
-              <p>สาเหตุ: {overtime.reason}</p>
+              <p className="text-gray-700 mt-2">สาเหตุ: {overtime.reason}</p>
             </div>
           ))}
-        </>
+        </div>
       );
     }, [attendanceStatus?.futureShifts, attendanceStatus?.futureOvertimes]);
 
     const { message, color } = getStatusMessage;
 
     return (
-      <div className="flex flex-col">
-        <div className="bg-white p-4 rounded-box mb-4 text-center">
+      <div className="space-y-6">
+        <div className="bg-white p-6 rounded-lg shadow-md text-center">
           <p className="text-2xl font-bold">{userData.name}</p>
-          <p className="text-xl">รหัสพนักงาน: {userData.employeeId}</p>
+          <p className="text-xl text-gray-600">
+            รหัสพนักงาน: {userData.employeeId}
+          </p>
           <p className="text-gray-600">แผนก: {userData.departmentName}</p>
-
-          <div className="flex flex-col items-center">
-            <div className="flex items-center mt-2">
-              <div
-                className={`w-3 h-3 rounded-full bg-${color}-500 mr-2`}
-              ></div>
-              <span className="text-gray-600">{message}</span>
-            </div>
+          <div
+            className="mt-4 inline-flex items-center px-3 py-1 rounded-full text-sm"
+            style={{
+              backgroundColor: `rgba(${color === 'red' ? '239, 68, 68' : color === 'green' ? '34, 197, 94' : '59, 130, 246'}, 0.1)`,
+            }}
+          >
+            <div
+              className={`w-2 h-2 rounded-full bg-${color === 'red' ? 'red-500' : color === 'green' ? 'green-500' : 'blue-500'} mr-2`}
+            ></div>
+            <span
+              className={`text-${color === 'red' ? 'red-700' : color === 'green' ? 'green-700' : 'blue-700'}`}
+            >
+              {message}
+            </span>
           </div>
         </div>
         {renderTodayInfo}
