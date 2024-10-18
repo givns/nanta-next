@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Formik, Form, Field, ErrorMessage } from 'formik';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Formik, Form, Field } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import { format, parseISO } from 'date-fns';
@@ -11,16 +11,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardFooter,
-} from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import TimePickerField from './TimePickerField';
 import OvertimeSummary from './OvertimeSummary';
+import ErrorBoundary from './ErrorBoundary';
+import SkeletonLoader from './SkeletonLoader';
 import {
   formatTime,
   getBangkokTime,
@@ -43,6 +40,14 @@ interface SummaryData {
     isDayOff: boolean;
     duration: number;
   }>;
+}
+
+interface FormValues {
+  employeeIds: string[];
+  startTime: string;
+  endTime: string;
+  reason: string;
+  isManager: boolean;
 }
 
 const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
@@ -68,23 +73,43 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       )
     );
   }, [userData]);
+  console.log('userData', userData);
 
-  const OvertimeSchema = Yup.object().shape({
-    employeeIds: Yup.array()
-      .of(Yup.string())
-      .test(
-        'is-employee-selected',
-        'เลือกพนักงานอย่างน้อย 1 คน',
-        function (value) {
-          const { isManager } = this.parent;
-          return isManager ? value && value.length > 0 : true;
-        },
-      ),
-    startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
-    endTime: Yup.string().required('กรุณาระบุเวลาสิ้นสุด'),
-    reason: Yup.string().required('กรุณาระบุเหตุผล'),
-    isManager: Yup.boolean(),
-  });
+  const fetchUserData = useCallback(async (lineUserId: string) => {
+    try {
+      const response = await axios.get(
+        `/api/user-data?lineUserId=${lineUserId}`,
+      );
+      setUserData(response.data.user);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setMessage('ไม่สามารถดึงข้อมูลผู้ใช้ได้');
+    }
+  }, []);
+
+  const fetchExistingRequests = useCallback(async (lineUserId: string) => {
+    try {
+      const response = await axios.get(
+        `/api/overtime/existing-requests?lineUserId=${lineUserId}`,
+      );
+      setExistingRequests(response.data);
+    } catch (error) {
+      console.error('Error fetching existing requests:', error);
+      setMessage('ไม่สามารถดึงข้อมูลคำขอที่มีอยู่ได้');
+    }
+  }, []);
+
+  const fetchEmployees = useCallback(async (lineUserId: string) => {
+    try {
+      const response = await axios.get('/api/employees', {
+        headers: { 'x-line-userid': lineUserId },
+      });
+      setEmployees(response.data);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      setMessage('ไม่สามารถดึงข้อมูลพนักงานได้');
+    }
+  }, []);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -107,43 +132,31 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     };
 
     initializeData();
-  }, [liff, isManager, lineUserId]);
+  }, [
+    liff,
+    isManager,
+    lineUserId,
+    fetchUserData,
+    fetchExistingRequests,
+    fetchEmployees,
+  ]);
 
-  const fetchUserData = async (lineUserId: string) => {
-    try {
-      const response = await axios.get(
-        `/api/user-data?lineUserId=${lineUserId}`,
-      );
-      setUserData(response.data.user);
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      setMessage('ไม่สามารถดึงข้อมูลผู้ใช้ได้');
-    }
-  };
-
-  const fetchExistingRequests = async (lineUserId: string) => {
-    try {
-      const response = await axios.get(
-        `/api/overtime/existing-requests?lineUserId=${lineUserId}`,
-      );
-      setExistingRequests(response.data);
-    } catch (error) {
-      console.error('Error fetching existing requests:', error);
-      setMessage('ไม่สามารถดึงข้อมูลคำขอที่มีอยู่ได้');
-    }
-  };
-
-  const fetchEmployees = async (lineUserId: string) => {
-    try {
-      const response = await axios.get('/api/employees', {
-        headers: { 'x-line-userid': lineUserId },
-      });
-      setEmployees(response.data);
-    } catch (error) {
-      console.error('Error fetching employees:', error);
-      setMessage('ไม่สามารถดึงข้อมูลพนักงานได้');
-    }
-  };
+  const OvertimeSchema = Yup.object().shape({
+    employeeIds: Yup.array()
+      .of(Yup.string())
+      .test(
+        'is-employee-selected',
+        'เลือกพนักงานอย่างน้อย 1 คน',
+        function (value) {
+          const { isManager } = this.parent;
+          return isManager ? value && value.length > 0 : true;
+        },
+      ),
+    startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
+    endTime: Yup.string().required('กรุณาระบุเวลาสิ้นสุด'),
+    reason: Yup.string().required('กรุณาระบุเหตุผล'),
+    isManager: Yup.boolean(),
+  });
 
   const handleOvertimeSubmit = async (values: any) => {
     try {
@@ -170,13 +183,6 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       console.error('Error preparing summary:', error);
       setMessage('ไม่สามารถสร้างสรุปคำขอทำงานล่วงเวลาได้');
     }
-  };
-
-  const calculateDuration = (startTime: string, endTime: string) => {
-    const start = new Date(`2000-01-01T${startTime}`);
-    const end = new Date(`2000-01-01T${endTime}`);
-    const diff = end.getTime() - start.getTime();
-    return Math.round((diff / (1000 * 60 * 60)) * 100) / 100; // Convert to hours with 2 decimal places
   };
 
   const handleConfirmSubmit = async () => {
@@ -218,28 +224,15 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     }
   };
 
-  const handleOvertimeResponse = async (
-    requestId: string,
-    action: 'accept' | 'decline',
-  ) => {
-    try {
-      await axios.post('/api/overtime/respond-to-request', {
-        requestId,
-        action,
-        lineUserId,
-      });
-      setMessage(
-        `คำขอทำงานล่วงเวลาถูก${action === 'accept' ? 'ยอมรับ' : 'ปฏิเสธ'}แล้ว`,
-      );
-      fetchExistingRequests(lineUserId);
-    } catch (error) {
-      console.error('Error responding to overtime request:', error);
-      setMessage('ไม่สามารถตอบกลับคำขอทำงานล่วงเวลาได้');
-    }
+  const calculateDuration = (startTime: string, endTime: string) => {
+    const start = new Date(`2000-01-01T${startTime}`);
+    const end = new Date(`2000-01-01T${endTime}`);
+    const diff = end.getTime() - start.getTime();
+    return Math.round((diff / (1000 * 60 * 60)) * 100) / 100; // Convert to hours with 2 decimal places
   };
 
   if (isLoading) {
-    return <div className="text-center p-4">กรุณารอสักครู่...</div>;
+    return <SkeletonLoader />;
   }
 
   if (showSummary && summaryData) {
@@ -253,161 +246,165 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>
-          {isManager ? 'สร้างคำขอทำงานล่วงเวลา' : 'คำขอทำงานล่วงเวลา'}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!isManager && existingRequests.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-2">คำขอที่มีอยู่</h3>
-            <ul className="space-y-2">
-              {existingRequests.map((request) => (
-                <li key={request.id} className="border p-2 rounded">
-                  <div>
-                    {format(parseISO(request.date), 'dd/MM/yyyy')} -{' '}
-                    {request.startTime} to {request.endTime}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    สถานะ:{' '}
-                    {request.status === 'pending'
-                      ? 'รอการอนุมัติ'
-                      : request.status === 'approved'
-                        ? 'อนุมัติแล้ว'
-                        : 'ปฏิเสธแล้ว'}
-                  </div>
-                  {request.status === 'pending' && (
-                    <div className="mt-2">
-                      <Button
-                        onClick={() =>
-                          handleOvertimeResponse(request.id, 'accept')
-                        }
-                        className="mr-2"
-                        variant="outline"
-                      >
-                        ยอมรับ
-                      </Button>
-                      <Button
-                        onClick={() =>
-                          handleOvertimeResponse(request.id, 'decline')
-                        }
-                        variant="destructive"
-                      >
-                        ปฏิเสธ
-                      </Button>
+    <ErrorBoundary>
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle>
+            {isManager ? 'สร้างคำขอทำงานล่วงเวลา' : 'คำขอทำงานล่วงเวลา'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!isManager && existingRequests.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-2">คำขอที่มีอยู่</h3>
+              <ul className="space-y-2">
+                {existingRequests.map((request) => (
+                  <li key={request.id} className="border p-2 rounded">
+                    <div>
+                      {format(parseISO(request.date), 'dd/MM/yyyy')} -{' '}
+                      {request.startTime} to {request.endTime}
                     </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+                    <div className="text-sm text-gray-500">
+                      สถานะ:{' '}
+                      {request.status === 'pending'
+                        ? 'รอการอนุมัติ'
+                        : request.status === 'approved'
+                          ? 'อนุมัติแล้ว'
+                          : 'ปฏิเสธแล้ว'}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-        <Formik
-          initialValues={{
-            employeeIds: [],
-            startTime: userData?.shiftCode
-              ? formatTime(userData.shiftCode.split('-')[1])
-              : '',
-            endTime: '',
-            reason: '',
-            isManager,
-          }}
-          validationSchema={OvertimeSchema}
-          onSubmit={handleOvertimeSubmit}
-        >
-          {({ isSubmitting }) => (
-            <Form className="space-y-4">
-              {isManager && (
+          <Formik<FormValues>
+            initialValues={{
+              employeeIds: [],
+              startTime: userData?.shiftCode
+                ? formatTime(userData.shiftCode.split('-')[1])
+                : '',
+              endTime: '',
+              reason: '',
+              isManager: false, // Provide a default value for isManager
+            }}
+            validationSchema={OvertimeSchema}
+            onSubmit={handleOvertimeSubmit}
+          >
+            {({ values, errors, touched, setFieldValue, isSubmitting }) => (
+              <Form className="space-y-4">
+                {isManager && (
+                  <div>
+                    <Label htmlFor="employeeIds">เลือกพนักงาน</Label>
+                    <div className="mt-2 space-y-2">
+                      {employees.map((employee) => (
+                        <div key={employee.id} className="flex items-center">
+                          <Checkbox
+                            id={`employee-${employee.id}`}
+                            checked={values.employeeIds.includes(employee.id)}
+                            onCheckedChange={(checked: boolean) => {
+                              if (checked) {
+                                setFieldValue('employeeIds', [
+                                  ...values.employeeIds,
+                                  employee.id,
+                                ]);
+                              } else {
+                                setFieldValue(
+                                  'employeeIds',
+                                  values.employeeIds.filter(
+                                    (id) => id !== employee.id,
+                                  ),
+                                );
+                              }
+                            }}
+                          />
+                          <Label
+                            htmlFor={`employee-${employee.id}`}
+                            className="ml-2"
+                          >
+                            {employee.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    {errors.employeeIds && touched.employeeIds && (
+                      <div className="text-red-500 text-sm mt-1">
+                        {errors.employeeIds}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div>
-                  <Label htmlFor="employeeIds">เลือกพนักงาน</Label>
-                  <Field
-                    as={Select}
-                    id="employeeIds"
-                    name="employeeIds"
-                    multiple
+                  <Label htmlFor="date">วันที่</Label>
+                  <Input
+                    type="date"
+                    id="date"
+                    name="date"
+                    value={newRequestDate}
+                    onChange={(e) => setNewRequestDate(e.target.value)}
                     className="mt-1"
-                  >
-                    {employees.map((employee) => (
-                      <option key={employee.id} value={employee.id}>
-                        {employee.name}
-                      </option>
-                    ))}
-                  </Field>
-                  <ErrorMessage
-                    name="employeeIds"
-                    component="div"
-                    className="text-red-500 text-sm"
                   />
                 </div>
-              )}
-              <div>
-                <Label htmlFor="date">วันที่</Label>
-                <Input
-                  type="date"
-                  id="date"
-                  name="date"
-                  value={newRequestDate}
-                  onChange={(e) => setNewRequestDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="startTime">เวลาเริ่มต้น</Label>
-                <Field
-                  name="startTime"
-                  component={TimePickerField}
-                  className="mt-1"
-                />
-                <ErrorMessage
-                  name="startTime"
-                  component="div"
-                  className="text-red-500 text-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="endTime">เวลาสิ้นสุด</Label>
-                <Field
-                  name="endTime"
-                  component={TimePickerField}
-                  className="mt-1"
-                />
-                <ErrorMessage
-                  name="endTime"
-                  component="div"
-                  className="text-red-500 text-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="reason">เหตุผล</Label>
-                <Field
-                  as={Textarea}
-                  id="reason"
-                  name="reason"
-                  className="mt-1"
-                  rows={3}
-                />
-                <ErrorMessage
-                  name="reason"
-                  component="div"
-                  className="text-red-500 text-sm"
-                />
-              </div>
-              <Button type="submit" disabled={isSubmitting} className="w-full">
-                {isSubmitting ? 'กำลังสร้างสรุป...' : 'สร้างสรุปคำขอ'}
-              </Button>
-            </Form>
-          )}
-        </Formik>
+                <div>
+                  <Label htmlFor="startTime">เวลาเริ่มต้น</Label>
+                  <Field
+                    name="startTime"
+                    component={TimePickerField}
+                    className="mt-1"
+                  />
+                  {errors.startTime && touched.startTime && (
+                    <div className="text-red-500 text-sm mt-1">
+                      {errors.startTime}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="endTime">เวลาสิ้นสุด</Label>
+                  <Field
+                    name="endTime"
+                    component={TimePickerField}
+                    className="mt-1"
+                  />
+                  {errors.endTime && touched.endTime && (
+                    <div className="text-red-500 text-sm mt-1">
+                      {errors.endTime}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="reason">เหตุผล</Label>
+                  <Field
+                    as={Textarea}
+                    id="reason"
+                    name="reason"
+                    className="mt-1"
+                    rows={3}
+                  />
+                  {errors.reason && touched.reason && (
+                    <div className="text-red-500 text-sm mt-1">
+                      {errors.reason}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full"
+                >
+                  {isSubmitting ? 'กำลังสร้างสรุป...' : 'สร้างสรุปคำขอ'}
+                </Button>
+              </Form>
+            )}
+          </Formik>
 
-        {message && (
-          <Alert className="mt-4">
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        )}
-      </CardContent>
-    </Card>
+          {message && (
+            <Alert className="mt-4">
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+    </ErrorBoundary>
   );
 };
 
