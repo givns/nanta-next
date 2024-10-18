@@ -5,6 +5,7 @@ import * as Yup from 'yup';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
 import { calculateFullDayCount } from '../lib/holidayUtils';
+import LeaveBalanceCard from './LeaveBalanceCard';
 
 export interface FormValues {
   leaveType: string;
@@ -102,17 +103,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
       {renderUserInfo()}
-      <div className="p6 text-center">
-        <h2 className="text-lg font-bold mb-4">วันลาคงเหลือ</h2>
-        <div className="flex flex-col items-center">
-          <div>
-            <p>ลาป่วย: {leaveBalance.sickLeave} วัน</p>
-            <p>ลากิจ: {leaveBalance.sickLeave} วัน</p>
-            <p>ลาพักร้อน: {leaveBalance.annualLeave} วัน</p>
-            <p className="text-lg font-bold mt-2"></p>
-          </div>
-        </div>
-      </div>
+      <LeaveBalanceCard leaveBalance={leaveBalance} />
       <button
         onClick={() => setStep(2)}
         className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
