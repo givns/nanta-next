@@ -187,49 +187,73 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
           {futureShiftAdjustments.map((adjustment, index) => (
             <div
               key={`shift-${index}`}
-              className="bg-white p-6 rounded-lg shadow-md relative"
+              className="bg-yellow-400 p-6 rounded-lg shadow-md"
             >
-              <div className="absolute top-4 right-4 text-right">
-                <p className="text-sm text-gray-500">
-                  {format(parseISO(adjustment.date), 'EEEE', { locale: th })}
-                </p>
-                <p className="text-lg font-semibold">
-                  {format(parseISO(adjustment.date), 'd MMM yyyy', {
-                    locale: th,
-                  })}
-                </p>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center">
+                  <Briefcase className="mr-2" /> การปรับเปลี่ยนกะการทำงาน
+                </h3>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-red-600">
+                    {format(parseISO(adjustment.date), 'd', { locale: th })}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {format(parseISO(adjustment.date), 'MMM', { locale: th })}
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2 flex items-center">
-                <Briefcase className="mr-2" /> การปรับเปลี่ยนกะการทำงาน
-              </h3>
-              <p className="text-gray-700">กะ: {adjustment.shift?.name}</p>
-              <p className="text-gray-600 flex items-center mt-1">
-                <Clock className="mr-2" size={16} />
-                {adjustment.shift?.startTime} - {adjustment.shift?.endTime}
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-700 font-medium">
+                    กะ: {adjustment.shift?.name}
+                  </p>
+                  <p className="text-gray-600 flex items-center mt-1">
+                    <Clock className="mr-2" size={16} />
+                    {adjustment.shift?.startTime} - {adjustment.shift?.endTime}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">
+                    {format(parseISO(adjustment.date), 'EEEE', { locale: th })}
+                  </p>
+                </div>
+              </div>
             </div>
           ))}
           {attendanceStatus?.futureOvertimes.map((overtime, index) => (
             <div
               key={`overtime-${index}`}
-              className="bg-white p-6 rounded-lg shadow-md relative"
+              className="bg-yellow-400 p-6 rounded-lg shadow-md"
             >
-              <div className="absolute top-4 right-4 text-right">
-                <p className="text-sm text-gray-500">
-                  {format(overtime.date, 'EEEE', { locale: th })}
-                </p>
-                <p className="text-lg font-semibold">
-                  {format(overtime.date, 'd MMM yyyy', { locale: th })}
-                </p>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center">
+                  <AlertCircle className="mr-2" /> แจ้งเตือน OT ล่วงหน้า
+                </h3>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-red-600">
+                    {format(overtime.date, 'd', { locale: th })}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {format(overtime.date, 'MMM', { locale: th })}
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2 flex items-center">
-                <AlertCircle className="mr-2" /> แจ้งเตือน OT ล่วงหน้า
-              </h3>
-              <p className="text-gray-600 flex items-center mt-1">
-                <Clock className="mr-2" size={16} />
-                {overtime.startTime} - {overtime.endTime}
-              </p>
-              <p className="text-gray-700 mt-2">สาเหตุ: {overtime.reason}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 flex items-center">
+                    <Clock className="mr-2" size={16} />
+                    {overtime.startTime} - {overtime.endTime}
+                  </p>
+                  <p className="text-gray-700 mt-2">
+                    สาเหตุ: {overtime.reason}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">
+                    {format(overtime.date, 'EEEE', { locale: th })}
+                  </p>
+                </div>
+              </div>
             </div>
           ))}
         </div>
