@@ -254,6 +254,8 @@ export interface CheckInOutAllowance {
   isDayOffOvertime?: boolean;
   isPendingDayOffOvertime?: boolean;
   isPendingOvertime?: boolean;
+  requireConfirmation?: boolean;
+  isEarlyCheckOut?: boolean;
   isPotentialOvertime?: boolean;
 }
 

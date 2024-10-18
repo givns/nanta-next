@@ -267,6 +267,8 @@ export class AttendanceService {
           pendingOvertime,
           inPremises,
           address,
+          leaveRequest ? [leaveRequest] : [], // Add this and convert leaveRequest to an array if it exists
+          effectiveShift,
         );
       }
     } catch (error) {
@@ -473,7 +475,34 @@ export class AttendanceService {
     pendingOvertime: any,
     inPremises: boolean,
     address: string,
+    leaveRequests: LeaveRequest[] = [], // Add this parameter
+    effectiveShift: ShiftData, // Add this parameter
   ): Promise<CheckInOutAllowance> {
+    const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
+    const shiftMidpoint = new Date(
+      (shiftStart.getTime() + shiftEnd.getTime()) / 2,
+    );
+    const isEarlyCheckOut = isBefore(now, shiftMidpoint);
+    const approvedHalfDayLeave = leaveRequests.find(
+      (leave) =>
+        leave.status === 'Approved' &&
+        leave.leaveFormat === 'ลาครึ่งวัน' &&
+        isSameDay(parseISO(leave.startDate.toString()), now),
+    );
+
+    if (isEarlyCheckOut && !approvedHalfDayLeave) {
+      return this.createResponse(
+        true,
+        'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ',
+        {
+          inPremises,
+          address,
+          requireConfirmation: true,
+          isEarlyCheckOut: true,
+        },
+      );
+    }
+
     if (approvedOvertime) {
       const isOvertime = this.isOvertimeCheckOut(
         now,

@@ -177,79 +177,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture);
 
-  const confirmEarlyCheckOut = useCallback(async () => {
-    if (!effectiveShift || !userData || !liveAttendanceStatus) return true;
-
-    const now = getCurrentTime();
-    const shiftStart = new Date(now);
-    const shiftEnd = new Date(now);
-
-    shiftStart.setHours(parseInt(effectiveShift.startTime.split(':')[0], 10));
-    shiftStart.setMinutes(parseInt(effectiveShift.startTime.split(':')[1], 10));
-
-    shiftEnd.setHours(parseInt(effectiveShift.endTime.split(':')[0], 10));
-    shiftEnd.setMinutes(parseInt(effectiveShift.endTime.split(':')[1], 10));
-
-    // Calculate shift midpoint
-    const shiftMidpoint = new Date(
-      (shiftStart.getTime() + shiftEnd.getTime()) / 2,
-    );
-
-    // Check for approved half-day leave
-    const approvedHalfDayLeave = liveAttendanceStatus.leaveRequests?.find(
-      (leave) =>
-        leave.status === 'Approved' &&
-        leave.leaveFormat === 'ลาครึ่งวัน' &&
-        isSameDay(parseISO(leave.startDate), now),
-    );
-
-    if (approvedHalfDayLeave) {
-      const leaveStartTime = parseISO(approvedHalfDayLeave.startDate);
-      const isMorningLeave = leaveStartTime < shiftMidpoint;
-
-      if (
-        (isMorningLeave && now >= shiftMidpoint) ||
-        (!isMorningLeave && now >= shiftStart)
-      ) {
-        // Allow check-out without confirmation for approved half-day leave
-        return true;
-      }
-    }
-
-    const EarlyCheckOut = subMinutes(shiftStart, 15); // 15 minutes grace period
-
-    if (!EarlyCheckOut) {
-      const confirmed = window.confirm(
-        'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
-      );
-
-      if (confirmed) {
-        try {
-          setIsLoading(true);
-          if (userData && userData.lineUserId) {
-            // Check if userData and userData.lineUserId are not null
-            await createSickLeaveRequest(userData.lineUserId, now);
-            alert('คำขอลาป่วยถูกส่งเรียบร้อยแล้ว');
-            return true;
-          } else {
-            throw new Error('Invalid user data');
-          }
-        } catch (error) {
-          console.error('Error creating sick leave request:', error);
-          alert('เกิดข้อผิดพลาดในการส่งคำขอลาป่วย กรุณาติดต่อ HR');
-          return false;
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        return false;
-      }
-    }
-    return true;
-  }, [effectiveShift, userData, liveAttendanceStatus]);
-
   const createSickLeaveRequest = async (lineUserId: string, date: Date) => {
-    const response = await fetch('/api/leave-requests', {
+    const response = await fetch('/api/leaveRequest/create', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -301,7 +230,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [step, onCloseWindow]);
 
   const handleAction = useCallback(
-    (action: 'checkIn' | 'checkOut') => {
+    async (action: 'checkIn' | 'checkOut') => {
       console.log('handleAction called with:', action);
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -309,8 +238,59 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
 
       try {
-        if (action === 'checkOut' && !confirmEarlyCheckOut()) {
-          return;
+        if (action === 'checkOut' && checkInOutAllowance?.requireConfirmation) {
+          const now = getCurrentTime();
+
+          if (effectiveShift) {
+            const shiftStart = new Date(now);
+            const shiftEnd = new Date(now);
+
+            shiftStart.setHours(
+              parseInt(effectiveShift.startTime.split(':')[0], 10),
+            );
+            shiftStart.setMinutes(
+              parseInt(effectiveShift.startTime.split(':')[1], 10),
+            );
+
+            shiftEnd.setHours(
+              parseInt(effectiveShift.endTime.split(':')[0], 10),
+            );
+            shiftEnd.setMinutes(
+              parseInt(effectiveShift.endTime.split(':')[1], 10),
+            );
+
+            const shiftMidpoint = new Date(
+              (shiftStart.getTime() + shiftEnd.getTime()) / 2,
+            );
+
+            const approvedHalfDayLeave =
+              liveAttendanceStatus?.leaveRequests?.find(
+                (leave) =>
+                  leave.status === 'Approved' &&
+                  leave.leaveFormat === 'ลาครึ่งวัน' &&
+                  isSameDay(parseISO(leave.startDate), now),
+              );
+
+            if (!approvedHalfDayLeave || now < shiftMidpoint) {
+              const confirmed = window.confirm(checkInOutAllowance.reason);
+              if (!confirmed) {
+                return;
+              }
+              if (
+                checkInOutAllowance.isEarlyCheckOut &&
+                userData &&
+                userData.lineUserId
+              ) {
+                await createSickLeaveRequest(userData.lineUserId, now);
+              }
+            }
+          } else {
+            console.error('Effective shift is not available');
+            setError(
+              'Unable to process check-out. Shift information is missing.',
+            );
+            return;
+          }
         }
 
         if (checkInOutAllowance?.allowed) {
@@ -327,7 +307,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setError('An unexpected error occurred. Please try again.');
       }
     },
-    [confirmEarlyCheckOut, checkInOutAllowance, resetDetection],
+    [
+      checkInOutAllowance,
+      userData,
+      liveAttendanceStatus,
+      effectiveShift,
+      createSickLeaveRequest,
+      resetDetection,
+      setStep,
+      setError,
+    ],
   );
 
   const memoizedUserShiftInfo = useMemo(
