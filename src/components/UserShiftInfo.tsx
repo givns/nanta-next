@@ -6,6 +6,7 @@ import {
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { format, isToday, isValid, parseISO } from 'date-fns';
+import { th } from 'date-fns/locale';
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -199,13 +200,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
               className="bg-green-300 p-4 rounded-box mb-4"
             >
               <h3 className="font-bold">
-                Approved Overtime on{' '}
-                {format(parseISO(overtime.date.toString()), 'dd MMM yyyy')}
+                แจ้งเตือน OT ล่วงหน้า{' '}
+                {format(overtime.date, 'dd MMMM yyyy', { locale: th })}
               </h3>
               <p>
-                Time: {overtime.startTime} - {overtime.endTime}
+                เวลา: {overtime.startTime} - {overtime.endTime}
               </p>
-              <p>Reason: {overtime.reason}</p>
+              <p>สาเหตุ: {overtime.reason}</p>
             </div>
           ))}
         </>
