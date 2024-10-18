@@ -132,7 +132,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         await onStatusChange(
           liveAttendanceStatus?.isCheckingIn ?? true,
           photo,
-          lateReason,
+          '',
           isLate,
           isOvertime,
         );

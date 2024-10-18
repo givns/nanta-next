@@ -269,6 +269,7 @@ export class AttendanceService {
           address,
           leaveRequest ? [leaveRequest] : [], // Add this and convert leaveRequest to an array if it exists
           effectiveShift,
+          latestAttendance,
         );
       }
     } catch (error) {
@@ -477,7 +478,14 @@ export class AttendanceService {
     address: string,
     leaveRequests: LeaveRequest[] = [], // Add this parameter
     effectiveShift: ShiftData, // Add this parameter
+    latestAttendance: Attendance | null,
   ): Promise<CheckInOutAllowance> {
+    if (latestAttendance && latestAttendance.checkOutTime) {
+      return this.createResponse(false, 'คุณได้ลงเวลาออกงานแล้ว', {
+        inPremises,
+        address,
+      });
+    }
     const shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
     const shiftMidpoint = new Date(
       (shiftStart.getTime() + shiftEnd.getTime()) / 2,
