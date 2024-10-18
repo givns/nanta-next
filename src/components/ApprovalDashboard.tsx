@@ -12,11 +12,17 @@ interface Request {
   type?: string;
 }
 
-const ApprovalDashboard: React.FC = () => {
-  const [leaveRequests, setLeaveRequests] = useState<Request[]>([]);
-  const [overtimeRequests, setOvertimeRequests] = useState<Request[]>([]);
-  const [potentialOvertimes, setPotentialOvertimes] = useState<Request[]>([]);
+interface ApprovalDashboardProps {
+  leaveRequests: Request[];
+  overtimeRequests: Request[];
+  potentialOvertimes: Request[];
+}
 
+const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({
+  leaveRequests,
+  overtimeRequests,
+  potentialOvertimes,
+}) => {
   useEffect(() => {
     fetchRequests();
   }, []);
@@ -28,9 +34,9 @@ const ApprovalDashboard: React.FC = () => {
       fetch('/api/getPotentialOvertimes').then((res) => res.json()),
     ]);
 
-    setLeaveRequests(leaveData.requests);
-    setOvertimeRequests(overtimeData.requests);
-    setPotentialOvertimes(potentialOvertimeData.requests);
+    leaveData(leaveData.requests);
+    overtimeData(overtimeData.requests);
+    potentialOvertimeData(potentialOvertimeData.requests);
   };
 
   const handleAction = async (

@@ -10,7 +10,9 @@ import { startOfDay } from 'date-fns';
 const shiftManagementService = new ShiftManagementService(prisma);
 
 interface AdminShiftAdjustmentFormProps {
-  lineUserId?: string;
+  lineUserId: string;
+  shifts: Shift[];
+  departments: { id: string; name: string }[];
 }
 
 interface FormValues {

@@ -3,14 +3,14 @@ import { GetServerSideProps } from 'next';
 import liff from '@line/liff';
 import axios from 'axios';
 import ConsolidatedApprovalDashboard from '../components/ConsolidatedApprovalDashboard';
-import { User } from '@prisma/client';
 
 interface ApprovalDashboardProps {
   liffId: string;
 }
 
 const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
-  const [userData, setUserData] = useState<User | null>(null);
+  const [userData, setUserData] = useState(null);
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,11 +28,22 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
         }
 
         const profile = await liff.getProfile();
-        const userResponse = await axios.get(
-          `/api/user-data?lineUserId=${profile.userId}`,
-        );
-        const user = userResponse.data.user;
-        setUserData(user);
+        const lineUserId = profile.userId;
+
+        // Check authorization
+        const authResponse = await axios.get('/api/check-authorization', {
+          headers: { 'x-line-userid': lineUserId },
+        });
+        setIsAuthorized(authResponse.data.isAuthorized);
+
+        if (authResponse.data.isAuthorized) {
+          const userResponse = await axios.get(
+            `/api/user-data?lineUserId=${lineUserId}`,
+          );
+          setUserData(userResponse.data.user);
+        } else {
+          setError('คุณไม่ได้รับสิทธิการเข้าถึง');
+        }
       } catch (err) {
         console.error('Error during initialization or data fetching:', err);
         setError('Failed to initialize LIFF or fetch user data');
@@ -46,24 +57,15 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
     return <div>{error}</div>;
   }
 
+  if (!isAuthorized) {
+    return <div>คุณไม่ได้รับสิทธิการเข้าถึง</div>;
+  }
+
   if (!userData) {
     return <div>Loading...</div>;
   }
 
-  if (userData.role !== 'Admin' && userData.role !== 'SuperAdmin') {
-    return <div>คุณไม่ได้รับสิทธิการเข้าถึง</div>;
-  }
-
-  return (
-    <ConsolidatedApprovalDashboard
-      userData={{
-        employeeId: userData.employeeId,
-        role: userData.role,
-        departmentId: userData.departmentId ?? '',
-        lineUserId: userData.lineUserId ?? '',
-      }}
-    />
-  );
+  return <ConsolidatedApprovalDashboard userData={userData} />;
 };
 
 export const getServerSideProps: GetServerSideProps = async () => {

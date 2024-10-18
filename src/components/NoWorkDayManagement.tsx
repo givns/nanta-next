@@ -1,5 +1,4 @@
-//component/no-work-day-management.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '../components/ui/button';
 import { DatePicker } from '../components/ui/date-picker';
 import { Input } from '../components/ui/input';
@@ -11,39 +10,27 @@ interface NoWorkDay {
   reason?: string;
 }
 
-const NoWorkDayManagement: React.FC = () => {
-  const [noWorkDays, setNoWorkDays] = useState<NoWorkDay[]>([]);
+interface NoWorkDayManagementProps {
+  noWorkDays: NoWorkDay[];
+  onAddNoWorkDay: (date: Date, reason: string) => Promise<void>;
+  onDeleteNoWorkDay: (id: string) => Promise<void>;
+}
+
+const NoWorkDayManagement: React.FC<NoWorkDayManagementProps> = ({
+  noWorkDays,
+  onAddNoWorkDay,
+  onDeleteNoWorkDay,
+}) => {
   const [newDate, setNewDate] = useState<Date | null>(null);
   const [newReason, setNewReason] = useState('');
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-
-  useEffect(() => {
-    fetchNoWorkDays();
-  }, []);
-
-  const fetchNoWorkDays = async () => {
-    const response = await fetch('/api/noWorkDays');
-    const data = await response.json();
-    setNoWorkDays(data);
-  };
 
   const handleAddNoWorkDay = async () => {
     if (!newDate) return;
 
-    await fetch('/api/noWorkDays', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: newDate, reason: newReason }),
-    });
+    await onAddNoWorkDay(newDate, newReason);
 
     setNewDate(null);
     setNewReason('');
-    fetchNoWorkDays();
-  };
-
-  const handleDeleteNoWorkDay = async (id: string) => {
-    await fetch(`/api/noWorkDays/${id}`, { method: 'DELETE' });
-    fetchNoWorkDays();
   };
 
   const columns = [
@@ -54,20 +41,19 @@ const NoWorkDayManagement: React.FC = () => {
       key: 'action',
       dataIndex: 'id',
       render: (id: string) => (
-        <Button onClick={() => handleDeleteNoWorkDay(id)}>Delete</Button>
+        <Button onClick={() => onDeleteNoWorkDay(id)}>Delete</Button>
       ),
     },
   ];
-  // Wrapper function to handle undefined and convert it to null
-  const handleDateChange = (date: Date | undefined) => {
-    setSelectedDate(date ?? null);
-  };
 
   return (
     <div>
       <h1>No Work Day Management</h1>
       <div>
-        <DatePicker value={selectedDate} onChange={handleDateChange} />
+        <DatePicker
+          value={newDate}
+          onChange={(date) => setNewDate(date || null)}
+        />
         <Input
           placeholder="Reason"
           value={newReason}
