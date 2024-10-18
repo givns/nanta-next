@@ -152,16 +152,6 @@ async function handlePostback(event: WebhookEvent) {
       } else {
         throw new Error('Request not found');
       }
-
-      if (result) {
-        await client.replyMessage(event.replyToken, {
-          type: 'text',
-          text: result.message,
-        });
-        console.log('Reply message sent to user');
-      } else {
-        throw new Error('No result from request handler');
-      }
     } catch (error) {
       console.error('Error processing postback action:', error);
       await client.replyMessage(event.replyToken, {
