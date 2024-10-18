@@ -180,6 +180,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     }
 
     await this.notifyAdmins(adminMessage, 'overtime');
+    console.log('Sending admin notification:', adminMessage);
+    console.log('Sending employee notification:', message);
 
     // Notify employee
     if (request.user.lineUserId) {
@@ -221,7 +223,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     await this.timeEntryService.createPendingOvertimeEntry(approvedRequest);
 
-    const message = `คำขอทำงานล่วงเวลาของคุณสำหรับวันที่ ${format(approvedRequest.date, 'dd MMMM yyyy', { locale: th })} เวลา ${approvedRequest.startTime} - ${approvedRequest.endTime} ได้รับการอนุมัติโดยระบบ`;
+    const message = `คำขอทำงานล่วงเวลาของคุณสำหรับวันที่ ${format(approvedRequest.date, 'dd MMMM yyyy', { locale: th })} เวลา ${approvedRequest.startTime} - ${approvedRequest.endTime} ได้รับการอนุมัติโดยอัตโนมัติ`;
 
     return { updatedRequest: approvedRequest, message };
   }
