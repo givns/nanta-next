@@ -1,15 +1,17 @@
+// pages/approval-dash.tsx
+
 import { useEffect, useState } from 'react';
 import { GetServerSideProps } from 'next';
 import liff from '@line/liff';
 import axios from 'axios';
-import AdminDashboard from '../components/AdminDashboard';
+import OvertimeDashboard from '../components/OvertimeDashboard';
 import { User } from '@prisma/client';
 
-interface ApprovalDashboardProps {
+interface OvertimePageProps {
   liffId: string;
 }
 
-const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
+const OvertimePage: React.FC<OvertimePageProps> = ({ liffId }) => {
   const [userData, setUserData] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +64,13 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
     return <div>คุณไม่ได้รับสิทธิการเข้าถึง</div>;
   }
 
-  return <AdminDashboard userData={userData} />;
+  return (
+    <OvertimeDashboard
+      employeeId={userData.employeeId}
+      userRole={userData.role}
+      userDepartmentId={userData.departmentId ?? ''}
+    />
+  );
 };
 
 export const getServerSideProps: GetServerSideProps = async () => {
@@ -75,4 +83,4 @@ export const getServerSideProps: GetServerSideProps = async () => {
   return { props: { liffId } };
 };
 
-export default ApprovalDashboard;
+export default OvertimePage;

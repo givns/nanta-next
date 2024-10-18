@@ -10,6 +10,7 @@ import {
   getCachedUserData,
   getCachedAttendanceStatus,
 } from '../services/userService';
+import LoadingBar from '../components/LoadingBar';
 
 const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
   ssr: false,
@@ -221,17 +222,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               <span className="block sm:inline"> {formError}</span>
             </div>
           )}
-          {!inPremises && (
-            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative mt-4">
-              <span className="block sm:inline">คุณอยู่นอกสถานที่ทำงาน</span>
-              <button
-                onClick={getCurrentLocation}
-                className="mt-2 bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded text-sm"
-              >
-                ตรวจสอบตำแหน่งอีกครั้ง
-              </button>
-            </div>
-          )}
           <ErrorBoundary
             onError={(error: Error) => {
               console.error('Error in CheckInOutForm:', error);
@@ -242,7 +232,10 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               {isDataReady ? (
                 userData && memoizedCheckInOutForm
               ) : (
-                <div>ระบบกำลังประมวลผล...</div>
+                <div className="mt-8">
+                  <LoadingBar />
+                  <p className="text-center mt-4">ระบบกำลังประมวลผล...</p>
+                </div>
               )}
             </div>
           </ErrorBoundary>

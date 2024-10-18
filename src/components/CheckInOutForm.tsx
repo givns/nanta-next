@@ -437,8 +437,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     <ErrorBoundary>
       <div className="h-screen flex flex-col relative">
         {isSubmitting && (
-          <div className="absolute inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-            <div className="text-white text-lg">กำลังบันทึกข้อมูล...</div>
+          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+            <div className="text-black text-lg">กำลังบันทึกข้อมูล...</div>
           </div>
         )}
         <div className="flex-grow overflow-hidden flex flex-col">
