@@ -1,5 +1,13 @@
 import React from 'react';
 import { format } from 'date-fns';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface OvertimeSummaryProps {
   data: {
@@ -24,44 +32,40 @@ const OvertimeSummary: React.FC<OvertimeSummaryProps> = ({
   onCancel,
 }) => {
   return (
-    <div className="bg-white rounded-box p-4 mb-4">
-      <h2 className="text-2xl font-bold mb-6 text-center">
-        สรุปคำขอทำงานล่วงเวลา
-      </h2>
-      <div className="space-y-4">
-        <p>
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle>สรุปคำขอทำงานล่วงเวลา</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
           <strong>วันที่:</strong> {format(new Date(data.date), 'dd/MM/yyyy')}
-        </p>
-        <p>
+        </div>
+        <div>
           <strong>เวลา:</strong> {data.startTime} - {data.endTime}
-        </p>
-        <p>
+        </div>
+        <div>
           <strong>เหตุผล:</strong> {data.reason}
-        </p>
-        <h3 className="text-lg font-semibold">รายชื่อพนักงาน:</h3>
-        <ul className="list-disc pl-5">
-          {data.employees.map((employee, index) => (
-            <li key={index}>
-              {employee.name} - {employee.isDayOff ? 'วันหยุด' : 'วันทำงาน'}{' '}
-              (ระยะเวลา: {employee.duration} ชั่วโมง)
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="mt-6 flex justify-between">
-        <button
-          onClick={onCancel}
-          className="py-2 px-4 border border-gray-300 rounded-full shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
+        </div>
+        <div>
+          <strong>รายชื่อพนักงาน:</strong>
+          <ul className="list-disc pl-5 mt-2">
+            {data.employees.map((employee, index) => (
+              <li key={index}>
+                {employee.name} - {employee.isDayOff ? 'วันหยุด' : 'วันทำงาน'}{' '}
+                (ระยะเวลา: {employee.duration} ชั่วโมง)
+              </li>
+            ))}
+          </ul>
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-between">
+        <Button onClick={onCancel} variant="outline">
           แก้ไข
-        </button>
-        <button
-          onClick={onConfirm}
-          className="py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-        >
-          ยืนยันและส่งคำขอ
-        </button>
-      </div>
-    </div>
+        </Button>
+        <Button onClick={onConfirm}>ยืนยันและส่งคำขอ</Button>
+      </CardFooter>
+    </Card>
   );
 };
+
+export default OvertimeSummary;
