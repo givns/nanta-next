@@ -1,86 +1,57 @@
-import * as React from 'react';
+import React, { useEffect, useState } from 'react';
+import { FieldProps } from 'formik';
 import { Clock } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+interface TimePickerProps extends FieldProps {
+  className?: string;
+  defaultTime?: string; // Allow passing default time prop
+}
 
-export default function Component() {
-  const [hours, setHours] = React.useState('12');
-  const [minutes, setMinutes] = React.useState('00');
-  const [period, setPeriod] = React.useState('AM');
+const TimePickerField: React.FC<TimePickerProps> = ({
+  field,
+  form,
+  className,
+  defaultTime = '18:00', // Set default time to 18:00
+  ...props
+}) => {
+  const [currentTime, setCurrentTime] = useState(defaultTime);
 
+  // On component mount, set the default time in Formik form values
+  useEffect(() => {
+    form.setFieldValue(field.name, defaultTime);
+  }, [form, field.name, defaultTime]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const [hours, minutes] = e.target.value.split(':');
+    const roundedMinutes = Math.round(parseInt(minutes) / 30) * 30;
+    const formattedTime = `${hours}:${roundedMinutes.toString().padStart(2, '0')}`;
+    form.setFieldValue(field.name, formattedTime); // Update Formik value
+    setCurrentTime(formattedTime); // Update local state for display
+  };
+
+  // Format the time with AM/PM display
   const formatTime = () => {
-    return `${hours}:${minutes} ${period}`;
+    const [hours, minutes] = currentTime.split(':');
+    const period = parseInt(hours) >= 12 ? 'PM' : 'AM';
+    const formattedHours = String(parseInt(hours) % 12 || 12); // Convert to 12-hour format
+    return `${formattedHours}:${minutes} ${period}`;
   };
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className="w-[280px] justify-start text-left font-normal"
-        >
-          <Clock className="mr-2 h-4 w-4" />
-          {formatTime()}
-        </Button>
-      </PopoverTrigger>
-
-      {/* Ensure proper background color and z-index */}
-      <PopoverContent className="w-[280px] p-0 bg-white z-50 shadow-lg">
-        <div className="flex items-center justify-between p-4">
-          {/* Hours Select */}
-          <Select value={hours} onValueChange={setHours}>
-            <SelectTrigger className="w-[70px]">
-              <SelectValue placeholder="Hours" />
-            </SelectTrigger>
-            <SelectContent className="bg-white z-50 shadow-lg">
-              {Array.from({ length: 12 }, (_, i) => (
-                <SelectItem key={i + 1} value={String(i + 1).padStart(2, '0')}>
-                  {String(i + 1).padStart(2, '0')}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <span className="text-2xl">:</span>
-
-          {/* Minutes Select */}
-          <Select value={minutes} onValueChange={setMinutes}>
-            <SelectTrigger className="w-[70px]">
-              <SelectValue placeholder="Minutes" />
-            </SelectTrigger>
-            <SelectContent className="bg-white z-50 shadow-lg">
-              {Array.from({ length: 60 }, (_, i) => (
-                <SelectItem key={i} value={String(i).padStart(2, '0')}>
-                  {String(i).padStart(2, '0')}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* AM/PM Select */}
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-[70px]">
-              <SelectValue placeholder="AM/PM" />
-            </SelectTrigger>
-            <SelectContent className="bg-white z-50 shadow-lg">
-              <SelectItem value="AM">AM</SelectItem>
-              <SelectItem value="PM">PM</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className="flex items-center">
+      <Clock className="mr-2 h-4 w-4" />
+      <span>{formatTime()}</span> {/* Display formatted time next to clock */}
+      <input
+        type="time"
+        step="1800"
+        {...field}
+        {...props}
+        className={className}
+        onChange={handleChange}
+        value={currentTime} // Bind input to local state
+      />
+    </div>
   );
-}
+};
+
+export default TimePickerField;
