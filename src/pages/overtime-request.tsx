@@ -1,16 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import OvertimeRequestForm from '../components/OvertimeRequestForm';
 import liff from '@line/liff';
 import SkeletonLoader from '../components/SkeletonLoader';
 import axios from 'axios';
 import { UserData } from '@/types/user';
 import { UserRole } from '@/types/enum';
-import {
-  fetchUserData,
-  getCachedUserData,
-  getCachedAttendanceStatus,
-} from '../services/userService';
-import { set } from 'lodash';
 
 interface OvertimeRequestPageProps {
   lineUserId: string | null;
@@ -26,21 +20,51 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isManager, setIsManager] = useState(false);
 
+  // Fetch User Data
+  const fetchUserData = useCallback(async (lineUserId: string) => {
+    try {
+      const response = await axios.get(
+        `/api/user-data?lineUserId=${lineUserId}`,
+      );
+      setUserData(response.data.user);
+      return response.data.user;
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError('Failed to fetch user data. Please try again.');
+      throw error;
+    }
+  }, []);
+
+  // Fetch Employees (Manager only)
+  const fetchEmployees = useCallback(async (lineUserId: string) => {
+    try {
+      const response = await axios.get('/api/employees', {
+        headers: { 'x-line-userid': lineUserId },
+      });
+      setEmployees(response.data);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      setMessage('ไม่สามารถดึงข้อมูลพนักงานได้');
+    }
+  }, []);
+
   useEffect(() => {
     const initializeData = async () => {
       try {
         if (liff.isLoggedIn()) {
           if (lineUserId) {
-            await fetchUserData(lineUserId);
-            setIsManager(
-              [UserRole.MANAGER, UserRole.ADMIN, UserRole.SUPERADMIN].includes(
-                userData?.role as UserRole,
-              ),
-            );
-          }
-          if (isManager && lineUserId) {
-            // Add null check for lineUserId
-            await fetchEmployees(lineUserId);
+            const user = await fetchUserData(lineUserId);
+
+            const isUserManager = [
+              UserRole.MANAGER,
+              UserRole.ADMIN,
+              UserRole.SUPERADMIN,
+            ].includes(user.role as UserRole);
+            setIsManager(isUserManager);
+
+            if (isUserManager) {
+              await fetchEmployees(lineUserId);
+            }
           }
         } else {
           liff.login();
@@ -53,32 +77,10 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
       }
     };
 
-    initializeData();
-  }, [liff, isManager]);
-
-  const fetchUserData = async (lineUserId: string) => {
-    try {
-      const response = await axios.get(
-        `/api/user-data?lineUserId=${lineUserId}`,
-      );
-      setUserData(response.data.user);
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      setError('Failed to fetch user data. Please try again.');
+    if (lineUserId) {
+      initializeData();
     }
-  };
-
-  const fetchEmployees = async (lineUserId: string) => {
-    try {
-      const response = await axios.get('/api/employees', {
-        headers: { 'x-line-userid': lineUserId },
-      });
-      setEmployees(response.data);
-    } catch (error) {
-      console.error('Error fetching employees:', error);
-      setMessage('ไม่สามารถดึงข้อมูลพนักงานได้');
-    }
-  };
+  }, [lineUserId, fetchUserData, fetchEmployees]);
 
   if (error) {
     return (
@@ -89,21 +91,17 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
     );
   }
 
-  if (!lineUserId || !userData) {
+  if (isLoading || !lineUserId || !userData) {
     return <SkeletonLoader />;
   }
-
-  console.log('userData:', userData);
-  console.log('isManager:', isManager);
-  console.log('employees:', employees);
 
   return (
     <div className="min-h-screen bg-gray-100 py-6">
       <div className="max-w-md mx-auto">
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          {isManager ? 'สร้างคำขอทำงานล่วงเวลา' : 'คำขอทำงานล่วงเวลา'}
+        </h2>
         <div className="bg-white rounded-box p-4 mb-4">
-          <h2 className="text-2xl font-bold mb-6 text-center">
-            {isManager ? 'สร้างคำขอทำงานล่วงเวลา' : 'คำขอทำงานล่วงเวลา'}
-          </h2>
           <OvertimeRequestForm
             lineUserId={lineUserId}
             userData={userData}
