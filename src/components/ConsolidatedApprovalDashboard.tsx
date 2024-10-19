@@ -32,6 +32,10 @@ const ConsolidatedApprovalDashboard: React.FC<
             axios.get('/api/getPotentialOvertimes'),
           ]);
 
+        console.log('Leave Requests:', leaveResponse.data);
+        console.log('Overtime Requests:', overtimeResponse.data);
+        console.log('Potential Overtimes:', potentialOvertimeResponse.data);
+
         setLeaveRequests(leaveResponse.data);
         setOvertimeRequests(overtimeResponse.data);
         setPotentialOvertimes(potentialOvertimeResponse.data);
@@ -58,9 +62,9 @@ const ConsolidatedApprovalDashboard: React.FC<
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Approval Dashboard</h1>
       <ApprovalDashboard
-        leaveRequests={leaveRequests}
-        overtimeRequests={overtimeRequests}
-        potentialOvertimes={potentialOvertimes}
+        leaveRequests={leaveRequests || []}
+        overtimeRequests={overtimeRequests || []}
+        potentialOvertimes={potentialOvertimes || []}
       />
     </div>
   );

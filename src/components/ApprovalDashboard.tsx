@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Table } from '../components/ui/table';
+import axios from 'axios';
 
 interface Request {
   id: string;
@@ -28,15 +29,21 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({
   }, []);
 
   const fetchRequests = async () => {
-    const [leaveData, overtimeData, potentialOvertimeData] = await Promise.all([
-      fetch('/api/getLeaveRequests').then((res) => res.json()),
-      fetch('/api/getOvertimeRequests').then((res) => res.json()),
-      fetch('/api/getPotentialOvertimes').then((res) => res.json()),
-    ]);
+    try {
+      const [leaveData, overtimeData, potentialOvertimeData] =
+        await Promise.all([
+          axios.get('/api/getLeaveRequests'),
+          axios.get('/api/getOvertimeRequests'),
+          axios.get('/api/getPotentialOvertimes'),
+        ]);
 
-    leaveData(leaveData.requests);
-    overtimeData(overtimeData.requests);
-    potentialOvertimeData(potentialOvertimeData.requests);
+      // Assuming you have state setters for these, uncomment and use them
+      // setLeaveRequests(leaveData.data);
+      // setOvertimeRequests(overtimeData.data);
+      // setPotentialOvertimes(potentialOvertimeData.data);
+    } catch (error) {
+      console.error('Error fetching requests:', error);
+    }
   };
 
   const handleAction = async (
@@ -44,13 +51,16 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({
     type: string,
     action: string,
   ) => {
-    await fetch('/api/approveRequest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId, type, action }),
-    });
-
-    fetchRequests();
+    try {
+      await axios.post('/api/approveRequest', {
+        requestId,
+        type,
+        action,
+      });
+      fetchRequests(); // Refresh data after action
+    } catch (error) {
+      console.error('Error handling action:', error);
+    }
   };
 
   const renderTable = (data: Request[], type: string) => {
@@ -87,7 +97,6 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({
 
   return (
     <div>
-      <h1>Approval Dashboard</h1>
       <h2>Leave Requests</h2>
       {renderTable(leaveRequests, 'leave')}
       <h2>Overtime Requests</h2>
