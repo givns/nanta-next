@@ -160,7 +160,6 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 <Field
                   name="startTime"
                   component={TimePickerField}
-                  defaultTime="18:00" // Set default time here
                   className="border-gray-300 focus:border-indigo-500"
                 />
                 <ErrorMessage
@@ -179,7 +178,6 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 <Field
                   name="endTime"
                   component={TimePickerField}
-                  defaultTime="19:00" // Set default time here
                   className="border-gray-300 focus:border-indigo-500"
                 />
                 <ErrorMessage
