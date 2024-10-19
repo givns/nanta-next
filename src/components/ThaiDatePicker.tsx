@@ -1,5 +1,3 @@
-'use client';
-
 import * as React from 'react';
 import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
@@ -23,7 +21,6 @@ export default function ThaiDatePicker({
   selected,
   onChange,
 }: ThaiDatePickerProps) {
-  // Thai month names
   const thaiMonths = [
     'มกราคม',
     'กุมภาพันธ์',
@@ -39,12 +36,11 @@ export default function ThaiDatePicker({
     'ธันวาคม',
   ];
 
-  // Function to format date in Thai
   const formatThaiDate = (date: Date | undefined) => {
     if (!date) return 'เลือกวันที่';
     const day = date.getDate();
     const month = thaiMonths[date.getMonth()];
-    const year = date.getFullYear() + 543; // Convert to Buddhist Era
+    const year = date.getFullYear() + 543;
     return `${day} ${month} ${year}`;
   };
 

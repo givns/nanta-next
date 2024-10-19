@@ -23,6 +23,7 @@ const TimePickerField: React.FC<TimePickerFieldProps> = ({
   value,
   onChange,
 }) => {
+  const [isOpen, setIsOpen] = React.useState(false);
   const [hours, setHours] = React.useState('12');
   const [minutes, setMinutes] = React.useState('00');
   const [period, setPeriod] = React.useState('AM');
@@ -53,17 +54,17 @@ const TimePickerField: React.FC<TimePickerFieldProps> = ({
   };
 
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="w-[280px] justify-start text-left font-normal"
+          className={`w-[280px] justify-start text-left font-normal ${isOpen ? 'bg-gray-100' : ''}`}
         >
           <Clock className="mr-2 h-4 w-4" />
           {formatTime()}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0">
+      <PopoverContent className="w-[280px] p-0 bg-white">
         <div className="flex items-center justify-between p-4">
           <Select
             value={hours}

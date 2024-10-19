@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react';
 import OvertimeRequestForm from '../components/OvertimeRequestForm';
 import liff from '@line/liff';
 import SkeletonLoader from '../components/SkeletonLoader';
+import axios from 'axios';
+import { UserData } from '@/types/user';
 
 const OvertimeRequestPage: React.FC = () => {
   const [isLiffReady, setIsLiffReady] = useState(false);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -16,17 +19,14 @@ const OvertimeRequestPage: React.FC = () => {
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
+          await fetchUserData(profile.userId);
         } else {
-          liff.login(); // Redirect to LINE login if not logged in
+          liff.login();
         }
 
         setIsLiffReady(true);
-        console.log('LIFF initialized in OvertimeRequestPage');
       } catch (error) {
-        console.error(
-          'Failed to initialize LIFF in OvertimeRequestPage:',
-          error,
-        );
+        console.error('Failed to initialize LIFF:', error);
         setError(
           'Failed to initialize LIFF or get user profile. Please try again.',
         );
@@ -35,6 +35,18 @@ const OvertimeRequestPage: React.FC = () => {
 
     initLiff();
   }, []);
+
+  const fetchUserData = async (lineUserId: string) => {
+    try {
+      const response = await axios.get(
+        `/api/user-data?lineUserId=${lineUserId}`,
+      );
+      setUserData(response.data.user);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError('Failed to fetch user data. Please try again.');
+    }
+  };
 
   if (error) {
     return (
@@ -45,13 +57,17 @@ const OvertimeRequestPage: React.FC = () => {
     );
   }
 
-  if (!isLiffReady || !lineUserId) {
+  if (!isLiffReady || !lineUserId || !userData) {
     return <SkeletonLoader />;
   }
 
   return (
     <div className="overtime-request-page">
-      <OvertimeRequestForm liff={liff} lineUserId={lineUserId} />
+      <OvertimeRequestForm
+        liff={liff}
+        lineUserId={lineUserId}
+        userData={userData}
+      />
     </div>
   );
 };
