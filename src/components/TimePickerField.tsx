@@ -11,7 +11,7 @@ const TimePickerField: React.FC<TimePickerProps> = ({
   field,
   form,
   className,
-  defaultTime = '18:00', // Set default time to 18:00
+  defaultTime = '18:00', // Default to 18:00
   ...props
 }) => {
   const [currentTime, setCurrentTime] = useState(defaultTime);
@@ -38,15 +38,25 @@ const TimePickerField: React.FC<TimePickerProps> = ({
   };
 
   return (
-    <div className="flex items-center">
-      <Clock className="mr-2 h-4 w-4" />
-      <span>{formatTime()}</span> {/* Display formatted time next to clock */}
+    <div className="relative">
+      {/* Display button-like box with Clock icon and formatted time */}
+      <button
+        type="button"
+        className={`flex items-center w-full p-2 border rounded ${className}`}
+        onClick={() => document.getElementById(field.name)?.click()}
+      >
+        <Clock className="mr-2 h-4 w-4" />
+        <span>{formatTime()}</span> {/* Display formatted time */}
+      </button>
+
+      {/* Hidden time input that opens when the user clicks the button */}
       <input
         type="time"
+        id={field.name}
         step="1800"
         {...field}
         {...props}
-        className={className}
+        className="sr-only"
         onChange={handleChange}
         value={currentTime} // Bind input to local state
       />
