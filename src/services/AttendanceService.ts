@@ -162,6 +162,7 @@ export class AttendanceService {
         isLate = false,
         isOvertime = false,
       } = shiftstatus || {};
+
       const isHoliday = await this.holidayService.isHoliday(
         now,
         [],

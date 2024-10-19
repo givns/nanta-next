@@ -1,5 +1,3 @@
-'use client';
-
 import * as React from 'react';
 import { Clock } from 'lucide-react';
 
@@ -41,11 +39,12 @@ export default function Component() {
       {/* Ensure proper background color and z-index */}
       <PopoverContent className="w-[280px] p-0 bg-white z-50 shadow-lg">
         <div className="flex items-center justify-between p-4">
+          {/* Hours Select */}
           <Select value={hours} onValueChange={setHours}>
             <SelectTrigger className="w-[70px]">
               <SelectValue placeholder="Hours" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white z-50 shadow-lg">
               {Array.from({ length: 12 }, (_, i) => (
                 <SelectItem key={i + 1} value={String(i + 1).padStart(2, '0')}>
                   {String(i + 1).padStart(2, '0')}
@@ -56,11 +55,12 @@ export default function Component() {
 
           <span className="text-2xl">:</span>
 
+          {/* Minutes Select */}
           <Select value={minutes} onValueChange={setMinutes}>
             <SelectTrigger className="w-[70px]">
               <SelectValue placeholder="Minutes" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white z-50 shadow-lg">
               {Array.from({ length: 60 }, (_, i) => (
                 <SelectItem key={i} value={String(i).padStart(2, '0')}>
                   {String(i).padStart(2, '0')}
@@ -69,11 +69,12 @@ export default function Component() {
             </SelectContent>
           </Select>
 
+          {/* AM/PM Select */}
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-[70px]">
               <SelectValue placeholder="AM/PM" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white z-50 shadow-lg">
               <SelectItem value="AM">AM</SelectItem>
               <SelectItem value="PM">PM</SelectItem>
             </SelectContent>

@@ -143,8 +143,8 @@ export class ShiftManagementService {
     console.log(
       `Shift end: ${formatDateTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
     );
-
-    const lateThreshold = addMinutes(shiftStart, 30);
+    const gracePeriod = 5; // or whatever grace period is appropriate
+    const lateThreshold = addMinutes(shiftStart, gracePeriod);
     const overtimeThreshold = addMinutes(shiftEnd, 30);
 
     const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
