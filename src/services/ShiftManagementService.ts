@@ -148,7 +148,7 @@ export class ShiftManagementService {
     const overtimeThreshold = addMinutes(shiftEnd, 30);
 
     const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
-    const isLate = isAfter(now, lateThreshold) && isBefore(now, shiftEnd);
+    const isLate = isAfter(now, lateThreshold);
 
     let isOvertime = false;
     if (this.overtimeService) {

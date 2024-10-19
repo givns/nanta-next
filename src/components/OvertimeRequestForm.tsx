@@ -96,10 +96,8 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
         <Formik
           initialValues={{
             employeeIds: [],
-            startTime: userData?.shiftCode
-              ? formatTime(userData.shiftCode.split('-')[1])
-              : '',
-            endTime: '',
+            startTime: '18:00',
+            endTime: '19:00',
             reason: '',
             isManager,
           }}
@@ -162,7 +160,8 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 <Field
                   name="startTime"
                   component={TimePickerField}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                  defaultTime="18:00" // Set default time here
+                  className="time-input-class"
                 />
                 <ErrorMessage
                   name="startTime"
@@ -180,7 +179,8 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 <Field
                   name="endTime"
                   component={TimePickerField}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                  defaultTime="18:00" // Set default time here
+                  className="time-input-class"
                 />
                 <ErrorMessage
                   name="endTime"
