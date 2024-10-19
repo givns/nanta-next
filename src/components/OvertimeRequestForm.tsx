@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+// Code for the OvertimeRequestForm component
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
@@ -8,8 +9,8 @@ import {
   formatBangkokTime,
 } from '../utils/dateUtils';
 import TimePickerField from './TimePickerField';
-import ThaiDatePicker from './ThaiDatePicker';
 import { UserData } from '@/types/user';
+import { format, parseISO } from 'date-fns';
 import { UserRole } from '@/types/enum';
 import liff from '@line/liff';
 
@@ -17,41 +18,72 @@ interface OvertimeRequestFormProps {
   liff: typeof liff;
   lineUserId: string;
   userData: UserData;
+  employees: any[];
+  isManager: boolean;
 }
 
 const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   liff,
   lineUserId,
   userData,
+  employees,
+  isManager,
 }) => {
+  const [existingRequests, setExistingRequests] = useState<any[]>([]);
   const [message, setMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const [newRequestDate, setNewRequestDate] = useState(
     formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
   );
 
-  const isManager = useMemo(() => {
-    return [UserRole.MANAGER, UserRole.ADMIN, UserRole.SUPERADMIN].includes(
-      userData.role as UserRole,
-    );
-  }, [userData]);
-
   const OvertimeSchema = Yup.object().shape({
+    employeeIds: Yup.array()
+      .of(Yup.string())
+      .test(
+        'is-employee-selected',
+        'เลือกพนักงานอย่างน้อย 1 คน',
+        function (value) {
+          // `this` context contains the form values and other metadata
+          const { isManager } = this.parent;
+          if (isManager) {
+            return value && value.length > 0;
+          }
+          return true;
+        },
+      ),
     startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
     endTime: Yup.string().required('กรุณาระบุเวลาสิ้นสุด'),
     reason: Yup.string().required('กรุณาระบุเหตุผล'),
+    isManager: Yup.boolean(),
   });
 
   const handleOvertimeSubmit = async (values: any) => {
     try {
-      const endpoint = '/api/overtime/request';
-      const requestData = {
-        lineUserId,
-        employeeId: userData.employeeId,
-        date: newRequestDate,
-        startTime: values.startTime,
-        endTime: values.endTime,
-        reason: values.reason,
-      };
+      const endpoint = isManager
+        ? '/api/overtime/create-manager-request'
+        : '/api/overtime/request';
+
+      let requestData;
+
+      if (isManager) {
+        requestData = {
+          lineUserId,
+          employeeIds: values.employeeIds,
+          date: newRequestDate,
+          startTime: values.startTime,
+          endTime: values.endTime,
+          reason: values.reason,
+        };
+      } else {
+        requestData = {
+          lineUserId,
+          employeeId: userData?.employeeId,
+          date: newRequestDate,
+          startTime: values.startTime,
+          endTime: values.endTime,
+          reason: values.reason,
+        };
+      }
 
       const response = await axios.post(endpoint, requestData);
       console.log('Overtime request submitted:', response.data);
@@ -66,27 +98,61 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     }
   };
 
+  if (isLoading) {
+    return <div className="text-center">กำลังโหลด...</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 py-6">
       <div className="max-w-md mx-auto">
         <div className="bg-white rounded-box p-4 mb-4">
           <h2 className="text-2xl font-bold mb-6 text-center">
-            คำขอทำงานล่วงเวลา
+            {isManager ? 'สร้างคำขอทำงานล่วงเวลา' : 'คำขอทำงานล่วงเวลา'}
           </h2>
 
           <Formik
             initialValues={{
+              employeeIds: [],
               startTime: userData?.shiftCode
                 ? formatTime(userData.shiftCode.split('-')[1])
                 : '',
               endTime: '',
               reason: '',
+              isManager, // Add this to initial values
             }}
             validationSchema={OvertimeSchema}
             onSubmit={handleOvertimeSubmit}
           >
             {({ isSubmitting }) => (
               <Form className="space-y-4">
+                {isManager && (
+                  <div>
+                    <label
+                      htmlFor="employeeIds"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      เลือกพนักงาน
+                    </label>
+                    <Field
+                      as="select"
+                      id="employeeIds"
+                      name="employeeIds"
+                      multiple
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                    >
+                      {employees.map((employee) => (
+                        <option key={employee.id} value={employee.id}>
+                          {employee.name}
+                        </option>
+                      ))}
+                    </Field>
+                    <ErrorMessage
+                      name="employeeIds"
+                      component="div"
+                      className="text-red-500 text-sm"
+                    />
+                  </div>
+                )}
                 <div>
                   <label
                     htmlFor="date"
@@ -94,15 +160,13 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                   >
                     วันที่
                   </label>
-                  <ThaiDatePicker
-                    selected={new Date(newRequestDate)}
-                    onChange={(date: Date | undefined) => {
-                      if (date) {
-                        setNewRequestDate(
-                          formatBangkokTime(date, 'yyyy-MM-dd'),
-                        );
-                      }
-                    }}
+                  <input
+                    type="date"
+                    id="date"
+                    name="date"
+                    value={newRequestDate}
+                    onChange={(e) => setNewRequestDate(e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                   />
                 </div>
                 <div>

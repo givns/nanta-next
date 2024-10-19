@@ -1,5 +1,8 @@
+'use client';
+
 import * as React from 'react';
 import { Clock } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -14,64 +17,29 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-interface TimePickerFieldProps {
-  value: string;
-  onChange: (value: string) => void;
-}
-
-const TimePickerField: React.FC<TimePickerFieldProps> = ({
-  value,
-  onChange,
-}) => {
-  const [isOpen, setIsOpen] = React.useState(false);
+export default function Component() {
   const [hours, setHours] = React.useState('12');
   const [minutes, setMinutes] = React.useState('00');
   const [period, setPeriod] = React.useState('AM');
-
-  React.useEffect(() => {
-    if (value) {
-      const [time, ampm] = value.split(' ');
-      const [h, m] = time.split(':');
-      setHours(h);
-      setMinutes(m);
-      setPeriod(ampm);
-    }
-  }, [value]);
 
   const formatTime = () => {
     return `${hours}:${minutes} ${period}`;
   };
 
-  const handleTimeChange = (
-    newHours: string,
-    newMinutes: string,
-    newPeriod: string,
-  ) => {
-    setHours(newHours);
-    setMinutes(newMinutes);
-    setPeriod(newPeriod);
-    onChange(`${newHours}:${newMinutes} ${newPeriod}`);
-  };
-
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
+    <Popover>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={`w-[280px] justify-start text-left font-normal ${isOpen ? 'bg-gray-100' : ''}`}
+          className="w-[280px] justify-start text-left font-normal"
         >
           <Clock className="mr-2 h-4 w-4" />
           {formatTime()}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0 bg-white">
+      <PopoverContent className="w-[280px] p-0">
         <div className="flex items-center justify-between p-4">
-          <Select
-            value={hours}
-            onValueChange={(newHours) =>
-              handleTimeChange(newHours, minutes, period)
-            }
-          >
+          <Select value={hours} onValueChange={setHours}>
             <SelectTrigger className="w-[70px]">
               <SelectValue placeholder="Hours" />
             </SelectTrigger>
@@ -84,12 +52,7 @@ const TimePickerField: React.FC<TimePickerFieldProps> = ({
             </SelectContent>
           </Select>
           <span className="text-2xl">:</span>
-          <Select
-            value={minutes}
-            onValueChange={(newMinutes) =>
-              handleTimeChange(hours, newMinutes, period)
-            }
-          >
+          <Select value={minutes} onValueChange={setMinutes}>
             <SelectTrigger className="w-[70px]">
               <SelectValue placeholder="Minutes" />
             </SelectTrigger>
@@ -101,12 +64,7 @@ const TimePickerField: React.FC<TimePickerFieldProps> = ({
               ))}
             </SelectContent>
           </Select>
-          <Select
-            value={period}
-            onValueChange={(newPeriod) =>
-              handleTimeChange(hours, minutes, newPeriod)
-            }
-          >
+          <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-[70px]">
               <SelectValue placeholder="AM/PM" />
             </SelectTrigger>
@@ -119,6 +77,4 @@ const TimePickerField: React.FC<TimePickerFieldProps> = ({
       </PopoverContent>
     </Popover>
   );
-};
-
-export default TimePickerField;
+}

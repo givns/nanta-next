@@ -1,40 +1,45 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import OvertimeRequestForm from '../components/OvertimeRequestForm';
 import liff from '@line/liff';
 import SkeletonLoader from '../components/SkeletonLoader';
 import axios from 'axios';
 import { UserData } from '@/types/user';
+import { UserRole } from '@/types/enum';
 
 const OvertimeRequestPage: React.FC = () => {
   const [isLiffReady, setIsLiffReady] = useState(false);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [message, setMessage] = useState('');
+  const [employees, setEmployees] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isManager, setIsManager] = useState(false); // Add default value of false
 
   useEffect(() => {
-    const initLiff = async () => {
+    const initializeData = async () => {
       try {
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
-
         if (liff.isLoggedIn()) {
-          const profile = await liff.getProfile();
-          setLineUserId(profile.userId);
-          await fetchUserData(profile.userId);
+          if (lineUserId) {
+            await fetchUserData(lineUserId);
+          }
+          if (isManager && lineUserId) {
+            // Add null check for lineUserId
+            await fetchEmployees(lineUserId);
+          }
         } else {
           liff.login();
         }
-
-        setIsLiffReady(true);
       } catch (error) {
-        console.error('Failed to initialize LIFF:', error);
-        setError(
-          'Failed to initialize LIFF or get user profile. Please try again.',
-        );
+        console.error('Initialization failed', error);
+        setMessage('ไม่สามารถเชื่อมต่อกับระบบได้');
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    initLiff();
-  }, []);
+    initializeData();
+  }, [liff, isManager]);
 
   const fetchUserData = async (lineUserId: string) => {
     try {
@@ -45,6 +50,18 @@ const OvertimeRequestPage: React.FC = () => {
     } catch (error) {
       console.error('Error fetching user data:', error);
       setError('Failed to fetch user data. Please try again.');
+    }
+  };
+
+  const fetchEmployees = async (lineUserId: string) => {
+    try {
+      const response = await axios.get('/api/employees', {
+        headers: { 'x-line-userid': lineUserId },
+      });
+      setEmployees(response.data);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      setMessage('ไม่สามารถดึงข้อมูลพนักงานได้');
     }
   };
 
@@ -62,12 +79,21 @@ const OvertimeRequestPage: React.FC = () => {
   }
 
   return (
-    <div className="overtime-request-page">
-      <OvertimeRequestForm
-        liff={liff}
-        lineUserId={lineUserId}
-        userData={userData}
-      />
+    <div className="min-h-screen bg-gray-100 py-6">
+      <div className="max-w-md mx-auto">
+        <div className="bg-white rounded-box p-4 mb-4">
+          <h2 className="text-2xl font-bold mb-6 text-center">
+            {isManager ? 'สร้างคำขอทำงานล่วงเวลา' : 'คำขอทำงานล่วงเวลา'}
+          </h2>
+          <OvertimeRequestForm
+            liff={liff}
+            lineUserId={lineUserId}
+            userData={userData}
+            employees={employees}
+            isManager={isManager}
+          />
+        </div>
+      </div>
     </div>
   );
 };
