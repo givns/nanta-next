@@ -102,7 +102,7 @@ const ThaiDatePicker = ({ field, form }: any) => {
           {formatThaiDate(date)}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
+      <PopoverContent className="w-auto p-0 bg-popover" align="start">
         <Calendar
           mode="single"
           selected={date}
@@ -116,6 +116,7 @@ const ThaiDatePicker = ({ field, form }: any) => {
             },
           }}
           initialFocus
+          className="max-h-[300px] overflow-y-auto"
         />
       </PopoverContent>
     </Popover>
@@ -135,7 +136,7 @@ const TimePickerField = ({ field, form }: any) => {
       <SelectTrigger className="w-full">
         <SelectValue placeholder="เลือกเวลา" />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="max-h-[300px] overflow-y-auto">
         {Array.from({ length: 24 * 4 }, (_, i) => {
           const hours = Math.floor(i / 4);
           const minutes = (i % 4) * 15;
