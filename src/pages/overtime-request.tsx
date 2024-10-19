@@ -5,11 +5,20 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import axios from 'axios';
 import { UserData } from '@/types/user';
 import { UserRole } from '@/types/enum';
+import {
+  fetchUserData,
+  getCachedUserData,
+  getCachedAttendanceStatus,
+} from '../services/userService';
 import { set } from 'lodash';
 
-const OvertimeRequestPage: React.FC = () => {
-  const [isLiffReady, setIsLiffReady] = useState(false);
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
+interface OvertimeRequestPageProps {
+  lineUserId: string | null;
+}
+
+const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
+  lineUserId,
+}) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [message, setMessage] = useState('');
   const [employees, setEmployees] = useState<any[]>([]);
@@ -80,7 +89,7 @@ const OvertimeRequestPage: React.FC = () => {
     );
   }
 
-  if (!isLiffReady || !lineUserId || !userData) {
+  if (!lineUserId || !userData) {
     return <SkeletonLoader />;
   }
 
