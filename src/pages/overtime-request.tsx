@@ -105,7 +105,6 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
             {isManager ? 'สร้างคำขอทำงานล่วงเวลา' : 'คำขอทำงานล่วงเวลา'}
           </h2>
           <OvertimeRequestForm
-            liff={liff}
             lineUserId={lineUserId}
             userData={userData}
             employees={employees}

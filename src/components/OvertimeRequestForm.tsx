@@ -15,7 +15,6 @@ import { UserRole } from '@/types/enum';
 import liff from '@line/liff';
 
 interface OvertimeRequestFormProps {
-  liff: typeof liff;
   lineUserId: string;
   userData: UserData;
   employees: any[];
@@ -23,7 +22,6 @@ interface OvertimeRequestFormProps {
 }
 
 const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
-  liff,
   lineUserId,
   userData,
   employees,
