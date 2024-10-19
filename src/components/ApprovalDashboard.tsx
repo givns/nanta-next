@@ -16,13 +16,11 @@ interface Request {
 interface ApprovalDashboardProps {
   leaveRequests: Request[];
   overtimeRequests: Request[];
-  potentialOvertimes: Request[];
 }
 
 const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({
   leaveRequests,
   overtimeRequests,
-  potentialOvertimes,
 }) => {
   useEffect(() => {
     fetchRequests();
@@ -30,12 +28,10 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({
 
   const fetchRequests = async () => {
     try {
-      const [leaveData, overtimeData, potentialOvertimeData] =
-        await Promise.all([
-          axios.get('/api/getLeaveRequests'),
-          axios.get('/api/getOvertimeRequests'),
-          axios.get('/api/getPotentialOvertimes'),
-        ]);
+      const [leaveData, overtimeData] = await Promise.all([
+        axios.get('/api/getLeaveRequests'),
+        axios.get('/api/getOvertimeRequests'),
+      ]);
 
       // Assuming you have state setters for these, uncomment and use them
       // setLeaveRequests(leaveData.data);
@@ -101,8 +97,6 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({
       {renderTable(leaveRequests, 'leave')}
       <h2>Overtime Requests</h2>
       {renderTable(overtimeRequests, 'overtime')}
-      <h2>Potential Overtime</h2>
-      {renderTable(potentialOvertimes, 'potentialOvertime')}
     </div>
   );
 };

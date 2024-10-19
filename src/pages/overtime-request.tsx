@@ -5,6 +5,7 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import axios from 'axios';
 import { UserData } from '@/types/user';
 import { UserRole } from '@/types/enum';
+import { set } from 'lodash';
 
 const OvertimeRequestPage: React.FC = () => {
   const [isLiffReady, setIsLiffReady] = useState(false);
@@ -14,7 +15,7 @@ const OvertimeRequestPage: React.FC = () => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isManager, setIsManager] = useState(false); // Add default value of false
+  const [isManager, setIsManager] = useState(false);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -22,6 +23,11 @@ const OvertimeRequestPage: React.FC = () => {
         if (liff.isLoggedIn()) {
           if (lineUserId) {
             await fetchUserData(lineUserId);
+            setIsManager(
+              [UserRole.MANAGER, UserRole.ADMIN, UserRole.SUPERADMIN].includes(
+                userData?.role as UserRole,
+              ),
+            );
           }
           if (isManager && lineUserId) {
             // Add null check for lineUserId
@@ -77,6 +83,10 @@ const OvertimeRequestPage: React.FC = () => {
   if (!isLiffReady || !lineUserId || !userData) {
     return <SkeletonLoader />;
   }
+
+  console.log('userData:', userData);
+  console.log('isManager:', isManager);
+  console.log('employees:', employees);
 
   return (
     <div className="min-h-screen bg-gray-100 py-6">

@@ -64,7 +64,6 @@ const ConsolidatedApprovalDashboard: React.FC<
       <ApprovalDashboard
         leaveRequests={leaveRequests || []}
         overtimeRequests={overtimeRequests || []}
-        potentialOvertimes={potentialOvertimes || []}
       />
     </div>
   );

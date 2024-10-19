@@ -29,12 +29,18 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   employees,
   isManager,
 }) => {
-  const [existingRequests, setExistingRequests] = useState<any[]>([]);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [newRequestDate, setNewRequestDate] = useState(
     formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
   );
+
+  console.log('OvertimeRequestForm props:', {
+    lineUserId,
+    userData,
+    employees,
+    isManager,
+  });
 
   const OvertimeSchema = Yup.object().shape({
     employeeIds: Yup.array()
