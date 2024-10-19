@@ -140,7 +140,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       } else {
         requestData = {
           lineUserId,
-          employeeId: userData?.employeeId, // Use the logged-in user's employeeId
+          employeeId: userData?.employeeId,
           date: newRequestDate,
           startTime: values.startTime,
           endTime: values.endTime,

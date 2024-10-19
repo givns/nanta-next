@@ -90,4 +90,14 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
   );
 };
 
+export const getServerSideProps: GetServerSideProps = async () => {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+
+  if (!liffId) {
+    throw new Error('LIFF ID is not defined');
+  }
+
+  return { props: { liffId } };
+};
+
 export default ApprovalDashboard;
