@@ -7,9 +7,26 @@ import {
   getBangkokTime,
   formatBangkokTime,
 } from '../utils/dateUtils';
-import TimePickerField from './TimePickerField';
+import { CalendarIcon } from 'lucide-react';
 import { UserData } from '@/types/user';
 import liff from '@line/liff';
+import { th } from 'date-fns/locale';
+
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface OvertimeRequestFormProps {
   lineUserId: string;
@@ -17,6 +34,122 @@ interface OvertimeRequestFormProps {
   employees: any[];
   isManager: boolean;
 }
+
+const OvertimeSchema = Yup.object().shape({
+  employeeIds: Yup.array()
+    .of(Yup.string())
+    .test(
+      'is-employee-selected',
+      'เลือกพนักงานอย่างน้อย 1 คน',
+      function (value) {
+        const { isManager } = this.parent;
+        if (isManager) {
+          return value && value.length > 0;
+        }
+        return true;
+      },
+    ),
+  startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
+  endTime: Yup.string().required('กรุณาระบุเวลาสิ้นสุด'),
+  reason: Yup.string().required('กรุณาระบุเหตุผล'),
+  isManager: Yup.boolean(),
+});
+
+const ThaiDatePicker = ({ field, form }: any) => {
+  const [date, setDate] = React.useState<Date | undefined>(
+    field.value ? new Date(field.value) : undefined,
+  );
+
+  const thaiMonths = [
+    'มกราคม',
+    'กุมภาพันธ์',
+    'มีนาคม',
+    'เมษายน',
+    'พฤษภาคม',
+    'มิถุนายน',
+    'กรกฎาคม',
+    'สิงหาคม',
+    'กันยายน',
+    'ตุลาคม',
+    'พฤศจิกายน',
+    'ธันวาคม',
+  ];
+
+  const formatThaiDate = (date: Date | undefined) => {
+    if (!date) return 'เลือกวันที่';
+    const day = date.getDate();
+    const month = thaiMonths[date.getMonth()];
+    const year = date.getFullYear() + 543; // Convert to Buddhist Era
+    return `${day} ${month} ${year}`;
+  };
+
+  const handleSelect = (newDate: Date | undefined) => {
+    setDate(newDate);
+    form.setFieldValue(field.name, newDate);
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant={'outline'}
+          className={cn(
+            'w-full justify-start text-left font-normal',
+            !date && 'text-muted-foreground',
+          )}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          {formatThaiDate(date)}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0">
+        <Calendar
+          mode="single"
+          selected={date}
+          onSelect={handleSelect}
+          locale={th}
+          formatters={{
+            formatCaption: (date, options) => {
+              const month = thaiMonths[date.getMonth()];
+              const year = date.getFullYear() + 543;
+              return `${month} ${year}`;
+            },
+          }}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const TimePickerField = ({ field, form }: any) => {
+  const [time, setTime] = React.useState(field.value);
+
+  const handleTimeChange = (newTime: string) => {
+    setTime(newTime);
+    form.setFieldValue(field.name, newTime);
+  };
+
+  return (
+    <Select value={time} onValueChange={handleTimeChange}>
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="เลือกเวลา" />
+      </SelectTrigger>
+      <SelectContent>
+        {Array.from({ length: 24 * 4 }, (_, i) => {
+          const hours = Math.floor(i / 4);
+          const minutes = (i % 4) * 15;
+          const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          return (
+            <SelectItem key={i} value={timeString}>
+              {timeString}
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
+  );
+};
 
 const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   lineUserId,
@@ -28,26 +161,6 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   const [newRequestDate, setNewRequestDate] = useState(
     formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
   );
-
-  const OvertimeSchema = Yup.object().shape({
-    employeeIds: Yup.array()
-      .of(Yup.string())
-      .test(
-        'is-employee-selected',
-        'เลือกพนักงานอย่างน้อย 1 คน',
-        function (value) {
-          const { isManager } = this.parent;
-          if (isManager) {
-            return value && value.length > 0;
-          }
-          return true;
-        },
-      ),
-    startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
-    endTime: Yup.string().required('กรุณาระบุเวลาสิ้นสุด'),
-    reason: Yup.string().required('กรุณาระบุเหตุผล'),
-    isManager: Yup.boolean(),
-  });
 
   const handleOvertimeSubmit = async (values: any) => {
     try {
@@ -141,13 +254,11 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 >
                   วันที่
                 </label>
-                <input
-                  type="date"
-                  id="date"
+                <Field name="date" component={ThaiDatePicker} />
+                <ErrorMessage
                   name="date"
-                  value={newRequestDate}
-                  onChange={(e) => setNewRequestDate(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                  component="div"
+                  className="text-red-500 text-sm"
                 />
               </div>
               <div>
@@ -157,11 +268,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 >
                   เวลาเริ่มต้น
                 </label>
-                <Field
-                  name="startTime"
-                  component={TimePickerField}
-                  className="border-gray-300 focus:border-indigo-500"
-                />
+                <Field name="startTime" component={TimePickerField} />
                 <ErrorMessage
                   name="startTime"
                   component="div"
@@ -175,11 +282,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 >
                   เวลาสิ้นสุด
                 </label>
-                <Field
-                  name="endTime"
-                  component={TimePickerField}
-                  className="border-gray-300 focus:border-indigo-500"
-                />
+                <Field name="endTime" component={TimePickerField} />
                 <ErrorMessage
                   name="endTime"
                   component="div"
@@ -197,7 +300,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                   as="textarea"
                   id="reason"
                   name="reason"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50"
                   rows={3}
                 />
                 <ErrorMessage
@@ -206,13 +309,9 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                   className="text-red-500 text-sm"
                 />
               </div>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
-              >
+              <Button type="submit" disabled={isSubmitting} className="w-full">
                 {isSubmitting ? 'กำลังส่งคำขอ...' : 'ส่งคำขอทำงานล่วงเวลา'}
-              </button>
+              </Button>
             </Form>
           )}
         </Formik>
