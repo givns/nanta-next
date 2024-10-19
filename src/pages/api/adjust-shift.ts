@@ -43,14 +43,6 @@ export default async function handler(
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if the user has permission to make adjustments
-    if (
-      requestingUser.role.toUpperCase() !== 'ADMIN' &&
-      requestingUser.role.toUpperCase() !== 'SUPERADMIN'
-    ) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
-    }
-
     const shiftAdjustments: ({
       requestedShift: {
         id: string;

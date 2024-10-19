@@ -3,15 +3,18 @@ import { GetServerSideProps } from 'next';
 import liff from '@line/liff';
 import axios from 'axios';
 import ConsolidatedApprovalDashboard from '../components/ConsolidatedApprovalDashboard';
+import { UserData } from '@/types/user';
+import { UserRole } from '@/types/enum';
 
 interface ApprovalDashboardProps {
   liffId: string;
 }
 
 const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
-  const [userData, setUserData] = useState(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const initializeLiffAndFetchData = async () => {
@@ -30,28 +33,37 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
         const profile = await liff.getProfile();
         const lineUserId = profile.userId;
 
-        // Check authorization
-        const authResponse = await axios.get('/api/check-authorization', {
-          headers: { 'x-line-userid': lineUserId },
-        });
-        setIsAuthorized(authResponse.data.isAuthorized);
+        // Fetch user data
+        const userResponse = await axios.get<{ user: UserData }>(
+          `/api/user-data?lineUserId=${lineUserId}`,
+        );
+        const fetchedUserData = userResponse.data.user;
+        setUserData(fetchedUserData);
 
-        if (authResponse.data.isAuthorized) {
-          const userResponse = await axios.get(
-            `/api/user-data?lineUserId=${lineUserId}`,
-          );
-          setUserData(userResponse.data.user);
-        } else {
+        // Check authorization based on user role
+        const authorizedRoles = [UserRole.ADMIN, UserRole.SUPERADMIN];
+        const isUserAuthorized = authorizedRoles.includes(
+          fetchedUserData.role as UserRole,
+        );
+        setIsAuthorized(isUserAuthorized);
+
+        if (!isUserAuthorized) {
           setError('คุณไม่ได้รับสิทธิการเข้าถึง');
         }
       } catch (err) {
         console.error('Error during initialization or data fetching:', err);
         setError('Failed to initialize LIFF or fetch user data');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     initializeLiffAndFetchData();
   }, [liffId]);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   if (error) {
     return <div>{error}</div>;
@@ -62,10 +74,20 @@ const ApprovalDashboard: React.FC<ApprovalDashboardProps> = ({ liffId }) => {
   }
 
   if (!userData) {
-    return <div>Loading...</div>;
+    return <div>ไม่พบข้อมูลผู้ใช้</div>;
   }
 
-  return <ConsolidatedApprovalDashboard userData={userData} />;
+  const { employeeId, role, departmentName, lineUserId } = userData;
+
+  if (!lineUserId) {
+    return <div>ไม่พบข้อมูลผู้ใช้</div>;
+  }
+
+  return (
+    <ConsolidatedApprovalDashboard
+      userData={{ employeeId, role, departmentName, lineUserId }}
+    />
+  );
 };
 
 export const getServerSideProps: GetServerSideProps = async () => {

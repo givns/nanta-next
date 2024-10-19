@@ -9,7 +9,7 @@ interface ConsolidatedApprovalDashboardProps {
   userData: {
     employeeId: string;
     role: string;
-    departmentId: string;
+    departmentName: string;
     lineUserId: string;
   };
 }
@@ -18,26 +18,38 @@ const ConsolidatedApprovalDashboard: React.FC<
   ConsolidatedApprovalDashboardProps
 > = ({ userData }) => {
   const [activeTab, setActiveTab] = useState('approvals');
-  const [approvalData, setApprovalData] = useState({
-    leaveRequests: [],
-    overtimeRequests: [],
-    potentialOvertimes: [],
-  });
-  const [shiftData, setShiftData] = useState({ shifts: [], departments: [] });
-  const [noWorkDayData, setNoWorkDayData] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [overtimeRequests, setOvertimeRequests] = useState([]);
+  const [potentialOvertimes, setPotentialOvertimes] = useState([]);
+  const [shifts, setShifts] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [noWorkDays, setNoWorkDays] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [approvalResponse, shiftResponse, noWorkDayResponse] =
-          await Promise.all([
-            axios.get('/api/approvals'),
-            axios.get('/api/shifts'),
-            axios.get('/api/noWorkDays'),
-          ]);
-        setApprovalData(approvalResponse.data);
-        setShiftData(shiftResponse.data);
-        setNoWorkDayData(noWorkDayResponse.data);
+        const [
+          leaveResponse,
+          overtimeResponse,
+          potentialOvertimeResponse,
+          shiftsResponse,
+          departmentsResponse,
+          noWorkDaysResponse,
+        ] = await Promise.all([
+          axios.get('/api/getLeaveRequests'),
+          axios.get('/api/getOvertimeRequests'),
+          axios.get('/api/getPotentialOvertimes'),
+          axios.get('/api/shifts/shifts'),
+          axios.get('/api/departments'),
+          axios.get('/api/noWorkDays'),
+        ]);
+
+        setLeaveRequests(leaveResponse.data);
+        setOvertimeRequests(overtimeResponse.data);
+        setPotentialOvertimes(potentialOvertimeResponse.data);
+        setShifts(shiftsResponse.data);
+        setDepartments(departmentsResponse.data);
+        setNoWorkDays(noWorkDaysResponse.data);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -50,7 +62,7 @@ const ConsolidatedApprovalDashboard: React.FC<
     try {
       await axios.post('/api/noWorkDays', { date, reason });
       const response = await axios.get('/api/noWorkDays');
-      setNoWorkDayData(response.data);
+      setNoWorkDays(response.data);
     } catch (error) {
       console.error('Error adding no work day:', error);
     }
@@ -60,7 +72,7 @@ const ConsolidatedApprovalDashboard: React.FC<
     try {
       await axios.delete(`/api/noWorkDays/${id}`);
       const response = await axios.get('/api/noWorkDays');
-      setNoWorkDayData(response.data);
+      setNoWorkDays(response.data);
     } catch (error) {
       console.error('Error deleting no work day:', error);
     }
@@ -77,21 +89,21 @@ const ConsolidatedApprovalDashboard: React.FC<
         </TabsList>
         <TabsContent value="approvals">
           <ApprovalDashboard
-            leaveRequests={approvalData.leaveRequests}
-            overtimeRequests={approvalData.overtimeRequests}
-            potentialOvertimes={approvalData.potentialOvertimes}
+            leaveRequests={leaveRequests}
+            overtimeRequests={overtimeRequests}
+            potentialOvertimes={potentialOvertimes}
           />
         </TabsContent>
         <TabsContent value="shiftAdjustment">
           <AdminShiftAdjustmentForm
             lineUserId={userData.lineUserId}
-            shifts={shiftData.shifts}
-            departments={shiftData.departments}
+            shifts={shifts}
+            departments={departments}
           />
         </TabsContent>
         <TabsContent value="noWorkDay">
           <NoWorkDayManagement
-            noWorkDays={noWorkDayData}
+            noWorkDays={noWorkDays}
             onAddNoWorkDay={handleAddNoWorkDay}
             onDeleteNoWorkDay={handleDeleteNoWorkDay}
           />
