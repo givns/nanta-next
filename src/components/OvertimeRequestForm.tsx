@@ -87,136 +87,142 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-box p-4 mb-4">
-      <Formik
-        initialValues={{
-          employeeIds: [],
-          startTime: userData?.shiftCode
-            ? formatTime(userData.shiftCode.split('-')[1])
-            : '',
-          endTime: '',
-          reason: '',
-          isManager,
-        }}
-        validationSchema={OvertimeSchema}
-        onSubmit={handleOvertimeSubmit}
-      >
-        {({ isSubmitting }) => (
-          <Form className="space-y-4">
-            {isManager && (
+    <div className="max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold text-center mb-6">
+        {isManager ? 'แบบฟอร์มขอทำ OT ' : 'ไม่สามาขอทำ OT ได้'}
+      </h1>
+
+      <div className="bg-white rounded-box p-4 mb-4">
+        <Formik
+          initialValues={{
+            employeeIds: [],
+            startTime: userData?.shiftCode
+              ? formatTime(userData.shiftCode.split('-')[1])
+              : '',
+            endTime: '',
+            reason: '',
+            isManager,
+          }}
+          validationSchema={OvertimeSchema}
+          onSubmit={handleOvertimeSubmit}
+        >
+          {({ isSubmitting }) => (
+            <Form className="space-y-4">
+              {isManager && (
+                <div>
+                  <label
+                    htmlFor="employeeIds"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    เลือกพนักงาน
+                  </label>
+                  <Field
+                    as="select"
+                    id="employeeIds"
+                    name="employeeIds"
+                    multiple
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                  >
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </option>
+                    ))}
+                  </Field>
+                  <ErrorMessage
+                    name="employeeIds"
+                    component="div"
+                    className="text-red-500 text-sm"
+                  />
+                </div>
+              )}
               <div>
                 <label
-                  htmlFor="employeeIds"
+                  htmlFor="date"
                   className="block text-sm font-medium text-gray-700"
                 >
-                  เลือกพนักงาน
+                  วันที่
+                </label>
+                <input
+                  type="date"
+                  id="date"
+                  name="date"
+                  value={newRequestDate}
+                  onChange={(e) => setNewRequestDate(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="startTime"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  เวลาเริ่มต้น
                 </label>
                 <Field
-                  as="select"
-                  id="employeeIds"
-                  name="employeeIds"
-                  multiple
+                  name="startTime"
+                  component={TimePickerField}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                >
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </option>
-                  ))}
-                </Field>
+                />
                 <ErrorMessage
-                  name="employeeIds"
+                  name="startTime"
                   component="div"
                   className="text-red-500 text-sm"
                 />
               </div>
-            )}
-            <div>
-              <label
-                htmlFor="date"
-                className="block text-sm font-medium text-gray-700"
+              <div>
+                <label
+                  htmlFor="endTime"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  เวลาสิ้นสุด
+                </label>
+                <Field
+                  name="endTime"
+                  component={TimePickerField}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                />
+                <ErrorMessage
+                  name="endTime"
+                  component="div"
+                  className="text-red-500 text-sm"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="reason"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  เหตุผล
+                </label>
+                <Field
+                  as="textarea"
+                  id="reason"
+                  name="reason"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                  rows={3}
+                />
+                <ErrorMessage
+                  name="reason"
+                  component="div"
+                  className="text-red-500 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
               >
-                วันที่
-              </label>
-              <input
-                type="date"
-                id="date"
-                name="date"
-                value={newRequestDate}
-                onChange={(e) => setNewRequestDate(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="startTime"
-                className="block text-sm font-medium text-gray-700"
-              >
-                เวลาเริ่มต้น
-              </label>
-              <Field
-                name="startTime"
-                component={TimePickerField}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              />
-              <ErrorMessage
-                name="startTime"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="endTime"
-                className="block text-sm font-medium text-gray-700"
-              >
-                เวลาสิ้นสุด
-              </label>
-              <Field
-                name="endTime"
-                component={TimePickerField}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              />
-              <ErrorMessage
-                name="endTime"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="reason"
-                className="block text-sm font-medium text-gray-700"
-              >
-                เหตุผล
-              </label>
-              <Field
-                as="textarea"
-                id="reason"
-                name="reason"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                rows={3}
-              />
-              <ErrorMessage
-                name="reason"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
-            >
-              {isSubmitting ? 'กำลังส่งคำขอ...' : 'ส่งคำขอทำงานล่วงเวลา'}
-            </button>
-          </Form>
-        )}
-      </Formik>
+                {isSubmitting ? 'กำลังส่งคำขอ...' : 'ส่งคำขอทำงานล่วงเวลา'}
+              </button>
+            </Form>
+          )}
+        </Formik>
 
-      {message && (
-        <p className="mt-4 text-sm text-center text-gray-600">{message}</p>
-      )}
+        {message && (
+          <p className="mt-4 text-sm text-center text-gray-600">{message}</p>
+        )}
+      </div>
     </div>
   );
 };

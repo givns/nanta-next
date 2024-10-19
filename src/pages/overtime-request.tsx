@@ -96,18 +96,17 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-6">
-      <div className="max-w-md mx-auto">
-        <h2 className="text-2xl font-bold mb-6 text-center">
-          {isManager ? 'สร้างคำขอทำงานล่วงเวลา' : 'คำขอทำงานล่วงเวลา'}
-        </h2>
-        <div className="bg-white rounded-box p-4 mb-4">
-          <OvertimeRequestForm
-            lineUserId={lineUserId}
-            userData={userData}
-            employees={employees}
-            isManager={isManager}
-          />
+    <div className="main-container flex flex-col min-h-screen bg-gray-100 p-4">
+      <div className="flex-grow flex flex-col justify-start items-center">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-box p-4 mb-4">
+            <OvertimeRequestForm
+              lineUserId={lineUserId}
+              userData={userData}
+              employees={employees}
+              isManager={isManager}
+            />
+          </div>
         </div>
       </div>
     </div>

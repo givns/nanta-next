@@ -37,7 +37,9 @@ export default function Component() {
           {formatTime()}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0">
+
+      {/* Ensure proper background color and z-index */}
+      <PopoverContent className="w-[280px] p-0 bg-white z-50 shadow-lg">
         <div className="flex items-center justify-between p-4">
           <Select value={hours} onValueChange={setHours}>
             <SelectTrigger className="w-[70px]">
@@ -51,7 +53,9 @@ export default function Component() {
               ))}
             </SelectContent>
           </Select>
+
           <span className="text-2xl">:</span>
+
           <Select value={minutes} onValueChange={setMinutes}>
             <SelectTrigger className="w-[70px]">
               <SelectValue placeholder="Minutes" />
@@ -64,6 +68,7 @@ export default function Component() {
               ))}
             </SelectContent>
           </Select>
+
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-[70px]">
               <SelectValue placeholder="AM/PM" />
