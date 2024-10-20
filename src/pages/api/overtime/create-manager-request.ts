@@ -1,9 +1,14 @@
+// create-manager-request.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { NotificationService } from '../../../services/NotificationService';
+import { ShiftManagementService } from '../../../services/ShiftManagementService';
+import { HolidayService } from '../../../services/HolidayService';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService(prisma);
+const shiftManagementService = new ShiftManagementService(prisma);
+const holidayService = new HolidayService(prisma);
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,11 +38,15 @@ export default async function handler(
       .map((r: any) => `${r.reason}: ${r.details}`)
       .join('; ');
 
+    const overtimeDate = new Date(date);
+    const isHoliday = await holidayService.isHoliday(overtimeDate, [], false);
+
     const createdRequests = await Promise.all(
       employeeIds.map(async (employeeId: string) => {
         try {
           const employee = await prisma.user.findUnique({
             where: { employeeId },
+            include: { assignedShift: true },
           });
           if (!employee) {
             console.warn(`Employee with id ${employeeId} not found`);
@@ -52,16 +61,27 @@ export default async function handler(
             return null;
           }
 
+          // Check if it's a day off for the employee
+          const shiftData =
+            await shiftManagementService.getEffectiveShiftAndStatus(
+              employee.employeeId,
+              overtimeDate,
+            );
+          const isDayOff =
+            isHoliday ||
+            !shiftData.effectiveShift.workDays.includes(overtimeDate.getDay());
+
           const request = await prisma.overtimeRequest.create({
             data: {
               employeeId: employee.employeeId,
               name: employee.name,
-              date: new Date(date),
+              date: overtimeDate,
               startTime,
               endTime,
               reason: formattedReason,
               status: 'pending_response',
               approverId: manager.id,
+              isDayOffOvertime: isDayOff,
             },
           });
 

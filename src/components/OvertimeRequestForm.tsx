@@ -86,6 +86,12 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     }
   }, [isManager, isAdmin, employees, userData.departmentName]);
 
+  const isDayOff = (employee: any, date: Date) => {
+    if (!employee.shift) return false;
+    const dayOfWeek = date.getDay();
+    return !employee.shift.workDays.includes(dayOfWeek);
+  };
+
   const handleOvertimeSubmit = async (values: any, { setSubmitting }: any) => {
     console.log('handleOvertimeSubmit called with values:', values);
     try {
@@ -156,6 +162,12 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       ? departments.filter((dept) => values.departmentNames.includes(dept.name))
       : [{ name: userData.departmentName }];
 
+    const overtimeDate = new Date(values.date);
+    const employeesWithDayOffStatus = selectedEmployees.map((emp) => ({
+      ...emp,
+      isDayOff: isDayOff(emp, overtimeDate),
+    }));
+
     return (
       <div className="bg-gray-50 p-4 rounded-lg">
         <h3 className="text-lg font-semibold mb-2">สรุปคำขอทำงานล่วงเวลา</h3>
@@ -166,7 +178,12 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
           </p>
           <p>
             <strong>พนักงาน:</strong>{' '}
-            {selectedEmployees.map((emp) => emp.name).join(', ')}
+            {employeesWithDayOffStatus.map((emp) => (
+              <span key={emp.employeeId}>
+                {emp.name} {emp.isDayOff ? '(วันหยุด)' : ''}
+                {', '}
+              </span>
+            ))}
           </p>
           <p>
             <strong>วันที่:</strong> {formatThaiDate(values.date)}
