@@ -237,6 +237,38 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     requestId: string,
     actualStartTime: Date,
   ): Promise<OvertimeRequest> {
+    const overtimeRequest = await this.prisma.overtimeRequest.findUnique({
+      where: { id: requestId },
+      include: { user: true },
+    });
+
+    if (!overtimeRequest) {
+      throw new Error('Overtime request not found');
+    }
+
+    // If the actual start time is not provided, use the planned start time
+    if (!actualStartTime) {
+      const shiftData = await this.shiftService.getEffectiveShiftAndStatus(
+        overtimeRequest.user.employeeId,
+        overtimeRequest.date,
+      );
+
+      if (shiftData && shiftData.effectiveShift) {
+        const shiftEndTime = parse(
+          shiftData.effectiveShift.endTime,
+          'HH:mm',
+          overtimeRequest.date,
+        );
+        actualStartTime = shiftEndTime;
+      } else {
+        actualStartTime = parse(
+          overtimeRequest.startTime,
+          'HH:mm',
+          overtimeRequest.date,
+        );
+      }
+    }
+
     return this.prisma.overtimeRequest.update({
       where: { id: requestId },
       data: { actualStartTime },

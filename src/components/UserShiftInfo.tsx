@@ -59,22 +59,21 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
     }, []);
 
     const renderTodayInfo = useMemo(() => {
-      if (
-        !attendanceStatus?.isDayOff &&
-        (effectiveShift || attendanceStatus?.latestAttendance)
-      ) {
-        const todayOvertime =
-          attendanceStatus?.approvedOvertime &&
-          isOvertimeForToday(attendanceStatus.approvedOvertime)
-            ? attendanceStatus.approvedOvertime
-            : null;
+      const todayOvertime =
+        attendanceStatus?.approvedOvertime &&
+        isOvertimeForToday(attendanceStatus.approvedOvertime)
+          ? attendanceStatus.approvedOvertime
+          : null;
 
-        return (
-          <div className="bg-white p-6 rounded-lg shadow-md mb-4">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <Calendar className="mr-2" /> เวลาการทำงานของคุณวันนี้
-            </h3>
-            {effectiveShift && (
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-md mb-4">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <Calendar className="mr-2" /> ข้อมูลการทำงานวันนี้
+          </h3>
+          {attendanceStatus?.isDayOff ? (
+            <p className="text-gray-600 mb-4">วันหยุด</p>
+          ) : (
+            effectiveShift && (
               <div className="mb-4">
                 <p className="text-gray-800">
                   <span className="font-medium">{effectiveShift.name}</span>
@@ -89,84 +88,70 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
                   </p>
                 )}
               </div>
-            )}
-            {attendanceStatus?.latestAttendance && (
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <p className="text-gray-600">เวลาเข้างาน</p>
-                  <p className="font-medium">
-                    {attendanceStatus.latestAttendance.checkInTime ||
-                      'ยังไม่ได้ลงเวลา'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-600">เวลาออกงาน</p>
-                  <p className="font-medium">
-                    {attendanceStatus.latestAttendance.checkOutTime ||
-                      'ยังไม่ได้ลงเวลา'}
-                  </p>
-                </div>
-              </div>
-            )}
-            {todayOvertime && (
-              <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
-                <h4 className="text-md font-semibold mb-2 flex items-center">
-                  <AlertCircle className="mr-2" size={18} />{' '}
-                  การทำงานล่วงเวลาที่ได้รับอนุมัติ
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-gray-600">เวลาเริ่ม</p>
-                    <p className="font-medium">{todayOvertime.startTime}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">เวลาสิ้นสุด</p>
-                    <p className="font-medium">{todayOvertime.endTime}</p>
-                  </div>
-                </div>
-                <p className="text-gray-600 mt-2">
-                  เวลาที่อนุมัติ:{' '}
-                  <span className="font-medium">
-                    {todayOvertime.approvedAt
-                      ? format(
-                          new Date(todayOvertime.approvedAt),
-                          'dd/MM/yyyy HH:mm',
-                          { locale: th },
-                        )
-                      : 'N/A'}
-                  </span>
+            )
+          )}
+          {attendanceStatus?.latestAttendance && (
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <p className="text-gray-600">เวลาเข้างาน</p>
+                <p className="font-medium">
+                  {attendanceStatus.latestAttendance.checkInTime ||
+                    'ยังไม่ได้ลงเวลา'}
                 </p>
               </div>
-            )}
-          </div>
-        );
-      }
-
-      if (
-        attendanceStatus?.isDayOff &&
-        attendanceStatus.potentialOvertimes?.length > 0
-      ) {
-        return (
-          <div className="bg-white p-6 rounded-lg shadow-md mb-4">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <AlertCircle className="mr-2" />{' '}
-              การทำงานนอกเวลาที่อาจยังไม่ได้รับอนุมัติ
-            </h3>
-            {attendanceStatus.potentialOvertimes.map((overtime, index) => (
-              <div key={index} className="mb-2">
-                {overtime.periods &&
-                  overtime.periods.map((period, periodIndex) => (
-                    <p key={periodIndex} className="text-gray-800">
-                      {period.start} - {period.end}
-                    </p>
-                  ))}
+              <div>
+                <p className="text-gray-600">เวลาออกงาน</p>
+                <p className="font-medium">
+                  {attendanceStatus.latestAttendance.checkOutTime ||
+                    'ยังไม่ได้ลงเวลา'}
+                </p>
               </div>
-            ))}
-          </div>
-        );
-      }
-
-      return null;
+            </div>
+          )}
+          {todayOvertime && (
+            <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
+              <h4 className="text-md font-semibold mb-2 flex items-center">
+                <AlertCircle className="mr-2" size={18} />{' '}
+                การทำงานล่วงเวลาที่ได้รับอนุมัติ
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-600">เวลาที่อนุมัติ</p>
+                  <p className="font-medium">
+                    {todayOvertime.startTime} - {todayOvertime.endTime}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">เวลาทำงานจริง</p>
+                  <p className="font-medium">
+                    {todayOvertime.actualStartTime
+                      ? format(new Date(todayOvertime.actualStartTime), 'HH:mm')
+                      : todayOvertime.startTime}{' '}
+                    -{' '}
+                    {todayOvertime.actualEndTime
+                      ? format(new Date(todayOvertime.actualEndTime), 'HH:mm')
+                      : 'ยังไม่สิ้นสุด'}
+                  </p>
+                </div>
+              </div>
+              <p className="text-gray-600 mt-2">
+                เวลาที่อนุมัติ:{' '}
+                <span className="font-medium">
+                  {todayOvertime.approvedAt
+                    ? format(
+                        new Date(todayOvertime.approvedAt),
+                        'dd/MM/yyyy HH:mm',
+                        {
+                          locale: th,
+                        },
+                      )
+                    : 'N/A'}
+                </span>
+              </p>
+            </div>
+          )}
+        </div>
+      );
     }, [attendanceStatus, effectiveShift, isOvertimeForToday]);
 
     const renderFutureInfo = useMemo(() => {
