@@ -539,7 +539,7 @@ export class AttendanceService {
 
     if (isLateCheckOut) {
       return this.createResponse(true, 'คุณกำลังลงเวลาออกงานช้า', {
-        isLate: true,
+        isLateCheckOut: true, // Changed from isLate: true
         inPremises,
         address,
       });
@@ -629,7 +629,6 @@ export class AttendanceService {
 
       let status: AttendanceStatusValue = 'absent';
       let isOvertime = false;
-      let overtimeDuration = 0;
       let isEarlyCheckIn = false;
       let isLateCheckIn = false;
       let isLateCheckOut = false;
@@ -650,6 +649,7 @@ export class AttendanceService {
           status = 'incomplete';
           isEarlyCheckIn = isBefore(parsedCheckTime, shiftStart);
           isLateCheckIn = isAfter(parsedCheckTime, shiftStart);
+          isLateCheckOut = false; // Reset late che
         } else {
           // Check-out
           if (!existingAttendance || !existingAttendance.checkInTime) {
@@ -657,6 +657,10 @@ export class AttendanceService {
           }
 
           const checkOutTime = parsedCheckTime;
+          isLateCheckOut = isAfter(checkOutTime, shiftEnd);
+          isLateCheckIn = existingAttendance
+            ? (existingAttendance.isLateCheckIn ?? false)
+            : false;
 
           if (approvedOvertimeRequest) {
             const overtimeStart = parseISO(approvedOvertimeRequest.startTime);
@@ -673,7 +677,6 @@ export class AttendanceService {
           } else if (isAfter(checkOutTime, shiftEnd)) {
             status = 'present';
             isOvertime = true;
-            overtimeDuration = differenceInMinutes(checkOutTime, shiftEnd) / 60;
             // This is unapproved overtime, you might want to flag this
           } else {
             status = 'present';
@@ -799,15 +802,9 @@ export class AttendanceService {
           [isCheckIn ? 'checkInTime' : 'checkOutTime']: checkTime,
           status,
           isOvertime,
-          isEarlyCheckIn: isCheckIn
-            ? isEarlyCheckIn
-            : existingAttendance.isEarlyCheckIn,
-          isLateCheckIn: isCheckIn
-            ? isLateCheckIn
-            : existingAttendance.isLateCheckIn,
-          isLateCheckOut: !isCheckIn
-            ? isLateCheckOut
-            : existingAttendance.isLateCheckOut,
+          isEarlyCheckIn,
+          isLateCheckIn,
+          isLateCheckOut,
         },
       });
     } else {

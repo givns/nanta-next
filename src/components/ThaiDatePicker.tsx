@@ -1,9 +1,6 @@
-import * as React from 'react';
-import { CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
+import React from 'react';
 import { th } from 'date-fns/locale';
-
-import { cn } from '@/lib/utils';
+import { CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -11,37 +8,44 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+
+const thaiMonths = [
+  'มกราคม',
+  'กุมภาพันธ์',
+  'มีนาคม',
+  'เมษายน',
+  'พฤษภาคม',
+  'มิถุนายน',
+  'กรกฎาคม',
+  'สิงหาคม',
+  'กันยายน',
+  'ตุลาคม',
+  'พฤศจิกายน',
+  'ธันวาคม',
+];
+
+const formatThaiDate = (date: Date | undefined) => {
+  if (!date) return 'เลือกวันที่';
+  const day = date.getDate();
+  const month = thaiMonths[date.getMonth()];
+  const year = date.getFullYear() + 543; // Convert to Buddhist Era
+  return `${day} ${month} ${year}`;
+};
 
 interface ThaiDatePickerProps {
-  selected: Date | undefined;
-  onChange: (date: Date | undefined) => void;
+  field: any;
+  form: any;
 }
 
-export default function ThaiDatePicker({
-  selected,
-  onChange,
-}: ThaiDatePickerProps) {
-  const thaiMonths = [
-    'มกราคม',
-    'กุมภาพันธ์',
-    'มีนาคม',
-    'เมษายน',
-    'พฤษภาคม',
-    'มิถุนายน',
-    'กรกฎาคม',
-    'สิงหาคม',
-    'กันยายน',
-    'ตุลาคม',
-    'พฤศจิกายน',
-    'ธันวาคม',
-  ];
+const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({ field, form }) => {
+  const [date, setDate] = React.useState<Date | undefined>(
+    field.value ? new Date(field.value) : undefined,
+  );
 
-  const formatThaiDate = (date: Date | undefined) => {
-    if (!date) return 'เลือกวันที่';
-    const day = date.getDate();
-    const month = thaiMonths[date.getMonth()];
-    const year = date.getFullYear() + 543;
-    return `${day} ${month} ${year}`;
+  const handleSelect = (newDate: Date | undefined) => {
+    setDate(newDate);
+    form.setFieldValue(field.name, newDate);
   };
 
   return (
@@ -50,19 +54,19 @@ export default function ThaiDatePicker({
         <Button
           variant={'outline'}
           className={cn(
-            'w-[280px] justify-start text-left font-normal',
-            !selected && 'text-muted-foreground',
+            'w-full justify-start text-left font-normal',
+            !date && 'text-muted-foreground',
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {formatThaiDate(selected)}
+          {formatThaiDate(date)}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
+      <PopoverContent className="w-auto p-0 bg-popover" align="start">
         <Calendar
           mode="single"
-          selected={selected}
-          onSelect={onChange}
+          selected={date}
+          onSelect={handleSelect}
           locale={th}
           formatters={{
             formatCaption: (date, options) => {
@@ -72,8 +76,11 @@ export default function ThaiDatePicker({
             },
           }}
           initialFocus
+          className="max-h-[300px] overflow-y-auto"
         />
       </PopoverContent>
     </Popover>
   );
-}
+};
+
+export default ThaiDatePicker;

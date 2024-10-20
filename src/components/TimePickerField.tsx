@@ -1,66 +1,43 @@
-import React, { useEffect, useState } from 'react';
-import { FieldProps } from 'formik';
-import { Clock } from 'lucide-react';
+import React from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-interface TimePickerProps extends FieldProps {
-  className?: string;
-  defaultTime?: string; // Allow passing default time prop
+interface TimePickerFieldProps {
+  field: any;
+  form: any;
 }
 
-const TimePickerField: React.FC<TimePickerProps> = ({
-  field,
-  form,
-  className,
-  defaultTime = '18:00', // Default to 18:00
-  ...props
-}) => {
-  const [currentTime, setCurrentTime] = useState(defaultTime);
+const TimePickerField: React.FC<TimePickerFieldProps> = ({ field, form }) => {
+  const [time, setTime] = React.useState(field.value);
 
-  // On component mount, set the default time in Formik form values
-  useEffect(() => {
-    form.setFieldValue(field.name, defaultTime);
-  }, [form, field.name, defaultTime]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const [hours, minutes] = e.target.value.split(':');
-    const roundedMinutes = Math.round(parseInt(minutes) / 30) * 30;
-    const formattedTime = `${hours}:${roundedMinutes.toString().padStart(2, '0')}`;
-    form.setFieldValue(field.name, formattedTime); // Update Formik value
-    setCurrentTime(formattedTime); // Update local state for display
-  };
-
-  // Format the time with AM/PM display
-  const formatTime = () => {
-    const [hours, minutes] = currentTime.split(':');
-    const period = parseInt(hours) >= 12 ? 'PM' : 'AM';
-    const formattedHours = String(parseInt(hours) % 12 || 12); // Convert to 12-hour format
-    return `${formattedHours}:${minutes} ${period}`;
+  const handleTimeChange = (newTime: string) => {
+    setTime(newTime);
+    form.setFieldValue(field.name, newTime);
   };
 
   return (
-    <div className="relative">
-      {/* Display button-like box with Clock icon and formatted time */}
-      <button
-        type="button"
-        className={`flex items-center w-full p-2 border rounded ${className}`}
-        onClick={() => document.getElementById(field.name)?.click()}
-      >
-        <Clock className="mr-2 h-4 w-4" />
-        <span>{formatTime()}</span> {/* Display formatted time */}
-      </button>
-
-      {/* Hidden time input that opens when the user clicks the button */}
-      <input
-        type="time"
-        id={field.name}
-        step="1800"
-        {...field}
-        {...props}
-        className="sr-only"
-        onChange={handleChange}
-        value={currentTime} // Bind input to local state
-      />
-    </div>
+    <Select value={time} onValueChange={handleTimeChange}>
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="เลือกเวลา" />
+      </SelectTrigger>
+      <SelectContent className="max-h-[300px] overflow-y-auto">
+        {Array.from({ length: 24 * 4 }, (_, i) => {
+          const hours = Math.floor(i / 4);
+          const minutes = (i % 4) * 15;
+          const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          return (
+            <SelectItem key={i} value={timeString}>
+              {timeString}
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
   );
 };
 
