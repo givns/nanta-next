@@ -104,7 +104,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
         lineUserId,
         employeeIds:
           isManager || isAdmin ? values.employeeIds : [userData?.employeeId],
-        departmentId: isAdmin ? values.departmentId : userData.departmentId,
+        departmentIds: isAdmin ? values.departmentIds : [userData.departmentId],
         date: values.date,
         startTime: values.startTime,
         endTime: values.endTime,
@@ -124,104 +124,45 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     }
   };
 
-  const renderEmployeeSelection = (values: any, setFieldValue: any) => {
-    if (isManager) {
-      return (
-        <div className="mb-4">
-          <label
-            htmlFor="employeeIds"
-            className="block text-sm font-medium text-gray-700"
-          >
-            พนักงาน
-          </label>
-          <Field
-            as="select"
-            id="employeeIds"
-            name="employeeIds"
-            multiple
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-          >
-            {filteredEmployees.map((employee) => (
-              <option key={employee.id} value={employee.id}>
-                {employee.name}
-              </option>
-            ))}
-          </Field>
-          <ErrorMessage
-            name="employeeIds"
-            component="div"
-            className="text-red-500 text-sm"
-          />
+  const renderSummary = (values: any) => {
+    const selectedEmployees = filteredEmployees.filter((emp) =>
+      values.employeeIds.includes(emp.id),
+    );
+    const selectedDepartments = isAdmin
+      ? departments.filter((dept) => values.departmentIds.includes(dept.id))
+      : [{ name: userData.departmentName }];
+
+    return (
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="text-lg font-semibold mb-2">สรุปคำขอทำงานล่วงเวลา</h3>
+        <div className="space-y-2">
+          <p>
+            <strong>แผนก:</strong>{' '}
+            {selectedDepartments.map((dept) => dept.name).join(', ')}
+          </p>
+          <p>
+            <strong>พนักงาน:</strong>{' '}
+            {selectedEmployees.map((emp) => emp.name).join(', ')}
+          </p>
+          <p>
+            <strong>วันที่:</strong> {values.date}
+          </p>
+          <p>
+            <strong>เวลา:</strong> {values.startTime} - {values.endTime}
+          </p>
+          <div>
+            <strong>เหตุผล:</strong>
+            <ul className="list-disc list-inside">
+              {values.commonReasons.map((reason: string, index: number) => (
+                <li key={index}>
+                  {reason}: {values.reasonDetails[index]?.reason || ''}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-      );
-    } else if (isAdmin) {
-      return (
-        <>
-          <div className="mb-4">
-            <label
-              htmlFor="departmentId"
-              className="block text-sm font-medium text-gray-700"
-            >
-              แผนก
-            </label>
-            <Field
-              as="select"
-              id="departmentId"
-              name="departmentId"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                setFieldValue('departmentId', e.target.value);
-                const selectedDept = departments.find(
-                  (dept) => dept.id === e.target.value,
-                );
-                setFilteredEmployees(
-                  selectedDept ? selectedDept.employees : [],
-                );
-              }}
-            >
-              <option value="">เลือกแผนก</option>
-              {departments.map((dept: any) => (
-                <option key={dept.id} value={dept.id}>
-                  {dept.name}
-                </option>
-              ))}
-            </Field>
-            <ErrorMessage
-              name="departmentId"
-              component="div"
-              className="text-red-500 text-sm"
-            />
-          </div>
-          <div className="mb-4">
-            <label
-              htmlFor="employeeIds"
-              className="block text-sm font-medium text-gray-700"
-            >
-              พนักงาน
-            </label>
-            <Field
-              as="select"
-              id="employeeIds"
-              name="employeeIds"
-              multiple
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            >
-              {filteredEmployees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name}
-                </option>
-              ))}
-            </Field>
-            <ErrorMessage
-              name="employeeIds"
-              component="div"
-              className="text-red-500 text-sm"
-            />
-          </div>
-        </>
-      );
-    }
-    return null;
+      </div>
+    );
   };
 
   const renderStep = (
@@ -462,26 +403,47 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 )}
               </FieldArray>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between mt-4">
               <button
                 type="button"
                 onClick={() => setStep(2)}
-                className="w-1/3"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-300"
               >
                 ย้อนกลับ
               </button>
               <button
-                type="submit"
-                disabled={isSubmitting}
-                className="mt-4 w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
+                type="button"
+                onClick={() => setStep(4)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300"
               >
-                {isSubmitting ? 'กำลังส่งคำขอ...' : 'ส่งคำขอ'}
+                ตรวจสอบข้อมูล
               </button>
             </div>
           </>
         );
-      default:
-        return null;
+      case 4:
+        return (
+          <>
+            <h2 className="text-lg font-semibold mb-4">ตรวจสอบและยืนยัน</h2>
+            {renderSummary(values)}
+            <div className="flex justify-between mt-4">
+              <button
+                type="button"
+                onClick={() => setStep(3)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-300"
+              >
+                แก้ไข
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 disabled:bg-red-300"
+              >
+                {isSubmitting ? 'กำลังส่งคำขอ...' : 'ยืนยันส่งคำขอ'}
+              </button>
+            </div>
+          </>
+        );
     }
   };
 
@@ -495,7 +457,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
             departmentIds: isManager ? [userData.departmentId] : [],
             employeeIds: [],
             date: formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
-            startTime: '18:00',
+            startTime: '',
             endTime: '',
             commonReasons: [],
             reasonDetails: [],

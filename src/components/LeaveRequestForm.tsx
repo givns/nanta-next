@@ -98,8 +98,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     </div>
   );
 
-  // LeaveRequestForm.tsx
-
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
       {renderUserInfo()}
