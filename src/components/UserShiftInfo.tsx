@@ -126,13 +126,17 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
                     {latestAttendance?.checkOutTime || 'ยังไม่สิ้นสุด'}
                   </p>
                 </div>
-              </div>
-              {latestAttendance &&
-                latestAttendance.checkInTime !== todayOvertime.startTime && (
-                  <p className="text-orange-600 mt-2">
-                    * เวลาเข้างานไม่ตรงกับเวลาที่ได้รับอนุมัติ
+                <div>
+                  <p className="text-gray-600">สถานะ</p>
+                  <p className="font-medium">
+                    {todayOvertime.status === 'completed'
+                      ? 'เสร็จสิ้น'
+                      : todayOvertime.status === 'in_progress'
+                        ? 'กำลังดำเนินการ'
+                        : 'ยังไม่เริ่ม'}
                   </p>
-                )}
+                </div>
+              </div>
               <p className="text-gray-600 mt-2">
                 เวลาที่อนุมัติ:{' '}
                 <span className="font-medium">

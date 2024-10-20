@@ -155,6 +155,13 @@ export class AttendanceService {
           address,
         });
 
+      const approvedOvertimes =
+        await this.overtimeService.getApprovedOvertimesInRange(
+          employeeId,
+          now,
+          endOfDay(now),
+        );
+
       // 2. Extract relevant information
       const { effectiveShift, shiftstatus } = shiftData;
       const {
@@ -240,6 +247,27 @@ export class AttendanceService {
           'คุณมีคำขอลาที่รออนุมัติสำหรับวันนี้',
           { inPremises, address },
         );
+      }
+
+      if (isCheckingIn && approvedOvertimes.length > 0) {
+        const lastCompletedOvertime = approvedOvertimes.find(
+          (ot) => ot.status === 'completed',
+        );
+        if (
+          lastCompletedOvertime &&
+          isAfter(
+            now,
+            parseISO(
+              `${format(now, 'yyyy-MM-dd')}T${lastCompletedOvertime.endTime}`,
+            ),
+          )
+        ) {
+          return this.createResponse(
+            true,
+            'คุณสามารถลงเวลาเข้างานสำหรับกะปกติได้',
+            { inPremises, address },
+          );
+        }
       }
 
       if (approvedOvertime) {
@@ -901,12 +929,15 @@ export class AttendanceService {
     console.log(`Is holiday: ${isHoliday}`);
     const leaveRequests = await this.leaveService.getLeaveRequests(employeeId);
     console.log(`Leave requests: ${JSON.stringify(leaveRequests)}`);
+
     const approvedOvertime =
       await this.overtimeService.getApprovedOvertimeRequest(employeeId, today);
+
     const futureShifts = await this.shiftManagementService.getFutureShifts(
       employeeId,
       today,
     );
+
     const futureOvertimes =
       await this.overtimeService.getFutureApprovedOvertimes(employeeId, today);
 
@@ -975,6 +1006,20 @@ export class AttendanceService {
     const shiftStart = this.parseShiftTime(shift.startTime, now);
     const shiftEnd = this.parseShiftTime(shift.endTime, now);
 
+    if (approvedOvertime && isSameDay(now, approvedOvertime.date)) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+      );
+
+      if (now >= overtimeStart && now <= overtimeEnd) {
+        status = 'overtime';
+        isOvertime = true;
+      }
+    }
+
     if (attendance && attendance.checkInTime) {
       isCheckingIn = false;
       historicalIsLateCheckIn = isAfter(attendance.checkInTime, shiftStart);
@@ -982,37 +1027,37 @@ export class AttendanceService {
       isLateCheckIn = isAfter(attendance.checkInTime, shiftStart);
 
       if (attendance.checkOutTime) {
-        status = 'present';
+        status = isOvertime ? 'overtime' : 'present';
         isLateCheckOut = isAfter(attendance.checkOutTime, shiftEnd);
       } else {
         status = 'incomplete';
         isLateCheckOut = isAfter(now, shiftEnd);
       }
 
-      if (approvedOvertime && isSameDay(now, approvedOvertime.date)) {
-        const overtimeStart = approvedOvertime.startTime;
-        const overtimeEnd = approvedOvertime.endTime;
+      if (isOvertime && approvedOvertime) {
+        const overtimeStart = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+        );
+        const overtimeEnd = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+        );
         const effectiveStart = max([attendance.checkInTime, overtimeStart]);
         const effectiveEnd = attendance.checkOutTime
           ? min([attendance.checkOutTime, overtimeEnd])
           : now;
 
-        if (effectiveEnd > effectiveStart) {
-          isOvertime = true;
-          overtimeDuration =
-            differenceInMinutes(effectiveEnd, effectiveStart) / 60;
-          status = 'overtime';
-        }
+        overtimeDuration =
+          differenceInMinutes(effectiveEnd, effectiveStart) / 60;
       }
     }
 
-    if (isDayOff && !approvedOvertime) {
+    if (isDayOff && !isOvertime) {
       status = 'off';
       isCheckingIn = true;
     } else if (leaveRequest && leaveRequest.status === 'approved') {
       status = 'off';
       isCheckingIn = true;
-    } else if (isHoliday) {
+    } else if (isHoliday && !isOvertime) {
       status = 'holiday';
       isCheckingIn = true;
     }
