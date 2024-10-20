@@ -4,6 +4,7 @@ import LeaveRequestForm, { FormValues } from '../components/LeaveRequestForm';
 import axios from 'axios';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
+import LoadingBar from '@/components/LoadingBar';
 
 interface LeaveRequestPageProps {
   lineUserId: string | null;
@@ -81,9 +82,12 @@ const LeaveRequestPage: React.FC<LeaveRequestPageProps> = ({ lineUserId }) => {
   };
 
   if (isLoading || !leaveBalance) {
-    return <div>Loading...</div>;
+    return (
+      <div className="mt-8">
+        <LoadingBar />
+      </div>
+    );
   }
-
   if (error) {
     return <div>Error: {error}</div>;
   }

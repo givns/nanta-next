@@ -74,15 +74,17 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
   );
   const [step, setStep] = useState(1);
-  const [filteredEmployees, setFilteredEmployees] = useState(employees);
+  const [filteredEmployees, setFilteredEmployees] = useState<any[]>([]);
 
   useEffect(() => {
     if (isManager) {
       setFilteredEmployees(
         employees.filter((emp) => emp.departmentId === userData.departmentId),
       );
+    } else if (isAdmin && departments.length > 0) {
+      setFilteredEmployees([]);
     }
-  }, [isManager, employees, userData.departmentId]);
+  }, [isManager, isAdmin, employees, departments, userData.departmentId]);
 
   const handleOvertimeSubmit = async (values: any) => {
     try {
@@ -122,6 +124,106 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     }
   };
 
+  const renderEmployeeSelection = (values: any, setFieldValue: any) => {
+    if (isManager) {
+      return (
+        <div className="mb-4">
+          <label
+            htmlFor="employeeIds"
+            className="block text-sm font-medium text-gray-700"
+          >
+            พนักงาน
+          </label>
+          <Field
+            as="select"
+            id="employeeIds"
+            name="employeeIds"
+            multiple
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+          >
+            {filteredEmployees.map((employee) => (
+              <option key={employee.id} value={employee.id}>
+                {employee.name}
+              </option>
+            ))}
+          </Field>
+          <ErrorMessage
+            name="employeeIds"
+            component="div"
+            className="text-red-500 text-sm"
+          />
+        </div>
+      );
+    } else if (isAdmin) {
+      return (
+        <>
+          <div className="mb-4">
+            <label
+              htmlFor="departmentId"
+              className="block text-sm font-medium text-gray-700"
+            >
+              แผนก
+            </label>
+            <Field
+              as="select"
+              id="departmentId"
+              name="departmentId"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                setFieldValue('departmentId', e.target.value);
+                const selectedDept = departments.find(
+                  (dept) => dept.id === e.target.value,
+                );
+                setFilteredEmployees(
+                  selectedDept ? selectedDept.employees : [],
+                );
+              }}
+            >
+              <option value="">เลือกแผนก</option>
+              {departments.map((dept: any) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name}
+                </option>
+              ))}
+            </Field>
+            <ErrorMessage
+              name="departmentId"
+              component="div"
+              className="text-red-500 text-sm"
+            />
+          </div>
+          <div className="mb-4">
+            <label
+              htmlFor="employeeIds"
+              className="block text-sm font-medium text-gray-700"
+            >
+              พนักงาน
+            </label>
+            <Field
+              as="select"
+              id="employeeIds"
+              name="employeeIds"
+              multiple
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+            >
+              {filteredEmployees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.name}
+                </option>
+              ))}
+            </Field>
+            <ErrorMessage
+              name="employeeIds"
+              component="div"
+              className="text-red-500 text-sm"
+            />
+          </div>
+        </>
+      );
+    }
+    return null;
+  };
+
   const renderStep = (
     values: any,
     setFieldValue: any,
@@ -135,27 +237,29 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
             {isAdmin && (
               <div className="mb-4">
                 <label
-                  htmlFor="departmentId"
+                  htmlFor="departmentIds"
                   className="block text-sm font-medium text-gray-700"
                 >
                   แผนก
                 </label>
                 <Field
                   as="select"
-                  id="departmentId"
-                  name="departmentId"
+                  id="departmentIds"
+                  name="departmentIds"
+                  multiple
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                    setFieldValue('departmentId', e.target.value);
-                    const selectedDept = departments.find(
-                      (dept) => dept.id === e.target.value,
+                    const selectedDeptIds = Array.from(
+                      e.target.selectedOptions,
+                      (option) => option.value,
                     );
-                    setFilteredEmployees(
-                      selectedDept ? selectedDept.employees : [],
-                    );
+                    setFieldValue('departmentIds', selectedDeptIds);
+                    const selectedEmployees = departments
+                      .filter((dept) => selectedDeptIds.includes(dept.id))
+                      .flatMap((dept) => dept.employees);
+                    setFilteredEmployees(selectedEmployees);
                   }}
                 >
-                  <option value="">เลือกแผนก</option>
                   {departments.map((dept: any) => (
                     <option key={dept.id} value={dept.id}>
                       {dept.name}
@@ -163,7 +267,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                   ))}
                 </Field>
                 <ErrorMessage
-                  name="departmentId"
+                  name="departmentIds"
                   component="div"
                   className="text-red-500 text-sm"
                 />
@@ -392,7 +496,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       <div className="bg-white rounded-box p-4 mb-4">
         <Formik
           initialValues={{
-            departmentId: isManager ? userData.departmentId : '',
+            departmentIds: isManager ? [userData.departmentId] : [],
             employeeIds: [],
             date: formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
             startTime: '18:00',

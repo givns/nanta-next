@@ -30,10 +30,11 @@ export default async function handler(
 
     let employees;
 
-    if (user.role === UserRole.MANAGER) {
+    if (user.role === 'Manager') {
+      // Fetch only employees from the manager's department
       employees = await prisma.user.findMany({
         where: {
-          role: UserRole.GENERAL,
+          role: 'Employee',
           departmentId: user.departmentId,
         },
         select: {
@@ -43,14 +44,12 @@ export default async function handler(
           departmentName: true,
         },
       });
-    } else if (
-      user.role === UserRole.ADMIN ||
-      user.role === UserRole.SUPERADMIN
-    ) {
+    } else if (user.role === 'Admin' || user.role === 'SuperAdmin') {
+      // Fetch all employees grouped by department
       const departments = await prisma.department.findMany({
         include: {
           users: {
-            where: { role: UserRole.GENERAL },
+            where: { role: 'Employee' },
             select: {
               id: true,
               name: true,
