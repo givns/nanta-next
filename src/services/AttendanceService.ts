@@ -646,7 +646,7 @@ export class AttendanceService {
           if (existingAttendance && existingAttendance.checkInTime) {
             throw new Error('Already checked in for today');
           }
-          status = 'incomplete';
+          status = 'checked-in';
           isEarlyCheckIn = isBefore(parsedCheckTime, shiftStart);
           isLateCheckIn = isAfter(parsedCheckTime, shiftStart);
           isLateCheckOut = false; // Reset late che
@@ -968,7 +968,7 @@ export class AttendanceService {
         status = 'present';
         isLateCheckOut = isAfter(attendance.checkOutTime, shiftEnd);
       } else {
-        status = 'incomplete';
+        status = 'checked-in';
         isLateCheckOut = isAfter(now, shiftEnd);
       }
 
@@ -1072,7 +1072,7 @@ export class AttendanceService {
     switch (status) {
       case 'absent':
         return 'pending';
-      case 'incomplete':
+      case 'checked-in':
         return 'checked-in';
       case 'present':
         return isOvertime ? 'overtime-ended' : 'checked-out';
@@ -1242,9 +1242,9 @@ export class AttendanceService {
     const shiftEnd = this.parseShiftTime(shift.endTime, attendance.date);
 
     if (!attendance.checkInTime) return 'absent';
-    if (!attendance.checkOutTime) return 'incomplete';
+    if (!attendance.checkOutTime) return 'checked-in';
     if (isAfter(attendance.checkOutTime, shiftEnd)) return 'present';
-    if (isBefore(attendance.checkOutTime, shiftEnd)) return 'incomplete';
+    if (isBefore(attendance.checkOutTime, shiftEnd)) return 'checked-in';
     return 'present';
   }
 }
