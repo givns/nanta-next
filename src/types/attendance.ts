@@ -103,7 +103,7 @@ export interface AttendanceHookReturn {
 export type AttendanceStatusValue =
   | 'present'
   | 'absent'
-  | 'checked-in'
+  | 'incomplete'
   | 'holiday'
   | 'off'
   | 'overtime';
