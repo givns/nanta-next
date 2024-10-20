@@ -77,6 +77,9 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   const [step, setStep] = useState(1);
   const [filteredEmployees, setFilteredEmployees] = useState<any[]>([]);
 
+  console.log('isAdmin:', isAdmin);
+  console.log('isManager:', isManager);
+
   useEffect(() => {
     if (isManager) {
       const managerDepartmentEmployees = employees.filter(
