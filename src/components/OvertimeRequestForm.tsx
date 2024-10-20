@@ -19,22 +19,20 @@ interface OvertimeRequestFormProps {
 }
 
 const OvertimeSchema = Yup.object().shape({
-  departmentId: Yup.string().when('isAdmin', function (isAdmin, schema) {
-    return isAdmin ? schema.required('กรุณาเลือกแผนก') : schema;
-  }),
+  departmentNames: Yup.array().test(
+    'departmentNames',
+    'กรุณาเลือกแผนก',
+    function (value, context) {
+      if (context.parent.isAdmin) {
+        return (value && value.length > 0) || false;
+      }
+      return true;
+    },
+  ),
   employeeIds: Yup.array()
     .of(Yup.string())
-    .test(
-      'is-employee-selected',
-      'เลือกพนักงานอย่างน้อย 1 คน',
-      function (value) {
-        const { isManager } = this.parent;
-        if (isManager) {
-          return value && value.length > 0;
-        }
-        return true;
-      },
-    ),
+    .min(1, 'เลือกพนักงานอย่างน้อย 1 คน'),
+  date: Yup.string().required('กรุณาระบุวันที่'),
   startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
   endTime: Yup.string().required('กรุณาระบุเวลาสิ้นสุด'),
   commonReasons: Yup.array().min(1, 'เลือกเหตุผลอย่างน้อย 1 ข้อ'),
@@ -43,7 +41,6 @@ const OvertimeSchema = Yup.object().shape({
       reason: Yup.string().required('กรุณาระบุรายละเอียด'),
     }),
   ),
-  isManager: Yup.boolean(),
 });
 
 const commonReasons = [
@@ -71,9 +68,6 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   isAdmin,
 }) => {
   const [message, setMessage] = useState('');
-  const [newRequestDate, setNewRequestDate] = useState(
-    formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
-  );
   const [step, setStep] = useState(1);
   const [filteredEmployees, setFilteredEmployees] = useState<any[]>([]);
 
@@ -93,6 +87,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   }, [isManager, isAdmin, employees, userData.departmentName]);
 
   const handleOvertimeSubmit = async (values: any, { setSubmitting }: any) => {
+    console.log('handleOvertimeSubmit called with values:', values);
     try {
       const formattedReasons = values.commonReasons.map(
         (reason: string, index: number) => ({
@@ -112,6 +107,8 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
         endTime: values.endTime,
         reasons: formattedReasons,
       };
+
+      console.log('Sending request with data:', requestData);
 
       const response = await axios.post(
         '/api/overtime/create-manager-request',
@@ -197,6 +194,8 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     setFieldValue: any,
     isSubmitting: boolean,
     submitForm: () => void,
+    errors: any,
+    touched: any,
   ) => {
     switch (step) {
       case 1:
@@ -477,7 +476,12 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={submitForm}
+                  onClick={() => {
+                    console.log('Submit button clicked');
+                    console.log('Form errors:', errors);
+                    console.log('Form touched:', touched);
+                    submitForm();
+                  }}
                   disabled={isSubmitting}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 disabled:bg-red-300"
                 >
@@ -487,6 +491,8 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
             </div>
           </>
         );
+      default:
+        return null;
     }
   };
 
@@ -507,10 +513,26 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
         }}
         validationSchema={OvertimeSchema}
         onSubmit={handleOvertimeSubmit}
+        validateOnChange={false}
+        validateOnBlur={false}
       >
-        {({ values, setFieldValue, isSubmitting, submitForm }) => (
+        {({
+          values,
+          setFieldValue,
+          isSubmitting,
+          submitForm,
+          errors,
+          touched,
+        }) => (
           <Form className="space-y-4">
-            {renderStep(values, setFieldValue, isSubmitting, submitForm)}
+            {renderStep(
+              values,
+              setFieldValue,
+              isSubmitting,
+              submitForm,
+              errors,
+              touched,
+            )}
           </Form>
         )}
       </Formik>
