@@ -476,7 +476,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                   แก้ไข
                 </button>
                 <button
-                  type="submit"
+                  type="button"
                   onClick={submitForm}
                   disabled={isSubmitting}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 disabled:bg-red-300"
