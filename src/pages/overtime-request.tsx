@@ -5,6 +5,7 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import axios from 'axios';
 import { UserData } from '@/types/user';
 import { UserRole } from '@/types/enum';
+import LoadingBar from '@/components/LoadingBar';
 
 interface OvertimeRequestPageProps {
   lineUserId: string | null;
@@ -116,7 +117,7 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
   }
 
   if (isLoading || !lineUserId || !userData) {
-    return <SkeletonLoader />;
+    return <LoadingBar />;
   }
 
   return (
