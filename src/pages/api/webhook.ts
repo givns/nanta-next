@@ -92,14 +92,15 @@ async function handleFollow(event: WebhookEvent) {
         await client.linkRichMenuToUser(userId, registerRichMenuId);
         console.log('Register Rich menu linked to user:', userId);
       } else {
-        const department = user.departmentId;
-        if (department !== null) {
-          const richMenuId = await createAndAssignRichMenu(
-            department,
-            userId,
-            user.role as UserRole,
-          );
+        const richMenuId = await createAndAssignRichMenu(
+          user.departmentId || undefined,
+          userId,
+          user.role as UserRole,
+        );
+        if (richMenuId) {
           console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
+        } else {
+          console.error(`Failed to link rich menu to user ${userId}`);
         }
       }
     } catch (error: any) {

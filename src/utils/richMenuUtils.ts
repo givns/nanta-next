@@ -10,24 +10,25 @@ const client = new Client({
 export const createAndAssignRichMenu = async (
   departmentId: string | undefined,
   userId: string,
-  role: UserRole,
+  role: string,
 ): Promise<string | undefined> => {
   let richMenuId: string;
 
   switch (role) {
-    case UserRole.SUPERADMIN:
+    case 'SuperAdmin':
       richMenuId = 'richmenu-5e2677dc4e68d4fde747ff413a88264f'; // Super Admin Rich Menu
       break;
-    case UserRole.ADMIN:
+    case 'Admin':
       richMenuId = 'richmenu-deec36bf2265338a9f48acd024ce1cde'; // Admin Rich Menu
       break;
-    case UserRole.DRIVER:
+    case 'Driver':
       richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // Placeholder for Route Rich Menu
       break;
-    case UserRole.OPERATION:
+    case 'Operation':
       richMenuId = 'richmenu-834c002dbe1ccfbedb54a76b6c78bdde'; // Special User Rich Menu
       break;
-    case UserRole.GENERAL:
+    case 'Employee':
+    case 'Manager':
     default:
       richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // General User Rich Menu
   }
@@ -38,7 +39,6 @@ export const createAndAssignRichMenu = async (
     return richMenuId;
   } catch (error) {
     console.error(`Error linking rich menu to user ${userId}:`, error);
-    // Instead of throwing, we return undefined
     return undefined;
   }
 };
