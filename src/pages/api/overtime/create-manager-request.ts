@@ -2,11 +2,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { NotificationService } from '../../../services/NotificationService';
 import { UserRole } from '../../../types/enum';
-import {
-  getCurrentTime,
-  formatDate,
-  formatTime,
-} from '../../../utils/dateUtils';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService(prisma);
@@ -22,7 +17,7 @@ export default async function handler(
   const {
     lineUserId,
     employeeIds,
-    departmentId,
+    departmentIds,
     date,
     startTime,
     endTime,
@@ -46,14 +41,14 @@ export default async function handler(
       manager.role === UserRole.SUPERADMIN
     ) {
       const department = await prisma.department.findUnique({
-        where: { id: departmentId },
+        where: { id: departmentIds },
       });
       if (!department) {
         return res.status(404).json({ message: 'Department not found' });
       }
     } else {
       // For managers, ensure they're creating requests for their own department
-      if (manager.departmentId !== departmentId) {
+      if (manager.departmentId !== departmentIds) {
         return res.status(403).json({
           message: 'Unauthorized to create requests for this department',
         });

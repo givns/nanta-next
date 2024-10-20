@@ -334,45 +334,41 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
               />
             </div>
             <div className="mb-4">
-              <label
-                htmlFor="startTime"
-                className="block text-sm font-medium text-gray-700"
-              >
-                เวลาเริ่มต้น
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ช่วงเวลาทำงานล่วงเวลา
               </label>
-              <Field name="startTime" component={TimePickerField} />
-              <ErrorMessage
-                name="startTime"
-                component="div"
-                className="text-red-500 text-sm"
-              />
-            </div>
-            <div className="mb-4">
-              <label
-                htmlFor="endTime"
-                className="block text-sm font-medium text-gray-700"
-              >
-                เวลาสิ้นสุด
-              </label>
-              <Field name="endTime" component={TimePickerField} />
-              <ErrorMessage
-                name="endTime"
-                component="div"
-                className="text-red-500 text-sm"
-              />
+              <div className="flex items-center space-x-2">
+                <div className="flex-1">
+                  <Field name="startTime" component={TimePickerField} />
+                  <ErrorMessage
+                    name="startTime"
+                    component="div"
+                    className="text-red-500 text-sm"
+                  />
+                </div>
+                <span className="text-gray-500">-</span>
+                <div className="flex-1">
+                  <Field name="endTime" component={TimePickerField} />
+                  <ErrorMessage
+                    name="endTime"
+                    component="div"
+                    className="text-red-500 text-sm"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex justify-between">
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="w-1/3"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-300"
               >
                 ย้อนกลับ
               </button>
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                className="mt-4 w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300"
               >
                 ถัดไป
               </button>
@@ -500,7 +496,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
             employeeIds: [],
             date: formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
             startTime: '18:00',
-            endTime: '19:00',
+            endTime: '',
             commonReasons: [],
             reasonDetails: [],
             isAdmin,
