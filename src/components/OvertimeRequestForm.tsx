@@ -92,7 +92,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     }
   }, [isManager, isAdmin, employees, userData.departmentName]);
 
-  const handleOvertimeSubmit = async (values: any) => {
+  const handleOvertimeSubmit = async (values: any, { setSubmitting }: any) => {
     try {
       const formattedReasons = values.commonReasons.map(
         (reason: string, index: number) => ({
@@ -126,38 +126,9 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     } catch (error) {
       console.error('Error submitting overtime request:', error);
       setMessage('ไม่สามารถส่งคำขอทำงานล่วงเวลาได้');
+    } finally {
+      setSubmitting(false);
     }
-  };
-
-  const renderEmployeeSelection = (values: any, setFieldValue: any) => {
-    return (
-      <div className="mb-4">
-        <label
-          htmlFor="employeeIds"
-          className="block text-sm font-medium text-gray-700"
-        >
-          พนักงาน
-        </label>
-        <Field
-          as="select"
-          id="employeeIds"
-          name="employeeIds"
-          multiple
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-        >
-          {filteredEmployees.map((employee) => (
-            <option key={employee.employeeId} value={employee.employeeId}>
-              {employee.name}
-            </option>
-          ))}
-        </Field>
-        <ErrorMessage
-          name="employeeIds"
-          component="div"
-          className="text-red-500 text-sm"
-        />
-      </div>
-    );
   };
 
   const formatThaiDate = (dateString: string) => {
@@ -225,6 +196,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     values: any,
     setFieldValue: any,
     isSubmitting: boolean,
+    submitForm: () => void,
   ) => {
     switch (step) {
       case 1:
@@ -505,6 +477,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 </button>
                 <button
                   type="submit"
+                  onClick={submitForm}
                   disabled={isSubmitting}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 disabled:bg-red-300"
                 >
@@ -535,9 +508,9 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
         validationSchema={OvertimeSchema}
         onSubmit={handleOvertimeSubmit}
       >
-        {({ values, setFieldValue, isSubmitting }) => (
+        {({ values, setFieldValue, isSubmitting, submitForm }) => (
           <Form className="space-y-4">
-            {renderStep(values, setFieldValue, isSubmitting)}
+            {renderStep(values, setFieldValue, isSubmitting, submitForm)}
           </Form>
         )}
       </Formik>
