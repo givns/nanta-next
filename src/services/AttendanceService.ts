@@ -211,6 +211,7 @@ export class AttendanceService {
           approvedOvertime,
           inPremises,
           address,
+          now,
         );
       }
 
@@ -302,13 +303,29 @@ export class AttendanceService {
     approvedOvertime: any,
     inPremises: boolean,
     address: string,
+    now: Date,
   ): CheckInOutAllowance {
-    if (dayOffOvertimeRequest?.status === 'approved' || approvedOvertime) {
-      return this.createResponse(
-        true,
-        'คุณกำลังลงเวลาทำงานล่วงเวลาในวันหยุดที่ได้รับอนุมัติ',
-        { isOvertime: true, isDayOffOvertime: true, inPremises, address },
+    if (approvedOvertime) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
       );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+      );
+
+      if (now >= overtimeStart && now <= overtimeEnd) {
+        return this.createResponse(
+          true,
+          'คุณกำลังลงเวลาทำงานล่วงเวลาในวันหยุดที่ได้รับอนุมัติ',
+          { isOvertime: true, isDayOffOvertime: true, inPremises, address },
+        );
+      } else {
+        return this.createResponse(
+          false,
+          'คุณมีการอนุมัติทำงานล่วงเวลาในวันหยุด แต่ไม่อยู่ในช่วงเวลาที่ได้รับอนุมัติ',
+          { inPremises, address },
+        );
+      }
     } else if (dayOffOvertimeRequest?.status === 'pending') {
       return this.createResponse(
         true,
