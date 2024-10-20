@@ -160,12 +160,32 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     );
   };
 
+  const formatThaiDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const thaiYear = date.getFullYear() + 543;
+    const thaiMonths = [
+      'มกราคม',
+      'กุมภาพันธ์',
+      'มีนาคม',
+      'เมษายน',
+      'พฤษภาคม',
+      'มิถุนายน',
+      'กรกฎาคม',
+      'สิงหาคม',
+      'กันยายน',
+      'ตุลาคม',
+      'พฤศจิกายน',
+      'ธันวาคม',
+    ];
+    return `${date.getDate()} ${thaiMonths[date.getMonth()]} ${thaiYear}`;
+  };
+
   const renderSummary = (values: any) => {
-    const selectedEmployees = filteredEmployees.filter((emp) =>
-      values.employeeIds.includes(emp.id),
+    const selectedEmployees = employees.filter((emp) =>
+      values.employeeIds.includes(emp.employeeId),
     );
     const selectedDepartments = isAdmin
-      ? departments.filter((dept) => values.departmentIds.includes(dept.id))
+      ? departments.filter((dept) => values.departmentNames.includes(dept.name))
       : [{ name: userData.departmentName }];
 
     return (
@@ -181,7 +201,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
             {selectedEmployees.map((emp) => emp.name).join(', ')}
           </p>
           <p>
-            <strong>วันที่:</strong> {values.date}
+            <strong>วันที่:</strong> {formatThaiDate(values.date)}
           </p>
           <p>
             <strong>เวลา:</strong> {values.startTime} - {values.endTime}
