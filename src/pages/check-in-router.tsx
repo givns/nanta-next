@@ -234,7 +234,6 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
               ) : (
                 <div className="mt-8">
                   <LoadingBar />
-                  <p className="text-center mt-4">ระบบกำลังประมวลผล...</p>
                 </div>
               )}
             </div>

@@ -117,7 +117,11 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
   }
 
   if (isLoading || !lineUserId || !userData) {
-    return <LoadingBar />;
+    return (
+      <div className="mt-8">
+        <LoadingBar />
+      </div>
+    );
   }
 
   return (
