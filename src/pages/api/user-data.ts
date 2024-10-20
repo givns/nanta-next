@@ -70,6 +70,7 @@ export default async function handler(
     } else {
       userData = JSON.parse(userData);
     }
+    console.log('User data:', userData);
 
     res.status(200).json({ user: userData });
   } catch (error) {
