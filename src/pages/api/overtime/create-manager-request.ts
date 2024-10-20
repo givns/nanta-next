@@ -54,11 +54,9 @@ export default async function handler(
     } else {
       // For managers, ensure they're creating requests for their own department
       if (manager.departmentId !== departmentId) {
-        return res
-          .status(403)
-          .json({
-            message: 'Unauthorized to create requests for this department',
-          });
+        return res.status(403).json({
+          message: 'Unauthorized to create requests for this department',
+        });
       }
     }
 
