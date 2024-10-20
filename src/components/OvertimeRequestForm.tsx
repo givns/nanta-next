@@ -59,6 +59,7 @@ const commonReasons = [
   'ปัญหาเอกสาร',
   'การตรวจสอบคุณภาพเพิ่มเติม',
   'มีรอบส่งสินค้าเพิ่มเติม',
+  'อื่นๆ',
 ];
 
 const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
@@ -78,13 +79,14 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
 
   useEffect(() => {
     if (isManager) {
-      setFilteredEmployees(
-        employees.filter((emp) => emp.departmentId === userData.departmentId),
+      const managerDepartmentEmployees = employees.filter(
+        (emp) => emp.departmentId === userData.departmentId,
       );
-    } else if (isAdmin && departments.length > 0) {
-      setFilteredEmployees([]);
+      setFilteredEmployees(managerDepartmentEmployees);
+    } else if (isAdmin) {
+      setFilteredEmployees([]); // Admin starts with an empty list until departments are selected
     }
-  }, [isManager, isAdmin, employees, departments, userData.departmentId]);
+  }, [isManager, isAdmin, employees, userData.departmentId]);
 
   const handleOvertimeSubmit = async (values: any) => {
     try {
@@ -195,9 +197,9 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                       (option) => option.value,
                     );
                     setFieldValue('departmentIds', selectedDeptIds);
-                    const selectedEmployees = departments
-                      .filter((dept) => selectedDeptIds.includes(dept.id))
-                      .flatMap((dept) => dept.employees);
+                    const selectedEmployees = employees.filter((emp) =>
+                      selectedDeptIds.includes(emp.departmentId),
+                    );
                     setFilteredEmployees(selectedEmployees);
                   }}
                 >
@@ -457,8 +459,8 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
             departmentIds: isManager ? [userData.departmentId] : [],
             employeeIds: [],
             date: formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
-            startTime: '',
-            endTime: '',
+            startTime: '18:00',
+            endTime: '19:00',
             commonReasons: [],
             reasonDetails: [],
             isAdmin,

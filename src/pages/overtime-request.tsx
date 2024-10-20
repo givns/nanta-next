@@ -128,16 +128,14 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
     <div className="main-container flex flex-col min-h-screen bg-gray-100 p-4">
       <div className="flex-grow flex flex-col justify-start items-center">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-box p-4 mb-4">
-            <OvertimeRequestForm
-              lineUserId={lineUserId}
-              userData={userData}
-              employees={employees}
-              departments={departments}
-              isManager={isManager}
-              isAdmin={isAdmin}
-            />
-          </div>
+          <OvertimeRequestForm
+            lineUserId={lineUserId}
+            userData={userData}
+            employees={employees}
+            departments={departments}
+            isManager={isManager}
+            isAdmin={isAdmin}
+          />
         </div>
       </div>
     </div>
