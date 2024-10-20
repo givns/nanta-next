@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { NotificationService } from '../../../services/NotificationService';
-import { UserRole } from '../../../types/enum';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService(prisma);
@@ -14,8 +13,15 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { lineUserId, employeeIds, date, startTime, endTime, reasons } =
-    req.body;
+  const {
+    lineUserId,
+    employeeIds,
+    departmentNames,
+    date,
+    startTime,
+    endTime,
+    reasons,
+  } = req.body;
 
   try {
     const manager = await prisma.user.findUnique({ where: { lineUserId } });
@@ -31,10 +37,18 @@ export default async function handler(
       employeeIds.map(async (employeeId: string) => {
         try {
           const employee = await prisma.user.findUnique({
-            where: { id: employeeId },
+            where: { employeeId },
           });
           if (!employee) {
             console.warn(`Employee with id ${employeeId} not found`);
+            return null;
+          }
+
+          // Check if the employee is in one of the allowed departments
+          if (!departmentNames.includes(employee.departmentName)) {
+            console.warn(
+              `Employee ${employeeId} is not in an allowed department`,
+            );
             return null;
           }
 

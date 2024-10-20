@@ -77,19 +77,20 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   const [step, setStep] = useState(1);
   const [filteredEmployees, setFilteredEmployees] = useState<any[]>([]);
 
-  console.log('isAdmin:', isAdmin);
-  console.log('isManager:', isManager);
-
   useEffect(() => {
     if (isManager) {
-      const managerDepartmentEmployees = employees.filter(
-        (emp) => emp.departmentId === userData.departmentId,
+      console.log("Manager's department:", userData.departmentName);
+      const managerEmployees = employees.filter(
+        (emp) => emp.departmentName === userData.departmentName,
       );
-      setFilteredEmployees(managerDepartmentEmployees);
+      console.log('Filtered employees for manager:', managerEmployees);
+      setFilteredEmployees(managerEmployees);
     } else if (isAdmin) {
-      setFilteredEmployees([]); // Admin starts with an empty list until departments are selected
+      setFilteredEmployees([]); // Admin starts with an empty list
+    } else {
+      setFilteredEmployees(employees); // Fallback, should not happen
     }
-  }, [isManager, isAdmin, employees, userData.departmentId]);
+  }, [isManager, isAdmin, employees, userData.departmentName]);
 
   const handleOvertimeSubmit = async (values: any) => {
     try {
@@ -103,7 +104,9 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       const requestData = {
         lineUserId,
         employeeIds: values.employeeIds,
-        departmentIds: isAdmin ? values.departmentIds : [userData.departmentId],
+        departmentNames: isAdmin
+          ? values.departmentNames
+          : [userData.departmentName],
         date: values.date,
         startTime: values.startTime,
         endTime: values.endTime,
@@ -124,6 +127,37 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       console.error('Error submitting overtime request:', error);
       setMessage('ไม่สามารถส่งคำขอทำงานล่วงเวลาได้');
     }
+  };
+
+  const renderEmployeeSelection = (values: any, setFieldValue: any) => {
+    return (
+      <div className="mb-4">
+        <label
+          htmlFor="employeeIds"
+          className="block text-sm font-medium text-gray-700"
+        >
+          พนักงาน
+        </label>
+        <Field
+          as="select"
+          id="employeeIds"
+          name="employeeIds"
+          multiple
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+        >
+          {filteredEmployees.map((employee) => (
+            <option key={employee.employeeId} value={employee.employeeId}>
+              {employee.name}
+            </option>
+          ))}
+        </Field>
+        <ErrorMessage
+          name="employeeIds"
+          component="div"
+          className="text-red-500 text-sm"
+        />
+      </div>
+    );
   };
 
   const renderSummary = (values: any) => {
@@ -180,37 +214,37 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
             {isAdmin && (
               <div className="mb-4">
                 <label
-                  htmlFor="departmentIds"
+                  htmlFor="departmentNames"
                   className="block text-sm font-medium text-gray-700"
                 >
                   แผนก
                 </label>
                 <Field
                   as="select"
-                  id="departmentIds"
-                  name="departmentIds"
+                  id="departmentNames"
+                  name="departmentNames"
                   multiple
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                    const selectedDeptIds = Array.from(
+                    const selectedDeptNames = Array.from(
                       e.target.selectedOptions,
                       (option) => option.value,
                     );
-                    setFieldValue('departmentIds', selectedDeptIds);
+                    setFieldValue('departmentNames', selectedDeptNames);
                     const selectedEmployees = employees.filter((emp) =>
-                      selectedDeptIds.includes(emp.departmentId),
+                      selectedDeptNames.includes(emp.departmentName),
                     );
                     setFilteredEmployees(selectedEmployees);
                   }}
                 >
                   {departments.map((dept: any) => (
-                    <option key={dept.id} value={dept.id}>
+                    <option key={dept._id} value={dept.name}>
                       {dept.name}
                     </option>
                   ))}
                 </Field>
                 <ErrorMessage
-                  name="departmentIds"
+                  name="departmentNames"
                   component="div"
                   className="text-red-500 text-sm"
                 />
@@ -238,7 +272,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
               >
                 {filteredEmployees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
+                  <option key={employee.employeeId} value={employee.employeeId}>
                     {employee.name}
                   </option>
                 ))}
@@ -456,11 +490,11 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       <div className="bg-white rounded-box p-4 mb-4">
         <Formik
           initialValues={{
-            departmentIds: isManager ? [userData.departmentId] : [],
+            departmentNames: isManager ? [userData.departmentName] : [],
             employeeIds: [],
             date: formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
-            startTime: '18:00',
-            endTime: '19:00',
+            startTime: '',
+            endTime: '',
             commonReasons: [],
             reasonDetails: [],
             isAdmin,
