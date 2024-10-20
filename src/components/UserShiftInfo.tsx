@@ -71,7 +71,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
             <Calendar className="mr-2" /> ข้อมูลการทำงานวันนี้
           </h3>
           {attendanceStatus?.isDayOff ? (
-            <p className="text-gray-600 mb-4">วันหยุด</p>
+            <p className="text-gray-600 mb-4">วันหยุด (มีการทำงานล่วงเวลา)</p>
           ) : (
             effectiveShift && (
               <div className="mb-4">
@@ -90,20 +90,18 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
               </div>
             )
           )}
-          {attendanceStatus?.latestAttendance && (
+          {latestAttendance && (
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-gray-600">เวลาเข้างาน</p>
                 <p className="font-medium">
-                  {attendanceStatus.latestAttendance.checkInTime ||
-                    'ยังไม่ได้ลงเวลา'}
+                  {latestAttendance.checkInTime || 'ยังไม่ได้ลงเวลา'}
                 </p>
               </div>
               <div>
                 <p className="text-gray-600">เวลาออกงาน</p>
                 <p className="font-medium">
-                  {attendanceStatus.latestAttendance.checkOutTime ||
-                    'ยังไม่ได้ลงเวลา'}
+                  {latestAttendance.checkOutTime || 'ยังไม่ได้ลงเวลา'}
                 </p>
               </div>
             </div>
@@ -124,16 +122,17 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
                 <div>
                   <p className="text-gray-600">เวลาทำงานจริง</p>
                   <p className="font-medium">
-                    {todayOvertime.actualStartTime
-                      ? format(new Date(todayOvertime.actualStartTime), 'HH:mm')
-                      : todayOvertime.startTime}{' '}
-                    -{' '}
-                    {todayOvertime.actualEndTime
-                      ? format(new Date(todayOvertime.actualEndTime), 'HH:mm')
-                      : 'ยังไม่สิ้นสุด'}
+                    {latestAttendance?.checkInTime || 'ยังไม่ได้ลงเวลา'} -{' '}
+                    {latestAttendance?.checkOutTime || 'ยังไม่สิ้นสุด'}
                   </p>
                 </div>
               </div>
+              {latestAttendance &&
+                latestAttendance.checkInTime !== todayOvertime.startTime && (
+                  <p className="text-orange-600 mt-2">
+                    * เวลาเข้างานไม่ตรงกับเวลาที่ได้รับอนุมัติ
+                  </p>
+                )}
               <p className="text-gray-600 mt-2">
                 เวลาที่อนุมัติ:{' '}
                 <span className="font-medium">
