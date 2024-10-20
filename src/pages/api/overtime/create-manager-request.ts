@@ -19,8 +19,15 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { lineUserId, employeeIds, date, startTime, endTime, reason } =
-    req.body;
+  const {
+    lineUserId,
+    employeeIds,
+    departmentId,
+    date,
+    startTime,
+    endTime,
+    reasons,
+  } = req.body;
 
   try {
     const manager = await prisma.user.findUnique({ where: { lineUserId } });
@@ -32,6 +39,32 @@ export default async function handler(
     ) {
       return res.status(403).json({ message: 'Unauthorized' });
     }
+
+    // If it's an admin request, verify the department
+    if (
+      manager.role === UserRole.ADMIN ||
+      manager.role === UserRole.SUPERADMIN
+    ) {
+      const department = await prisma.department.findUnique({
+        where: { id: departmentId },
+      });
+      if (!department) {
+        return res.status(404).json({ message: 'Department not found' });
+      }
+    } else {
+      // For managers, ensure they're creating requests for their own department
+      if (manager.departmentId !== departmentId) {
+        return res
+          .status(403)
+          .json({
+            message: 'Unauthorized to create requests for this department',
+          });
+      }
+    }
+
+    const formattedReason = reasons
+      .map((r: any) => `${r.reason}: ${r.details}`)
+      .join('; ');
 
     const createdRequests = await Promise.all(
       employeeIds.map(async (employeeId: string) => {
@@ -51,7 +84,7 @@ export default async function handler(
               date: new Date(date),
               startTime,
               endTime,
-              reason,
+              reason: formattedReason,
               status: 'pending_response',
               approverId: manager.id,
             },

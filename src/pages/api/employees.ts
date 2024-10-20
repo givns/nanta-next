@@ -1,7 +1,7 @@
 // pages/api/employees.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { UserRole } from '../../types/enum'; // Make sure to import from the correct path
+import { UserRole } from '../../types/enum';
 
 const prisma = new PrismaClient();
 
@@ -19,40 +19,22 @@ export default async function handler(
   }
 
   try {
-    const manager = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { lineUserId },
       include: { department: true },
     });
 
-    if (
-      !manager ||
-      ![UserRole.MANAGER, UserRole.ADMIN, UserRole.SUPERADMIN].includes(
-        manager.role as UserRole,
-      )
-    ) {
+    if (!user) {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
     let employees;
 
-    if (
-      manager.role === UserRole.ADMIN ||
-      manager.role === UserRole.SUPERADMIN
-    ) {
-      employees = await prisma.user.findMany({
-        where: { role: UserRole.GENERAL },
-        select: {
-          id: true,
-          name: true,
-          employeeId: true,
-          departmentName: true,
-        },
-      });
-    } else {
+    if (user.role === UserRole.MANAGER) {
       employees = await prisma.user.findMany({
         where: {
           role: UserRole.GENERAL,
-          departmentId: manager.departmentId,
+          departmentId: user.departmentId,
         },
         select: {
           id: true,
@@ -61,6 +43,31 @@ export default async function handler(
           departmentName: true,
         },
       });
+    } else if (
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.SUPERADMIN
+    ) {
+      const departments = await prisma.department.findMany({
+        include: {
+          users: {
+            where: { role: UserRole.GENERAL },
+            select: {
+              id: true,
+              name: true,
+              employeeId: true,
+              departmentName: true,
+            },
+          },
+        },
+      });
+
+      employees = departments.map((dept) => ({
+        id: dept.id,
+        name: dept.name,
+        employees: dept.users,
+      }));
+    } else {
+      return res.status(403).json({ message: 'Unauthorized' });
     }
 
     res.status(200).json(employees);

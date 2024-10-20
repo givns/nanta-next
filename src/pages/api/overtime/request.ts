@@ -1,4 +1,3 @@
-// api/overtime/request.ts
 import { PrismaClient } from '@prisma/client';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
@@ -36,9 +35,9 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { lineUserId, date, startTime, endTime, reason, isDayOff } = req.body;
+  const { lineUserId, date, startTime, endTime, reasons } = req.body;
 
-  if (!lineUserId || !date || !startTime || !endTime || !reason) {
+  if (!lineUserId || !date || !startTime || !endTime || !reasons) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
@@ -48,12 +47,16 @@ export default async function handler(
       return res.status(404).json({ message: 'User not found' });
     }
 
+    const formattedReason = reasons
+      .map((r: any) => `${r.reason}: ${r.details}`)
+      .join('; ');
+
     const newOvertimeRequest = await overtimeService.createOvertimeRequest(
       lineUserId,
       date,
       startTime,
       endTime,
-      reason,
+      formattedReason,
     );
 
     res.status(201).json({

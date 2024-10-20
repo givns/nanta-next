@@ -2,19 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
-import {
-  formatTime,
-  getBangkokTime,
-  formatBangkokTime,
-} from '../utils/dateUtils';
-import { CalendarIcon } from 'lucide-react';
+import { getBangkokTime, formatBangkokTime } from '../utils/dateUtils';
 import { UserData } from '@/types/user';
 import liff from '@line/liff';
-import { th } from 'date-fns/locale';
-
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import ThaiDatePicker from './ThaiDatePicker';
 import TimePickerField from './TimePickerField';
 import { Checkbox } from './ui/checkbox';
@@ -23,10 +13,15 @@ interface OvertimeRequestFormProps {
   lineUserId: string;
   userData: UserData;
   employees: any[];
+  departments: any[];
   isManager: boolean;
+  isAdmin: boolean;
 }
 
 const OvertimeSchema = Yup.object().shape({
+  departmentId: Yup.string().when('isAdmin', function (isAdmin, schema) {
+    return isAdmin ? schema.required('กรุณาเลือกแผนก') : schema;
+  }),
   employeeIds: Yup.array()
     .of(Yup.string())
     .test(
@@ -40,7 +35,6 @@ const OvertimeSchema = Yup.object().shape({
         return true;
       },
     ),
-  departmentId: Yup.string().required('กรุณาเลือกแผนก'),
   startTime: Yup.string().required('กรุณาระบุเวลาเริ่มต้น'),
   endTime: Yup.string().required('กรุณาระบุเวลาสิ้นสุด'),
   commonReasons: Yup.array().min(1, 'เลือกเหตุผลอย่างน้อย 1 ข้อ'),
@@ -71,34 +65,31 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
   lineUserId,
   userData,
   employees,
+  departments,
   isManager,
+  isAdmin,
 }) => {
   const [message, setMessage] = useState('');
   const [newRequestDate, setNewRequestDate] = useState(
     formatBangkokTime(getBangkokTime(), 'yyyy-MM-dd'),
   );
-  const [departments, setDepartments] = useState([]);
   const [step, setStep] = useState(1);
+  const [filteredEmployees, setFilteredEmployees] = useState(employees);
 
   useEffect(() => {
-    const fetchDepartments = async () => {
-      try {
-        const response = await axios.get('/api/departments');
-        setDepartments(response.data);
-      } catch (error) {
-        console.error('Error fetching departments:', error);
-        setMessage('ไม่สามารถดึงข้อมูลแผนกได้');
-      }
-    };
-
-    fetchDepartments();
-  }, []);
+    if (isManager) {
+      setFilteredEmployees(
+        employees.filter((emp) => emp.departmentId === userData.departmentId),
+      );
+    }
+  }, [isManager, employees, userData.departmentId]);
 
   const handleOvertimeSubmit = async (values: any) => {
     try {
-      const endpoint = isManager
-        ? '/api/overtime/create-manager-request'
-        : '/api/overtime/request';
+      const endpoint =
+        isManager || isAdmin
+          ? '/api/overtime/create-manager-request'
+          : '/api/overtime/request';
 
       const formattedReasons = values.commonReasons.map(
         (reason: string, index: number) => ({
@@ -109,8 +100,9 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
 
       const requestData = {
         lineUserId,
-        employeeIds: isManager ? values.employeeIds : [userData?.employeeId],
-        departmentId: values.departmentId,
+        employeeIds:
+          isManager || isAdmin ? values.employeeIds : [userData?.employeeId],
+        departmentId: isAdmin ? values.departmentId : userData.departmentId,
         date: values.date,
         startTime: values.startTime,
         endTime: values.endTime,
@@ -129,6 +121,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       setMessage('ไม่สามารถส่งคำขอทำงานล่วงเวลาได้');
     }
   };
+
   const renderStep = (
     values: any,
     setFieldValue: any,
@@ -195,9 +188,13 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
                 />
               </div>
             )}
-            <Button type="button" onClick={() => setStep(2)} className="w-full">
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className="mt-4 w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
+            >
               ถัดไป
-            </Button>
+            </button>
           </>
         );
       case 2:
@@ -247,20 +244,20 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
               />
             </div>
             <div className="flex justify-between">
-              <Button
+              <button
                 type="button"
                 onClick={() => setStep(1)}
                 className="w-1/3"
               >
                 ย้อนกลับ
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
                 onClick={() => setStep(3)}
-                className="w-1/3"
+                className="mt-4 w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
               >
                 ถัดไป
-              </Button>
+              </button>
             </div>
           </>
         );
@@ -352,16 +349,20 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
               </FieldArray>
             </div>
             <div className="flex justify-between">
-              <Button
+              <button
                 type="button"
                 onClick={() => setStep(2)}
                 className="w-1/3"
               >
                 ย้อนกลับ
-              </Button>
-              <Button type="submit" disabled={isSubmitting} className="w-1/3">
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="mt-4 w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
+              >
                 {isSubmitting ? 'กำลังส่งคำขอ...' : 'ส่งคำขอ'}
-              </Button>
+              </button>
             </div>
           </>
         );

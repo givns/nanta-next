@@ -2,6 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../lib/prisma';
+import { UserRole } from '../../types/enum';
 
 export default async function handler(
   req: NextApiRequest,
@@ -13,9 +14,26 @@ export default async function handler(
         select: {
           id: true,
           name: true,
+          users: {
+            where: {
+              role: UserRole.GENERAL,
+            },
+            select: {
+              id: true,
+              name: true,
+              employeeId: true,
+            },
+          },
         },
       });
-      res.status(200).json(departments);
+
+      const formattedDepartments = departments.map((dept) => ({
+        id: dept.id,
+        name: dept.name,
+        employees: dept.users,
+      }));
+
+      res.status(200).json(formattedDepartments);
     } catch (error) {
       console.error('Error fetching departments:', error);
       res.status(500).json({ message: 'Error fetching departments' });
