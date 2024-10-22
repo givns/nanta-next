@@ -70,10 +70,13 @@ const attendanceSchema = Yup.object()
   .test(
     'either-employeeId-or-lineUserId',
     'Either employeeId or lineUserId must be provided',
-    function (value) {
-      return !!value.employeeId || !!value.lineUserId;
-    },
+    (value) => Boolean(value.employeeId || value.lineUserId),
   );
+
+interface QueueTask extends AttendanceData {
+  inPremises: boolean;
+  address: string;
+}
 
 function validateUpdatedStatus(status: any): boolean {
   if (!status || typeof status !== 'object') return false;
@@ -97,146 +100,79 @@ const checkInOutQueue = new BetterQueue(
   },
 );
 
-async function processCheckInOut(data: any) {
-  console.log('Starting processCheckInOut with data:', JSON.stringify(data));
+async function processCheckInOut(
+  data: QueueTask,
+): Promise<AttendanceStatusInfo> {
+  const validatedData = await attendanceSchema.validate(data);
 
-  try {
-    console.log('Validating data');
-    const validatedData = await attendanceSchema.validate(data);
-    console.log('Data validated successfully');
-
-    let employeeId: string;
-    let user: User | null = null;
-
-    console.log('Finding user');
-    if (validatedData.employeeId) {
-      employeeId = validatedData.employeeId;
-      user = await prisma.user.findUnique({
-        where: { employeeId },
-      });
-    } else if (validatedData.lineUserId) {
-      user = await prisma.user.findUnique({
+  const user = validatedData.employeeId
+    ? await prisma.user.findUnique({
+        where: { employeeId: validatedData.employeeId },
+      })
+    : await prisma.user.findUnique({
         where: { lineUserId: validatedData.lineUserId },
       });
-      if (user) {
-        employeeId = user.employeeId;
-      } else {
-        throw new Error('User not found for the given Line User ID');
-      }
-    } else {
-      throw new Error('Either employeeId or lineUserId must be provided');
-    }
 
-    if (!user) {
-      throw new Error('User not found');
-    }
-    console.log('User found:', user.employeeId);
-
-    const now = getCurrentTime();
-    console.log('Current time:', formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'));
-
-    const attendanceData: AttendanceData = {
-      employeeId: validatedData.employeeId ?? '',
-      lineUserId: user.lineUserId,
-      isCheckIn: validatedData.isCheckIn,
-      checkTime: (validatedData.checkTime || now).toISOString(),
-      location: validatedData.location || '',
-      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
-        validatedData.isCheckIn
-          ? validatedData.checkInAddress || user.departmentName || ''
-          : validatedData.checkOutAddress || user.departmentName || '',
-      reason: validatedData.reason || '',
-      isOvertime: validatedData.isOvertime || false,
-      isLate: validatedData.isLate || false,
-    };
-
-    console.log('Processing attendance');
-    await attendanceService.processAttendance(attendanceData);
-    console.log('Attendance processed successfully');
-
-    console.log('Getting latest attendance status');
-    const updatedStatus = await attendanceService.getLatestAttendanceStatus(
-      attendanceData.employeeId,
-    );
-    console.log('Raw latest attendance status:', JSON.stringify(updatedStatus));
-
-    if (!validateUpdatedStatus(updatedStatus)) {
-      console.error('Invalid updatedStatus:', JSON.stringify(updatedStatus));
-      throw new Error('Invalid attendance status format');
-    }
-
-    if (updatedStatus.latestAttendance) {
-      console.log('Formatting attendance times');
-      try {
-        if (updatedStatus.latestAttendance.checkInTime) {
-          console.log(
-            'Raw checkInTime:',
-            updatedStatus.latestAttendance.checkInTime,
-          );
-          const formattedCheckInTime = formatTime(
-            updatedStatus.latestAttendance.checkInTime,
-          );
-          if (formattedCheckInTime === 'Invalid Time') {
-            console.error(
-              'Invalid checkInTime:',
-              updatedStatus.latestAttendance.checkInTime,
-            );
-            updatedStatus.latestAttendance.checkInTime = null;
-          } else {
-            updatedStatus.latestAttendance.checkInTime = formattedCheckInTime;
-          }
-          console.log(
-            'Formatted checkInTime:',
-            updatedStatus.latestAttendance.checkInTime,
-          );
-        }
-        if (updatedStatus.latestAttendance.checkOutTime) {
-          console.log(
-            'Raw checkOutTime:',
-            updatedStatus.latestAttendance.checkOutTime,
-          );
-          const formattedCheckOutTime = formatTime(
-            updatedStatus.latestAttendance.checkOutTime,
-          );
-          if (formattedCheckOutTime === 'Invalid Time') {
-            console.error(
-              'Invalid checkOutTime:',
-              updatedStatus.latestAttendance.checkOutTime,
-            );
-            updatedStatus.latestAttendance.checkOutTime = null;
-          } else {
-            updatedStatus.latestAttendance.checkOutTime = formattedCheckOutTime;
-          }
-          console.log(
-            'Formatted checkOutTime:',
-            updatedStatus.latestAttendance.checkOutTime,
-          );
-        }
-        console.log('Raw date:', updatedStatus.latestAttendance.date);
-        updatedStatus.latestAttendance.date = formatDate(
-          new Date(updatedStatus.latestAttendance.date),
-        );
-        console.log('Formatted date:', updatedStatus.latestAttendance.date);
-      } catch (formatError: any) {
-        console.error('Error formatting attendance times:', formatError);
-        console.error('Error details:', formatError.stack);
-        updatedStatus.latestAttendance.checkInTime = null;
-        updatedStatus.latestAttendance.checkOutTime = null;
-      }
-    }
-
-    console.log('Formatted updatedStatus:', JSON.stringify(updatedStatus));
-
-    console.log('Sending notification');
-    sendNotificationAsync(attendanceData, updatedStatus).catch(console.error);
-    console.log('Notification sent');
-
-    console.log('processCheckInOut completed successfully');
-    return updatedStatus;
-  } catch (error) {
-    console.error('Error in processCheckInOut:', error);
-    throw error; // Re-throw the error to be caught by the queue
+  if (!user) {
+    throw new Error('User not found');
   }
+
+  const now = getCurrentTime();
+  const attendanceData: AttendanceData = {
+    employeeId: user.employeeId,
+    lineUserId: user.lineUserId,
+    isCheckIn: validatedData.isCheckIn,
+    checkTime: (validatedData.checkTime || now).toISOString(),
+    location: validatedData.location || '',
+    [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
+      validatedData.isCheckIn
+        ? validatedData.checkInAddress || user.departmentName || ''
+        : validatedData.checkOutAddress || user.departmentName || '',
+    reason: validatedData.reason || '',
+    isOvertime: validatedData.isOvertime || false,
+    isLate: validatedData.isLate || false,
+  };
+
+  // Process attendance
+  const processedAttendance =
+    await attendanceService.processAttendance(attendanceData);
+
+  // Process overtime if needed
+  if (attendanceData.isOvertime) {
+    await attendanceService.processCheckInOut(
+      user.employeeId,
+      new Date(attendanceData.checkTime),
+      attendanceData.isCheckIn,
+      true,
+    );
+  }
+
+  // Get updated status
+  const updatedStatus = await attendanceService.getLatestAttendanceStatus(
+    attendanceData.employeeId,
+  );
+
+  // Format times for response
+  if (updatedStatus.latestAttendance) {
+    if (updatedStatus.latestAttendance.checkInTime) {
+      updatedStatus.latestAttendance.checkInTime = formatTime(
+        updatedStatus.latestAttendance.checkInTime,
+      );
+    }
+    if (updatedStatus.latestAttendance.checkOutTime) {
+      updatedStatus.latestAttendance.checkOutTime = formatTime(
+        updatedStatus.latestAttendance.checkOutTime,
+      );
+    }
+    updatedStatus.latestAttendance.date = formatDate(
+      new Date(updatedStatus.latestAttendance.date),
+    );
+  }
+
+  // Send notification asynchronously
+  sendNotificationAsync(attendanceData, updatedStatus).catch(console.error);
+
+  return updatedStatus;
 }
 
 export default async function handler(

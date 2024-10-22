@@ -34,7 +34,22 @@ export const useSimpleAttendance = (
   const [address, setAddress] = useState<string>('');
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocationLoading, setIsLocationLoading] = useState(true);
-  const locationRef = useRef({ inPremises: false, address: '' });
+  const [locationState, setLocationState] = useState<{
+    inPremises: boolean;
+    address: string;
+    error: string | null;
+    isLoading: boolean;
+  }>({
+    inPremises: false,
+    address: '',
+    error: null,
+    isLoading: true,
+  });
+
+  const locationRef = useRef({
+    inPremises: false,
+    address: '',
+  });
 
   useEffect(() => {
     console.log('useSimpleAttendance effect', {
