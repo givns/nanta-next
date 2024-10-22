@@ -1228,7 +1228,6 @@ export class AttendanceService {
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,
-      createdAt: user.createdAt ?? undefined,
       updatedAt: user.updatedAt ?? undefined,
     };
 

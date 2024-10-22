@@ -2,12 +2,13 @@ import { z } from 'zod';
 import { UserRole } from '@/types/enum';
 import { UserData } from '@/types/user';
 
+// Parse function for UserData
 const parseUserData = (userData: z.infer<typeof UserDataSchema>): UserData => ({
   ...userData,
-  createdAt: userData.createdAt ? new Date(userData.createdAt) : undefined,
   updatedAt: userData.updatedAt ? new Date(userData.updatedAt) : undefined,
 });
 
+// Schema for UserData
 const UserDataSchema = z.object({
   employeeId: z.string(),
   name: z.string(),
@@ -20,14 +21,13 @@ const UserDataSchema = z.object({
   shiftId: z.string().nullable(),
   shiftCode: z.string().nullable(),
   overtimeHours: z.number(),
-  potentialOvertimes: z.array(z.any()).optional().default([]),
   sickLeaveBalance: z.number(),
   businessLeaveBalance: z.number(),
   annualLeaveBalance: z.number(),
-  createdAt: z.string().or(z.date()).nullable().optional(),
   updatedAt: z.string().or(z.date()).nullable().optional(),
 });
 
+// Schema for ShiftData
 const ShiftDataSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -36,6 +36,8 @@ const ShiftDataSchema = z.object({
   endTime: z.string(),
   workDays: z.array(z.number()),
 });
+
+// Schema for ApprovedOvertime
 const ApprovedOvertimeSchema = z
   .object({
     id: z.string(),
@@ -58,6 +60,18 @@ const ApprovedOvertimeSchema = z
   })
   .nullable();
 
+// Schema for OvertimeEntryData
+const OvertimeEntryDataSchema = z.object({
+  id: z.string(),
+  attendanceId: z.string(),
+  overtimeRequestId: z.string(),
+  actualStartTime: z.string().or(z.date()),
+  actualEndTime: z.string().or(z.date()).nullable(),
+  createdAt: z.string().or(z.date()),
+  updatedAt: z.string().or(z.date()),
+});
+
+// Schema for AttendanceStatusInfo
 const AttendanceStatusInfoSchema = z
   .object({
     status: z.enum(['present', 'absent', 'incomplete', 'holiday', 'off']),
@@ -89,7 +103,7 @@ const AttendanceStatusInfoSchema = z
       .nullable(),
     isCheckingIn: z.boolean(),
     isDayOff: z.boolean(),
-    potentialOvertimes: z.array(z.any()), // Define a more specific schema if possible
+    potentialOvertimes: z.array(OvertimeEntryDataSchema).optional(), // Use the defined OvertimeEntryData schema
     shiftAdjustment: z
       .object({
         date: z.string(),
@@ -97,14 +111,14 @@ const AttendanceStatusInfoSchema = z
         requestedShift: ShiftDataSchema,
       })
       .nullable(),
-    approvedOvertime: z.any().nullable(),
+    approvedOvertime: ApprovedOvertimeSchema,
     futureShifts: z.array(
       z.object({
         date: z.string(),
         shift: ShiftDataSchema,
       }),
     ),
-    futureOvertimes: z.array(z.any()), // You might want to define a more specific schema for ApprovedOvertime
+    futureOvertimes: z.array(ApprovedOvertimeSchema).optional(), // Using the ApprovedOvertimeSchema
     pendingLeaveRequest: z.boolean(),
   })
   .transform((data) => ({
@@ -113,6 +127,7 @@ const AttendanceStatusInfoSchema = z
     approvedOvertime: data.approvedOvertime || null,
   }));
 
+// Schema for CheckInOutAllowance
 const CheckInOutAllowanceSchema = z.object({
   allowed: z.boolean(),
   reason: z.string().optional(),
@@ -120,6 +135,7 @@ const CheckInOutAllowanceSchema = z.object({
   isOvertime: z.boolean().optional(),
 });
 
+// Schema for LeaveRequestData
 const LeaveRequestSchema = z.object({
   id: z.string(),
   employeeId: z.string(),
@@ -132,13 +148,14 @@ const LeaveRequestSchema = z.object({
   status: z.string(),
 });
 
+// Updated Response Data Schema
 const UpdatedResponseDataSchema = z.object({
   user: UserDataSchema,
   attendanceStatus: AttendanceStatusInfoSchema.nullable(),
   effectiveShift: ShiftDataSchema.nullable(),
   checkInOutAllowance: CheckInOutAllowanceSchema,
   approvedOvertime: ApprovedOvertimeSchema.nullable(),
-  leaveRequests: z.array(LeaveRequestSchema), // A
+  leaveRequests: z.array(LeaveRequestSchema), // A more specific array schema for leave requests
 });
 
 export {

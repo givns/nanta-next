@@ -2,11 +2,7 @@
 
 import { User, Shift } from '@prisma/client';
 import { UserRole } from './enum';
-import {
-  ShiftData,
-  AttendanceStatusInfo,
-  AttendanceRecord,
-} from './attendance';
+import { AttendanceStatusInfo, AttendanceRecord } from './attendance';
 
 export type { User, Shift };
 
@@ -25,7 +21,6 @@ export interface UserData {
   sickLeaveBalance: number;
   businessLeaveBalance: number;
   annualLeaveBalance: number;
-  createdAt?: Date;
   updatedAt?: Date;
 }
 
