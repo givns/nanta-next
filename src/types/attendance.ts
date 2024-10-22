@@ -10,11 +10,13 @@ import { UserData } from './user';
 
 export type { Attendance, ShiftAdjustmentRequest, OvertimeEntry, TimeEntry };
 
+// Location Interface
 export interface Location {
   lat: number;
   lng: number;
 }
 
+// Attendance Data Interfaces
 export interface AttendanceData {
   employeeId: string;
   lineUserId: string | null;
@@ -28,6 +30,14 @@ export interface AttendanceData {
   isOvertime?: boolean;
   isLate?: boolean;
 }
+
+// Overtime Interfaces
+export type OvertimeRequestStatus =
+  | 'pending_response'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'declined_by_employee';
 
 export interface ApprovedOvertime {
   id: string;
@@ -48,13 +58,6 @@ export interface ExtendedApprovedOvertime extends ApprovedOvertime {
   overtimeEntries: OvertimeEntryData[];
 }
 
-export type OvertimeRequestStatus =
-  | 'pending_response'
-  | 'pending'
-  | 'approved'
-  | 'rejected'
-  | 'declined_by_employee';
-
 export interface OvertimeEntryData {
   id: string;
   attendanceId: string;
@@ -64,6 +67,24 @@ export interface OvertimeEntryData {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Attendance Status Interfaces
+export type AttendanceStatusValue =
+  | 'present'
+  | 'absent'
+  | 'incomplete'
+  | 'holiday'
+  | 'off'
+  | 'overtime';
+
+export type AttendanceStatusType =
+  | 'checked-in'
+  | 'checked-out'
+  | 'overtime-started'
+  | 'overtime-ended'
+  | 'pending'
+  | 'approved'
+  | 'denied';
 
 export interface AttendanceStatusInfo {
   status: AttendanceStatusValue;
@@ -106,6 +127,7 @@ export interface AttendanceStatusInfo {
   }[];
 }
 
+// Attendance Hook Return Interface
 export interface AttendanceHookReturn {
   attendanceStatus: AttendanceStatusInfo;
   effectiveShift: ShiftData | null;
@@ -119,23 +141,7 @@ export interface AttendanceHookReturn {
   getCurrentLocation: () => void;
 }
 
-export type AttendanceStatusValue =
-  | 'present'
-  | 'absent'
-  | 'incomplete'
-  | 'holiday'
-  | 'off'
-  | 'overtime';
-
-export type AttendanceStatusType =
-  | 'checked-in'
-  | 'checked-out'
-  | 'overtime-started'
-  | 'overtime-ended'
-  | 'pending'
-  | 'approved'
-  | 'denied';
-
+// Shift Data Interface
 export type ShiftData = {
   id: string;
   name: string;
@@ -145,39 +151,13 @@ export type ShiftData = {
   workDays: number[];
 };
 
+// Attendance Record Interface
 export interface AttendanceRecord extends Attendance {
   overtimeEntries: OvertimeEntry[];
   timeEntries: TimeEntry[];
 }
 
-export interface AttendanceRecord {
-  id: string;
-  employeeId: string;
-  date: Date;
-  isDayOff: boolean;
-  shiftStartTime: Date | null;
-  shiftEndTime: Date | null;
-  regularCheckInTime: Date | null;
-  regularCheckOutTime: Date | null;
-  isEarlyCheckIn: boolean | null;
-  isLateCheckIn: boolean | null;
-  isLateCheckOut: boolean | null;
-  checkInLocation: any | null;
-  checkOutLocation: any | null;
-  checkInAddress: string | null;
-  checkOutAddress: string | null;
-  checkInReason: string | null;
-  checkInPhoto: string | null;
-  checkOutPhoto: string | null;
-  status: string;
-  isManualEntry: boolean;
-  overtimeEntries: OvertimeEntry[];
-  timeEntries: TimeEntry[];
-  createdAt: Date;
-  updatedAt: Date;
-  version: number;
-}
-
+// Processed Attendance Interface
 export interface ProcessedAttendance {
   id: string;
   employeeId: string;
@@ -189,6 +169,7 @@ export interface ProcessedAttendance {
   attendanceStatusType: AttendanceStatusType;
 }
 
+// Time Entry Data Interface
 export interface TimeEntryData {
   id: string;
   employeeId: string;
@@ -203,6 +184,7 @@ export interface TimeEntryData {
   entryType: 'regular' | 'overtime';
 }
 
+// Shift Adjustment Interfaces
 export interface ShiftAdjustment {
   date: string;
   requestedShiftId: string;
@@ -218,14 +200,6 @@ export interface FutureShiftAdjustment {
   shift: ShiftData;
 }
 
-export interface OvertimeApproval {
-  id: string;
-  employeeId: string;
-  date: Date;
-  status: 'pending' | 'approved' | 'rejected';
-  reason: string;
-}
-
 export interface ShiftAdjustmentRequestData {
   id: string;
   employeeId: string;
@@ -237,6 +211,7 @@ export interface ShiftAdjustmentRequestData {
   updatedAt: Date;
 }
 
+// Leave Request Interface
 export interface LeaveRequestData {
   employeeId: string;
   startDate: string;
@@ -244,11 +219,22 @@ export interface LeaveRequestData {
   reason: string;
 }
 
+// Overtime Approval Interface
+export interface OvertimeApproval {
+  id: string;
+  employeeId: string;
+  date: Date;
+  status: 'pending' | 'approved' | 'rejected';
+  reason: string;
+}
+
+// Work Hours Calculation Interface
 export interface WorkHoursCalculation {
   regularHours: number;
   overtimeHours: number;
 }
 
+// Manual Entry Data Interface
 export interface ManualEntryData {
   employeeId: string;
   date: string;
@@ -257,6 +243,7 @@ export interface ManualEntryData {
   reason: string;
 }
 
+// Check In/Out Allowance Interface
 export interface CheckInOutAllowance {
   allowed: boolean;
   reason: string;
@@ -277,6 +264,7 @@ export interface CheckInOutAllowance {
   isPotentialOvertime?: boolean;
 }
 
+// Check In/Out Data Interfaces
 export interface CheckInData {
   employeeId: string;
   location: Location;
