@@ -17,6 +17,9 @@ import {
   addDays,
   subDays,
   set,
+  parseISO,
+  format,
+  isWithinInterval,
 } from 'date-fns';
 import {
   formatDate,
@@ -143,9 +146,12 @@ export class ShiftManagementService {
     console.log(
       `Shift end: ${formatDateTime(shiftEnd, 'yyyy-MM-dd HH:mm:ss')}`,
     );
-    const gracePeriod = 5; // or whatever grace period is appropriate
-    const lateThreshold = addMinutes(shiftStart, gracePeriod);
-    const overtimeThreshold = addMinutes(shiftEnd, 30);
+    // Use consistent thresholds with AttendanceService
+    const LATE_CHECK_IN_THRESHOLD = 5; // 5 minutes after shift start
+    const OVERTIME_THRESHOLD = 30; // 30 minutes after shift end
+
+    const lateThreshold = addMinutes(shiftStart, LATE_CHECK_IN_THRESHOLD);
+    const overtimeThreshold = addMinutes(shiftEnd, OVERTIME_THRESHOLD);
 
     const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
     const isLate = isAfter(now, lateThreshold);
@@ -153,11 +159,22 @@ export class ShiftManagementService {
 
     let isOvertime = false;
     if (this.overtimeService) {
-      // Check for approved overtime
       const approvedOvertime =
         await this.overtimeService.getApprovedOvertimeRequest(employeeId, date);
-      isOvertime = !!approvedOvertime && isAfter(now, overtimeThreshold);
+      if (approvedOvertime) {
+        const overtimeStart = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+        );
+        const overtimeEnd = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+        );
+        isOvertime = isWithinInterval(now, {
+          start: overtimeStart,
+          end: overtimeEnd,
+        });
+      }
     }
+
     const result = {
       regularShift: this.convertToShiftData(regularShift),
       effectiveShift: this.convertToShiftData(effectiveShift),

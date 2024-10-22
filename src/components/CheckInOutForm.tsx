@@ -120,10 +120,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setIsSubmitting(true);
         setStep('processing');
 
-        const isLate = checkInOutAllowance?.isLate || false;
+        const isLate = checkInOutAllowance?.isLateCheckIn || false;
         const isOvertime = checkInOutAllowance?.isOvertime || false;
 
-        if (isLate && !lateReason) {
+        // Always check for late check-in when isLateCheckIn is true
+        if (isLate && isCheckingIn && !lateReason) {
           setIsLateModalOpen(true);
           setIsSubmitting(false);
           return;
@@ -230,16 +231,53 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
       console.log('handleAction called with:', action);
+      console.log('CheckInOutAllowance:', checkInOutAllowance);
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
 
       try {
-        if (action === 'checkOut' && checkInOutAllowance?.requireConfirmation) {
-          const now = getCurrentTime();
+        // Handle check-in with late validation
+        if (action === 'checkIn') {
+          console.log(
+            'Processing check-in, isLateCheckIn:',
+            checkInOutAllowance?.isLateCheckIn,
+          );
 
-          if (effectiveShift) {
+          // No need to show late modal here - it will be handled in submitCheckInOut
+          if (checkInOutAllowance?.allowed) {
+            setStep('camera');
+            resetDetection();
+          } else {
+            setError(
+              checkInOutAllowance?.reason ||
+                'Check-in/out is not allowed at this time.',
+            );
+            return;
+          }
+        }
+
+        // Handle check-out with early checkout validation
+        if (action === 'checkOut') {
+          console.log(
+            'Processing check-out, requireConfirmation:',
+            checkInOutAllowance?.requireConfirmation,
+          );
+
+          if (checkInOutAllowance?.requireConfirmation) {
+            const now = getCurrentTime();
+
+            if (!effectiveShift) {
+              console.error('Effective shift is not available');
+              setError(
+                'Unable to process check-out. Shift information is missing.',
+              );
+              return;
+            }
+
+            // Calculate shift times
             const shiftStart = new Date(now);
             const shiftEnd = new Date(now);
 
@@ -261,6 +299,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               (shiftStart.getTime() + shiftEnd.getTime()) / 2,
             );
 
+            // Check for half-day leave
             const approvedHalfDayLeave =
               liveAttendanceStatus?.leaveRequests?.find(
                 (leave) =>
@@ -269,36 +308,39 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                   isSameDay(parseISO(leave.startDate), now),
               );
 
+            // Handle early checkout
             if (!approvedHalfDayLeave || now < shiftMidpoint) {
               const confirmed = window.confirm(checkInOutAllowance.reason);
               if (!confirmed) {
                 return;
               }
-              if (
-                checkInOutAllowance.isEarlyCheckOut &&
-                userData &&
-                userData.lineUserId
-              ) {
-                await createSickLeaveRequest(userData.lineUserId, now);
+
+              // Create sick leave if early checkout
+              if (checkInOutAllowance.isEarlyCheckOut && userData?.lineUserId) {
+                try {
+                  await createSickLeaveRequest(userData.lineUserId, now);
+                  console.log('Sick leave request created for early checkout');
+                } catch (error) {
+                  console.error('Failed to create sick leave request:', error);
+                  setError(
+                    'Failed to create sick leave request for early checkout',
+                  );
+                  return;
+                }
               }
             }
-          } else {
-            console.error('Effective shift is not available');
-            setError(
-              'Unable to process check-out. Shift information is missing.',
-            );
-            return;
           }
-        }
 
-        if (checkInOutAllowance?.allowed) {
-          setStep('camera');
-          resetDetection();
-        } else {
-          setError(
-            checkInOutAllowance?.reason ||
-              'Check-in/out is not allowed at this time.',
-          );
+          // Proceed with checkout if allowed
+          if (checkInOutAllowance?.allowed) {
+            setStep('camera');
+            resetDetection();
+          } else {
+            setError(
+              checkInOutAllowance?.reason ||
+                'Check-in/out is not allowed at this time.',
+            );
+          }
         }
       } catch (error) {
         console.error('Error in handleAction:', error);
