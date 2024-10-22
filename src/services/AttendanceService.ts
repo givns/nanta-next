@@ -969,69 +969,69 @@ export class AttendanceService {
     isLateCheckIn: boolean,
     isLateCheckOut: boolean,
   ): Promise<Attendance> {
-    const existingAttendance = await this.prisma.attendance.findFirst({
-      where: {
-        employeeId,
-        date: {
-          gte: startOfDay(date),
-          lt: endOfDay(date),
+    try {
+      const existingAttendance = await this.prisma.attendance.findFirst({
+        where: {
+          employeeId,
+          date: {
+            gte: startOfDay(date),
+            lt: endOfDay(date),
+          },
         },
-      },
-    });
+      });
 
-    const shiftData =
-      await this.shiftManagementService.getEffectiveShiftAndStatus(
-        employeeId,
-        date,
+      const shiftData =
+        await this.shiftManagementService.getEffectiveShiftAndStatus(
+          employeeId,
+          date,
+        );
+
+      if (!shiftData?.effectiveShift) {
+        throw new Error('Effective shift not found');
+      }
+
+      if (existingAttendance) {
+        const updateData: Prisma.AttendanceUncheckedUpdateInput = {
+          [isCheckIn ? 'regularCheckInTime' : 'regularCheckOutTime']: checkTime,
+          status,
+          isEarlyCheckIn,
+          isLateCheckIn,
+          isLateCheckOut,
+        };
+
+        return this.prisma.attendance.update({
+          where: { id: existingAttendance.id },
+          data: updateData,
+        });
+      } else {
+        const createData: Prisma.AttendanceUncheckedCreateInput = {
+          employeeId,
+          date: startOfDay(date),
+          [isCheckIn ? 'regularCheckInTime' : 'regularCheckOutTime']: checkTime,
+          status,
+          isEarlyCheckIn,
+          isLateCheckIn,
+          isLateCheckOut,
+          isDayOff: !shiftData.effectiveShift.workDays.includes(date.getDay()),
+          shiftStartTime: this.parseShiftTime(
+            shiftData.effectiveShift.startTime,
+            date,
+          ),
+          shiftEndTime: this.parseShiftTime(
+            shiftData.effectiveShift.endTime,
+            date,
+          ),
+        };
+
+        return this.prisma.attendance.create({
+          data: createData,
+        });
+      }
+    } catch (error) {
+      console.error('Error in updateOrCreateAttendanceRecord:', error);
+      throw new Error(
+        `Failed to update/create attendance record: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
-    if (!shiftData?.effectiveShift) {
-      throw new Error('Effective shift not found');
-    }
-
-    if (existingAttendance) {
-      const updateData: Prisma.AttendanceUncheckedUpdateInput = {
-        [isCheckIn ? 'regularCheckInTime' : 'regularCheckOutTime']: checkTime,
-        status,
-        isEarlyCheckIn,
-        isLateCheckIn,
-        isLateCheckOut,
-      };
-
-      return this.prisma.attendance.update({
-        where: { id: existingAttendance.id },
-        data: updateData,
-        include: {
-          overtimeEntries: true,
-          timeEntries: true,
-        },
-      });
-    } else {
-      const createData: Prisma.AttendanceUncheckedCreateInput = {
-        employeeId,
-        date: startOfDay(date),
-        [isCheckIn ? 'regularCheckInTime' : 'regularCheckOutTime']: checkTime,
-        status,
-        isEarlyCheckIn,
-        isLateCheckIn,
-        isLateCheckOut,
-        isDayOff: !shiftData.effectiveShift.workDays.includes(date.getDay()),
-        shiftStartTime: this.parseShiftTime(
-          shiftData.effectiveShift.startTime,
-          date,
-        ),
-        shiftEndTime: this.parseShiftTime(
-          shiftData.effectiveShift.endTime,
-          date,
-        ),
-      };
-
-      return this.prisma.attendance.create({
-        data: createData,
-        include: {
-          overtimeEntries: true,
-          timeEntries: true,
-        },
-      });
     }
   }
 

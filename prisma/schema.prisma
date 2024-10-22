@@ -127,7 +127,7 @@ model OvertimeRequest {
 }
 
 model Attendance {
-  id                   String                @id @default(cuid()) @map("_id")
+  id                   String                @id @default(auto()) @map("_id") @db.ObjectId // Changed from cuid()
   employeeId           String   
   date                 DateTime
   isDayOff             Boolean               @default(false)

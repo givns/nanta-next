@@ -1,6 +1,6 @@
 // pages/api/check-in-out.ts
 
-import { PrismaClient, User } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
@@ -103,76 +103,89 @@ const checkInOutQueue = new BetterQueue(
 async function processCheckInOut(
   data: QueueTask,
 ): Promise<AttendanceStatusInfo> {
-  const validatedData = await attendanceSchema.validate(data);
+  try {
+    const validatedData = await attendanceSchema.validate(data);
 
-  const user = validatedData.employeeId
-    ? await prisma.user.findUnique({
-        where: { employeeId: validatedData.employeeId },
-      })
-    : await prisma.user.findUnique({
-        where: { lineUserId: validatedData.lineUserId },
-      });
+    const user = validatedData.employeeId
+      ? await prisma.user.findUnique({
+          where: { employeeId: validatedData.employeeId },
+        })
+      : await prisma.user.findUnique({
+          where: { lineUserId: validatedData.lineUserId },
+        });
 
-  if (!user) {
-    throw new Error('User not found');
-  }
+    if (!user) {
+      throw new Error('User not found');
+    }
 
-  const now = getCurrentTime();
-  const attendanceData: AttendanceData = {
-    employeeId: user.employeeId,
-    lineUserId: user.lineUserId,
-    isCheckIn: validatedData.isCheckIn,
-    checkTime: (validatedData.checkTime || now).toISOString(),
-    location: validatedData.location || '',
-    [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
-      validatedData.isCheckIn
-        ? validatedData.checkInAddress || user.departmentName || ''
-        : validatedData.checkOutAddress || user.departmentName || '',
-    reason: validatedData.reason || '',
-    isOvertime: validatedData.isOvertime || false,
-    isLate: validatedData.isLate || false,
-  };
+    const now = getCurrentTime();
+    const attendanceData: AttendanceData = {
+      employeeId: user.employeeId,
+      lineUserId: user.lineUserId,
+      isCheckIn: validatedData.isCheckIn,
+      checkTime: (validatedData.checkTime || now).toISOString(),
+      location: validatedData.location || '',
+      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
+        validatedData.isCheckIn
+          ? validatedData.checkInAddress || user.departmentName || ''
+          : validatedData.checkOutAddress || user.departmentName || '',
+      reason: validatedData.reason || '',
+      isOvertime: validatedData.isOvertime || false,
+      isLate: validatedData.isLate || false,
+    };
 
-  // Process attendance
-  const processedAttendance =
-    await attendanceService.processAttendance(attendanceData);
+    // Process attendance
+    const processedAttendance =
+      await attendanceService.processAttendance(attendanceData);
+    if (!processedAttendance) {
+      throw new Error('Failed to process attendance');
+    }
 
-  // Process overtime if needed
-  if (attendanceData.isOvertime) {
-    await attendanceService.processCheckInOut(
-      user.employeeId,
-      new Date(attendanceData.checkTime),
-      attendanceData.isCheckIn,
-      true,
-    );
-  }
-
-  // Get updated status
-  const updatedStatus = await attendanceService.getLatestAttendanceStatus(
-    attendanceData.employeeId,
-  );
-
-  // Format times for response
-  if (updatedStatus.latestAttendance) {
-    if (updatedStatus.latestAttendance.checkInTime) {
-      updatedStatus.latestAttendance.checkInTime = formatTime(
-        updatedStatus.latestAttendance.checkInTime,
+    // Process overtime if needed
+    if (attendanceData.isOvertime) {
+      await attendanceService.processCheckInOut(
+        user.employeeId,
+        new Date(attendanceData.checkTime),
+        attendanceData.isCheckIn,
+        true,
       );
     }
-    if (updatedStatus.latestAttendance.checkOutTime) {
-      updatedStatus.latestAttendance.checkOutTime = formatTime(
-        updatedStatus.latestAttendance.checkOutTime,
+
+    // Get updated status
+    const updatedStatus = await attendanceService.getLatestAttendanceStatus(
+      attendanceData.employeeId,
+    );
+
+    // Format times for response
+    if (updatedStatus.latestAttendance) {
+      if (updatedStatus.latestAttendance.checkInTime) {
+        updatedStatus.latestAttendance.checkInTime = formatTime(
+          updatedStatus.latestAttendance.checkInTime,
+        );
+      }
+      if (updatedStatus.latestAttendance.checkOutTime) {
+        updatedStatus.latestAttendance.checkOutTime = formatTime(
+          updatedStatus.latestAttendance.checkOutTime,
+        );
+      }
+      updatedStatus.latestAttendance.date = formatDate(
+        new Date(updatedStatus.latestAttendance.date),
       );
     }
-    updatedStatus.latestAttendance.date = formatDate(
-      new Date(updatedStatus.latestAttendance.date),
-    );
+
+    // Send notification asynchronously
+    sendNotificationAsync(attendanceData, updatedStatus).catch(console.error);
+
+    return updatedStatus;
+  } catch (error: any) {
+    console.error('Error in processCheckInOut:', error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2023') {
+        throw new Error('Invalid attendance record format. Please try again.');
+      }
+    }
+    throw error;
   }
-
-  // Send notification asynchronously
-  sendNotificationAsync(attendanceData, updatedStatus).catch(console.error);
-
-  return updatedStatus;
 }
 
 export default async function handler(
@@ -222,10 +235,11 @@ export default async function handler(
     console.error('Error stack:', error.stack);
     res.status(500).json({
       error: 'Internal server error',
-      name: error.name,
       details: error.message,
-      stack: error.stack,
-      receivedData: req.body,
+      code:
+        error instanceof Prisma.PrismaClientKnownRequestError
+          ? error.code
+          : undefined,
     });
   }
 }

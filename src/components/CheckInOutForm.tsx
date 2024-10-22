@@ -113,13 +113,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
   }, [isSubmitting, resetStates]);
 
+  // Update CheckInOutForm.tsx error handling
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {
       try {
         setIsSubmitting(true);
         setStep('processing');
 
-        // Check if it's a late check-in
         const isLate = checkInOutAllowance?.isLate || false;
         const isOvertime = checkInOutAllowance?.isOvertime || false;
 
@@ -132,26 +132,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         await onStatusChange(
           liveAttendanceStatus?.isCheckingIn ?? true,
           photo,
-          '',
+          lateReason || '',
           isLate,
           isOvertime,
         );
 
         await onCloseWindow();
       } catch (error: any) {
-        console.error(`Error in submitCheckInOut: ${error.message}`);
-        setError('Failed to submit check-in/out. Please try again.');
+        console.error('Error in submitCheckInOut:', error);
+        const errorMessage =
+          error.response?.data?.details ||
+          error.message ||
+          'Failed to submit check-in/out';
+        setError(`Error: ${errorMessage}. Please try again.`);
       } finally {
         setIsSubmitting(false);
       }
     },
-    [
-      liveAttendanceStatus,
-      userData,
-      checkInOutAllowance,
-      onStatusChange,
-      onCloseWindow,
-    ],
+    [liveAttendanceStatus, checkInOutAllowance, onStatusChange, onCloseWindow],
   );
 
   const handlePhotoCapture = useCallback(
