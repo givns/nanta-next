@@ -139,6 +139,8 @@ model Attendance {
   isEarlyCheckIn       Boolean?
   isLateCheckIn        Boolean?
   isLateCheckOut       Boolean?
+  isVeryLateCheckOut    Boolean  @default(false)
+  lateCheckOutMinutes   Int      @default(0)
   checkInLocation      Json?
   checkOutLocation     Json?
   checkInAddress       String?
@@ -167,6 +169,8 @@ model TimeEntry {
   endTime           DateTime?
   regularHours      Float
   overtimeHours     Float
+  actualMinutesLate  Int      @default(0)
+  isHalfDayLate     Boolean  @default(false)
   status            String                // "in_progress", "completed"
   attendanceId      String?   
   attendance        Attendance?           @relation(fields: [attendanceId], references: [id])

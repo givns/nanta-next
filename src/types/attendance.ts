@@ -86,6 +86,12 @@ export type AttendanceStatusType =
   | 'approved'
   | 'denied';
 
+export interface LateCheckOutStatus {
+  isLateCheckOut: boolean;
+  isVeryLateCheckOut: boolean; // More than 30 minutes late
+  minutesLate: number;
+}
+
 export interface AttendanceStatusInfo {
   status: AttendanceStatusValue;
   isOvertime: boolean;
@@ -232,6 +238,11 @@ export interface OvertimeApproval {
 export interface WorkHoursCalculation {
   regularHours: number;
   overtimeHours: number;
+  minutesLate: number;
+  isHalfDayLate: boolean;
+  actualWorkMinutes: number;
+  earlyDepartureMinutes: number;
+  hasUnapprovedEarlyDeparture: boolean;
 }
 
 // Manual Entry Data Interface
@@ -261,6 +272,8 @@ export interface CheckInOutAllowance {
   isEarlyCheckOut?: boolean;
   isLateCheckIn?: boolean;
   isLateCheckOut?: boolean;
+  isVeryLateCheckOut?: boolean;
+  lateCheckOutMinutes?: number;
   isPotentialOvertime?: boolean;
 }
 

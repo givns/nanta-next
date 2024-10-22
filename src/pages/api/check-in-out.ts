@@ -31,7 +31,11 @@ export const leaveServiceServer = createLeaveServiceServer(
 );
 const shiftService = new ShiftManagementService(prisma);
 
-const timeEntryService = new TimeEntryService(prisma, shiftService);
+const timeEntryService = new TimeEntryService(
+  prisma,
+  shiftService,
+  notificationService,
+);
 
 const overtimeService = new OvertimeServiceServer(
   prisma,

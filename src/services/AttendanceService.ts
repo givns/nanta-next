@@ -40,7 +40,7 @@ import {
   AttendanceStatusType,
   CheckInOutAllowance,
   OvertimeEntryData,
-  TimeEntryData,
+  LateCheckOutStatus,
   AttendanceRecord,
 } from '../types/attendance';
 import { UserData } from '../types/user';
@@ -58,7 +58,6 @@ import { cacheService } from './CacheService';
 
 const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
-const REGULAR_HOURS_PER_SHIFT = 8; // 8 hours of work + 1 hour break
 const EARLY_CHECK_IN_THRESHOLD = 30; // 30 minutes before shift start
 const LATE_CHECK_IN_THRESHOLD = 5; // 5 minutes after shift start
 const LATE_CHECK_OUT_THRESHOLD = 15; // 15 minutes after shift end
@@ -472,6 +471,21 @@ export class AttendanceService {
     inPremises: boolean,
     address: string,
   ): CheckInOutAllowance {
+    // Prevent check-in if more than 4 hours late
+    const minutesLate = differenceInMinutes(now, shiftStart);
+    if (minutesLate > 240) {
+      // 4 hours in minutes
+      return this.createResponse(
+        false,
+        'ไม่สามารถลงเวลาได้เนื่องจากสายเกิน 4 ชั่วโมง กรุณาติดต่อฝ่ายบุคคล',
+        {
+          inPremises,
+          address,
+          isLate: true,
+          requireConfirmation: true,
+        },
+      );
+    }
     // Early check-in handling
     if (now < earlyCheckInWindow) {
       const minutesUntilAllowed = Math.ceil(
@@ -849,6 +863,18 @@ export class AttendanceService {
       attendance.date,
     );
 
+    // Calculate late status first
+    let lateStatus = {
+      isLateCheckOut: false,
+      isVeryLateCheckOut: false,
+      minutesLate: 0,
+    };
+
+    if (!isCheckIn) {
+      lateStatus = this.calculateLateCheckOutStatus(timestamp, shiftEnd);
+    }
+
+    // Prepare update data
     const updateData: Prisma.AttendanceUpdateInput = {
       regularCheckInTime: isCheckIn ? timestamp : undefined,
       regularCheckOutTime: !isCheckIn ? timestamp : undefined,
@@ -858,9 +884,11 @@ export class AttendanceService {
       isLateCheckIn: isCheckIn
         ? this.isLateCheckIn(timestamp, shiftStart)
         : undefined,
-      isLateCheckOut: !isCheckIn
-        ? this.isLateCheckOut(timestamp, shiftEnd)
-        : undefined,
+      ...(!isCheckIn && {
+        isLateCheckOut: lateStatus.isLateCheckOut,
+        isVeryLateCheckOut: lateStatus.isVeryLateCheckOut,
+        lateCheckOutMinutes: lateStatus.minutesLate,
+      }),
       status: this.calculateAttendanceStatus(attendance, effectiveShift),
     };
 
@@ -874,19 +902,6 @@ export class AttendanceService {
     });
 
     return this.toAttendanceRecord(updatedAttendance);
-  }
-
-  private calculateRegularHours(attendance: AttendanceRecord): number {
-    if (!attendance.regularCheckInTime || !attendance.regularCheckOutTime) {
-      return 0;
-    }
-
-    const workDuration = differenceInMinutes(
-      attendance.regularCheckOutTime,
-      attendance.regularCheckInTime,
-    );
-    const regularHours = Math.min(workDuration / 60, REGULAR_HOURS_PER_SHIFT);
-    return Math.round(regularHours * 100) / 100; // Round to 2 decimal places
   }
 
   private calculateAttendanceStatus(
@@ -1395,6 +1410,22 @@ export class AttendanceService {
       futureShifts,
       futureOvertimes,
       pendingLeaveRequest,
+    };
+  }
+
+  private calculateLateCheckOutStatus(
+    checkOutTime: Date,
+    shiftEnd: Date,
+  ): LateCheckOutStatus {
+    const LATE_THRESHOLD = 15; // 15 minutes
+    const VERY_LATE_THRESHOLD = 30; // 30 minutes
+
+    const minutesLate = differenceInMinutes(checkOutTime, shiftEnd);
+
+    return {
+      isLateCheckOut: minutesLate > LATE_THRESHOLD,
+      isVeryLateCheckOut: minutesLate > VERY_LATE_THRESHOLD,
+      minutesLate: Math.max(0, minutesLate),
     };
   }
 

@@ -26,7 +26,11 @@ const leaveServiceServer = createLeaveServiceServer(
   prisma,
   notificationService,
 );
-const timeEntryService = new TimeEntryService(prisma, shiftService);
+const timeEntryService = new TimeEntryService(
+  prisma,
+  shiftService,
+  notificationService,
+);
 
 // Initialize OvertimeServiceServer with new dependencies
 const overtimeService = new OvertimeServiceServer(
