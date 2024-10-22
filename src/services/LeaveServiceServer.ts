@@ -7,6 +7,7 @@ import { ILeaveServiceServer, LeaveBalanceData } from '@/types/LeaveService';
 import { NotificationService } from './NotificationService';
 import { cacheService } from './CacheService';
 import { RequestService } from './RequestService';
+import { addDays } from 'date-fns';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -116,6 +117,11 @@ export class LeaveServiceServer
 
       await this.notifyAdmins(newLeaveRequest);
 
+      // Update Attendance record if leave is approved
+      if (newLeaveRequest.status === 'approved') {
+        await this.updateAttendanceForLeave(newLeaveRequest);
+      }
+
       return newLeaveRequest;
     } catch (error) {
       console.error('Error creating leave request:', error);
@@ -164,6 +170,30 @@ export class LeaveServiceServer
           error,
         );
       }
+    }
+  }
+
+  private async updateAttendanceForLeave(leaveRequest: LeaveRequest) {
+    const { startDate, endDate, employeeId } = leaveRequest;
+    let currentDate = startDate;
+
+    while (currentDate <= endDate) {
+      await this.prisma.attendance.upsert({
+        where: {
+          id: `${employeeId}-${currentDate}`,
+        },
+        update: {
+          isDayOff: true,
+          status: 'off',
+        },
+        create: {
+          employeeId,
+          date: currentDate,
+          isDayOff: true,
+          status: 'off',
+        },
+      });
+      currentDate = addDays(currentDate, 1);
     }
   }
 

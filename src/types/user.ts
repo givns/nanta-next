@@ -3,7 +3,6 @@
 import { User, Shift } from '@prisma/client';
 import { UserRole } from './enum';
 import {
-  PotentialOvertime,
   ShiftData,
   AttendanceStatusInfo,
   AttendanceRecord,
@@ -23,7 +22,6 @@ export interface UserData {
   shiftId: string | null;
   shiftCode: string | null;
   overtimeHours: number;
-  potentialOvertimes: PotentialOvertime[];
   sickLeaveBalance: number;
   businessLeaveBalance: number;
   annualLeaveBalance: number;

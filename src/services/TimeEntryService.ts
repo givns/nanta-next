@@ -1,13 +1,10 @@
 // services/TimeEntryService.ts
-import {
-  PrismaClient,
-  TimeEntry,
-  Attendance,
-  OvertimeRequest,
-} from '@prisma/client';
+import { PrismaClient, Prisma, TimeEntry, Attendance } from '@prisma/client';
 import { differenceInMinutes, isAfter, isBefore } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService';
 import { ApprovedOvertime, ShiftData } from '@/types/attendance';
+
+const REGULAR_HOURS_PER_SHIFT = 8;
 
 export class TimeEntryService {
   constructor(
@@ -58,8 +55,9 @@ export class TimeEntryService {
       attendance.employeeId,
       attendance.date,
     );
+
     const existingEntry = await this.prisma.timeEntry.findFirst({
-      where: { employeeId: attendance.employeeId, date: attendance.date },
+      where: { attendanceId: attendance.id },
     });
 
     const shiftStart = this.parseShiftTime(
@@ -70,10 +68,11 @@ export class TimeEntryService {
       effectiveShift.endTime,
       attendance.date,
     );
-    const checkInTime = attendance.checkInTime || attendance.date;
+
+    const checkInTime = attendance.regularCheckInTime || attendance.date;
     const checkOutTime = isCheckIn
       ? null
-      : attendance.checkOutTime || new Date();
+      : attendance.regularCheckOutTime || new Date();
 
     const { regularHours, overtimeHours } = this.calculateHours(
       checkInTime,
@@ -83,7 +82,8 @@ export class TimeEntryService {
       approvedOvertimeRequest,
     );
 
-    const timeEntryData = {
+    // Use unchecked create/update for better performance and simpler relations
+    const timeEntryData: Prisma.TimeEntryUncheckedCreateInput = {
       employeeId: attendance.employeeId,
       date: attendance.date,
       startTime: checkInTime,
@@ -92,6 +92,7 @@ export class TimeEntryService {
       overtimeHours,
       status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
       attendanceId: attendance.id,
+      entryType: approvedOvertimeRequest ? 'overtime' : 'regular',
     };
 
     if (existingEntry) {
@@ -100,7 +101,9 @@ export class TimeEntryService {
         data: timeEntryData,
       });
     } else {
-      return this.prisma.timeEntry.create({ data: timeEntryData });
+      return this.prisma.timeEntry.create({
+        data: timeEntryData,
+      });
     }
   }
 
@@ -113,17 +116,18 @@ export class TimeEntryService {
   ): { regularHours: number; overtimeHours: number } {
     if (!checkOutTime) return { regularHours: 0, overtimeHours: 0 };
 
-    let regularHours = 0;
-    let overtimeHours = 0;
-
     // Calculate total worked hours
     const totalWorkedMinutes = differenceInMinutes(checkOutTime, checkInTime);
 
     // Calculate regular hours (capped at shift duration)
     const shiftDurationMinutes = differenceInMinutes(shiftEnd, shiftStart);
-    regularHours = Math.min(totalWorkedMinutes, shiftDurationMinutes) / 60;
-
+    // Regular hours capped at REGULAR_HOURS_PER_SHIFT (8 hours)
+    const regularHours = Math.min(
+      totalWorkedMinutes / 60,
+      REGULAR_HOURS_PER_SHIFT,
+    );
     // Calculate overtime
+    let overtimeHours = 0;
     if (approvedOvertimeRequest) {
       const overtimeStart = this.parseShiftTime(
         approvedOvertimeRequest.startTime,

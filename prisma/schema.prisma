@@ -50,14 +50,12 @@ model User {
   isPreImported           String                   @default("No")
   overtimeRequests        OvertimeRequest[]
   approvedOvertimeRequests OvertimeRequest[]       @relation("OvertimeApprover")
-  approvedOvertimes       ApprovedOvertime[]
-  potentialOvertimes      PotentialOvertime[]
   payrollProcessingResults PayrollProcessingResult[]
   checkPoints             CheckPoint[]
   timeEntries             TimeEntry[]
   isRegistrationComplete  String                   @default("No")
-  createdAt               DateTime?                @default(now())
-  updatedAt               DateTime?                @updatedAt
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
 }
 
 model Shift {
@@ -67,15 +65,15 @@ model Shift {
   startTime               String
   endTime                 String
   workDays                Int[]
-  departments             Department []
+  departments             Department[]
   assignedUsers           User[]                   @relation("UserAssignedShift")
   shiftAdjustmentRequests ShiftAdjustmentRequest[] @relation("RequestedShift")
 }
 
 model ShiftAdjustmentRequest {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId            String  
-  user              User @relation(fields: [employeeId], references: [employeeId])
+  employeeId        String  
+  user              User     @relation(fields: [employeeId], references: [employeeId])
   requestedShiftId  String   @db.ObjectId
   requestedShift    Shift    @relation("RequestedShift", fields: [requestedShiftId], references: [id])
   date              DateTime
@@ -88,7 +86,7 @@ model ShiftAdjustmentRequest {
 model LeaveRequest {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
   employeeId        String   
-  user              User @relation(fields: [employeeId], references: [employeeId])
+  user              User     @relation(fields: [employeeId], references: [employeeId])
   leaveType         String
   leaveFormat       String
   reason            String
@@ -103,153 +101,135 @@ model LeaveRequest {
   originalRequestId String?  @db.ObjectId
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
   @@index([employeeId, startDate, endDate, status])
 }
 
 model OvertimeRequest {
-  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  id                 String          @id @default(auto()) @map("_id") @db.ObjectId
   employeeId         String   
   name               String
-  user               User      @relation(fields: [employeeId], references: [employeeId])
+  user               User            @relation(fields: [employeeId], references: [employeeId])
   date               DateTime
-  startTime          String    // Store as HH:mm
-  endTime            String    // Store as HH:mm
-  status             String    // 'pending_response', 'pending', 'approved', 'rejected', 'declined_by_employee'
-  employeeResponse   String?   // 'accepted', 'declined', or null
+  startTime          String          // Store as HH:mm
+  endTime            String          // Store as HH:mm
+  status             String          // 'pending_response', 'pending', 'approved', 'rejected', 'declined_by_employee'
+  employeeResponse   String?         // 'accepted', 'declined', or null
   reason             String?
-  approverId         String?
-  approver           User?     @relation("OvertimeApprover", fields: [approverId], references: [id])
-  isDayOffOvertime   Boolean   @default(false)
-  actualStartTime    DateTime?
-  actualEndTime      DateTime?
+  approverId         String?         @db.ObjectId
+  approver           User?           @relation("OvertimeApprover", fields: [approverId], references: [id])
+  isDayOffOvertime   Boolean         @default(false)
+  overtimeEntries    OvertimeEntry[]
   timeEntries        TimeEntry[]
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
   @@index([employeeId, date, status])
 }
 
-model ApprovedOvertime {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId        String  
-  user              User     @relation(fields: [employeeId], references: [employeeId])
-  date              DateTime
-  startTime         String   // Store as HH:mm
-  endTime           String   // Store as HH:mm
-  actualStartTime   DateTime?
-  actualEndTime     DateTime?
-  reason            String?
-  status            String   // 'approved', 'in_progress', 'completed', 'not_started'
-  approvedBy        String
-  approvedAt        DateTime
-  isDayOffOvertime  Boolean  @default(false)
-}
-
 model Attendance {
-  id                   String    @id @default(cuid()) @map("_id")
-  employeeId               String   
+  id                   String                @id @default(cuid()) @map("_id")
+  employeeId           String   
   date                 DateTime
-  checkInTime          DateTime?
-  checkOutTime         DateTime? 
-  isOvertime           Boolean @default(false)
-  overtimeStartTime    DateTime?
-  overtimeEndTime      DateTime?
-  overtimeDuration  Float?
-  isEarlyCheckIn    Boolean?
-  isLateCheckIn     Boolean?
-  isLateCheckOut    Boolean?
+  isDayOff             Boolean               @default(false)
+  shiftStartTime       DateTime?
+  shiftEndTime         DateTime?
+  regularCheckInTime   DateTime?
+  regularCheckOutTime  DateTime?
+  overtimeEntries      OvertimeEntry[]
+  isEarlyCheckIn       Boolean?
+  isLateCheckIn        Boolean?
+  isLateCheckOut       Boolean?
   checkInLocation      Json?
   checkOutLocation     Json?
   checkInAddress       String?
   checkOutAddress      String?
   checkInReason        String?
-  checkOutReason       String?
   checkInPhoto         String?
   checkOutPhoto        String?
-  checkInDeviceSerial  String?
-  checkOutDeviceSerial String?
-  status               String // e.g., "checked-in", "checked-out", "incomplete"
-  isManualEntry        Boolean   @default(false)
-  timeEntries           TimeEntry[]
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  version              Int @default(0)
-  @@index([employeeId, date])
-  user              User @relation(fields: [employeeId], references: [employeeId])
-}
-
-model ProcessedAttendance {
-  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId         String
-  date               DateTime
-  checkIn            String?
-  checkOut           String?
-  status             String
-  regularHours       Float
-  overtimeHours      Float?
-  isEarlyCheckIn     Boolean?
-  isLateCheckIn      Boolean?
-  isLateCheckOut     Boolean?
-  isOvertime         Boolean
-  detailedStatus     String
-  overtimeDuration   Float
-  checkInDeviceSerial  String?
-  checkOutDeviceSerial String?
-  isManualEntry      Boolean
+  status               String                // e.g., "checked-in", "checked-out", "incomplete"
+  isManualEntry        Boolean               @default(false)
+  timeEntries          TimeEntry[]
+  attendancePayrollPeriods AttendancePayrollPeriod[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  version              Int                   @default(0)
+  user                 User                  @relation(fields: [employeeId], references: [employeeId])
 
   @@index([employeeId, date])
 }
 
 model TimeEntry {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId            String   
-  user              User @relation(fields: [employeeId], references: [employeeId])
+  id                String                @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId        String   
+  user              User                  @relation(fields: [employeeId], references: [employeeId])
   date              DateTime
   startTime         DateTime
   endTime           DateTime?
   regularHours      Float
   overtimeHours     Float
-  status            String
+  status            String                // "in_progress", "completed"
   attendanceId      String?   
-  attendance        Attendance? @relation(fields: [attendanceId], references: [id])
-  overtimeRequestId String?   @db.ObjectId
-  overtimeRequest   OvertimeRequest? @relation(fields: [overtimeRequestId], references: [id])
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  attendance        Attendance?           @relation(fields: [attendanceId], references: [id])
+  overtimeRequestId String?               @db.ObjectId
+  overtimeRequest   OvertimeRequest?      @relation(fields: [overtimeRequestId], references: [id])
+  entryType         String                // "regular", "overtime"
+  timeEntryPayrollPeriods TimeEntryPayrollPeriod[]
+
+  @@index([employeeId, date])
 }
 
-model PotentialOvertime {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId String   
-  user       User     @relation(fields: [employeeId], references: [employeeId])
-  date       DateTime
-  hours      Float
-  type       String // 'early-check-in', 'late-check-out', 'day-off'
-  status     String // 'pending', 'approved', 'rejected'
-  periods    Json?    // Store the overtime periods as JSON
-  reviewedBy String?  @db.ObjectId
-  reviewedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+model PayrollPeriod {
+  id          String                    @id @default(auto()) @map("_id") @db.ObjectId
+  startDate   DateTime
+  endDate     DateTime
+  attendancePayrollPeriods AttendancePayrollPeriod[]
+  timeEntryPayrollPeriods TimeEntryPayrollPeriod[]
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+}
+
+model AttendancePayrollPeriod {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  attendanceId    String
+  attendance      Attendance    @relation(fields: [attendanceId], references: [id])
+  payrollPeriodId String        @db.ObjectId
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+
+  @@unique([attendanceId, payrollPeriodId])
+}
+
+model TimeEntryPayrollPeriod {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  timeEntryId     String        @db.ObjectId
+  timeEntry       TimeEntry     @relation(fields: [timeEntryId], references: [id])
+  payrollPeriodId String        @db.ObjectId
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+
+  @@unique([timeEntryId, payrollPeriodId])
+}
+
+model OvertimeEntry {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  attendanceId      String          @db.ObjectId
+  attendance        Attendance      @relation(fields: [attendanceId], references: [id])
+  overtimeRequestId String          @db.ObjectId
+  overtimeRequest   OvertimeRequest @relation(fields: [overtimeRequestId], references: [id])
+  actualStartTime   DateTime
+  actualEndTime     DateTime?
+  
+  @@index([attendanceId, overtimeRequestId])
 }
 
 model CheckPoint {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId    String   @db.ObjectId
+  employeeId String   
+  user      User     @relation(fields: [employeeId], references: [employeeId])
   jobTitle  String
   timestamp DateTime @default(now())
   latitude  Float
   longitude Float
   address   String?
-
-  user              User @relation(fields: [employeeId], references: [employeeId])
-}
-
-model PayrollPeriod {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  startDate DateTime
-  endDate   DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model PayrollProcessingResult {
@@ -265,8 +245,7 @@ model PayrollProcessingResult {
   processedData      String   // Stored as JSON string
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
-
-  user User @relation(fields: [employeeId], references: [employeeId])
+  user               User     @relation(fields: [employeeId], references: [employeeId])
 
   @@index([employeeId, periodStart, periodEnd])
 }
@@ -282,22 +261,11 @@ model Holiday {
   @@unique([date, name], name: "date_date")
 }
 
-model DepartmentDayOff {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  departmentId String   @db.ObjectId
-  date         DateTime
-  reason       String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  department   Department @relation(fields: [departmentId], references: [id])
-}
-
 model Department {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String   @unique
   defaultShiftId String? @db.ObjectId
   defaultShift  Shift?  @relation(fields: [defaultShiftId], references: [id])
-  daysOff   DepartmentDayOff[]
   users     User[]
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())

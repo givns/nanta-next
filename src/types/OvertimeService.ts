@@ -1,8 +1,7 @@
 // @/types/OvertimeService.ts
 
 import { OvertimeRequest } from '@prisma/client';
-import { ApprovedOvertime } from '@prisma/client'; // Import ApprovedOvertime from the correct file path
-
+import { ApprovedOvertime, ExtendedApprovedOvertime } from './attendance';
 export interface IOvertimeServiceBase {
   createOvertimeRequest(
     lineUserId: string,
@@ -44,11 +43,11 @@ export interface IOvertimeServiceServer extends IOvertimeServiceBase {
     date: Date,
   ): Promise<OvertimeRequest | null>;
 
-  getApprovedOvertimesInRange(
+  getDetailedOvertimesInRange(
     employeeId: string,
     startDate: Date,
     endDate: Date,
-  ): Promise<ApprovedOvertime[]>;
+  ): Promise<ExtendedApprovedOvertime[]>;
 
   getFutureApprovedOvertimes(
     employeeId: string,

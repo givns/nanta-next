@@ -1,9 +1,18 @@
 // services/OvertimeServiceServer.ts
-// services/OvertimeServiceServer.ts
-import { PrismaClient, OvertimeRequest, Prisma, User } from '@prisma/client';
+import {
+  PrismaClient,
+  OvertimeRequest,
+  Prisma,
+  Attendance,
+  OvertimeEntry,
+} from '@prisma/client';
 import { IOvertimeServiceServer } from '@/types/OvertimeService';
 import { TimeEntryService } from './TimeEntryService';
-import { ApprovedOvertime } from '@/types/attendance';
+import {
+  ApprovedOvertime,
+  ExtendedApprovedOvertime,
+  OvertimeEntryData,
+} from '@/types/attendance';
 import {
   parseISO,
   format,
@@ -12,12 +21,20 @@ import {
   differenceInMinutes,
   addDays,
   parse,
+  addMinutes,
 } from 'date-fns';
 import { NotificationService } from './NotificationService';
 import { th } from 'date-fns/locale';
 import { HolidayService } from './HolidayService';
 import { LeaveServiceServer } from './LeaveServiceServer';
 import { ShiftManagementService } from './ShiftManagementService';
+
+type OvertimeRequestStatus =
+  | 'pending_response'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'declined_by_employee';
 
 export class OvertimeServiceServer implements IOvertimeServiceServer {
   constructor(
@@ -55,9 +72,9 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       date: parseISO(date),
       startTime,
       endTime,
-      reason,
       status: 'pending_response',
       employeeResponse: null,
+      reason,
       isDayOffOvertime: isDayOff,
     };
 
@@ -66,7 +83,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       include: { user: true },
     });
 
-    // Notify the employee about the new overtime request
     if (user.lineUserId) {
       await this.notificationService.sendOvertimeRequestNotification(
         newOvertimeRequest,
@@ -82,30 +98,214 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     employeeId: string,
     date: Date,
   ): Promise<boolean> {
-    // Get employee's shift
     const shift = await this.shiftService.getEffectiveShiftAndStatus(
       employeeId,
       date,
     );
-    if (!shift) return true; // If no shift is assigned, consider it a day off
-    // Check if it's a holiday
+    if (!shift) return true;
+
     const isHoliday = await this.holidayService.isHoliday(
       date,
-      [], // Pass an empty array for holidays if not needed
-      shift.shiftCode === 'SHIFT104', // Adjust this condition based on your business logic
+      [],
+      shift.effectiveShift?.shiftCode === 'SHIFT104',
     );
     if (isHoliday) return true;
 
-    // Check if the day is a working day for this shift
     const dayOfWeek = date.getDay();
-    if (!shift.workDays.includes(dayOfWeek)) return true;
+    if (!shift.effectiveShift?.workDays.includes(dayOfWeek)) return true;
 
-    // Check if the employee has an approved leave for this day
     const leave = await this.leaveService.checkUserOnLeave(employeeId, date);
     if (leave) return true;
 
-    // If none of the above conditions are met, it's a working day
     return false;
+  }
+
+  async updateOvertimeActualStartTime(
+    requestId: string,
+    actualStartTime: Date,
+  ): Promise<OvertimeRequest> {
+    const overtimeRequest = await this.prisma.overtimeRequest.findUnique({
+      where: { id: requestId },
+      include: { user: true },
+    });
+
+    if (!overtimeRequest) {
+      throw new Error('Overtime request not found');
+    }
+
+    // Creating associated overtime entry instead of updating request
+    const overtimeEntry = await this.prisma.overtimeEntry.create({
+      data: {
+        overtimeRequestId: requestId,
+        attendanceId: overtimeRequest.id, // Assumes there's an attendance record
+        actualStartTime: actualStartTime,
+      },
+    });
+
+    return overtimeRequest;
+  }
+
+  async updateOvertimeActualEndTime(
+    requestId: string,
+    actualEndTime: Date,
+  ): Promise<OvertimeRequest> {
+    const overtimeRequest = await this.prisma.overtimeRequest.findUnique({
+      where: { id: requestId },
+      include: { overtimeEntries: true },
+    });
+
+    if (!overtimeRequest) {
+      throw new Error('Overtime request not found');
+    }
+
+    // Find the most recent overtime entry and update it
+    const mostRecentEntry = overtimeRequest.overtimeEntries[0];
+    if (mostRecentEntry) {
+      await this.prisma.overtimeEntry.update({
+        where: { id: mostRecentEntry.id },
+        data: { actualEndTime },
+      });
+    }
+
+    return overtimeRequest;
+  }
+
+  private async getWorkingOvertimeEntry(
+    requestId: string,
+  ): Promise<OvertimeEntry | null> {
+    return this.prisma.overtimeEntry.findFirst({
+      where: {
+        overtimeRequestId: requestId,
+        actualEndTime: null,
+      },
+    });
+  }
+
+  async processOvertimeCheckInOut(
+    attendance: Attendance,
+    timestamp: Date,
+    isCheckIn: boolean,
+  ): Promise<void> {
+    const overtimeRequest = await this.getApprovedOvertimeRequest(
+      attendance.employeeId,
+      timestamp,
+    );
+
+    if (!overtimeRequest) {
+      throw new Error('No approved overtime request found for this time.');
+    }
+
+    const allowedStartTime = addMinutes(
+      parseISO(overtimeRequest.startTime),
+      -15,
+    );
+    const allowedEndTime = addMinutes(parseISO(overtimeRequest.endTime), 15);
+
+    if (!this.isWithinTimeWindow(timestamp, allowedStartTime, allowedEndTime)) {
+      throw new Error(
+        'Check-in/out time is outside the allowed 15-minute window for overtime.',
+      );
+    }
+
+    await this.createOvertimeEntry({
+      attendanceId: attendance.id,
+      overtimeRequestId: overtimeRequest.id,
+      timestamp,
+      isCheckIn,
+    });
+  }
+
+  private isWithinTimeWindow(
+    timestamp: Date,
+    startTime: Date,
+    endTime: Date,
+  ): boolean {
+    return timestamp >= startTime && timestamp <= endTime;
+  }
+
+  private async createOvertimeEntry(data: {
+    attendanceId: string;
+    overtimeRequestId: string;
+    timestamp: Date;
+    isCheckIn: boolean;
+  }): Promise<OvertimeEntry> {
+    const entryData: Prisma.OvertimeEntryCreateInput = {
+      attendance: { connect: { id: data.attendanceId } },
+      overtimeRequest: { connect: { id: data.overtimeRequestId } },
+      actualStartTime: data.isCheckIn ? data.timestamp : new Date(),
+      actualEndTime: data.isCheckIn ? null : data.timestamp,
+    };
+
+    return this.prisma.overtimeEntry.create({
+      data: entryData,
+    });
+  }
+
+  async getOvertimeEntriesForAttendance(
+    attendanceId: string,
+  ): Promise<OvertimeEntryData[]> {
+    const entries = await this.prisma.overtimeEntry.findMany({
+      where: { attendanceId },
+    });
+
+    return entries.map((entry) => ({
+      id: entry.id,
+      attendanceId: entry.attendanceId,
+      overtimeRequestId: entry.overtimeRequestId,
+      actualStartTime: entry.actualStartTime,
+      actualEndTime: entry.actualEndTime,
+      createdAt: new Date(), // Added as per OvertimeEntryData interface
+      updatedAt: new Date(), // Added as per OvertimeEntryData interface
+    }));
+  }
+
+  async calculateTotalOvertimeHours(attendanceId: string): Promise<number> {
+    const overtimeEntries =
+      await this.getOvertimeEntriesForAttendance(attendanceId);
+
+    return overtimeEntries.reduce((total, entry) => {
+      if (entry.actualStartTime && entry.actualEndTime) {
+        const durationInMinutes = differenceInMinutes(
+          entry.actualEndTime,
+          entry.actualStartTime,
+        );
+        return total + Math.floor(durationInMinutes / 30) * 0.5; // Round to nearest 30 minutes
+      }
+      return total;
+    }, 0);
+  }
+
+  async getApprovedOvertimeRequest(
+    employeeId: string,
+    date: Date,
+  ): Promise<ApprovedOvertime | null> {
+    const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(date),
+          lt: endOfDay(date),
+        },
+        status: 'approved',
+      },
+    });
+
+    if (!overtimeRequest) return null;
+
+    return {
+      id: overtimeRequest.id,
+      employeeId: overtimeRequest.employeeId,
+      date: overtimeRequest.date,
+      startTime: overtimeRequest.startTime,
+      endTime: overtimeRequest.endTime,
+      status: overtimeRequest.status as ApprovedOvertime['status'],
+      employeeResponse: overtimeRequest.employeeResponse,
+      reason: overtimeRequest.reason,
+      approverId: overtimeRequest.approverId,
+      isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+      createdAt: overtimeRequest.createdAt,
+      updatedAt: overtimeRequest.updatedAt,
+    };
   }
 
   async employeeRespondToOvertimeRequest(
@@ -233,96 +433,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     return differenceInMinutes(end, start);
   }
 
-  async updateOvertimeActualStartTime(
-    requestId: string,
-    actualStartTime: Date,
-  ): Promise<OvertimeRequest> {
-    const overtimeRequest = await this.prisma.overtimeRequest.findUnique({
-      where: { id: requestId },
-      include: { user: true },
-    });
-
-    if (!overtimeRequest) {
-      throw new Error('Overtime request not found');
-    }
-
-    // If the actual start time is not provided, use the planned start time
-    if (!actualStartTime) {
-      const shiftData = await this.shiftService.getEffectiveShiftAndStatus(
-        overtimeRequest.user.employeeId,
-        overtimeRequest.date,
-      );
-
-      if (shiftData && shiftData.effectiveShift) {
-        const shiftEndTime = parse(
-          shiftData.effectiveShift.endTime,
-          'HH:mm',
-          overtimeRequest.date,
-        );
-        actualStartTime = shiftEndTime;
-      } else {
-        actualStartTime = parse(
-          overtimeRequest.startTime,
-          'HH:mm',
-          overtimeRequest.date,
-        );
-      }
-    }
-
-    return this.prisma.overtimeRequest.update({
-      where: { id: requestId },
-      data: { actualStartTime },
-    });
-  }
-
-  async updateOvertimeActualEndTime(
-    requestId: string,
-    actualEndTime: Date,
-  ): Promise<OvertimeRequest> {
-    const overtimeRequest = await this.prisma.overtimeRequest.findUnique({
-      where: { id: requestId },
-    });
-
-    if (!overtimeRequest) {
-      throw new Error('Overtime request not found');
-    }
-
-    // If there's no actual start time, use the start time
-    const actualStartTime =
-      overtimeRequest.actualStartTime ||
-      parseISO(
-        `${format(overtimeRequest.date, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
-      );
-
-    return this.prisma.overtimeRequest.update({
-      where: { id: requestId },
-      data: {
-        actualEndTime,
-        actualStartTime: actualStartTime,
-      },
-    });
-  }
-
-  async getApprovedOvertimeRequest(
-    employeeId: string,
-    date: Date,
-  ): Promise<ApprovedOvertime | null> {
-    const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
-      where: {
-        employeeId,
-        date: {
-          gte: startOfDay(date),
-          lt: endOfDay(date),
-        },
-        status: 'approved',
-      },
-    });
-
-    if (!overtimeRequest) return null;
-
-    return this.convertToApprovedOvertime(overtimeRequest);
-  }
-
   async getFutureApprovedOvertimes(
     employeeId: string,
     startDate: Date,
@@ -345,18 +455,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     overtime: OvertimeRequest,
   ): ApprovedOvertime {
     // Helper function to map OvertimeRequest status to ApprovedOvertime status
-    const mapStatus = (status: string): ApprovedOvertime['status'] => {
-      switch (status) {
-        case 'approved':
-          return 'approved';
-        case 'pending':
-          return 'in_progress';
-        case 'completed':
-          return 'completed';
-        default:
-          return 'not_started';
-      }
-    };
+    const status: OvertimeRequestStatus =
+      overtime.status as OvertimeRequestStatus;
 
     return {
       id: overtime.id,
@@ -364,13 +464,13 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       date: overtime.date,
       startTime: overtime.startTime,
       endTime: overtime.endTime,
-      status: mapStatus(overtime.status),
-      reason: overtime.reason || null,
-      isDayOffOvertime: overtime.isDayOffOvertime || false,
-      actualStartTime: overtime.actualStartTime,
-      actualEndTime: overtime.actualEndTime,
-      approvedBy: overtime.approverId || '',
-      approvedAt: overtime.updatedAt || new Date(),
+      status: status, // Use the properly typed status
+      employeeResponse: overtime.employeeResponse,
+      reason: overtime.reason,
+      approverId: overtime.approverId,
+      isDayOffOvertime: overtime.isDayOffOvertime,
+      createdAt: overtime.createdAt,
+      updatedAt: overtime.updatedAt,
     };
   }
 
@@ -440,11 +540,11 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     });
   }
 
-  async getApprovedOvertimesInRange(
+  async getDetailedOvertimesInRange(
     employeeId: string,
     startDate: Date,
     endDate: Date,
-  ): Promise<ApprovedOvertime[]> {
+  ): Promise<ExtendedApprovedOvertime[]> {
     const overtimes = await this.prisma.overtimeRequest.findMany({
       where: {
         employeeId,
@@ -452,24 +552,44 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
           gte: startDate,
           lte: endDate,
         },
-        status: 'approved', // Only fetch approved overtimes
+        status: 'approved',
+      },
+      include: {
+        overtimeEntries: {
+          orderBy: {
+            actualStartTime: 'desc',
+          },
+        },
       },
     });
 
+    const mapToOvertimeEntryData = (entries: any[]): OvertimeEntryData[] => {
+      return entries.map((entry) => ({
+        id: entry.id,
+        attendanceId: entry.attendanceId,
+        overtimeRequestId: entry.overtimeRequestId,
+        actualStartTime: entry.actualStartTime,
+        actualEndTime: entry.actualEndTime,
+        createdAt: entry.createdAt || new Date(),
+        updatedAt: entry.updatedAt || new Date(),
+      }));
+    };
+
     return overtimes.map(
-      (overtime): ApprovedOvertime => ({
+      (overtime): ExtendedApprovedOvertime => ({
         id: overtime.id,
         employeeId: overtime.employeeId,
         date: overtime.date,
         startTime: overtime.startTime,
         endTime: overtime.endTime,
-        status: 'approved', // All fetched overtimes are approved
-        reason: overtime.reason || null,
-        isDayOffOvertime: overtime.isDayOffOvertime || false,
-        actualStartTime: overtime.actualStartTime,
-        actualEndTime: overtime.actualEndTime,
-        approvedBy: overtime.approverId || '',
-        approvedAt: overtime.updatedAt || new Date(),
+        status: overtime.status as OvertimeRequestStatus,
+        employeeResponse: overtime.employeeResponse,
+        reason: overtime.reason,
+        approverId: overtime.approverId,
+        isDayOffOvertime: overtime.isDayOffOvertime,
+        createdAt: overtime.createdAt,
+        updatedAt: overtime.updatedAt,
+        overtimeEntries: mapToOvertimeEntryData(overtime.overtimeEntries),
       }),
     );
   }

@@ -149,6 +149,7 @@ export class ShiftManagementService {
 
     const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
     const isLate = isAfter(now, lateThreshold);
+    const isDayOff = !effectiveShift.workDays.includes(date.getDay());
 
     let isOvertime = false;
     if (this.overtimeService) {
@@ -164,6 +165,7 @@ export class ShiftManagementService {
         isOutsideShift,
         isLate,
         isOvertime,
+        isDayOff,
       },
     };
     await setCacheData(cacheKey, JSON.stringify(result), 3600); // Cache for 1 hour

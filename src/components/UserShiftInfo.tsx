@@ -3,6 +3,7 @@ import {
   AttendanceStatusInfo,
   ShiftData,
   ApprovedOvertime,
+  OvertimeRequestStatus,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { format, isToday, isValid, parseISO } from 'date-fns';
@@ -126,23 +127,13 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
                     {latestAttendance?.checkOutTime || 'ยังไม่สิ้นสุด'}
                   </p>
                 </div>
-                <div>
-                  <p className="text-gray-600">สถานะ</p>
-                  <p className="font-medium">
-                    {todayOvertime.status === 'completed'
-                      ? 'เสร็จสิ้น'
-                      : todayOvertime.status === 'in_progress'
-                        ? 'กำลังดำเนินการ'
-                        : 'ยังไม่เริ่ม'}
-                  </p>
-                </div>
               </div>
               <p className="text-gray-600 mt-2">
                 เวลาที่อนุมัติ:{' '}
                 <span className="font-medium">
-                  {todayOvertime.approvedAt
+                  {todayOvertime.updatedAt
                     ? format(
-                        new Date(todayOvertime.approvedAt),
+                        new Date(todayOvertime.updatedAt),
                         'dd/MM/yyyy HH:mm',
                         {
                           locale: th,

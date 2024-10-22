@@ -56,7 +56,7 @@ export default async function handler(
     if (!userData) {
       const user = await prisma.user.findUnique({
         where: { lineUserId },
-        include: { department: true, potentialOvertimes: true },
+        include: { department: true },
       });
 
       if (!user) {

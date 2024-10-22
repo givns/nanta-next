@@ -32,11 +32,6 @@ export default async function handler(
         where: { id: requestId },
         data: { status: action },
       });
-    } else if (type === 'potentialOvertime') {
-      updatedRequest = await prisma.potentialOvertime.update({
-        where: { id: requestId },
-        data: { status: action },
-      });
     } else {
       res.status(400).json({ error: 'Invalid request type' });
       return;

@@ -47,8 +47,14 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
           <tr key={date.format('YYYY-MM-DD')}>
             <td>{date.format('DD/MM/YYYY')}</td>
             <td>{attendance.status}</td>
-            <td>{('checkIn' in attendance && attendance.checkIn) || '-'}</td>
-            <td>{('checkOut' in attendance && attendance.checkOut) || '-'}</td>
+            <td>
+              {('checkIn' in attendance && (attendance.checkIn as string)) ||
+                '-'}
+            </td>
+            <td>
+              {('checkOut' in attendance && (attendance.checkOut as string)) ||
+                '-'}
+            </td>
           </tr>
         ))}
       </tbody>

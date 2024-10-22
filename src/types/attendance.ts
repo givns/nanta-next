@@ -1,9 +1,14 @@
 // types/attendance.ts
 
-import { Attendance, ShiftAdjustmentRequest } from '@prisma/client';
+import {
+  Attendance,
+  ShiftAdjustmentRequest,
+  OvertimeEntry,
+  TimeEntry,
+} from '@prisma/client';
 import { UserData } from './user';
 
-export type { Attendance, ShiftAdjustmentRequest };
+export type { Attendance, ShiftAdjustmentRequest, OvertimeEntry, TimeEntry };
 
 export interface Location {
   lat: number;
@@ -28,28 +33,43 @@ export interface ApprovedOvertime {
   id: string;
   employeeId: string;
   date: Date;
-  startTime: string; // HH:mm format
-  endTime: string; // HH:mm format
-  actualStartTime: Date | null;
-  actualEndTime: Date | null;
+  startTime: string;
+  endTime: string;
+  status: OvertimeRequestStatus;
+  employeeResponse: string | null;
   reason: string | null;
-  status: 'approved' | 'in_progress' | 'completed' | 'not_started';
-  approvedBy: string;
-  approvedAt: Date;
+  approverId: string | null;
   isDayOffOvertime: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ExtendedApprovedOvertime extends ApprovedOvertime {
+  overtimeEntries: OvertimeEntryData[];
+}
+
+export type OvertimeRequestStatus =
+  | 'pending_response'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'declined_by_employee';
+
+export interface OvertimeEntryData {
+  id: string;
+  attendanceId: string;
+  overtimeRequestId: string;
+  actualStartTime: Date;
+  actualEndTime: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  approverId: string | null;
-  employeeResponse: string | null;
 }
 
 export interface AttendanceStatusInfo {
   status: AttendanceStatusValue;
   isOvertime: boolean;
   overtimeDuration?: number;
+  overtimeEntries: OvertimeEntryData[];
   detailedStatus: string;
   isEarlyCheckIn: boolean;
   isLateCheckIn: boolean;
@@ -66,7 +86,6 @@ export interface AttendanceStatusInfo {
   } | null;
   isCheckingIn: boolean;
   isDayOff: boolean;
-  potentialOvertimes: PotentialOvertime[];
   shiftAdjustment: {
     date: string;
     requestedShiftId: string;
@@ -117,20 +136,6 @@ export type AttendanceStatusType =
   | 'approved'
   | 'denied';
 
-export interface PotentialOvertime {
-  id: string;
-  employeeId: string;
-  date: Date;
-  hours: number;
-  type: 'early-check-in' | 'late-check-out' | 'day-off';
-  status: 'pending' | 'approved' | 'rejected';
-  periods?: { start: string; end: string }[];
-  reviewedBy?: string;
-  reviewedAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export type ShiftData = {
   id: string;
   name: string;
@@ -140,53 +145,63 @@ export type ShiftData = {
   workDays: number[];
 };
 
+export interface AttendanceRecord extends Attendance {
+  overtimeEntries: OvertimeEntry[];
+  timeEntries: TimeEntry[];
+}
+
 export interface AttendanceRecord {
   id: string;
   employeeId: string;
-  attendanceTime: string;
-  checkInTime: string | null;
-  checkOutTime: string | null;
-  regularHours: number;
-  isOvertime: boolean;
+  date: Date;
   isDayOff: boolean;
-  overtimeStartTime: string | null;
-  overtimeEndTime: string | null;
-  overtimeHours: number;
-  overtimeDuration: number;
+  shiftStartTime: Date | null;
+  shiftEndTime: Date | null;
+  regularCheckInTime: Date | null;
+  regularCheckOutTime: Date | null;
+  isEarlyCheckIn: boolean | null;
+  isLateCheckIn: boolean | null;
+  isLateCheckOut: boolean | null;
   checkInLocation: any | null;
   checkOutLocation: any | null;
   checkInAddress: string | null;
   checkOutAddress: string | null;
   checkInReason: string | null;
-  checkOutReason: string | null;
   checkInPhoto: string | null;
   checkOutPhoto: string | null;
-  status: AttendanceStatusType;
+  status: string;
   isManualEntry: boolean;
+  overtimeEntries: OvertimeEntry[];
+  timeEntries: TimeEntry[];
+  createdAt: Date;
+  updatedAt: Date;
+  version: number;
 }
 
-export type ProcessedAttendance = {
+export interface ProcessedAttendance {
   id: string;
   employeeId: string;
   date: Date;
-  checkIn?: string;
-  checkOut?: string;
   status: AttendanceStatusValue;
   regularHours: number;
-  overtimeHours?: number;
-  isOvertime: boolean;
-  potentialOvertimePeriods?: {
-    start: string;
-    end: string;
-  }[];
-  isEarlyCheckIn?: boolean;
-  isLateCheckIn?: boolean;
-  isLateCheckOut?: boolean;
+  overtimeHours: number;
   detailedStatus: string;
-  overtimeDuration: number;
-  isManualEntry: boolean;
   attendanceStatusType: AttendanceStatusType;
-};
+}
+
+export interface TimeEntryData {
+  id: string;
+  employeeId: string;
+  date: Date;
+  startTime: Date;
+  endTime: Date | null;
+  regularHours: number;
+  overtimeHours: number;
+  status: 'in_progress' | 'completed';
+  attendanceId: string | null;
+  overtimeRequestId: string | null;
+  entryType: 'regular' | 'overtime';
+}
 
 export interface ShiftAdjustment {
   date: string;
@@ -255,7 +270,9 @@ export interface CheckInOutAllowance {
   isPendingDayOffOvertime?: boolean;
   isPendingOvertime?: boolean;
   requireConfirmation?: boolean;
+  isEarlyCheckIn?: boolean;
   isEarlyCheckOut?: boolean;
+  isLateCheckIn?: boolean;
   isLateCheckOut?: boolean;
   isPotentialOvertime?: boolean;
 }
