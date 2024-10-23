@@ -171,7 +171,7 @@ export class AttendanceService {
       } = shiftstatus || {};
 
       const isHoliday = await this.holidayService.isHoliday(
-        now,
+        today,
         [],
         user.shiftCode === 'SHIFT104',
       );
