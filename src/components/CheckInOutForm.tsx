@@ -173,10 +173,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       // Check if this is a late check-in that needs a reason
       const isLate = checkInOutAllowance?.isLateCheckIn || false;
 
-      console.log('Photo captured, checking late status:', {
+      console.log('Late check assessment:', {
         isLate,
         isCheckingIn,
         checkInOutAllowance,
+        currentStep: step,
+        currentModalState: isLateModalOpen,
       });
 
       if (isLate && isCheckingIn) {
@@ -185,15 +187,23 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         return; // Don't proceed with submitCheckInOut yet
       }
 
-      // If not late or not checking in, proceed normally
+      // If not late or not checking in, proceed with submission
       try {
+        console.log('Proceeding with normal submission');
         await submitCheckInOut(photo);
       } catch (error) {
         console.error('Error processing photo:', error);
         setError('An error occurred. Please try again.');
       }
     },
-    [isSubmitting, submitCheckInOut, checkInOutAllowance, isCheckingIn],
+    [
+      isSubmitting,
+      submitCheckInOut,
+      checkInOutAllowance,
+      isCheckingIn,
+      step,
+      isLateModalOpen,
+    ],
   );
 
   const {
@@ -519,13 +529,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <LateReasonModal
           isOpen={isLateModalOpen}
           onClose={() => {
+            console.log('Late reason modal closing');
             setIsLateModalOpen(false);
             resetStates();
           }}
           onSubmit={(lateReason) => {
+            console.log('Submitting with late reason:', {
+              lateReason,
+              hasPhoto: !!capturedPhoto,
+            });
             setIsLateModalOpen(false);
             if (capturedPhoto) {
               submitCheckInOut(capturedPhoto, lateReason);
+            } else {
+              console.error('No photo available for late reason submission');
+              setError('Photo capture failed. Please try again.');
             }
           }}
         />

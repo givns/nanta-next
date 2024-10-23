@@ -84,7 +84,7 @@ export class TimeEntryService {
           attendance.employeeId,
           attendance.date,
           minutesLate,
-          false, // We'll set isHalfDayLate based on approved leaves only
+          minutesLate >= this.HALF_DAY_THRESHOLD,
         );
       } catch (error) {
         console.error('Failed to send late notification:', error);
@@ -127,12 +127,21 @@ export class TimeEntryService {
     minutesLate: number,
     isHalfDayLate: boolean,
   ): Promise<void> {
-    const user = await this.prisma.user.findUnique({
-      where: { employeeId },
-      select: { name: true, departmentName: true },
+    console.log('Preparing admin notification for late check-in:', {
+      employeeId,
+      minutesLate,
+      isHalfDayLate,
     });
 
-    if (!user) return;
+    const user = await this.prisma.user.findUnique({
+      where: { employeeId },
+      select: { name: true, departmentName: true, lineUserId: true },
+    });
+
+    if (!user) {
+      console.log('User not found for late notification');
+      return;
+    }
 
     const admins = await this.prisma.user.findMany({
       where: {
@@ -140,6 +149,8 @@ export class TimeEntryService {
       },
       select: { employeeId: true, lineUserId: true },
     });
+
+    console.log(`Found ${admins.length} admins to notify`);
 
     const message = {
       type: 'text',
@@ -153,12 +164,20 @@ ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
 
     for (const admin of admins) {
       if (admin.lineUserId) {
-        await this.notificationService.sendNotification(
-          admin.employeeId,
-          admin.lineUserId,
-          JSON.stringify(message),
-          'check-in',
-        );
+        try {
+          await this.notificationService.sendNotification(
+            admin.employeeId,
+            admin.lineUserId,
+            JSON.stringify(message),
+            'check-in',
+          );
+          console.log(`Notification sent to admin ${admin.employeeId}`);
+        } catch (error) {
+          console.error(
+            `Failed to send notification to admin ${admin.employeeId}:`,
+            error,
+          );
+        }
       }
     }
   }
