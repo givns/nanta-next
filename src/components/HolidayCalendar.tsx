@@ -10,6 +10,7 @@ import {
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 
 interface Holiday {
+  id: string;
   date: string;
   name: string;
   localName: string;
@@ -19,30 +20,16 @@ const HolidayCalendar: React.FC = () => {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [shiftType, setShiftType] = useState<'regular' | 'shift104'>('regular');
   const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [editHoliday, setEditHoliday] = useState<Holiday | null>(null);
 
   useEffect(() => {
     const fetchHolidays = async () => {
       try {
-        console.log(
-          `Fetching holidays for year: ${year}, shiftType: ${shiftType}`,
-        );
         const response = await fetch(
           `/api/holidays?year=${year}&shiftType=${shiftType}`,
         );
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch holidays: ${response.status} ${response.statusText}`,
-          );
-        }
         const data = await response.json();
-        console.log('Received holiday data:', data);
-
-        if (Array.isArray(data) && data.length > 0) {
-          setHolidays(data);
-        } else {
-          console.log('No holidays received or empty array');
-          setHolidays([]);
-        }
+        setHolidays(data);
       } catch (error) {
         console.error('Error fetching holidays:', error);
       }
@@ -50,6 +37,30 @@ const HolidayCalendar: React.FC = () => {
 
     fetchHolidays();
   }, [year, shiftType]);
+
+  const handleEditHoliday = (holiday: Holiday) => {
+    setEditHoliday(holiday);
+  };
+
+  const handleSaveHoliday = async () => {
+    if (editHoliday) {
+      const response = await fetch(`/api/holidays/${editHoliday.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editHoliday),
+      });
+
+      if (response.ok) {
+        const updatedHoliday = await response.json();
+        setHolidays((prev) =>
+          prev.map((h) => (h.id === updatedHoliday.id ? updatedHoliday : h)),
+        );
+        setEditHoliday(null);
+      } else {
+        console.error('Failed to update holiday');
+      }
+    }
+  };
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
@@ -87,27 +98,59 @@ const HolidayCalendar: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent>
-        {holidays.length > 0 ? (
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Holiday Name</th>
-                <th>Local Name</th>
-              </tr>
-            </thead>
-            <tbody>
-              {holidays.map((holiday, index) => (
-                <tr key={index}>
+        <table className="w-full">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Holiday Name</th>
+              <th>Local Name</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {holidays.length > 0 ? (
+              holidays.map((holiday) => (
+                <tr key={holiday.id}>
                   <td>{format(parseISO(holiday.date), 'dd/MM/yyyy')}</td>
                   <td>{holiday.name}</td>
                   <td>{holiday.localName}</td>
+                  <td>
+                    <button
+                      className="text-blue-600"
+                      onClick={() => handleEditHoliday(holiday)}
+                    >
+                      Edit
+                    </button>
+                  </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>No holidays found</p>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={4}>No holidays found</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {editHoliday && (
+          <div className="modal">
+            <h3>Edit Holiday</h3>
+            <input
+              type="text"
+              value={editHoliday.name}
+              onChange={(e) =>
+                setEditHoliday({ ...editHoliday, name: e.target.value })
+              }
+            />
+            <input
+              type="text"
+              value={editHoliday.localName}
+              onChange={(e) =>
+                setEditHoliday({ ...editHoliday, localName: e.target.value })
+              }
+            />
+            <button onClick={handleSaveHoliday}>Save</button>
+            <button onClick={() => setEditHoliday(null)}>Cancel</button>
+          </div>
         )}
       </CardContent>
     </Card>

@@ -32,6 +32,11 @@ const fallbackHolidays2024 = [
       'วันคล้ายวันสวรรคตพระบาทสมเด็จพระบรมชนกาธิเบศร มหาภูมิพลอดุลยเดชมหาราช บรมนาถบพิตร',
   },
   {
+    date: '2024-10-23',
+    name: 'Chulalongkorn Memorial Day',
+    localName: 'วันปิยมหาราช',
+  },
+  {
     date: '2024-12-05',
     name: "King Bhumibol's Birthday",
     localName:
