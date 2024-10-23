@@ -56,13 +56,13 @@ import {
 } from '../lib/serverCache';
 import { ErrorCode, AppError } from '../types/errors';
 import { cacheService } from './CacheService';
-import LateReasonModal from '@/components/LateReasonModal';
 
 const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
-const EARLY_CHECK_IN_THRESHOLD = 30; // 30 minutes before shift start
+const EARLY_CHECK_IN_THRESHOLD = 29; // 29 minutes before shift start
 const LATE_CHECK_IN_THRESHOLD = 5; // 5 minutes after shift start
 const LATE_CHECK_OUT_THRESHOLD = 15; // 15 minutes after shift end
+const EARLY_CHECK_OUT_THRESHOLD = 15; // 15 minutes before shift end
 
 export class AttendanceService {
   constructor(
@@ -217,6 +217,10 @@ export class AttendanceService {
         shiftStart,
         EARLY_CHECK_IN_THRESHOLD,
       );
+      const earlyCheckOutWindow = addMinutes(
+        shiftEnd,
+        EARLY_CHECK_OUT_THRESHOLD,
+      );
       const isCheckingIn =
         !latestAttendance || !latestAttendance.regularCheckInTime;
       const isLateCheckIn = isCheckingIn && isLate;
@@ -271,6 +275,7 @@ export class AttendanceService {
       } else {
         return this.handleCheckOut(
           now,
+          earlyCheckOutWindow,
           shiftEnd,
           approvedOvertime,
           pendingOvertime,
@@ -505,6 +510,7 @@ export class AttendanceService {
 
   private handleCheckOut(
     now: Date,
+    earlyCheckOutWindow: Date,
     shiftEnd: Date,
     approvedOvertime: ApprovedOvertime | null,
     pendingOvertime: any,
@@ -543,6 +549,23 @@ export class AttendanceService {
     // Early checkout scenarios
     const isEarlyCheckOut = isBefore(now, shiftMidpoint);
 
+    // New Early Check-Out Logic (Similar to Early Check-In Logic)
+    if (now < earlyCheckOutWindow) {
+      const minutesUntilAllowed = Math.ceil(
+        differenceInMinutes(earlyCheckOutWindow, now),
+      );
+      return this.createResponse(
+        false,
+        `คุณกำลังลงเวลาออกก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อออกงาน`,
+        {
+          countdown: minutesUntilAllowed,
+          inPremises,
+          address,
+          isAfternoonShift: !isMorningShift,
+        },
+      );
+    }
+
     if (halfDayLeave) {
       const isAfternoonLeave = isMorningShift;
 
@@ -569,16 +592,12 @@ export class AttendanceService {
         );
 
         if (isLateCheckOut) {
-          return this.createResponse(
-            true,
-            'คุณกำลังลงเวลาออกงานช้า (ช่วงบ่าย)',
-            {
-              isLateCheckOut: true,
-              inPremises,
-              address,
-              isAfternoonShift: true,
-            },
-          );
+          return this.createResponse(true, 'คุณกำลังลงเวลาออกงานช้า', {
+            isLateCheckOut: true,
+            inPremises,
+            address,
+            isAfternoonShift: true,
+          });
         }
 
         return this.createResponse(true, 'คุณกำลังลงเวลาออกงานสำหรับช่วงบ่าย', {
