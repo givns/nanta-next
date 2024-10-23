@@ -120,8 +120,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setIsSubmitting(true);
         setStep('processing');
 
-        const isLate = checkInOutAllowance?.isLateCheckIn || false;
+        const isLate =
+          checkInOutAllowance?.isLateCheckIn ||
+          liveAttendanceStatus?.isLateCheckIn ||
+          false;
+
         const isOvertime = checkInOutAllowance?.isOvertime || false;
+
+        console.log('Late check-in status:', {
+          allowanceIsLate: checkInOutAllowance?.isLateCheckIn,
+          statusIsLate: liveAttendanceStatus?.isLateCheckIn,
+          finalIsLate: isLate,
+          isCheckingIn,
+        });
 
         // Always check for late check-in when isLateCheckIn is true
         if (isLate && isCheckingIn && !lateReason) {
@@ -130,6 +141,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           return;
         }
 
+        // Submit the check-in/out
         await onStatusChange(
           liveAttendanceStatus?.isCheckingIn ?? true,
           photo,
@@ -138,6 +150,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           isOvertime,
         );
 
+        // No need to refresh status here as it will be handled by the parent
         await onCloseWindow();
       } catch (error: any) {
         console.error('Error in submitCheckInOut:', error);
@@ -150,7 +163,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setIsSubmitting(false);
       }
     },
-    [liveAttendanceStatus, checkInOutAllowance, onStatusChange, onCloseWindow],
+    [
+      liveAttendanceStatus,
+      checkInOutAllowance,
+      onStatusChange,
+      onCloseWindow,
+      isCheckingIn,
+    ],
   );
 
   const handlePhotoCapture = useCallback(

@@ -55,6 +55,7 @@ import {
 } from '../lib/serverCache';
 import { ErrorCode, AppError } from '../types/errors';
 import { cacheService } from './CacheService';
+import LateReasonModal from '@/components/LateReasonModal';
 
 const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
@@ -130,11 +131,6 @@ export class AttendanceService {
   private parseShiftTime(timeString: string, date: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
     return set(date, { hours, minutes, seconds: 0, milliseconds: 0 });
-  }
-
-  private roundTime(date: Date, roundToMinutes: number): Date {
-    const coeff = 1000 * 60 * roundToMinutes;
-    return new Date(Math.round(date.getTime() / coeff) * coeff);
   }
 
   public async isCheckInOutAllowed(
@@ -767,7 +763,8 @@ export class AttendanceService {
         isLateCheckIn,
         isLateCheckOut,
         isOvertime,
-        isOvernightShift,
+        this.isOvernightShift(shiftStart, shiftEnd),
+        existingAttendance,
       );
 
       const processedAttendance: ProcessedAttendance = {
@@ -1365,6 +1362,7 @@ export class AttendanceService {
       combinedLateCheckOut,
       isOvertime,
       this.isOvernightShift(shiftStart, shiftEnd),
+      attendance,
     );
 
     const overtimeEntries: OvertimeEntryData[] =
@@ -1459,16 +1457,36 @@ export class AttendanceService {
     isLateCheckOut: boolean,
     isOvertime: boolean,
     isOvernightShift: boolean,
+    latestAttendance: Attendance | null,
   ): string {
     if (status === 'holiday' || status === 'off') return status;
 
     const details: string[] = [];
-    if (isCheckingIn) {
-      if (isEarlyCheckIn) details.push('early-check-in');
-      if (isLateCheckIn) details.push('late-check-in');
+
+    // Check if this is the first check-in of the day
+    if (
+      latestAttendance?.regularCheckInTime &&
+      latestAttendance?.shiftStartTime &&
+      !latestAttendance?.regularCheckOutTime
+    ) {
+      // Ensure both dates exist before comparison
+      const checkInTime = latestAttendance.regularCheckInTime;
+      const shiftStart = new Date(latestAttendance.shiftStartTime);
+
+      if (
+        isAfter(checkInTime, addMinutes(shiftStart, LATE_CHECK_IN_THRESHOLD))
+      ) {
+        details.push('late-check-in');
+      }
     } else {
-      if (isLateCheckOut) details.push('late-check-out');
-      if (isOvertime) details.push('overtime');
+      // Handle normal flow
+      if (isCheckingIn) {
+        if (isEarlyCheckIn) details.push('early-check-in');
+        if (isLateCheckIn) details.push('late-check-in');
+      } else {
+        if (isLateCheckOut) details.push('late-check-out');
+        if (isOvertime) details.push('overtime');
+      }
     }
 
     if (isOvernightShift) details.push('overnight-shift');

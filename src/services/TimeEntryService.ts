@@ -55,6 +55,7 @@ export class TimeEntryService {
       attendance.date,
     );
 
+    // Calculate minutes late
     const checkInTime = attendance.regularCheckInTime || attendance.date;
     const checkOutTime = isCheckIn
       ? null
@@ -72,12 +73,22 @@ export class TimeEntryService {
 
     // If late without approved leave, notify admin
     if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
-      await this.notifyAdminOfLateness(
-        attendance.employeeId,
-        attendance.date,
+      console.log('Sending late notification to admin:', {
+        employeeId: attendance.employeeId,
         minutesLate,
-        isHalfDayLate,
-      );
+        date: attendance.date,
+      });
+
+      try {
+        await this.notifyAdminOfLateness(
+          attendance.employeeId,
+          attendance.date,
+          minutesLate,
+          false, // We'll set isHalfDayLate based on approved leaves only
+        );
+      } catch (error) {
+        console.error('Failed to send late notification:', error);
+      }
     }
 
     const timeEntryData: Prisma.TimeEntryUncheckedCreateInput = {
@@ -88,7 +99,7 @@ export class TimeEntryService {
       regularHours,
       overtimeHours,
       actualMinutesLate: minutesLate,
-      isHalfDayLate,
+      isHalfDayLate: false, // We'll set this based on approved leaves only
       status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
       attendanceId: attendance.id,
       entryType: overtimeHours > 0 ? 'overtime' : 'regular',
