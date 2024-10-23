@@ -358,12 +358,12 @@ export class LeaveServiceServer
   }
 
   async getLeaveRequestForDate(
-    userId: string,
+    employeeId: string,
     date: Date,
   ): Promise<LeaveRequest | null> {
     return this.prisma.leaveRequest.findFirst({
       where: {
-        employeeId: userId,
+        employeeId: employeeId,
         startDate: { lte: date },
         endDate: { gte: date },
         status: 'Approved',

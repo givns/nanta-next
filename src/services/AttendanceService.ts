@@ -186,7 +186,7 @@ export class AttendanceService {
       ] = await Promise.all([
         this.overtimeService.getApprovedOvertimeRequest(employeeId, now),
         this.overtimeService.getPendingOvertimeRequests(employeeId, now),
-        this.leaveService.checkUserOnLeave(employeeId, now),
+        this.leaveService.getLeaveRequestForDate(employeeId, now),
         this.leaveService.hasPendingLeaveRequest(employeeId, now),
         this.getLatestAttendance(employeeId),
       ]);
@@ -367,13 +367,13 @@ export class AttendanceService {
     isLate: boolean,
     inPremises: boolean,
     address: string,
-    leaveRequest: LeaveRequest[] = [],
+    leaveRequests: LeaveRequest[] = [],
   ): CheckInOutAllowance {
     console.log('HandleCheckIn parameters:', {
       now: now.toISOString(),
       shiftStart: shiftStart.toISOString(),
       isLate,
-      hasLeaveRequests: leaveRequest.length > 0,
+      hasLeaveRequests: leaveRequests.length > 0,
     });
 
     // Fixed shiftMidpoint calculation: exactly half way between shift start and end
@@ -390,7 +390,7 @@ export class AttendanceService {
     });
 
     // Check for half-day leave first
-    const halfDayLeave = leaveRequest.find(
+    const halfDayLeave = leaveRequests.find(
       (leave) =>
         leave.status === 'Approved' &&
         leave.leaveFormat === 'ลาครึ่งวัน' &&
@@ -495,7 +495,7 @@ export class AttendanceService {
     pendingOvertime: any,
     inPremises: boolean,
     address: string,
-    leaveRequest: LeaveRequest[],
+    leaveRequests: LeaveRequest[],
     effectiveShift: ShiftData,
     latestAttendance: AttendanceRecord | null,
   ): CheckInOutAllowance {
@@ -513,7 +513,7 @@ export class AttendanceService {
     );
 
     // Check for half-day leave
-    const halfDayLeave = leaveRequest.find(
+    const halfDayLeave = leaveRequests.find(
       (leave) =>
         leave.status === 'Approved' &&
         leave.leaveFormat === 'ลาครึ่งวัน' &&
