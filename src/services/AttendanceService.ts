@@ -367,13 +367,13 @@ export class AttendanceService {
     isLate: boolean,
     inPremises: boolean,
     address: string,
-    leaveRequests: LeaveRequest[] = [],
+    leaveRequest: LeaveRequest[] = [],
   ): CheckInOutAllowance {
     console.log('HandleCheckIn parameters:', {
       now: now.toISOString(),
       shiftStart: shiftStart.toISOString(),
       isLate,
-      hasLeaveRequests: leaveRequests.length > 0,
+      hasLeaveRequests: leaveRequest.length > 0,
     });
 
     // Fixed shiftMidpoint calculation: exactly half way between shift start and end
@@ -381,13 +381,27 @@ export class AttendanceService {
     const shiftMidpoint = new Date(
       shiftStart.getTime() + (shiftEnd.getTime() - shiftStart.getTime()) / 2,
     );
+
+    console.log('Shift times:', {
+      shiftStart: shiftStart.toISOString(),
+      shiftMidpoint: shiftMidpoint.toISOString(),
+      shiftEnd: shiftEnd.toISOString(),
+      currentTime: now.toISOString(),
+    });
+
     // Check for half-day leave first
-    const halfDayLeave = leaveRequests.find(
+    const halfDayLeave = leaveRequest.find(
       (leave) =>
         leave.status === 'Approved' &&
         leave.leaveFormat === 'ลาครึ่งวัน' &&
         isSameDay(new Date(leave.startDate), now),
     );
+
+    console.log('Half-day leave check:', {
+      hasHalfDayLeave: !!halfDayLeave,
+      leaveDetails: halfDayLeave,
+      isAfterMidpoint: isAfter(now, shiftMidpoint),
+    });
 
     const isAfternoonCheckIn = halfDayLeave && isAfter(now, shiftMidpoint);
 
@@ -470,6 +484,7 @@ export class AttendanceService {
       inPremises,
       address,
       isAfternoonShift: false,
+      isLate: false,
     });
   }
 
@@ -480,7 +495,7 @@ export class AttendanceService {
     pendingOvertime: any,
     inPremises: boolean,
     address: string,
-    leaveRequests: LeaveRequest[],
+    leaveRequest: LeaveRequest[],
     effectiveShift: ShiftData,
     latestAttendance: AttendanceRecord | null,
   ): CheckInOutAllowance {
@@ -498,7 +513,7 @@ export class AttendanceService {
     );
 
     // Check for half-day leave
-    const halfDayLeave = leaveRequests.find(
+    const halfDayLeave = leaveRequest.find(
       (leave) =>
         leave.status === 'Approved' &&
         leave.leaveFormat === 'ลาครึ่งวัน' &&
