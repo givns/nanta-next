@@ -275,7 +275,9 @@ export interface CheckInOutAllowance {
   isVeryLateCheckOut?: boolean;
   lateCheckOutMinutes?: number;
   isPotentialOvertime?: boolean;
-  isAfternoonShift?: boolean; // Add this line
+  isAfternoonShift?: boolean;
+  isMorningShift?: boolean;
+  isApprovedEarlyCheckout?: boolean;
 }
 
 // Check In/Out Data Interfaces
