@@ -21,6 +21,15 @@ const HolidayCalendar: React.FC = () => {
   const [shiftType, setShiftType] = useState<'regular' | 'shift104'>('regular');
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [editHoliday, setEditHoliday] = useState<Holiday | null>(null);
+  const [newHoliday, setNewHoliday] = useState<{
+    date: string;
+    name: string;
+    localName: string;
+  }>({
+    date: '',
+    name: '',
+    localName: '',
+  });
 
   useEffect(() => {
     const fetchHolidays = async () => {
@@ -38,10 +47,12 @@ const HolidayCalendar: React.FC = () => {
     fetchHolidays();
   }, [year, shiftType]);
 
+  // Edit existing holiday
   const handleEditHoliday = (holiday: Holiday) => {
     setEditHoliday(holiday);
   };
 
+  // Save edited holiday
   const handleSaveHoliday = async () => {
     if (editHoliday) {
       const response = await fetch(`/api/holidays/${editHoliday.id}`, {
@@ -59,6 +70,23 @@ const HolidayCalendar: React.FC = () => {
       } else {
         console.error('Failed to update holiday');
       }
+    }
+  };
+
+  // Add new holiday
+  const handleAddHoliday = async () => {
+    const response = await fetch('/api/holidays', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newHoliday),
+    });
+
+    if (response.ok) {
+      const addedHoliday = await response.json();
+      setHolidays((prev) => [...prev, addedHoliday]);
+      setNewHoliday({ date: '', name: '', localName: '' });
+    } else {
+      console.error('Failed to add holiday');
     }
   };
 
@@ -98,6 +126,12 @@ const HolidayCalendar: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent>
+        <button
+          className="bg-blue-600 text-white p-2 rounded"
+          onClick={() => setNewHoliday({ date: '', name: '', localName: '' })}
+        >
+          Add New Holiday
+        </button>
         <table className="w-full">
           <thead>
             <tr>
@@ -150,6 +184,44 @@ const HolidayCalendar: React.FC = () => {
             />
             <button onClick={handleSaveHoliday}>Save</button>
             <button onClick={() => setEditHoliday(null)}>Cancel</button>
+          </div>
+        )}
+
+        {/* Modal for adding a new holiday */}
+        {newHoliday && (
+          <div className="modal">
+            <h3>Add New Holiday</h3>
+            <input
+              type="date"
+              value={newHoliday.date}
+              onChange={(e) =>
+                setNewHoliday({ ...newHoliday, date: e.target.value })
+              }
+            />
+            <input
+              type="text"
+              placeholder="Holiday Name"
+              value={newHoliday.name}
+              onChange={(e) =>
+                setNewHoliday({ ...newHoliday, name: e.target.value })
+              }
+            />
+            <input
+              type="text"
+              placeholder="Local Name"
+              value={newHoliday.localName}
+              onChange={(e) =>
+                setNewHoliday({ ...newHoliday, localName: e.target.value })
+              }
+            />
+            <button onClick={handleAddHoliday}>Add</button>
+            <button
+              onClick={() =>
+                setNewHoliday({ date: '', name: '', localName: '' })
+              }
+            >
+              Cancel
+            </button>
           </div>
         )}
       </CardContent>
