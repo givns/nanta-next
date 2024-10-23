@@ -19,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Edit2, Calendar as CalendarIcon } from 'lucide-react';
+import { Edit2, Calendar as CalendarIcon, Plus } from 'lucide-react';
 
 interface Holiday {
   id: string;
@@ -35,6 +35,12 @@ const HolidayCalendar: React.FC = () => {
   const [editHoliday, setEditHoliday] = useState<Holiday | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newHoliday, setNewHoliday] = useState<Omit<Holiday, 'id'>>({
+    date: new Date().toISOString().split('T')[0],
+    name: '',
+    localName: '',
+  });
 
   useEffect(() => {
     const fetchHolidays = async () => {
@@ -70,72 +76,165 @@ const HolidayCalendar: React.FC = () => {
   const handleEditHoliday = (holiday: Holiday) => {
     setEditHoliday({
       ...holiday,
-      date: holiday.date, // Keep as ISO string
+      date: holiday.date,
     });
+    setIsAddingNew(false);
+  };
+
+  const handleAddNewHoliday = () => {
+    setIsAddingNew(true);
+    setEditHoliday(null);
   };
 
   const handleSaveHoliday = async () => {
-    if (!editHoliday) return;
-
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/holidays/${editHoliday.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editHoliday),
-      });
+      if (isAddingNew) {
+        const response = await fetch('/api/holidays', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newHoliday),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to update holiday');
+        if (!response.ok) {
+          throw new Error('Failed to create holiday');
+        }
+
+        const createdHoliday = await response.json();
+        setHolidays((prev) => [...prev, createdHoliday]);
+        setIsAddingNew(false);
+        setNewHoliday({
+          date: new Date().toISOString().split('T')[0],
+          name: '',
+          localName: '',
+        });
+      } else if (editHoliday) {
+        const response = await fetch(`/api/holidays/${editHoliday.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editHoliday),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update holiday');
+        }
+
+        const updatedHoliday = await response.json();
+        setHolidays((prev) =>
+          prev.map((h) => (h.id === updatedHoliday.id ? updatedHoliday : h)),
+        );
+        setEditHoliday(null);
       }
-
-      const updatedHoliday = await response.json();
-      setHolidays((prev) =>
-        prev.map((h) => (h.id === updatedHoliday.id ? updatedHoliday : h)),
-      );
-      setEditHoliday(null);
     } catch (error) {
-      console.error('Error updating holiday:', error);
-      setError('Failed to update holiday');
+      console.error('Error saving holiday:', error);
+      setError('Failed to save holiday');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const renderForm = () => {
+    const holiday = isAddingNew ? newHoliday : editHoliday;
+    if (!holiday) return null;
+
+    return (
+      <div className="grid gap-4 py-4">
+        <div className="grid gap-2">
+          <Label>วันที่</Label>
+          {isAddingNew ? (
+            <Input
+              type="date"
+              value={holiday.date}
+              onChange={(e) =>
+                setNewHoliday({ ...newHoliday, date: e.target.value })
+              }
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4" />
+              <span>
+                {format(parseISO(holiday.date), 'dd MMMM yyyy', {
+                  locale: th,
+                })}
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="grid gap-2">
+          <Label>Holiday Name</Label>
+          <Input
+            value={holiday.name}
+            onChange={(e) =>
+              isAddingNew
+                ? setNewHoliday({ ...newHoliday, name: e.target.value })
+                : setEditHoliday({ ...editHoliday!, name: e.target.value })
+            }
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label>ชื่อวันหยุด</Label>
+          <Input
+            value={holiday.localName}
+            onChange={(e) =>
+              isAddingNew
+                ? setNewHoliday({ ...newHoliday, localName: e.target.value })
+                : setEditHoliday({ ...editHoliday!, localName: e.target.value })
+            }
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const handleCloseDialog = () => {
+    setEditHoliday(null);
+    setIsAddingNew(false);
+    setNewHoliday({
+      date: new Date().toISOString().split('T')[0],
+      name: '',
+      localName: '',
+    });
   };
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
         <div className="flex justify-between items-center gap-4">
-          <Select
-            value={year.toString()}
-            onValueChange={(value) => setYear(parseInt(value))}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select year" />
-            </SelectTrigger>
-            <SelectContent>
-              {[2023, 2024, 2025].map((y) => (
-                <SelectItem key={y} value={y.toString()}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={shiftType}
-            onValueChange={(value) =>
-              setShiftType(value as 'regular' | 'shift104')
-            }
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select shift type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="regular">Regular Shift</SelectItem>
-              <SelectItem value="shift104">Shift 104</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex gap-4">
+            <Select
+              value={year.toString()}
+              onValueChange={(value) => setYear(parseInt(value))}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select year" />
+              </SelectTrigger>
+              <SelectContent>
+                {[2023, 2024, 2025].map((y) => (
+                  <SelectItem key={y} value={y.toString()}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={shiftType}
+              onValueChange={(value) =>
+                setShiftType(value as 'regular' | 'shift104')
+              }
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select shift type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="regular">Regular Shift</SelectItem>
+                <SelectItem value="shift104">Shift 104</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleAddNewHoliday}>
+            <Plus className="h-4 w-4 mr-2" /> Add Holiday
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -179,51 +278,21 @@ const HolidayCalendar: React.FC = () => {
           </table>
         </div>
 
-        <Dialog open={!!editHoliday} onOpenChange={() => setEditHoliday(null)}>
+        <Dialog
+          open={!!editHoliday || isAddingNew}
+          onOpenChange={handleCloseDialog}
+        >
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>แก้ไขวันหยุด</DialogTitle>
+              <DialogTitle>
+                {isAddingNew ? 'เพิ่มวันหยุด' : 'แก้ไขวันหยุด'}
+              </DialogTitle>
             </DialogHeader>
-            {editHoliday && (
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label>วันที่</Label>
-                  <div className="flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4" />
-                    <span>
-                      {format(parseISO(editHoliday.date), 'dd MMMM yyyy', {
-                        locale: th,
-                      })}
-                    </span>
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Holiday Name</Label>
-                  <Input
-                    value={editHoliday.name}
-                    onChange={(e) =>
-                      setEditHoliday({ ...editHoliday, name: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>ชื่อวันหยุด</Label>
-                  <Input
-                    value={editHoliday.localName}
-                    onChange={(e) =>
-                      setEditHoliday({
-                        ...editHoliday,
-                        localName: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-            )}
+            {renderForm()}
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setEditHoliday(null)}
+                onClick={handleCloseDialog}
                 disabled={isLoading}
               >
                 ยกเลิก
