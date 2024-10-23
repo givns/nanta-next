@@ -10,7 +10,6 @@ import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { createNotificationService } from '@/services/NotificationService';
 import { cacheService } from '@/services/CacheService';
 import { ResponseDataSchema } from '../../schemas/attendance';
-import { approveLeaveRequest } from '@/services/api';
 
 const prisma = new PrismaClient();
 
@@ -51,6 +50,18 @@ const attendanceService = new AttendanceService(
   notificationService,
   timeEntryService,
 );
+
+interface LeaveRequestWithDates {
+  id: string;
+  employeeId: string;
+  leaveType: string;
+  leaveFormat: string;
+  reason: string;
+  startDate: Date | string;
+  endDate: Date | string;
+  fullDayCount: number;
+  status: string;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -168,7 +179,19 @@ export default async function handler(
       effectiveShift: responseData?.shiftData?.effectiveShift,
       checkInOutAllowance,
       approvedOvertime: responseData?.approvedOvertime,
-      leaveRequests: responseData?.leaveRequests, // Include leave requests in the final response
+      leaveRequests: responseData?.leaveRequests?.map(
+        (request: LeaveRequestWithDates) => ({
+          ...request,
+          startDate:
+            request.startDate instanceof Date
+              ? request.startDate.toISOString()
+              : String(request.startDate),
+          endDate:
+            request.endDate instanceof Date
+              ? request.endDate.toISOString()
+              : String(request.endDate),
+        }),
+      ),
     };
 
     console.log(

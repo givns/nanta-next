@@ -142,11 +142,35 @@ const LeaveRequestSchema = z.object({
   leaveType: z.string(),
   leaveFormat: z.string(),
   reason: z.string(),
-  startDate: z.string(),
-  endDate: z.string(),
+  startDate: z
+    .string()
+    .or(z.date())
+    .transform((date) =>
+      typeof date === 'string' ? date : date.toISOString(),
+    ),
+  endDate: z
+    .string()
+    .or(z.date())
+    .transform((date) =>
+      typeof date === 'string' ? date : date.toISOString(),
+    ),
   fullDayCount: z.number(),
   status: z.string(),
 });
+
+// A helper function to transform dates in the response data
+const transformDates = (data: any) => {
+  if (!data) return data;
+
+  const transformed = { ...data };
+  if (transformed.startDate instanceof Date) {
+    transformed.startDate = transformed.startDate.toISOString();
+  }
+  if (transformed.endDate instanceof Date) {
+    transformed.endDate = transformed.endDate.toISOString();
+  }
+  return transformed;
+};
 
 // Updated Response Data Schema
 const UpdatedResponseDataSchema = z.object({
@@ -155,7 +179,9 @@ const UpdatedResponseDataSchema = z.object({
   effectiveShift: ShiftDataSchema.nullable(),
   checkInOutAllowance: CheckInOutAllowanceSchema,
   approvedOvertime: ApprovedOvertimeSchema.nullable(),
-  leaveRequests: z.array(LeaveRequestSchema), // A more specific array schema for leave requests
+  leaveRequests: z
+    .array(LeaveRequestSchema)
+    .transform((requests) => requests.map(transformDates)),
 });
 
 export {
