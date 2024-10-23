@@ -57,7 +57,6 @@ import {
 import { ErrorCode, AppError } from '../types/errors';
 import { cacheService } from './CacheService';
 import LateReasonModal from '@/components/LateReasonModal';
-import { current } from '@reduxjs/toolkit';
 
 const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
@@ -150,6 +149,8 @@ export class AttendanceService {
         });
 
       const now = getCurrentTime();
+      const today = startOfDay(getCurrentTime());
+
       const shiftData =
         await this.shiftManagementService.getEffectiveShiftAndStatus(
           employeeId,
@@ -185,14 +186,21 @@ export class AttendanceService {
         pendingLeave,
         latestAttendance,
       ] = await Promise.all([
-        this.overtimeService.getApprovedOvertimeRequest(employeeId, now),
-        this.overtimeService.getPendingOvertimeRequests(employeeId, now),
-        this.leaveService.getLeaveRequestForDate(employeeId, new Date()),
-        this.leaveService.hasPendingLeaveRequest(employeeId, now),
+        this.overtimeService.getApprovedOvertimeRequest(employeeId, today),
+        this.overtimeService.getPendingOvertimeRequests(employeeId, today),
+        this.leaveService.checkUserOnLeave(employeeId, today),
+        this.leaveService.hasPendingLeaveRequest(employeeId, today),
         this.getLatestAttendance(employeeId),
       ]);
 
       console.log('Attendance data:', {
+        isOutsideShift,
+        isLate,
+        isOvertime,
+        isHoliday,
+        isDayOff,
+        approvedOvertime,
+        pendingOvertime,
         leaveRequest,
         pendingLeave,
         latestAttendance,
