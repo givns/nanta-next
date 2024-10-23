@@ -133,6 +133,7 @@ const CheckInOutAllowanceSchema = z.object({
   reason: z.string().optional(),
   isLate: z.boolean().optional(),
   isOvertime: z.boolean().optional(),
+  isAfternoonShift: z.boolean().optional(), // Add this line
 });
 
 // Schema for LeaveRequestData

@@ -286,6 +286,7 @@ export class AttendanceService {
       reason,
       inPremises: options.inPremises ?? false,
       address: options.address ?? '',
+      isAfternoonShift: options.isAfternoonShift ?? false,
       ...options,
     };
   }
@@ -368,30 +369,32 @@ export class AttendanceService {
     address: string,
     leaveRequests: LeaveRequest[] = [],
   ): CheckInOutAllowance {
-    const shiftMidpoint = new Date(
-      (shiftStart.getTime() + addHours(shiftStart, 8).getTime()) / 2,
-    );
+    const shiftMidpoint = addHours(shiftStart, 4); // Midpoint at 4 hours after shift start
 
-    // Check for half-day leave
+    // Check for half-day leave first
     const halfDayLeave = leaveRequests.find(
       (leave) =>
         leave.status === 'Approved' &&
         leave.leaveFormat === 'ลาครึ่งวัน' &&
-        isSameDay(leave.startDate, now),
+        isSameDay(new Date(leave.startDate), now),
     );
 
-    // If checking in after midpoint and there's a half-day leave,
-    // assume it's morning leave and allow afternoon check-in
-    if (halfDayLeave && isAfter(now, shiftMidpoint)) {
-      return this.createResponse(true, 'คุณกำลังลงเวลาเข้างานสำหรับช่วงบ่าย', {
+    const isAfternoonCheckIn = halfDayLeave && isAfter(now, shiftMidpoint);
+
+    // If checking in after midpoint with a half-day leave, assume it's morning leave
+    // and allow afternoon check-in
+    if (isAfternoonCheckIn) {
+      return this.createResponse(true, 'คุณกำลังลงเวลาเข้างานช่วงบ่าย', {
         inPremises,
         address,
+        isLateCheckIn: false, // Not late for afternoon shift
+        isAfternoonShift: true, // Indicate this is afternoon shift
       });
     }
 
     // Normal late check handling
     const minutesLate = differenceInMinutes(now, shiftStart);
-    if (minutesLate > 240 && !halfDayLeave) {
+    if (minutesLate > 240 && !isAfternoonCheckIn) {
       return this.createResponse(
         false,
         'ไม่สามารถลงเวลาได้เนื่องจากสายเกิน 4 ชั่วโมง กรุณาติดต่อฝ่ายบุคคล',
@@ -400,6 +403,7 @@ export class AttendanceService {
           address,
           isLate: true,
           requireConfirmation: true,
+          isAfternoonShift: false,
         },
       );
     }
@@ -411,7 +415,12 @@ export class AttendanceService {
       return this.createResponse(
         false,
         `คุณกำลังเข้างานก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อเข้างาน`,
-        { countdown: minutesUntilAllowed, inPremises, address },
+        {
+          countdown: minutesUntilAllowed,
+          inPremises,
+          address,
+          isAfternoonShift: false,
+        },
       );
     }
 
@@ -420,16 +429,21 @@ export class AttendanceService {
       return this.createResponse(
         true,
         'คุณกำลังเข้างานก่อนเวลา ระบบจะบันทึกเวลาเข้างานตามกะการทำงาน',
-        { isEarlyCheckIn: true, inPremises, address },
+        {
+          isEarlyCheckIn: true,
+          inPremises,
+          address,
+          isAfternoonShift: false,
+        },
       );
     }
 
-    // Late check-in
-    if (isLate) {
+    if (isLate && !isAfternoonCheckIn) {
       return this.createResponse(true, 'คุณกำลังลงเวลาเข้างานสาย', {
         isLateCheckIn: true,
         inPremises,
         address,
+        isAfternoonShift: false,
       });
     }
 
@@ -437,6 +451,7 @@ export class AttendanceService {
     return this.createResponse(true, 'คุณกำลังลงเวลาเข้างาน', {
       inPremises,
       address,
+      isAfternoonShift: false,
     });
   }
 
