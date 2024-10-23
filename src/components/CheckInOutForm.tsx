@@ -113,40 +113,35 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
   }, [isSubmitting, resetStates]);
 
-  // Update CheckInOutForm.tsx error handling
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {
       try {
-        setIsSubmitting(true);
-        setStep('processing');
-
         const isLate = checkInOutAllowance?.isLateCheckIn || false;
-        const isOvertime = checkInOutAllowance?.isOvertime || false;
 
-        console.log('Late check-in status:', {
-          allowanceIsLate: checkInOutAllowance?.isLateCheckIn,
-          statusIsLate: liveAttendanceStatus?.isLateCheckIn,
-          finalIsLate: isLate,
+        console.log('Submitting check-in/out:', {
+          isLate,
+          hasLateReason: !!lateReason,
           isCheckingIn,
         });
 
-        // Always check for late check-in when isLateCheckIn is true
+        // Double-check late status (defensive programming)
         if (isLate && isCheckingIn && !lateReason) {
+          console.log('Late reason required but missing');
           setIsLateModalOpen(true);
-          setIsSubmitting(false);
           return;
         }
 
-        // Submit the check-in/out
+        setIsSubmitting(true);
+        setStep('processing');
+
         await onStatusChange(
-          liveAttendanceStatus?.isCheckingIn ?? true,
+          currentAttendanceStatus?.isCheckingIn ?? true,
           photo,
           lateReason || '',
           isLate,
-          isOvertime,
+          checkInOutAllowance?.isOvertime || false,
         );
 
-        // No need to refresh status here as it will be handled by the parent
         await onCloseWindow();
       } catch (error: any) {
         console.error('Error in submitCheckInOut:', error);
@@ -160,18 +155,37 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     },
     [
-      liveAttendanceStatus,
       checkInOutAllowance,
+      isCheckingIn,
+      currentAttendanceStatus,
       onStatusChange,
       onCloseWindow,
-      isCheckingIn,
     ],
   );
 
   const handlePhotoCapture = useCallback(
     async (photo: string) => {
       if (isSubmitting) return;
+
+      // Store the photo first
       setCapturedPhoto(photo);
+
+      // Check if this is a late check-in that needs a reason
+      const isLate = checkInOutAllowance?.isLateCheckIn || false;
+
+      console.log('Photo captured, checking late status:', {
+        isLate,
+        isCheckingIn,
+        checkInOutAllowance,
+      });
+
+      if (isLate && isCheckingIn) {
+        console.log('Opening late reason modal after photo capture');
+        setIsLateModalOpen(true);
+        return; // Don't proceed with submitCheckInOut yet
+      }
+
+      // If not late or not checking in, proceed normally
       try {
         await submitCheckInOut(photo);
       } catch (error) {
@@ -179,7 +193,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setError('An error occurred. Please try again.');
       }
     },
-    [isSubmitting, submitCheckInOut],
+    [isSubmitting, submitCheckInOut, checkInOutAllowance, isCheckingIn],
   );
 
   const {
@@ -190,6 +204,17 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     resetDetection,
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture);
+
+  // Add monitoring for critical state changes
+  useEffect(() => {
+    console.log('State change monitoring:', {
+      step,
+      isLateModalOpen,
+      hasPhoto: !!capturedPhoto,
+      isLate: checkInOutAllowance?.isLateCheckIn,
+      isCheckingIn,
+    });
+  }, [step, isLateModalOpen, capturedPhoto, checkInOutAllowance, isCheckingIn]);
 
   const createSickLeaveRequest = async (lineUserId: string, date: Date) => {
     const response = await fetch('/api/leaveRequest/create', {
