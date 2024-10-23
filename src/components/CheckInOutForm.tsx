@@ -120,11 +120,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setIsSubmitting(true);
         setStep('processing');
 
-        const isLate =
-          checkInOutAllowance?.isLateCheckIn ||
-          liveAttendanceStatus?.isLateCheckIn ||
-          false;
-
+        const isLate = checkInOutAllowance?.isLateCheckIn || false;
         const isOvertime = checkInOutAllowance?.isOvertime || false;
 
         console.log('Late check-in status:', {
