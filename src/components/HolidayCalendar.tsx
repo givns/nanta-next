@@ -7,7 +7,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Table } from '@/components/ui/table';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 
 interface Holiday {
@@ -88,30 +87,28 @@ const HolidayCalendar: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent>
-        <Table columns={[]} dataSource={[]}>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Holiday Name</th>
-              <th>Local Name</th>
-            </tr>
-          </thead>
-          <tbody>
-            {holidays.length > 0 ? (
-              holidays.map((holiday, index) => (
+        {holidays.length > 0 ? (
+          <table className="w-full">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Holiday Name</th>
+                <th>Local Name</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holidays.map((holiday, index) => (
                 <tr key={index}>
                   <td>{format(parseISO(holiday.date), 'dd/MM/yyyy')}</td>
                   <td>{holiday.name}</td>
                   <td>{holiday.localName}</td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={3}>No holidays found</td>
-              </tr>
-            )}
-          </tbody>
-        </Table>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>No holidays found</p>
+        )}
       </CardContent>
     </Card>
   );
