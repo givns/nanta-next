@@ -38,22 +38,29 @@ const HolidayCalendar: React.FC = () => {
 
   useEffect(() => {
     const fetchHolidays = async () => {
-      setIsLoading(true);
-      setError(null);
       try {
+        console.log(
+          `Fetching holidays for year: ${year}, shiftType: ${shiftType}`,
+        );
         const response = await fetch(
           `/api/holidays?year=${year}&shiftType=${shiftType}`,
         );
         if (!response.ok) {
-          throw new Error('Failed to fetch holidays');
+          throw new Error(
+            `Failed to fetch holidays: ${response.status} ${response.statusText}`,
+          );
         }
         const data = await response.json();
-        setHolidays(data);
+        console.log('Received holiday data:', data);
+
+        if (Array.isArray(data) && data.length > 0) {
+          setHolidays(data);
+        } else {
+          console.log('No holidays received or empty array');
+          setHolidays([]);
+        }
       } catch (error) {
         console.error('Error fetching holidays:', error);
-        setError('Failed to load holidays');
-      } finally {
-        setIsLoading(false);
       }
     };
 
