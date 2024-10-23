@@ -191,6 +191,12 @@ export class AttendanceService {
         this.getLatestAttendance(employeeId),
       ]);
 
+      console.log('Attendance data:', {
+        leaveRequest,
+        pendingLeave,
+        latestAttendance,
+      });
+
       const dayOffOvertimeRequest = isDayOff
         ? await this.overtimeService.getDayOffOvertimeRequest(employeeId, now)
         : null;
