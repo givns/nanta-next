@@ -1,3 +1,4 @@
+//api/holidays.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { HolidayService } from '../../services/HolidayService';
 import { Holiday, PrismaClient } from '@prisma/client';
