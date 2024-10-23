@@ -57,6 +57,7 @@ import {
 import { ErrorCode, AppError } from '../types/errors';
 import { cacheService } from './CacheService';
 import LateReasonModal from '@/components/LateReasonModal';
+import { current } from '@reduxjs/toolkit';
 
 const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
@@ -186,7 +187,7 @@ export class AttendanceService {
       ] = await Promise.all([
         this.overtimeService.getApprovedOvertimeRequest(employeeId, now),
         this.overtimeService.getPendingOvertimeRequests(employeeId, now),
-        this.leaveService.getLeaveRequestForDate(employeeId, now),
+        this.leaveService.getLeaveRequestForDate(employeeId, new Date()),
         this.leaveService.hasPendingLeaveRequest(employeeId, now),
         this.getLatestAttendance(employeeId),
       ]);
