@@ -126,6 +126,29 @@ export class HolidayService {
     }
   }
 
+  async createHoliday(data: {
+    date: Date;
+    name: string;
+    localName: string;
+  }): Promise<Holiday> {
+    console.log('Creating new holiday:', data);
+    return this.prisma.holiday.create({
+      data: {
+        date: data.date,
+        name: data.name,
+        localName: data.localName,
+        types: [], // Default empty array for types
+      },
+    });
+  }
+
+  async updateHoliday(id: string, data: Partial<Holiday>): Promise<Holiday> {
+    return this.prisma.holiday.update({
+      where: { id },
+      data,
+    });
+  }
+
   async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
     const startYear = startDate.getFullYear();
     const endYear = endDate.getFullYear();

@@ -91,14 +91,22 @@ const HolidayCalendar: React.FC = () => {
     setError(null);
     try {
       if (isAddingNew) {
+        // Format the data according to the API expectations
+        const holidayData = {
+          date: newHoliday.date, // Make sure this is in YYYY-MM-DD format
+          name: newHoliday.name,
+          localName: newHoliday.localName,
+        };
+
         const response = await fetch('/api/holidays', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newHoliday),
+          body: JSON.stringify(holidayData),
         });
 
         if (!response.ok) {
-          throw new Error('Failed to create holiday');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create holiday');
         }
 
         const createdHoliday = await response.json();
