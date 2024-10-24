@@ -297,3 +297,10 @@ export interface CheckOutData {
   reason?: string;
   photo: string;
 }
+
+export interface HalfDayLeaveContext {
+  hasHalfDayLeave: boolean;
+  checkInTime: Date | null;
+  isMorningLeaveConfirmed: boolean;
+  isAfternoonLeaveConfirmed: boolean;
+}

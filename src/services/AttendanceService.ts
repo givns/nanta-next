@@ -43,6 +43,7 @@ import {
   OvertimeEntryData,
   LateCheckOutStatus,
   AttendanceRecord,
+  HalfDayLeaveContext,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
@@ -149,7 +150,7 @@ export class AttendanceService {
         });
 
       const now = getCurrentTime();
-      const today = startOfDay(getCurrentTime());
+      const today = startOfDay(now);
 
       const shiftData =
         await this.shiftManagementService.getEffectiveShiftAndStatus(
@@ -172,9 +173,18 @@ export class AttendanceService {
 
       const isHoliday = await this.holidayService.isHoliday(
         today,
-        [],
+        await this.holidayService.getHolidays(today, today), // Get holidays for today
         user.shiftCode === 'SHIFT104',
       );
+
+      if (isHoliday) {
+        return this.createResponse(
+          false,
+          'วันนี้เป็นวันหยุดนักขัตฤกษ์ ไม่สามารถลงเวลาได้',
+          { inPremises, address },
+        );
+      }
+
       const isDayOff =
         isHoliday || !effectiveShift.workDays.includes(now.getDay());
 
@@ -271,6 +281,7 @@ export class AttendanceService {
           inPremises,
           address,
           leaveRequest ? [leaveRequest] : [],
+          latestAttendance,
         );
       } else {
         return this.handleCheckOut(
@@ -380,6 +391,35 @@ export class AttendanceService {
     return null;
   }
 
+  private determineHalfDayLeaveContext(
+    leaveRequests: LeaveRequest[],
+    latestAttendance: AttendanceRecord | null,
+    now: Date,
+    shiftMidpoint: Date,
+  ): HalfDayLeaveContext {
+    const halfDayLeave = leaveRequests.find(
+      (leave) =>
+        leave.status === 'Approved' &&
+        leave.leaveFormat === 'ลาครึ่งวัน' &&
+        isSameDay(new Date(leave.startDate), now),
+    );
+
+    const checkInTime = latestAttendance?.regularCheckInTime
+      ? new Date(latestAttendance.regularCheckInTime)
+      : null;
+
+    return {
+      hasHalfDayLeave: !!halfDayLeave,
+      checkInTime,
+      // Morning leave is confirmed if they try to check in after midpoint with no previous check-in
+      isMorningLeaveConfirmed:
+        !!halfDayLeave && !checkInTime && isAfter(now, shiftMidpoint),
+      // Afternoon leave is confirmed if they checked in before midpoint and try to leave around midpoint
+      isAfternoonLeaveConfirmed:
+        !!halfDayLeave && !!checkInTime && isBefore(checkInTime, shiftMidpoint),
+    };
+  }
+
   private handleCheckIn(
     now: Date,
     earlyCheckInWindow: Date,
@@ -388,6 +428,7 @@ export class AttendanceService {
     inPremises: boolean,
     address: string,
     leaveRequests: LeaveRequest[] = [],
+    latestAttendance: AttendanceRecord | null,
   ): CheckInOutAllowance {
     console.log('HandleCheckIn parameters:', {
       now: now.toISOString(),
@@ -396,57 +437,35 @@ export class AttendanceService {
       hasLeaveRequests: leaveRequests.length > 0,
     });
 
-    // Fixed shiftMidpoint calculation: exactly half way between shift start and end
-    const shiftEnd = addHours(shiftStart, 8); // Assuming 8-hour shift
+    const shiftEnd = addHours(shiftStart, 8);
     const shiftMidpoint = new Date(
       shiftStart.getTime() + (shiftEnd.getTime() - shiftStart.getTime()) / 2,
     );
 
-    console.log('Shift times:', {
-      shiftStart: shiftStart.toISOString(),
-      shiftMidpoint: shiftMidpoint.toISOString(),
-      shiftEnd: shiftEnd.toISOString(),
-      currentTime: now.toISOString(),
-    });
-
-    // Check for half-day leave first
-    const halfDayLeave = leaveRequests.find(
-      (leave) =>
-        leave.status === 'Approved' &&
-        leave.leaveFormat === 'ลาครึ่งวัน' &&
-        isSameDay(new Date(leave.startDate), now),
+    // Get half-day leave context
+    const leaveContext = this.determineHalfDayLeaveContext(
+      leaveRequests,
+      latestAttendance,
+      now,
+      shiftMidpoint,
     );
 
-    console.log('Half-day leave check:', {
-      hasHalfDayLeave: !!halfDayLeave,
-      leaveDetails: halfDayLeave,
-      isAfterMidpoint: isAfter(now, shiftMidpoint),
-    });
+    console.log('Half-day leave context:', leaveContext);
 
-    const isAfternoonCheckIn = halfDayLeave && isAfter(now, shiftMidpoint);
-
-    // If checking in after midpoint with a half-day leave, assume it's morning leave
-    // and allow afternoon check-in
-    if (isAfternoonCheckIn) {
-      console.log('Allowing afternoon check-in due to half-day leave');
+    // Handle morning leave confirmation
+    if (leaveContext.isMorningLeaveConfirmed) {
       return this.createResponse(true, 'คุณกำลังลงเวลาเข้างานช่วงบ่าย', {
         inPremises,
         address,
         isAfternoonShift: true,
-        isLateCheckIn: false, // Not considered late for afternoon shift
+        isLateCheckIn: false,
         isLate: false,
       });
     }
 
-    // Normal late check handling
+    // Too late check
     const minutesLate = differenceInMinutes(now, shiftStart);
-    console.log('Late check calculation:', {
-      minutesLate,
-      isLate,
-      hasHalfDayLeave: !!halfDayLeave,
-    });
-
-    if (minutesLate > 240 && !isAfternoonCheckIn) {
+    if (minutesLate > 240 && !leaveContext.hasHalfDayLeave) {
       return this.createResponse(
         false,
         'ไม่สามารถลงเวลาได้เนื่องจากสายเกิน 4 ชั่วโมง กรุณาติดต่อฝ่ายบุคคล',
@@ -459,7 +478,8 @@ export class AttendanceService {
         },
       );
     }
-    // Early check-in handling
+
+    // Check for too early
     if (now < earlyCheckInWindow) {
       const minutesUntilAllowed = Math.ceil(
         differenceInMinutes(earlyCheckInWindow, now),
@@ -476,7 +496,7 @@ export class AttendanceService {
       );
     }
 
-    // Before shift start
+    // Early but acceptable check-in
     if (isAfter(now, earlyCheckInWindow) && isBefore(now, shiftStart)) {
       return this.createResponse(
         true,
@@ -490,7 +510,8 @@ export class AttendanceService {
       );
     }
 
-    if (isLate && !isAfternoonCheckIn) {
+    // Late check-in
+    if (isLate && !leaveContext.hasHalfDayLeave) {
       return this.createResponse(true, 'คุณกำลังลงเวลาเข้างานสาย', {
         isLateCheckIn: true,
         inPremises,
@@ -533,73 +554,45 @@ export class AttendanceService {
       (shiftStart.getTime() + shiftEnd.getTime()) / 2,
     );
 
-    // Check for half-day leave
-    const halfDayLeave = leaveRequests.find(
-      (leave) =>
-        leave.status === 'Approved' &&
-        leave.leaveFormat === 'ลาครึ่งวัน' &&
-        isSameDay(leave.startDate, now),
+    // Get half-day leave context
+    const leaveContext = this.determineHalfDayLeaveContext(
+      leaveRequests,
+      latestAttendance,
+      now,
+      shiftMidpoint,
     );
 
-    // Determine shift period based on check-in time
-    const isMorningShift =
-      latestAttendance?.regularCheckInTime &&
-      isBefore(new Date(latestAttendance.regularCheckInTime), shiftMidpoint);
-
-    // Early checkout scenarios
-    const isEarlyCheckOut = isBefore(now, shiftMidpoint);
-
-    // New Early Check-Out Logic (Similar to Early Check-In Logic)
-    if (now < earlyCheckOutWindow) {
-      const minutesUntilAllowed = Math.ceil(
-        differenceInMinutes(earlyCheckOutWindow, now),
-      );
+    // Handle afternoon leave confirmation
+    if (
+      leaveContext.hasHalfDayLeave &&
+      leaveContext.checkInTime &&
+      isBefore(leaveContext.checkInTime, shiftMidpoint) &&
+      isWithinInterval(now, {
+        start: subMinutes(shiftMidpoint, 30),
+        end: addMinutes(shiftMidpoint, 30),
+      })
+    ) {
       return this.createResponse(
-        false,
-        `คุณกำลังลงเวลาออกก่อนเวลาโดยไม่ได้รับการอนุมัติ กรุณารอ ${minutesUntilAllowed} นาทีเพื่อออกงาน`,
+        true,
+        'คุณกำลังลงเวลาออกงานสำหรับช่วงเช้า เนื่องจากมีการลาช่วงบ่าย',
         {
-          countdown: minutesUntilAllowed,
           inPremises,
           address,
-          isAfternoonShift: !isMorningShift,
+          isMorningShift: true,
+          isApprovedEarlyCheckout: true,
         },
       );
     }
 
-    if (halfDayLeave) {
-      const isAfternoonLeave = isMorningShift;
-
-      // Morning shift with afternoon leave - allow early checkout
-      if (isAfternoonLeave && isBefore(now, shiftEnd)) {
-        return this.createResponse(
-          true,
-          'คุณกำลังลงเวลาออกงานสำหรับช่วงเช้า เนื่องจากมีการลาช่วงบ่าย',
-          {
-            inPremises,
-            address,
-            isMorningShift: true,
-            isApprovedEarlyCheckout: true,
-          },
-        );
-      }
-
-      // Afternoon shift (after morning leave) - regular checkout rules apply
-      if (!isAfternoonLeave) {
-        // Apply normal late checkout rules for afternoon shift
-        const isLateCheckOut = isAfter(
-          now,
-          addMinutes(shiftEnd, LATE_CHECK_OUT_THRESHOLD),
-        );
-
-        if (isLateCheckOut) {
-          return this.createResponse(true, 'คุณกำลังลงเวลาออกงานช้า', {
-            isLateCheckOut: true,
-            inPremises,
-            address,
-            isAfternoonShift: true,
-          });
-        }
-
+    // Handle morning leave (checked in after midpoint)
+    if (leaveContext.isMorningLeaveConfirmed) {
+      // Allow normal end-of-day checkout
+      if (
+        isWithinInterval(now, {
+          start: subMinutes(shiftEnd, 15),
+          end: addMinutes(shiftEnd, 30),
+        })
+      ) {
         return this.createResponse(true, 'คุณกำลังลงเวลาออกงานสำหรับช่วงบ่าย', {
           inPremises,
           address,
@@ -608,8 +601,8 @@ export class AttendanceService {
       }
     }
 
-    // Handle early checkout for non-leave cases
-    if (isEarlyCheckOut && !halfDayLeave) {
+    // Early checkout for non-leave cases
+    if (now < earlyCheckOutWindow && !leaveContext.hasHalfDayLeave) {
       return this.createResponse(
         true,
         'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ',
@@ -622,7 +615,7 @@ export class AttendanceService {
       );
     }
 
-    // Overtime handling (no changes)
+    // Handle overtime
     if (approvedOvertime) {
       const isOvertime = this.isOvertimeCheckOut(
         now,
@@ -638,7 +631,7 @@ export class AttendanceService {
       }
     }
 
-    // Pending overtime (no changes)
+    // Handle pending overtime
     if (pendingOvertime) {
       return this.createResponse(
         true,
