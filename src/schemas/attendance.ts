@@ -103,6 +103,15 @@ const AttendanceStatusInfoSchema = z
       .nullable(),
     isCheckingIn: z.boolean(),
     isDayOff: z.boolean(),
+    isHoliday: z.boolean(),
+    holidayInfo: z
+      .object({
+        localName: z.string(),
+        name: z.string(),
+        date: z.string(),
+      })
+      .nullable(),
+    dayOffType: z.enum(['holiday', 'weekly', 'none']),
     potentialOvertimes: z.array(OvertimeEntryDataSchema).optional(), // Use the defined OvertimeEntryData schema
     shiftAdjustment: z
       .object({

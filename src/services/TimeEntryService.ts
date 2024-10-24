@@ -6,28 +6,16 @@ import {
   Attendance,
   LeaveRequest,
 } from '@prisma/client';
-import {
-  differenceInMinutes,
-  format,
-  isAfter,
-  isBefore,
-  isSameDay,
-} from 'date-fns';
+import { differenceInMinutes, format, isSameDay } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService';
-import {
-  ApprovedOvertime,
-  ShiftData,
-  WorkHoursCalculation,
-} from '@/types/attendance';
+import { ApprovedOvertime, ShiftData } from '@/types/attendance';
 import { NotificationService } from './NotificationService';
 
 export class TimeEntryService {
   private readonly REGULAR_HOURS_PER_SHIFT = 8;
   private readonly OVERTIME_INCREMENT = 30; // 30 minutes increment for overtime
-  private readonly GRACE_PERIOD = 15; // 15 minutes grace period for rounding
   private readonly LATE_THRESHOLD = 30; // 30 minutes threshold for considering "very late"
   private readonly HALF_DAY_THRESHOLD = 240; // 4 hours (in minutes)
-  private readonly EXTREMELY_LATE_THRESHOLD = 240; // 4 hours - prevent check in
 
   constructor(
     private prisma: PrismaClient,

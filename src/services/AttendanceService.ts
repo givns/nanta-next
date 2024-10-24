@@ -1425,7 +1425,11 @@ export class AttendanceService {
     }
 
     if (isDayOff && !isOvertime) {
-      status = 'off';
+      if (isHoliday) {
+        status = 'holiday';
+      } else {
+        status = 'off';
+      }
       isCheckingIn = true;
     } else if (leaveRequest && leaveRequest.status === 'approved') {
       status = 'off';
@@ -1464,7 +1468,7 @@ export class AttendanceService {
             date: format(holidayData.date, 'yyyy-MM-dd'),
           }
         : null,
-      dayOffType,
+      dayOffType: isHoliday ? 'holiday' : isDayOff ? 'weekly' : 'none',
       status,
       isCheckingIn,
       isOvertime,
