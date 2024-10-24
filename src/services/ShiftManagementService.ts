@@ -27,7 +27,7 @@ import {
   getCurrentTime,
   toBangkokTime,
 } from '@/utils/dateUtils';
-import { cacheService } from './CacheService';
+import { HolidayService } from './HolidayService';
 import {
   getCacheData,
   setCacheData,
@@ -56,7 +56,10 @@ const PREMISES: Premise[] = [
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
 
-  constructor(private prisma: PrismaClient) {}
+  constructor(
+    private prisma: PrismaClient,
+    private holidayService: HolidayService,
+  ) {}
 
   setOvertimeService(overtimeService: OvertimeServiceServer) {
     this.overtimeService = overtimeService;
@@ -93,13 +96,15 @@ export class ShiftManagementService {
     }
 
     const now = getCurrentTime();
+    const today = startOfDay(now);
+
     console.log(
       `Getting effective shift and status for time: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`,
     );
 
     const user = await this.prisma.user.findUnique({
       where: { employeeId },
-      select: { shiftCode: true },
+      select: { shiftCode: true, employeeId: true },
     });
 
     if (!user || !user.shiftCode) {
@@ -108,6 +113,12 @@ export class ShiftManagementService {
 
     const regularShift = await this.getShiftByCode(user.shiftCode);
     if (!regularShift) throw new Error('No regular shift found for user');
+
+    const isHoliday = await this.holidayService.isHoliday(
+      today,
+      await this.holidayService.getHolidays(today, today),
+      user?.shiftCode === 'SHIFT104',
+    );
 
     const effectiveDate = startOfDay(toBangkokTime(date));
     const shiftAdjustment = await this.prisma.shiftAdjustmentRequest.findFirst({
@@ -183,6 +194,7 @@ export class ShiftManagementService {
         isLate,
         isOvertime,
         isDayOff,
+        isHoliday,
       },
     };
     await setCacheData(cacheKey, JSON.stringify(result), 3600); // Cache for 1 hour

@@ -7,6 +7,7 @@ import {
   LeaveRequest,
   TimeEntry as PrismaTimeEntry,
   OvertimeEntry as PrismaOvertimeEntry,
+  Holiday,
 } from '@prisma/client';
 import { ShiftManagementService } from './ShiftManagementService';
 import { HolidayService } from './HolidayService';
@@ -60,6 +61,7 @@ import { cacheService } from './CacheService';
 
 const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
+const HOLIDAY_CACHE_TTL = 1 * 60; // 24 hours for holiday cache
 const EARLY_CHECK_IN_THRESHOLD = 29; // 29 minutes before shift start
 const LATE_CHECK_IN_THRESHOLD = 5; // 5 minutes after shift start
 const LATE_CHECK_OUT_THRESHOLD = 15; // 15 minutes after shift end
@@ -82,8 +84,14 @@ export class AttendanceService {
 
   private async invalidateUserCache(employeeId: string) {
     if (cacheService) {
-      await cacheService.invalidatePattern(`user:${employeeId}*`);
-      await cacheService.invalidatePattern(`attendance:${employeeId}*`);
+      const today = startOfDay(getCurrentTime());
+      await Promise.all([
+        cacheService.invalidatePattern(`user:${employeeId}*`),
+        cacheService.invalidatePattern(`attendance:${employeeId}*`),
+        cacheService.invalidatePattern(
+          `holiday:${format(today, 'yyyy-MM-dd')}*`,
+        ),
+      ]);
     }
   }
 
@@ -171,11 +179,9 @@ export class AttendanceService {
         isOvertime = false,
       } = shiftstatus || {};
 
-      const isHoliday = await this.holidayService.isHoliday(
-        today,
-        await this.holidayService.getHolidays(today, today), // Get holidays for today
-        user.shiftCode === 'SHIFT104',
-      );
+      const holidays = await this.holidayService.getHolidays(today, today);
+      const holidayData = holidays.find((h) => isSameDay(h.date, today));
+      const isHoliday = !!holidayData;
 
       if (isHoliday) {
         return this.createResponse(
@@ -1253,12 +1259,26 @@ export class AttendanceService {
 
     const { effectiveShift } = shiftData;
 
-    const isHoliday = await this.holidayService.isHoliday(
-      today,
-      [],
-      user.shiftCode === 'SHIFT104',
+    // Get holidays for today
+    const holidays = await this.holidayService.getHolidays(today, today);
+    // Find holiday for today
+    const holidayData = holidays.find((holiday) =>
+      isSameDay(new Date(holiday.date), today),
     );
-    console.log(`Is holiday: ${isHoliday}`);
+    // Determine if it's a holiday
+    const isHoliday = !!holidayData;
+
+    console.log(
+      `Is holiday: ${isHoliday}`,
+      holidayData
+        ? {
+            name: holidayData.name,
+            localName: holidayData.localName,
+            date: holidayData.date,
+          }
+        : 'No holiday data',
+    );
+
     const leaveRequests = await this.leaveService.getLeaveRequests(employeeId);
     console.log(`Leave requests: ${JSON.stringify(leaveRequests)}`);
 
@@ -1303,6 +1323,7 @@ export class AttendanceService {
       effectiveShift,
       today,
       isHoliday,
+      holidayData || null,
       leaveRequests[0],
       approvedOvertime,
       futureShifts,
@@ -1317,6 +1338,7 @@ export class AttendanceService {
     shift: ShiftData,
     now: Date,
     isHoliday: boolean,
+    holidayData: Holiday | null,
     leaveRequest: LeaveRequest | null,
     approvedOvertime: ApprovedOvertime | null,
     futureShifts: Array<{ date: string; shift: ShiftData }>,
@@ -1333,6 +1355,12 @@ export class AttendanceService {
     let historicalIsLateCheckIn = false;
 
     const isDayOff = isHoliday || !shift.workDays.includes(now.getDay());
+    const isWeeklyDayOff = !shift.workDays.includes(now.getDay());
+    const dayOffType = isHoliday
+      ? 'holiday'
+      : isWeeklyDayOff
+        ? 'weekly'
+        : 'none';
     const shiftStart = this.parseShiftTime(shift.startTime, now);
     const shiftEnd = this.parseShiftTime(shift.endTime, now);
 
@@ -1427,6 +1455,16 @@ export class AttendanceService {
       })) || [];
 
     return {
+      isDayOff,
+      isHoliday,
+      holidayInfo: holidayData
+        ? {
+            localName: holidayData.localName ?? '',
+            name: holidayData.name,
+            date: format(holidayData.date, 'yyyy-MM-dd'),
+          }
+        : null,
+      dayOffType,
       status,
       isCheckingIn,
       isOvertime,
@@ -1456,7 +1494,6 @@ export class AttendanceService {
             isManualEntry: attendance.isManualEntry,
           }
         : null,
-      isDayOff,
       shiftAdjustment: null,
       approvedOvertime,
       futureShifts,
@@ -1660,17 +1697,26 @@ export class AttendanceService {
     return { shiftStart, shiftEnd };
   }
 
-  // Helper method for finding approved half-day leave
-  private findApprovedHalfDayLeave(
-    leaveRequests: LeaveRequest[],
-    now: Date,
-  ): LeaveRequest | undefined {
-    return leaveRequests.find(
-      (leave) =>
-        leave.status === 'approved' &&
-        leave.leaveFormat === 'ลาครึ่งวัน' &&
-        isSameDay(parseISO(leave.startDate.toString()), now),
+  private async getHolidayStatus(date: Date, user: User): Promise<boolean> {
+    const cacheKey = `holiday:${format(date, 'yyyy-MM-dd')}:${user.shiftCode}`;
+    let cachedResult = await getCacheData(cacheKey);
+
+    if (cachedResult !== null) {
+      return JSON.parse(cachedResult);
+    }
+
+    const holidays = await this.holidayService.getHolidays(
+      startOfDay(date),
+      endOfDay(date),
     );
+    const isHoliday = await this.holidayService.isHoliday(
+      date,
+      holidays,
+      user.shiftCode === 'SHIFT104',
+    );
+
+    await setCacheData(cacheKey, JSON.stringify(isHoliday), HOLIDAY_CACHE_TTL);
+    return isHoliday;
   }
 
   private async sendMissingCheckInNotification(user: User) {

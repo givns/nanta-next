@@ -1,6 +1,6 @@
 import { PrismaClient, Holiday } from '@prisma/client';
 import axios from 'axios';
-import { isSameDay, subDays, addDays } from 'date-fns';
+import { isSameDay, subDays, addDays, startOfDay, endOfDay } from 'date-fns';
 
 const prisma = new PrismaClient();
 
@@ -195,13 +195,31 @@ export class HolidayService {
     return holidays;
   }
 
-  public isHoliday(
+  public async isHoliday(
     date: Date,
     holidays: Holiday[],
     isShift104: boolean,
-  ): boolean {
+  ): Promise<boolean> {
+    // If no holidays provided, fetch them first
+    if (!holidays || holidays.length === 0) {
+      const startOfToday = startOfDay(date);
+      const endOfToday = endOfDay(date);
+      holidays = await this.getHolidays(startOfToday, endOfToday);
+    }
+
+    // Make sure we have today's holiday data from fallback
+    const year = date.getFullYear();
+    if (
+      year === 2024 &&
+      (!this.holidayCache[year] || this.holidayCache[year].length === 0)
+    ) {
+      await this.syncHolidays(year);
+    }
+
     const checkDate = isShift104 ? addDays(date, 1) : date;
-    return holidays.some((holiday) => isSameDay(holiday.date, checkDate));
+    return holidays.some((holiday) =>
+      isSameDay(new Date(holiday.date), checkDate),
+    );
   }
 
   async isWorkingDay(userId: string, date: Date): Promise<boolean> {

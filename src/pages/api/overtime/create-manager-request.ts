@@ -6,9 +6,12 @@ import { ShiftManagementService } from '../../../services/ShiftManagementService
 import { HolidayService } from '../../../services/HolidayService';
 
 const prisma = new PrismaClient();
-const notificationService = new NotificationService(prisma);
-const shiftManagementService = new ShiftManagementService(prisma);
 const holidayService = new HolidayService(prisma);
+const notificationService = new NotificationService(prisma);
+const shiftManagementService = new ShiftManagementService(
+  prisma,
+  holidayService,
+);
 
 export default async function handler(
   req: NextApiRequest,

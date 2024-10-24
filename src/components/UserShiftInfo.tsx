@@ -22,7 +22,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
 
     const getStatusMessage = useMemo(() => {
       if (attendanceStatus?.isDayOff) {
-        return { message: 'วันหยุด', color: 'blue' };
+        // Distinguish between holiday and regular day off
+        if (attendanceStatus.holidayInfo) {
+          return { message: 'วันหยุดนักขัตฤกษ์', color: 'blue' };
+        }
+        return { message: 'วันหยุดประจำสัปดาห์', color: 'blue' };
       }
       if (attendanceStatus?.pendingLeaveRequest) {
         return { message: 'รออนุมัติการลา', color: 'orange' };
@@ -49,6 +53,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }, [
       attendanceStatus?.isDayOff,
+      attendanceStatus?.holidayInfo,
       attendanceStatus?.pendingLeaveRequest,
       latestAttendance,
     ]);
@@ -66,31 +71,75 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
           ? attendanceStatus.approvedOvertime
           : null;
 
+      const today = new Date();
+
       return (
         <div className="bg-white p-6 rounded-lg shadow-md mb-4">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <Calendar className="mr-2" /> ข้อมูลการทำงานวันนี้
-          </h3>
-          {attendanceStatus?.isDayOff ? (
-            <p className="text-gray-600 mb-4">วันหยุด (มีการทำงานล่วงเวลา)</p>
-          ) : (
-            effectiveShift && (
-              <div className="mb-4">
-                <p className="text-gray-800">
-                  <span className="font-medium">{effectiveShift.name}</span>
-                </p>
-                <p className="text-gray-600 flex items-center mt-1">
-                  <Clock className="mr-2" size={16} />
-                  {effectiveShift.startTime} - {effectiveShift.endTime}
-                </p>
-                {attendanceStatus?.shiftAdjustment && (
-                  <p className="text-blue-600 mt-2 text-sm">
-                    * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold flex items-center">
+              <Calendar className="mr-2" /> ข้อมูลการทำงานวันนี้
+            </h3>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-gray-700">
+                {format(today, 'd', { locale: th })}
+              </p>
+              <p className="text-sm text-gray-500">
+                {format(today, 'EEEE', { locale: th })}
+              </p>
+              <p className="text-sm text-gray-500">
+                {format(today, 'MMMM yyyy', { locale: th })}
+              </p>
+            </div>
+          </div>
+
+          {attendanceStatus?.isDayOff && (
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+              {attendanceStatus.holidayInfo ? (
+                <>
+                  <h4 className="text-md font-semibold mb-2 text-blue-700">
+                    วันหยุดนักขัตฤกษ์
+                  </h4>
+                  <p className="text-blue-600">
+                    {attendanceStatus.holidayInfo.localName}
                   </p>
-                )}
-              </div>
-            )
+                  {todayOvertime && (
+                    <p className="text-gray-600 mt-2">
+                      *มีการอนุมัติทำงานล่วงเวลาในวันหยุด
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h4 className="text-md font-semibold mb-2 text-blue-700">
+                    วันหยุดประจำสัปดาห์
+                  </h4>
+                  {todayOvertime && (
+                    <p className="text-gray-600 mt-2">
+                      *มีการอนุมัติทำงานล่วงเวลาในวันหยุด
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
           )}
+
+          {!attendanceStatus?.isDayOff && effectiveShift && (
+            <div className="mb-4">
+              <p className="text-gray-800">
+                <span className="font-medium">{effectiveShift.name}</span>
+              </p>
+              <p className="text-gray-600 flex items-center mt-1">
+                <Clock className="mr-2" size={16} />
+                {effectiveShift.startTime} - {effectiveShift.endTime}
+              </p>
+              {attendanceStatus?.shiftAdjustment && (
+                <p className="text-blue-600 mt-2 text-sm">
+                  * เวลาทำงานได้รับการปรับเปลี่ยนสำหรับวันนี้
+                </p>
+              )}
+            </div>
+          )}
+
           {latestAttendance && (
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
@@ -107,11 +156,14 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
               </div>
             </div>
           )}
+
           {todayOvertime && (
             <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
               <h4 className="text-md font-semibold mb-2 flex items-center">
                 <AlertCircle className="mr-2" size={18} />{' '}
-                การทำงานล่วงเวลาที่ได้รับอนุมัติ
+                {attendanceStatus?.isDayOff
+                  ? 'การทำงานล่วงเวลาในวันหยุดที่ได้รับอนุมัติ'
+                  : 'การทำงานล่วงเวลาที่ได้รับอนุมัติ'}
               </h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -146,7 +198,12 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
           )}
         </div>
       );
-    }, [attendanceStatus, effectiveShift, isOvertimeForToday]);
+    }, [
+      attendanceStatus,
+      effectiveShift,
+      isOvertimeForToday,
+      latestAttendance,
+    ]);
 
     const renderFutureInfo = useMemo(() => {
       const futureShiftAdjustments =

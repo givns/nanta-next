@@ -15,7 +15,7 @@ export const leaveServiceServer = createLeaveServiceServer(
   prisma,
   notificationService,
 );
-const shiftService = new ShiftManagementService(prisma);
+const shiftService = new ShiftManagementService(prisma, holidayService);
 
 const timeEntryService = new TimeEntryService(
   prisma,

@@ -16,7 +16,7 @@ const prisma = new PrismaClient();
 // Initialize services
 const holidayService = new HolidayService(prisma);
 const notificationService = createNotificationService(prisma);
-const shiftService = new ShiftManagementService(prisma);
+const shiftService = new ShiftManagementService(prisma, holidayService);
 const leaveServiceServer = createLeaveServiceServer(
   prisma,
   notificationService,

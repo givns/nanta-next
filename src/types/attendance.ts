@@ -16,6 +16,12 @@ export interface Location {
   lng: number;
 }
 
+interface HolidayInfo {
+  localName: string;
+  name: string;
+  date: string;
+}
+
 // Attendance Data Interfaces
 export interface AttendanceData {
   employeeId: string;
@@ -113,6 +119,9 @@ export interface AttendanceStatusInfo {
   } | null;
   isCheckingIn: boolean;
   isDayOff: boolean;
+  isHoliday: boolean;
+  holidayInfo?: HolidayInfo | null;
+  dayOffType: 'holiday' | 'weekly' | 'none';
   shiftAdjustment: {
     date: string;
     requestedShiftId: string;
