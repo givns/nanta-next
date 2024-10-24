@@ -1,27 +1,15 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "components": {
-    "table": {
-      "path": "src/components/ui/table.tsx"
-    },
-    "dialog": {
-      "path": "src/components/ui/dialog.tsx"
-    },
-    "progress": {
-      "path": "src/components/ui/progress.tsx"
-    }
-  },
   "style": "default",
-  "rsc": false,
-  "tsx": true,
+  "rsc": true,
   "tailwind": {
     "config": "tailwind.config.js",
     "css": "app/globals.css",
     "baseColor": "slate",
-    "cssVariables": false
+    "cssVariables": true
   },
   "aliases": {
-    "utils": "@/lib/utils",
-    "components": "@/components"
+    "components": "@/components",
+    "utils": "@/lib/utils"
   }
 }
