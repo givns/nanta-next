@@ -48,10 +48,10 @@ const ApprovedOvertimeSchema = z
     status: z.string(),
     reason: z.string().nullable(),
     isDayOffOvertime: z.boolean(),
-    actualStartTime: z.string().or(z.date()).nullable(),
-    actualEndTime: z.string().or(z.date()).nullable(),
-    approvedBy: z.string().nullable(),
-    approvedAt: z.string().or(z.date()),
+    actualStartTime: z.string().or(z.date()).nullable(), // Mark as nullable
+    actualEndTime: z.string().or(z.date()).nullable(), // Mark as nullable
+    approvedBy: z.string().nullable(), // Mark as nullable
+    approvedAt: z.string().or(z.date()).nullable(), // Mark as nullable
     name: z.string().optional(),
     employeeResponse: z.string().optional(),
     approverId: z.string().optional(),

@@ -184,17 +184,18 @@ export default async function handler(
             actualStartTime:
               responseData.approvedOvertime.actualStartTime instanceof Date
                 ? responseData.approvedOvertime.actualStartTime.toISOString()
-                : responseData.approvedOvertime.actualStartTime,
+                : responseData.approvedOvertime.actualStartTime || null, // Fallback to null
             actualEndTime:
               responseData.approvedOvertime.actualEndTime instanceof Date
                 ? responseData.approvedOvertime.actualEndTime.toISOString()
-                : responseData.approvedOvertime.actualEndTime,
+                : responseData.approvedOvertime.actualEndTime || null, // Fallback to null
+            approvedBy: responseData.approvedOvertime.approvedBy || null, // Fallback to null
             approvedAt:
               responseData.approvedOvertime.approvedAt instanceof Date
                 ? responseData.approvedOvertime.approvedAt.toISOString()
-                : responseData.approvedOvertime.approvedAt,
+                : responseData.approvedOvertime.approvedAt || null, // Fallback to null
           }
-        : null,
+        : null, // Ensure approvedOvertime is nullable
       leaveRequests: responseData?.leaveRequests?.map(
         (request: LeaveRequestWithDates) => ({
           ...request,
