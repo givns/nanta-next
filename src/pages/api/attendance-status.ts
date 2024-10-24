@@ -1,4 +1,4 @@
-//api/attendance-status.ts
+// pages/api/attendance-status.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/AttendanceService';
@@ -10,7 +10,7 @@ import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { createNotificationService } from '@/services/NotificationService';
 import { cacheService } from '@/services/CacheService';
 import { ResponseDataSchema } from '../../schemas/attendance';
-import { ZodError } from 'zod';
+import { ZodError, z } from 'zod';
 
 const prisma = new PrismaClient();
 
@@ -62,12 +62,23 @@ interface LeaveRequestWithDates {
   endDate: Date | string;
   fullDayCount: number;
   status: string;
+  approverId?: string | null;
+  denierId?: string | null;
+  denialReason?: string | null;
+  resubmitted?: boolean;
+  originalRequestId?: string | null;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 }
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   const { employeeId, lineUserId, inPremises, address, forceRefresh } =
     req.query;
 
@@ -80,25 +91,34 @@ export default async function handler(
   });
 
   try {
+    // Fetch user data
     let user;
     if (lineUserId && typeof lineUserId === 'string') {
       const cacheKey = `user:${lineUserId}`;
       if (cacheService) {
         user = await cacheService.get(cacheKey);
+        if (user) {
+          user = JSON.parse(user);
+        }
       }
       if (!user) {
-        user = await prisma.user.findUnique({ where: { lineUserId } });
-        if (user) {
-          if (cacheService) {
-            // Add null check for cacheService
-            await cacheService.set(cacheKey, JSON.stringify(user), 3600); // Cache for 1 hour
-          }
+        user = await prisma.user.findUnique({
+          where: { lineUserId },
+          include: {
+            department: true,
+          },
+        });
+        if (user && cacheService) {
+          await cacheService.set(cacheKey, JSON.stringify(user), 3600);
         }
-      } else {
-        user = JSON.parse(user);
       }
     } else if (employeeId && typeof employeeId === 'string') {
-      user = await prisma.user.findUnique({ where: { employeeId } });
+      user = await prisma.user.findUnique({
+        where: { employeeId },
+        include: {
+          department: true,
+        },
+      });
     }
 
     if (!user) {
@@ -107,17 +127,23 @@ export default async function handler(
 
     console.log('User found:', user);
 
+    // Fetch attendance data
     const cacheKey = `attendance-status:${user.lineUserId || user.employeeId}`;
-
     let responseData;
-    if (cacheService && !forceRefresh) {
-      console.log('Attempting to fetch from cache');
-      responseData = await cacheService.getWithSWR(
-        cacheKey,
-        async () => {
-          console.log('Cache miss, fetching fresh data');
-          const [shiftData, attendanceStatus, approvedOvertime, leaveRequests] =
-            await Promise.all([
+
+    try {
+      if (cacheService && !forceRefresh) {
+        console.log('Attempting to fetch from cache');
+        responseData = await cacheService.getWithSWR(
+          cacheKey,
+          async () => {
+            console.log('Cache miss, fetching fresh data');
+            const [
+              shiftData,
+              attendanceStatus,
+              approvedOvertime,
+              leaveRequests,
+            ] = await Promise.all([
               shiftService.getEffectiveShiftAndStatus(
                 user.employeeId,
                 new Date(),
@@ -127,111 +153,133 @@ export default async function handler(
                 user.employeeId,
                 new Date(),
               ),
-              leaveServiceServer.getLeaveRequests(user.employeeId), // Fetch leave requests
+              leaveServiceServer.getLeaveRequests(user.employeeId),
             ]);
 
-          return {
-            shiftData,
-            attendanceStatus,
-            approvedOvertime,
-            leaveRequests,
-          };
-        },
-        300, // 5 minutes TTL
-      );
-      if (responseData) {
-        console.log(`Cache hit for key: ${cacheKey}`);
+            return {
+              shiftData,
+              attendanceStatus,
+              approvedOvertime,
+              leaveRequests,
+            };
+          },
+          300,
+        );
+        if (responseData) {
+          console.log(`Cache hit for key: ${cacheKey}`);
+        }
+      } else {
+        console.log('Fetching fresh data');
+        const [shiftData, attendanceStatus, approvedOvertime, leaveRequests] =
+          await Promise.all([
+            shiftService.getEffectiveShiftAndStatus(
+              user.employeeId,
+              new Date(),
+            ),
+            attendanceService.getLatestAttendanceStatus(user.employeeId),
+            overtimeService.getApprovedOvertimeRequest(
+              user.employeeId,
+              new Date(),
+            ),
+            leaveServiceServer.getLeaveRequests(user.employeeId),
+          ]);
+
+        responseData = {
+          shiftData,
+          attendanceStatus,
+          approvedOvertime,
+          leaveRequests,
+        };
       }
-    } else {
-      console.log('Fetching fresh data');
-      const [shiftData, attendanceStatus, approvedOvertime, leaveRequests] =
-        await Promise.all([
-          shiftService.getEffectiveShiftAndStatus(user.employeeId, new Date()),
-          attendanceService.getLatestAttendanceStatus(user.employeeId),
-          overtimeService.getApprovedOvertimeRequest(
-            user.employeeId,
-            new Date(),
-          ),
-          leaveServiceServer.getLeaveRequests(user.employeeId), // Fetch leave requests
-        ]);
+    } catch (error) {
+      console.error('Error fetching attendance data:', error);
+      return res.status(500).json({
+        error: 'Failed to fetch attendance data',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
 
-      responseData = {
-        shiftData,
-        attendanceStatus,
-        approvedOvertime,
-        leaveRequests,
+    // Fetch check-in/out allowance
+    let checkInOutAllowance;
+    try {
+      checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
+        user.employeeId,
+        req.query.inPremises === 'true',
+        req.query.address as string,
+      );
+    } catch (error) {
+      console.error('Error fetching check-in/out allowance:', error);
+      return res.status(500).json({
+        error: 'Failed to fetch check-in/out allowance',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    // Prepare final response
+    try {
+      const finalResponseData = {
+        user,
+        attendanceStatus: responseData?.attendanceStatus,
+        effectiveShift: responseData?.shiftData?.effectiveShift,
+        checkInOutAllowance,
+        approvedOvertime: responseData?.approvedOvertime
+          ? {
+              ...responseData.approvedOvertime,
+              actualStartTime: responseData.approvedOvertime.actualStartTime
+                ? new Date(responseData.approvedOvertime.actualStartTime)
+                : null,
+              actualEndTime: responseData.approvedOvertime.actualEndTime
+                ? new Date(responseData.approvedOvertime.actualEndTime)
+                : null,
+              approvedAt: responseData.approvedOvertime.approvedAt
+                ? new Date(responseData.approvedOvertime.approvedAt)
+                : null,
+            }
+          : null,
+        leaveRequests:
+          responseData?.leaveRequests?.map((request: LeaveRequestWithDates) => {
+            // Ensure all dates are properly converted
+            const transformedRequest = {
+              ...request,
+              startDate: new Date(request.startDate),
+              endDate: new Date(request.endDate),
+              createdAt: request.createdAt
+                ? new Date(request.createdAt)
+                : undefined,
+              updatedAt: request.updatedAt
+                ? new Date(request.updatedAt)
+                : undefined,
+            };
+            return transformedRequest;
+          }) ?? [],
       };
+
+      const validatedData = ResponseDataSchema.parse(finalResponseData);
+      return res.status(200).json(validatedData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error(
+          'Validation Error:',
+          JSON.stringify(error.errors, null, 2),
+        );
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: error.errors.map((err) => ({
+            path: err.path.join('.'),
+            message: err.message,
+          })),
+        });
+      }
+      throw error; // Re-throw unexpected errors
     }
-
-    console.log('ResponseData:', JSON.stringify(responseData, null, 2));
-
-    // Always fetch fresh check-in/out allowance
-    const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
-      user.employeeId,
-      req.query.inPremises === 'true',
-      req.query.address as string,
-    );
-
-    console.log('CheckInOutAllowance:', checkInOutAllowance);
-
-    const finalResponseData = {
-      user,
-      attendanceStatus: responseData?.attendanceStatus,
-      effectiveShift: responseData?.shiftData?.effectiveShift,
-      checkInOutAllowance,
-      approvedOvertime: responseData?.approvedOvertime
-        ? {
-            ...responseData.approvedOvertime,
-            actualStartTime:
-              responseData.approvedOvertime.actualStartTime instanceof Date
-                ? responseData.approvedOvertime.actualStartTime.toISOString()
-                : responseData.approvedOvertime.actualStartTime || null,
-            actualEndTime:
-              responseData.approvedOvertime.actualEndTime instanceof Date
-                ? responseData.approvedOvertime.actualEndTime.toISOString()
-                : responseData.approvedOvertime.actualEndTime || null,
-            approvedAt:
-              responseData.approvedOvertime.approvedAt instanceof Date
-                ? responseData.approvedOvertime.approvedAt.toISOString()
-                : responseData.approvedOvertime.approvedAt || null,
-          }
-        : null,
-      leaveRequests: responseData?.leaveRequests?.map(
-        (request: LeaveRequestWithDates) => ({
-          ...request,
-          startDate:
-            request.startDate instanceof Date
-              ? request.startDate.toISOString()
-              : String(request.startDate),
-          endDate:
-            request.endDate instanceof Date
-              ? request.endDate.toISOString()
-              : String(request.endDate),
-        }),
-      ),
-    };
-
-    console.log(
-      'FinalResponseData:',
-      JSON.stringify(finalResponseData, null, 2),
-    );
-
-    const parsedResponseData = ResponseDataSchema.parse(finalResponseData);
-    res.status(200).json(parsedResponseData);
-  } catch (error: any) {
-    if (error instanceof ZodError) {
-      console.error('Zod Validation Error:', error.errors);
-      res.status(400).json({
-        error: 'Validation failed',
-        details: error.errors,
-      });
-    } else {
-      console.error('Detailed error in attendance-status API:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        details: error.message,
-        stack: error.stack,
-      });
-    }
+  } catch (error) {
+    console.error('Unexpected error in attendance-status API:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      ...(process.env.NODE_ENV === 'development' && {
+        stack: error instanceof Error ? error.stack : undefined,
+      }),
+    });
   }
 }
