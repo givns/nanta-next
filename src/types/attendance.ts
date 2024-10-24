@@ -90,7 +90,7 @@ export type AttendanceStatusType =
   | 'overtime-ended'
   | 'pending'
   | 'approved'
-  | 'denied';
+  | 'day-off';
 
 export interface LateCheckOutStatus {
   isLateCheckOut: boolean;
@@ -197,6 +197,37 @@ export interface TimeEntryData {
   attendanceId: string | null;
   overtimeRequestId: string | null;
   entryType: 'regular' | 'overtime';
+}
+
+// Raw data from API/Database
+export interface RawTimeEntry {
+  id: string;
+  employeeId: string;
+  date: string | Date;
+  startTime: string | Date;
+  endTime: string | Date | null;
+  regularHours: number;
+  overtimeHours: number;
+  status: string;
+  attendanceId: string | null;
+  overtimeRequestId: string | null;
+  entryType: string;
+}
+
+export function transformTimeEntry(raw: RawTimeEntry): TimeEntryData {
+  return {
+    id: raw.id,
+    employeeId: raw.employeeId,
+    date: new Date(raw.date),
+    startTime: new Date(raw.startTime),
+    endTime: raw.endTime ? new Date(raw.endTime) : null,
+    regularHours: raw.regularHours,
+    overtimeHours: raw.overtimeHours,
+    status: raw.status === 'in_progress' ? 'in_progress' : 'completed',
+    attendanceId: raw.attendanceId,
+    overtimeRequestId: raw.overtimeRequestId,
+    entryType: raw.entryType === 'overtime' ? 'overtime' : 'regular',
+  };
 }
 
 // Shift Adjustment Interfaces

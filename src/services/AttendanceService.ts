@@ -61,7 +61,7 @@ import { cacheService } from './CacheService';
 
 const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
-const HOLIDAY_CACHE_TTL = 1 * 60; // 24 hours for holiday cache
+const HOLIDAY_CACHE_TTL = 72 * 60 * 60; // 24 hours for holiday cache
 const EARLY_CHECK_IN_THRESHOLD = 29; // 29 minutes before shift start
 const LATE_CHECK_IN_THRESHOLD = 5; // 5 minutes after shift start
 const LATE_CHECK_OUT_THRESHOLD = 15; // 15 minutes after shift end
