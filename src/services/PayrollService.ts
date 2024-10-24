@@ -220,11 +220,11 @@ export class PayrollService {
       settings.regularHourlyRate *
       settings.overtimeRates.regular;
 
-    // Calculate allowances
+    // Cast allowances to number[]
     const totalAllowances =
-      employeeType === 'FULL_TIME'
-        ? Object.values(settings.allowances).reduce(
-            (a: number, b: number) => a + b,
+      employeeType === 'Fulltime'
+        ? (Object.values(settings.allowances) as number[]).reduce(
+            (a: number, b: number) => a + b, // Explicitly tell TypeScript these are numbers
             0,
           )
         : 0;
