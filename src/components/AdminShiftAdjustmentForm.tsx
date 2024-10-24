@@ -4,10 +4,7 @@ import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import { Shift } from '../types/user';
-import { ShiftManagementService } from '../services/ShiftManagementService';
-import prisma from '../lib/prisma';
 import { startOfDay } from 'date-fns';
-const shiftManagementService = new ShiftManagementService(prisma);
 
 interface AdminShiftAdjustmentFormProps {
   lineUserId: string;

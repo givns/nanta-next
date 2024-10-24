@@ -1,10 +1,15 @@
 // pages/api/location/check.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { ShiftManagementService } from '../../../services/ShiftManagementService';
-import prisma from '../../../lib/prisma';
+import { PrismaClient } from '@prisma/client';
+import { HolidayService } from '@/services/HolidayService';
 
-const shiftManagementService = new ShiftManagementService(prisma);
-
+const prisma = new PrismaClient();
+const holidayService = new HolidayService(prisma);
+const shiftManagementService = new ShiftManagementService(
+  prisma,
+  holidayService,
+);
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,

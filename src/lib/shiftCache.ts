@@ -1,8 +1,12 @@
 import { ShiftManagementService } from '../services/ShiftManagementService';
+import { HolidayService } from '@/services/HolidayService';
 import { PrismaClient, Shift } from '@prisma/client';
 
 const prisma = new PrismaClient();
-const shiftManagementService = new ShiftManagementService(prisma);
+const shiftManagementService = new ShiftManagementService(
+  prisma,
+  new HolidayService(prisma),
+);
 
 export type DepartmentId = string;
 

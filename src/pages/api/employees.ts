@@ -2,9 +2,14 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { ShiftManagementService } from '../../services/ShiftManagementService';
+import { HolidayService } from '@/services/HolidayService';
 
 const prisma = new PrismaClient();
-const shiftManagementService = new ShiftManagementService(prisma);
+const holidayService = new HolidayService(prisma);
+const shiftManagementService = new ShiftManagementService(
+  prisma,
+  holidayService,
+);
 
 export default async function handler(
   req: NextApiRequest,
