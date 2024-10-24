@@ -218,13 +218,53 @@ export default async function handler(
     // Prepare final response
     try {
       const finalResponseData = {
-        user,
-        attendanceStatus: responseData?.attendanceStatus,
+        user: {
+          ...user,
+          updatedAt: user.updatedAt ? new Date(user.updatedAt) : null,
+        },
+        attendanceStatus: responseData?.attendanceStatus
+          ? {
+              ...responseData.attendanceStatus,
+              approvedOvertime: responseData.attendanceStatus.approvedOvertime
+                ? {
+                    ...responseData.attendanceStatus.approvedOvertime,
+                    date: new Date(
+                      responseData.attendanceStatus.approvedOvertime.date,
+                    ),
+                    actualStartTime: responseData.attendanceStatus
+                      .approvedOvertime.actualStartTime
+                      ? new Date(
+                          responseData.attendanceStatus.approvedOvertime.actualStartTime,
+                        )
+                      : null,
+                    actualEndTime: responseData.attendanceStatus
+                      .approvedOvertime.actualEndTime
+                      ? new Date(
+                          responseData.attendanceStatus.approvedOvertime.actualEndTime,
+                        )
+                      : null,
+                    approvedAt: responseData.attendanceStatus.approvedOvertime
+                      .approvedAt
+                      ? new Date(
+                          responseData.attendanceStatus.approvedOvertime.approvedAt,
+                        )
+                      : null,
+                    updatedAt: responseData.attendanceStatus.approvedOvertime
+                      .updatedAt
+                      ? new Date(
+                          responseData.attendanceStatus.approvedOvertime.updatedAt,
+                        )
+                      : undefined,
+                  }
+                : null,
+            }
+          : null,
         effectiveShift: responseData?.shiftData?.effectiveShift,
         checkInOutAllowance,
         approvedOvertime: responseData?.approvedOvertime
           ? {
               ...responseData.approvedOvertime,
+              date: new Date(responseData.approvedOvertime.date),
               actualStartTime: responseData.approvedOvertime.actualStartTime
                 ? new Date(responseData.approvedOvertime.actualStartTime)
                 : null,
@@ -237,21 +277,13 @@ export default async function handler(
             }
           : null,
         leaveRequests:
-          responseData?.leaveRequests?.map((request: LeaveRequestWithDates) => {
-            // Ensure all dates are properly converted
-            const transformedRequest = {
+          responseData?.leaveRequests?.map(
+            (request: LeaveRequestWithDates) => ({
               ...request,
               startDate: new Date(request.startDate),
               endDate: new Date(request.endDate),
-              createdAt: request.createdAt
-                ? new Date(request.createdAt)
-                : undefined,
-              updatedAt: request.updatedAt
-                ? new Date(request.updatedAt)
-                : undefined,
-            };
-            return transformedRequest;
-          }) ?? [],
+            }),
+          ) ?? [],
       };
 
       const validatedData = ResponseDataSchema.parse(finalResponseData);
