@@ -100,4 +100,4 @@ export const getServerSideProps: GetServerSideProps = async () => {
   return { props: { liffId } };
 };
 
-export default ApprovalDashboard;
+export default ConsolidatedApprovalDashboard;
