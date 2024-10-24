@@ -74,7 +74,14 @@ const OvertimeEntryDataSchema = z.object({
 // Schema for AttendanceStatusInfo
 const AttendanceStatusInfoSchema = z
   .object({
-    status: z.enum(['present', 'absent', 'incomplete', 'holiday', 'off']),
+    status: z.enum([
+      'present',
+      'absent',
+      'incomplete',
+      'holiday',
+      'off',
+      'overtime',
+    ]),
     isOvertime: z.boolean(),
     overtimeDuration: z.number().nonnegative().default(0),
     detailedStatus: z.string(),

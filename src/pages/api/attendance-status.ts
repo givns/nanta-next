@@ -10,6 +10,7 @@ import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { createNotificationService } from '@/services/NotificationService';
 import { cacheService } from '@/services/CacheService';
 import { ResponseDataSchema } from '../../schemas/attendance';
+import { ZodError } from 'zod';
 
 const prisma = new PrismaClient();
 
@@ -184,18 +185,17 @@ export default async function handler(
             actualStartTime:
               responseData.approvedOvertime.actualStartTime instanceof Date
                 ? responseData.approvedOvertime.actualStartTime.toISOString()
-                : responseData.approvedOvertime.actualStartTime || null, // Fallback to null
+                : responseData.approvedOvertime.actualStartTime || null,
             actualEndTime:
               responseData.approvedOvertime.actualEndTime instanceof Date
                 ? responseData.approvedOvertime.actualEndTime.toISOString()
-                : responseData.approvedOvertime.actualEndTime || null, // Fallback to null
-            approvedBy: responseData.approvedOvertime.approvedBy || null, // Fallback to null
+                : responseData.approvedOvertime.actualEndTime || null,
             approvedAt:
               responseData.approvedOvertime.approvedAt instanceof Date
                 ? responseData.approvedOvertime.approvedAt.toISOString()
-                : responseData.approvedOvertime.approvedAt || null, // Fallback to null
+                : responseData.approvedOvertime.approvedAt || null,
           }
-        : null, // Ensure approvedOvertime is nullable
+        : null,
       leaveRequests: responseData?.leaveRequests?.map(
         (request: LeaveRequestWithDates) => ({
           ...request,
@@ -219,11 +219,19 @@ export default async function handler(
     const parsedResponseData = ResponseDataSchema.parse(finalResponseData);
     res.status(200).json(parsedResponseData);
   } catch (error: any) {
-    console.error('Detailed error in attendance-status API:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      details: error.message,
-      stack: error.stack,
-    });
+    if (error instanceof ZodError) {
+      console.error('Zod Validation Error:', error.errors);
+      res.status(400).json({
+        error: 'Validation failed',
+        details: error.errors,
+      });
+    } else {
+      console.error('Detailed error in attendance-status API:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        details: error.message,
+        stack: error.stack,
+      });
+    }
   }
 }
