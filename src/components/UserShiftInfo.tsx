@@ -53,6 +53,7 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }, [
       attendanceStatus?.isDayOff,
+      attendanceStatus?.isHoliday,
       attendanceStatus?.holidayInfo,
       attendanceStatus?.pendingLeaveRequest,
       latestAttendance,
