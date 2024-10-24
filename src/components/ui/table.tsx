@@ -1,51 +1,19 @@
-//components/ui/table.tsx
+// components/ui/table.tsx
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-interface Column {
-  title: string;
-  dataIndex: string;
-  key: string;
-  render?: (text: string, record: any) => React.ReactNode;
-}
-
-interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
-  columns: Column[];
-  dataSource: any[];
-}
-
-const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  ({ className, columns, dataSource, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table
-        ref={ref}
-        className={cn('w-full caption-bottom text-sm', className)}
-        {...props}
-      >
-        <TableHeader>
-          <TableRow>
-            {columns.map((column) => (
-              <TableHead key={column.key}>{column.title}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {dataSource.map((record, index) => (
-            <TableRow key={record.id || index}>
-              {columns.map((column) => (
-                <TableCell key={`${record.id || index}-${column.key}`}>
-                  {column.render
-                    ? column.render(record[column.dataIndex], record)
-                    : record[column.dataIndex]}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </table>
-    </div>
-  ),
-);
+const Table = React.forwardRef<
+  HTMLTableElement,
+  React.HTMLAttributes<HTMLTableElement>
+>(({ className, ...props }, ref) => (
+  <div className="relative w-full overflow-auto">
+    <table
+      ref={ref}
+      className={cn('w-full caption-bottom text-sm', className)}
+      {...props}
+    />
+  </div>
+));
 Table.displayName = 'Table';
 
 const TableHeader = React.forwardRef<

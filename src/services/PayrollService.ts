@@ -8,8 +8,6 @@ import {
   subMonths,
   addMonths,
   differenceInDays,
-  isWithinInterval,
-  isSameDay,
 } from 'date-fns';
 import type { PayrollSummaryResponse, PayrollCalculation } from '@/types/api';
 import { TimeEntryService } from '@/services/TimeEntryService';
@@ -300,6 +298,7 @@ export class PayrollService {
         unpaid: 0,
       },
       earnings: processedData,
+      bankInfo: '', // Add the missing 'bankInfo' property
     };
   }
 

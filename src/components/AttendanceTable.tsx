@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { Table } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, AlertCircle } from 'lucide-react';
@@ -13,6 +12,7 @@ import {
   TimeEntryData,
   transformTimeEntry,
 } from '../types/attendance';
+import { Table } from 'antd';
 
 interface DayRecord {
   key: string;

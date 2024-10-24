@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../components/ui/button';
 import { DatePicker } from '../components/ui/date-picker';
 import { Input } from '../components/ui/input';
-import { Table } from '../components/ui/table';
+import { Table } from 'antd';
 
 interface NoWorkDay {
   id: string;

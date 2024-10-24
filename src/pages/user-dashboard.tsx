@@ -8,20 +8,21 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Calendar, Clock, Briefcase } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import liff from '@line/liff';
-
 import { UserData } from '@/types/user';
 import {
   ProcessedAttendance,
   ShiftData,
   AttendanceStatusInfo,
-  RawTimeEntry,
 } from '@/types/attendance';
 import { PayrollSummaryResponse } from '@/types/api';
-
 import AttendanceTable from '../components/AttendanceTable';
 import UserShiftInfo from '../components/UserShiftInfo';
 import { PayrollContainer } from '../components/payroll/PayrollContainer';
 import { TimeEntry } from '@/types/attendance';
+
+interface UserDashboardProps {
+  lineUserId: string | null;
+}
 
 interface DashboardData {
   user: UserData & { assignedShift: ShiftData };
@@ -38,29 +39,25 @@ interface DashboardData {
   };
 }
 
-export default function UserDashboard() {
+export default function UserDashboard({ lineUserId }: UserDashboardProps) {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
     null,
   );
-  const [activeTab, setActiveTab] = useState('attendance');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [payrollData, setPayrollData] = useState<PayrollSummaryResponse | null>(
-    null,
-  );
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
+  const [activeTab, setActiveTab] = useState('attendance');
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        if (!liff.isLoggedIn()) {
-          throw new Error('User is not logged in');
+        if (!lineUserId) {
+          throw new Error('No LINE user ID available');
         }
 
-        const profile = await liff.getProfile();
-        const response = await fetch(`/api/users?lineUserId=${profile.userId}`);
+        const response = await fetch(`/api/users?lineUserId=${lineUserId}`);
 
         if (!response.ok) {
           throw new Error('Failed to fetch user data');
@@ -69,7 +66,6 @@ export default function UserDashboard() {
         const data: DashboardData = await response.json();
         setDashboardData(data);
 
-        // Fetch time entries after getting user data
         if (data.user?.employeeId) {
           const timeEntriesResponse = await fetch(
             `/api/time-entries?employeeId=${data.user.employeeId}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`,
@@ -77,7 +73,17 @@ export default function UserDashboard() {
 
           if (timeEntriesResponse.ok) {
             const timeEntriesData = await timeEntriesResponse.json();
-            setTimeEntries(timeEntriesData);
+            const typedEntries: TimeEntry[] = timeEntriesData.map(
+              (entry: any) => ({
+                ...entry,
+                status:
+                  entry.status === 'in_progress' ? 'in_progress' : 'completed',
+                date: new Date(entry.date),
+                startTime: new Date(entry.startTime),
+                endTime: entry.endTime ? new Date(entry.endTime) : null,
+              }),
+            );
+            setTimeEntries(typedEntries);
           }
         }
       } catch (error) {
@@ -90,8 +96,10 @@ export default function UserDashboard() {
       }
     };
 
-    fetchDashboardData();
-  }, [startDate, endDate]);
+    if (lineUserId) {
+      fetchDashboardData();
+    }
+  }, [lineUserId, startDate, endDate]);
 
   useEffect(() => {
     const fetchTimeEntries = async () => {

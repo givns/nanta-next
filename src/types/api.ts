@@ -4,6 +4,7 @@
  * Response type for payroll summary endpoint
  */
 export interface PayrollSummaryResponse {
+  bankInfo: any;
   periodStart: string;
   periodEnd: string;
   employeeName: string;
@@ -21,6 +22,7 @@ export interface PayrollSummaryResponse {
     unpaid: number;
   };
   earnings: {
+    deductions: any;
     basePay: number;
     overtimePay: number;
     holidayPay: number;

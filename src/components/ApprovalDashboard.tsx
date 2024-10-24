@@ -1,7 +1,7 @@
 //ApprovalDashboard.tsx
 import React, { useEffect, useState } from 'react';
 import { Button } from '../components/ui/button';
-import { Table } from '../components/ui/table';
+import { Table } from 'antd';
 import axios from 'axios';
 
 interface Request {
