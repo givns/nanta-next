@@ -8,6 +8,11 @@ const parseUserData = (userData: z.infer<typeof UserDataSchema>): UserData => ({
   updatedAt: userData.updatedAt ? new Date(userData.updatedAt) : undefined,
 });
 
+// Base schemas for common fields
+const DateStringOrDate = z
+  .union([z.string(), z.date()])
+  .transform((val) => (typeof val === 'string' ? new Date(val) : val));
+
 // Schema for UserData
 const UserDataSchema = z.object({
   employeeId: z.string(),
@@ -35,6 +40,85 @@ const ShiftDataSchema = z.object({
   startTime: z.string(),
   endTime: z.string(),
   workDays: z.array(z.number()),
+});
+
+// Status info schemas
+const AttendanceStatusTypeSchema = z.enum([
+  'checked-in',
+  'checked-out',
+  'overtime-started',
+  'overtime-ended',
+  'pending',
+  'approved',
+  'day-off',
+]);
+
+const AttendanceStatusValueSchema = z.enum([
+  'present',
+  'absent',
+  'incomplete',
+  'holiday',
+  'off',
+  'overtime',
+]);
+
+const HolidayInfoSchema = z
+  .object({
+    localName: z.string(),
+    name: z.string(),
+    date: z.string(),
+  })
+  .nullable();
+
+const TimeEntrySchema = z.object({
+  id: z.string(),
+  employeeId: z.string(),
+  date: DateStringOrDate,
+  startTime: DateStringOrDate,
+  endTime: DateStringOrDate.nullable(),
+  regularHours: z.number(),
+  overtimeHours: z.number(),
+  actualMinutesLate: z.number(),
+  isHalfDayLate: z.boolean(),
+  status: z.enum(['in_progress', 'completed']),
+  attendanceId: z.string().nullable(),
+  overtimeRequestId: z.string().nullable(),
+  entryType: z.enum(['regular', 'overtime']),
+});
+
+const AttendanceSchema = z.object({
+  id: z.string(),
+  employeeId: z.string(),
+  date: DateStringOrDate,
+  isDayOff: z.boolean(),
+  shiftStartTime: DateStringOrDate.nullable(),
+  shiftEndTime: DateStringOrDate.nullable(),
+  regularCheckInTime: DateStringOrDate.nullable(),
+  regularCheckOutTime: DateStringOrDate.nullable(),
+  isEarlyCheckIn: z.boolean().nullable(),
+  isLateCheckIn: z.boolean().nullable(),
+  isLateCheckOut: z.boolean().nullable(),
+  isVeryLateCheckOut: z.boolean(),
+  lateCheckOutMinutes: z.number(),
+  checkInLocation: z.any().nullable(), // Json type
+  checkOutLocation: z.any().nullable(), // Json type
+  checkInAddress: z.string().nullable(),
+  checkOutAddress: z.string().nullable(),
+  checkInReason: z.string().nullable(),
+  checkInPhoto: z.string().nullable(),
+  checkOutPhoto: z.string().nullable(),
+  status: z.enum(['checked-in', 'checked-out', 'incomplete']),
+  isManualEntry: z.boolean(),
+  timeEntries: z.array(TimeEntrySchema).optional(),
+  version: z.number(),
+});
+
+const OvertimeEntrySchema = z.object({
+  id: z.string(),
+  attendanceId: z.string(),
+  overtimeRequestId: z.string(),
+  actualStartTime: DateStringOrDate,
+  actualEndTime: DateStringOrDate.nullable(),
 });
 
 // Schema for ApprovedOvertime
@@ -72,76 +156,94 @@ const OvertimeEntryDataSchema = z.object({
 });
 
 // Schema for AttendanceStatusInfo
-const AttendanceStatusInfoSchema = z
-  .object({
-    status: z.enum([
-      'present',
-      'absent',
-      'incomplete',
-      'holiday',
-      'off',
-      'overtime',
-    ]),
-    isOvertime: z.boolean(),
-    overtimeDuration: z.number().nonnegative().default(0),
-    detailedStatus: z.string(),
-    isEarlyCheckIn: z.boolean(),
-    isLateCheckIn: z.boolean(),
-    isLateCheckOut: z.boolean(),
-    user: UserDataSchema,
-    latestAttendance: z
-      .object({
-        id: z.string(),
-        employeeId: z.string(),
-        date: z.string(),
-        checkInTime: z.string().nullable(),
-        checkOutTime: z.string().nullable(),
-        status: z.enum([
-          'checked-in',
-          'checked-out',
-          'overtime-started',
-          'overtime-ended',
-          'pending',
-          'approved',
-          'denied',
-        ]),
-        isManualEntry: z.boolean(),
-      })
-      .nullable(),
-    isCheckingIn: z.boolean(),
-    isDayOff: z.boolean(),
-    isHoliday: z.boolean(),
-    holidayInfo: z
-      .object({
-        localName: z.string(),
-        name: z.string(),
-        date: z.string(),
-      })
-      .nullable(),
-    dayOffType: z.enum(['holiday', 'weekly', 'none']),
-    potentialOvertimes: z.array(OvertimeEntryDataSchema).optional(), // Use the defined OvertimeEntryData schema
-    shiftAdjustment: z
-      .object({
-        date: z.string(),
-        requestedShiftId: z.string(),
-        requestedShift: ShiftDataSchema,
-      })
-      .nullable(),
-    approvedOvertime: ApprovedOvertimeSchema,
-    futureShifts: z.array(
+const AttendanceStatusInfoSchema = z.object({
+  status: AttendanceStatusValueSchema,
+  isOvertime: z.boolean(),
+  overtimeDuration: z.number().default(0),
+  overtimeEntries: z.array(OvertimeEntrySchema),
+  detailedStatus: z.string(),
+  isEarlyCheckIn: z.boolean(),
+  isLateCheckIn: z.boolean(),
+  isLateCheckOut: z.boolean(),
+  user: z.object({
+    employeeId: z.string(),
+    name: z.string(),
+    lineUserId: z.string().nullable(),
+    nickname: z.string().nullable(),
+    departmentId: z.string().nullable(),
+    departmentName: z.string(),
+    role: z.nativeEnum(UserRole),
+    profilePictureUrl: z.string().nullable(),
+    shiftId: z.string().nullable(),
+    shiftCode: z.string().nullable(),
+    overtimeHours: z.number(),
+    sickLeaveBalance: z.number(),
+    businessLeaveBalance: z.number(),
+    annualLeaveBalance: z.number(),
+    updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
+  }),
+  latestAttendance: z
+    .object({
+      id: z.string(),
+      employeeId: z.string(),
+      date: z.string(),
+      checkInTime: z.string().nullable(),
+      checkOutTime: z.string().nullable(),
+      status: AttendanceStatusTypeSchema,
+      isManualEntry: z.boolean(),
+    })
+    .nullable(),
+  isCheckingIn: z.boolean(),
+  isDayOff: z.boolean(),
+  isHoliday: z.boolean(),
+  holidayInfo: HolidayInfoSchema,
+  dayOffType: z.enum(['holiday', 'weekly', 'none']),
+  shiftAdjustment: z
+    .object({
+      date: z.string(),
+      requestedShiftId: z.string(),
+      requestedShift: ShiftDataSchema,
+    })
+    .nullable(),
+  approvedOvertime: z
+    .object({
+      id: z.string(),
+      employeeId: z.string(),
+      date: DateStringOrDate,
+      startTime: z.string(),
+      endTime: z.string(),
+      status: z.string(),
+      reason: z.string().nullable(),
+      isDayOffOvertime: z.boolean(),
+      actualStartTime: DateStringOrDate.nullable(),
+      actualEndTime: DateStringOrDate.nullable(),
+      approvedBy: z.string().nullable(),
+      approvedAt: DateStringOrDate.nullable(),
+      createdAt: DateStringOrDate.optional(),
+      updatedAt: DateStringOrDate.optional(),
+    })
+    .nullable(),
+  futureShifts: z.array(
+    z.object({
+      date: z.string(),
+      shift: ShiftDataSchema,
+    }),
+  ),
+  futureOvertimes: z
+    .array(
       z.object({
-        date: z.string(),
-        shift: ShiftDataSchema,
+        id: z.string(),
+        date: DateStringOrDate,
+        startTime: z.string(),
+        endTime: z.string(),
+        status: z.string(),
+        reason: z.string().nullable(),
+        isDayOffOvertime: z.boolean(),
       }),
-    ),
-    futureOvertimes: z.array(ApprovedOvertimeSchema).optional(), // Using the ApprovedOvertimeSchema
-    pendingLeaveRequest: z.boolean(),
-  })
-  .transform((data) => ({
-    ...data,
-    user: parseUserData(data.user),
-    approvedOvertime: data.approvedOvertime || null,
-  }));
+    )
+    .optional(),
+  pendingLeaveRequest: z.boolean(),
+});
 
 // Schema for CheckInOutAllowance
 const CheckInOutAllowanceSchema = z.object({
