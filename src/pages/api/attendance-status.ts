@@ -178,7 +178,23 @@ export default async function handler(
       attendanceStatus: responseData?.attendanceStatus,
       effectiveShift: responseData?.shiftData?.effectiveShift,
       checkInOutAllowance,
-      approvedOvertime: responseData?.approvedOvertime,
+      approvedOvertime: responseData?.approvedOvertime
+        ? {
+            ...responseData.approvedOvertime,
+            actualStartTime:
+              responseData.approvedOvertime.actualStartTime instanceof Date
+                ? responseData.approvedOvertime.actualStartTime.toISOString()
+                : responseData.approvedOvertime.actualStartTime,
+            actualEndTime:
+              responseData.approvedOvertime.actualEndTime instanceof Date
+                ? responseData.approvedOvertime.actualEndTime.toISOString()
+                : responseData.approvedOvertime.actualEndTime,
+            approvedAt:
+              responseData.approvedOvertime.approvedAt instanceof Date
+                ? responseData.approvedOvertime.approvedAt.toISOString()
+                : responseData.approvedOvertime.approvedAt,
+          }
+        : null,
       leaveRequests: responseData?.leaveRequests?.map(
         (request: LeaveRequestWithDates) => ({
           ...request,
