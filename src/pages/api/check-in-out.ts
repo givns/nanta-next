@@ -70,6 +70,18 @@ const attendanceSchema = Yup.object()
     reason: Yup.string(),
     isOvertime: Yup.boolean().optional(),
     isLate: Yup.boolean().optional(),
+    isEarlyCheckOut: Yup.boolean().optional(),
+    earlyCheckoutType: Yup.string()
+      .nullable()
+      .oneOf(['emergency', 'planned', null])
+      .when('isEarlyCheckOut', {
+        is: true,
+        then: (schema) =>
+          schema
+            .required('Early checkout type is required when checking out early')
+            .oneOf(['emergency', 'planned']),
+        otherwise: (schema) => schema.nullable(),
+      }),
   })
   .test(
     'either-employeeId-or-lineUserId',
@@ -103,8 +115,6 @@ const checkInOutQueue = new BetterQueue(
     store: new MemoryStore(),
   },
 );
-
-// In api/check-in-out.ts - Update processCheckInOut
 
 async function processCheckInOut(
   data: QueueTask,

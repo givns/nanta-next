@@ -10,6 +10,7 @@ import {
   AttendanceStatusInfo,
   CheckInOutAllowance,
   ShiftData,
+  EarlyCheckoutType,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { useFaceDetection } from '../hooks/useFaceDetection';
@@ -37,6 +38,8 @@ interface CheckInOutFormProps {
     lateReason?: string,
     isLate?: boolean,
     isOvertime?: boolean,
+    isEarlyCheckOut?: boolean,
+    earlyCheckoutType?: EarlyCheckoutType,
   ) => Promise<void>;
   onCloseWindow: () => void;
 }
@@ -117,13 +120,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     async (photo: string, lateReason?: string) => {
       try {
         const isLate = checkInOutAllowance?.isLateCheckIn || false;
+        const isEarlyCheckOut = checkInOutAllowance?.isEarlyCheckOut || false;
+        let earlyCheckoutType: EarlyCheckoutType | undefined;
 
-        console.log('Submitting check-in/out:', {
-          isLate,
-          hasLateReason: !!lateReason,
-          isCheckingIn,
-        });
-
+        if (isEarlyCheckOut) {
+          if (checkInOutAllowance?.isPlannedHalfDayLeave) {
+            earlyCheckoutType = 'planned';
+          } else if (checkInOutAllowance?.isEmergencyLeave) {
+            earlyCheckoutType = 'emergency';
+          }
+        }
         // Double-check late status (defensive programming)
         if (isLate && isCheckingIn && !lateReason) {
           console.log('Late reason required but missing');
@@ -140,6 +146,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           lateReason || '',
           isLate,
           checkInOutAllowance?.isOvertime || false,
+          isEarlyCheckOut,
+          earlyCheckoutType,
         );
 
         await onCloseWindow();
@@ -322,31 +330,65 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   };
 
   const handleCheckOut = async () => {
-    if (!checkInOutAllowance?.requireConfirmation) {
-      setStep('camera');
-      resetDetection();
-      return;
-    }
-
-    const now = getCurrentTime();
-
-    // Validate shift information
     if (!effectiveShift) {
       console.error('Effective shift is not available');
       setError('Unable to process check-out. Shift information is missing.');
       return;
     }
 
-    const { shiftTimes, approved } = await validateCheckOutConditions(now);
+    const now = getCurrentTime();
+
+    // Validate if user should be allowed to check out
+    const { approved } = await validateCheckOutConditions(now);
     if (!approved) return;
 
-    // Process early checkout if needed
-    if (checkInOutAllowance.isEarlyCheckOut) {
-      await processEarlyCheckout(now);
-    } else {
-      setStep('camera');
-      resetDetection();
+    if (checkInOutAllowance?.isEarlyCheckOut) {
+      // Case 1: Pre-approved half-day leave
+      if (checkInOutAllowance.isPlannedHalfDayLeave) {
+        setStep('camera');
+        resetDetection();
+        return;
+      }
+
+      // Case 2: Emergency leave (before midshift)
+      if (checkInOutAllowance.isEmergencyLeave) {
+        const confirmed = window.confirm(
+          'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
+        );
+
+        if (!confirmed) return;
+
+        try {
+          setIsLoading(true);
+          if (userData?.lineUserId) {
+            // Create leave request asynchronously
+            createSickLeaveRequest(userData.lineUserId, now).catch((error) => {
+              console.error('Emergency leave request creation failed:', error);
+              setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
+            });
+          }
+
+          setStep('camera');
+          resetDetection();
+        } catch (error) {
+          console.error('Error processing emergency leave:', error);
+          setError('เกิดข้อผิดพลาดในการดำเนินการ กรุณาลองใหม่อีกครั้ง');
+        } finally {
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // Case 3: Regular early checkout (after midshift)
+      if (checkInOutAllowance.isAfterMidshift) {
+        setError('ไม่สามารถลงเวลาออกก่อนเวลาเลิกงานได้ กรุณาติดต่อฝ่ายบุคคล');
+        return;
+      }
     }
+
+    // Normal checkout
+    setStep('camera');
+    resetDetection();
   };
 
   const validateCheckOutConditions = async (now: Date) => {
@@ -361,9 +403,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         isSameDay(parseISO(leave.startDate), now),
     );
 
-    // Handle early checkout
-    if (!approvedHalfDayLeave || now < shiftTimes.midpoint) {
-      const confirmed = window.confirm(checkInOutAllowance!.reason);
+    // If early checkout without approved leave
+    if (checkInOutAllowance?.requireConfirmation && !approvedHalfDayLeave) {
+      const confirmed = window.confirm(checkInOutAllowance.reason);
       if (!confirmed) {
         return { shiftTimes, approved: false };
       }
@@ -394,20 +436,47 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
     setIsLoading(true);
     try {
-      const leaveRequest = await createSickLeaveRequest(
-        userData.lineUserId,
-        now,
-      );
-      console.log('Sick leave request created:', leaveRequest);
+      // Case 1: Pre-approved half-day leave
+      if (checkInOutAllowance?.isPlannedHalfDayLeave) {
+        setStep('camera');
+        resetDetection();
+        return;
+      }
 
-      await refreshAttendanceStatus(true);
+      // Case 2: Emergency leave (before midshift)
+      if (checkInOutAllowance?.isEmergencyLeave) {
+        const confirmed = window.confirm(
+          'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
+        );
 
-      setStep('camera');
-      resetDetection();
+        if (confirmed) {
+          // Create leave request asynchronously
+          createSickLeaveRequest(userData.lineUserId, now).catch((error) => {
+            console.error('Emergency leave request creation failed:', error);
+            setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
+          });
+
+          setStep('camera');
+          resetDetection();
+        }
+        return;
+      }
+
+      // Case 3: Regular early checkout (after midshift)
+      if (checkInOutAllowance?.isAfterMidshift) {
+        const confirmed = window.confirm(
+          'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน ต้องการดำเนินการต่อหรือไม่?',
+        );
+
+        if (confirmed) {
+          setStep('camera');
+          resetDetection();
+        }
+        return;
+      }
     } catch (error) {
-      console.error('Failed to create sick leave request:', error);
-      setError('Failed to create sick leave request for early checkout');
-      throw error;
+      console.error('Error in processEarlyCheckout:', error);
+      setError('เกิดข้อผิดพลาดในการดำเนินการ กรุณาลองใหม่อีกครั้ง');
     } finally {
       setIsLoading(false);
     }

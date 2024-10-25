@@ -271,6 +271,10 @@ const CheckInOutAllowanceSchema = z.object({
   isAfternoonShift: z.boolean().optional(),
   isMorningShift: z.boolean().optional(),
   isApprovedEarlyCheckout: z.boolean().optional(),
+  isPlannedHalfDayLeave: z.boolean().optional(),
+  isEmergencyLeave: z.boolean().optional(),
+  isAfterMidshift: z.boolean().optional(),
+  earlyCheckoutType: z.enum(['emergency', 'planned']).optional(),
 });
 
 // Complete Response Schema

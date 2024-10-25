@@ -1,3 +1,4 @@
+//webhook.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { WebhookEvent, Client, ClientConfig } from '@line/bot-sdk';
 import dotenv from 'dotenv';
@@ -181,28 +182,20 @@ async function handleLeaveRequest(
 ) {
   try {
     if (action === 'approve') {
-      const result = await prisma.$transaction(async (tx) => {
-        return await leaveServiceServer.approveLeaveRequest(
-          requestId,
-          approverId,
-        );
-      });
-
-      return {
-        message: 'คำขอลาได้รับการอนุมัติแล้ว',
-        request: result,
-      };
+      // Leave as is - time entry already calculated as half day
+      const result = await leaveServiceServer.approveLeaveRequest(
+        requestId,
+        approverId,
+      );
+      return { message: 'คำขอลาได้รับการอนุมัติแล้ว', request: result };
     } else if (action === 'deny') {
+      // Only update leave balance and status
       const result = await leaveServiceServer.denyLeaveRequest(
         requestId,
         approverId,
       );
-      return {
-        message: 'คำขอลาถูกปฏิเสธแล้ว',
-        request: result,
-      };
-    } else {
-      throw new Error('Invalid action for leave request');
+      // Don't recalculate time entry - employee already left early
+      return { message: 'คำขอลาถูกปฏิเสธแล้ว', request: result };
     }
   } catch (error) {
     console.error('Error handling leave request:', error);

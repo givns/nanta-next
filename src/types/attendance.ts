@@ -22,6 +22,8 @@ interface HolidayInfo {
   date: string;
 }
 
+export type EarlyCheckoutType = 'emergency' | 'planned';
+
 // Attendance Data Interfaces
 export interface AttendanceData {
   employeeId: string;
@@ -35,6 +37,8 @@ export interface AttendanceData {
   isCheckIn: boolean;
   isOvertime?: boolean;
   isLate?: boolean;
+  isEarlyCheckOut?: boolean;
+  earlyCheckoutType?: EarlyCheckoutType;
 }
 
 // Overtime Interfaces
@@ -318,6 +322,10 @@ export interface CheckInOutAllowance {
   isAfternoonShift?: boolean;
   isMorningShift?: boolean;
   isApprovedEarlyCheckout?: boolean;
+  isPlannedHalfDayLeave?: boolean;
+  isEmergencyLeave?: boolean;
+  isAfterMidshift?: boolean;
+  earlyCheckoutType?: EarlyCheckoutType;
 }
 
 // Check In/Out Data Interfaces

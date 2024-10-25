@@ -324,6 +324,15 @@ export class AttendanceService {
       inPremises: options.inPremises ?? false,
       address: options.address ?? '',
       isAfternoonShift: options.isAfternoonShift ?? false,
+      isLateCheckIn: options.isLateCheckIn ?? false,
+      isLate: options.isLate ?? false,
+      isOvertime: options.isOvertime ?? false,
+      isEarlyCheckOut: options.isEarlyCheckOut ?? false,
+      requireConfirmation: options.requireConfirmation ?? false,
+      isPlannedHalfDayLeave: options.isPlannedHalfDayLeave ?? false,
+      isEmergencyLeave: options.isEmergencyLeave ?? false,
+      isAfterMidshift: options.isAfterMidshift ?? false,
+      earlyCheckoutType: options.earlyCheckoutType,
       ...options,
     };
   }
@@ -568,7 +577,8 @@ export class AttendanceService {
       shiftMidpoint,
     );
 
-    // Handle afternoon leave confirmation
+    // Case 1: Pre-approved Half-Day Leave (Afternoon)
+    // User checked in normally, leaving around midshift
     if (
       leaveContext.hasHalfDayLeave &&
       leaveContext.checkInTime &&
@@ -580,43 +590,48 @@ export class AttendanceService {
     ) {
       return this.createResponse(
         true,
-        'คุณกำลังลงเวลาออกงานสำหรับช่วงเช้า เนื่องจากมีการลาช่วงบ่าย',
+        'คุณกำลังลงเวลาออกงานสำหรับช่วงเช้า (ลาครึ่งวันช่วงบ่าย)',
         {
           inPremises,
           address,
           isMorningShift: true,
           isApprovedEarlyCheckout: true,
+          isPlannedHalfDayLeave: true,
         },
       );
     }
 
-    // Handle morning leave (checked in after midpoint)
-    if (leaveContext.isMorningLeaveConfirmed) {
-      // Allow normal end-of-day checkout
-      if (
-        isWithinInterval(now, {
-          start: subMinutes(shiftEnd, 15),
-          end: addMinutes(shiftEnd, 30),
-        })
-      ) {
-        return this.createResponse(true, 'คุณกำลังลงเวลาออกงานสำหรับช่วงบ่าย', {
-          inPremises,
-          address,
-          isAfternoonShift: true,
-        });
-      }
-    }
-
-    // Early checkout for non-leave cases
-    if (now < earlyCheckOutWindow && !leaveContext.hasHalfDayLeave) {
+    // Case 2: Emergency Early Checkout (Before Midshift)
+    // No approved leave, needs to create sick leave request
+    if (now < shiftMidpoint && !leaveContext.hasHalfDayLeave) {
       return this.createResponse(
         true,
-        'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน หากคุณต้องการลาป่วยฉุกเฉิน ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ',
+        'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ',
         {
           inPremises,
           address,
           requireConfirmation: true,
           isEarlyCheckOut: true,
+          isEmergencyLeave: true,
+        },
+      );
+    }
+
+    // Case 3: Regular Early Checkout (After Midshift but before earlyCheckOutWindow)
+    if (
+      now > shiftMidpoint &&
+      now < earlyCheckOutWindow &&
+      !leaveContext.hasHalfDayLeave
+    ) {
+      return this.createResponse(
+        false,
+        'ไม่สามารถลงเวลาออกก่อนเวลาเลิกงานได้ กรุณาติดต่อฝ่ายบุคคล',
+        {
+          inPremises,
+          address,
+          isEarlyCheckOut: true,
+          isAfterMidshift: true,
+          requireConfirmation: false, // Changed to false since we're not allowing it
         },
       );
     }
