@@ -9,12 +9,14 @@ interface LeaveBalanceData {
 
 interface LeaveBalanceCardProps {
   leaveBalance: LeaveBalanceData;
-  onSelectLeaveType: (type: string) => void;
+  onSelectLeaveType?: (type: string) => void;
+  selectedType?: string;
 }
 
 export default function LeaveBalanceCard({
   leaveBalance,
   onSelectLeaveType,
+  selectedType,
 }: LeaveBalanceCardProps) {
   const leaveTypes = [
     {
@@ -47,8 +49,10 @@ export default function LeaveBalanceCard({
         {leaveTypes.map((leave) => (
           <button
             key={leave.type}
-            onClick={() => onSelectLeaveType(leave.type)}
-            className={`flex items-center space-x-4 p-3 rounded-lg w-full transition-colors duration-200 ${leave.bgColor} ${leave.hoverColor} transform hover:scale-105`}
+            onClick={() => onSelectLeaveType?.(leave.type)}
+            className={`flex items-center space-x-4 p-3 rounded-lg w-full transition-colors duration-200 
+              ${selectedType === leave.type ? 'ring-2 ring-red-500' : ''}
+              ${leave.bgColor} ${leave.hoverColor} transform hover:scale-105`}
           >
             <div className="p-2 bg-white bg-opacity-60 rounded-full">
               {leave.icon}
@@ -66,8 +70,10 @@ export default function LeaveBalanceCard({
       {/* Unpaid Leave Option */}
       <div className="mt-4 pt-4 border-t border-gray-200">
         <button
-          onClick={() => onSelectLeaveType('ลาโดยไม่ได้รับค่าจ้าง')}
-          className="w-full flex items-center justify-center space-x-2 p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 transform hover:scale-105"
+          onClick={() => onSelectLeaveType?.('ลาโดยไม่ได้รับค่าจ้าง')}
+          className={`w-full flex items-center justify-center space-x-2 p-3 rounded-lg 
+            ${selectedType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'ring-2 ring-red-500' : ''}
+            bg-gray-100 hover:bg-gray-200 transition-colors duration-200 transform hover:scale-105`}
         >
           <Ban className="w-5 h-5 text-gray-600" />
           <span className="text-gray-600 font-medium">
