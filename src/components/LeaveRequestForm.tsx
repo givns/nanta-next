@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { Formik, Field, Form, ErrorMessage } from 'formik';
+import { Formik, Field, Form, ErrorMessage, FormikProps } from 'formik';
 import * as Yup from 'yup';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
@@ -98,32 +98,23 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     </div>
   );
 
-  const renderStep1 = () => {
-    const [selectedLeaveType, setSelectedLeaveType] = useState('');
-
-    return (
-      <div className="flex flex-col h-full">
-        {renderUserInfo()}
-        <LeaveBalanceCard
-          leaveBalance={leaveBalance}
-          onSelectLeaveType={setSelectedLeaveType}
-          selectedType={selectedLeaveType}
-        />
-        <button
-          onClick={() => {
-            if (selectedLeaveType) {
-              setFieldValue('leaveType', selectedLeaveType);
-              setStep(2);
-            }
-          }}
-          disabled={!selectedLeaveType}
-          className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
-        >
-          ถัดไป: เลือกประเภทการลา
-        </button>
-      </div>
-    );
-  };
+  const renderStep1 = ({ values, setFieldValue }: FormikProps<FormValues>) => (
+    <div className="flex flex-col h-full">
+      {renderUserInfo()}
+      <LeaveBalanceCard
+        leaveBalance={leaveBalance}
+        onSelectLeaveType={(type) => setFieldValue('leaveType', type)}
+        selectedType={values.leaveType}
+      />
+      <button
+        onClick={() => setStep(2)}
+        disabled={!values.leaveType}
+        className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
+      >
+        ถัดไป: เลือกประเภทการลา
+      </button>
+    </div>
+  );
 
   const renderStep2 = (setFieldValue: (field: string, value: any) => void) => (
     <div className="rounded-box bg-white p-6">
@@ -268,12 +259,12 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         validationSchema={leaveRequestSchema}
         onSubmit={handleSubmit}
       >
-        {({ values, setFieldValue }) => (
+        {(formikProps) => (
           <Form className="space-y-6">
-            {step === 1 && renderStep1()}
-            {step === 2 && renderStep2(setFieldValue)}
-            {step === 3 && renderStep3(setFieldValue)}
-            {step === 4 && renderStep4(values)}
+            {step === 1 && renderStep1(formikProps)}
+            {step === 2 && renderStep2(formikProps.setFieldValue)}
+            {step === 3 && renderStep3(formikProps.setFieldValue)}
+            {step === 4 && renderStep4(formikProps.values)}
             {step === 5 && renderStep5()}
           </Form>
         )}
