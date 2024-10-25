@@ -3,6 +3,7 @@
 import { GetServerSideProps, GetServerSidePropsContext } from 'next';
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
+import prisma from '@/lib/prisma';
 
 export const withLiff = (gssp: GetServerSideProps) => {
   return async (context: GetServerSidePropsContext) => {
@@ -33,6 +34,21 @@ export const withLiff = (gssp: GetServerSideProps) => {
     }
   };
 };
+
+export async function getUserRole(lineUserId: string): Promise<string | null> {
+  console.log('Getting user role for lineUserId:', lineUserId);
+  try {
+    const user = await prisma.user.findUnique({
+      where: { lineUserId: lineUserId },
+      select: { role: true },
+    });
+    console.log('Found user:', user);
+    return user?.role || null;
+  } catch (error) {
+    console.error('Error getting user role:', error);
+    return null;
+  }
+}
 
 // Useful hook for getting LINE userId
 export const useLiff = () => {
