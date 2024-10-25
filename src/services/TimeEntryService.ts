@@ -270,52 +270,33 @@ ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
     );
   }
 
+  // In TimeEntryService.ts
   async getTimeEntriesForEmployee(
     employeeId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<TimeEntry[]> {
-    const entries = await this.prisma.timeEntry.findMany({
-      where: {
-        employeeId,
-        date: {
-          gte: startDate,
-          lte: endDate,
+    try {
+      // Get entries with basic where clause
+      const entries = await this.prisma.timeEntry.findMany({
+        where: {
+          employeeId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
         },
-      },
-      // Explicitly select all fields to ensure we get what we need
-      select: {
-        id: true,
-        employeeId: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        regularHours: true,
-        overtimeHours: true,
-        status: true,
-        attendanceId: true,
-        overtimeRequestId: true,
-        entryType: true,
-        actualMinutesLate: true,
-        isHalfDayLate: true,
-      },
-    });
+      });
 
-    // Map entries to ensure they have valid entryType
-    return entries.map((entry) => ({
-      ...entry,
-      // Convert any null entryType to 'regular'
-      entryType: (entry.entryType as string) || 'regular',
-      // Ensure status is valid
-      status: entry.status || 'IN_PROGRESS',
-      // Ensure numeric values have defaults
-      regularHours: entry.regularHours || 0,
-      overtimeHours: entry.overtimeHours || 0,
-      actualMinutesLate: entry.actualMinutesLate || 0,
-      isHalfDayLate: entry.isHalfDayLate || false,
-      updatedAt: new Date(),
-      createdAt: new Date(),
-    }));
+      // Map entries to ensure entryType is never null
+      return entries.map((entry) => ({
+        ...entry,
+        entryType: entry.entryType || 'regular', // Provide default value
+      }));
+    } catch (error) {
+      console.error('Error fetching time entries:', error);
+      return []; // Return empty array instead of throwing error
+    }
   }
 
   async getTimeEntriesForPayroll(
