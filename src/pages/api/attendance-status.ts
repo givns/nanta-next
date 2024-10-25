@@ -71,6 +71,59 @@ interface LeaveRequestWithDates {
   updatedAt?: Date | string;
 }
 
+const prepareUserData = (user: any) => {
+  // Ensure all required fields are present with default values if needed
+  return {
+    id: user.id || user.employeeId, // Use employeeId as fallback for id
+    employeeId: user.employeeId,
+    name: user.name,
+    lineUserId: user.lineUserId,
+    nickname: user.nickname,
+    departmentId: user.departmentId,
+    departmentName: user.departmentName || user.department?.name || '',
+    role: user.role,
+    company: user.company || 'default', // Provide default value
+    employeeType: user.employeeType || 'Fulltime', // Default to Fulltime
+    isGovernmentRegistered: user.isGovernmentRegistered || 'false', // Default to 'false'
+    profilePictureUrl: user.profilePictureUrl,
+    shiftId: user.shiftId,
+    shiftCode: user.shiftCode,
+    overtimeHours: user.overtimeHours || 0,
+    sickLeaveBalance: user.sickLeaveBalance || 0,
+    businessLeaveBalance: user.businessLeaveBalance || 0,
+    annualLeaveBalance: user.annualLeaveBalance || 0,
+    isPreImported: user.isPreImported || 'false', // Default to 'false'
+    isRegistrationComplete: user.isRegistrationComplete || 'true', // Default to 'true'
+    updatedAt: user.updatedAt ? new Date(user.updatedAt) : null,
+  };
+};
+
+const prepareDateResponse = (date: Date | string | null | undefined) => {
+  if (!date) return null;
+  try {
+    return new Date(date);
+  } catch {
+    return null;
+  }
+};
+
+const fetchAttendanceData = async (userId: string) => {
+  const [shiftData, attendanceStatus, approvedOvertime, leaveRequests] =
+    await Promise.all([
+      shiftService.getEffectiveShiftAndStatus(userId, new Date()),
+      attendanceService.getLatestAttendanceStatus(userId),
+      overtimeService.getApprovedOvertimeRequest(userId, new Date()),
+      leaveServiceServer.getLeaveRequests(userId),
+    ]);
+
+  return {
+    shiftData,
+    attendanceStatus,
+    approvedOvertime,
+    leaveRequests,
+  };
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -96,17 +149,15 @@ export default async function handler(
     if (lineUserId && typeof lineUserId === 'string') {
       const cacheKey = `user:${lineUserId}`;
       if (cacheService) {
-        user = await cacheService.get(cacheKey);
-        if (user) {
-          user = JSON.parse(user);
+        const cachedUser = await cacheService.get(cacheKey);
+        if (cachedUser) {
+          user = JSON.parse(cachedUser);
         }
       }
       if (!user) {
         user = await prisma.user.findUnique({
           where: { lineUserId },
-          include: {
-            department: true,
-          },
+          include: { department: true },
         });
         if (user && cacheService) {
           await cacheService.set(cacheKey, JSON.stringify(user), 3600);
@@ -115,9 +166,7 @@ export default async function handler(
     } else if (employeeId && typeof employeeId === 'string') {
       user = await prisma.user.findUnique({
         where: { employeeId },
-        include: {
-          department: true,
-        },
+        include: { department: true },
       });
     }
 
@@ -125,9 +174,10 @@ export default async function handler(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    console.log('User found:', user);
+    // Prepare user data with all required fields
+    const preparedUser = prepareUserData(user);
 
-    // Fetch attendance data
+    // Fetch attendance data with cache
     const cacheKey = `attendance-status:${user.lineUserId || user.employeeId}`;
     let responseData;
 
@@ -145,15 +195,17 @@ export default async function handler(
               leaveRequests,
             ] = await Promise.all([
               shiftService.getEffectiveShiftAndStatus(
-                user.employeeId,
+                preparedUser.employeeId,
                 new Date(),
               ),
-              attendanceService.getLatestAttendanceStatus(user.employeeId),
+              attendanceService.getLatestAttendanceStatus(
+                preparedUser.employeeId,
+              ),
               overtimeService.getApprovedOvertimeRequest(
-                user.employeeId,
+                preparedUser.employeeId,
                 new Date(),
               ),
-              leaveServiceServer.getLeaveRequests(user.employeeId),
+              leaveServiceServer.getLeaveRequests(preparedUser.employeeId),
             ]);
 
             return {
@@ -173,15 +225,17 @@ export default async function handler(
         const [shiftData, attendanceStatus, approvedOvertime, leaveRequests] =
           await Promise.all([
             shiftService.getEffectiveShiftAndStatus(
-              user.employeeId,
+              preparedUser.employeeId,
               new Date(),
             ),
-            attendanceService.getLatestAttendanceStatus(user.employeeId),
+            attendanceService.getLatestAttendanceStatus(
+              preparedUser.employeeId,
+            ),
             overtimeService.getApprovedOvertimeRequest(
-              user.employeeId,
+              preparedUser.employeeId,
               new Date(),
             ),
-            leaveServiceServer.getLeaveRequests(user.employeeId),
+            leaveServiceServer.getLeaveRequests(preparedUser.employeeId),
           ]);
 
         responseData = {
@@ -200,92 +254,23 @@ export default async function handler(
     }
 
     // Fetch check-in/out allowance
-    let checkInOutAllowance;
-    try {
-      checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
-        user.employeeId,
-        req.query.inPremises === 'true',
-        req.query.address as string,
-      );
-    } catch (error) {
-      console.error('Error fetching check-in/out allowance:', error);
-      return res.status(500).json({
-        error: 'Failed to fetch check-in/out allowance',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
+    const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
+      preparedUser.employeeId,
+      req.query.inPremises === 'true',
+      req.query.address as string,
+    );
 
     // Prepare final response
-    try {
-      const finalResponseData = {
-        user: {
-          ...user,
-          updatedAt: user.updatedAt ? new Date(user.updatedAt) : null,
-        },
-        attendanceStatus: responseData?.attendanceStatus
-          ? {
-              ...responseData.attendanceStatus,
-              approvedOvertime: responseData.attendanceStatus.approvedOvertime
-                ? {
-                    ...responseData.attendanceStatus.approvedOvertime,
-                    date: new Date(
-                      responseData.attendanceStatus.approvedOvertime.date,
-                    ),
-                    actualStartTime: responseData.attendanceStatus
-                      .approvedOvertime.actualStartTime
-                      ? new Date(
-                          responseData.attendanceStatus.approvedOvertime.actualStartTime,
-                        )
-                      : null,
-                    actualEndTime: responseData.attendanceStatus
-                      .approvedOvertime.actualEndTime
-                      ? new Date(
-                          responseData.attendanceStatus.approvedOvertime.actualEndTime,
-                        )
-                      : null,
-                    approvedAt: responseData.attendanceStatus.approvedOvertime
-                      .approvedAt
-                      ? new Date(
-                          responseData.attendanceStatus.approvedOvertime.approvedAt,
-                        )
-                      : null,
-                    updatedAt: responseData.attendanceStatus.approvedOvertime
-                      .updatedAt
-                      ? new Date(
-                          responseData.attendanceStatus.approvedOvertime.updatedAt,
-                        )
-                      : undefined,
-                  }
-                : null,
-            }
-          : null,
-        effectiveShift: responseData?.shiftData?.effectiveShift,
-        checkInOutAllowance,
-        approvedOvertime: responseData?.approvedOvertime
-          ? {
-              ...responseData.approvedOvertime,
-              date: new Date(responseData.approvedOvertime.date),
-              actualStartTime: responseData.approvedOvertime.actualStartTime
-                ? new Date(responseData.approvedOvertime.actualStartTime)
-                : null,
-              actualEndTime: responseData.approvedOvertime.actualEndTime
-                ? new Date(responseData.approvedOvertime.actualEndTime)
-                : null,
-              approvedAt: responseData.approvedOvertime.approvedAt
-                ? new Date(responseData.approvedOvertime.approvedAt)
-                : null,
-            }
-          : null,
-        leaveRequests:
-          responseData?.leaveRequests?.map(
-            (request: LeaveRequestWithDates) => ({
-              ...request,
-              startDate: new Date(request.startDate),
-              endDate: new Date(request.endDate),
-            }),
-          ) ?? [],
-      };
+    const finalResponseData = {
+      user: preparedUser,
+      attendanceStatus: responseData.attendanceStatus,
+      effectiveShift: responseData.shiftData?.effectiveShift,
+      checkInOutAllowance,
+      approvedOvertime: responseData.approvedOvertime,
+      leaveRequests: responseData.leaveRequests ?? [],
+    };
 
+    try {
       const validatedData = ResponseDataSchema.parse(finalResponseData);
       return res.status(200).json(validatedData);
     } catch (error) {
@@ -299,10 +284,11 @@ export default async function handler(
           details: error.errors.map((err) => ({
             path: err.path.join('.'),
             message: err.message,
+            code: err.code,
           })),
         });
       }
-      throw error; // Re-throw unexpected errors
+      throw error;
     }
   } catch (error) {
     console.error('Unexpected error in attendance-status API:', error);

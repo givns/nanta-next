@@ -25,7 +25,45 @@ const UserDataSchema = z.object({
   businessLeaveBalance: z.number(),
   annualLeaveBalance: z.number(),
   updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
+  // Added optional fields that might not always be present
+  id: z.string().optional(),
+  company: z.string().nullable().optional(),
+  employeeType: z.enum(['Probation', 'Fulltime', 'Parttime']).optional(),
+  isGovernmentRegistered: z.string().optional(),
+  isPreImported: z.string().optional(),
+  isRegistrationComplete: z.string().optional(),
 });
+
+// Helper function to clean user data before validation
+const cleanUserData = (userData: any): z.infer<typeof UserDataSchema> => {
+  // Remove undefined values and ensure required fields
+  const cleanedData = {
+    employeeId: userData.employeeId,
+    name: userData.name,
+    lineUserId: userData.lineUserId,
+    nickname: userData.nickname,
+    departmentId: userData.departmentId,
+    departmentName: userData.departmentName || '',
+    role: userData.role,
+    profilePictureUrl: userData.profilePictureUrl,
+    shiftId: userData.shiftId,
+    shiftCode: userData.shiftCode,
+    overtimeHours: userData.overtimeHours || 0,
+    sickLeaveBalance: userData.sickLeaveBalance || 0,
+    businessLeaveBalance: userData.businessLeaveBalance || 0,
+    annualLeaveBalance: userData.annualLeaveBalance || 0,
+    updatedAt: userData.updatedAt,
+    // Optional fields
+    id: userData.id,
+    company: userData.company,
+    employeeType: userData.employeeType,
+    isGovernmentRegistered: userData.isGovernmentRegistered,
+    isPreImported: userData.isPreImported,
+    isRegistrationComplete: userData.isRegistrationComplete,
+  };
+
+  return cleanedData;
+};
 
 // Shift Schema
 const ShiftDataSchema = z.object({
@@ -237,32 +275,7 @@ const CheckInOutAllowanceSchema = z.object({
 
 // Complete Response Schema
 const ResponseDataSchema = z.object({
-  user: z.object({
-    id: z.string(),
-    employeeId: z.string(),
-    name: z.string(),
-    lineUserId: z.string().nullable(),
-    nickname: z.string().nullable(),
-    departmentName: z.string(),
-    departmentId: z.string().nullable(),
-    role: z.string(),
-    company: z.string().nullable(),
-    employeeType: z.enum(['Probation', 'Fulltime', 'Parttime']),
-    isGovernmentRegistered: z.string(),
-    profilePictureUrl: z.string().nullable(),
-    shiftId: z.string().nullable(),
-    shiftCode: z.string().nullable(),
-    overtimeHours: z.number(),
-    sickLeaveBalance: z.number(),
-    businessLeaveBalance: z.number(),
-    annualLeaveBalance: z.number(),
-    isPreImported: z.string(),
-    isRegistrationComplete: z.string(),
-    updatedAt: z
-      .union([z.string(), z.date()])
-      .nullable()
-      .transform((val) => (val ? new Date(val) : null)),
-  }),
+  user: UserDataSchema,
   attendanceStatus: AttendanceStatusInfoSchema.nullable(),
   effectiveShift: ShiftDataSchema.nullable(),
   checkInOutAllowance: CheckInOutAllowanceSchema,
@@ -291,11 +304,15 @@ const transformDates = (data: any) => {
   };
 };
 
-// Parse function for UserData
-const parseUserData = (userData: z.infer<typeof UserDataSchema>): UserData => ({
-  ...userData,
-  updatedAt: userData.updatedAt ? new Date(userData.updatedAt) : undefined,
-});
+// Helper function to parse and validate user data
+const parseUserData = (userData: any): UserData => {
+  const cleanedData = cleanUserData(userData);
+  const validated = UserDataSchema.parse(cleanedData);
+  return {
+    ...validated,
+    updatedAt: validated.updatedAt ? new Date(validated.updatedAt) : undefined,
+  };
+};
 
 export {
   ResponseDataSchema,
@@ -309,4 +326,5 @@ export {
   parseUserData,
   transformDates,
   DateStringOrDate,
+  cleanUserData,
 };
