@@ -129,8 +129,9 @@ async function handlePostback(event: WebhookEvent) {
   const params = new URLSearchParams(data);
   const action = params.get('action');
   const requestId = params.get('requestId');
+  const approverId = params.get('approverId')?.split('-')[0]; // Clean the ID here too
 
-  if (action && requestId && lineUserId) {
+  if (action && requestId && lineUserId && approverId) {
     try {
       const user = await prisma.user.findUnique({ where: { lineUserId } });
       if (!user) {
@@ -181,20 +182,20 @@ async function handleLeaveRequest(
   approverId: string,
 ) {
   try {
+    // Validate approverId format - should only be the employee ID without date
+    const cleanApproverId = approverId.split('-')[0]; // Extract just the employee ID part (E1065)
+
     if (action === 'approve') {
-      // Leave as is - time entry already calculated as half day
       const result = await leaveServiceServer.approveLeaveRequest(
         requestId,
-        approverId,
+        cleanApproverId, // Pass the clean employee ID
       );
       return { message: 'คำขอลาได้รับการอนุมัติแล้ว', request: result };
     } else if (action === 'deny') {
-      // Only update leave balance and status
       const result = await leaveServiceServer.denyLeaveRequest(
         requestId,
-        approverId,
+        cleanApproverId, // Pass the clean employee ID
       );
-      // Don't recalculate time entry - employee already left early
       return { message: 'คำขอลาถูกปฏิเสธแล้ว', request: result };
     }
   } catch (error) {
