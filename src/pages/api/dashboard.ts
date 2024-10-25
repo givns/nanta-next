@@ -1,193 +1,282 @@
 // pages/api/dashboard.ts
 
-import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../lib/prisma';
-import { UserData } from '../../types/user';
-import { HolidayService } from '../../services/HolidayService';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import {
+  LeaveRequest,
+  PrismaClient,
+  Shift,
+  TimeEntry,
+  User,
+} from '@prisma/client';
+import { AttendanceService } from '../../services/AttendanceService';
+import { HolidayService } from '@/services/HolidayService';
+import { ShiftManagementService } from '@/services/ShiftManagementService';
+import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
+import { TimeEntryService } from '@/services/TimeEntryService';
+import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
+import { createNotificationService } from '@/services/NotificationService';
+import { cacheService } from '@/services/CacheService';
+import { UserDataSchema } from '@/schemas/attendance';
 import { UserRole } from '../../types/enum';
 import { ShiftData } from '@/types/attendance';
+import { addDays, endOfMonth, format, startOfMonth } from 'date-fns';
 
+const prisma = new PrismaClient();
+
+// Initialize services
 const holidayService = new HolidayService(prisma);
+const notificationService = createNotificationService(prisma);
+const shiftService = new ShiftManagementService(prisma, holidayService);
+const leaveServiceServer = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
+const timeEntryService = new TimeEntryService(
+  prisma,
+  shiftService,
+  notificationService,
+);
+
+// Initialize OvertimeServiceServer with new dependencies
+const overtimeService = new OvertimeServiceServer(
+  prisma,
+  holidayService,
+  leaveServiceServer,
+  shiftService,
+  timeEntryService,
+  notificationService,
+);
+
+// Initialize AttendanceService
+const attendanceService = new AttendanceService(
+  prisma,
+  shiftService,
+  holidayService,
+  leaveServiceServer,
+  overtimeService,
+  notificationService,
+  timeEntryService,
+);
+
+const getPayrollPeriod = (date: Date = new Date()) => {
+  const currentMonth = new Date(date);
+  const currentDay = currentMonth.getDate();
+
+  let periodStart: Date;
+  let periodEnd: Date;
+
+  if (currentDay <= 25) {
+    // If current day is 25 or before, period is from previous month's 26th to current month's 25th
+    periodStart = new Date(
+      currentMonth.getFullYear(),
+      currentMonth.getMonth() - 1,
+      26,
+    );
+    periodEnd = new Date(
+      currentMonth.getFullYear(),
+      currentMonth.getMonth(),
+      25,
+    );
+  } else {
+    // If after 25th, period is from current month's 26th to next month's 25th
+    periodStart = new Date(
+      currentMonth.getFullYear(),
+      currentMonth.getMonth(),
+      26,
+    );
+    periodEnd = new Date(
+      currentMonth.getFullYear(),
+      currentMonth.getMonth() + 1,
+      25,
+    );
+  }
+
+  return { start: periodStart, end: periodEnd };
+};
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
   const { lineUserId } = req.query;
-
   if (!lineUserId || typeof lineUserId !== 'string') {
-    console.log('API: Invalid lineUserId');
-    return res
-      .status(400)
-      .json({ error: 'Missing or invalid lineUserId parameter' });
+    return res.status(400).json({ error: 'Invalid lineUserId' });
   }
 
   try {
-    console.log('API: Fetching user data');
+    const cacheKey = `dashboard:${lineUserId}`;
+    let dashboardData = cacheService ? await cacheService.get(cacheKey) : null;
 
-    const today = new Date();
-    const startDate = new Date(today.getFullYear(), today.getMonth() - 1, 26);
-    const endDate = new Date(today.getFullYear(), today.getMonth(), 25);
+    if (!dashboardData) {
+      // Get user data
+      const user = await prisma.user.findUnique({
+        where: { lineUserId },
+        include: {
+          department: true,
+        },
+      });
 
-    const user = await prisma.user.findUnique({
-      where: { lineUserId },
-      include: {
-        assignedShift: true,
-        department: true,
-      },
-    });
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+      // Get shift data
+      const shift = user?.shiftCode
+        ? await shiftService.getShiftByCode(user.shiftCode)
+        : null;
 
-    const [recentAttendance, holidays] = await Promise.all([
-      prisma.attendance.findMany({
-        where: {
-          employeeId: user.employeeId,
-          date: {
-            gte: startDate,
-            lte: endDate,
+      // Get current payroll period
+      const payrollPeriod = getPayrollPeriod();
+
+      // Fetch all required data in parallel
+      const [
+        attendanceStatus,
+        timeEntries,
+        leaveData,
+        leaveRequests,
+        workingDays,
+      ] = await Promise.all([
+        attendanceService.getLatestAttendanceStatus(user.employeeId),
+        timeEntryService.getTimeEntriesForEmployee(
+          user.employeeId,
+          payrollPeriod.start,
+          payrollPeriod.end,
+        ),
+        leaveServiceServer.checkLeaveBalance(user.employeeId),
+        prisma.leaveRequest.findMany({
+          where: {
+            employeeId: user.employeeId,
+            startDate: {
+              gte: payrollPeriod.start,
+            },
+            endDate: {
+              lte: payrollPeriod.end,
+            },
           },
+        }),
+        calculateWorkingDays(payrollPeriod.start, payrollPeriod.end, shift),
+      ]);
+
+      // Prepare dashboard data
+      const dashboardData = {
+        user: {
+          ...UserDataSchema.parse(user),
+          assignedShift: shift,
         },
-        orderBy: { date: 'desc' },
-        take: 5,
-        select: {
-          id: true,
-          employeeId: true,
-          date: true,
-          regularCheckInTime: true,
-          regularCheckOutTime: true,
-          overtimeEntries: true,
-          checkInLocation: true,
-          checkOutLocation: true,
-          checkInAddress: true,
-          checkOutAddress: true,
-          checkInReason: true,
-          checkInPhoto: true,
-          checkOutPhoto: true,
-          status: true,
-          isManualEntry: true,
+        attendanceStatus,
+        payrollAttendance: timeEntries,
+        totalWorkingDays: workingDays,
+        totalPresent: timeEntries.length,
+        totalAbsent: calculateAbsentDays(
+          timeEntries,
+          workingDays,
+          leaveRequests,
+        ),
+        overtimeHours: calculateOvertimeHours(timeEntries),
+        balanceLeave: getTotalLeaveBalance(user),
+        payrollPeriod: {
+          start: payrollPeriod.start.toISOString(),
+          end: payrollPeriod.end.toISOString(),
         },
-      }),
-      holidayService.getHolidays(startDate, endDate),
-    ]);
+      };
 
-    const totalDaysInPeriod = Math.ceil(
-      (endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24),
-    );
-    const totalWorkingDays = calculateTotalWorkingDays(
-      totalDaysInPeriod,
-      user.assignedShift?.workDays ?? [],
-      holidays.length,
-    );
+      if (cacheService) {
+        await cacheService.set(cacheKey, JSON.stringify(dashboardData), 300); // Cache for 5 minutes
+      }
 
-    const totalPresent = await prisma.attendance.count({
-      where: {
-        employeeId: user.employeeId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-        regularCheckInTime: { not: null },
-        regularCheckOutTime: { not: null },
-      },
-    });
-
-    const totalAbsent = totalWorkingDays - totalPresent;
-    const overtimeHours = user.overtimeHours || 0;
-    const balanceLeave = await calculateLeaveBalance(user.id);
-
-    const userData: UserData = {
-      lineUserId: user.lineUserId,
-      name: user.name,
-      nickname: user.nickname,
-      departmentId: user.departmentId!,
-      departmentName: user.departmentName,
-      employeeId: user.employeeId,
-      role: user.role as UserRole,
-      shiftId: user.shiftId!,
-      shiftCode: user.shiftCode,
-      profilePictureUrl: user.profilePictureUrl,
-      overtimeHours: user.overtimeHours,
-
-      sickLeaveBalance: user.sickLeaveBalance,
-      businessLeaveBalance: user.businessLeaveBalance,
-      annualLeaveBalance: user.annualLeaveBalance,
-      updatedAt: user.updatedAt ?? new Date(),
-    };
-
-    const responseData = {
-      user: userData,
-      recentAttendance: recentAttendance.map((attendance) => ({
-        ...attendance,
-        attendanceTime: null,
-        isOvertime: false,
-        isDayOff: false,
-        overtimeHours: 0,
-        overtimeDuration: null,
-      })),
-      totalWorkingDays,
-      totalPresent,
-      totalAbsent,
-      overtimeHours,
-      balanceLeave,
-    };
-
-    console.log('API: User data fetched successfully');
-    console.log('API: Response data:', JSON.stringify(responseData, null, 2));
-
-    res.status(200).json(responseData);
-  } catch (error) {
-    console.error('Error fetching user data:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-function calculateTotalWorkingDays(
-  totalDays: number,
-  workDays: number[],
-  holidays: number,
-): number {
-  const workingDaysPerWeek = workDays.length;
-  const weeks = Math.floor(totalDays / 7);
-  const remainingDays = totalDays % 7;
-
-  let totalWorkingDays = weeks * workingDaysPerWeek;
-
-  for (let i = 0; i < remainingDays; i++) {
-    if (workDays.includes((i + 1) % 7)) {
-      totalWorkingDays++;
+      return res.status(200).json(dashboardData);
     }
-  }
 
-  return totalWorkingDays - holidays;
+    return res.status(200).json(JSON.parse(dashboardData));
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
-async function calculateLeaveBalance(employeeId: string): Promise<number> {
-  // Fetch the user's leave balance from the database
-  const user = await prisma.user.findUnique({
-    where: { id: employeeId },
-    select: {
-      annualLeaveBalance: true,
-      sickLeaveBalance: true,
-      businessLeaveBalance: true,
-    },
+// Helper functions remain the same but moved outside handler
+const isWorkingDay = (
+  date: Date,
+  workDays: number[],
+  shiftCode: string | null,
+): boolean => {
+  const dayOfWeek = date.getDay();
+  return workDays.includes(dayOfWeek);
+};
+
+// Calculate working days in a period
+const calculateWorkingDays = async (
+  startDate: Date,
+  endDate: Date,
+  shift: Shift | null,
+): Promise<number> => {
+  if (!shift) return 0;
+
+  let workingDays = 0;
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    // Check if it's a working day according to shift
+    if (isWorkingDay(currentDate, shift.workDays, shift.shiftCode)) {
+      // Check if it's not a holiday
+      const isHoliday = await holidayService.isHoliday(
+        currentDate,
+        [], // Empty array as we'll check within the service
+        shift.shiftCode === 'SHIFT104', // Special handling for afternoon shift
+      );
+
+      if (!isHoliday) {
+        workingDays++;
+      }
+    }
+    currentDate = addDays(currentDate, 1);
+  }
+
+  return workingDays;
+};
+
+// Calculate absent days
+const calculateAbsentDays = (
+  timeEntries: TimeEntry[],
+  workingDays: number,
+  leaveRequests: LeaveRequest[],
+): number => {
+  // Get dates with time entries or approved leaves
+  const datesWithAttendance = new Set(
+    timeEntries.map((entry) => format(entry.date, 'yyyy-MM-dd')),
+  );
+
+  // Add approved leave dates
+  leaveRequests.forEach((leave) => {
+    if (leave.status === 'Approved') {
+      let currentDate = new Date(leave.startDate);
+      while (currentDate <= new Date(leave.endDate)) {
+        datesWithAttendance.add(format(currentDate, 'yyyy-MM-dd'));
+        currentDate = addDays(currentDate, 1);
+      }
+    }
   });
 
-  if (!user) {
-    throw new Error('User not found');
-  }
+  // Absent days are working days minus days with attendance/leave
+  return workingDays - datesWithAttendance.size;
+};
 
-  // Sum up all types of leave balances
-  const totalLeaveBalance =
-    (user.annualLeaveBalance || 0) +
+// Calculate overtime hours
+const calculateOvertimeHours = (timeEntries: TimeEntry[]): number => {
+  return timeEntries.reduce((total, entry) => {
+    return total + (entry.overtimeHours || 0);
+  }, 0);
+};
+
+// Get total leave balance
+const getTotalLeaveBalance = (user: User): number => {
+  return (
     (user.sickLeaveBalance || 0) +
-    (user.businessLeaveBalance || 0);
-
-  return totalLeaveBalance;
-}
+    (user.businessLeaveBalance || 0) +
+    (user.annualLeaveBalance || 0)
+  );
+};

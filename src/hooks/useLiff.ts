@@ -2,7 +2,14 @@
 import { useState, useEffect } from 'react';
 import liff from '@line/liff';
 
-export function useLiff() {
+interface UseLiffReturn {
+  lineUserId: string | null;
+  isLoading: boolean;
+  error: string | null;
+  isLiffInitialized: boolean;
+}
+
+export const useLiff = (): UseLiffReturn => {
   const [isLiffInitialized, setIsLiffInitialized] = useState(false);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
 
@@ -24,5 +31,5 @@ export function useLiff() {
     initializeLiff();
   }, []);
 
-  return { isLiffInitialized, lineUserId };
-}
+  return { isLiffInitialized, lineUserId, isLoading: false, error: null };
+};

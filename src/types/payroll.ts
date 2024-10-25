@@ -46,6 +46,11 @@ export interface PayrollPeriod {
   updatedAt: Date;
 }
 
+export interface PayrollPeriodDisplay {
+  startDate: Date;
+  endDate: Date;
+}
+
 export interface PayrollSettings {
   regularHourlyRate: number;
   overtimeRates: {
