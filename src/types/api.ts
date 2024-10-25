@@ -1,5 +1,12 @@
 // types/api.ts
+import { DashboardData } from './dashboard';
 
+export interface ApiResponse<T> {
+  data: T;
+  error?: string;
+}
+
+export interface DashboardResponse extends ApiResponse<DashboardData> {}
 /**
  * Response type for payroll summary endpoint
  */
