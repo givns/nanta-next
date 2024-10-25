@@ -104,6 +104,8 @@ const checkInOutQueue = new BetterQueue(
   },
 );
 
+// In api/check-in-out.ts - Update processCheckInOut
+
 async function processCheckInOut(
   data: QueueTask,
 ): Promise<AttendanceStatusInfo> {
@@ -138,21 +140,22 @@ async function processCheckInOut(
       isLate: validatedData.isLate || false,
     };
 
+    // For early check-out, first verify if leave request exists
+    if (!validatedData.isCheckIn && validatedData.reason === 'early-checkout') {
+      const leaveRequest = await leaveServiceServer.checkUserOnLeave(
+        user.employeeId,
+        now,
+      );
+      if (!leaveRequest) {
+        throw new Error('No leave request found for early checkout');
+      }
+    }
+
     // Process attendance
     const processedAttendance =
       await attendanceService.processAttendance(attendanceData);
     if (!processedAttendance) {
       throw new Error('Failed to process attendance');
-    }
-
-    // Process overtime if needed
-    if (attendanceData.isOvertime) {
-      await attendanceService.processCheckInOut(
-        user.employeeId,
-        new Date(attendanceData.checkTime),
-        attendanceData.isCheckIn,
-        true,
-      );
     }
 
     // Get updated status
@@ -183,11 +186,6 @@ async function processCheckInOut(
     return updatedStatus;
   } catch (error: any) {
     console.error('Error in processCheckInOut:', error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2023') {
-        throw new Error('Invalid attendance record format. Please try again.');
-      }
-    }
     throw error;
   }
 }
