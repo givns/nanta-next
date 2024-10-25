@@ -162,17 +162,14 @@ export class TimeEntryService {
     });
 
     // Handle time entries, ensuring we only include times that exist
-    const timeEntryData: Omit<
-      Prisma.TimeEntryUncheckedCreateInput,
-      'startTime' | 'endTime'
-    > & {
-      startTime?: Date;
-      endTime?: Date;
-    } = {
+    const timeEntryData: Prisma.TimeEntryUncheckedCreateInput = {
       employeeId: attendance.employeeId,
       date: attendance.date,
-      regularHours,
-      overtimeHours,
+      // Ensure startTime and endTime are handled correctly
+      startTime: attendance.regularCheckInTime || attendance.date,
+      endTime: attendance.regularCheckOutTime || null,
+      regularHours: regularHours || 0,
+      overtimeHours: overtimeHours || 0,
       actualMinutesLate: isCheckIn
         ? minutesLate
         : (existingEntry?.actualMinutesLate ?? 0),
@@ -181,6 +178,7 @@ export class TimeEntryService {
         : (existingEntry?.isHalfDayLate ?? false),
       status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
       attendanceId: attendance.id,
+      // Ensure entryType is never null
       entryType: overtimeHours > 0 ? 'overtime' : 'regular',
     };
 
@@ -277,7 +275,7 @@ ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
     startDate: Date,
     endDate: Date,
   ): Promise<TimeEntry[]> {
-    return this.prisma.timeEntry.findMany({
+    const entries = await this.prisma.timeEntry.findMany({
       where: {
         employeeId,
         date: {
@@ -285,14 +283,46 @@ ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
           lte: endDate,
         },
       },
+      // Explicitly select all fields to ensure we get what we need
+      select: {
+        id: true,
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        regularHours: true,
+        overtimeHours: true,
+        status: true,
+        attendanceId: true,
+        overtimeRequestId: true,
+        entryType: true,
+        actualMinutesLate: true,
+        isHalfDayLate: true,
+      },
     });
+
+    // Map entries to ensure they have valid entryType
+    return entries.map((entry) => ({
+      ...entry,
+      // Convert any null entryType to 'regular'
+      entryType: (entry.entryType as string) || 'regular',
+      // Ensure status is valid
+      status: entry.status || 'IN_PROGRESS',
+      // Ensure numeric values have defaults
+      regularHours: entry.regularHours || 0,
+      overtimeHours: entry.overtimeHours || 0,
+      actualMinutesLate: entry.actualMinutesLate || 0,
+      isHalfDayLate: entry.isHalfDayLate || false,
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    }));
   }
 
   async getTimeEntriesForPayroll(
     startDate: Date,
     endDate: Date,
   ): Promise<TimeEntry[]> {
-    return this.prisma.timeEntry.findMany({
+    const entries = await this.prisma.timeEntry.findMany({
       where: {
         date: {
           gte: startDate,
@@ -304,6 +334,12 @@ ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
         user: true,
       },
     });
+
+    // Ensure valid entryType for payroll entries
+    return entries.map((entry) => ({
+      ...entry,
+      entryType: entry.entryType || 'regular',
+    }));
   }
 
   private async getEffectiveShift(
