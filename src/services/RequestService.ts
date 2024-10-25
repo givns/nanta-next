@@ -17,37 +17,6 @@ export abstract class RequestService {
   protected abstract getRequestModel(): any;
   protected abstract getRequestType(): 'leave' | 'overtime';
 
-  async approveRequest(
-    requestId: string,
-    approverEmployeeId: string,
-    tx?: TransactionClient,
-  ) {
-    const prismaToUse = tx || this.prisma;
-
-    const approver = await this.getUserByEmployeeId(approverEmployeeId);
-    if (!approver) throw new Error('Approver not found');
-
-    const model = this.getRequestModel();
-    const request = await model.update({
-      where: { id: requestId },
-      data: {
-        status: 'Approved',
-        approverId: approver.id,
-        updatedAt: new Date(),
-      },
-      include: { user: true },
-    });
-
-    await this.notificationService.sendApprovalNotification(
-      request.user,
-      request,
-      approver,
-      this.getRequestType(),
-    );
-
-    return request;
-  }
-
   async denyRequest(requestId: string, denierEmployeeId: string) {
     const denier = await this.getUserByEmployeeId(denierEmployeeId);
     if (!denier) throw new Error('Approver not found');

@@ -70,71 +70,84 @@ export class LeaveServiceServer
     resubmitted: boolean = false,
     originalRequestId?: string,
   ): Promise<LeaveRequest> {
-    const user = await this.prisma.user.findUnique({
-      where: { lineUserId },
-    });
-    if (!user) throw new Error(`User not found for lineUserId: ${lineUserId}`);
-
-    const leaveBalance = await this.checkLeaveBalance(user.employeeId);
-
-    // Check if user has enough leave balance
-    let availableDays: number;
-    switch (leaveType) {
-      case 'ลาป่วย':
-        availableDays = leaveBalance.sickLeave;
-        break;
-      case 'ลากิจ':
-        availableDays = leaveBalance.businessLeave;
-        break;
-      case 'ลาพักร้อน':
-        availableDays = leaveBalance.annualLeave;
-        break;
-      default:
-        throw new Error(`Invalid leave type: ${leaveType}`);
-    }
-
-    if (fullDayCount > availableDays) {
-      throw new Error(
-        `ไม่มีวันลา${leaveType}เพียงพอ (ขอลา ${fullDayCount} วัน, เหลือ ${availableDays} วัน)`,
-      );
-    }
-
-    let leaveRequestData: Prisma.LeaveRequestCreateInput = {
-      user: { connect: { employeeId: user.employeeId } },
-      leaveType,
-      leaveFormat,
-      reason,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      status: 'Pending',
-      fullDayCount,
-      resubmitted,
-    };
-
-    if (resubmitted && originalRequestId) {
-      leaveRequestData.originalRequestId = originalRequestId;
-    }
-
-    try {
-      const newLeaveRequest = await this.prisma.leaveRequest.create({
-        data: leaveRequestData,
-        include: { user: true },
-      });
-
-      await this.notifyAdmins(newLeaveRequest);
-
-      // Update Attendance record if leave is approved
-      if (newLeaveRequest.status === 'approved') {
-        await this.prisma.$transaction(async (tx) => {
-          await this.updateAttendanceForLeave(newLeaveRequest, tx);
+    // Wrap everything in a transaction
+    return await this.prisma
+      .$transaction(async (tx) => {
+        // Find user
+        const user = await tx.user.findUnique({
+          where: { lineUserId },
         });
-      }
+        if (!user)
+          throw new Error(`User not found for lineUserId: ${lineUserId}`);
 
-      return newLeaveRequest;
-    } catch (error) {
-      console.error('Error creating leave request:', error);
-      throw new Error('Failed to create leave request. Please try again.');
-    }
+        // Check leave balance
+        const leaveBalance = await this.checkLeaveBalance(user.employeeId);
+
+        let availableDays: number;
+        switch (leaveType) {
+          case 'ลาป่วย':
+            availableDays = leaveBalance.sickLeave;
+            break;
+          case 'ลากิจ':
+            availableDays = leaveBalance.businessLeave;
+            break;
+          case 'ลาพักร้อน':
+            availableDays = leaveBalance.annualLeave;
+            break;
+          default:
+            throw new Error(`Invalid leave type: ${leaveType}`);
+        }
+
+        if (fullDayCount > availableDays) {
+          throw new Error(
+            `ไม่มีวันลา${leaveType}เพียงพอ (ขอลา ${fullDayCount} วัน, เหลือ ${availableDays} วัน)`,
+          );
+        }
+
+        // Prepare leave request data
+        let leaveRequestData: Prisma.LeaveRequestCreateInput = {
+          user: { connect: { employeeId: user.employeeId } },
+          leaveType,
+          leaveFormat,
+          reason,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          status: 'Pending',
+          fullDayCount,
+          resubmitted,
+        };
+
+        if (resubmitted && originalRequestId) {
+          leaveRequestData.originalRequestId = originalRequestId;
+        }
+
+        // Create leave request within transaction
+        const newLeaveRequest = await tx.leaveRequest.create({
+          data: leaveRequestData,
+          include: { user: true },
+        });
+
+        // Update attendance records if the request is already approved
+        // (unusual case, but handling it for completeness)
+        if (newLeaveRequest.status === 'Approved') {
+          await this.updateAttendanceRecords(newLeaveRequest, tx);
+        }
+
+        return newLeaveRequest;
+      })
+      .then(async (newLeaveRequest) => {
+        // Handle notifications outside of transaction
+        await this.notifyAdmins(newLeaveRequest);
+        return newLeaveRequest;
+      })
+      .catch((error) => {
+        console.error('Error creating leave request:', error);
+        throw new Error(
+          error instanceof Error
+            ? error.message
+            : 'Failed to create leave request. Please try again.',
+        );
+      });
   }
 
   private async notifyAdmins(
@@ -178,33 +191,6 @@ export class LeaveServiceServer
           error,
         );
       }
-    }
-  }
-
-  private async updateAttendanceForLeave(
-    leaveRequest: LeaveRequest,
-    tx: TransactionClient,
-  ) {
-    const { startDate, endDate, employeeId } = leaveRequest;
-    let currentDate = startDate;
-
-    while (currentDate <= endDate) {
-      await tx.attendance.upsert({
-        where: {
-          id: `${employeeId}-${currentDate}`,
-        },
-        update: {
-          isDayOff: true,
-          status: 'off',
-        },
-        create: {
-          employeeId,
-          date: currentDate,
-          isDayOff: true,
-          status: 'off',
-        },
-      });
-      currentDate = addDays(currentDate, 1);
     }
   }
 
@@ -301,67 +287,116 @@ export class LeaveServiceServer
     requestId: string,
     approverEmployeeId: string,
   ): Promise<LeaveRequest> {
-    return await this.prisma.$transaction(async (tx) => {
-      const leaveRequest = await this.getRequestModel().findUnique({
-        where: { id: requestId },
-        include: { user: true },
+    return await this.prisma
+      .$transaction(async (tx) => {
+        // Get both leave request and approver data at the start
+        const [leaveRequest, approver] = await Promise.all([
+          tx.leaveRequest.findUnique({
+            where: { id: requestId },
+            include: { user: true },
+          }),
+          tx.user.findUnique({
+            where: { employeeId: approverEmployeeId },
+          }),
+        ]);
+
+        if (!leaveRequest) {
+          throw new Error('Leave request not found');
+        }
+
+        if (!approver) {
+          throw new Error('Approver not found');
+        }
+
+        // Update leave balance
+        let updateField:
+          | 'sickLeaveBalance'
+          | 'businessLeaveBalance'
+          | 'annualLeaveBalance';
+        switch (leaveRequest.leaveType) {
+          case 'ลาป่วย':
+            updateField = 'sickLeaveBalance';
+            break;
+          case 'ลากิจ':
+            updateField = 'businessLeaveBalance';
+            break;
+          case 'ลาพักร้อน':
+            updateField = 'annualLeaveBalance';
+            break;
+          default:
+            throw new Error(`Invalid leave type: ${leaveRequest.leaveType}`);
+        }
+
+        const currentBalance = leaveRequest.user[updateField];
+        const newBalance = currentBalance - leaveRequest.fullDayCount;
+
+        if (newBalance < 0) {
+          throw new Error(`Insufficient ${updateField} balance`);
+        }
+
+        // Update user balance
+        await tx.user.update({
+          where: { id: leaveRequest.user.id },
+          data: {
+            [updateField]: newBalance,
+          },
+        });
+
+        // Update leave request status
+        const approvedRequest = await tx.leaveRequest.update({
+          where: { id: requestId },
+          data: {
+            status: 'Approved',
+            approverId: approver.id, // Use approver.id instead of approverEmployeeId
+            updatedAt: new Date(),
+          },
+          include: { user: true },
+        });
+
+        // Update attendance records
+        await this.updateAttendanceRecords(approvedRequest, tx);
+
+        return { approvedRequest, approver };
+      })
+      .then(async ({ approvedRequest, approver }) => {
+        // Handle notifications and cache invalidation outside transaction
+        await this.notificationService.sendApprovalNotification(
+          approvedRequest.user,
+          approvedRequest,
+          approver,
+          'leave',
+        );
+        await this.invalidateUserCache(approvedRequest.employeeId);
+        return approvedRequest;
       });
-
-      if (!leaveRequest) {
-        throw new Error('Leave request not found');
-      }
-
-      await this.updateLeaveBalance(leaveRequest, tx);
-
-      const approvedRequest = (await super.approveRequest(
-        requestId,
-        approverEmployeeId,
-        tx,
-      )) as LeaveRequest;
-
-      await this.updateAttendanceForLeave(approvedRequest, tx);
-      await this.invalidateUserCache(approvedRequest.employeeId);
-
-      return approvedRequest;
-    });
   }
 
-  private async updateLeaveBalance(
-    leaveRequest: LeaveRequest & { user: User },
+  // New helper method to handle attendance records
+  private async updateAttendanceRecords(
+    leaveRequest: LeaveRequest,
     tx: TransactionClient,
   ) {
-    let updateField:
-      | 'sickLeaveBalance'
-      | 'businessLeaveBalance'
-      | 'annualLeaveBalance';
+    const { startDate, endDate, employeeId } = leaveRequest;
+    let currentDate = startDate;
 
-    switch (leaveRequest.leaveType) {
-      case 'ลาป่วย':
-        updateField = 'sickLeaveBalance';
-        break;
-      case 'ลากิจ':
-        updateField = 'businessLeaveBalance';
-        break;
-      case 'ลาพักร้อน':
-        updateField = 'annualLeaveBalance';
-        break;
-      default:
-        throw new Error(`Invalid leave type: ${leaveRequest.leaveType}`);
+    while (currentDate <= endDate) {
+      await tx.attendance.upsert({
+        where: {
+          id: `${employeeId}-${currentDate}`,
+        },
+        update: {
+          isDayOff: true,
+          status: 'off',
+        },
+        create: {
+          employeeId,
+          date: currentDate,
+          isDayOff: true,
+          status: 'off',
+        },
+      });
+      currentDate = addDays(currentDate, 1);
     }
-
-    const currentBalance = leaveRequest.user[updateField];
-    const newBalance = currentBalance - leaveRequest.fullDayCount;
-
-    if (newBalance < 0) {
-      throw new Error(`Insufficient ${updateField} balance`);
-    }
-
-    await tx.user.update({
-      where: { id: leaveRequest.user.id },
-      data: {
-        [updateField]: newBalance,
-      },
-    });
   }
 
   async denyLeaveRequest(

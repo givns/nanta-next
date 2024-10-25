@@ -180,18 +180,23 @@ async function handleLeaveRequest(
   approverId: string,
 ) {
   try {
-    let result;
     if (action === 'approve') {
-      result = await leaveServiceServer.approveLeaveRequest(
-        requestId,
-        approverId,
-      );
+      const result = await prisma.$transaction(async (tx) => {
+        return await leaveServiceServer.approveLeaveRequest(
+          requestId,
+          approverId,
+        );
+      });
+
       return {
         message: 'คำขอลาได้รับการอนุมัติแล้ว',
         request: result,
       };
     } else if (action === 'deny') {
-      result = await leaveServiceServer.denyLeaveRequest(requestId, approverId);
+      const result = await leaveServiceServer.denyLeaveRequest(
+        requestId,
+        approverId,
+      );
       return {
         message: 'คำขอลาถูกปฏิเสธแล้ว',
         request: result,
@@ -201,13 +206,9 @@ async function handleLeaveRequest(
     }
   } catch (error) {
     console.error('Error handling leave request:', error);
-    if (error instanceof Error) {
-      throw new Error(`Failed to process leave request: ${error.message}`);
-    } else {
-      throw new Error(
-        'An unknown error occurred while processing the leave request',
-      );
-    }
+    throw new Error(
+      `Failed to process leave request: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
   }
 }
 
