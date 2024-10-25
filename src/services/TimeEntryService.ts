@@ -270,32 +270,47 @@ ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
     );
   }
 
-  // In TimeEntryService.ts
   async getTimeEntriesForEmployee(
     employeeId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<TimeEntry[]> {
     try {
-      // Get entries with basic where clause
-      const entries = await this.prisma.timeEntry.findMany({
+      const entries = (await this.prisma.timeEntry.findMany({
+        select: {
+          id: true,
+          employeeId: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          regularHours: true,
+          overtimeHours: true,
+          status: true,
+          attendanceId: true,
+          overtimeRequestId: true,
+          actualMinutesLate: true,
+          isHalfDayLate: true,
+        },
         where: {
           employeeId,
           date: {
             gte: startDate,
             lte: endDate,
           },
+          // Add default value for entryType in where clause
+          OR: [{ entryType: { not: null as any } }, { entryType: 'regular' }],
         },
-      });
+      })) as TimeEntry[];
 
-      // Map entries to ensure entryType is never null
       return entries.map((entry) => ({
         ...entry,
-        entryType: entry.entryType || 'regular', // Provide default value
+        entryType: 'regular', // Force all entries to have 'regular' type
+        regularHours: entry.regularHours || 0,
+        overtimeHours: entry.overtimeHours || 0,
       }));
     } catch (error) {
       console.error('Error fetching time entries:', error);
-      return []; // Return empty array instead of throwing error
+      return [];
     }
   }
 
