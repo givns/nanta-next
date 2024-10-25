@@ -52,25 +52,6 @@ const attendanceService = new AttendanceService(
   timeEntryService,
 );
 
-interface LeaveRequestWithDates {
-  id: string;
-  employeeId: string;
-  leaveType: string;
-  leaveFormat: string;
-  reason: string;
-  startDate: Date | string;
-  endDate: Date | string;
-  fullDayCount: number;
-  status: string;
-  approverId?: string | null;
-  denierId?: string | null;
-  denialReason?: string | null;
-  resubmitted?: boolean;
-  originalRequestId?: string | null;
-  createdAt?: Date | string;
-  updatedAt?: Date | string;
-}
-
 const prepareUserData = (user: any) => {
   // Ensure all required fields are present with default values if needed
   return {
@@ -95,32 +76,6 @@ const prepareUserData = (user: any) => {
     isPreImported: user.isPreImported || 'false', // Default to 'false'
     isRegistrationComplete: user.isRegistrationComplete || 'true', // Default to 'true'
     updatedAt: user.updatedAt ? new Date(user.updatedAt) : null,
-  };
-};
-
-const prepareDateResponse = (date: Date | string | null | undefined) => {
-  if (!date) return null;
-  try {
-    return new Date(date);
-  } catch {
-    return null;
-  }
-};
-
-const fetchAttendanceData = async (userId: string) => {
-  const [shiftData, attendanceStatus, approvedOvertime, leaveRequests] =
-    await Promise.all([
-      shiftService.getEffectiveShiftAndStatus(userId, new Date()),
-      attendanceService.getLatestAttendanceStatus(userId),
-      overtimeService.getApprovedOvertimeRequest(userId, new Date()),
-      leaveServiceServer.getLeaveRequests(userId),
-    ]);
-
-  return {
-    shiftData,
-    attendanceStatus,
-    approvedOvertime,
-    leaveRequests,
   };
 };
 

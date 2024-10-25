@@ -23,6 +23,75 @@ export class TimeEntryService {
     private notificationService: NotificationService,
   ) {}
 
+  private calculateLateMinutes(checkInTime: Date, shiftStart: Date): number {
+    return Math.max(0, differenceInMinutes(checkInTime, shiftStart));
+  }
+
+  private calculateWorkingHours(
+    checkInTime: Date,
+    checkOutTime: Date | null,
+    shiftStart: Date,
+    shiftEnd: Date,
+    approvedOvertimeRequest: ApprovedOvertime | null,
+    leaveRequests: LeaveRequest[] = [],
+  ): {
+    regularHours: number;
+    overtimeHours: number;
+  } {
+    if (!checkOutTime) {
+      return {
+        regularHours: 0,
+        overtimeHours: 0,
+      };
+    }
+
+    // Check for approved half-day leave
+    const hasHalfDayLeave = leaveRequests.some(
+      (leave) =>
+        leave.status === 'Approved' &&
+        leave.leaveFormat === 'ลาครึ่งวัน' &&
+        isSameDay(leave.startDate, checkInTime),
+    );
+
+    // Calculate regular hours based on business rules
+    let regularHours = hasHalfDayLeave
+      ? this.REGULAR_HOURS_PER_SHIFT / 2
+      : this.REGULAR_HOURS_PER_SHIFT;
+
+    // Calculate overtime if any
+    let overtimeHours = 0;
+    if (approvedOvertimeRequest) {
+      const overtimeStart = this.parseShiftTime(
+        approvedOvertimeRequest.startTime,
+        approvedOvertimeRequest.date,
+      );
+      const overtimeEnd = this.parseShiftTime(
+        approvedOvertimeRequest.endTime,
+        approvedOvertimeRequest.date,
+      );
+
+      if (checkOutTime > overtimeStart) {
+        const effectiveOvertimeStart = new Date(
+          Math.max(checkInTime.getTime(), overtimeStart.getTime()),
+        );
+        const effectiveOvertimeEnd = new Date(
+          Math.min(checkOutTime.getTime(), overtimeEnd.getTime()),
+        );
+
+        const overtimeMinutes = this.calculateOvertimeIncrement(
+          differenceInMinutes(effectiveOvertimeEnd, effectiveOvertimeStart),
+        );
+
+        overtimeHours = overtimeMinutes / 60;
+      }
+    }
+
+    return {
+      regularHours: Math.round(regularHours * 100) / 100,
+      overtimeHours: Math.round(overtimeHours * 100) / 100,
+    };
+  }
+
   async createOrUpdateTimeEntry(
     attendance: Attendance,
     isCheckIn: boolean,
@@ -43,68 +112,94 @@ export class TimeEntryService {
       attendance.date,
     );
 
-    // Calculate minutes late
-    const checkInTime = attendance.regularCheckInTime || attendance.date;
-    const checkOutTime = isCheckIn
-      ? null
-      : attendance.regularCheckOutTime || new Date();
+    // Handle check-in specifics
+    let minutesLate = 0;
+    let isHalfDayLate = false;
 
-    const { regularHours, overtimeHours, minutesLate, isHalfDayLate } =
-      this.calculateHours(
-        checkInTime,
-        checkOutTime,
+    if (isCheckIn && attendance.regularCheckInTime) {
+      minutesLate = this.calculateLateMinutes(
+        attendance.regularCheckInTime,
         shiftStart,
-        shiftEnd,
-        approvedOvertimeRequest,
-        leaveRequests,
       );
+      isHalfDayLate = minutesLate >= this.HALF_DAY_THRESHOLD;
 
-    // If late without approved leave, notify admin
-    if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
-      console.log('Sending late notification to admin:', {
-        employeeId: attendance.employeeId,
-        minutesLate,
-        date: attendance.date,
-      });
-
-      try {
-        await this.notifyAdminOfLateness(
-          attendance.employeeId,
-          attendance.date,
+      // Only notify on check-in if late
+      if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
+        console.log('Sending late notification to admin:', {
+          employeeId: attendance.employeeId,
           minutesLate,
-          minutesLate >= this.HALF_DAY_THRESHOLD,
-        );
-      } catch (error) {
-        console.error('Failed to send late notification:', error);
+          date: attendance.date,
+        });
+
+        try {
+          await this.notifyAdminOfLateness(
+            attendance.employeeId,
+            attendance.date,
+            minutesLate,
+            isHalfDayLate,
+          );
+        } catch (error) {
+          console.error('Failed to send late notification:', error);
+        }
       }
     }
 
-    const timeEntryData: Prisma.TimeEntryUncheckedCreateInput = {
+    // Calculate hours only on check-out
+    const { regularHours, overtimeHours } = isCheckIn
+      ? { regularHours: 0, overtimeHours: 0 }
+      : this.calculateWorkingHours(
+          attendance.regularCheckInTime!,
+          attendance.regularCheckOutTime,
+          shiftStart,
+          shiftEnd,
+          approvedOvertimeRequest,
+          leaveRequests,
+        );
+
+    // Preserve existing late minutes if updating on check-out
+    const existingEntry = await this.prisma.timeEntry.findFirst({
+      where: { attendanceId: attendance.id },
+    });
+
+    // Handle time entries, ensuring we only include times that exist
+    const timeEntryData: Omit<
+      Prisma.TimeEntryUncheckedCreateInput,
+      'startTime' | 'endTime'
+    > & {
+      startTime?: Date;
+      endTime?: Date;
+    } = {
       employeeId: attendance.employeeId,
       date: attendance.date,
-      startTime: checkInTime,
-      endTime: checkOutTime,
       regularHours,
       overtimeHours,
-      actualMinutesLate: minutesLate,
-      isHalfDayLate: false, // We'll set this based on approved leaves only
+      actualMinutesLate: isCheckIn
+        ? minutesLate
+        : (existingEntry?.actualMinutesLate ?? 0),
+      isHalfDayLate: isCheckIn
+        ? isHalfDayLate
+        : (existingEntry?.isHalfDayLate ?? false),
       status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
       attendanceId: attendance.id,
       entryType: overtimeHours > 0 ? 'overtime' : 'regular',
     };
 
-    const existingEntry = await this.prisma.timeEntry.findFirst({
-      where: { attendanceId: attendance.id },
-    });
+    // Only add times if they exist
+    if (attendance.regularCheckInTime) {
+      timeEntryData.startTime = attendance.regularCheckInTime;
+    }
+    if (attendance.regularCheckOutTime) {
+      timeEntryData.endTime = attendance.regularCheckOutTime;
+    }
 
     if (existingEntry) {
       return this.prisma.timeEntry.update({
         where: { id: existingEntry.id },
-        data: timeEntryData,
+        data: timeEntryData as Prisma.TimeEntryUncheckedCreateInput,
       });
     } else {
       return this.prisma.timeEntry.create({
-        data: timeEntryData,
+        data: timeEntryData as Prisma.TimeEntryUncheckedCreateInput,
       });
     }
   }
@@ -168,88 +263,6 @@ ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
         }
       }
     }
-  }
-
-  private calculateHours(
-    checkInTime: Date,
-    checkOutTime: Date | null,
-    shiftStart: Date,
-    shiftEnd: Date,
-    approvedOvertimeRequest: ApprovedOvertime | null,
-    leaveRequests: LeaveRequest[] = [],
-  ): {
-    regularHours: number;
-    overtimeHours: number;
-    minutesLate: number;
-    isHalfDayLate: boolean;
-  } {
-    if (!checkOutTime)
-      return {
-        regularHours: 0,
-        overtimeHours: 0,
-        minutesLate: 0,
-        isHalfDayLate: false,
-      };
-
-    // Calculate late minutes but it doesn't affect regular hours unless extremely late
-    const minutesLate = Math.max(
-      0,
-      differenceInMinutes(checkInTime, shiftStart),
-    );
-
-    // Check for approved half-day leave
-    const hasHalfDayLeave = leaveRequests.some(
-      (leave) =>
-        leave.status === 'Approved' &&
-        leave.leaveFormat === 'ลาครึ่งวัน' &&
-        isSameDay(leave.startDate, checkInTime),
-    );
-
-    // isHalfDayLate should only be true if there's an approved half-day leave
-    const isHalfDayLate = hasHalfDayLeave;
-
-    // Calculate regular hours based on business rules
-    let regularHours = this.REGULAR_HOURS_PER_SHIFT;
-
-    if (hasHalfDayLeave) {
-      // If has approved half-day leave, count 4 hours
-      regularHours = this.REGULAR_HOURS_PER_SHIFT / 2;
-    }
-
-    // Calculate overtime if any
-    let overtimeHours = 0;
-    if (approvedOvertimeRequest) {
-      const overtimeStart = this.parseShiftTime(
-        approvedOvertimeRequest.startTime,
-        approvedOvertimeRequest.date,
-      );
-      const overtimeEnd = this.parseShiftTime(
-        approvedOvertimeRequest.endTime,
-        approvedOvertimeRequest.date,
-      );
-
-      if (checkOutTime > overtimeStart) {
-        const effectiveOvertimeStart = new Date(
-          Math.max(checkInTime.getTime(), overtimeStart.getTime()),
-        );
-        const effectiveOvertimeEnd = new Date(
-          Math.min(checkOutTime.getTime(), overtimeEnd.getTime()),
-        );
-
-        const overtimeMinutes = this.calculateOvertimeIncrement(
-          differenceInMinutes(effectiveOvertimeEnd, effectiveOvertimeStart),
-        );
-
-        overtimeHours = overtimeMinutes / 60;
-      }
-    }
-
-    return {
-      regularHours: Math.round(regularHours * 100) / 100,
-      overtimeHours: Math.round(overtimeHours * 100) / 100,
-      minutesLate,
-      isHalfDayLate,
-    };
   }
 
   private calculateOvertimeIncrement(minutes: number): number {

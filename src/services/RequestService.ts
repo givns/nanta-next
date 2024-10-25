@@ -1,7 +1,12 @@
 // services/RequestService.ts
 
-import { PrismaClient, User } from '@prisma/client';
+import { PrismaClient, User, Prisma } from '@prisma/client';
 import { NotificationService } from './NotificationService';
+
+type TransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
 
 export abstract class RequestService {
   constructor(
@@ -12,13 +17,24 @@ export abstract class RequestService {
   protected abstract getRequestModel(): any;
   protected abstract getRequestType(): 'leave' | 'overtime';
 
-  async approveRequest(requestId: string, approverEmployeeId: string) {
+  async approveRequest(
+    requestId: string,
+    approverEmployeeId: string,
+    tx?: TransactionClient,
+  ) {
+    const prismaToUse = tx || this.prisma;
+
     const approver = await this.getUserByEmployeeId(approverEmployeeId);
     if (!approver) throw new Error('Approver not found');
 
-    const request = await this.getRequestModel().update({
+    const model = this.getRequestModel();
+    const request = await model.update({
       where: { id: requestId },
-      data: { status: 'Approved', approverId: approver.id },
+      data: {
+        status: 'Approved',
+        approverId: approver.id,
+        updatedAt: new Date(),
+      },
       include: { user: true },
     });
 
@@ -64,7 +80,9 @@ export abstract class RequestService {
     return request;
   }
 
-  private async getUserByEmployeeId(employeeId: string): Promise<User | null> {
+  protected async getUserByEmployeeId(
+    employeeId: string,
+  ): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { employeeId } });
   }
 }

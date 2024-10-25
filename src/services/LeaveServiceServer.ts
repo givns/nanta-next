@@ -12,6 +12,12 @@ import { addDays } from 'date-fns';
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
+
+type TransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
 export class LeaveServiceServer
   extends RequestService
   implements ILeaveServiceServer
@@ -112,14 +118,16 @@ export class LeaveServiceServer
     try {
       const newLeaveRequest = await this.prisma.leaveRequest.create({
         data: leaveRequestData,
-        include: { user: true }, // Include the full user object
+        include: { user: true },
       });
 
       await this.notifyAdmins(newLeaveRequest);
 
       // Update Attendance record if leave is approved
       if (newLeaveRequest.status === 'approved') {
-        await this.updateAttendanceForLeave(newLeaveRequest);
+        await this.prisma.$transaction(async (tx) => {
+          await this.updateAttendanceForLeave(newLeaveRequest, tx);
+        });
       }
 
       return newLeaveRequest;
@@ -173,12 +181,15 @@ export class LeaveServiceServer
     }
   }
 
-  private async updateAttendanceForLeave(leaveRequest: LeaveRequest) {
+  private async updateAttendanceForLeave(
+    leaveRequest: LeaveRequest,
+    tx: TransactionClient,
+  ) {
     const { startDate, endDate, employeeId } = leaveRequest;
     let currentDate = startDate;
 
     while (currentDate <= endDate) {
-      await this.prisma.attendance.upsert({
+      await tx.attendance.upsert({
         where: {
           id: `${employeeId}-${currentDate}`,
         },
@@ -290,12 +301,67 @@ export class LeaveServiceServer
     requestId: string,
     approverEmployeeId: string,
   ): Promise<LeaveRequest> {
-    const approvedRequest = (await super.approveRequest(
-      requestId,
-      approverEmployeeId,
-    )) as LeaveRequest;
-    await this.invalidateUserCache(approvedRequest.employeeId);
-    return approvedRequest;
+    return await this.prisma.$transaction(async (tx) => {
+      const leaveRequest = await this.getRequestModel().findUnique({
+        where: { id: requestId },
+        include: { user: true },
+      });
+
+      if (!leaveRequest) {
+        throw new Error('Leave request not found');
+      }
+
+      await this.updateLeaveBalance(leaveRequest, tx);
+
+      const approvedRequest = (await super.approveRequest(
+        requestId,
+        approverEmployeeId,
+        tx,
+      )) as LeaveRequest;
+
+      await this.updateAttendanceForLeave(approvedRequest, tx);
+      await this.invalidateUserCache(approvedRequest.employeeId);
+
+      return approvedRequest;
+    });
+  }
+
+  private async updateLeaveBalance(
+    leaveRequest: LeaveRequest & { user: User },
+    tx: TransactionClient,
+  ) {
+    let updateField:
+      | 'sickLeaveBalance'
+      | 'businessLeaveBalance'
+      | 'annualLeaveBalance';
+
+    switch (leaveRequest.leaveType) {
+      case 'ลาป่วย':
+        updateField = 'sickLeaveBalance';
+        break;
+      case 'ลากิจ':
+        updateField = 'businessLeaveBalance';
+        break;
+      case 'ลาพักร้อน':
+        updateField = 'annualLeaveBalance';
+        break;
+      default:
+        throw new Error(`Invalid leave type: ${leaveRequest.leaveType}`);
+    }
+
+    const currentBalance = leaveRequest.user[updateField];
+    const newBalance = currentBalance - leaveRequest.fullDayCount;
+
+    if (newBalance < 0) {
+      throw new Error(`Insufficient ${updateField} balance`);
+    }
+
+    await tx.user.update({
+      where: { id: leaveRequest.user.id },
+      data: {
+        [updateField]: newBalance,
+      },
+    });
   }
 
   async denyLeaveRequest(
