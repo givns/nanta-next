@@ -1,7 +1,14 @@
-// components/AttendanceTable.tsx
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, AlertCircle } from 'lucide-react';
@@ -12,7 +19,6 @@ import {
   TimeEntryData,
   transformTimeEntry,
 } from '../types/attendance';
-import { Table } from 'antd';
 
 interface DayRecord {
   key: string;
@@ -83,7 +89,7 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
       const entry =
         timeEntries.find(
           (t) => format(new Date(t.date), 'yyyy-MM-dd') === dateKey,
-        ) || null; // Convert undefined to null
+        ) || null;
 
       const isWorkDay =
         shift?.workDays?.includes(currentDate.getDay()) ?? false;
@@ -96,11 +102,9 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
         checkIn: entry?.startTime ? formatTime(entry.startTime) : '-',
         checkOut: entry?.endTime ? formatTime(entry.endTime) : '-',
         hours: entry
-          ? `${entry.regularHours}${
-              entry.overtimeHours > 0 ? ` (+${entry.overtimeHours})` : ''
-            }`
+          ? `${entry.regularHours}${entry.overtimeHours > 0 ? ` (+${entry.overtimeHours})` : ''}`
           : '-',
-        entry, // Now properly typed as TimeEntry | null
+        entry,
         isWorkDay,
       });
 
@@ -113,9 +117,9 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   const getStatusBadge = (record: DayRecord) => {
     if (!record.entry) {
       return record.isWorkDay ? (
-        <Badge variant="error">Absent</Badge>
+        <Badge variant="destructive">ขาดงาน</Badge>
       ) : (
-        <Badge variant="secondary">Day Off</Badge>
+        <Badge variant="secondary">วันหยุด</Badge>
       );
     }
 
@@ -124,22 +128,22 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
     if (record.entry.status === 'in_progress') {
       badges.push(
         <Badge key="status" variant="warning">
-          Working
+          กำลังทำงาน
         </Badge>,
       );
     } else {
       badges.push(
         <Badge key="status" variant="success">
-          Completed
+          เสร็จสิ้น
         </Badge>,
       );
     }
 
     if (record.entry.actualMinutesLate > 0) {
       badges.push(
-        <Badge key="late" variant="error" className="ml-2">
+        <Badge key="late" variant="destructive" className="ml-2">
           <AlertCircle className="mr-1 h-3 w-3" />
-          {record.entry.isHalfDayLate ? 'Half Day Late' : 'Late'}
+          {record.entry.isHalfDayLate ? 'สายครึ่งวัน' : 'สาย'}
         </Badge>,
       );
     }
@@ -147,69 +151,56 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
     return <div className="flex flex-wrap gap-1">{badges}</div>;
   };
 
-  const columns = [
-    {
-      title: 'Date',
-      dataIndex: 'date',
-      key: 'date',
-      render: (_: any, record: DayRecord) => format(record.date, 'dd/MM/yyyy'),
-    },
-    {
-      title: 'Day',
-      dataIndex: 'dayName',
-      key: 'dayName',
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (_: any, record: DayRecord) => getStatusBadge(record),
-    },
-    {
-      title: 'Check In',
-      dataIndex: 'checkIn',
-      key: 'checkIn',
-      render: (text: string, record: DayRecord) =>
-        record.checkIn !== '-' ? (
-          <div className="flex items-center">
-            <Clock className="mr-1 h-4 w-4" />
-            {text}
-          </div>
-        ) : (
-          '-'
-        ),
-    },
-    {
-      title: 'Check Out',
-      dataIndex: 'checkOut',
-      key: 'checkOut',
-      render: (text: string, record: DayRecord) =>
-        record.checkOut !== '-' ? (
-          <div className="flex items-center">
-            <Clock className="mr-1 h-4 w-4" />
-            {text}
-          </div>
-        ) : (
-          '-'
-        ),
-    },
-    {
-      title: 'Hours',
-      dataIndex: 'hours',
-      key: 'hours',
-      render: (text: string, record: DayRecord) => (
-        <div className="text-right">{text}</div>
-      ),
-    },
-  ];
-
   if (isLoading) {
     return <AttendanceTableSkeleton />;
   }
 
+  const records = prepareDataSource();
+
   return (
     <div className="rounded-md border">
-      <Table columns={columns} dataSource={prepareDataSource()} />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>วันที่</TableHead>
+            <TableHead>วัน</TableHead>
+            <TableHead>สถานะ</TableHead>
+            <TableHead>เวลาเข้า</TableHead>
+            <TableHead>เวลาออก</TableHead>
+            <TableHead className="text-right">ชั่วโมง</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {records.map((record) => (
+            <TableRow key={record.key}>
+              <TableCell>{format(record.date, 'dd/MM/yyyy')}</TableCell>
+              <TableCell>{record.dayName}</TableCell>
+              <TableCell>{getStatusBadge(record)}</TableCell>
+              <TableCell>
+                {record.checkIn !== '-' ? (
+                  <div className="flex items-center">
+                    <Clock className="mr-1 h-4 w-4" />
+                    {record.checkIn}
+                  </div>
+                ) : (
+                  '-'
+                )}
+              </TableCell>
+              <TableCell>
+                {record.checkOut !== '-' ? (
+                  <div className="flex items-center">
+                    <Clock className="mr-1 h-4 w-4" />
+                    {record.checkOut}
+                  </div>
+                ) : (
+                  '-'
+                )}
+              </TableCell>
+              <TableCell className="text-right">{record.hours}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 };
