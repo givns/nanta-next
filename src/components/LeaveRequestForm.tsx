@@ -101,13 +101,13 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const renderStep1 = () => (
     <div className="flex flex-col h-full">
       {renderUserInfo()}
-      <LeaveBalanceCard leaveBalance={leaveBalance} />
-      <button
-        onClick={() => setStep(2)}
-        className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
-      >
-        ถัดไป: เลือกประเภทการลา
-      </button>
+      <LeaveBalanceCard
+        leaveBalance={leaveBalance}
+        onSelectLeaveType={(type) => {
+          setFieldValue('leaveType', type);
+          setStep(3);
+        }}
+      />
     </div>
   );
 
@@ -269,3 +269,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 };
 
 export default LeaveRequestForm;
+function setFieldValue(arg0: string, type: string) {
+  throw new Error('Function not implemented.');
+}

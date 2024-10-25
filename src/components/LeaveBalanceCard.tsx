@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Briefcase, Umbrella } from 'lucide-react';
+import { Calendar, Briefcase, Umbrella, Ban } from 'lucide-react';
 
 interface LeaveBalanceData {
   sickLeave: number;
@@ -9,26 +9,34 @@ interface LeaveBalanceData {
 
 interface LeaveBalanceCardProps {
   leaveBalance: LeaveBalanceData;
+  onSelectLeaveType: (type: string) => void;
 }
 
-const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({
+export default function LeaveBalanceCard({
   leaveBalance,
-}) => {
+  onSelectLeaveType,
+}: LeaveBalanceCardProps) {
   const leaveTypes = [
     {
       type: 'ลาป่วย',
       icon: <Umbrella className="w-6 h-6" />,
       balance: leaveBalance.sickLeave,
+      bgColor: 'bg-red-100',
+      hoverColor: 'hover:bg-red-200',
     },
     {
       type: 'ลากิจ',
       icon: <Briefcase className="w-6 h-6" />,
       balance: leaveBalance.businessLeave,
+      bgColor: 'bg-blue-100',
+      hoverColor: 'hover:bg-blue-200',
     },
     {
       type: 'ลาพักร้อน',
       icon: <Calendar className="w-6 h-6" />,
       balance: leaveBalance.annualLeave,
+      bgColor: 'bg-green-100',
+      hoverColor: 'hover:bg-green-200',
     },
   ];
 
@@ -37,22 +45,36 @@ const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({
       <h2 className="text-xl font-semibold mb-4 text-gray-800">วันลาคงเหลือ</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {leaveTypes.map((leave) => (
-          <div
+          <button
             key={leave.type}
-            className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg"
+            onClick={() => onSelectLeaveType(leave.type)}
+            className={`flex items-center space-x-4 p-3 rounded-lg w-full transition-colors duration-200 ${leave.bgColor} ${leave.hoverColor} transform hover:scale-105`}
           >
-            <div className="p-2 bg-red-100 rounded-full">{leave.icon}</div>
-            <div>
+            <div className="p-2 bg-white bg-opacity-60 rounded-full">
+              {leave.icon}
+            </div>
+            <div className="text-left">
               <p className="text-sm font-medium text-gray-600">{leave.type}</p>
               <p className="text-lg font-bold text-gray-800">
                 {leave.balance} วัน
               </p>
             </div>
-          </div>
+          </button>
         ))}
+      </div>
+
+      {/* Unpaid Leave Option */}
+      <div className="mt-4 pt-4 border-t border-gray-200">
+        <button
+          onClick={() => onSelectLeaveType('ลาโดยไม่ได้รับค่าจ้าง')}
+          className="w-full flex items-center justify-center space-x-2 p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200 transform hover:scale-105"
+        >
+          <Ban className="w-5 h-5 text-gray-600" />
+          <span className="text-gray-600 font-medium">
+            ลาโดยไม่ได้รับค่าจ้าง
+          </span>
+        </button>
       </div>
     </div>
   );
-};
-
-export default LeaveBalanceCard;
+}
