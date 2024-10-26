@@ -18,7 +18,7 @@ import AttendanceTable from '../AttendanceTable';
 import UserShiftInfo from '../UserShiftInfo';
 import { PayrollContainer } from '../payroll/PayrollContainer';
 import { DashboardData } from '@/types/dashboard';
-import { getShiftByCode } from '@/lib/shiftCache';
+import { getDefaultShiftCode, getShiftByCode } from '@/lib/shiftCache';
 import { Shift } from '@prisma/client';
 
 interface UserDashboardProps {
@@ -110,6 +110,22 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const { user } = data;
 
   // Convert Shift to ShiftData for components that need it, with default fallback
+  const getDefaultShift = useCallback((): ShiftData => {
+    const defaultShiftCode = data.user.departmentName
+      ? getDefaultShiftCode(data.user.departmentName)
+      : 'SHIFT103';
+
+    return {
+      id: defaultShiftCode,
+      name: `Default ${defaultShiftCode}`,
+      shiftCode: defaultShiftCode,
+      startTime: defaultShiftCode === 'SHIFT104' ? '14:00' : '08:00',
+      endTime: defaultShiftCode === 'SHIFT104' ? '23:00' : '17:00',
+      workDays: [1, 2, 3, 4, 5, 6],
+    };
+  }, [data.user.departmentName]);
+
+  // Convert Shift to ShiftData with department-specific default
   const shiftData: ShiftData = currentShift
     ? {
         id: currentShift.id,
@@ -119,7 +135,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         endTime: currentShift.endTime,
         workDays: currentShift.workDays,
       }
-    : DEFAULT_SHIFT;
+    : getDefaultShift();
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-8">
