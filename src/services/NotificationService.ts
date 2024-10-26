@@ -244,9 +244,14 @@ export class NotificationService {
       console.warn(`User ${user.employeeId} does not have a LINE User ID`);
     }
 
-    // Send to all admins
+    // Send to all admins except the action taker
     const admins = await this.getAdmins();
     for (const admin of admins) {
+      // Skip sending to the admin who took the action to avoid duplicate notification
+      if (admin.employeeId === actionBy.employeeId) {
+        continue;
+      }
+
       if (admin.lineUserId) {
         await this.sendNotification(
           admin.employeeId,
@@ -260,7 +265,6 @@ export class NotificationService {
     }
   }
 
-  // Helper method for webhook replies
   async sendRequestStatusNotificationWithReply(
     user: User,
     request: LeaveRequest | OvertimeRequest,
@@ -276,12 +280,22 @@ export class NotificationService {
 
     const message = messageGenerator(user, request, actionBy, requestType);
 
-    // Reply to webhook if replyToken exists
+    // If we have a replyToken, use it for sending to the action taker
     if (replyToken) {
+      // Send immediate reply to the action taker
       await this.lineClient.replyMessage(replyToken, message);
+    } else if (actionBy.lineUserId) {
+      // If no replyToken but we have lineUserId, send as regular notification
+      await this.sendNotification(
+        actionBy.employeeId,
+        actionBy.lineUserId,
+        JSON.stringify(message),
+        requestType,
+      );
     }
 
-    // Send notifications
+    // Send notifications to user and other admins
+    // This will skip the actionBy admin in the admin notification loop
     await this.sendRequestStatusNotification(
       user,
       request,

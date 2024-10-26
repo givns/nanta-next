@@ -139,7 +139,8 @@ async function handlePostback(event: WebhookEvent) {
   try {
     const user = await prisma.user.findUnique({ where: { lineUserId } });
     if (!user) {
-      throw new Error('User not found');
+      console.error('User not found:', lineUserId);
+      return;
     }
 
     // Determine the request type based on the request in the database
@@ -160,11 +161,11 @@ async function handlePostback(event: WebhookEvent) {
     } else if (overtimeRequest) {
       await handleOvertimeRequest(action, requestId, user.employeeId);
     } else {
-      throw new Error('Request not found');
+      console.error('Request not found:', requestId);
     }
   } catch (error) {
+    // Just log the error, don't send any replies
     console.error('Error processing postback action:', error);
-    // Don't send a reply here - let the service handle error responses
   }
 }
 
