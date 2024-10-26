@@ -179,8 +179,8 @@ export default async function handler(
         overtimeHours: calculateOvertimeHours(timeEntries),
         balanceLeave: getTotalLeaveBalance(user),
         payrollPeriod: {
-          start: payrollPeriod.start.toISOString(),
-          end: payrollPeriod.end.toISOString(),
+          startDate: payrollPeriod.start.toISOString(),
+          endDate: payrollPeriod.end.toISOString(),
         },
       };
 

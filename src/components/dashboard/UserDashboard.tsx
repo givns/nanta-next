@@ -38,33 +38,21 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [activeTab, setActiveTab] = useState('attendance');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Remove separate timeEntries state and date states since we'll use payrollPeriod
+
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [dashboardResponse, timeEntriesResponse] = await Promise.all([
-        fetch(`/api/dashboard?lineUserId=${initialData.user.lineUserId}`),
-        fetch(
-          `/api/time-entries?employeeId=${initialData.user.employeeId}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`,
-        ),
-      ]);
+      const dashboardResponse = await fetch(
+        `/api/dashboard?lineUserId=${initialData.user.lineUserId}`,
+      );
 
-      if (!dashboardResponse.ok || !timeEntriesResponse.ok) {
+      if (!dashboardResponse.ok) {
         throw new Error('Failed to refresh data');
       }
 
       const newDashboardData = await dashboardResponse.json();
-      const newTimeEntries = await timeEntriesResponse.json();
-
-      setData(newDashboardData);
-      setTimeEntries(
-        newTimeEntries.map((entry: any) => ({
-          ...entry,
-          status: entry.status === 'in_progress' ? 'in_progress' : 'completed',
-          date: new Date(entry.date),
-          startTime: new Date(entry.startTime),
-          endTime: entry.endTime ? new Date(entry.endTime) : null,
-        })),
-      );
+      setData(newDashboardData.data); // Note the .data here
       setError(null);
     } catch (error) {
       console.error('Error refreshing data:', error);
@@ -72,47 +60,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     } finally {
       setIsRefreshing(false);
     }
-  }, [
-    initialData.user.lineUserId,
-    initialData.user.employeeId,
-    startDate,
-    endDate,
-  ]);
-
-  // Fetch time entries when date range changes
-  useEffect(() => {
-    const fetchTimeEntries = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch(
-          `/api/time-entries?employeeId=${data.user.employeeId}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`,
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch time entries');
-        }
-
-        const entriesData = await response.json();
-        setTimeEntries(
-          entriesData.map((entry: any) => ({
-            ...entry,
-            status:
-              entry.status === 'in_progress' ? 'in_progress' : 'completed',
-            date: new Date(entry.date),
-            startTime: new Date(entry.startTime),
-            endTime: entry.endTime ? new Date(entry.endTime) : null,
-          })),
-        );
-      } catch (error) {
-        console.error('Error fetching time entries:', error);
-        setError('Failed to load time entries');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTimeEntries();
-  }, [data.user.employeeId, startDate, endDate]);
+  }, [initialData.user.lineUserId]);
 
   if (error) {
     return (
@@ -210,11 +158,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               {format(startDate, 'MMMM yyyy', { locale: th })}
             </h3>
             <AttendanceTable
-              timeEntries={timeEntries}
+              timeEntries={data.payrollAttendance} // Use payrollAttendance directly
               shift={user.assignedShift}
-              startDate={startDate}
-              endDate={endDate}
-              isLoading={isLoading}
+              startDate={new Date(data.payrollPeriod.startDate)}
+              endDate={new Date(data.payrollPeriod.endDate)}
+              isLoading={isRefreshing}
             />
           </div>
         </TabsContent>

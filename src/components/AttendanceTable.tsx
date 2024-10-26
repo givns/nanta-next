@@ -14,10 +14,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, AlertCircle } from 'lucide-react';
 import {
   ShiftData,
-  TimeEntry,
   RawTimeEntry,
   TimeEntryData,
   transformTimeEntry,
+  ProcessedAttendance,
 } from '../types/attendance';
 
 interface DayRecord {
@@ -28,12 +28,12 @@ interface DayRecord {
   checkIn: string;
   checkOut: string;
   hours: string;
-  entry: TimeEntry | null;
+  entry: ProcessedAttendance | null; // Changed from TimeEntry
   isWorkDay: boolean;
 }
 
 interface AttendanceTableProps {
-  timeEntries: TimeEntry[];
+  timeEntries: ProcessedAttendance[]; // Changed from TimeEntry[]
   shift: ShiftData;
   startDate: Date;
   endDate: Date;
@@ -94,13 +94,28 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
       const isWorkDay =
         shift?.workDays?.includes(currentDate.getDay()) ?? false;
 
+      // Get attendance details from the ProcessedAttendance
+      let checkInTime = '-';
+      let checkOutTime = '-';
+
+      // We'll derive check-in/out times from the status and detailedStatus
+      if (entry) {
+        const attendance = entry as ProcessedAttendance;
+        if (attendance.status !== 'absent' && attendance.status !== 'off') {
+          // For simplicity, we'll show standard shift times for present entries
+          checkInTime = shift.startTime;
+          checkOutTime =
+            attendance.status === 'incomplete' ? '-' : shift.endTime;
+        }
+      }
+
       allDays.push({
         key: dateKey,
         date: new Date(currentDate),
         dayName: format(currentDate, 'EEEE', { locale: th }),
-        status: entry?.status || (isWorkDay ? 'absent' : 'day-off'),
-        checkIn: entry?.startTime ? formatTime(entry.startTime) : '-',
-        checkOut: entry?.endTime ? formatTime(entry.endTime) : '-',
+        status: entry?.status || (isWorkDay ? 'absent' : 'off'),
+        checkIn: checkInTime,
+        checkOut: checkOutTime,
         hours: entry
           ? `${entry.regularHours}${entry.overtimeHours > 0 ? ` (+${entry.overtimeHours})` : ''}`
           : '-',
@@ -125,25 +140,58 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
 
     const badges = [];
 
-    if (record.entry.status === 'in_progress') {
-      badges.push(
-        <Badge key="status" variant="warning">
-          กำลังทำงาน
-        </Badge>,
-      );
-    } else {
-      badges.push(
-        <Badge key="status" variant="success">
-          เสร็จสิ้น
-        </Badge>,
-      );
+    // Map ProcessedAttendance status to badges
+    switch (record.entry.status) {
+      case 'present':
+        badges.push(
+          <Badge key="status" variant="success">
+            เสร็จสิ้น
+          </Badge>,
+        );
+        break;
+      case 'incomplete':
+        badges.push(
+          <Badge key="status" variant="warning">
+            กำลังทำงาน
+          </Badge>,
+        );
+        break;
+      case 'absent':
+        badges.push(
+          <Badge key="status" variant="destructive">
+            ขาดงาน
+          </Badge>,
+        );
+        break;
+      case 'off':
+        badges.push(
+          <Badge key="status" variant="secondary">
+            วันหยุด
+          </Badge>,
+        );
+        break;
+      case 'overtime':
+        badges.push(
+          <Badge key="status" variant="default">
+            ทำงานล่วงเวลา
+          </Badge>,
+        );
+        break;
+      case 'holiday':
+        badges.push(
+          <Badge key="status" variant="secondary">
+            วันหยุดนักขัตฤกษ์
+          </Badge>,
+        );
+        break;
     }
 
-    if (record.entry.actualMinutesLate > 0) {
+    // Add late badge if status includes 'late'
+    if (record.entry.detailedStatus.includes('late')) {
       badges.push(
         <Badge key="late" variant="destructive" className="ml-2">
           <AlertCircle className="mr-1 h-3 w-3" />
-          {record.entry.isHalfDayLate ? 'สายครึ่งวัน' : 'สาย'}
+          สาย
         </Badge>,
       );
     }

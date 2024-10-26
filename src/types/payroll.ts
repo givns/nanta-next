@@ -47,8 +47,8 @@ export interface PayrollPeriod {
 }
 
 export interface PayrollPeriodDisplay {
-  startDate: Date;
-  endDate: Date;
+  startDate: Date; // It's using startDate instead of start
+  endDate: Date; // It's using endDate instead of end
 }
 
 export interface PayrollSettings {
