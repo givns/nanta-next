@@ -509,49 +509,55 @@ export class NotificationService {
         size: 'mega',
         header: {
           type: 'box',
-          layout: 'vertical',
+          layout: 'horizontal',
           contents: [
             {
               type: 'box',
-              layout: 'horizontal',
+              layout: 'vertical',
               contents: [
                 {
                   type: 'text',
-                  text: 'แบบฟอร์มขอ' + requestTypeText,
+                  text: `แแบฟอร์มขอ${requestTypeText} ${resubmissionText || ''}`,
+                  color: '#000000',
+                  size: 'xl',
                   weight: 'bold',
-                  size: 'lg',
-                  color: '#FFFFFF',
-                },
-                {
-                  type: 'text',
-                  text: '#' + requestCount,
-                  size: 'sm',
-                  color: '#FFFFFF',
-                  align: 'end',
+                  align: 'center',
+                  gravity: 'center',
                 },
               ],
             },
             {
               type: 'box',
-              layout: 'horizontal',
-              margin: 'md',
+              layout: 'vertical',
+              contents: [],
+              width: '10px',
+            },
+            {
+              type: 'box',
+              layout: 'vertical',
               contents: [
                 {
                   type: 'text',
-                  text: new Date().toLocaleDateString('th-TH', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  }),
-                  color: '#FFFFFF99',
-                  size: 'xs',
+                  text: `${requestCount}`,
+                  align: 'center',
+                  gravity: 'center',
+                  color: '#FFFFFF',
+                  wrap: true,
+                  adjustMode: 'shrink-to-fit',
+                  weight: 'bold',
                 },
               ],
+              width: '35px',
+              height: '35px',
+              cornerRadius: '30px',
+              backgroundColor: '#FF1900',
+              justifyContent: 'center',
             },
           ],
-          backgroundColor: '#2D4059',
           paddingAll: '20px',
+          backgroundColor: '#F0F0F0',
+          spacing: 'md',
+          height: '100px',
         },
         body: {
           type: 'box',
@@ -563,101 +569,76 @@ export class NotificationService {
               contents: [
                 {
                   type: 'box',
-                  layout: 'horizontal',
+                  layout: 'vertical',
                   contents: [
                     {
-                      type: 'box',
-                      layout: 'vertical',
-                      contents: [
-                        {
-                          type: 'text',
-                          text: 'พนักงาน',
-                          color: '#aaaaaa',
-                          size: 'xs',
-                        },
-                        {
-                          type: 'text',
-                          text: user.nickname
-                            ? `${user.name} (${user.nickname})`
-                            : user.name,
-                          color: '#1a1a1a',
-                          size: 'sm',
-                          wrap: true,
-                          weight: 'bold',
-                        },
-                      ],
+                      type: 'text',
+                      text: 'พนักงาน',
+                      color: '#aaaaaa',
+                      size: 'xs',
+                    },
+                    {
+                      type: 'text',
+                      text: user.nickname
+                        ? `${user.name} (${user.nickname})`
+                        : user.name,
+                      color: '#1a1a1a',
+                      size: 'sm',
+                      wrap: true,
+                      weight: 'bold',
                     },
                   ],
                 },
                 {
                   type: 'box',
-                  layout: 'horizontal',
+                  layout: 'vertical',
                   margin: 'md',
                   contents: [
                     {
-                      type: 'box',
-                      layout: 'vertical',
-                      contents: [
-                        {
-                          type: 'text',
-                          text: 'ประเภทการลา',
-                          color: '#aaaaaa',
-                          size: 'xs',
-                        },
-                        {
-                          type: 'text',
-                          text: `${(request as LeaveRequest).leaveType}${resubmissionText || ''}`,
-                          color: '#EA5455',
-                          size: 'sm',
-                          wrap: true,
-                          weight: 'bold',
-                        },
-                      ],
+                      type: 'text',
+                      text: 'ประเภทการลา',
+                      color: '#aaaaaa',
+                      size: 'xs',
+                    },
+                    {
+                      type: 'text',
+                      text: `${(request as LeaveRequest).leaveType}${resubmissionText || ''}`,
+                      color: '#1a1a1a',
+                      size: 'sm',
+                      wrap: true,
+                      weight: 'bold',
                     },
                   ],
                 },
                 {
                   type: 'box',
-                  layout: 'horizontal',
+                  layout: 'vertical',
                   margin: 'md',
                   contents: [
                     {
-                      type: 'box',
-                      layout: 'vertical',
-                      contents: [
-                        {
-                          type: 'text',
-                          text: 'ระยะเวลา',
-                          color: '#aaaaaa',
-                          size: 'xs',
-                        },
-                        {
-                          type: 'text',
-                          text: `${new Date(
-                            (request as LeaveRequest).startDate,
-                          ).toLocaleDateString('th-TH', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                          })} - ${new Date(
-                            (request as LeaveRequest).endDate,
-                          ).toLocaleDateString('th-TH', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                          })}`,
-                          color: '#1a1a1a',
-                          size: 'sm',
-                          wrap: true,
-                        },
-                        {
-                          type: 'text',
-                          text: `รวม ${(request as LeaveRequest).fullDayCount} วัน`,
-                          color: '#2D4059',
-                          size: 'sm',
-                          weight: 'bold',
-                        },
-                      ],
+                      type: 'text',
+                      text: 'ระยะเวลา',
+                      color: '#aaaaaa',
+                      size: 'xs',
+                    },
+                    {
+                      type: 'text',
+                      text: `${new Date(
+                        (request as LeaveRequest).startDate,
+                      ).toLocaleDateString('th-TH', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })} - ${new Date(
+                        (request as LeaveRequest).endDate,
+                      ).toLocaleDateString('th-TH', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })} (${(request as LeaveRequest).fullDayCount} วัน)`,
+                      color: '#1a1a1a',
+                      size: 'sm',
+                      wrap: true,
                     },
                   ],
                 },
@@ -700,8 +681,6 @@ export class NotificationService {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
                   })}`,
                   color: '#aaaaaa',
                   size: 'xs',
@@ -714,18 +693,7 @@ export class NotificationService {
         footer: {
           type: 'box',
           layout: 'horizontal',
-          spacing: 'sm',
           contents: [
-            {
-              type: 'button',
-              action: {
-                type: 'postback',
-                label: 'ไม่อนุมัติ',
-                data: `action=deny&requestType=${requestType}&requestId=${request.id}&approverId=${admin.employeeId}`,
-              },
-              style: 'secondary',
-              color: '#EA5455',
-            },
             {
               type: 'button',
               action: {
@@ -733,11 +701,23 @@ export class NotificationService {
                 label: 'อนุมัติ',
                 data: `action=approve&requestType=${requestType}&requestId=${request.id}&approverId=${admin.employeeId}`,
               },
+              color: '#0662FF',
               style: 'primary',
-              color: '#28C76F',
+              adjustMode: 'shrink-to-fit',
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
+                label: 'ไม่อนุมัติ',
+                data: `action=deny&requestType=${requestType}&requestId=${request.id}&approverId=${admin.employeeId}`,
+              },
+              color: '#F0F0F0',
+              style: 'secondary',
+              adjustMode: 'shrink-to-fit',
+              margin: 'lg',
             },
           ],
-          paddingAll: '20px',
         },
       },
     };
