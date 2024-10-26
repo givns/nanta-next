@@ -557,7 +557,8 @@ export class NotificationService {
           paddingAll: '20px',
           backgroundColor: '#F0F0F0',
           spacing: 'md',
-          height: '100px',
+          paddingTop: '22px', // Specific top padding
+          paddingBottom: '18px', //
         },
         body: {
           type: 'box',
@@ -686,7 +687,7 @@ export class NotificationService {
                   size: 'xs',
                 },
               ],
-              paddingAll: '20px',
+              paddingAll: '10px',
             },
           ],
         },
