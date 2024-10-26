@@ -1,6 +1,6 @@
 // components/dashboard/UserDashboard.tsx
 import { useState, useEffect, useCallback } from 'react';
-import { endOfMonth, format, startOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,12 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Calendar, Clock, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  AttendanceStatusInfo,
-  ProcessedAttendance,
-  ShiftData,
-  TimeEntry,
-} from '@/types/attendance';
+import { ShiftData } from '@/types/attendance';
 import AttendanceTable from '../AttendanceTable';
 import UserShiftInfo from '../UserShiftInfo';
 import { PayrollContainer } from '../payroll/PayrollContainer';
@@ -37,13 +32,25 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [currentShift, setCurrentShift] = useState<Shift | null>(
     data.user.shiftCode ? getDefaultShiftByCode(data.user.shiftCode) : null,
   );
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [startDate, setStartDate] = useState(startOfMonth(new Date()));
-  const [endDate, setEndDate] = useState(endOfMonth(new Date()));
   const [activeTab, setActiveTab] = useState('attendance');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Move getDefaultShift outside of render to comply with hooks rules
+  const getDefaultShift = useCallback((): ShiftData => {
+    const defaultShiftCode = data.user.departmentName
+      ? getDefaultShiftCode(data.user.departmentName)
+      : 'SHIFT103';
+
+    return {
+      id: defaultShiftCode,
+      name: `Default ${defaultShiftCode}`,
+      shiftCode: defaultShiftCode,
+      startTime: defaultShiftCode === 'SHIFT104' ? '14:00' : '08:00',
+      endTime: defaultShiftCode === 'SHIFT104' ? '23:00' : '17:00',
+      workDays: [1, 2, 3, 4, 5, 6],
+    };
+  }, [data.user.departmentName]);
 
   // Load shift data
   useEffect(() => {
@@ -89,6 +96,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
   }, [initialData.user.lineUserId, data.user.shiftCode]);
 
+  // Convert Shift to ShiftData with department-specific default
+  const shiftData: ShiftData = currentShift
+    ? {
+        id: currentShift.id,
+        name: currentShift.name,
+        shiftCode: currentShift.shiftCode,
+        startTime: currentShift.startTime,
+        endTime: currentShift.endTime,
+        workDays: currentShift.workDays,
+      }
+    : getDefaultShift();
+
   if (error) {
     return (
       <Alert variant="destructive">
@@ -107,34 +126,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   }
 
   const { user } = data;
-
-  // Convert Shift to ShiftData for components that need it, with default fallback
-  const getDefaultShift = useCallback((): ShiftData => {
-    const defaultShiftCode = data.user.departmentName
-      ? getDefaultShiftCode(data.user.departmentName)
-      : 'SHIFT103';
-
-    return {
-      id: defaultShiftCode,
-      name: `Default ${defaultShiftCode}`,
-      shiftCode: defaultShiftCode,
-      startTime: defaultShiftCode === 'SHIFT104' ? '14:00' : '08:00',
-      endTime: defaultShiftCode === 'SHIFT104' ? '23:00' : '17:00',
-      workDays: [1, 2, 3, 4, 5, 6],
-    };
-  }, [data.user.departmentName]);
-
-  // Convert Shift to ShiftData with department-specific default
-  const shiftData: ShiftData = currentShift
-    ? {
-        id: currentShift.id,
-        name: currentShift.name,
-        shiftCode: currentShift.shiftCode,
-        startTime: currentShift.startTime,
-        endTime: currentShift.endTime,
-        workDays: currentShift.workDays,
-      }
-    : getDefaultShift();
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-8">
@@ -210,11 +201,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">
               การลงเวลาประจำเดือน{' '}
-              {format(startDate, 'MMMM yyyy', { locale: th })}
+              {format(new Date(data.payrollPeriod.startDate), 'MMMM yyyy', {
+                locale: th,
+              })}
             </h3>
             <AttendanceTable
-              timeEntries={data.payrollAttendance} // Use payrollAttendance directly
-              shift={shiftData} // Use the converted shift data
+              timeEntries={data.payrollAttendance}
+              shift={shiftData}
               startDate={new Date(data.payrollPeriod.startDate)}
               endDate={new Date(data.payrollPeriod.endDate)}
               isLoading={isRefreshing}
