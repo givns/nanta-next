@@ -20,7 +20,7 @@ export default async function handler(
     });
   }
 
-  const { requestId, approverEmployeeId } = req.body;
+  const { requestId, approverEmployeeId, replyToken } = req.body;
 
   if (!requestId || !approverEmployeeId) {
     return res.status(400).json({
@@ -33,6 +33,7 @@ export default async function handler(
     const approvedRequest = await leaveService.approveLeaveRequest(
       requestId,
       approverEmployeeId,
+      replyToken, // Pass replyToken if available
     );
 
     return res.status(200).json({
