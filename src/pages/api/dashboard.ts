@@ -169,7 +169,6 @@ export default async function handler(
       const dashboardData = {
         user: {
           ...UserDataSchema.parse(user),
-          assignedShift: shift,
         },
         attendanceStatus,
         effectiveShift, // Add this
