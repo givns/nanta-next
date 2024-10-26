@@ -115,16 +115,16 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         selectedType={values.leaveType}
       />
       <button
-        onClick={() => setStep(3)}
+        onClick={() => setStep(2)} // Directly move to Step 2
         disabled={!values.leaveType} // Disable if no leave type is selected
         className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
       >
-        ถัดไป: เลือกประเภทการลา
+        ถัดไป: เลือกลักษณะการลา
       </button>
     </div>
   );
 
-  const renderStep3 = (setFieldValue: (field: string, value: any) => void) => (
+  const renderStep2 = ({ setFieldValue }: FormikProps<FormValues>) => (
     <div className="rounded-box bg-white p-6">
       <h2 className="text-lg font-semibold mb-4">เลือกลักษณะการลา</h2>
       <div className="space-y-2">
@@ -134,8 +134,8 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
             type="button"
             className="w-full p-2 text-left border rounded-lg hover:bg-gray-100"
             onClick={() => {
-              setFieldValue('leaveFormat', format);
-              setStep(4);
+              setFieldValue('leaveFormat', format); // Call setFieldValue with expected parameters
+              setStep(3);
             }}
           >
             {format}
@@ -145,7 +145,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     </div>
   );
 
-  const renderStep4 = ({ values, setFieldValue, setStep }: any) => (
+  const renderStep3 = ({ values, setFieldValue, setStep }: any) => (
     <div className="rounded-box bg-white p-6">
       <h2 className="text-lg font-semibold mb-4">เลือกวันที่ลา</h2>
       <div className="space-y-4">
@@ -164,7 +164,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
             className="text-red-500"
           />
         </div>
-
         {values.leaveFormat === 'ลาเต็มวัน' && (
           <div>
             <label htmlFor="endDate" className="block mb-1">
@@ -185,7 +184,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       </div>
       <button
         type="button"
-        onClick={() => setStep(5)}
+        onClick={() => setStep(4)}
         className="mt-4 w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
       >
         Next
@@ -193,7 +192,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     </div>
   );
 
-  const renderStep5 = () => (
+  const renderStep4 = () => (
     <div className="rounded-box bg-white p-6">
       <h2 className="text-lg font-semibold mb-4">ระบุเหตุการลา</h2>
       <div>
@@ -231,34 +230,28 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       <h1 className="text-2xl font-bold text-center mb-6">
         {isResubmission ? 'แบบฟอร์มขอลางานใหม่' : 'แบบฟอร์มขอลางาน'}
       </h1>
-
       <Formik
-        initialValues={
-          initialData || {
-            leaveType: '',
-            leaveFormat: '',
-            reason: '',
-            startDate: '',
-            endDate: '',
-          }
-        }
+        initialValues={{
+          leaveType: '',
+          leaveFormat: '',
+          reason: '',
+          startDate: '',
+          endDate: '',
+          ...initialData,
+        }}
         validationSchema={leaveRequestSchema}
         onSubmit={handleSubmit}
       >
         {(formikProps) => (
           <Form className="space-y-6">
             {step === 1 && renderStep1(formikProps)}
-            {step === 2 && renderStep3(formikProps.setFieldValue)}
-            {step === 3 && renderStep4(formikProps.values)}
-            {step === 4 && renderStep5()}
+            {step === 2 && renderStep2(formikProps)}
+            {step === 3 && renderStep3(formikProps)}
+            {step === 4 && renderStep4()}
           </Form>
         )}
       </Formik>
     </div>
   );
 };
-
 export default LeaveRequestForm;
-function setFieldValue(arg0: string, type: string) {
-  throw new Error('Function not implemented.');
-}
