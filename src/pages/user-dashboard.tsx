@@ -37,25 +37,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ lineUserId }) => {
           `/api/dashboard?lineUserId=${lineUserId}`,
         );
 
-        // Add debugging logs
-        console.log('Client received response:', {
-          hasData: !!response.data,
-          hasInnerData: !!response.data?.data,
-          innerDataKeys: response.data?.data
-            ? Object.keys(response.data.data)
-            : [],
-        });
+        console.log('Dashboard API response:', response.data);
 
-        if (!response.data || !response.data.data) {
-          console.error('Invalid dashboard response:', response.data);
-          throw new Error('No dashboard data received');
+        if (!response.data?.data) {
+          console.error('Invalid response structure:', response.data);
+          throw new Error('Invalid dashboard data structure');
         }
 
+        // Set the data from response.data.data
         setDashboardData(response.data.data);
         setError(null);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-        // Log the full error details
         if (axios.isAxiosError(error)) {
           console.error('Axios error details:', {
             response: error.response?.data,
@@ -72,7 +65,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ lineUserId }) => {
       }
     };
 
-    fetchDashboardData();
+    if (lineUserId) {
+      fetchDashboardData();
+    }
   }, [lineUserId]);
 
   if (isLoading) {

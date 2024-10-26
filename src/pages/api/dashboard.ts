@@ -129,6 +129,10 @@ export default async function handler(
         ? await shiftService.getShiftByCode(user.shiftCode)
         : null;
 
+      const effectiveShift = await shiftService.getEffectiveShiftAndStatus(
+        user.employeeId,
+      );
+
       // Get current payroll period
       const payrollPeriod = getPayrollPeriod();
 
@@ -168,6 +172,7 @@ export default async function handler(
           assignedShift: shift,
         },
         attendanceStatus,
+        effectiveShift, // Add this
         payrollAttendance: timeEntries,
         totalWorkingDays: workingDays,
         totalPresent: timeEntries.length,
