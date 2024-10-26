@@ -11,7 +11,7 @@ import {
 import * as Yup from 'yup';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
-import { calculateFullDayCount } from '../lib/holidayUtils';
+import { calculateFullDayCount, isValidDateString } from '../lib/holidayUtils';
 import LeaveBalanceCard from './LeaveBalanceCard';
 import ThaiDatePicker from './ThaiDatePicker';
 
@@ -67,6 +67,18 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     try {
       if (!userData.shiftCode) {
         throw new Error('User shift information is missing');
+      }
+
+      // Validate dates first
+      if (!isValidDateString(values.startDate)) {
+        throw new Error('Invalid start date format');
+      }
+
+      if (
+        values.leaveFormat === 'ลาเต็มวัน' &&
+        !isValidDateString(values.endDate)
+      ) {
+        throw new Error('Invalid end date format');
       }
 
       const fullDayCount = await calculateFullDayCount(
