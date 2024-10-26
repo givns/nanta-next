@@ -36,9 +36,14 @@ const formatThaiDate = (date: Date | undefined) => {
 interface ThaiDatePickerProps {
   field: any;
   form: any;
+  onChange?: (date: Date | undefined) => void;
 }
 
-const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({ field, form }) => {
+const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({
+  field,
+  form,
+  onChange,
+}) => {
   const [date, setDate] = React.useState<Date | undefined>(
     field.value ? new Date(field.value) : undefined,
   );
@@ -46,7 +51,28 @@ const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({ field, form }) => {
   const handleSelect = (newDate: Date | undefined) => {
     setDate(newDate);
     form.setFieldValue(field.name, newDate);
+
+    // Call both the form's onChange and the provided onChange
+    if (field.onChange) {
+      field.onChange({
+        target: {
+          name: field.name,
+          value: newDate,
+        },
+      });
+    }
+
+    if (onChange) {
+      onChange(newDate);
+    }
   };
+
+  // Update local state when field value changes externally
+  React.useEffect(() => {
+    if (field.value && (!date || field.value !== date.toISOString())) {
+      setDate(new Date(field.value));
+    }
+  }, [field.value]);
 
   return (
     <Popover>

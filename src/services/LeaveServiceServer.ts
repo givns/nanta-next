@@ -287,7 +287,8 @@ export class LeaveServiceServer
 
   async approveLeaveRequest(
     requestId: string,
-    approverEmployeeId: string,
+    approverId: string,
+    replyToken?: string,
   ): Promise<LeaveRequest> {
     return await this.prisma
       .$transaction(async (tx) => {
@@ -298,7 +299,7 @@ export class LeaveServiceServer
             include: { user: true },
           }),
           tx.user.findUnique({
-            where: { employeeId: approverEmployeeId },
+            where: { employeeId: approverId },
           }),
         ]);
 
@@ -363,11 +364,13 @@ export class LeaveServiceServer
       })
       .then(async ({ approvedRequest, approver }) => {
         // Handle notifications and cache invalidation outside transaction
-        await this.notificationService.sendApprovalNotification(
+        await this.notificationService.sendRequestStatusNotificationWithReply(
           approvedRequest.user,
           approvedRequest,
           approver,
           'leave',
+          'approved',
+          replyToken,
         );
         await this.invalidateUserCache(approvedRequest.employeeId);
         return approvedRequest;
@@ -471,13 +474,47 @@ export class LeaveServiceServer
   async denyLeaveRequest(
     requestId: string,
     denierEmployeeId: string,
+    replyToken?: string,
   ): Promise<LeaveRequest> {
-    const deniedRequest = (await super.denyRequest(
-      requestId,
-      denierEmployeeId,
-    )) as LeaveRequest;
-    await this.invalidateUserCache(deniedRequest.employeeId);
-    return deniedRequest;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const [leaveRequest, denier] = await Promise.all([
+        tx.leaveRequest.findUnique({
+          where: { id: requestId },
+          include: { user: true },
+        }),
+        tx.user.findUnique({
+          where: { employeeId: denierEmployeeId },
+        }),
+      ]);
+
+      if (!leaveRequest) throw new Error('Leave request not found');
+      if (!denier) throw new Error('Denier not found');
+
+      const deniedRequest = await tx.leaveRequest.update({
+        where: { id: requestId },
+        data: {
+          status: 'Denied',
+          denierId: denierEmployeeId,
+          updatedAt: new Date(),
+        },
+        include: { user: true },
+      });
+
+      return { deniedRequest, denier };
+    });
+
+    // Send notifications outside transaction
+    await this.notificationService.sendRequestStatusNotificationWithReply(
+      result.deniedRequest.user,
+      result.deniedRequest,
+      result.denier,
+      'leave',
+      'denied',
+      replyToken,
+    );
+
+    await this.invalidateUserCache(result.deniedRequest.employeeId);
+    return result.deniedRequest;
   }
 
   async createResubmittedRequest(

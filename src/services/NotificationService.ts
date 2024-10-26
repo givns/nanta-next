@@ -218,52 +218,40 @@ export class NotificationService {
     }
   }
 
-  async sendApprovedRequestNotification(
-    employeeId: string,
-    lineUserId: string,
-    requestType: 'leave' | 'overtime',
-    replyToken?: string,
-  ): Promise<void> {
-    const message = `คำขอ${requestType === 'leave' ? 'ลางาน' : 'ทำงานล่วงเวลา'}ของคุณได้รับการอนุมัติแล้ว`;
-    if (replyToken) {
-      await this.lineClient.replyMessage(replyToken, {
-        type: 'text',
-        text: message,
-      });
-    } else {
-      await this.sendLineMessage(employeeId, lineUserId, message);
-    }
-  }
-
-  async sendApprovalNotification(
+  async sendRequestStatusNotification(
     user: User,
     request: LeaveRequest | OvertimeRequest,
-    approver: User,
+    actionBy: User,
     requestType: 'leave' | 'overtime',
+    status: 'approved' | 'denied',
   ): Promise<void> {
+    const messageGenerator =
+      status === 'approved'
+        ? generateApprovalMessageForAdmins
+        : generateDenialMessageForAdmins;
+
+    const message = messageGenerator(user, request, actionBy, requestType);
+
+    // Send to the requester
     if (user.lineUserId) {
-      await this.sendApprovedRequestNotification(
+      await this.sendNotification(
         user.employeeId,
         user.lineUserId,
+        JSON.stringify(message),
         requestType,
       );
     } else {
       console.warn(`User ${user.employeeId} does not have a LINE User ID`);
     }
 
-    const adminMessage = generateApprovalMessageForAdmins(
-      user,
-      request,
-      approver,
-      requestType,
-    );
+    // Send to all admins
     const admins = await this.getAdmins();
     for (const admin of admins) {
       if (admin.lineUserId) {
         await this.sendNotification(
           admin.employeeId,
           admin.lineUserId,
-          JSON.stringify(adminMessage),
+          JSON.stringify(message),
           requestType,
         );
       } else {
@@ -272,58 +260,35 @@ export class NotificationService {
     }
   }
 
-  async sendDenialRequestNotification(
-    employeeId: string,
-    lineUserId: string,
-    requestType: 'leave' | 'overtime',
-    replyToken?: string,
-  ): Promise<void> {
-    const message = `คำขอ${requestType === 'leave' ? 'ลางาน' : 'ทำงานล่วงเวลา'}ไม่ได้รับการอนุมัติ กรุณาติดต่อฝ่ายบุคคล`;
-    if (replyToken) {
-      await this.lineClient.replyMessage(replyToken, {
-        type: 'text',
-        text: message,
-      });
-    } else {
-      await this.sendLineMessage(employeeId, lineUserId, message);
-    }
-  }
-
-  async sendDenialNotification(
+  // Helper method for webhook replies
+  async sendRequestStatusNotificationWithReply(
     user: User,
     request: LeaveRequest | OvertimeRequest,
-    denier: User,
+    actionBy: User,
     requestType: 'leave' | 'overtime',
+    status: 'approved' | 'denied',
+    replyToken?: string,
   ): Promise<void> {
-    if (user.lineUserId) {
-      await this.sendDenialRequestNotification(
-        user.employeeId,
-        user.lineUserId,
-        requestType,
-      );
-    } else {
-      console.warn(`User ${user.employeeId} does not have a LINE User ID`);
+    const messageGenerator =
+      status === 'approved'
+        ? generateApprovalMessageForAdmins
+        : generateDenialMessageForAdmins;
+
+    const message = messageGenerator(user, request, actionBy, requestType);
+
+    // Reply to webhook if replyToken exists
+    if (replyToken) {
+      await this.lineClient.replyMessage(replyToken, message);
     }
 
-    const adminMessage = generateDenialMessageForAdmins(
+    // Send notifications
+    await this.sendRequestStatusNotification(
       user,
       request,
-      denier,
+      actionBy,
       requestType,
+      status,
     );
-    const admins = await this.getAdmins();
-    for (const admin of admins) {
-      if (admin.lineUserId) {
-        await this.sendNotification(
-          admin.employeeId,
-          admin.lineUserId,
-          JSON.stringify(adminMessage),
-          requestType,
-        );
-      } else {
-        console.warn(`Admin ${admin.employeeId} does not have a LINE User ID`);
-      }
-    }
   }
 
   async sendPotentialOvertimeNotification(
