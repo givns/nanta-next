@@ -192,7 +192,7 @@ export default async function handler(
         await cacheService.set(cacheKey, JSON.stringify(dashboardData), 300);
       }
 
-      return res.status(200).json({ data: dashboardData }); // Make sure we're wrapping in {data: ...}
+      return res.status(200).json(dashboardData);
     }
 
     return res.status(200).json(JSON.parse(dashboardData));

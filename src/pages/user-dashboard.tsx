@@ -40,13 +40,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ lineUserId }) => {
 
         console.log('Dashboard API response:', response.data);
 
-        if (!isDashboardData(response.data?.data)) {
-          console.error('Invalid response structure:', response.data?.data);
+        if (!isDashboardData(response.data)) {
+          // Validate the response directly
+          console.error('Invalid response structure:', response.data);
           throw new Error('Invalid dashboard data structure');
         }
 
-        // Set the data from response.data.data
-        setDashboardData(response.data.data);
+        // Set the validated data directly
+        setDashboardData(response.data);
         setError(null);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);

@@ -32,12 +32,13 @@ export function isDashboardData(data: any): data is DashboardData {
     typeof data === 'object' &&
     'user' in data &&
     'attendanceStatus' in data &&
+    'effectiveShift' in data &&
     'payrollAttendance' in data &&
-    'payrollPeriod' in data &&
-    data.user &&
-    typeof data.user === 'object' &&
-    'assignedShift' in data.user &&
-    typeof data.user.assignedShift === 'object' &&
+    'totalWorkingDays' in data &&
+    'totalPresent' in data &&
+    'totalAbsent' in data &&
+    'overtimeHours' in data &&
+    'balanceLeave' in data &&
     'payrollPeriod' in data &&
     typeof data.payrollPeriod === 'object' &&
     'startDate' in data.payrollPeriod &&
