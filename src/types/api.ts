@@ -1,5 +1,11 @@
 // types/api.ts
+import {
+  AttendanceStatusInfo,
+  ProcessedAttendance,
+  ShiftData,
+} from './attendance';
 import { DashboardData } from './dashboard';
+import { UserData } from './user';
 
 export interface ApiResponse<T> {
   data: T;

@@ -184,11 +184,16 @@ export default async function handler(
         },
       };
 
+      console.log('API response structure:', {
+        data: dashboardData,
+        type: 'DashboardResponse',
+      });
+
       if (cacheService) {
         await cacheService.set(cacheKey, JSON.stringify(dashboardData), 300); // Cache for 5 minutes
       }
 
-      return res.status(200).json(dashboardData);
+      return res.status(200).json({ data: dashboardData }); // Make sure we're wrapping in {data: ...}
     }
 
     return res.status(200).json(JSON.parse(dashboardData));
