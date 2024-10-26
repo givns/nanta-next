@@ -15,6 +15,7 @@ export interface PayrollPeriodDisplay {
 export interface DashboardData {
   user: UserData & { assignedShift: ShiftData };
   attendanceStatus: AttendanceStatusInfo | null;
+  effectiveShift: ShiftData | null; // Add this
   payrollAttendance: ProcessedAttendance[];
   totalWorkingDays: number;
   totalPresent: number;

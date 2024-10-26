@@ -8,18 +8,10 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Calendar, Clock, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ShiftData } from '@/types/attendance';
 import AttendanceTable from '../AttendanceTable';
 import UserShiftInfo from '../UserShiftInfo';
 import { PayrollContainer } from '../payroll/PayrollContainer';
 import { DashboardData } from '@/types/dashboard';
-import {
-  getDefaultShiftByCode,
-  getDefaultShiftCode,
-  getShiftByCode,
-  getShiftData,
-} from '@/lib/shiftCache';
-import { Shift } from '@prisma/client';
 
 interface UserDashboardProps {
   initialData: DashboardData;
@@ -29,54 +21,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   initialData,
 }) => {
   const [data, setData] = useState<DashboardData>(initialData);
-  const [currentShift, setCurrentShift] = useState<Shift | null>(
-    data.user.shiftCode ? getDefaultShiftByCode(data.user.shiftCode) : null,
-  );
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('attendance');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Move getDefaultShift outside of render to comply with hooks rules
-  const getDefaultShift = useCallback((): ShiftData => {
-    const defaultShiftCode = data.user.departmentName
-      ? getDefaultShiftCode(data.user.departmentName)
-      : 'SHIFT103';
-
-    return {
-      id: defaultShiftCode,
-      name: `Default ${defaultShiftCode}`,
-      shiftCode: defaultShiftCode,
-      startTime: defaultShiftCode === 'SHIFT104' ? '14:00' : '08:00',
-      endTime: defaultShiftCode === 'SHIFT104' ? '23:00' : '17:00',
-      workDays: [1, 2, 3, 4, 5, 6],
-    };
-  }, [data.user.departmentName]);
-
-  // Load shift data
-  useEffect(() => {
-    const loadShiftData = async () => {
-      if (!data.user.shiftCode) return;
-
-      try {
-        const shift = await getShiftData(data.user.shiftCode);
-        if (shift) {
-          setCurrentShift(shift);
-        }
-      } catch (err) {
-        console.error('Error loading shift data:', err);
-      }
-    };
-
-    loadShiftData();
-  }, [data.user.shiftCode]);
-
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [dashboardResponse, shiftData] = await Promise.all([
-        fetch(`/api/dashboard?lineUserId=${initialData.user.lineUserId}`),
-        data.user.shiftCode ? getShiftByCode(data.user.shiftCode) : null,
-      ]);
+      const dashboardResponse = await fetch(
+        `/api/dashboard?lineUserId=${initialData.user.lineUserId}`,
+      );
 
       if (!dashboardResponse.ok) {
         throw new Error('Failed to refresh data');
@@ -84,9 +38,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
       const newDashboardData = await dashboardResponse.json();
       setData(newDashboardData.data);
-      if (shiftData) {
-        setCurrentShift(shiftData);
-      }
       setError(null);
     } catch (error) {
       console.error('Error refreshing data:', error);
@@ -94,19 +45,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     } finally {
       setIsRefreshing(false);
     }
-  }, [initialData.user.lineUserId, data.user.shiftCode]);
-
-  // Convert Shift to ShiftData with department-specific default
-  const shiftData: ShiftData = currentShift
-    ? {
-        id: currentShift.id,
-        name: currentShift.name,
-        shiftCode: currentShift.shiftCode,
-        startTime: currentShift.startTime,
-        endTime: currentShift.endTime,
-        workDays: currentShift.workDays,
-      }
-    : getDefaultShift();
+  }, [initialData.user.lineUserId]);
 
   if (error) {
     return (
@@ -196,7 +135,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <UserShiftInfo
             userData={user}
             attendanceStatus={data.attendanceStatus}
-            effectiveShift={shiftData}
+            effectiveShift={data.effectiveShift} // Use top-level effectiveShift
           />
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">
@@ -207,7 +146,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </h3>
             <AttendanceTable
               timeEntries={data.payrollAttendance}
-              shift={shiftData}
+              shift={data.effectiveShift} // Use top-level effectiveShift
               startDate={new Date(data.payrollPeriod.startDate)}
               endDate={new Date(data.payrollPeriod.endDate)}
               isLoading={isRefreshing}

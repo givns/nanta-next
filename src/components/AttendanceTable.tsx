@@ -34,37 +34,10 @@ interface DayRecord {
 
 interface AttendanceTableProps {
   timeEntries: ProcessedAttendance[];
-  shift?: ShiftData | null; // Make shift optional and nullable
+  shift: ShiftData | null;
   startDate: Date;
   endDate: Date;
   isLoading?: boolean;
-}
-
-export function useTimeEntries(employeeId: string) {
-  const [timeEntries, setTimeEntries] = useState<TimeEntryData[]>([]);
-
-  useEffect(() => {
-    const fetchTimeEntries = async () => {
-      try {
-        const response = await fetch(
-          `/api/time-entries?employeeId=${employeeId}`,
-        );
-        if (!response.ok) throw new Error('Failed to fetch time entries');
-
-        const rawData: RawTimeEntry[] = await response.json();
-        const transformedEntries = rawData.map(transformTimeEntry);
-        setTimeEntries(transformedEntries);
-      } catch (error) {
-        console.error('Error fetching time entries:', error);
-      }
-    };
-
-    if (employeeId) {
-      fetchTimeEntries();
-    }
-  }, [employeeId]);
-
-  return timeEntries;
 }
 
 const AttendanceTable: React.FC<AttendanceTableProps> = ({
@@ -74,12 +47,9 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   endDate,
   isLoading = false,
 }) => {
-  const formatTime = (time: Date | string | null): string => {
-    if (!time) return '-';
-    return format(typeof time === 'string' ? new Date(time) : time, 'HH:mm');
-  };
+  // Add default workDays if shift is undefined
+  const workDays = shift?.workDays || [1, 2, 3, 4, 5, 6];
 
-  // Transform data for table
   const prepareDataSource = (): DayRecord[] => {
     const allDays: DayRecord[] = [];
     let currentDate = new Date(startDate);
@@ -91,21 +61,20 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
           (t) => format(new Date(t.date), 'yyyy-MM-dd') === dateKey,
         ) || null;
 
-      const isWorkDay =
-        shift?.workDays?.includes(currentDate.getDay()) ?? false;
+      // Use workDays instead of shift?.workDays
+      const isWorkDay = workDays.includes(currentDate.getDay());
 
-      // Get attendance details from the ProcessedAttendance
       let checkInTime = '-';
       let checkOutTime = '-';
 
-      // We'll derive check-in/out times from the status and detailedStatus
       if (entry) {
         const attendance = entry as ProcessedAttendance;
         if (attendance.status !== 'absent' && attendance.status !== 'off') {
-          // For simplicity, we'll show standard shift times for present entries
-          checkInTime = shift?.startTime || '-';
+          checkInTime = shift?.startTime || '08:00';
           checkOutTime =
-            attendance.status === 'incomplete' ? '-' : shift?.endTime || '-';
+            attendance.status === 'incomplete'
+              ? '-'
+              : shift?.endTime || '17:00';
         }
       }
 
