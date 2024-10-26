@@ -47,6 +47,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
   }, [initialData.user.lineUserId]);
 
+  const handleDashboardData = (data: any) => {
+    // Safely access arrays with defaults to avoid errors
+    const workDays = data.effectiveShift?.regularShift?.workDays || [];
+    const payrollAttendance = data.payrollAttendance || [];
+    const futureShifts = data.attendanceStatus?.futureShifts || [];
+    const overtimeEntries = data.attendanceStatus?.overtimeEntries || [];
+
+    // Example check for includes on workDays
+    payrollAttendance.forEach((attendance: any) => {
+      console.log('Payroll entry:', attendance);
+    });
+
+    futureShifts.map((shift: any) => {
+      console.log('Future shift:', shift);
+    });
+
+    overtimeEntries.forEach((entry: any) => {
+      console.log('Overtime entry:', entry);
+    });
+  };
+
   if (error) {
     return (
       <Alert variant="destructive">

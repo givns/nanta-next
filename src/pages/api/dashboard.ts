@@ -132,6 +132,9 @@ export default async function handler(
       const effectiveShift = await shiftService.getEffectiveShiftAndStatus(
         user.employeeId,
       );
+      // Accessing workDays with a default value to avoid errors
+      const workDays = effectiveShift?.regularShift?.workDays || [];
+      const isWorkDay = (day: number) => workDays.includes(day);
 
       // Get current payroll period
       const payrollPeriod = getPayrollPeriod();

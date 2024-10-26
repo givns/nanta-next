@@ -22,55 +22,38 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ lineUserId }) => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // No need to check lineUserId here as it's guaranteed by _app.tsx
-        const cachedUser = await getCachedUserData(lineUserId!);
-        let userData = cachedUser;
-
-        if (!cachedUser) {
-          userData = await fetchUserData(lineUserId!);
-        }
-
-        if (!userData) {
-          throw new Error('Failed to fetch user data');
-        }
-
-        const response = await axios.get<DashboardResponse>(
+        const response = await axios.get(
           `/api/dashboard?lineUserId=${lineUserId}`,
         );
 
-        console.log('Dashboard API response:', response.data);
+        if (response.data?.data) {
+          // Pass data to handleDashboardData for safe processing
+          handleDashboardData(response.data.data);
 
-        if (!isDashboardData(response.data)) {
-          // Validate the response directly
+          // Set the processed data
+          setDashboardData(response.data.data);
+          setError(null);
+        } else {
           console.error('Invalid response structure:', response.data);
           throw new Error('Invalid dashboard data structure');
         }
-
-        // Set the validated data directly
-        setDashboardData(response.data);
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        if (axios.isAxiosError(error)) {
-          console.error('Axios error details:', {
-            response: error.response?.data,
-            status: error.response?.status,
-          });
-        }
-        setError(
-          error instanceof Error
-            ? error.message
-            : 'Failed to fetch dashboard data',
-        );
+      } catch (error: any) {
+        setError(error.message || 'Failed to fetch dashboard data');
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (lineUserId) {
-      fetchDashboardData();
-    }
+    fetchDashboardData();
   }, [lineUserId]);
+
+  // Add the handleDashboardData function here for safe access of API data
+  const handleDashboardData = (data: any) => {
+    const overtimeEntries: any[] = data.overtimeEntries || [];
+    overtimeEntries.forEach((entry: any) => {
+      console.log('Overtime entry:', entry);
+    });
+  };
 
   if (isLoading) {
     return <LoadingBar />;
