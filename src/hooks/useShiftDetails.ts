@@ -1,8 +1,8 @@
 // hooks/useShiftDetails.ts
-
 import { useState, useEffect, useCallback } from 'react';
 import { AttendanceStatusInfo, ShiftData } from '../types/attendance';
-import axios from 'axios';
+import { getShiftByCode, getShiftById } from '@/lib/shiftCache';
+import { Shift } from '@prisma/client';
 
 export const useShiftDetails = (
   attendanceStatus: AttendanceStatusInfo | null,
@@ -12,53 +12,47 @@ export const useShiftDetails = (
   const [isAfterShift, setIsAfterShift] = useState(false);
   const [minutesUntilShiftStart, setMinutesUntilShiftStart] = useState(0);
   const [minutesUntilShiftEnd, setMinutesUntilShiftEnd] = useState(0);
+  const [currentShift, setCurrentShift] = useState<Shift | null>(null);
 
-  const fetchShiftDetails = useCallback(async () => {
-    if (!attendanceStatus || !attendanceStatus.user.shiftCode) return;
+  const convertToShiftData = useCallback((shift: Shift): ShiftData => {
+    return {
+      id: shift.id,
+      name: shift.name,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      workDays: shift.workDays,
+      shiftCode: shift.shiftCode,
+    };
+  }, []);
 
-    const now = new Date();
-    let shift: ShiftData | null = null;
+  const loadShiftData = useCallback(async () => {
+    if (!attendanceStatus?.user.shiftCode) return;
 
     try {
-      if (attendanceStatus.shiftAdjustment) {
-        const response = await axios.get(
-          `/api/shifts/${attendanceStatus.shiftAdjustment.requestedShiftId}`,
+      let shift: Shift | null = null;
+
+      if (attendanceStatus.shiftAdjustment?.requestedShiftId) {
+        shift = await getShiftById(
+          attendanceStatus.shiftAdjustment.requestedShiftId,
         );
-        shift = response.data;
       } else {
-        const response = await axios.get(
-          `/api/shifts/by-code/${attendanceStatus.user.shiftCode}`,
-        );
-        shift = response.data;
+        shift = await getShiftByCode(attendanceStatus.user.shiftCode);
+      }
+
+      if (shift) {
+        setCurrentShift(shift);
+        updateShiftStatus(convertToShiftData(shift), new Date());
       }
     } catch (error) {
-      console.error('Error fetching shift details:', error);
+      console.error('Error loading shift data:', error);
     }
-
-    if (!shift) {
-      console.log('No shift data available');
-      setIsWithinShift(false);
-      setIsBeforeShift(false);
-      setIsAfterShift(false);
-      setMinutesUntilShiftStart(0);
-      setMinutesUntilShiftEnd(0);
-      return;
-    }
-
-    updateShiftStatus(shift, now);
-  }, [attendanceStatus]);
+  }, [attendanceStatus, convertToShiftData]);
 
   const updateShiftStatus = (shift: ShiftData, now: Date) => {
-    if (!shift) {
-      return;
-    }
+    if (!shift) return;
 
-    const [startHour, startMinute] = (shift.startTime || '00:00')
-      .split(':')
-      .map(Number);
-    const [endHour, endMinute] = (shift.endTime || '23:59')
-      .split(':')
-      .map(Number);
+    const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+    const [endHour, endMinute] = shift.endTime.split(':').map(Number);
 
     const shiftStart = new Date(now);
     shiftStart.setHours(startHour, startMinute, 0, 0);
@@ -66,11 +60,16 @@ export const useShiftDetails = (
     const shiftEnd = new Date(now);
     shiftEnd.setHours(endHour, endMinute, 0, 0);
 
+    // Handle overnight shifts
     if (
       endHour < startHour ||
       (endHour === startHour && endMinute < startMinute)
     ) {
-      shiftEnd.setDate(shiftEnd.getDate() + 1);
+      if (now < shiftEnd) {
+        shiftStart.setDate(shiftStart.getDate() - 1);
+      } else {
+        shiftEnd.setDate(shiftEnd.getDate() + 1);
+      }
     }
 
     const isWithinShift = now >= shiftStart && now <= shiftEnd;
@@ -92,8 +91,17 @@ export const useShiftDetails = (
   };
 
   useEffect(() => {
-    fetchShiftDetails();
-  }, [fetchShiftDetails]);
+    loadShiftData();
+
+    // Update every minute
+    const interval = setInterval(() => {
+      if (currentShift) {
+        updateShiftStatus(convertToShiftData(currentShift), new Date());
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [loadShiftData, currentShift, convertToShiftData]);
 
   return {
     isWithinShift,
@@ -101,6 +109,7 @@ export const useShiftDetails = (
     isAfterShift,
     minutesUntilShiftStart,
     minutesUntilShiftEnd,
+    currentShift,
     updateShiftStatus,
   };
 };

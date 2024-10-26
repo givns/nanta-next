@@ -34,7 +34,7 @@ interface DayRecord {
 
 interface AttendanceTableProps {
   timeEntries: ProcessedAttendance[]; // Changed from TimeEntry[]
-  shift: ShiftData;
+  shift?: ShiftData | null; // Make shift optional and nullable
   startDate: Date;
   endDate: Date;
   isLoading?: boolean;
@@ -103,9 +103,9 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
         const attendance = entry as ProcessedAttendance;
         if (attendance.status !== 'absent' && attendance.status !== 'off') {
           // For simplicity, we'll show standard shift times for present entries
-          checkInTime = shift.startTime;
+          checkInTime = shift?.startTime || '-';
           checkOutTime =
-            attendance.status === 'incomplete' ? '-' : shift.endTime;
+            attendance.status === 'incomplete' ? '-' : shift?.endTime || '-';
         }
       }
 
