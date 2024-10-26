@@ -125,7 +125,7 @@ async function handlePostback(event: WebhookEvent) {
 
   const data = event.postback.data;
   const lineUserId = event.source.userId;
-
+  const replyToken = event.replyToken;
   const params = new URLSearchParams(data);
   const action = params.get('action');
   const requestId = params.get('requestId');
@@ -148,7 +148,12 @@ async function handlePostback(event: WebhookEvent) {
 
       let result: { message: string } | undefined;
       if (leaveRequest) {
-        result = await handleLeaveRequest(action, requestId, user.employeeId);
+        result = await handleLeaveRequest(
+          action,
+          requestId,
+          user.employeeId,
+          replyToken,
+        );
       } else if (overtimeRequest) {
         result = await handleOvertimeRequest(
           action,
@@ -180,8 +185,26 @@ async function handleLeaveRequest(
   action: string,
   requestId: string,
   approverId: string,
+  replyToken?: string,
 ) {
   try {
+    // First check if request is already processed
+    const existingRequest = await prisma.leaveRequest.findUnique({
+      where: { id: requestId },
+    });
+
+    if (!existingRequest) {
+      throw new Error('Leave request not found');
+    }
+
+    // Check if request is already processed
+    if (existingRequest.status !== 'Pending') {
+      await client.replyMessage(replyToken!, {
+        type: 'text',
+        text: `คำขอนี้ได้ถูก${existingRequest.status === 'Approved' ? 'อนุมัติ' : 'ปฏิเสธ'}ไปแล้ว`,
+      });
+      return;
+    }
     // Clean the approver ID before processing
     const cleanApproverId = approverId.split('-')[0]; // Gets just "E1065" part
 
@@ -189,12 +212,14 @@ async function handleLeaveRequest(
       const result = await leaveServiceServer.approveLeaveRequest(
         requestId,
         cleanApproverId,
+        replyToken,
       );
       return { message: 'คำขอลาได้รับการอนุมัติแล้ว', request: result };
     } else if (action === 'deny') {
       const result = await leaveServiceServer.denyLeaveRequest(
         requestId,
         cleanApproverId,
+        replyToken,
       );
       return { message: 'คำขอลาถูกปฏิเสธแล้ว', request: result };
     }

@@ -298,6 +298,10 @@ export class LeaveServiceServer
           throw new Error('Leave request not found');
         }
 
+        if (leaveRequest.status !== 'Pending') {
+          throw new Error('Leave request has already been processed');
+        }
+
         if (!approver) {
           throw new Error('Approver not found');
         }

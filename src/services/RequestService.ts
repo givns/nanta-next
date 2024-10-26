@@ -38,6 +38,10 @@ export abstract class RequestService {
           throw new Error(`${this.getRequestType()} request not found`);
         if (!denier) throw new Error('Denier not found');
 
+        if (request.status !== 'Pending') {
+          throw new Error('Leave request has already been processed');
+        }
+
         const deniedRequest = await this.getRequestModel().update({
           where: { id: requestId },
           data: {
