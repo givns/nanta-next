@@ -10,6 +10,7 @@ import { differenceInMinutes, format, isSameDay } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService';
 import { ApprovedOvertime, ShiftData } from '@/types/attendance';
 import { NotificationService } from './NotificationService';
+import { cacheService } from './CacheService';
 
 export class TimeEntryService {
   private readonly REGULAR_HOURS_PER_SHIFT = 8;
@@ -275,43 +276,52 @@ ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
     startDate: Date,
     endDate: Date,
   ): Promise<TimeEntry[]> {
-    try {
-      const entries = (await this.prisma.timeEntry.findMany({
-        select: {
-          id: true,
-          employeeId: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-          regularHours: true,
-          overtimeHours: true,
-          status: true,
-          attendanceId: true,
-          overtimeRequestId: true,
-          actualMinutesLate: true,
-          isHalfDayLate: true,
-        },
-        where: {
-          employeeId,
-          date: {
-            gte: startDate,
-            lte: endDate,
-          },
-          // Add default value for entryType in where clause
-          OR: [{ entryType: { not: null as any } }, { entryType: 'regular' }],
-        },
-      })) as TimeEntry[];
+    const cacheKey = `timeEntries:${employeeId}:${format(startDate, 'yyyy-MM-dd')}:${format(endDate, 'yyyy-MM-dd')}`;
 
-      return entries.map((entry) => ({
-        ...entry,
-        entryType: 'regular', // Force all entries to have 'regular' type
-        regularHours: entry.regularHours || 0,
-        overtimeHours: entry.overtimeHours || 0,
-      }));
-    } catch (error) {
-      console.error('Error fetching time entries:', error);
-      return [];
+    if (cacheService) {
+      const cachedEntries = await cacheService.get(cacheKey);
+      if (cachedEntries) {
+        return JSON.parse(cachedEntries);
+      }
     }
+
+    const entries = await this.prisma.timeEntry.findMany({
+      where: {
+        employeeId,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        entryType: {
+          in: ['regular', 'overtime', 'unpaid_leave'], // Include unpaid_leave, remove null
+        },
+      },
+      select: {
+        id: true,
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        regularHours: true,
+        overtimeHours: true,
+        status: true,
+        attendanceId: true,
+        overtimeRequestId: true,
+        actualMinutesLate: true,
+        isHalfDayLate: true,
+        entryType: true, // Add this to include the entryType in the result
+      },
+    });
+
+    if (cacheService) {
+      await cacheService.set(cacheKey, JSON.stringify(entries), 300); // Cache for 5 minutes
+    }
+
+    return entries.map((entry) => ({
+      ...entry,
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    }));
   }
 
   async getTimeEntriesForPayroll(
