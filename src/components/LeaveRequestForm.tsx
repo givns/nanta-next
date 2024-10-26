@@ -69,17 +69,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         throw new Error('User shift information is missing');
       }
 
-      // Validate dates first
-      if (!isValidDateString(values.startDate)) {
-        throw new Error('Invalid start date format');
-      }
-
-      if (
-        values.leaveFormat === 'ลาเต็มวัน' &&
-        !isValidDateString(values.endDate)
-      ) {
-        throw new Error('Invalid end date format');
-      }
+      console.log('Form values:', values); // Debug log
 
       const fullDayCount = await calculateFullDayCount(
         values.startDate,
@@ -99,6 +89,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         userShift: userData.shiftCode,
       };
 
+      console.log('Summary data:', summaryData); // Debug log
       sessionStorage.setItem('leaveSummary', JSON.stringify(summaryData));
       router.push('/leave-summary');
     } catch (error) {

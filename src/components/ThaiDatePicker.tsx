@@ -9,6 +9,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { format, isSameDay } from 'date-fns';
 
 const thaiMonths = [
   'มกราคม',
@@ -51,25 +52,13 @@ const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({
   const handleSelect = (newDate: Date | undefined) => {
     setDate(newDate);
 
-    // Format date to ISO string and extract the date part
-    const formattedDate = newDate
-      ? newDate.toISOString().split('T')[0]
-      : undefined;
+    // Format date as YYYY-MM-DD
+    const formattedDate = newDate ? format(newDate, 'yyyy-MM-dd') : '';
 
-    // Update form with formatted date string
+    // Update form
     form.setFieldValue(field.name, formattedDate);
 
-    // Call the original field onChange
-    if (field.onChange) {
-      field.onChange({
-        target: {
-          name: field.name,
-          value: formattedDate,
-        },
-      });
-    }
-
-    // Call the provided onChange
+    // Call provided onChange
     if (onChange) {
       onChange(newDate);
     }
@@ -78,9 +67,13 @@ const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({
   // Update local state when field value changes externally
   React.useEffect(() => {
     if (field.value) {
-      const dateValue = new Date(field.value);
-      if (!date || date.toISOString().split('T')[0] !== field.value) {
-        setDate(dateValue);
+      try {
+        const dateValue = new Date(field.value);
+        if (!date || !isSameDay(date, dateValue)) {
+          setDate(dateValue);
+        }
+      } catch (error) {
+        console.error('Error parsing date:', error);
       }
     }
   }, [field.value]);
