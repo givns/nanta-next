@@ -107,33 +107,12 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         selectedType={values.leaveType}
       />
       <button
-        onClick={() => setStep(2)}
+        onClick={() => setStep(3)}
         disabled={!values.leaveType}
         className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
       >
         ถัดไป: เลือกประเภทการลา
       </button>
-    </div>
-  );
-
-  const renderStep2 = (setFieldValue: (field: string, value: any) => void) => (
-    <div className="rounded-box bg-white p-6">
-      <h2 className="text-lg font-semibold mb-4">เลือกประเภทการลา</h2>
-      <div className="space-y-2">
-        {Object.keys(leaveTypeMapping).map((type) => (
-          <button
-            key={type}
-            type="button"
-            className="w-full p-2 text-left border rounded-lg hover:bg-gray-100"
-            onClick={() => {
-              setFieldValue('leaveType', type);
-              setStep(3);
-            }}
-          >
-            {type}
-          </button>
-        ))}
-      </div>
     </div>
   );
 
@@ -262,7 +241,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         {(formikProps) => (
           <Form className="space-y-6">
             {step === 1 && renderStep1(formikProps)}
-            {step === 2 && renderStep2(formikProps.setFieldValue)}
             {step === 3 && renderStep3(formikProps.setFieldValue)}
             {step === 4 && renderStep4(formikProps.values)}
             {step === 5 && renderStep5()}

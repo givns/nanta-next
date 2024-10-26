@@ -503,65 +503,11 @@ export class NotificationService {
 
     return {
       type: 'flex',
-      altText: `มีคำขอ ${requestTypeText} รอการอนุมัตื`,
+      altText: `มีคำขอ ${requestTypeText} รอการอนุมัติ`,
       contents: {
         type: 'bubble',
         size: 'mega',
         header: {
-          type: 'box',
-          layout: 'horizontal',
-          contents: [
-            {
-              type: 'box',
-              layout: 'vertical',
-              contents: [
-                {
-                  type: 'text',
-                  text: `ยื่นคำขอ${requestTypeText} ${resubmissionText}`,
-                  color: '#000000',
-                  size: 'xl',
-                  flex: 4,
-                  weight: 'bold',
-                  align: 'center',
-                  gravity: 'center',
-                },
-              ],
-            },
-            {
-              type: 'box',
-              layout: 'vertical',
-              contents: [],
-              width: '10px',
-            },
-            {
-              type: 'box',
-              layout: 'vertical',
-              contents: [
-                {
-                  type: 'text',
-                  text: `${requestCount}`,
-                  align: 'center',
-                  gravity: 'center',
-                  color: '#FFFFFF',
-                  wrap: true,
-                  adjustMode: 'shrink-to-fit',
-                  weight: 'bold',
-                },
-              ],
-              width: '35px',
-              height: '35px',
-              cornerRadius: '30px',
-              backgroundColor: '#FF1900',
-              justifyContent: 'center',
-            },
-          ],
-          paddingAll: '20px',
-          backgroundColor: '#F0F0F0',
-          spacing: 'md',
-          paddingTop: '22px',
-          height: '100px',
-        },
-        body: {
           type: 'box',
           layout: 'vertical',
           contents: [
@@ -570,119 +516,206 @@ export class NotificationService {
               layout: 'horizontal',
               contents: [
                 {
+                  type: 'text',
+                  text: 'แบบฟอร์มขอ' + requestTypeText,
+                  weight: 'bold',
+                  size: 'lg',
+                  color: '#FFFFFF',
+                },
+                {
+                  type: 'text',
+                  text: '#' + requestCount,
+                  size: 'sm',
+                  color: '#FFFFFF',
+                  align: 'end',
+                },
+              ],
+            },
+            {
+              type: 'box',
+              layout: 'horizontal',
+              margin: 'md',
+              contents: [
+                {
+                  type: 'text',
+                  text: new Date().toLocaleDateString('th-TH', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  }),
+                  color: '#FFFFFF99',
+                  size: 'xs',
+                },
+              ],
+            },
+          ],
+          backgroundColor: '#2D4059',
+          paddingAll: '20px',
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'box',
+              layout: 'vertical',
+              contents: [
+                {
+                  type: 'box',
+                  layout: 'horizontal',
+                  contents: [
+                    {
+                      type: 'box',
+                      layout: 'vertical',
+                      contents: [
+                        {
+                          type: 'text',
+                          text: 'พนักงาน',
+                          color: '#aaaaaa',
+                          size: 'xs',
+                        },
+                        {
+                          type: 'text',
+                          text: user.nickname
+                            ? `${user.name} (${user.nickname})`
+                            : user.name,
+                          color: '#1a1a1a',
+                          size: 'sm',
+                          wrap: true,
+                          weight: 'bold',
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: 'box',
+                  layout: 'horizontal',
+                  margin: 'md',
+                  contents: [
+                    {
+                      type: 'box',
+                      layout: 'vertical',
+                      contents: [
+                        {
+                          type: 'text',
+                          text: 'ประเภทการลา',
+                          color: '#aaaaaa',
+                          size: 'xs',
+                        },
+                        {
+                          type: 'text',
+                          text: `${(request as LeaveRequest).leaveType}${resubmissionText || ''}`,
+                          color: '#EA5455',
+                          size: 'sm',
+                          wrap: true,
+                          weight: 'bold',
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: 'box',
+                  layout: 'horizontal',
+                  margin: 'md',
+                  contents: [
+                    {
+                      type: 'box',
+                      layout: 'vertical',
+                      contents: [
+                        {
+                          type: 'text',
+                          text: 'ระยะเวลา',
+                          color: '#aaaaaa',
+                          size: 'xs',
+                        },
+                        {
+                          type: 'text',
+                          text: `${new Date(
+                            (request as LeaveRequest).startDate,
+                          ).toLocaleDateString('th-TH', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })} - ${new Date(
+                            (request as LeaveRequest).endDate,
+                          ).toLocaleDateString('th-TH', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}`,
+                          color: '#1a1a1a',
+                          size: 'sm',
+                          wrap: true,
+                        },
+                        {
+                          type: 'text',
+                          text: `รวม ${(request as LeaveRequest).fullDayCount} วัน`,
+                          color: '#2D4059',
+                          size: 'sm',
+                          weight: 'bold',
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
                   type: 'box',
                   layout: 'vertical',
+                  margin: 'md',
                   contents: [
                     {
                       type: 'text',
-                      text: user.nickname
-                        ? `${user.name} (${user.nickname})`
-                        : user.name,
-                      weight: 'bold',
-                      size: 'sm',
-                      wrap: true,
-                    },
-                    ...(isLeaveRequest
-                      ? [
-                          {
-                            type: 'text',
-                            text: `ประเภทการลา: ${(request as LeaveRequest).leaveType}${resubmissionText}`,
-                            size: 'sm',
-                            wrap: true,
-                          },
-                          {
-                            type: 'text',
-                            text: `วันที่: ${new Date(
-                              (request as LeaveRequest).startDate,
-                            ).toLocaleDateString('th-TH', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                            })} - ${new Date(
-                              (request as LeaveRequest).endDate,
-                            ).toLocaleDateString('th-TH', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                            })} (${(request as LeaveRequest).fullDayCount} วัน)`,
-                            size: 'sm',
-                            wrap: true,
-                          },
-                        ]
-                      : [
-                          {
-                            type: 'text',
-                            text: `วันที่: ${new Date(
-                              (request as OvertimeRequest).date,
-                            ).toLocaleDateString('th-TH', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                            })}`,
-                            size: 'sm',
-                            wrap: true,
-                          },
-                          {
-                            type: 'text',
-                            text: `เวลา: ${(request as OvertimeRequest).startTime} - ${(request as OvertimeRequest).endTime}`,
-                            size: 'sm',
-                            wrap: true,
-                          },
-                        ]),
-                    {
-                      type: 'text',
-                      text: `สาเหตุ: ${request.reason}`,
-                      size: 'sm',
-                      wrap: true,
+                      text: 'เหตุผลการลา',
+                      color: '#aaaaaa',
+                      size: 'xs',
                     },
                     {
                       type: 'text',
-                      text: `วันที่ยื่น: ${new Date(
-                        request.createdAt,
-                      ).toLocaleDateString('th-TH', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })}`,
+                      text: request.reason || '',
+                      color: '#1a1a1a',
                       size: 'sm',
-                      color: '#4682B4',
+                      wrap: true,
                     },
-                    ...('resubmitted' in request &&
-                    request.resubmitted &&
-                    request.originalRequestId
-                      ? [
-                          {
-                            type: 'text',
-                            text: `คำขอเดิม: ${request.originalRequestId}`,
-                            size: 'sm',
-                            color: '#4682B4',
-                          },
-                        ]
-                      : []),
-                  ] as FlexComponent[],
+                  ],
                 },
               ],
-              spacing: 'xl',
+              paddingAll: '20px',
+            },
+            {
+              type: 'separator',
+              color: '#EAEAEA',
+            },
+            {
+              type: 'box',
+              layout: 'vertical',
+              contents: [
+                {
+                  type: 'text',
+                  text: `ยื่นคำขอเมื่อ ${new Date(
+                    request.createdAt,
+                  ).toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}`,
+                  color: '#aaaaaa',
+                  size: 'xs',
+                },
+              ],
               paddingAll: '20px',
             },
           ],
-          paddingAll: '0px',
         },
         footer: {
           type: 'box',
           layout: 'horizontal',
+          spacing: 'sm',
           contents: [
-            {
-              type: 'button',
-              action: {
-                type: 'postback',
-                label: 'อนุมัติ',
-                data: `action=approve&requestType=${requestType}&requestId=${request.id}&approverId=${admin.employeeId}`,
-              },
-              color: '#0662FF',
-              style: 'primary',
-              adjustMode: 'shrink-to-fit',
-            },
             {
               type: 'button',
               action: {
@@ -690,12 +723,21 @@ export class NotificationService {
                 label: 'ไม่อนุมัติ',
                 data: `action=deny&requestType=${requestType}&requestId=${request.id}&approverId=${admin.employeeId}`,
               },
-              color: '#F0F0F0',
               style: 'secondary',
-              adjustMode: 'shrink-to-fit',
-              margin: 'lg',
+              color: '#EA5455',
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
+                label: 'อนุมัติ',
+                data: `action=approve&requestType=${requestType}&requestId=${request.id}&approverId=${admin.employeeId}`,
+              },
+              style: 'primary',
+              color: '#28C76F',
             },
           ],
+          paddingAll: '20px',
         },
       },
     };
