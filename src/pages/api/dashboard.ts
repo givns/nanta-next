@@ -165,13 +165,10 @@ export default async function handler(
         calculateWorkingDays(payrollPeriod.start, payrollPeriod.end, shift),
       ]);
 
-      // Prepare dashboard data
       const dashboardData = {
-        user: {
-          ...UserDataSchema.parse(user),
-        },
+        user,
         attendanceStatus,
-        effectiveShift, // Add this
+        effectiveShift,
         payrollAttendance: timeEntries,
         totalWorkingDays: workingDays,
         totalPresent: timeEntries.length,
@@ -188,13 +185,11 @@ export default async function handler(
         },
       };
 
-      console.log('API response structure:', {
-        data: dashboardData,
-        type: 'DashboardResponse',
-      });
+      // Logging the structure before caching and returning
+      console.log('Verified Dashboard Data:', dashboardData);
 
       if (cacheService) {
-        await cacheService.set(cacheKey, JSON.stringify(dashboardData), 300); // Cache for 5 minutes
+        await cacheService.set(cacheKey, JSON.stringify(dashboardData), 300);
       }
 
       return res.status(200).json({ data: dashboardData }); // Make sure we're wrapping in {data: ...}

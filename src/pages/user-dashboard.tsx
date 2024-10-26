@@ -6,6 +6,7 @@ import { DashboardResponse } from '@/types/api';
 import LoadingBar from '@/components/LoadingBar';
 import axios from 'axios';
 import { getCachedUserData, fetchUserData } from '@/services/userService';
+import { isDashboardData } from '@/types/dashboard';
 
 interface DashboardPageProps {
   lineUserId: string | null;
@@ -39,8 +40,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ lineUserId }) => {
 
         console.log('Dashboard API response:', response.data);
 
-        if (!response.data?.data) {
-          console.error('Invalid response structure:', response.data);
+        if (!isDashboardData(response.data?.data)) {
+          console.error('Invalid response structure:', response.data?.data);
           throw new Error('Invalid dashboard data structure');
         }
 

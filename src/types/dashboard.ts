@@ -25,7 +25,7 @@ export interface DashboardData {
   payrollPeriod: PayrollPeriodDisplay; // Using the UI-specific type
 }
 
-// Type guard for API response
+// Update the type guard to ensure nested fields are correctly validated.
 export function isDashboardData(data: any): data is DashboardData {
   return (
     data &&
@@ -33,6 +33,11 @@ export function isDashboardData(data: any): data is DashboardData {
     'user' in data &&
     'attendanceStatus' in data &&
     'payrollAttendance' in data &&
+    'payrollPeriod' in data &&
+    data.user &&
+    typeof data.user === 'object' &&
+    'assignedShift' in data.user &&
+    typeof data.user.assignedShift === 'object' &&
     'payrollPeriod' in data &&
     typeof data.payrollPeriod === 'object' &&
     'startDate' in data.payrollPeriod &&
