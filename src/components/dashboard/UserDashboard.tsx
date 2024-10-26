@@ -261,31 +261,3 @@ const QuickStat: React.FC<QuickStatProps> = ({
     </CardContent>
   </Card>
 );
-
-// Loading Skeleton Components
-export const DashboardSkeleton = () => (
-  <div className="w-full max-w-4xl mx-auto p-4 space-y-8">
-    <div className="flex flex-col items-center space-y-4">
-      <Skeleton className="h-24 w-24 rounded-full" />
-      <Skeleton className="h-8 w-48" />
-      <Skeleton className="h-4 w-32" />
-
-      <div className="grid grid-cols-3 gap-4 w-full mt-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <Skeleton className="h-4 w-full mb-2" />
-              <Skeleton className="h-8 w-16" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-
-    <div className="space-y-4">
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-[200px] w-full" />
-      <Skeleton className="h-[400px] w-full" />
-    </div>
-  </div>
-);

@@ -7,37 +7,43 @@ import { useLiff } from '../hooks/useLiff';
 import LoadingBar from '../components/LoadingBar';
 
 function MyApp({ Component, pageProps }: AppProps) {
-  const { isLiffInitialized, lineUserId } = useLiff();
+  const { isLiffInitialized, lineUserId, error: liffError } = useLiff();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const handleError = (error: Error, errorInfo: ErrorInfo) => {
-      console.error('Caught an error:', error, errorInfo);
-    };
-
-    window.addEventListener('error', (event) =>
-      handleError(event.error, { componentStack: '' }),
-    );
-
     if (isLiffInitialized) {
       // Add a small delay to ensure the progress bar reaches 100%
       setTimeout(() => setIsLoading(false), 1000);
     }
-
-    return () => {
-      window.removeEventListener('error', (event) =>
-        handleError(event.error, { componentStack: '' }),
-      );
-    };
   }, [isLiffInitialized]);
+
+  // Show loading state while LIFF is initializing or if we're still loading
+  if (isLoading || !isLiffInitialized) {
+    return <LoadingBar />;
+  }
+
+  // Show error if LIFF failed to initialize
+  if (liffError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="text-red-500">เกิดข้อผิดพลาดในการเชื่อมต่อ LIFF</div>
+        <div className="text-red-500">{liffError}</div>
+      </div>
+    );
+  }
+
+  // Only render the component if we have a lineUserId
+  if (!lineUserId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="text-red-500">กรุณาเข้าสู่ระบบผ่าน LINE</div>
+      </div>
+    );
+  }
 
   return (
     <Provider store={store}>
-      {isLoading ? (
-        <LoadingBar />
-      ) : (
-        <Component {...pageProps} lineUserId={lineUserId} />
-      )}
+      <Component {...pageProps} lineUserId={lineUserId} />
     </Provider>
   );
 }

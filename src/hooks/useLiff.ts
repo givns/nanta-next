@@ -2,34 +2,35 @@
 import { useState, useEffect } from 'react';
 import liff from '@line/liff';
 
-interface UseLiffReturn {
-  lineUserId: string | null;
-  isLoading: boolean;
-  error: string | null;
-  isLiffInitialized: boolean;
-}
-
-export const useLiff = (): UseLiffReturn => {
+export function useLiff() {
   const [isLiffInitialized, setIsLiffInitialized] = useState(false);
   const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const initializeLiff = async () => {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
-        if (liff.isLoggedIn()) {
-          const profile = await liff.getProfile();
-          setLineUserId(profile.userId);
+
+        if (!liff.isLoggedIn()) {
+          // Redirect to LINE login if not logged in
+          liff.login();
+          return;
         }
+
+        const profile = await liff.getProfile();
+        setLineUserId(profile.userId);
         setIsLiffInitialized(true);
-      } catch (error) {
-        console.error('LIFF initialization failed', error);
-        setIsLiffInitialized(true); // Still set to true to prevent loading state
+      } catch (err) {
+        console.error('LIFF initialization failed:', err);
+        setError(
+          err instanceof Error ? err.message : 'Failed to initialize LIFF',
+        );
       }
     };
 
     initializeLiff();
   }, []);
 
-  return { isLiffInitialized, lineUserId, isLoading: false, error: null };
-};
+  return { isLiffInitialized, lineUserId, error };
+}

@@ -1,7 +1,6 @@
 // pages/user-dashboard.tsx
 import { useState, useEffect } from 'react';
 import { UserDashboard as DashboardComponent } from '@/components/dashboard/UserDashboard';
-import { DashboardSkeleton } from '@/components/dashboard/UserDashboard';
 import { DashboardData } from '@/types/dashboard';
 import { DashboardResponse } from '@/types/api';
 import LoadingBar from '@/components/LoadingBar';
@@ -21,28 +20,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ lineUserId }) => {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!lineUserId) {
-        console.error('No LINE User ID available, lineUserId:', lineUserId);
-        setError('No LINE User ID available');
-        setIsLoading(false);
-        return;
-      }
-
       try {
-        // First try to get cached user data
-        const cachedUser = await getCachedUserData(lineUserId);
+        // No need to check lineUserId here as it's guaranteed by _app.tsx
+        const cachedUser = await getCachedUserData(lineUserId!);
         let userData = cachedUser;
 
         if (!cachedUser) {
-          // If no cached data, fetch fresh data
-          userData = await fetchUserData(lineUserId);
+          userData = await fetchUserData(lineUserId!);
         }
 
         if (!userData) {
           throw new Error('Failed to fetch user data');
         }
 
-        // Fetch dashboard data
         const response = await axios.get<DashboardResponse>(
           `/api/dashboard?lineUserId=${lineUserId}`,
         );
