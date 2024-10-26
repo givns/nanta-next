@@ -50,18 +50,26 @@ const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({
 
   const handleSelect = (newDate: Date | undefined) => {
     setDate(newDate);
-    form.setFieldValue(field.name, newDate);
 
-    // Call both the form's onChange and the provided onChange
+    // Format date to ISO string and extract the date part
+    const formattedDate = newDate
+      ? newDate.toISOString().split('T')[0]
+      : undefined;
+
+    // Update form with formatted date string
+    form.setFieldValue(field.name, formattedDate);
+
+    // Call the original field onChange
     if (field.onChange) {
       field.onChange({
         target: {
           name: field.name,
-          value: newDate,
+          value: formattedDate,
         },
       });
     }
 
+    // Call the provided onChange
     if (onChange) {
       onChange(newDate);
     }
@@ -69,8 +77,11 @@ const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({
 
   // Update local state when field value changes externally
   React.useEffect(() => {
-    if (field.value && (!date || field.value !== date.toISOString())) {
-      setDate(new Date(field.value));
+    if (field.value) {
+      const dateValue = new Date(field.value);
+      if (!date || date.toISOString().split('T')[0] !== field.value) {
+        setDate(dateValue);
+      }
     }
   }, [field.value]);
 
