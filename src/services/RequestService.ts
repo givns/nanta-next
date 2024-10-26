@@ -1,12 +1,14 @@
 // services/RequestService.ts
 
-import { PrismaClient, User, Prisma } from '@prisma/client';
+import {
+  PrismaClient,
+  User,
+  LeaveRequest,
+  OvertimeRequest,
+} from '@prisma/client';
 import { NotificationService } from './NotificationService';
 
-type TransactionClient = Omit<
-  PrismaClient,
-  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
->;
+type RequestTypes = LeaveRequest | OvertimeRequest;
 
 export abstract class RequestService {
   constructor(
@@ -17,29 +19,56 @@ export abstract class RequestService {
   protected abstract getRequestModel(): any;
   protected abstract getRequestType(): 'leave' | 'overtime';
 
-  async denyRequest(requestId: string, denierEmployeeId: string) {
-    const denier = await this.getUserByEmployeeId(denierEmployeeId);
-    if (!denier) throw new Error('Approver not found');
+  protected async denyRequest(
+    requestId: string,
+    denierEmployeeId: string,
+    replyToken?: string,
+  ) {
+    return await this.prisma
+      .$transaction(async (tx) => {
+        const [request, denier] = await Promise.all([
+          this.getRequestModel().findUnique({
+            where: { id: requestId },
+            include: { user: true },
+          }),
+          this.getUserByEmployeeId(denierEmployeeId),
+        ]);
 
-    const request = await this.getRequestModel().update({
-      where: { id: requestId },
-      data: { status: 'Denied', denierId: denier.id },
-      include: { user: true },
-    });
+        if (!request)
+          throw new Error(`${this.getRequestType()} request not found`);
+        if (!denier) throw new Error('Denier not found');
 
-    await this.notificationService.sendDenialNotification(
-      request.user,
-      request,
-      denier,
-      this.getRequestType(),
-    );
+        const deniedRequest = await this.getRequestModel().update({
+          where: { id: requestId },
+          data: {
+            status: 'Denied',
+            denierId: denierEmployeeId,
+            updatedAt: new Date(),
+          },
+          include: { user: true },
+        });
 
-    return request;
+        return { deniedRequest, denier };
+      })
+      .then(async ({ deniedRequest, denier }) => {
+        // Send notifications outside transaction
+        await this.notificationService.sendRequestStatusNotificationWithReply(
+          deniedRequest.user,
+          deniedRequest,
+          denier,
+          this.getRequestType(),
+          'denied',
+          replyToken,
+        );
+
+        return deniedRequest;
+      });
   }
 
-  protected async getOriginalRequest(requestId: string) {
+  protected async getOriginalRequest(requestId: string): Promise<RequestTypes> {
     const request = await this.getRequestModel().findUnique({
       where: { id: requestId },
+      include: { user: true },
     });
 
     if (!request) {
@@ -52,6 +81,36 @@ export abstract class RequestService {
   protected async getUserByEmployeeId(
     employeeId: string,
   ): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { employeeId } });
+    return this.prisma.user.findUnique({
+      where: { employeeId },
+      include: {
+        department: true,
+      },
+    });
+  }
+
+  protected async validateUser(employeeId: string): Promise<User> {
+    const user = await this.getUserByEmployeeId(employeeId);
+    if (!user) {
+      throw new Error(`User not found with employeeId: ${employeeId}`);
+    }
+    return user;
+  }
+
+  protected async validateRequest(
+    requestId: string,
+  ): Promise<RequestTypes & { user: User }> {
+    const request = await this.getRequestModel().findUnique({
+      where: { id: requestId },
+      include: { user: true },
+    });
+
+    if (!request) {
+      throw new Error(
+        `${this.getRequestType()} request not found: ${requestId}`,
+      );
+    }
+
+    return request;
   }
 }

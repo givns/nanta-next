@@ -155,7 +155,6 @@ export class LeaveServiceServer
   private async notifyAdmins(
     leaveRequest: LeaveRequest & { user: User },
   ): Promise<void> {
-    console.log(`Notifying admins for leave request: ${leaveRequest.id}`);
     const admins = await this.prisma.user.findMany({
       where: {
         role: {
@@ -167,10 +166,8 @@ export class LeaveServiceServer
         lineUserId: true,
       },
     });
-    console.log(`Found ${admins.length} admins to notify`);
 
     for (const admin of admins) {
-      console.log(`Sending notification to admin: ${admin.employeeId}`);
       try {
         if (admin.lineUserId) {
           await this.notificationService.sendRequestNotification(
@@ -181,17 +178,11 @@ export class LeaveServiceServer
             leaveRequest.user,
             leaveRequest,
           );
-          console.log(
-            `Notification queued successfully for admin: ${admin.employeeId}`,
-          );
         } else {
           console.warn(`Admin ${admin.employeeId} does not have a lineUserId`);
         }
       } catch (error) {
-        console.error(
-          `Failed to queue notification for admin ${admin.employeeId}:`,
-          error,
-        );
+        console.error(`Failed to notify admin ${admin.employeeId}:`, error);
       }
     }
   }
@@ -476,45 +467,11 @@ export class LeaveServiceServer
     denierEmployeeId: string,
     replyToken?: string,
   ): Promise<LeaveRequest> {
-    const result = await this.prisma.$transaction(async (tx) => {
-      const [leaveRequest, denier] = await Promise.all([
-        tx.leaveRequest.findUnique({
-          where: { id: requestId },
-          include: { user: true },
-        }),
-        tx.user.findUnique({
-          where: { employeeId: denierEmployeeId },
-        }),
-      ]);
-
-      if (!leaveRequest) throw new Error('Leave request not found');
-      if (!denier) throw new Error('Denier not found');
-
-      const deniedRequest = await tx.leaveRequest.update({
-        where: { id: requestId },
-        data: {
-          status: 'Denied',
-          denierId: denierEmployeeId,
-          updatedAt: new Date(),
-        },
-        include: { user: true },
-      });
-
-      return { deniedRequest, denier };
-    });
-
-    // Send notifications outside transaction
-    await this.notificationService.sendRequestStatusNotificationWithReply(
-      result.deniedRequest.user,
-      result.deniedRequest,
-      result.denier,
-      'leave',
-      'denied',
+    return super.denyRequest(
+      requestId,
+      denierEmployeeId,
       replyToken,
-    );
-
-    await this.invalidateUserCache(result.deniedRequest.employeeId);
-    return result.deniedRequest;
+    ) as Promise<LeaveRequest>;
   }
 
   async createResubmittedRequest(
