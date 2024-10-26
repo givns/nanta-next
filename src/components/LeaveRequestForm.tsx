@@ -41,15 +41,11 @@ const leaveRequestSchema = Yup.object().shape({
   leaveType: Yup.string().required('กรุณาเลือกประเภทการลา'),
   leaveFormat: Yup.string().required('กรุณาเลือกลักษณะการลา'),
   reason: Yup.string().required('กรุณาระบุเหตุผล'),
-  startDate: Yup.string() // Changed from Yup.date()
-    .matches(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format')
-    .required('กรุณาเลือกวันที่เริ่มลา'),
-  endDate: Yup.string() // Changed from Yup.date()
-    .matches(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format')
-    .when('leaveFormat', {
-      is: 'ลาเต็มวัน',
-      then: (schema) => schema.required('กรุณาเลือกวันที่สิ้นสุด'),
-    }),
+  startDate: Yup.string().required('กรุณาเลือกวันที่เริ่มลา'),
+  endDate: Yup.string().when('leaveFormat', {
+    is: 'ลาเต็มวัน',
+    then: (schema) => schema.required('กรุณาเลือกวันที่สิ้นสุด'),
+  }),
 });
 
 const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
@@ -73,26 +69,15 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         throw new Error('User shift information is missing');
       }
 
-      // Ensure dates are in ISO format
-      const formattedStartDate = new Date(values.startDate)
-        .toISOString()
-        .split('T')[0];
-      const formattedEndDate =
-        values.leaveFormat === 'ลาครึ่งวัน'
-          ? formattedStartDate
-          : new Date(values.endDate).toISOString().split('T')[0];
-
       const fullDayCount = await calculateFullDayCount(
-        formattedStartDate,
-        formattedEndDate,
+        values.startDate,
+        values.leaveFormat === 'ลาครึ่งวัน' ? values.startDate : values.endDate,
         values.leaveFormat,
         userData.shiftCode,
       );
 
       const summaryData = {
         ...values,
-        startDate: formattedStartDate,
-        endDate: formattedEndDate,
         leaveType:
           leaveTypeMapping[values.leaveType as keyof typeof leaveTypeMapping],
         employeeId: userData.employeeId,
@@ -101,8 +86,6 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         fullDayCount,
         userShift: userData.shiftCode,
       };
-
-      console.log('Saving summary data:', summaryData); // Debug log
 
       sessionStorage.setItem('leaveSummary', JSON.stringify(summaryData));
       router.push('/leave-summary');
