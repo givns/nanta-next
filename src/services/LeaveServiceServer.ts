@@ -80,30 +80,31 @@ export class LeaveServiceServer
         if (!user)
           throw new Error(`User not found for lineUserId: ${lineUserId}`);
 
-        // Check leave balance
-        const leaveBalance = await this.checkLeaveBalance(user.employeeId);
+        // Skip balance check for unpaid leave
+        if (!this.isUnpaidLeave(leaveType)) {
+          const leaveBalance = await this.checkLeaveBalance(user.employeeId);
 
-        let availableDays: number;
-        switch (leaveType) {
-          case 'ลาป่วย':
-            availableDays = leaveBalance.sickLeave;
-            break;
-          case 'ลากิจ':
-            availableDays = leaveBalance.businessLeave;
-            break;
-          case 'ลาพักร้อน':
-            availableDays = leaveBalance.annualLeave;
-            break;
-          default:
-            throw new Error(`Invalid leave type: ${leaveType}`);
+          let availableDays: number;
+          switch (leaveType) {
+            case 'ลาป่วย':
+              availableDays = leaveBalance.sickLeave;
+              break;
+            case 'ลากิจ':
+              availableDays = leaveBalance.businessLeave;
+              break;
+            case 'ลาพักร้อน':
+              availableDays = leaveBalance.annualLeave;
+              break;
+            default:
+              throw new Error(`Invalid leave type: ${leaveType}`);
+          }
+
+          if (fullDayCount > availableDays) {
+            throw new Error(
+              `ไม่มีวันลา${leaveType}เพียงพอ (ขอลา ${fullDayCount} วัน, เหลือ ${availableDays} วัน)`,
+            );
+          }
         }
-
-        if (fullDayCount > availableDays) {
-          throw new Error(
-            `ไม่มีวันลา${leaveType}เพียงพอ (ขอลา ${fullDayCount} วัน, เหลือ ${availableDays} วัน)`,
-          );
-        }
-
         // Prepare leave request data
         let leaveRequestData: Prisma.LeaveRequestCreateInput = {
           user: { connect: { employeeId: user.employeeId } },
@@ -135,6 +136,7 @@ export class LeaveServiceServer
 
         return newLeaveRequest;
       })
+
       .then(async (newLeaveRequest) => {
         // Handle notifications outside of transaction
         await this.notifyAdmins(newLeaveRequest);
@@ -308,40 +310,41 @@ export class LeaveServiceServer
           throw new Error('Approver not found');
         }
 
-        // Update leave balance
-        let updateField:
-          | 'sickLeaveBalance'
-          | 'businessLeaveBalance'
-          | 'annualLeaveBalance';
-        switch (leaveRequest.leaveType) {
-          case 'ลาป่วย':
-            updateField = 'sickLeaveBalance';
-            break;
-          case 'ลากิจ':
-            updateField = 'businessLeaveBalance';
-            break;
-          case 'ลาพักร้อน':
-            updateField = 'annualLeaveBalance';
-            break;
-          default:
-            throw new Error(`Invalid leave type: ${leaveRequest.leaveType}`);
+        // Only update leave balance for paid leave types
+        if (!this.isUnpaidLeave(leaveRequest.leaveType)) {
+          let updateField:
+            | 'sickLeaveBalance'
+            | 'businessLeaveBalance'
+            | 'annualLeaveBalance';
+          switch (leaveRequest.leaveType) {
+            case 'ลาป่วย':
+              updateField = 'sickLeaveBalance';
+              break;
+            case 'ลากิจ':
+              updateField = 'businessLeaveBalance';
+              break;
+            case 'ลาพักร้อน':
+              updateField = 'annualLeaveBalance';
+              break;
+            default:
+              throw new Error(`Invalid leave type: ${leaveRequest.leaveType}`);
+          }
+
+          const currentBalance = leaveRequest.user[updateField];
+          const newBalance = currentBalance - leaveRequest.fullDayCount;
+
+          if (newBalance < 0) {
+            throw new Error(`Insufficient ${updateField} balance`);
+          }
+
+          // Update user balance
+          await tx.user.update({
+            where: { id: leaveRequest.user.id },
+            data: {
+              [updateField]: newBalance,
+            },
+          });
         }
-
-        const currentBalance = leaveRequest.user[updateField];
-        const newBalance = currentBalance - leaveRequest.fullDayCount;
-
-        if (newBalance < 0) {
-          throw new Error(`Insufficient ${updateField} balance`);
-        }
-
-        // Update user balance
-        await tx.user.update({
-          where: { id: leaveRequest.user.id },
-          data: {
-            [updateField]: newBalance,
-          },
-        });
-
         // Update leave request status
         const approvedRequest = await tx.leaveRequest.update({
           where: { id: requestId },
@@ -376,11 +379,12 @@ export class LeaveServiceServer
     leaveRequest: LeaveRequest,
     tx: TransactionClient,
   ) {
-    const { startDate, endDate, employeeId } = leaveRequest;
+    const { startDate, endDate, employeeId, leaveType } = leaveRequest;
     let currentDate = startDate;
 
-    // Function to determine regular hours based on leave format
-    const regularHours = this.getRegularHoursForLeave(leaveRequest.leaveFormat);
+    const regularHours = this.isUnpaidLeave(leaveType)
+      ? 0
+      : this.getRegularHoursForLeave(leaveRequest.leaveFormat);
 
     while (currentDate <= endDate) {
       // Create/Update attendance record
@@ -395,13 +399,13 @@ export class LeaveServiceServer
           employeeId,
           date: currentDate,
           isDayOff: true,
-          status: 'incomplete',
+          status: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'off' : 'incomplete',
           isManualEntry: true,
           version: 1,
         },
         update: {
           isDayOff: true,
-          status: 'incomplete',
+          status: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'off' : 'incomplete',
           version: {
             increment: 1,
           },
@@ -420,7 +424,8 @@ export class LeaveServiceServer
         isHalfDayLate: false,
         status: 'COMPLETED',
         attendanceId: attendance.id,
-        entryType: 'regular',
+        entryType:
+          leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'unpaid_leave' : 'regular',
       };
 
       // Check for existing time entry
@@ -502,6 +507,10 @@ export class LeaveServiceServer
       console.error('Error creating resubmitted leave request:', error.message);
       throw error;
     }
+  }
+
+  private isUnpaidLeave(leaveType: string): boolean {
+    return leaveType === 'ลาโดยไม่ได้รับค่าจ้าง';
   }
 
   async getOriginalRequest(requestId: string): Promise<LeaveRequest> {
