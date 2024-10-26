@@ -18,7 +18,12 @@ import AttendanceTable from '../AttendanceTable';
 import UserShiftInfo from '../UserShiftInfo';
 import { PayrollContainer } from '../payroll/PayrollContainer';
 import { DashboardData } from '@/types/dashboard';
-import { getDefaultShiftCode, getShiftByCode } from '@/lib/shiftCache';
+import {
+  getDefaultShiftByCode,
+  getDefaultShiftCode,
+  getShiftByCode,
+  getShiftData,
+} from '@/lib/shiftCache';
 import { Shift } from '@prisma/client';
 
 interface UserDashboardProps {
@@ -29,7 +34,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   initialData,
 }) => {
   const [data, setData] = useState<DashboardData>(initialData);
-  const [currentShift, setCurrentShift] = useState<Shift | null>(null);
+  const [currentShift, setCurrentShift] = useState<Shift | null>(
+    data.user.shiftCode ? getDefaultShiftByCode(data.user.shiftCode) : null,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -44,8 +51,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       if (!data.user.shiftCode) return;
 
       try {
-        const shift = await getShiftByCode(data.user.shiftCode);
-        setCurrentShift(shift);
+        const shift = await getShiftData(data.user.shiftCode);
+        if (shift) {
+          setCurrentShift(shift);
+        }
       } catch (err) {
         console.error('Error loading shift data:', err);
       }
@@ -96,16 +105,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       </Alert>
     );
   }
-
-  // Define default shift based on common work hours
-  const DEFAULT_SHIFT: ShiftData = {
-    id: 'default',
-    name: 'Default Shift',
-    shiftCode: 'DEFAULT',
-    startTime: '08:00',
-    endTime: '17:00',
-    workDays: [1, 2, 3, 4, 5, 6],
-  };
 
   const { user } = data;
 
