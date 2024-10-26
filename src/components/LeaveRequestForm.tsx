@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { Formik, Field, Form, ErrorMessage, FormikProps } from 'formik';
+import {
+  Formik,
+  Field,
+  Form,
+  ErrorMessage,
+  FormikProps,
+  FieldProps,
+} from 'formik';
 import * as Yup from 'yup';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
 import { calculateFullDayCount } from '../lib/holidayUtils';
 import LeaveBalanceCard from './LeaveBalanceCard';
+import ThaiDatePicker from './ThaiDatePicker';
 
 export interface FormValues {
   leaveType: string;
@@ -108,7 +116,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
       />
       <button
         onClick={() => setStep(3)}
-        disabled={!values.leaveType}
+        disabled={!values.leaveType} // Disable if no leave type is selected
         className="w-full py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
       >
         ถัดไป: เลือกประเภทการลา
@@ -137,7 +145,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     </div>
   );
 
-  const renderStep4 = (values: FormValues) => (
+  const renderStep4 = ({ values, setFieldValue, setStep }: any) => (
     <div className="rounded-box bg-white p-6">
       <h2 className="text-lg font-semibold mb-4">เลือกวันที่ลา</h2>
       <div className="space-y-4">
@@ -145,29 +153,28 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           <label htmlFor="startDate" className="block mb-1">
             วันที่เริ่มลา
           </label>
-          <Field
-            type="date"
-            id="startDate"
-            name="startDate"
-            className="w-full p-2 border rounded"
-          />
+          <Field name="startDate">
+            {({ field, form }: FieldProps) => (
+              <ThaiDatePicker field={field} form={form} />
+            )}
+          </Field>
           <ErrorMessage
             name="startDate"
             component="div"
             className="text-red-500"
           />
         </div>
+
         {values.leaveFormat === 'ลาเต็มวัน' && (
           <div>
             <label htmlFor="endDate" className="block mb-1">
               วันที่สิ้นสุด
             </label>
-            <Field
-              type="date"
-              id="endDate"
-              name="endDate"
-              className="w-full p-2 border rounded"
-            />
+            <Field name="endDate">
+              {({ field, form }: FieldProps) => (
+                <ThaiDatePicker field={field} form={form} />
+              )}
+            </Field>
             <ErrorMessage
               name="endDate"
               component="div"
@@ -241,9 +248,9 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         {(formikProps) => (
           <Form className="space-y-6">
             {step === 1 && renderStep1(formikProps)}
-            {step === 3 && renderStep3(formikProps.setFieldValue)}
-            {step === 4 && renderStep4(formikProps.values)}
-            {step === 5 && renderStep5()}
+            {step === 2 && renderStep3(formikProps.setFieldValue)}
+            {step === 3 && renderStep4(formikProps.values)}
+            {step === 4 && renderStep5()}
           </Form>
         )}
       </Formik>
