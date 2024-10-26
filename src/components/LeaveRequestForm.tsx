@@ -6,6 +6,7 @@ import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
 import { calculateFullDayCount } from '../lib/holidayUtils';
 import LeaveBalanceCard from './LeaveBalanceCard';
+import ThaiDatePicker from './ThaiDatePicker';
 
 export interface FormValues {
   leaveType: string;
@@ -149,7 +150,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
             type="date"
             id="startDate"
             name="startDate"
-            className="w-full p-2 border rounded"
+            component={ThaiDatePicker}
           />
           <ErrorMessage
             name="startDate"
@@ -166,7 +167,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
               type="date"
               id="endDate"
               name="endDate"
-              className="w-full p-2 border rounded"
+              component={ThaiDatePicker}
             />
             <ErrorMessage
               name="endDate"
@@ -188,7 +189,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 
   const renderStep5 = () => (
     <div className="rounded-box bg-white p-6">
-      <h2 className="text-lg font-semibold mb-4">ระบุเหตุการลา</h2>
+      <h2 className="text-lg font-semibold mb-4">ระบุสาเหตุการลา</h2>
       <div>
         <label htmlFor="reason" className="block mb-1">
           เหตุผล
