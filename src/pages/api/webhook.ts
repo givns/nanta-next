@@ -125,59 +125,46 @@ async function handlePostback(event: WebhookEvent) {
 
   const data = event.postback.data;
   const lineUserId = event.source.userId;
-  const replyToken = event.replyToken;
+
   const params = new URLSearchParams(data);
   const action = params.get('action');
   const requestId = params.get('requestId');
-  const approverId = params.get('approverId')?.split('-')[0]; // Clean the ID here too
+  const approverId = params.get('approverId');
 
-  if (action && requestId && lineUserId && approverId) {
-    try {
-      const user = await prisma.user.findUnique({ where: { lineUserId } });
-      if (!user) {
-        throw new Error('User not found');
-      }
-
-      // Determine the request type based on the request in the database
-      const leaveRequest = await prisma.leaveRequest.findUnique({
-        where: { id: requestId },
-      });
-      const overtimeRequest = await prisma.overtimeRequest.findUnique({
-        where: { id: requestId },
-      });
-
-      let result: { message: string } | undefined;
-      if (leaveRequest) {
-        result = await handleLeaveRequest(
-          action,
-          requestId,
-          user.employeeId,
-          replyToken,
-        );
-      } else if (overtimeRequest) {
-        result = await handleOvertimeRequest(
-          action,
-          requestId,
-          user.employeeId,
-        );
-        console.log('Overtime request handled:', result);
-      } else {
-        throw new Error('Request not found');
-      }
-    } catch (error) {
-      console.error('Error processing postback action:', error);
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: 'เกิดข้อผิดพลาดในการดำเนินการ โปรดลองอีกครั้งในภายหลัง',
-      });
-    }
-  } else {
+  if (!action || !requestId || !lineUserId || !approverId) {
     console.log('Invalid postback data received');
-    // You might want to reply to the user here as well
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: 'ข้อมูลไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
+    return;
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { lineUserId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Determine the request type based on the request in the database
+    const leaveRequest = await prisma.leaveRequest.findUnique({
+      where: { id: requestId },
     });
+    const overtimeRequest = await prisma.overtimeRequest.findUnique({
+      where: { id: requestId },
+    });
+
+    if (leaveRequest) {
+      await handleLeaveRequest(
+        action,
+        requestId,
+        user.employeeId,
+        event.replyToken,
+      );
+    } else if (overtimeRequest) {
+      await handleOvertimeRequest(action, requestId, user.employeeId);
+    } else {
+      throw new Error('Request not found');
+    }
+  } catch (error) {
+    console.error('Error processing postback action:', error);
+    // Don't send a reply here - let the service handle error responses
   }
 }
 
@@ -185,21 +172,26 @@ async function handleLeaveRequest(
   action: string,
   requestId: string,
   approverId: string,
-  replyToken?: string,
+  replyToken: string,
 ) {
   try {
-    // First check if request is already processed
+    // First check if request exists and is still pending
     const existingRequest = await prisma.leaveRequest.findUnique({
       where: { id: requestId },
+      include: { user: true },
     });
 
     if (!existingRequest) {
-      throw new Error('Leave request not found');
+      await client.replyMessage(replyToken, {
+        type: 'text',
+        text: 'ไม่พบคำขอลาดังกล่าว',
+      });
+      return;
     }
 
     // Check if request is already processed
     if (existingRequest.status !== 'Pending') {
-      await client.replyMessage(replyToken!, {
+      await client.replyMessage(replyToken, {
         type: 'text',
         text: `คำขอนี้ได้ถูก${existingRequest.status === 'Approved' ? 'อนุมัติ' : 'ปฏิเสธ'}ไปแล้ว`,
       });
@@ -208,26 +200,53 @@ async function handleLeaveRequest(
     // Clean the approver ID before processing
     const cleanApproverId = approverId.split('-')[0]; // Gets just "E1065" part
 
+    let result;
     if (action === 'approve') {
-      const result = await leaveServiceServer.approveLeaveRequest(
+      result = await leaveServiceServer.approveLeaveRequest(
         requestId,
         cleanApproverId,
-        replyToken,
+        replyToken, // Pass the replyToken here
       );
-      return { message: 'คำขอลาได้รับการอนุมัติแล้ว', request: result };
     } else if (action === 'deny') {
-      const result = await leaveServiceServer.denyLeaveRequest(
+      result = await leaveServiceServer.denyLeaveRequest(
         requestId,
         cleanApproverId,
-        replyToken,
+        replyToken, // Pass the replyToken here
       );
-      return { message: 'คำขอลาถูกปฏิเสธแล้ว', request: result };
+    } else {
+      throw new Error('Invalid action');
     }
+
+    // If we get here and haven't sent a reply yet (service didn't handle it), send a default reply
+    if (result && replyToken) {
+      const message =
+        action === 'approve'
+          ? 'คำขอลาได้รับการอนุมัติแล้ว'
+          : 'คำขอลาถูกปฏิเสธแล้ว';
+
+      await client.replyMessage(replyToken, {
+        type: 'text',
+        text: message,
+      });
+    }
+
+    return result;
   } catch (error) {
     console.error('Error handling leave request:', error);
-    throw new Error(
-      `Failed to process leave request: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    );
+
+    // Ensure we send an error reply if we have a replyToken
+    if (replyToken) {
+      try {
+        await client.replyMessage(replyToken, {
+          type: 'text',
+          text: 'เกิดข้อผิดพลาดในการดำเนินการ โปรดลองอีกครั้งในภายหลัง',
+        });
+      } catch (replyError) {
+        console.error('Error sending error reply:', replyError);
+      }
+    }
+
+    throw error;
   }
 }
 
