@@ -97,10 +97,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     );
   }
 
+  // Define default shift based on common work hours
+  const DEFAULT_SHIFT: ShiftData = {
+    id: 'default',
+    name: 'Default Shift',
+    shiftCode: 'DEFAULT',
+    startTime: '08:00',
+    endTime: '17:00',
+    workDays: [1, 2, 3, 4, 5, 6],
+  };
+
   const { user } = data;
 
-  // Convert Shift to ShiftData for components that need it
-  const shiftData = currentShift
+  // Convert Shift to ShiftData for components that need it, with default fallback
+  const shiftData: ShiftData = currentShift
     ? {
         id: currentShift.id,
         name: currentShift.name,
@@ -109,7 +119,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         endTime: currentShift.endTime,
         workDays: currentShift.workDays,
       }
-    : null;
+    : DEFAULT_SHIFT;
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-8">

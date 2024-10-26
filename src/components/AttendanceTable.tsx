@@ -33,7 +33,7 @@ interface DayRecord {
 }
 
 interface AttendanceTableProps {
-  timeEntries: ProcessedAttendance[]; // Changed from TimeEntry[]
+  timeEntries: ProcessedAttendance[];
   shift?: ShiftData | null; // Make shift optional and nullable
   startDate: Date;
   endDate: Date;
