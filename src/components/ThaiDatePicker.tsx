@@ -69,7 +69,7 @@ const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({ field, form }) => {
           onSelect={handleSelect}
           locale={th}
           formatters={{
-            formatCaption: (date, options) => {
+            formatCaption: (date) => {
               const month = thaiMonths[date.getMonth()];
               const year = date.getFullYear() + 543;
               return `${month} ${year}`;

@@ -145,7 +145,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     </div>
   );
 
-  const renderStep3 = ({ values, setFieldValue, setStep }: any) => (
+  const renderStep3 = ({ values, setStep }: any) => (
     <div className="rounded-box bg-white p-6">
       <h2 className="text-lg font-semibold mb-4">เลือกวันที่ลา</h2>
       <div className="space-y-4">
@@ -187,7 +187,7 @@ const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
         onClick={() => setStep(4)}
         className="mt-4 w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300"
       >
-        Next
+        ถัดไป: ระบุเหตุการลา
       </button>
     </div>
   );
