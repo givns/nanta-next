@@ -182,19 +182,19 @@ async function handleLeaveRequest(
   approverId: string,
 ) {
   try {
-    // Validate approverId format - should only be the employee ID without date
-    const cleanApproverId = approverId.split('-')[0]; // Extract just the employee ID part (E1065)
+    // Clean the approver ID before processing
+    const cleanApproverId = approverId.split('-')[0]; // Gets just "E1065" part
 
     if (action === 'approve') {
       const result = await leaveServiceServer.approveLeaveRequest(
         requestId,
-        cleanApproverId, // Pass the clean employee ID
+        cleanApproverId,
       );
       return { message: 'คำขอลาได้รับการอนุมัติแล้ว', request: result };
     } else if (action === 'deny') {
       const result = await leaveServiceServer.denyLeaveRequest(
         requestId,
-        cleanApproverId, // Pass the clean employee ID
+        cleanApproverId,
       );
       return { message: 'คำขอลาถูกปฏิเสธแล้ว', request: result };
     }

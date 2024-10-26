@@ -161,7 +161,7 @@ model Attendance {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
-  @@index([employeeId, date])
+  @@unique([employeeId, date])
 }
 
 model TimeEntry {

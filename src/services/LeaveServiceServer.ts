@@ -379,23 +379,87 @@ export class LeaveServiceServer
     const { startDate, endDate, employeeId } = leaveRequest;
     let currentDate = startDate;
 
+    // Function to determine regular hours based on leave format
+    const regularHours = this.getRegularHoursForLeave(leaveRequest.leaveFormat);
+
     while (currentDate <= endDate) {
-      await tx.attendance.upsert({
+      // Create/Update attendance record
+      const attendance = await tx.attendance.upsert({
         where: {
-          id: `${employeeId}-${currentDate}`,
-        },
-        update: {
-          isDayOff: true,
-          status: 'off',
+          employeeId_date: {
+            employeeId,
+            date: currentDate,
+          },
         },
         create: {
           employeeId,
           date: currentDate,
           isDayOff: true,
-          status: 'off',
+          status: 'incomplete',
+          isManualEntry: true,
+          version: 1,
+        },
+        update: {
+          isDayOff: true,
+          status: 'incomplete',
+          version: {
+            increment: 1,
+          },
         },
       });
+
+      // Create/Update time entry for the leave day
+      const timeEntryData: Prisma.TimeEntryUncheckedCreateInput = {
+        employeeId: attendance.employeeId,
+        date: attendance.date,
+        startTime: attendance.date,
+        endTime: attendance.date,
+        regularHours, // Use the calculated regular hours
+        overtimeHours: 0,
+        actualMinutesLate: 0,
+        isHalfDayLate: false,
+        status: 'COMPLETED',
+        attendanceId: attendance.id,
+        entryType: 'regular',
+      };
+
+      // Check for existing time entry
+      const existingTimeEntry = await tx.timeEntry.findFirst({
+        where: {
+          AND: [
+            { employeeId: attendance.employeeId },
+            { date: attendance.date },
+          ],
+        },
+      });
+
+      if (existingTimeEntry) {
+        await tx.timeEntry.update({
+          where: { id: existingTimeEntry.id },
+          data: timeEntryData,
+        });
+      } else {
+        await tx.timeEntry.create({
+          data: timeEntryData,
+        });
+      }
+
       currentDate = addDays(currentDate, 1);
+    }
+
+    // Invalidate relevant caches
+    await this.invalidateUserCache(employeeId);
+  }
+
+  // Helper to determine regular hours based on leave format
+  private getRegularHoursForLeave(leaveFormat: string): number {
+    switch (leaveFormat) {
+      case 'ลาครึ่งวัน':
+        return 4;
+      case 'ลาเต็มวัน':
+        return 8;
+      default:
+        return 0;
     }
   }
 
