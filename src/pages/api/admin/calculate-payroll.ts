@@ -131,18 +131,24 @@ export default async function handler(
       },
     });
 
-    // 6. Create or update payroll record
-    const payrollPeriod = await prisma.payrollPeriod.upsert({
-      where: {
-        id: existingPeriod?.id || '',
-      },
-      update: {},
-      create: {
-        startDate: new Date(periodStart),
-        endDate: new Date(periodEnd),
-        status: 'processing',
-      },
-    });
+    // Create or update payroll period - Fixed upsert logic
+    let payrollPeriod;
+    if (existingPeriod) {
+      payrollPeriod = await prisma.payrollPeriod.update({
+        where: { id: existingPeriod.id },
+        data: {
+          status: 'processing',
+        },
+      });
+    } else {
+      payrollPeriod = await prisma.payrollPeriod.create({
+        data: {
+          startDate: new Date(periodStart),
+          endDate: new Date(periodEnd),
+          status: 'processing',
+        },
+      });
+    }
 
     const payroll = await prisma.payroll.create({
       data: {

@@ -1,10 +1,9 @@
 // pages/admin/employees/index.tsx
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
+
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
-import { useAuth } from '@/hooks/useAuth';
+import { useAdmin } from '@/contexts/AdminContext';
 
 const EmployeeManagementDashboard = dynamic(
   () => import('@/components/admin/EmployeeManagementDashboard'),
@@ -14,18 +13,11 @@ const EmployeeManagementDashboard = dynamic(
   },
 );
 
-export default function AdminEmployeePage() {
-  const { user, isLoading, isAuthorized } = useAuth({
-    required: true,
-    requiredRoles: ['Admin', 'SuperAdmin'],
-  });
+export default function AdminEmployeesPage() {
+  const { user, isLoading } = useAdmin();
 
-  if (isLoading) {
+  if (isLoading || !user) {
     return <DashboardSkeleton />;
-  }
-
-  if (!isAuthorized) {
-    return null;
   }
 
   return (

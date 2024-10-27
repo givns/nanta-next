@@ -3,6 +3,8 @@
 import { ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { AdminProvider, useAdmin } from '@/contexts/AdminContext';
+import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import {
   Users,
   CalendarDays,
@@ -16,9 +18,18 @@ interface AdminLayoutProps {
   children: ReactNode;
 }
 
-export default function AdminLayout({ children }: AdminLayoutProps) {
+function AdminLayoutContent({ children }: AdminLayoutProps) {
+  const { user, isLoading, error } = useAdmin();
   const router = useRouter();
   const currentPath = router.pathname;
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  if (error || !user) {
+    return null; // Will be redirected by AdminProvider
+  }
 
   const navItems = [
     {
@@ -92,5 +103,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">{children}</main>
     </div>
+  );
+}
+export default function AdminLayout({ children }: AdminLayoutProps) {
+  return (
+    <AdminProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </AdminProvider>
   );
 }
