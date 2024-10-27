@@ -6,7 +6,6 @@ import { DashboardResponse } from '@/types/api';
 import LoadingBar from '@/components/LoadingBar';
 import axios from 'axios';
 import { getCachedUserData, fetchUserData } from '@/services/userService';
-import { isDashboardData } from '@/types/dashboard';
 
 interface DashboardPageProps {
   lineUserId: string | null;
@@ -22,38 +21,54 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ lineUserId }) => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await axios.get(
+        // No need to check lineUserId here as it's guaranteed by _app.tsx
+        const cachedUser = await getCachedUserData(lineUserId!);
+        let userData = cachedUser;
+
+        if (!cachedUser) {
+          userData = await fetchUserData(lineUserId!);
+        }
+
+        if (!userData) {
+          throw new Error('Failed to fetch user data');
+        }
+
+        const response = await axios.get<DashboardResponse>(
           `/api/dashboard?lineUserId=${lineUserId}`,
         );
 
-        if (response.data?.data) {
-          // Pass data to handleDashboardData for safe processing
-          handleDashboardData(response.data.data);
+        console.log('Dashboard API response:', response.data);
 
-          // Set the processed data
-          setDashboardData(response.data.data);
-          setError(null);
-        } else {
+        if (!response.data?.data) {
           console.error('Invalid response structure:', response.data);
           throw new Error('Invalid dashboard data structure');
         }
-      } catch (error: any) {
-        setError(error.message || 'Failed to fetch dashboard data');
+
+        // Set the data from response.data.data
+        setDashboardData(response.data.data);
+        setError(null);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        if (axios.isAxiosError(error)) {
+          console.error('Axios error details:', {
+            response: error.response?.data,
+            status: error.response?.status,
+          });
+        }
+        setError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch dashboard data',
+        );
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchDashboardData();
+    if (lineUserId) {
+      fetchDashboardData();
+    }
   }, [lineUserId]);
-
-  // Add the handleDashboardData function here for safe access of API data
-  const handleDashboardData = (data: any) => {
-    const overtimeEntries: any[] = data.overtimeEntries || [];
-    overtimeEntries.forEach((entry: any) => {
-      console.log('Overtime entry:', entry);
-    });
-  };
 
   if (isLoading) {
     return <LoadingBar />;
