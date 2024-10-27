@@ -5,10 +5,9 @@ import type { FC } from 'react';
 import dynamic from 'next/dynamic';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 
-// Remove type import since we're using dynamic imports
-// import type { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
-
-// Dynamically import components
+interface AdminPayrollPageProps {
+  lineUserId?: string;
+}
 const PayrollAdminDashboard = dynamic(
   () => import('@/components/payroll/AdminDashboard'),
   {
@@ -17,15 +16,29 @@ const PayrollAdminDashboard = dynamic(
   },
 );
 
-const AdminPayrollPage: FC = () => {
+const AdminPayrollPage: FC<AdminPayrollPageProps> = ({ lineUserId }) => {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const checkAuthorization = async () => {
+      if (!lineUserId) {
+        router.replace('/login');
+        return;
+      }
+
       try {
-        const response = await fetch('/api/admin/auth-check');
+        const response = await fetch('/api/admin/auth-check', {
+          headers: {
+            'x-line-userid': lineUserId,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Auth check failed: ${response.status}`);
+        }
+
         const data = await response.json();
 
         if (!data.isAuthorized) {
@@ -43,7 +56,7 @@ const AdminPayrollPage: FC = () => {
     };
 
     checkAuthorization();
-  }, [router]);
+  }, [router, lineUserId]);
 
   if (isLoading) {
     return <DashboardSkeleton />;

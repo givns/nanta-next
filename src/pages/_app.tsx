@@ -1,6 +1,6 @@
-//_app.tsx is a special file in Next.js that allows you to control page initialization and wrap your pages in additional components. This is useful for things like global CSS, data fetching, and error handling.
+// pages/_app.tsx
 import '../styles/globals.css';
-import { useEffect, ErrorInfo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
@@ -17,35 +17,30 @@ function MyApp({ Component, pageProps }: AppProps) {
 
   useEffect(() => {
     if (isLiffInitialized) {
-      // Add a small delay to ensure the progress bar reaches 100%
+      // Store lineUserId in localStorage for persistence
+      if (lineUserId) {
+        localStorage.setItem('lineUserId', lineUserId);
+      }
       setTimeout(() => setIsLoading(false), 1000);
     }
-  }, [isLiffInitialized]);
+  }, [isLiffInitialized, lineUserId]);
 
-  // Add lineUserId to all API requests
-  if (typeof window !== 'undefined') {
-    const originalFetch = window.fetch;
-    window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
-      if (typeof input === 'string' && input.startsWith('/api/')) {
+  // Intercept fetch calls to add lineUserId header
+  useEffect(() => {
+    if (typeof window !== 'undefined' && lineUserId) {
+      const originalFetch = window.fetch;
+      window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
         init = init || {};
         init.headers = {
           ...init.headers,
-          'x-line-userid': lineUserId ?? '',
+          'x-line-userid': lineUserId,
         };
-      }
-      return originalFetch(input, init);
-    };
-  }
+        return originalFetch(input, init);
+      };
+    }
+  }, [lineUserId]);
 
-  if (isAdminRoute) {
-    return (
-      <AdminLayout>
-        <Component {...pageProps} />
-      </AdminLayout>
-    );
-  }
-
-  // Show loading state while LIFF is initializing or if we're still loading
+  // Show loading state while LIFF is initializing
   if (isLoading || !isLiffInitialized) {
     return <LoadingBar />;
   }
@@ -60,7 +55,24 @@ function MyApp({ Component, pageProps }: AppProps) {
     );
   }
 
-  // Only render the component if we have a lineUserId
+  // Handle admin routes
+  if (isAdminRoute) {
+    // Make sure we have lineUserId before rendering admin routes
+    if (!lineUserId) {
+      router.replace('/login');
+      return <LoadingBar />;
+    }
+
+    return (
+      <Provider store={store}>
+        <AdminLayout>
+          <Component {...pageProps} lineUserId={lineUserId} />
+        </AdminLayout>
+      </Provider>
+    );
+  }
+
+  // For non-admin routes
   if (!lineUserId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
