@@ -1,39 +1,63 @@
 // hooks/useAuth.ts
 import { useState, useEffect } from 'react';
-import { UserRole } from '@/types/enum';
+import { useRouter } from 'next/router';
+import type { UserData } from '@/types/user';
 
-interface User {
-  id: string;
-  employeeId: string;
-  role: UserRole;
-  name: string;
+interface UseAuthOptions {
+  required?: boolean;
+  requiredRoles?: string[];
 }
 
-export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
+export function useAuth(options: UseAuthOptions = {}) {
+  const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check');
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else {
-          setUser(null);
+        // First get the user data
+        const userResponse = await fetch('/api/user-data');
+        const userData = await userResponse.json();
+
+        if (userData.user) {
+          setUser(userData.user);
+
+          // Then check authorization with the lineUserId
+          const authResponse = await fetch('/api/admin/auth-check', {
+            headers: {
+              'x-line-userid': userData.user.lineUserId,
+            },
+          });
+
+          if (authResponse.ok) {
+            const { isAuthorized } = await authResponse.json();
+            setIsAuthorized(isAuthorized);
+
+            if (!isAuthorized && options.required) {
+              router.replace('/unauthorized');
+            }
+          } else {
+            if (options.required) {
+              router.replace('/unauthorized');
+            }
+          }
+        } else if (options.required) {
+          router.replace('/login');
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Authentication error');
-        setUser(null);
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        if (options.required) {
+          router.replace('/login');
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     checkAuth();
-  }, []);
+  }, [options.required, router]);
 
-  return { user, isLoading, error };
+  return { user, isLoading, isAuthorized };
 }

@@ -29,6 +29,11 @@ export default async function handler(
     }
 
     const isAuthorized = ['Admin', 'SuperAdmin'].includes(user.role);
+
+    if (!isAuthorized) {
+      console.log(`User with role ${user.role} attempted to access admin area`);
+    }
+
     return res.status(200).json({ isAuthorized });
   } catch (error) {
     console.error('Error checking authorization:', error);
