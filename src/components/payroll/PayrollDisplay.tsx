@@ -3,7 +3,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { PayrollSummaryResponse } from '@/types/api';
+import { PayrollSummaryResponse } from '@/types/payroll/api';
 
 interface PayrollDisplayProps {
   data: PayrollSummaryResponse;

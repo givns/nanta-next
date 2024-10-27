@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { PayrollPeriod } from '@/types/payroll';
+import { PayrollPeriod } from '@/types/payroll/payroll';
 import { AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 type DateRange = {
@@ -158,12 +158,6 @@ export default function PayrollPeriodManagement() {
                     {format(new Date(period.endDate), 'MMM dd, yyyy')}
                   </TableCell>
                   <TableCell>{getStatusBadge(period.status)}</TableCell>
-                  <TableCell>
-                    {format(new Date(period.createdAt), 'MMM dd, yyyy')}
-                  </TableCell>
-                  <TableCell>
-                    {format(new Date(period.updatedAt), 'MMM dd, yyyy')}
-                  </TableCell>
                   <TableCell>
                     <Button variant="outline" size="sm">
                       View

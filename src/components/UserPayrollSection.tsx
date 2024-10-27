@@ -16,7 +16,7 @@ import {
   PayrollSummaryResponse,
   PayrollPeriodResponse,
   PayrollSettings,
-} from '@/types/api';
+} from '@/types/payroll/api';
 
 interface UserPayrollSectionProps {
   employeeId: string;

@@ -1042,6 +1042,8 @@ export class AttendanceService {
         overtimeRequestId: entry.overtimeRequestId,
         actualStartTime: entry.actualStartTime,
         actualEndTime: entry.actualEndTime,
+        createdAt: new Date(), // Add createdAt property
+        updatedAt: new Date(), // Add updatedAt property
       })),
       timeEntries: attendance.timeEntries,
     };

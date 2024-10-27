@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { UserDashboard as DashboardComponent } from '@/components/dashboard/UserDashboard';
 import { DashboardData } from '@/types/dashboard';
-import { DashboardResponse } from '@/types/api';
+import { DashboardResponse } from '@/types/payroll/api';
 import LoadingBar from '@/components/LoadingBar';
 import axios from 'axios';
 import { getCachedUserData, fetchUserData } from '@/services/userService';

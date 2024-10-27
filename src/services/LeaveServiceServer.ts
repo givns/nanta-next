@@ -388,7 +388,7 @@ export class LeaveServiceServer
       // Create/Update attendance record
       const attendance = await tx.attendance.upsert({
         where: {
-          employeeId_date: {
+          employee_date_attendance: {
             employeeId,
             date: currentDate,
           },

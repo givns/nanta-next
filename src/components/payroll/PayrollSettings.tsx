@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
-import type { PayrollSettings as PayrollSettingsType } from '@/types/payroll';
+import type { PayrollSettings as PayrollSettingsType } from '@/types/payroll/payroll';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function PayrollSettings() {
@@ -25,15 +25,16 @@ export default function PayrollSettings() {
       socialSecurity: 0.05,
       tax: 0,
     },
+    workingHours: {
+      regularHoursPerDay: 8,
+      regularDaysPerWeek: 6,
+    },
     leaveSettings: {
       sickLeavePerYear: 30,
       annualLeavePerYear: 6,
       businessLeavePerYear: 3,
     },
-    workingHours: {
-      regularHoursPerDay: 8,
-      regularDaysPerWeek: 6,
-    },
+    employeeType: '', // Add the missing employeeType property here
   });
 
   const [isSaving, setIsSaving] = useState(false);

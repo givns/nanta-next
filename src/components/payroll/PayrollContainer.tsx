@@ -11,8 +11,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { format, subMonths, addMonths } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { PayrollSummaryResponse } from '@/types/api';
-import { PayrollPeriodDisplay } from '@/types/payroll';
+import { PayrollSummaryResponse } from '@/types/payroll/api';
+import { PayrollPeriodDisplay } from '@/types/payroll/payroll';
 
 interface PayrollContainerProps {
   employeeId: string;

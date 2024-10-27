@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PayrollPeriod, ProcessingStatus } from '@/types/payroll';
+import { PayrollPeriod, ProcessingStatus } from '@/types/payroll/payroll';
 import { format } from 'date-fns';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 

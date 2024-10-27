@@ -172,7 +172,7 @@ export type ShiftData = {
 
 // Attendance Record Interface
 export interface AttendanceRecord extends Attendance {
-  overtimeEntries: OvertimeEntry[];
+  overtimeEntries: OvertimeEntryData[];
   timeEntries: TimeEntry[];
 }
 

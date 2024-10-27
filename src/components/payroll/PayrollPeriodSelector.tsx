@@ -25,7 +25,7 @@ import type {
   PayrollSettings,
   EmployeePayrollSummary,
   PayrollProcessingResult,
-} from '@/types/api';
+} from '@/types/payroll/api';
 
 // Custom type for payroll period
 interface PayrollPeriodInfo {

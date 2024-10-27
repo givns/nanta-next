@@ -9,7 +9,10 @@ import {
   addMonths,
   differenceInDays,
 } from 'date-fns';
-import type { PayrollSummaryResponse, PayrollCalculation } from '@/types/api';
+import type {
+  PayrollSummaryResponse,
+  PayrollCalculation,
+} from '@/types/payroll/api';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { HolidayService } from '@/services/HolidayService';
 

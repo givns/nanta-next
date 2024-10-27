@@ -1,14 +1,18 @@
 import '../styles/globals.css';
 import { useEffect, ErrorInfo, useState } from 'react';
+import AdminLayout from '@/components/layouts/AdminLayout';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
 import { useLiff } from '../hooks/useLiff';
 import LoadingBar from '../components/LoadingBar';
+import { useRouter } from 'next/router';
 
 function MyApp({ Component, pageProps }: AppProps) {
   const { isLiffInitialized, lineUserId, error: liffError } = useLiff();
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  const isAdminRoute = router.pathname.startsWith('/admin');
 
   useEffect(() => {
     if (isLiffInitialized) {
@@ -16,6 +20,29 @@ function MyApp({ Component, pageProps }: AppProps) {
       setTimeout(() => setIsLoading(false), 1000);
     }
   }, [isLiffInitialized]);
+
+  // Add lineUserId to all API requests
+  if (typeof window !== 'undefined') {
+    const originalFetch = window.fetch;
+    window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
+      if (typeof input === 'string' && input.startsWith('/api/')) {
+        init = init || {};
+        init.headers = {
+          ...init.headers,
+          'x-line-userid': lineUserId ?? '',
+        };
+      }
+      return originalFetch(input, init);
+    };
+  }
+
+  if (isAdminRoute) {
+    return (
+      <AdminLayout>
+        <Component {...pageProps} />
+      </AdminLayout>
+    );
+  }
 
   // Show loading state while LIFF is initializing or if we're still loading
   if (isLoading || !isLiffInitialized) {

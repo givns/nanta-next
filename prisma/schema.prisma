@@ -107,6 +107,7 @@ model LeaveRequest {
   updatedAt         DateTime @updatedAt
 
   @@index([employeeId, startDate, endDate, status])
+  @@index([status, startDate])
 }
 
 model OvertimeRequest {
@@ -128,7 +129,8 @@ model OvertimeRequest {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  @@index([employeeId, date, status])
+ @@index([employeeId, date, status])
+  @@index([status, date])
 }
 
 model Attendance {
@@ -161,7 +163,8 @@ model Attendance {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
-  @@unique([employeeId, date])
+   @@unique([employeeId, date], name: "employee_date_attendance")
+  @@index([date, status])
 }
 
 model TimeEntry {
@@ -185,8 +188,23 @@ model TimeEntry {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  @@index([employeeId, date])
+   @@index([employeeId, date])
   @@index([attendanceId])
+  @@index([date, status])
+}
+
+model OvertimeEntry {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  attendanceId      String          @db.ObjectId
+  attendance        Attendance      @relation(fields: [attendanceId], references: [id])
+  overtimeRequestId String          @db.ObjectId
+  overtimeRequest   OvertimeRequest @relation(fields: [overtimeRequestId], references: [id])
+  actualStartTime   DateTime
+  actualEndTime     DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@index([attendanceId, overtimeRequestId])
 }
 
 model Payroll {
@@ -219,13 +237,14 @@ model Payroll {
   totalAllowances      Float
   totalDeductions      Float
   netPayable           Float
-  
   status              String    // 'draft', 'approved', 'paid'
   processingNote      String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  @@index([employeeId, payrollPeriodId])
+   @@unique([employeeId, payrollPeriodId], name: "employee_period")
+  @@index([payrollPeriodId, status])
+  @@index([employeeId, status])
 }
 
 model PayrollSettings {
@@ -239,7 +258,7 @@ model PayrollSettings {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  @@unique([employeeType])
+  @@unique([employeeType], name: "employee_type_settings")
 }
 
 model PayrollProcessingResult {
@@ -285,6 +304,8 @@ model PayrollPeriod {
   timeEntryPayrollPeriods TimeEntryPayrollPeriod[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@unique([startDate, endDate], name: "period_range")
 }
 
 model TimeEntryPayrollPeriod {
@@ -294,21 +315,11 @@ model TimeEntryPayrollPeriod {
   payrollPeriodId String        @db.ObjectId
   payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
   status          String        // 'pending', 'processed'
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   
-  @@unique([timeEntryId, payrollPeriodId])
+   @@unique([timeEntryId, payrollPeriodId], name: "time_entry_period")
   @@index([payrollPeriodId, status])
-}
-
-model OvertimeEntry {
-  id                String          @id @default(auto()) @map("_id") @db.ObjectId
-  attendanceId      String          @db.ObjectId
-  attendance        Attendance      @relation(fields: [attendanceId], references: [id])
-  overtimeRequestId String          @db.ObjectId
-  overtimeRequest   OvertimeRequest @relation(fields: [overtimeRequestId], references: [id])
-  actualStartTime   DateTime
-  actualEndTime     DateTime?
-  
-  @@index([attendanceId, overtimeRequestId])
 }
 
 model CheckPoint {

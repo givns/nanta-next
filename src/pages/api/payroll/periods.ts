@@ -1,4 +1,4 @@
-// pages/api/payroll/settings.ts
+// pages/api/payroll/periods.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
 
