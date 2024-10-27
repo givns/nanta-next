@@ -26,24 +26,25 @@ export default async function handler(
     }
 
     switch (req.method) {
-      case 'PUT':
+      case 'PUT': {
         const updatedEmployee = await prisma.user.update({
           where: { id: String(id) },
           data: req.body,
         });
         return res.status(200).json(updatedEmployee);
-
-      case 'DELETE':
+      }
+      case 'DELETE': {
         await prisma.user.delete({
           where: { id: String(id) },
         });
         return res.status(204).end();
-
-      default:
+      }
+      default: {
         res.setHeader('Allow', ['PUT', 'DELETE']);
         return res
           .status(405)
           .json({ message: `Method ${req.method} Not Allowed` });
+      }
     }
   } catch (error) {
     console.error('Error handling employee request:', error);
