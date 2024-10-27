@@ -42,7 +42,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const { lineUserId } = req.query;
+  const lineUserId = req.headers['x-line-userid'] as string;
 
   if (!lineUserId || typeof lineUserId !== 'string') {
     return res
@@ -76,9 +76,12 @@ export default async function handler(
     }
     console.log('User data:', userData);
 
-    res.status(200).json({ user: userData });
+    return res.status(200).json({ user: userData });
   } catch (error) {
     console.error('Error fetching user data:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 }

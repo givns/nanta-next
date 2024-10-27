@@ -23,9 +23,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       // Get lineUserId from localStorage
       const lineUserId = localStorage.getItem('lineUserId');
       if (!lineUserId) {
-        throw new Error('No user ID found');
+        throw new Error('No lineUserId found');
       }
 
+      // First fetch user data
       const response = await fetch('/api/user-data', {
         headers: {
           'x-line-userid': lineUserId,
@@ -38,24 +39,55 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
       const data = await response.json();
 
+      // Check if user has admin privileges
       if (!['Admin', 'SuperAdmin'].includes(data.user.role)) {
-        router.replace('/unauthorized');
-        return;
+        throw new Error('Unauthorized - Insufficient privileges');
       }
 
+      // Store user data
       setUser(data.user);
+
+      // Check admin authorization
+      const authResponse = await fetch('/api/admin/auth-check', {
+        headers: {
+          'x-line-userid': lineUserId,
+        },
+      });
+
+      if (!authResponse.ok) {
+        throw new Error('Failed admin authorization check');
+      }
+
+      const authData = await authResponse.json();
+      if (!authData.isAuthorized) {
+        throw new Error('Unauthorized access');
+      }
+
       setError(null);
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      setError('Failed to load user data');
+      console.error('Error in authorization flow:', error);
+      setError(error instanceof Error ? error.message : 'Authorization failed');
       router.replace('/unauthorized');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Initialize the context
   useEffect(() => {
-    fetchUserData();
+    const initializeContext = async () => {
+      if (typeof window !== 'undefined') {
+        const lineUserId = localStorage.getItem('lineUserId');
+        if (!lineUserId) {
+          setError('No user ID found');
+          router.replace('/login');
+          return;
+        }
+        await fetchUserData();
+      }
+    };
+
+    initializeContext();
   }, [router]);
 
   return (

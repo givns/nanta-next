@@ -8,6 +8,7 @@ import store from '../store';
 import { useLiff } from '../hooks/useLiff';
 import LoadingBar from '../components/LoadingBar';
 import { useRouter } from 'next/router';
+import { AdminProvider } from '@/contexts/AdminContext';
 
 function MyApp({ Component, pageProps }: AppProps) {
   const { isLiffInitialized, lineUserId, error: liffError } = useLiff();
@@ -16,11 +17,11 @@ function MyApp({ Component, pageProps }: AppProps) {
   const isAdminRoute = router.pathname.startsWith('/admin');
 
   useEffect(() => {
-    if (isLiffInitialized) {
-      // Store lineUserId in localStorage for persistence
-      if (lineUserId) {
-        localStorage.setItem('lineUserId', lineUserId);
-      }
+    if (isLiffInitialized && lineUserId) {
+      // Store lineUserId in localStorage
+      localStorage.setItem('lineUserId', lineUserId);
+
+      // Add a small delay to ensure the progress bar reaches 100%
       setTimeout(() => setIsLoading(false), 1000);
     }
   }, [isLiffInitialized, lineUserId]);
@@ -64,11 +65,11 @@ function MyApp({ Component, pageProps }: AppProps) {
     }
 
     return (
-      <Provider store={store}>
+      <AdminProvider>
         <AdminLayout>
-          <Component {...pageProps} lineUserId={lineUserId} />
+          <Component {...pageProps} />
         </AdminLayout>
-      </Provider>
+      </AdminProvider>
     );
   }
 
