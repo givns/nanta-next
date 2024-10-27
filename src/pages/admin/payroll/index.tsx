@@ -9,7 +9,7 @@ interface AdminPayrollPageProps {
   lineUserId?: string;
 }
 const PayrollAdminDashboard = dynamic(
-  () => import('@/components/payroll/AdminDashboard'),
+  () => import('@/components/admin/AdminDashboard'),
   {
     ssr: false,
     loading: () => <DashboardSkeleton />,
