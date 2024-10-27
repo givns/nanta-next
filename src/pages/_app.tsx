@@ -1,3 +1,4 @@
+//_app.tsx is a special file in Next.js that allows you to control page initialization and wrap your pages in additional components. This is useful for things like global CSS, data fetching, and error handling.
 import '../styles/globals.css';
 import { useEffect, ErrorInfo, useState } from 'react';
 import AdminLayout from '@/components/layouts/AdminLayout';

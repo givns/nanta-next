@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PayrollPeriodManagement from '@/components/payroll/PayrollPeriodManagement';
 import PayrollProcessing from '@/components/payroll/PayrollProcessing';
 import PayrollSettings from '@/components/payroll/PayrollSettings';
-import { AdminLayout } from '@/components/layouts/AdminLayout';
+import AdminLayout from '@/components/layouts/AdminLayout';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function PayrollManagement() {

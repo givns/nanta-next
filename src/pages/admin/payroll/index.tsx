@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import type { FC } from 'react';
 import dynamic from 'next/dynamic';
-import LoadingBar from '@/components/LoadingBar';
+import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 
 // Remove type import since we're using dynamic imports
 // import type { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
@@ -13,18 +13,7 @@ const PayrollAdminDashboard = dynamic(
   () => import('@/components/payroll/AdminDashboard'),
   {
     ssr: false,
-    loading: () => <LoadingBar />,
-  },
-);
-
-const DashboardSkeletonComponent = dynamic(
-  () =>
-    import('@/components/dashboard/DashboardSkeleton').then(
-      (mod) => mod.DashboardSkeleton,
-    ),
-  {
-    ssr: false,
-    loading: () => <LoadingBar />,
+    loading: () => <DashboardSkeleton />,
   },
 );
 
@@ -57,7 +46,7 @@ const AdminPayrollPage: FC = () => {
   }, [router]);
 
   if (isLoading) {
-    return <DashboardSkeletonComponent />;
+    return <DashboardSkeleton />;
   }
 
   if (!isAuthorized) {
