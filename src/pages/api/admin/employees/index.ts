@@ -31,7 +31,8 @@ export default async function handler(
     }
 
     switch (req.method) {
-      case 'GET':
+      case 'GET': {
+        // Added block scope with curly braces
         const employees = await prisma.user.findMany({
           select: {
             id: true,
@@ -47,7 +48,6 @@ export default async function handler(
           },
         });
 
-        // Fetch shift information for all employees
         const employeesWithShifts = await Promise.all(
           employees.map(async (emp) => {
             if (emp.shiftCode) {
@@ -61,18 +61,23 @@ export default async function handler(
         );
 
         return res.status(200).json(employeesWithShifts);
+      }
 
-      case 'POST':
+      case 'POST': {
+        // Added block scope with curly braces
         const newEmployee = await prisma.user.create({
           data: req.body,
         });
         return res.status(201).json(newEmployee);
+      }
 
-      default:
+      default: {
+        // Added block scope with curly braces
         res.setHeader('Allow', ['GET', 'POST']);
         return res
           .status(405)
           .json({ message: `Method ${req.method} Not Allowed` });
+      }
     }
   } catch (error) {
     console.error('Error handling employee request:', error);
