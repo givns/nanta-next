@@ -1,6 +1,6 @@
 // pages/api/admin/calculate-payroll.ts
 
-import { NextApiRequest, NextApiResponse } from 'next';
+import { GetServerSideProps, NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { PayrollCalculationService } from '@/services/PayrollCalculation/PayrollCalculationService';
 import { ProbationAdjustmentService } from '@/services/PayrollCalculation/ProbationAdjustmentService';
