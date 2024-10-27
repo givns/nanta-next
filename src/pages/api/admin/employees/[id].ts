@@ -25,26 +25,61 @@ export default async function handler(
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
+    const { id } = req.query;
+
     switch (req.method) {
       case 'PUT': {
-        const updatedEmployee = await prisma.user.update({
-          where: { id: String(id) },
-          data: req.body,
-        });
-        return res.status(200).json(updatedEmployee);
+        try {
+          console.log('Updating employee:', id, 'with data:', req.body);
+
+          const updatedEmployee = await prisma.user.update({
+            where: { id: String(id) },
+            data: {
+              name: req.body.name,
+              nickname: req.body.nickname,
+              departmentName: req.body.departmentName,
+              role: req.body.role,
+              employeeType: req.body.employeeType,
+              isGovernmentRegistered: req.body.isGovernmentRegistered
+                ? 'Yes'
+                : 'No',
+              company: req.body.company,
+              shiftCode: req.body.shiftCode,
+              baseSalary: req.body.baseSalary
+                ? parseFloat(req.body.baseSalary)
+                : null,
+              salaryType: req.body.salaryType,
+              bankAccountNumber: req.body.bankAccountNumber,
+            },
+          });
+
+          console.log('Employee updated:', updatedEmployee);
+          return res.status(200).json(updatedEmployee);
+        } catch (error) {
+          console.error('Error updating employee:', error);
+          return res.status(500).json({
+            message: 'Error updating employee',
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
       }
+
       case 'DELETE': {
-        await prisma.user.delete({
-          where: { id: String(id) },
-        });
-        return res.status(204).end();
+        try {
+          await prisma.user.delete({
+            where: { id: String(id) },
+          });
+          return res.status(204).end();
+        } catch (error) {
+          return res.status(500).json({ message: 'Error deleting employee' });
+        }
       }
-      default: {
+
+      default:
         res.setHeader('Allow', ['PUT', 'DELETE']);
         return res
           .status(405)
           .json({ message: `Method ${req.method} Not Allowed` });
-      }
     }
   } catch (error) {
     console.error('Error handling employee request:', error);

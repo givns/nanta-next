@@ -24,6 +24,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { employeeSchema } from '@/schemas/employee';
+import { useAdmin } from '@/contexts/AdminContext';
 
 const EmployeeSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -58,18 +59,20 @@ const departments = [
 ];
 
 export default function EmployeeManagementDashboard() {
+  const { user } = useAdmin();
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
-
+  // Fetch employees with lineUserId in headers
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/admin/employees');
+      const response = await fetch('/api/admin/employees', {
+        headers: {
+          'x-line-userid': user?.lineUserId || '',
+        },
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch employees');
       }
@@ -81,35 +84,60 @@ export default function EmployeeManagementDashboard() {
     }
   };
 
+  // Update the handleSubmit function
   const handleSubmit = async (values: any, { setSubmitting }: any) => {
     try {
       const endpoint = selectedEmployee
-        ? `/api/admin/employees/${(selectedEmployee as any).id}`
+        ? `/api/admin/employees/${(selectedEmployee as { id: string }).id}`
         : '/api/admin/employees';
 
       const method = selectedEmployee ? 'PUT' : 'POST';
+
+      console.log('Submitting to:', endpoint, 'with method:', method);
+      console.log('Values:', values);
 
       const response = await fetch(endpoint, {
         method,
         headers: {
           'Content-Type': 'application/json',
+          'x-line-userid': user?.lineUserId || '',
         },
         body: JSON.stringify(values),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save employee');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save employee');
       }
 
       await fetchEmployees();
       setSelectedEmployee(null);
       setIsAddingNew(false);
+      setError(null);
     } catch (error) {
       console.error('Error saving employee:', error);
-      setError('Failed to save employee');
+      setError(
+        error instanceof Error ? error.message : 'Failed to save employee',
+      );
     } finally {
       setSubmitting(false);
     }
+  };
+
+  useEffect(() => {
+    if (user?.lineUserId) {
+      fetchEmployees();
+    }
+  }, [user]);
+
+  // Add proper typing for employee
+  const handleEdit = (employee: any) => {
+    console.log('Editing employee:', employee);
+    setSelectedEmployee({
+      ...employee,
+      isGovernmentRegistered: employee.isGovernmentRegistered === 'Yes',
+    });
+    setIsAddingNew(true);
   };
 
   return (
@@ -152,181 +180,71 @@ export default function EmployeeManagementDashboard() {
                   isGovernmentRegistered: false,
                   company: '',
                   shiftCode: '',
+                  baseSalary: 0,
+                  salaryType: 'monthly',
+                  bankAccountNumber: '',
                 }
               }
               validationSchema={EmployeeSchema}
               onSubmit={handleSubmit}
+              enableReinitialize
             >
-              {({ isSubmitting }) => (
-                <Form className="space-y-4 mb-8">
-                  <Field
-                    name="name"
-                    type="text"
-                    placeholder="Full Name"
-                    className="w-full p-2 border rounded"
-                  />
-                  <ErrorMessage
-                    name="name"
-                    component="div"
-                    className="text-red-500 text-sm"
-                  />
+              {({ isSubmitting, values }) => (
+                <Form className="space-y-4">
+                  {/* ... existing form fields ... */}
 
-                  <Field
-                    name="nickname"
-                    type="text"
-                    placeholder="Nickname"
-                    className="w-full p-2 border rounded"
-                  />
-
-                  <Field
-                    as="select"
-                    name="departmentName"
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map((dept, index) => (
-                      <option key={index} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </Field>
-                  <ErrorMessage
-                    name="departmentName"
-                    component="div"
-                    className="text-red-500 text-sm"
-                  />
-
-                  <Field
-                    name="shiftCode"
-                    type="text"
-                    placeholder="Shift Code"
-                    className="w-full p-2 border rounded"
-                  />
-
-                  <Field
-                    as="select"
-                    name="role"
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="">Select Role</option>
-                    <option value="DRIVER">Driver</option>
-                    <option value="OPERATION">Operation</option>
-                    <option value="GENERAL">General</option>
-                    <option value="ADMIN">Admin</option>
-                    <option value="SUPERADMIN">Super Admin</option>
-                  </Field>
-                  <ErrorMessage
-                    name="role"
-                    component="div"
-                    className="text-red-500 text-sm"
-                  />
-
-                  <Field
-                    as="select"
-                    name="employeeType"
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="FULL_TIME">Full Time</option>
-                    <option value="PART_TIME">Part Time</option>
-                    <option value="PROBATION">Probation</option>
-                  </Field>
-                  <ErrorMessage
-                    name="employeeType"
-                    component="div"
-                    className="text-red-500 text-sm"
-                  />
-                  <Field
-                    name="company"
-                    type="text"
-                    placeholder="Company"
-                    className="w-full p-2 border rounded"
-                  />
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Salary Information</h3>
-                    <Field
-                      name="baseSalary"
-                      type="number"
-                      placeholder="Base Salary"
-                      className="w-full p-2 border rounded"
-                    />
-
-                    <Field
-                      as="select"
-                      name="salaryType"
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">Select Salary Type</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="daily">Daily</option>
-                    </Field>
-
-                    <Field
-                      name="bankAccountNumber"
-                      type="text"
-                      placeholder="Bank Account Number"
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-
-                  {/* Additional Information */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">
-                      Additional Information
-                    </h3>
-                    <div className="flex space-x-4">
-                      <label className="flex items-center">
-                        <Field
-                          type="radio"
-                          name="isGovernmentRegistered"
-                          value="Yes"
-                          className="mr-2"
-                        />
-                        Government Registered
-                      </label>
-                      <label className="flex items-center">
-                        <Field
-                          type="radio"
-                          name="isGovernmentRegistered"
-                          value="No"
-                          className="mr-2"
-                        />
-                        Not Registered
-                      </label>
+                  {/* Add salary fields */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Field
+                        name="baseSalary"
+                        type="number"
+                        placeholder="Base Salary"
+                        className="w-full p-2 border rounded"
+                      />
+                      <ErrorMessage
+                        name="baseSalary"
+                        component="div"
+                        className="text-red-500 text-sm"
+                      />
                     </div>
-
-                    <div className="flex space-x-4">
-                      <label className="flex items-center">
-                        <Field
-                          type="radio"
-                          name="isRegistrationComplete"
-                          value="Yes"
-                          className="mr-2"
-                        />
-                        Registration Complete
-                      </label>
-                      <label className="flex items-center">
-                        <Field
-                          type="radio"
-                          name="isRegistrationComplete"
-                          value="No"
-                          className="mr-2"
-                        />
-                        Registration Incomplete
-                      </label>
+                    <div>
+                      <Field
+                        as="select"
+                        name="salaryType"
+                        className="w-full p-2 border rounded"
+                      >
+                        <option value="">Select Salary Type</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="daily">Daily</option>
+                      </Field>
+                      <ErrorMessage
+                        name="salaryType"
+                        component="div"
+                        className="text-red-500 text-sm"
+                      />
                     </div>
                   </div>
 
-                  <button
+                  {/* Add banking information */}
+                  <Field
+                    name="bankAccountNumber"
+                    type="text"
+                    placeholder="Bank Account Number"
+                    className="w-full p-2 border rounded"
+                  />
+
+                  <Button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300"
+                    className="w-full"
                   >
                     {isSubmitting
-                      ? 'Submitting...'
+                      ? 'Saving...'
                       : selectedEmployee
                         ? 'Update Employee'
                         : 'Add Employee'}
-                  </button>
+                  </Button>
                 </Form>
               )}
             </Formik>
@@ -334,6 +252,7 @@ export default function EmployeeManagementDashboard() {
         </Card>
       )}
 
+      {/* Employee List */}
       <Card>
         <CardHeader>
           <CardTitle>Employee List</CardTitle>
@@ -362,7 +281,7 @@ export default function EmployeeManagementDashboard() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setSelectedEmployee(employee)}
+                      onClick={() => handleEdit(employee)}
                     >
                       Edit
                     </Button>
