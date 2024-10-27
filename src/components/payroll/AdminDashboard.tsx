@@ -70,7 +70,7 @@ const PayrollAdminDashboard: FC<AdminDashboardProps> = ({
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/admin/employees');
+      const response = await fetch('/api/admin/checkExistingEmployee');
       const data = await response.json();
       setEmployees(data);
     } catch (error) {
