@@ -197,10 +197,73 @@ async function handleCreatePayroll(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
+// pages/api/admin/payroll.ts
 function formatPayrollResponse(payroll: any): AdminPayrollData {
-  // Format the payroll record into AdminPayrollData type
-  // Implementation needed based on your data structure
-  return {} as AdminPayrollData;
+  return {
+    employee: {
+      id: payroll.user.id,
+      name: payroll.user.name,
+      employeeId: payroll.user.employeeId,
+      departmentName: payroll.user.departmentName,
+      role: payroll.user.role,
+      bankInfo: payroll.user.bankAccountNumber
+        ? {
+            bankName: 'Bank Name', // Add bank name if available
+            accountNumber: payroll.user.bankAccountNumber,
+          }
+        : undefined,
+    },
+    summary: {
+      totalWorkingDays: payroll.payrollPeriod.workingDays || 0,
+      totalPresent: payroll.regularHours / 8, // Convert hours to days
+      totalAbsent: 0, // Calculate from unpaid leaves
+      periodStart: payroll.payrollPeriod.startDate.toISOString(),
+      periodEnd: payroll.payrollPeriod.endDate.toISOString(),
+    },
+    hours: {
+      regularHours: payroll.regularHours || 0,
+      overtimeHours: payroll.overtimeHours || 0,
+      holidayHours: payroll.holidayHours || 0,
+      holidayOvertimeHours: payroll.holidayOvertimeHours || 0,
+    },
+    attendance: {
+      totalLateMinutes: payroll.lateMinutes || 0,
+      earlyDepartures: payroll.earlyLeaveMinutes || 0,
+      lateArrivals: 0, // Add if tracked
+      incompleteAttendance: 0, // Add if tracked
+    },
+    leaves: {
+      sick: payroll.sickLeaveDays || 0,
+      annual: payroll.annualLeaveDays || 0,
+      business: payroll.businessLeaveDays || 0,
+      holidays: 0, // Get from holidays in period
+      unpaid: payroll.unpaidLeaveDays || 0,
+    },
+    rates: {
+      regularHourlyRate: payroll.basePayAmount / (payroll.regularHours || 1),
+      overtimeRate: 1.5, // Get from settings
+      holidayRate: 2.0, // Get from settings
+    },
+    earnings: {
+      baseAmount: payroll.basePayAmount || 0,
+      overtimeAmount: payroll.overtimeAmount || 0,
+      holidayAmount: payroll.holidayAmount || 0,
+    },
+    allowances: {
+      transportation: 0, // Add from settings or calculations
+      meal: 0,
+      housing: 0,
+      other: 0,
+    },
+    deductions: {
+      socialSecurity: payroll.totalDeductions * 0.05, // 5% of total deductions
+      tax: 0, // Calculate based on earnings
+      other: 0,
+    },
+    adjustments: [], // Add any adjustments
+    netPayable: payroll.netPayable || 0,
+    status: payroll.status || 'draft',
+  };
 }
 
 function formatPayrollInput(data: any) {

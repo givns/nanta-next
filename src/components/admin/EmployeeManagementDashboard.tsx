@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { employeeSchema } from '@/schemas/employee';
 
 const EmployeeSchema = Yup.object().shape({
   name: Yup.string().required('Required'),
@@ -33,6 +34,9 @@ const EmployeeSchema = Yup.object().shape({
   isGovernmentRegistered: Yup.boolean(),
   company: Yup.string(),
   shiftCode: Yup.string(),
+  baseSalary: Yup.number().nullable(),
+  salaryType: Yup.string().nullable(),
+  bankAccountNumber: Yup.string().nullable(),
 });
 
 const departments = [
@@ -231,22 +235,86 @@ export default function EmployeeManagementDashboard() {
                     component="div"
                     className="text-red-500 text-sm"
                   />
-
-                  <label className="flex items-center">
-                    <Field
-                      type="checkbox"
-                      name="isGovernmentRegistered"
-                      className="mr-2"
-                    />
-                    Is Government Registered
-                  </label>
-
                   <Field
                     name="company"
                     type="text"
                     placeholder="Company"
                     className="w-full p-2 border rounded"
                   />
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Salary Information</h3>
+                    <Field
+                      name="baseSalary"
+                      type="number"
+                      placeholder="Base Salary"
+                      className="w-full p-2 border rounded"
+                    />
+
+                    <Field
+                      as="select"
+                      name="salaryType"
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select Salary Type</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="daily">Daily</option>
+                    </Field>
+
+                    <Field
+                      name="bankAccountNumber"
+                      type="text"
+                      placeholder="Bank Account Number"
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+
+                  {/* Additional Information */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium">
+                      Additional Information
+                    </h3>
+                    <div className="flex space-x-4">
+                      <label className="flex items-center">
+                        <Field
+                          type="radio"
+                          name="isGovernmentRegistered"
+                          value="Yes"
+                          className="mr-2"
+                        />
+                        Government Registered
+                      </label>
+                      <label className="flex items-center">
+                        <Field
+                          type="radio"
+                          name="isGovernmentRegistered"
+                          value="No"
+                          className="mr-2"
+                        />
+                        Not Registered
+                      </label>
+                    </div>
+
+                    <div className="flex space-x-4">
+                      <label className="flex items-center">
+                        <Field
+                          type="radio"
+                          name="isRegistrationComplete"
+                          value="Yes"
+                          className="mr-2"
+                        />
+                        Registration Complete
+                      </label>
+                      <label className="flex items-center">
+                        <Field
+                          type="radio"
+                          name="isRegistrationComplete"
+                          value="No"
+                          className="mr-2"
+                        />
+                        Registration Incomplete
+                      </label>
+                    </div>
+                  </div>
 
                   <button
                     type="submit"

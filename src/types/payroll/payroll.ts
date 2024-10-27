@@ -1,23 +1,26 @@
 import { Payroll, TimeEntryPayrollPeriod } from '@prisma/client';
 
 export interface PayrollCalculation {
-  regularHours: number;
-  overtimeHours: number;
-  holidayHours: number;
-  holidayOvertimeHours: number;
-  lateMinutes: number;
-  earlyLeaveMinutes: number;
-  leaveHours: {
-    sick: number;
-    business: number;
-    annual: number;
-    unpaid: number;
+  actualBasePayAmount: number;
+  overtimeAmount: {
+    workday: number;
+    weekendShift: number;
+    holiday: number;
+    total: number;
   };
-  adjustments: {
-    type: 'addition' | 'deduction';
-    amount: number;
-    reason: string;
-  }[];
+  allowances: {
+    meal: number;
+    manager: number;
+    other: number;
+    total: number;
+  };
+  deductions: {
+    socialSecurity: number;
+    other: number;
+    total: number;
+  };
+  grossAmount: number;
+  netPayable: number;
 }
 
 export interface DailyPayrollRecord {
@@ -33,6 +36,29 @@ export interface DailyPayrollRecord {
   earlyLeaveMinutes: number;
   status: 'pending' | 'processed' | 'approved';
   payrollPeriodId?: string;
+}
+
+export interface ProcessedTimeEntries {
+  workingHours: {
+    regularHours: number;
+    workdayOvertimeHours: number;
+    weekendShiftOvertimeHours: number;
+    holidayOvertimeHours: number;
+  };
+  attendance: {
+    presentDays: number;
+    unpaidLeaveDays: number;
+    paidLeaveDays: number;
+    holidayDays: number;
+    totalLateMinutes: number;
+    earlyDepartures: number;
+  };
+  leaves: {
+    sick: number;
+    business: number;
+    annual: number;
+    unpaid: number;
+  };
 }
 
 export interface PayrollPeriod {
