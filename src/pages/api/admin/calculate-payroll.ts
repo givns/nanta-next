@@ -92,6 +92,12 @@ export default async function handler(
       parseISO(periodEnd),
     );
 
+    console.log('Processed time entries:', {
+      workingHours,
+      attendance,
+      leaves,
+    });
+
     // 3. Initialize services
     const payrollService = new PayrollCalculationService();
     const probationService = new ProbationAdjustmentService({
@@ -99,6 +105,8 @@ export default async function handler(
       overtimeEligible: true,
       allowancesEligible: true,
     });
+
+    console.log('Calculating payroll for:', employee);
 
     // 4. Calculate payroll
     let result = payrollService.calculatePayroll({
@@ -118,6 +126,8 @@ export default async function handler(
       attendance,
       additionalAllowances: {}, // Add any additional allowances here
     });
+
+    console.log('Payroll calculation result:', result);
 
     // 5. Apply probation adjustments if needed
     if (employee.employeeType === 'Probation') {
@@ -198,6 +208,8 @@ export default async function handler(
         status: 'completed',
       },
     });
+
+    console.log('Payroll calculation completed:', payroll.id);
 
     return res.status(200).json({
       payrollId: payroll.id,
