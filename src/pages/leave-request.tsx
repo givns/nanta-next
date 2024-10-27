@@ -40,23 +40,38 @@ const LeaveRequestPage: React.FC<LeaveRequestPageProps> = ({ lineUserId }) => {
       }
 
       try {
-        const response = await axios.get<UserCheckInStatusResponse>(
-          `/api/user-data?lineUserId=${lineUserId}`,
-        );
+        // Updated to use headers
+        const response = await fetch('/api/user-data', {
+          headers: {
+            'x-line-userid': lineUserId,
+          },
+        });
 
-        if (!response.data || !response.data.user) {
+        if (!response.ok) {
           throw new Error('Failed to fetch user data');
         }
 
-        setUserData(response.data.user);
+        const data = await response.json();
+        if (!data || !data.user) {
+          throw new Error('Failed to fetch user data');
+        }
+
+        setUserData(data.user);
         setLeaveBalance({
-          sickLeave: response.data.user.sickLeaveBalance,
-          businessLeave: response.data.user.businessLeaveBalance,
-          annualLeave: response.data.user.annualLeaveBalance,
+          sickLeave: data.user.sickLeaveBalance,
+          businessLeave: data.user.businessLeaveBalance,
+          annualLeave: data.user.annualLeaveBalance,
         });
 
         if (resubmit === 'true' && originalId) {
-          await fetchOriginalLeaveRequest(originalId as string);
+          // Update to use headers for leave request fetch
+          const leaveResponse = await fetch(`/api/leaveRequest/${originalId}`, {
+            headers: {
+              'x-line-userid': lineUserId,
+            },
+          });
+          const leaveData = await leaveResponse.json();
+          setOriginalLeaveData(leaveData);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -68,18 +83,6 @@ const LeaveRequestPage: React.FC<LeaveRequestPageProps> = ({ lineUserId }) => {
 
     fetchData();
   }, [lineUserId, resubmit, originalId]);
-
-  const fetchOriginalLeaveRequest = async (id: string) => {
-    try {
-      const response = await axios.get(`/api/leaveRequest/${id}`);
-      if (response.data) {
-        setOriginalLeaveData(response.data);
-      }
-    } catch (error) {
-      console.error('Error fetching original leave request:', error);
-      setOriginalLeaveData(null);
-    }
-  };
 
   if (isLoading || !leaveBalance) {
     return (

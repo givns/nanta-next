@@ -26,11 +26,19 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
   // Fetch User Data
   const fetchUserData = useCallback(async (lineUserId: string) => {
     try {
-      const response = await axios.get(
-        `/api/user-data?lineUserId=${lineUserId}`,
-      );
-      setUserData(response.data.user);
-      return response.data.user;
+      const response = await fetch('/api/user-data', {
+        headers: {
+          'x-line-userid': lineUserId,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+
+      const data = await response.json();
+      setUserData(data.user);
+      return data.user;
     } catch (error) {
       console.error('Error fetching user data:', error);
       setError('Failed to fetch user data. Please try again.');
@@ -76,12 +84,21 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
               ),
             );
 
+            // Update employee fetch with headers
             if (isManager || isAdmin) {
-              await fetchEmployees(lineUserId);
+              const employeesResponse = await fetch('/api/employees', {
+                headers: { 'x-line-userid': lineUserId },
+              });
+              const employeesData = await employeesResponse.json();
+              setEmployees(employeesData);
             }
 
             if (isAdmin) {
-              await fetchDepartments();
+              const departmentsResponse = await fetch('/api/departments', {
+                headers: { 'x-line-userid': lineUserId },
+              });
+              const departmentsData = await departmentsResponse.json();
+              setDepartments(departmentsData);
             }
           }
         } else {
@@ -98,14 +115,7 @@ const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
     if (lineUserId) {
       initializeData();
     }
-  }, [
-    lineUserId,
-    fetchUserData,
-    fetchEmployees,
-    fetchDepartments,
-    isManager,
-    isAdmin,
-  ]);
+  }, [lineUserId, fetchUserData, isManager, isAdmin]);
 
   if (error) {
     return (

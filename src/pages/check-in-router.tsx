@@ -39,6 +39,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
       }
 
       try {
+        // Updated to use headers instead of query params
         const cachedUser = await getCachedUserData(lineUserId);
         const cachedStatus = await getCachedAttendanceStatus(lineUserId);
 
@@ -46,8 +47,18 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           setUserData(cachedUser);
           setCachedAttendanceStatus(cachedStatus);
         } else {
-          const fetchedUser = await fetchUserData(lineUserId);
-          setUserData(fetchedUser);
+          const response = await fetch('/api/user-data', {
+            headers: {
+              'x-line-userid': lineUserId,
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch user data');
+          }
+
+          const data = await response.json();
+          setUserData(data.user);
         }
       } catch (error) {
         console.error('Error fetching initial data:', error);
