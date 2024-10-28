@@ -7,17 +7,13 @@ import { AdminProvider, useAdmin } from '@/contexts/AdminContext';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import {
   Users,
-  CalendarDays,
+  Calendar,
   Settings,
   DollarSign,
   Clock,
   LogOut,
   Menu,
-  X,
-  Calendar,
   ClipboardCheck,
-  Bell,
-  Clock3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -79,6 +75,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [openSubMenu, setOpenSubMenu] = useState<string | null>(null); // Track open dropdown
   const currentPath = router.pathname;
 
   if (isLoading) {
@@ -100,18 +97,44 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 {navItems.map((item) => (
-                  <Link
+                  <div
                     key={item.href}
-                    href={item.href}
-                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                      currentPath === item.href
-                        ? 'border-indigo-500 text-gray-900'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    }`}
+                    className="relative group"
+                    onMouseEnter={() =>
+                      item.subItems && setOpenSubMenu(item.label)
+                    }
+                    onMouseLeave={() => setOpenSubMenu(null)}
                   >
-                    {item.icon}
-                    <span className="ml-2">{item.label}</span>
-                  </Link>
+                    <Link
+                      href={item.href}
+                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                        currentPath === item.href
+                          ? 'border-indigo-500 text-gray-900'
+                          : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      }`}
+                      onClick={() =>
+                        setOpenSubMenu(
+                          openSubMenu === item.label ? null : item.label,
+                        )
+                      }
+                    >
+                      {item.icon}
+                      <span className="ml-2">{item.label}</span>
+                    </Link>
+                    {item.subItems && openSubMenu === item.label && (
+                      <div className="absolute left-0 top-full mt-1 w-48 bg-white shadow-lg rounded-md z-10">
+                        {item.subItems.map((subItem) => (
+                          <Link
+                            key={subItem.href}
+                            href={subItem.href}
+                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          >
+                            {subItem.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -134,7 +157,6 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       {/* Mobile Navigation */}
       <nav className="md:hidden bg-white shadow-sm">
         <div className="px-4 h-16 flex items-center justify-between">
-          <span className="text-xl font-bold">Admin Dashboard</span>
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -189,6 +211,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
     </div>
   );
 }
+
 export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <AdminProvider>

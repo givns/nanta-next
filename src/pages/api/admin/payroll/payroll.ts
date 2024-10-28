@@ -1,4 +1,4 @@
-// pages/api/admin/payroll.ts
+// pages/api/admin/payroll/payroll.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';

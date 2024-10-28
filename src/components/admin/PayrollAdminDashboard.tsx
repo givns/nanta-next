@@ -83,7 +83,7 @@ export default function PayrollAdminDashboard() {
       if (!period) throw new Error('Invalid period');
 
       const response = await fetch(
-        `/api/admin/payroll?employeeId=${selectedEmployee}&periodStart=${period.startDate.toISOString()}&periodEnd=${period.endDate.toISOString()}`,
+        `/api/admin/payroll/payroll?employeeId=${selectedEmployee}&periodStart=${period.startDate.toISOString()}&periodEnd=${period.endDate.toISOString()}`,
         {
           headers: {
             'x-line-userid': user?.lineUserId || '',
@@ -113,7 +113,7 @@ export default function PayrollAdminDashboard() {
       const period = periods.find((p) => p.value === currentPeriod);
       if (!period) throw new Error('Invalid period');
 
-      const response = await fetch('/api/admin/calculate-payroll', {
+      const response = await fetch('/api/admin/payroll/calculate-payroll', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
