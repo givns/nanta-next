@@ -39,6 +39,7 @@ export interface AttendanceData {
   isLate?: boolean;
   isEarlyCheckOut?: boolean;
   earlyCheckoutType?: EarlyCheckoutType;
+  isManualEntry: boolean;
 }
 
 // Overtime Interfaces

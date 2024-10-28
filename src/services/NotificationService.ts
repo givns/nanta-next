@@ -38,6 +38,7 @@ export class NotificationService {
     lineUserId: string,
     message: string | Message,
     type:
+      | 'attendance'
       | 'check-in'
       | 'check-out'
       | 'leave'

@@ -145,6 +145,7 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
           photo: photo,
           isLate: isLate || false,
           isOvertime: isOvertime || false,
+          isManualEntry: false,
         };
 
         console.log('Calling checkInOut with data:', checkInOutData);

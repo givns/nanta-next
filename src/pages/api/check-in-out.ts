@@ -5,7 +5,11 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '../../services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
-import { AttendanceData, AttendanceStatusInfo } from '@/types/attendance';
+import {
+  AttendanceData,
+  AttendanceStatusInfo,
+  EarlyCheckoutType,
+} from '@/types/attendance';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { createNotificationService } from '../../services/NotificationService';
 import { createLeaveServiceServer } from '../../services/LeaveServiceServer';
@@ -82,6 +86,7 @@ const attendanceSchema = Yup.object()
             .oneOf(['emergency', 'planned']),
         otherwise: (schema) => schema.nullable(),
       }),
+    isManualEntry: Yup.boolean().optional(),
   })
   .test(
     'either-employeeId-or-lineUserId',
@@ -148,6 +153,10 @@ async function processCheckInOut(
       reason: validatedData.reason || '',
       isOvertime: validatedData.isOvertime || false,
       isLate: validatedData.isLate || false,
+      isEarlyCheckOut: validatedData.isEarlyCheckOut || false,
+      earlyCheckoutType:
+        (validatedData.earlyCheckoutType as EarlyCheckoutType) || undefined,
+      isManualEntry: validatedData.isManualEntry || false,
     };
 
     // For early check-out, first verify if leave request exists

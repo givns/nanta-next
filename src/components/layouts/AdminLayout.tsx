@@ -1,6 +1,6 @@
 // components/layouts/AdminLayout.tsx
 
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { AdminProvider, useAdmin } from '@/contexts/AdminContext';
@@ -12,15 +12,73 @@ import {
   DollarSign,
   Clock,
   LogOut,
+  Menu,
+  X,
+  Calendar,
+  ClipboardCheck,
+  Bell,
+  Clock3,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 interface AdminLayoutProps {
   children: ReactNode;
 }
 
+const navItems = [
+  {
+    label: 'Payroll',
+    href: '/admin/payroll',
+    icon: <DollarSign className="w-5 h-5" />,
+    description: 'Manage employee payroll and compensation',
+  },
+  {
+    label: 'Employees',
+    href: '/admin/employees',
+    icon: <Users className="w-5 h-5" />,
+    description: 'Employee management and records',
+  },
+  {
+    label: 'Leave & Holidays',
+    href: '/admin/leaves',
+    icon: <Calendar className="w-5 h-5" />,
+    description: 'Leave management and holiday calendar',
+    subItems: [
+      { label: 'Leave Requests', href: '/admin/leaves/requests' },
+      { label: 'Holiday Calendar', href: '/admin/leaves/holidays' },
+      { label: 'No-Work Days', href: '/admin/leaves/nowork' },
+    ],
+  },
+  {
+    label: 'Attendance',
+    href: '/admin/attendance',
+    icon: <Clock className="w-5 h-5" />,
+    description: 'Time and attendance tracking',
+    subItems: [
+      { label: 'Daily Records', href: '/admin/attendance/daily' },
+      { label: 'Shift Adjustments', href: '/admin/attendance/shifts' },
+      { label: 'Overtime Requests', href: '/admin/attendance/overtime' },
+    ],
+  },
+  {
+    label: 'Approvals',
+    href: '/admin/approvals',
+    icon: <ClipboardCheck className="w-5 h-5" />,
+    description: 'Pending approvals and requests',
+  },
+  {
+    label: 'Settings',
+    href: '/admin/settings',
+    icon: <Settings className="w-5 h-5" />,
+    description: 'System configuration',
+  },
+];
+
 function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const currentPath = router.pathname;
 
   if (isLoading) {
@@ -30,34 +88,6 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   if (error || !user) {
     return null; // Will be redirected by AdminProvider
   }
-
-  const navItems = [
-    {
-      label: 'Payroll Management',
-      href: '/admin/payroll',
-      icon: <DollarSign className="w-5 h-5" />,
-    },
-    {
-      label: 'Employee Management',
-      href: '/admin/employees',
-      icon: <Users className="w-5 h-5" />,
-    },
-    {
-      label: 'Leave Management',
-      href: '/admin/leaves',
-      icon: <CalendarDays className="w-5 h-5" />,
-    },
-    {
-      label: 'Attendance',
-      href: '/admin/attendance',
-      icon: <Clock className="w-5 h-5" />,
-    },
-    {
-      label: 'Settings',
-      href: '/admin/settings',
-      icon: <Settings className="w-5 h-5" />,
-    },
-  ];
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -101,7 +131,61 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">{children}</main>
+      {/* Mobile Navigation */}
+      <nav className="md:hidden bg-white shadow-sm">
+        <div className="px-4 h-16 flex items-center justify-between">
+          <span className="text-xl font-bold">Admin Dashboard</span>
+          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-6 w-6" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+              <nav className="flex flex-col gap-4 py-4">
+                {navItems.map((item) => (
+                  <div key={item.href} className="space-y-2">
+                    <Link
+                      href={item.href}
+                      className={`flex items-center p-2 rounded-lg ${
+                        currentPath === item.href
+                          ? 'bg-gray-900 text-white'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      {item.icon}
+                      <span className="ml-2">{item.label}</span>
+                    </Link>
+                    {item.subItems && (
+                      <div className="ml-6 space-y-1">
+                        {item.subItems.map((subItem) => (
+                          <Link
+                            key={subItem.href}
+                            href={subItem.href}
+                            className={`block px-2 py-1 text-sm rounded ${
+                              currentPath === subItem.href
+                                ? 'bg-gray-100 text-gray-900'
+                                : 'text-gray-600 hover:bg-gray-50'
+                            }`}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                          >
+                            {subItem.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {children}
+      </main>
     </div>
   );
 }
