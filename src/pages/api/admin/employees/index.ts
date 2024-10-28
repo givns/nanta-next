@@ -45,6 +45,12 @@ export default async function handler(
             shiftCode: true,
             company: true,
             isGovernmentRegistered: true,
+            baseSalary: true,
+            salaryType: true,
+            bankAccountNumber: true,
+            sickLeaveBalance: true,
+            businessLeaveBalance: true,
+            annualLeaveBalance: true,
           },
         });
 

@@ -50,6 +50,9 @@ export default async function handler(
                 : null,
               salaryType: req.body.salaryType,
               bankAccountNumber: req.body.bankAccountNumber,
+              sickLeaveBalance: req.body.sickLeaveBalance,
+              businessLeaveBalance: req.body.businessLeaveBalance,
+              annualLeaveBalance: req.body.annualLeaveBalance,
             },
           });
 
