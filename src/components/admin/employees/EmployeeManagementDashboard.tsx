@@ -274,7 +274,9 @@ export default function EmployeeManagementDashboard() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Employee Management</h1>
-          <p className="text-gray-500">Manage your organization's employees</p>
+          <p className="text-gray-500">
+            Manage your organization&#39;s employees
+          </p>{' '}
         </div>
         <Button
           onClick={() => {

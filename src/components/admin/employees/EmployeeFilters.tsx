@@ -90,7 +90,7 @@ export function EmployeeFilters({
             <Badge variant="secondary">{employeeTypeFilter}</Badge>
           )}
           {searchTerm && (
-            <Badge variant="secondary">Search: "{searchTerm}"</Badge>
+            <Badge variant="secondary">Search: &quot;{searchTerm}&quot;</Badge>
           )}
           <Button
             variant="ghost"
