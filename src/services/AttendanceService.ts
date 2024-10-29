@@ -229,7 +229,7 @@ export class AttendanceService {
       ) {
         return this.createResponse(
           false,
-          'คุณไม่สามารถลงเวลาได้เนื่องจากลา' + leaveRequest.leaveType,
+          'คุณไม่สามารถลงเวลาได้เนื่องจาก' + leaveRequest.leaveType,
           { inPremises, address },
         );
       }

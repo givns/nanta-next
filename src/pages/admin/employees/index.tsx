@@ -6,7 +6,7 @@ import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { useAdmin } from '@/contexts/AdminContext';
 
 const EmployeeManagementDashboard = dynamic(
-  () => import('@/components/admin/EmployeeManagementDashboard'),
+  () => import('@/components/admin/employees/EmployeeManagementDashboard'),
   {
     loading: () => <DashboardSkeleton />,
     ssr: false,

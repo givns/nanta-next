@@ -1,6 +1,6 @@
 //pages/employee-management.tsx
 import React from 'react';
-import EmployeeManagement from '../components/admin/EmployeeManagementDashboard';
+import EmployeeManagement from '../components/admin/employees/EmployeeManagementDashboard';
 
 const EmployeeManagementPage: React.FC = () => {
   return (

@@ -57,8 +57,6 @@ export default function LeaveSettings() {
         body: JSON.stringify(settings),
       });
 
-      // components/admin/leaves/LeaveSettings.tsx (continued)
-
       if (!response.ok) throw new Error('Failed to save settings');
 
       toast({
