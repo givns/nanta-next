@@ -222,6 +222,18 @@ export class AttendanceService {
         latestAttendance,
       });
 
+      if (
+        leaveRequest &&
+        leaveRequest.status === 'Approved' &&
+        leaveRequest.leaveFormat === 'ลาเต็มวัน'
+      ) {
+        return this.createResponse(
+          false,
+          'คุณไม่สามารถลงเวลาได้เนื่องจากลา' + leaveRequest.leaveType,
+          { inPremises, address },
+        );
+      }
+
       const dayOffOvertimeRequest = isDayOff
         ? await this.overtimeService.getDayOffOvertimeRequest(employeeId, now)
         : null;
