@@ -80,7 +80,7 @@ export default async function handler(
               employee.lineUserId,
               employee.name,
               `Your department has been updated to ${value}.`,
-              'department_update',
+              'shift',
             );
           }
         }
@@ -123,7 +123,7 @@ export default async function handler(
               employee.lineUserId,
               employee.name,
               `Your shift has been updated to ${shift.name}.`,
-              'shift_update',
+              'shift',
             );
           }
         }
@@ -154,15 +154,6 @@ export default async function handler(
         });
 
         // Log deletion
-        await prisma.auditLog.createMany({
-          data: employeesToDelete.map((emp) => ({
-            action: 'DELETE',
-            entityType: 'USER',
-            entityId: emp.employeeId,
-            description: `Employee ${emp.name} deleted by ${admin.employeeId}`,
-            performedBy: admin.employeeId,
-          })),
-        });
 
         return res.status(200).json({
           message: `Deleted ${deletedEmployees.count} employees`,
