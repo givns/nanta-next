@@ -71,7 +71,7 @@ export default function LeaveRequests() {
   const fetchLeaveRequests = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/admin/leave-requests', {
+      const response = await fetch('/api/admin/leaves/leave-requests', {
         headers: {
           'x-line-userid': user?.lineUserId || '',
         },

@@ -182,6 +182,108 @@ export default function PayrollAdminDashboard() {
     }
   };
 
+  // Mobile controls component
+  const MobileControls = () => (
+    <div className="space-y-4 md:hidden">
+      <div>
+        <label className="block text-sm font-medium text-gray-500 mb-2">
+          Select Employee
+        </label>
+        <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select Employee" />
+          </SelectTrigger>
+          <SelectContent>
+            {employees.map((employee) => (
+              <SelectItem key={employee.employeeId} value={employee.employeeId}>
+                {employee.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-500 mb-2">
+          Select Period
+        </label>
+        <Select value={currentPeriod} onValueChange={setCurrentPeriod}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select Period" />
+          </SelectTrigger>
+          <SelectContent>
+            {periods.map((period) => (
+              <SelectItem key={period.value} value={period.value}>
+                {period.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button
+        onClick={handleGeneratePayroll}
+        disabled={isLoading || !selectedEmployee || !currentPeriod}
+        className="w-full"
+      >
+        {isLoading ? 'Generating...' : 'Generate Payroll'}
+      </Button>
+    </div>
+  );
+
+  // Mobile overview cards
+  const MobileOverviewCards = () => (
+    <div className="grid grid-cols-1 gap-4 md:hidden">
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-500">Employee</span>
+            <span className="font-medium">
+              {payrollData?.employee?.name || '-'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-500">Department</span>
+            <span className="font-medium">
+              {payrollData?.employee?.departmentName || '-'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500">Period</span>
+            <span className="font-medium">
+              {currentPeriod
+                ? periods.find((p) => p.value === currentPeriod)?.label
+                : '-'}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-500">Net Payable</span>
+            <span className="font-bold text-green-600">
+              ฿{payrollData?.netPayable || 0}
+            </span>
+          </div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-500">Regular Hours</span>
+            <span className="font-medium">
+              {payrollData?.hours?.regularHours || 0}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500">Overtime Hours</span>
+            <span className="font-medium">
+              {payrollData?.hours?.overtimeHours || 0}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   // Main Payroll Overview Section
   const PayrollOverview = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -450,10 +552,15 @@ export default function PayrollAdminDashboard() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Payroll Management</h1>
-        <div className="flex space-x-4">
+    <div className="max-w-7xl mx-auto p-4 md:p-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <h1 className="text-xl md:text-2xl font-bold">Payroll Management</h1>
+
+        {/* Mobile Controls */}
+        <MobileControls />
+
+        {/* Desktop Controls */}
+        <div className="hidden md:flex space-x-4">
           <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Select Employee" />
@@ -499,30 +606,40 @@ export default function PayrollAdminDashboard() {
       )}
 
       {payrollData && (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="attendance">Attendance</TabsTrigger>
-            <TabsTrigger value="leaves">Leaves & Holidays</TabsTrigger>
-            <TabsTrigger value="calculation">Payroll Calculation</TabsTrigger>
-          </TabsList>
+        <>
+          {/* Mobile Overview Cards */}
+          <MobileOverviewCards />
 
-          <TabsContent value="overview">
-            <PayrollOverview />
-          </TabsContent>
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
+            <TabsList className="grid grid-cols-2 md:grid-cols-4 w-full">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="attendance">Attendance</TabsTrigger>
+              <TabsTrigger value="leaves">Leaves</TabsTrigger>
+              <TabsTrigger value="calculation">Calculation</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="attendance">
-            <AttendanceDetails />
-          </TabsContent>
+            <div className="mt-4">
+              <TabsContent value="overview">
+                <div className="hidden md:block">
+                  <PayrollOverview />
+                </div>
+              </TabsContent>
 
-          <TabsContent value="leaves">
-            <LeaveAndHolidays />
-          </TabsContent>
+              <TabsContent value="attendance">
+                <AttendanceDetails />
+              </TabsContent>
 
-          <TabsContent value="calculation">
-            <PayrollCalculation />
-          </TabsContent>
-        </Tabs>
+              <TabsContent value="leaves">
+                <LeaveAndHolidays />
+              </TabsContent>
+
+              <TabsContent value="calculation">
+                <PayrollCalculation />
+              </TabsContent>
+            </div>
+          </Tabs>
+        </>
       )}
     </div>
   );

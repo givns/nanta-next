@@ -70,7 +70,7 @@ export default function LeaveBalances() {
   const fetchLeaveBalances = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/admin/leave-balances', {
+      const response = await fetch('/api/admin/leaves/leave-balances', {
         headers: {
           'x-line-userid': user?.lineUserId || '',
         },
