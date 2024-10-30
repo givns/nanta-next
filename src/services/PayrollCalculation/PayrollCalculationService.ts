@@ -1,263 +1,149 @@
-// services/PayrollCalculationService.ts
+// services/PayrollCalculation/PayrollCalculationService.ts
 
-import {
-  PayrollRates,
-  EmployeeBaseType,
-  EmployeeStatus,
-  PayrollCalculationInput,
-  PayrollCalculationResult,
-  WorkingHours,
-  Attendance,
-} from '../../types/payroll/payroll-calculation';
+import { TimeEntry, User, LeaveRequest, Holiday, EmployeeType } from '@prisma/client';
+
+interface PayrollSettings {
+  overtimeRates: {
+    [key in EmployeeType]: {
+      workdayOutsideShift: number;
+      weekendInsideShiftFulltime: number;
+      weekendInsideShiftParttime: number;
+      weekendOutsideShift: number;
+    };
+  };
+  allowances: {
+    transportation: number;
+    meal: {
+      [key in EmployeeType]: number;
+    };
+    housing: number;
+  };
+  deductions: {
+    socialSecurityRate: number;
+    socialSecurityMinBase: number;
+    socialSecurityMaxBase: number;
+  };
+  rules: {
+    payrollPeriodStart: number;
+    payrollPeriodEnd: number;
+    overtimeMinimumMinutes: number;
+    roundOvertimeTo: number;
+  };
+}
 
 export class PayrollCalculationService {
-  private rates: PayrollRates = {
-    socialSecurityRate: 0.05,
-    socialSecurityMinBase: 1650,
-    socialSecurityMaxBase: 15000,
-    workdayOvertimeRate: 1.5,
-    weekendShiftOvertimeRate: {
-      fulltime: 1.0,
-      parttime: 2.0,
-    },
-    holidayOvertimeRate: 3.0,
-    mealAllowancePerDay: 30,
-  };
+  constructor(private settings: PayrollSettings) {}
 
-  constructor(rates?: Partial<PayrollRates>) {
-    this.rates = { ...this.rates, ...rates };
+  calculateOvertimeHours(minutes: number): number {
+    if (minutes < this.settings.rules.overtimeMinimumMinutes) {
+      return 0;
+    }
+    
+    // Round to the nearest interval
+    const roundTo = this.settings.rules.roundOvertimeTo;
+    return Math.round(minutes / roundTo) * roundTo / 60;
   }
 
-  calculatePayroll(input: PayrollCalculationInput): PayrollCalculationResult {
-    const calculator =
-      input.employeeBaseType === 'FULLTIME'
-        ? new FulltimePayrollCalculator(this.rates)
-        : new ParttimePayrollCalculator(this.rates);
-
-    return calculator.calculate(input);
-  }
-}
-
-abstract class BasePayrollCalculator {
-  constructor(protected rates: PayrollRates) {}
-
-  protected abstract calculateActualBasePayAmount(
-    basePayAmount: number,
-    attendance: Attendance,
-  ): number;
-
-  protected abstract calculateOvertimeAmounts(
-    basePayAmount: number,
-    workingHours: WorkingHours,
-  ): {
-    workday: number;
-    weekendShift: number;
-    holiday: number;
-    total: number;
-  };
-
-  protected abstract calculateAllowances(
-    attendance: Attendance,
-    additionalAllowances: { managerAllowance?: number; other?: number },
-  ): {
-    meal: number;
-    manager: number;
-    other: number;
-    total: number;
-  };
-
-  protected calculateSocialSecurityDeduction(amount: number): number {
-    if (!amount) return 0;
-
-    const baseAmount = Math.max(
-      Math.min(amount, this.rates.socialSecurityMaxBase),
-      this.rates.socialSecurityMinBase,
-    );
-
-    const deduction = baseAmount * this.rates.socialSecurityRate;
-    // Round according to rules: round up if >=.5, round down if <.5
-    return Math.round(deduction);
-  }
-
-  calculate(input: PayrollCalculationInput): PayrollCalculationResult {
-    // 1. Calculate actual base pay
-    const actualBasePayAmount = this.calculateActualBasePayAmount(
-      input.basePayAmount,
-      input.attendance,
-    );
-
-    // 2. Calculate overtime amounts
-    const overtimeAmount = this.calculateOvertimeAmounts(
-      input.basePayAmount,
-      input.workingHours,
-    );
-
-    // 3. Calculate allowances
-    const allowances = this.calculateAllowances(
-      input.attendance,
-      input.additionalAllowances,
-    );
-
-    // 4. Calculate gross amount
-    const grossAmount =
-      actualBasePayAmount + overtimeAmount.total + allowances.total;
-
-    // 5. Calculate deductions
-    const socialSecurity = input.isGovernmentRegistered
-      ? this.calculateSocialSecurityDeduction(actualBasePayAmount)
-      : 0;
-
-    const deductions = {
-      socialSecurity,
-      other: 0,
-      total: socialSecurity,
-    };
-
-    // 6. Calculate net payable
-    const netPayable = grossAmount - deductions.total;
-
-    return {
-      actualBasePayAmount,
-      overtimeAmount,
-      allowances,
-      deductions,
-      grossAmount,
-      netPayable,
-    };
-  }
-}
-
-class FulltimePayrollCalculator extends BasePayrollCalculator {
-  protected calculateActualBasePayAmount(
-    basePayAmount: number,
-    attendance: Attendance,
+  calculateOvertimePay(
+    hours: number,
+    hourlyRate: number,
+    employeeType: EmployeeType,
+    isInsideShift: boolean,
+    isDayOffOvertime: boolean
   ): number {
-    const dailyRate = basePayAmount / 30;
-    const deduction = attendance.unpaidLeaveDays * dailyRate;
-    return basePayAmount - deduction;
+    const rates = this.settings.overtimeRates[employeeType];
+    let rate: number;
+
+    if (isDayOffOvertime) {
+      if (isInsideShift) {
+        // Weekend/Holiday during shift hours
+        rate = employeeType === EmployeeType.Fulltime 
+          ? rates.weekendInsideShiftFulltime 
+          : rates.weekendInsideShiftParttime;
+      } else {
+        // Weekend/Holiday outside shift hours
+        rate = rates.weekendOutsideShift;
+      }
+    } else {
+      // Regular workday overtime
+      rate = rates.workdayOutsideShift;
+    }
+
+    return hours * hourlyRate * rate;
   }
 
-  protected calculateOvertimeAmounts(
-    basePayAmount: number,
-    workingHours: WorkingHours,
-  ): {
-    workday: number;
-    weekendShift: number;
-    holiday: number;
-    total: number;
-  } {
-    const hourlyRate = basePayAmount / 30 / 8;
-
-    const workday =
-      workingHours.workdayOvertimeHours *
-      hourlyRate *
-      this.rates.workdayOvertimeRate;
-
-    const weekendShift =
-      workingHours.weekendShiftOvertimeHours *
-      hourlyRate *
-      this.rates.weekendShiftOvertimeRate.fulltime;
-
-    const holiday =
-      workingHours.holidayOvertimeHours *
-      hourlyRate *
-      this.rates.holidayOvertimeRate;
-
+  calculateAllowances(employee: User, workDays: number) {
     return {
-      workday,
-      weekendShift,
-      holiday,
-      total: workday + weekendShift + holiday,
+      transportation: this.settings.allowances.transportation,
+      meal: this.settings.allowances.meal[employee.employeeType] * workDays,
+      housing: this.settings.allowances.housing
     };
   }
 
-  protected calculateAllowances(
-    attendance: Attendance,
-    additionalAllowances: { managerAllowance?: number; other?: number },
-  ): {
-    meal: number;
-    manager: number;
-    other: number;
-    total: number;
-  } {
+  calculateDeductions(grossPay: number) {
+    const socialSecurityBase = Math.min(
+      Math.max(
+        grossPay,
+        this.settings.deductions.socialSecurityMinBase
+      ),
+      this.settings.deductions.socialSecurityMaxBase
+    );
+
     return {
-      meal: 0, // Fulltime doesn't get daily meal allowance
-      manager: additionalAllowances.managerAllowance || 0,
-      other: additionalAllowances.other || 0,
-      total:
-        (additionalAllowances.managerAllowance || 0) +
-        (additionalAllowances.other || 0),
+      socialSecurity: socialSecurityBase * this.settings.deductions.socialSecurityRate,
+      tax: 0, // Implement tax calculation if needed
+    };
+  }
+
+  // Example usage in processTimeEntry
+  async processTimeEntry(timeEntry: TimeEntry & { overtimeMetadata: string | null }) {
+    const overtimeMinutes = 
+      timeEntry.overtimeHours > 0 
+        ? timeEntry.overtimeHours * 60 
+        : 0;
+
+    const overtimeHours = this.calculateOvertimeHours(overtimeMinutes);
+
+    if (overtimeHours > 0 && timeEntry.overtimeMetadata) {
+      const metadata = JSON.parse(timeEntry.overtimeMetadata);
+      
+      // Calculate overtime pay using the configured rates
+      const overtimePay = this.calculateOvertimePay(
+        overtimeHours,
+        hourlyRate,
+        employee.employeeType,
+        metadata.isInsideShiftHours,
+        metadata.isDayOffOvertime
+      );
+
+      return {
+        regularHours: timeEntry.regularHours,
+        overtimeHours,
+        overtimePay
+      };
+    }
+
+    return {
+      regularHours: timeEntry.regularHours,
+      overtimeHours: 0,
+      overtimePay: 0
     };
   }
 }
 
-class ParttimePayrollCalculator extends BasePayrollCalculator {
-  protected calculateActualBasePayAmount(
-    dailyRate: number,
-    attendance: Attendance,
-  ): number {
-    const workingDays =
-      attendance.presentDays +
-      attendance.paidLeaveDays +
-      attendance.holidayDays;
-    return dailyRate * workingDays;
+// Helper function to initialize the service
+export async function initializePayrollService(prisma: PrismaClient) {
+  const settings = await prisma.payrollSettings.findFirst();
+  if (!settings) {
+    throw new Error('Payroll settings not found');
   }
 
-  protected calculateOvertimeAmounts(
-    basePayAmount: number,
-    workingHours: WorkingHours,
-  ): {
-    workday: number;
-    weekendShift: number;
-    holiday: number;
-    total: number;
-  } {
-    // For part-time, basePayAmount is already daily rate
-    const hourlyRate = basePayAmount / 8;
+  const parsedSettings: PayrollSettings = {
+    overtimeRates: JSON.parse(settings.overtimeRates as string),
+    allowances: JSON.parse(settings.allowances as string),
+    deductions: JSON.parse(settings.deductions as string),
+    rules: JSON.parse(settings.overtimeRates as string).rules
+  };
 
-    const workday =
-      workingHours.workdayOvertimeHours *
-      hourlyRate *
-      this.rates.workdayOvertimeRate;
-
-    const weekendShift =
-      workingHours.weekendShiftOvertimeHours *
-      hourlyRate *
-      this.rates.weekendShiftOvertimeRate.parttime;
-
-    const holiday =
-      workingHours.holidayOvertimeHours *
-      hourlyRate *
-      this.rates.holidayOvertimeRate;
-
-    return {
-      workday,
-      weekendShift,
-      holiday,
-      total: workday + weekendShift + holiday,
-    };
-  }
-
-  protected calculateAllowances(
-    attendance: Attendance,
-    additionalAllowances: { managerAllowance?: number; other?: number },
-  ): {
-    meal: number;
-    manager: number;
-    other: number;
-    total: number;
-  } {
-    const mealAllowance =
-      attendance.presentDays * this.rates.mealAllowancePerDay;
-
-    return {
-      meal: mealAllowance,
-      manager: additionalAllowances.managerAllowance || 0,
-      other: additionalAllowances.other || 0,
-      total:
-        mealAllowance +
-        (additionalAllowances.managerAllowance || 0) +
-        (additionalAllowances.other || 0),
-    };
-  }
+  return new PayrollCalculationService(parsedSettings);
 }

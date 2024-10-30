@@ -157,16 +157,26 @@ export interface DailyPayrollRecord {
  */
 export interface PayrollProcessingResult {
   id: string;
-  employeeId: string;
-  periodStart: string;
+  employee: {
+    employeeId: string; 
+    employeeType: 'Fulltime' | 'Parttime' | 'Probation';
+  };  periodStart: string;
   periodEnd: string;
   totalWorkingDays: number;
+  hours: {
+    regularHours: number;
+    workdayOvertimeHours: number;
+    weekendShiftOvertimeHours: number;
+    holidayOvertimeHours: number;
+  };
   totalPresent: number;
   totalAbsent: number;
   totalOvertimeHours: number;
   totalRegularHours: number;
   processedData: {
     basePay: number;
+    lateMinutes: number;
+    earlyDepartures: number;
     overtimePay: number;
     holidayPay: number;
     allowances: number;

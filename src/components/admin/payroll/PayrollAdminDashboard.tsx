@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { AdminPayrollData, PayrollStatus } from '@/types/payroll';
 import { User } from '@prisma/client';
+import { PayrollProcessingResult } from '@/types/payroll/api';
 
 interface Employee
   extends Pick<User, 'employeeId' | 'name' | 'departmentName'> {}
@@ -225,57 +226,110 @@ export default function PayrollAdminDashboard() {
   );
 
   // Mobile overview cards
-  const MobileOverviewCards = () => (
-    <div className="grid grid-cols-1 gap-4 md:hidden">
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500">Employee</span>
-            <span className="font-medium">
-              {payrollData?.employee?.name || '-'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500">Department</span>
-            <span className="font-medium">
-              {payrollData?.employee?.departmentName || '-'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">Period</span>
-            <span className="font-medium">
-              {currentPeriod
-                ? periods.find((p) => p.value === currentPeriod)?.label
-                : '-'}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500">Net Payable</span>
-            <span className="font-bold text-green-600">
-              ฿{payrollData?.netPayable || 0}
-            </span>
-          </div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500">Regular Hours</span>
-            <span className="font-medium">
-              {payrollData?.hours?.regularHours || 0}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">Overtime Hours</span>
-            <span className="font-medium">
-              {payrollData?.hours?.overtimeHours || 0}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const MobileOverviewCards = ({ payrollData }: { payrollData: PayrollProcessingResult }) => {
+    const overtimeBreakdown = {
+      workdayOutside: {
+        hours: payrollData.hours?.workdayOvertimeHours || 0,
+        rate: 1.5,
+        amount: (payrollData.hours?.workdayOvertimeHours || 0) * 1.5 * (payrollData.processedData.basePay / payrollData.totalRegularHours)
+      },
+      weekendInside: {
+        hours: payrollData.hours?.weekendShiftOvertimeHours || 0,
+        rate: payrollData.employee?.employeeType === EmployeeType.Fulltime ? 1.0 : 2.0,
+        amount: (payrollData.hours?.weekendShiftOvertimeHours || 0) * (payrollData.employee?.employeeType === EmployeeType.Fulltime ? 1.0 : 2.0) * (payrollData.processedData.basePay / payrollData.totalRegularHours)
+      },
+      weekendOutside: {
+        hours: payrollData.hours?.holidayOvertimeHours || 0,
+        rate: 3.0,
+        amount: (payrollData.hours?.holidayOvertimeHours || 0) * 3.0 * (payrollData.processedData.basePay / payrollData.totalRegularHours)
+      }
+    };
+  
+    const totalOvertimeHours = 
+      overtimeBreakdown.workdayOutside.hours + 
+      overtimeBreakdown.weekendInside.hours + 
+      overtimeBreakdown.weekendOutside.hours;
+  
+    const totalOvertimeAmount = 
+      overtimeBreakdown.workdayOutside.amount + 
+      overtimeBreakdown.weekendInside.amount + 
+      overtimeBreakdown.weekendOutside.amount;
+  
+    return (
+      <div className="grid grid-cols-1 gap-4 md:hidden">
+        {/* Employee Info Card */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-lg font-bold">{payrollData.employee?.name}</h2>
+                <p className="text-gray-500">{payrollData.employee?.departmentName}</p>
+                <p className="text-sm text-gray-500">ID: {payrollData.employee?.employeeId}</p>
+              </div>
+              <Badge variant="outline" className="capitalize">
+                {payrollData.employee?.employeeType?.toLowerCase()}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+  
+        {/* Regular Hours Card */}
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Regular Hours</h3>
+            <div className="flex justify-between items-baseline">
+              <p className="text-2xl font-bold">{payrollData.totalRegularHours}</p>
+              <div className="text-right">
+                <p className="text-sm text-gray-500">Base Amount</p>
+                <p className="text-lg font-medium">฿{payrollData.processedData.basePay.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+  
+        {/* Overtime Summary Card */}
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Overtime Summary</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Regular OT ({overtimeBreakdown.workdayOutside.rate}x)</span>
+                <span>{overtimeBreakdown.workdayOutside.hours} hrs</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Weekend ({overtimeBreakdown.weekendInside.rate}x)</span>
+                <span>{overtimeBreakdown.weekendInside.hours} hrs</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Holiday ({overtimeBreakdown.weekendOutside.rate}x)</span>
+                <span>{overtimeBreakdown.weekendOutside.hours} hrs</span>
+              </div>
+              <div className="pt-2 border-t flex justify-between items-center font-medium">
+                <span>Total</span>
+                <span>฿{totalOvertimeAmount.toLocaleString()}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+  
+        {/* Net Payable Card */}
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Net Payable</h3>
+            <div className="flex justify-between items-baseline">
+              <div className="space-y-1">
+                <p className="text-sm text-gray-500">Total Deductions</p>
+                <p className="text-red-600">-฿{payrollData.processedData.deductions.total.toLocaleString()}</p>
+              </div>
+              <p className="text-2xl font-bold text-green-600">
+                ฿{payrollData.processedData.netPayable.toLocaleString()}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   // Main Payroll Overview Section
   const PayrollOverview = () => (
@@ -345,58 +399,148 @@ export default function PayrollAdminDashboard() {
   );
 
   // Attendance Details Section
-  const AttendanceDetails = () => (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Clock className="mr-2" />
-          Attendance & Hours
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <h4 className="text-sm font-medium text-gray-500">Regular Hours</h4>
-            <p className="text-2xl font-bold">
-              {payrollData?.hours?.regularHours || 0}
-            </p>
-          </div>
-          <div>
-            <h4 className="text-sm font-medium text-gray-500">
-              Overtime Hours
-            </h4>
-            <p className="text-2xl font-bold">
-              {payrollData?.hours?.overtimeHours || 0}
-            </p>
-          </div>
-          <div>
-            <h4 className="text-sm font-medium text-gray-500">Holiday Hours</h4>
-            <p className="text-2xl font-bold">
-              {payrollData?.hours?.holidayHours || 0}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <h4 className="font-medium mb-2">Late Arrivals & Early Departures</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-500">Total Late Minutes</p>
-              <p className="font-medium">
-                {payrollData?.attendance?.totalLateMinutes || 0} mins
-              </p>
+  const AttendanceDetails = ({ payrollData }: { payrollData: PayrollProcessingResult }) => {
+    // Extract detailed overtime information
+    const overtimeBreakdown = {
+      workdayOutside: {
+        hours: payrollData.hours?.workdayOvertimeHours || 0,
+        rate: 1.5, // From settings
+        amount: (payrollData.hours?.workdayOvertimeHours || 0) * 1.5 * (payrollData.processedData.basePay / payrollData.totalRegularHours)
+      },
+      weekendInside: {
+        hours: payrollData.hours?.weekendShiftOvertimeHours || 0,
+        rate: payrollData.employee?.employeeType === 'Fulltime' ? 1.0 : 2.0,
+        amount: (payrollData.hours?.weekendShiftOvertimeHours || 0) * (payrollData.employee?.employeeType === 'Fulltime' ? 1.0 : 2.0) * (payrollData.processedData.basePay / payrollData.totalRegularHours)
+      },
+      weekendOutside: {
+        hours: payrollData.hours?.holidayOvertimeHours || 0, // Using holidayOvertimeHours for outside shift weekend hours
+        rate: 3.0,
+        amount: (payrollData.hours?.holidayOvertimeHours || 0) * 3.0 * (payrollData.processedData.basePay / payrollData.totalRegularHours)
+      }
+    };
+  
+    const totalOvertimeHours = 
+      overtimeBreakdown.workdayOutside.hours + 
+      overtimeBreakdown.weekendInside.hours + 
+      overtimeBreakdown.weekendOutside.hours;
+  
+    const totalOvertimeAmount = 
+      overtimeBreakdown.workdayOutside.amount + 
+      overtimeBreakdown.weekendInside.amount + 
+      overtimeBreakdown.weekendOutside.amount;
+  
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Clock className="mr-2" />
+            Attendance & Hours
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Regular Hours Section */}
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Regular Hours</h4>
+                <p className="text-2xl font-bold">{payrollData.totalRegularHours}</p>
+                <p className="text-sm text-gray-500">
+                  Base Rate: ฿{(payrollData.processedData.basePay / payrollData.totalRegularHours).toFixed(2)}/hr
+                </p>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Base Amount</h4>
+                <p className="text-2xl font-bold">฿{payrollData.processedData.basePay.toLocaleString()}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Early Departures</p>
-              <p className="font-medium">
-                {payrollData?.attendance?.earlyDepartures || 0}
-              </p>
+  
+            {/* Overtime Breakdown */}
+            <div className="space-y-4">
+              <h4 className="font-medium">Overtime Breakdown</h4>
+              
+              {/* Workday Overtime */}
+              <div className="grid grid-cols-4 gap-2 bg-gray-50 p-3 rounded-lg">
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-600">Workday (Outside Shift)</p>
+                  <p className="font-medium">{overtimeBreakdown.workdayOutside.hours} hrs</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Rate</p>
+                  <p className="font-medium">{overtimeBreakdown.workdayOutside.rate}x</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Amount</p>
+                  <p className="font-medium">฿{overtimeBreakdown.workdayOutside.amount.toLocaleString()}</p>
+                </div>
+              </div>
+  
+              {/* Weekend Inside Shift */}
+              <div className="grid grid-cols-4 gap-2 bg-gray-50 p-3 rounded-lg">
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-600">Weekend (Regular Hours)</p>
+                  <p className="font-medium">{overtimeBreakdown.weekendInside.hours} hrs</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Rate</p>
+                  <p className="font-medium">{overtimeBreakdown.weekendInside.rate}x</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Amount</p>
+                  <p className="font-medium">฿{overtimeBreakdown.weekendInside.amount.toLocaleString()}</p>
+                </div>
+              </div>
+  
+              {/* Weekend Outside Shift */}
+              <div className="grid grid-cols-4 gap-2 bg-gray-50 p-3 rounded-lg">
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-600">Weekend (Outside Hours)</p>
+                  <p className="font-medium">{overtimeBreakdown.weekendOutside.hours} hrs</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Rate</p>
+                  <p className="font-medium">{overtimeBreakdown.weekendOutside.rate}x</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Amount</p>
+                  <p className="font-medium">฿{overtimeBreakdown.weekendOutside.amount.toLocaleString()}</p>
+                </div>
+              </div>
+  
+              {/* Total Overtime */}
+              <div className="grid grid-cols-4 gap-2 border-t pt-4 mt-4">
+                <div className="col-span-2">
+                  <p className="font-medium">Total Overtime</p>
+                  <p className="text-xl font-bold">{totalOvertimeHours} hrs</p>
+                </div>
+                <div className="col-span-2 text-right">
+                  <p className="font-medium">Total Amount</p>
+                  <p className="text-xl font-bold text-green-600">
+                    ฿{totalOvertimeAmount.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+  
+            {/* Late Minutes & Early Departures */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Late Minutes</h4>
+                <p className="text-lg font-medium">
+                  {payrollData.processedData.lateMinutes || 0} mins
+                </p>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Early Departures</h4>
+                <p className="text-lg font-medium">
+                  {payrollData.processedData.earlyDepartures || 0} mins
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   // Leave & Holiday Section
   const LeaveAndHolidays = () => (
