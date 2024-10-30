@@ -12,11 +12,25 @@ import { ApprovedOvertime, ShiftData } from '@/types/attendance';
 import { NotificationService } from './NotificationService';
 import { cacheService } from './CacheService';
 
+interface WorkingHoursResult {
+  regularHours: number;
+  overtimeHours: number;
+  overtimeMetadata: OvertimeMetadataInput | null;
+}
+
+interface OvertimeMetadataInput {
+  isInsideShiftHours: boolean;
+  isDayOffOvertime: boolean;
+}
+
 export class TimeEntryService {
+  // Constants
   private readonly REGULAR_HOURS_PER_SHIFT = 8;
   private readonly OVERTIME_INCREMENT = 30; // 30 minutes increment for overtime
   private readonly LATE_THRESHOLD = 30; // 30 minutes threshold for considering "very late"
   private readonly HALF_DAY_THRESHOLD = 240; // 4 hours (in minutes)
+  private readonly OVERTIME_MINIMUM_MINUTES = 30;
+  private readonly OVERTIME_ROUND_TO_MINUTES = 30;
 
   constructor(
     private prisma: PrismaClient,
@@ -24,88 +38,7 @@ export class TimeEntryService {
     private notificationService: NotificationService,
   ) {}
 
-  private calculateLateMinutes(checkInTime: Date, shiftStart: Date): number {
-    return Math.max(0, differenceInMinutes(checkInTime, shiftStart));
-  }
-
-  private calculateWorkingHours(
-    checkInTime: Date,
-    checkOutTime: Date | null,
-    shiftStartTime: Date,
-    shiftEndTime: Date,
-    approvedOvertimeRequest: ApprovedOvertime | null,
-    leaveRequests: LeaveRequest[] = [],
-  ): {
-    regularHours: number;
-    overtimeHours: number;
-    overtimeMetadata?: {
-      isDayOffOvertime: boolean;
-      isInsideShiftHours: boolean;
-    };
-  } {
-    if (!checkOutTime) {
-      return {
-        regularHours: 0,
-        overtimeHours: 0,
-      };
-    }
-
-    // Check for approved half-day leave
-    const hasHalfDayLeave = leaveRequests.some(
-      (leave) =>
-        leave.status === 'Approved' &&
-        leave.leaveFormat === 'ลาครึ่งวัน' &&
-        isSameDay(leave.startDate, checkInTime),
-    );
-
-    // Calculate regular hours based on business rules
-    let regularHours = hasHalfDayLeave
-      ? this.REGULAR_HOURS_PER_SHIFT / 2
-      : this.REGULAR_HOURS_PER_SHIFT;
-
-    // Calculate overtime if any
-    let overtimeHours = 0;
-    let overtimeMetadata;
-
-    if (approvedOvertimeRequest) {
-      const overtimeStart = this.parseShiftTime(
-        approvedOvertimeRequest.startTime,
-        approvedOvertimeRequest.date,
-      );
-      const overtimeEnd = this.parseShiftTime(
-        approvedOvertimeRequest.endTime,
-        approvedOvertimeRequest.date,
-      );
-
-      if (checkOutTime > overtimeStart) {
-        const effectiveOvertimeStart = new Date(
-          Math.max(checkInTime.getTime(), overtimeStart.getTime()),
-        );
-        const effectiveOvertimeEnd = new Date(
-          Math.min(checkOutTime.getTime(), overtimeEnd.getTime()),
-        );
-
-        const overtimeMinutes = this.calculateOvertimeIncrement(
-          differenceInMinutes(effectiveOvertimeEnd, effectiveOvertimeStart),
-        );
-
-        overtimeHours = overtimeMinutes / 60;
-
-        // Set overtime metadata for payroll processing
-        overtimeMetadata = {
-          isDayOffOvertime: approvedOvertimeRequest.isDayOffOvertime,
-          isInsideShiftHours: approvedOvertimeRequest.isInsideShiftHours,
-        };
-      }
-    }
-
-    return {
-      regularHours: Math.round(regularHours * 100) / 100,
-      overtimeHours: Math.round(overtimeHours * 100) / 100,
-      ...(overtimeMetadata && { overtimeMetadata }),
-    };
-  }
-
+  // Main Public Methods
   async createOrUpdateTimeEntry(
     attendance: Attendance,
     isCheckIn: boolean,
@@ -127,38 +60,14 @@ export class TimeEntryService {
     );
 
     // Handle check-in specifics
-    let minutesLate = 0;
-    let isHalfDayLate = false;
+    const { minutesLate, isHalfDayLate } =
+      isCheckIn && attendance.regularCheckInTime
+        ? this.handleCheckInCalculations(attendance, shiftStart, leaveRequests)
+        : { minutesLate: 0, isHalfDayLate: false };
 
-    if (isCheckIn && attendance.regularCheckInTime) {
-      minutesLate = this.calculateLateMinutes(
-        attendance.regularCheckInTime,
-        shiftStart,
-      );
-      isHalfDayLate = minutesLate >= this.HALF_DAY_THRESHOLD;
-
-      // Only notify on check-in if late
-      if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
-        try {
-          await this.notifyAdminOfLateness(
-            attendance.employeeId,
-            attendance.date,
-            minutesLate,
-            isHalfDayLate,
-          );
-        } catch (error) {
-          console.error('Failed to send late notification:', error);
-        }
-      }
-    }
-
-    // Calculate hours only on check-out
+    // Calculate working hours
     const workingHours = isCheckIn
-      ? {
-          regularHours: 0,
-          overtimeHours: 0,
-          overtimeMetadata: null,
-        }
+      ? { regularHours: 0, overtimeHours: 0, overtimeMetadata: null }
       : this.calculateWorkingHours(
           attendance.regularCheckInTime!,
           attendance.regularCheckOutTime,
@@ -168,21 +77,19 @@ export class TimeEntryService {
           leaveRequests,
         );
 
-    // Preserve existing late minutes if updating on check-out
+    // Get existing entry
     const existingEntry = await this.prisma.timeEntry.findFirst({
       where: { attendanceId: attendance.id },
+      include: { overtimeMetadata: true },
     });
 
-    const timeEntryData: Prisma.TimeEntryUncheckedCreateInput = {
+    const timeEntryBase = {
       employeeId: attendance.employeeId,
       date: attendance.date,
       startTime: attendance.regularCheckInTime || attendance.date,
       endTime: attendance.regularCheckOutTime || null,
       regularHours: workingHours.regularHours,
       overtimeHours: workingHours.overtimeHours,
-      overtimeMetadata: workingHours.overtimeMetadata
-        ? JSON.stringify(workingHours.overtimeMetadata)
-        : null,
       actualMinutesLate: isCheckIn
         ? minutesLate
         : (existingEntry?.actualMinutesLate ?? 0),
@@ -196,17 +103,220 @@ export class TimeEntryService {
     };
 
     if (existingEntry) {
+      const updateData: Prisma.TimeEntryUpdateInput = {
+        ...timeEntryBase,
+        ...(workingHours.overtimeMetadata
+          ? {
+              overtimeMetadata: {
+                upsert: {
+                  create: workingHours.overtimeMetadata,
+                  update: workingHours.overtimeMetadata,
+                },
+              },
+            }
+          : {}),
+      };
+
       return this.prisma.timeEntry.update({
         where: { id: existingEntry.id },
-        data: timeEntryData,
+        data: updateData,
+        include: { overtimeMetadata: true },
       });
     } else {
+      const createData: Prisma.TimeEntryCreateInput = {
+        ...timeEntryBase,
+        ...(workingHours.overtimeMetadata
+          ? {
+              overtimeMetadata: {
+                create: workingHours.overtimeMetadata,
+              },
+            }
+          : {}),
+        user: {
+          create: undefined,
+          connectOrCreate: undefined,
+          connect: undefined,
+        },
+      };
+
       return this.prisma.timeEntry.create({
-        data: timeEntryData,
+        data: createData,
+        include: { overtimeMetadata: true },
       });
     }
   }
 
+  async getTimeEntriesForEmployee(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<TimeEntry[]> {
+    const cacheKey = `timeEntries:${employeeId}:${format(startDate, 'yyyy-MM-dd')}:${format(endDate, 'yyyy-MM-dd')}`;
+
+    if (cacheService) {
+      const cachedEntries = await cacheService.get(cacheKey);
+      if (cachedEntries) return JSON.parse(cachedEntries);
+    }
+
+    const entries = await this.prisma.timeEntry.findMany({
+      where: {
+        employeeId,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        entryType: {
+          in: ['regular', 'overtime', 'unpaid_leave'],
+        },
+      },
+      include: {
+        overtimeMetadata: true,
+      },
+    });
+
+    if (cacheService) {
+      await cacheService.set(cacheKey, JSON.stringify(entries), 300);
+    }
+
+    return entries;
+  }
+
+  async getTimeEntriesForPayroll(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<TimeEntry[]> {
+    return await this.prisma.timeEntry.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        status: 'COMPLETED',
+      },
+      include: {
+        user: true,
+        overtimeMetadata: true,
+      },
+    });
+  }
+
+  // Private Helper Methods
+  private calculateWorkingHours(
+    checkInTime: Date,
+    checkOutTime: Date | null,
+    shiftStart: Date,
+    shiftEnd: Date,
+    approvedOvertimeRequest: ApprovedOvertime | null,
+    leaveRequests: LeaveRequest[],
+  ): WorkingHoursResult {
+    if (!checkOutTime) {
+      return { regularHours: 0, overtimeHours: 0, overtimeMetadata: null };
+    }
+
+    try {
+      // Check for half-day leave
+      const hasHalfDayLeave = leaveRequests.some(
+        (leave) =>
+          leave.status === 'approved' &&
+          leave.leaveFormat === 'ลาครึ่งวัน' &&
+          isSameDay(new Date(leave.startDate), checkInTime),
+      );
+
+      // Calculate regular hours
+      const regularHours = hasHalfDayLeave
+        ? this.REGULAR_HOURS_PER_SHIFT / 2
+        : this.REGULAR_HOURS_PER_SHIFT;
+
+      // Calculate overtime if approved
+      const overtimeResult = this.calculateOvertimeHours(
+        checkInTime,
+        checkOutTime,
+        approvedOvertimeRequest,
+      );
+
+      return {
+        regularHours: Math.round(regularHours * 100) / 100,
+        overtimeHours: overtimeResult.hours,
+        overtimeMetadata: overtimeResult.metadata,
+      };
+    } catch (error) {
+      console.error('Error calculating working hours:', error);
+      return { regularHours: 0, overtimeHours: 0, overtimeMetadata: null };
+    }
+  }
+
+  private calculateOvertimeHours(
+    checkInTime: Date,
+    checkOutTime: Date,
+    approvedOvertimeRequest: ApprovedOvertime | null,
+  ): { hours: number; metadata: OvertimeMetadataInput | null } {
+    if (!approvedOvertimeRequest) {
+      return { hours: 0, metadata: null };
+    }
+
+    const overtimeStart = this.parseShiftTime(
+      approvedOvertimeRequest.startTime,
+      approvedOvertimeRequest.date,
+    );
+    const overtimeEnd = this.parseShiftTime(
+      approvedOvertimeRequest.endTime,
+      approvedOvertimeRequest.date,
+    );
+
+    if (checkOutTime <= overtimeStart) {
+      return { hours: 0, metadata: null };
+    }
+
+    const effectiveOvertimeStart = new Date(
+      Math.max(checkInTime.getTime(), overtimeStart.getTime()),
+    );
+    const effectiveOvertimeEnd = new Date(
+      Math.min(checkOutTime.getTime(), overtimeEnd.getTime()),
+    );
+
+    const overtimeMinutes = this.calculateOvertimeIncrement(
+      differenceInMinutes(effectiveOvertimeEnd, effectiveOvertimeStart),
+    );
+    const overtimeHours = Math.round((overtimeMinutes / 60) * 100) / 100;
+
+    return {
+      hours: overtimeHours,
+      metadata:
+        overtimeHours > 0
+          ? {
+              isDayOffOvertime: approvedOvertimeRequest.isDayOffOvertime,
+              isInsideShiftHours: approvedOvertimeRequest.isInsideShiftHours,
+            }
+          : null,
+    };
+  }
+
+  private handleCheckInCalculations(
+    attendance: Attendance,
+    shiftStart: Date,
+    leaveRequests: LeaveRequest[],
+  ) {
+    const minutesLate = this.calculateLateMinutes(
+      attendance.regularCheckInTime!,
+      shiftStart,
+    );
+    const isHalfDayLate = minutesLate >= this.HALF_DAY_THRESHOLD;
+
+    if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
+      this.notifyAdminOfLateness(
+        attendance.employeeId,
+        attendance.date,
+        minutesLate,
+        isHalfDayLate,
+      ).catch((error) =>
+        console.error('Failed to send late notification:', error),
+      );
+    }
+
+    return { minutesLate, isHalfDayLate };
+  }
+
+  // Utility Methods
   private async notifyAdminOfLateness(
     employeeId: string,
     date: Date,
@@ -268,89 +378,29 @@ export class TimeEntryService {
     }
   }
 
+  private calculateLateMinutes(checkInTime: Date, shiftStart: Date): number {
+    return Math.max(0, differenceInMinutes(checkInTime, shiftStart));
+  }
+
   private calculateOvertimeIncrement(minutes: number): number {
-    // Round down to nearest 30-minute increment
+    if (minutes < this.OVERTIME_MINIMUM_MINUTES) return 0;
     return (
-      Math.floor(minutes / this.OVERTIME_INCREMENT) * this.OVERTIME_INCREMENT
+      Math.floor(minutes / this.OVERTIME_ROUND_TO_MINUTES) *
+      this.OVERTIME_ROUND_TO_MINUTES
     );
   }
 
-  async getTimeEntriesForEmployee(
-    employeeId: string,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<TimeEntry[]> {
-    const cacheKey = `timeEntries:${employeeId}:${format(startDate, 'yyyy-MM-dd')}:${format(endDate, 'yyyy-MM-dd')}`;
-
-    if (cacheService) {
-      const cachedEntries = await cacheService.get(cacheKey);
-      if (cachedEntries) {
-        return JSON.parse(cachedEntries);
-      }
-    }
-
-    const entries = await this.prisma.timeEntry.findMany({
-      where: {
-        employeeId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-        entryType: {
-          in: ['regular', 'overtime', 'unpaid_leave'], // Include unpaid_leave, remove null
-        },
-      },
-      select: {
-        id: true,
-        employeeId: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        regularHours: true,
-        overtimeHours: true,
-        status: true,
-        attendanceId: true,
-        overtimeRequestId: true,
-        actualMinutesLate: true,
-        isHalfDayLate: true,
-        entryType: true, // Add this to include the entryType in the result
-      },
-    });
-
-    if (cacheService) {
-      await cacheService.set(cacheKey, JSON.stringify(entries), 300); // Cache for 5 minutes
-    }
-
-    return entries.map((entry) => ({
-      ...entry,
-      updatedAt: new Date(),
-      createdAt: new Date(),
-      overtimeMetadata: null, // Add this line to include the overtimeMetadata property
-    }));
-  }
-
-  async getTimeEntriesForPayroll(
-    startDate: Date,
-    endDate: Date,
-  ): Promise<TimeEntry[]> {
-    const entries = await this.prisma.timeEntry.findMany({
-      where: {
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-        status: 'COMPLETED',
-      },
-      include: {
-        user: true,
-      },
-    });
-
-    // Ensure valid entryType for payroll entries
-    return entries.map((entry) => ({
-      ...entry,
-      entryType: entry.entryType || 'regular',
-    }));
+  private parseShiftTime(timeString: string, date: Date): Date {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      hours,
+      minutes,
+      0,
+      0,
+    );
   }
 
   private async getEffectiveShift(
@@ -362,13 +412,7 @@ export class TimeEntryService {
         employeeId,
         date,
       );
-    if (!shiftData || !shiftData.effectiveShift) {
-      console.warn(
-        `No effective shift found for employee ${employeeId} on ${date}`,
-      );
-      return this.getDefaultShift();
-    }
-    return shiftData.effectiveShift;
+    return shiftData?.effectiveShift || this.getDefaultShift();
   }
 
   private getDefaultShift(): ShiftData {
@@ -380,12 +424,5 @@ export class TimeEntryService {
       endTime: '17:00',
       workDays: [1, 2, 3, 4, 5],
     };
-  }
-
-  private parseShiftTime(timeString: string, referenceDate: Date): Date {
-    const [hours, minutes] = timeString.split(':').map(Number);
-    const shiftTime = new Date(referenceDate);
-    shiftTime.setHours(hours, minutes, 0, 0);
-    return shiftTime;
   }
 }

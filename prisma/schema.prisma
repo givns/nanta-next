@@ -282,10 +282,11 @@ model Payroll {
 }
 
 model PayrollSettings {
-  id                    String @id @default(auto()) @map("_id") @db.ObjectId
+  id                   String @id @default(auto()) @map("_id") @db.ObjectId
   overtimeRates        Json    // Stores the complete rate structure
   allowances           Json    // Stores allowance configuration
   deductions           Json    // Stores deduction rules
+  rules         Json    // Stores payroll period and overtime rules
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }

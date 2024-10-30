@@ -6,6 +6,7 @@ import {
 } from '../attendance';
 import { DashboardData } from '../dashboard';
 import { UserData } from '../user';
+import { EmployeeType } from '@prisma/client';
 
 export interface ApiResponse<T> {
   data: T;
@@ -66,28 +67,31 @@ export interface PayrollPeriodResponse {
  * Response type for payroll settings endpoint
  */
 export interface PayrollSettings {
-  regularHourlyRate: number;
   overtimeRates: {
-    regular: number;
-    holiday: number;
+    [key in EmployeeType]: {
+      workdayOutsideShift: number;
+      weekendInsideShiftFulltime: number;
+      weekendInsideShiftParttime: number;
+      weekendOutsideShift: number;
+    };
   };
   allowances: {
     transportation: number;
-    meal: number;
+    meal: {
+      [key in EmployeeType]: number;
+    };
     housing: number;
   };
   deductions: {
-    socialSecurity: number;
-    tax: number;
+    socialSecurityRate: number;
+    socialSecurityMinBase: number;
+    socialSecurityMaxBase: number;
   };
-  leaveSettings: {
-    sickLeavePerYear: number;
-    annualLeavePerYear: number;
-    businessLeavePerYear: number;
-  };
-  workingHours: {
-    regularHoursPerDay: number;
-    regularDaysPerWeek: number;
+  rules: {
+    payrollPeriodStart: number;
+    payrollPeriodEnd: number;
+    overtimeMinimumMinutes: number;
+    roundOvertimeTo: number;
   };
 }
 
@@ -106,6 +110,27 @@ export interface PayrollCalculation {
     unpaid: number;
   };
   adjustments: PayrollAdjustment[];
+}
+
+export interface PayrollCalculationResult {
+  regularHours: number;
+  overtimeBreakdown: {
+    workdayOutside: { hours: number; amount: number };
+    weekendInside: { hours: number; amount: number };
+    weekendOutside: { hours: number; amount: number };
+  };
+  allowances: {
+    transportation: number;
+    meal: number;
+    housing: number;
+  };
+  deductions: {
+    socialSecurity: number;
+    tax: number;
+    unpaidLeave: number;
+    total: number;
+  };
+  netPayable: number;
 }
 
 /**
@@ -141,6 +166,7 @@ export type PayrollAdjustmentType =
 /**
  * Daily payroll record
  */
+
 export interface DailyPayrollRecord {
   date: string;
   regularHours: number;
@@ -152,44 +178,62 @@ export interface DailyPayrollRecord {
   earlyLeaveMinutes: number;
 }
 
-/**
- * Payroll processing result
- */
 export interface PayrollProcessingResult {
   id: string;
-  employee: {
-    employeeId: string; 
-    employeeType: 'Fulltime' | 'Parttime' | 'Probation';
-  };  periodStart: string;
+  employeeId: string;
+  periodStart: string;
   periodEnd: string;
-  totalWorkingDays: number;
+  employee: {
+    id: string;
+    employeeId: string;
+    name: string;
+    departmentName: string;
+    role: string;
+    employeeType: EmployeeType;
+  };
+  summary: {
+    totalWorkingDays: number;
+    totalPresent: number;
+    totalAbsent: number;
+  };
   hours: {
     regularHours: number;
     workdayOvertimeHours: number;
     weekendShiftOvertimeHours: number;
     holidayOvertimeHours: number;
   };
-  totalPresent: number;
-  totalAbsent: number;
-  totalOvertimeHours: number;
-  totalRegularHours: number;
+  attendance: {
+    totalLateMinutes: number;
+    earlyDepartures: number;
+  };
+  leaves: {
+    sick: number;
+    annual: number;
+    business: number;
+    holidays: number;
+    unpaid: number;
+  };
+  rates: {
+    regularHourlyRate: number;
+    overtimeRate: number;
+  };
   processedData: {
     basePay: number;
-    lateMinutes: number;
-    earlyDepartures: number;
     overtimePay: number;
-    holidayPay: number;
-    allowances: number;
+    allowances: {
+      transportation: number;
+      meal: number;
+      housing: number;
+    };
     deductions: {
       socialSecurity: number;
       tax: number;
-      other: number;
+      unpaidLeave: number;
+      total: number;
     };
-    adjustments: PayrollAdjustment[];
     netPayable: number;
   };
 }
-
 /**
  * Employee payroll summary for dashboard display
  */

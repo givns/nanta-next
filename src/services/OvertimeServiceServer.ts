@@ -303,6 +303,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       reason: overtimeRequest.reason,
       approverId: overtimeRequest.approverId,
       isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+      isInsideShiftHours: overtimeRequest.isInsideShiftHours,
       createdAt: overtimeRequest.createdAt,
       updatedAt: overtimeRequest.updatedAt,
     };
@@ -469,6 +470,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       reason: overtime.reason,
       approverId: overtime.approverId,
       isDayOffOvertime: overtime.isDayOffOvertime,
+      isInsideShiftHours: overtime.isInsideShiftHours,
       createdAt: overtime.createdAt,
       updatedAt: overtime.updatedAt,
     };
@@ -587,6 +589,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         reason: overtime.reason,
         approverId: overtime.approverId,
         isDayOffOvertime: overtime.isDayOffOvertime,
+        isInsideShiftHours: overtime.isInsideShiftHours,
         createdAt: overtime.createdAt,
         updatedAt: overtime.updatedAt,
         overtimeEntries: mapToOvertimeEntryData(overtime.overtimeEntries),

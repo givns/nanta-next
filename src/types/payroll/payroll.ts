@@ -1,5 +1,3 @@
-import { Payroll, TimeEntryPayrollPeriod } from '@prisma/client';
-
 export interface PayrollCalculation {
   actualBasePayAmount: number;
   overtimeAmount: {
@@ -71,34 +69,6 @@ export interface PayrollPeriod {
 export interface PayrollPeriodDisplay {
   startDate: Date; // It's using startDate instead of start
   endDate: Date; // It's using endDate instead of end
-}
-
-export interface PayrollSettings {
-  id?: string;
-  employeeType: string;
-  regularHourlyRate: number;
-  overtimeRates: {
-    regular: number;
-    holiday: number;
-  };
-  allowances: {
-    transportation: number;
-    meal: number;
-    housing: number;
-  };
-  deductions: {
-    socialSecurity: number;
-    tax: number;
-  };
-  workingHours: {
-    regularHoursPerDay: number;
-    regularDaysPerWeek: number;
-  };
-  leaveSettings: {
-    sickLeavePerYear: number;
-    annualLeavePerYear: number;
-    businessLeavePerYear: number;
-  };
 }
 
 export interface Attendance {
@@ -175,6 +145,7 @@ export interface PayrollSummaryResponse {
 export interface AdminPayrollData {
   employee: {
     name: string;
+    employeeId: string;
     departmentName: string;
     role: string;
   };

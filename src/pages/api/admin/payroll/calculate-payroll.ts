@@ -42,174 +42,114 @@ export default async function handler(
   const { employeeId, periodStart, periodEnd } = req.body;
 
   try {
-    // 1. Fetch required data
-    const [employee, timeEntries, leaveRequests, holidays] = await Promise.all([
-      prisma.user.findUnique({
-        where: { employeeId },
-      }),
-      prisma.timeEntry.findMany({
-        where: {
-          employeeId,
-          date: {
-            gte: startOfDay(parseISO(periodStart)),
-            lte: endOfDay(parseISO(periodEnd)),
+    // 1. Fetch all required data
+    const [employee, timeEntries, leaveRequests, holidays, settings] =
+      await Promise.all([
+        prisma.user.findUnique({
+          where: { employeeId },
+        }),
+        prisma.timeEntry.findMany({
+          where: {
+            employeeId,
+            date: {
+              gte: startOfDay(parseISO(periodStart)),
+              lte: endOfDay(parseISO(periodEnd)),
+            },
           },
-        },
-      }),
-      prisma.leaveRequest.findMany({
-        where: {
-          employeeId,
-          status: 'Approved',
-          startDate: {
-            gte: startOfDay(parseISO(periodStart)),
+          include: {
+            overtimeMetadata: true,
           },
-          endDate: {
-            lte: endOfDay(parseISO(periodEnd)),
+        }),
+        prisma.leaveRequest.findMany({
+          where: {
+            employeeId,
+            status: 'Approved',
+            startDate: {
+              gte: startOfDay(parseISO(periodStart)),
+            },
+            endDate: {
+              lte: endOfDay(parseISO(periodEnd)),
+            },
           },
-        },
-      }),
-      prisma.holiday.findMany({
-        where: {
-          date: {
-            gte: startOfDay(parseISO(periodStart)),
-            lte: endOfDay(parseISO(periodEnd)),
+        }),
+        prisma.holiday.findMany({
+          where: {
+            date: {
+              gte: startOfDay(parseISO(periodStart)),
+              lte: endOfDay(parseISO(periodEnd)),
+            },
           },
-        },
-      }),
-    ]);
+        }),
+        prisma.payrollSettings.findFirst(),
+      ]);
 
-    if (!employee) {
-      return res.status(404).json({ message: 'Employee not found' });
+    if (!employee || !settings) {
+      return res
+        .status(404)
+        .json({ message: 'Employee or settings not found' });
     }
 
-    // 2. Process attendance and hours
-    // Update the payroll creation:
-    const { workingHours, attendance, leaves } = processTimeEntries(
+    // 2. Initialize service with settings
+    const payrollService = new PayrollCalculationService({
+      overtimeRates: JSON.parse(settings.overtimeRates as string),
+      allowances: JSON.parse(settings.allowances as string),
+      deductions: JSON.parse(settings.deductions as string),
+      rules: JSON.parse(settings.overtimeRates as string).rules,
+    });
+
+    // 3. Calculate payroll
+    const result = await payrollService.calculatePayroll(
+      employee,
       timeEntries,
       leaveRequests,
-      holidays,
       parseISO(periodStart),
       parseISO(periodEnd),
     );
 
-    console.log('Processed time entries:', {
-      workingHours,
-      attendance,
-      leaves,
-    });
-
-    // 3. Initialize services
-    const payrollService = new PayrollCalculationService();
-    const probationService = new ProbationAdjustmentService({
-      basePayAdjustmentRate: 0.9,
-      overtimeEligible: true,
-      allowancesEligible: true,
-    });
-
-    console.log('Calculating payroll for:', employee);
-
-    // 4. Calculate payroll
-    let result = payrollService.calculatePayroll({
-      basePayAmount: employee.baseSalary || 0,
-      employeeBaseType:
-        employee.employeeType === 'Probation'
-          ? employee.salaryType === 'monthly'
-            ? 'FULLTIME'
-            : 'PARTTIME'
-          : employee.employeeType === 'Fulltime'
-            ? 'FULLTIME'
-            : 'PARTTIME',
-      employeeStatus:
-        employee.employeeType === 'Probation' ? 'PROBATION' : 'REGULAR',
-      isGovernmentRegistered: employee.isGovernmentRegistered === 'Yes',
-      workingHours,
-      attendance,
-      additionalAllowances: {}, // Add any additional allowances here
-    });
-
-    console.log('Payroll calculation result:', result);
-
-    // 5. Apply probation adjustments if needed
-    if (employee.employeeType === 'Probation') {
-      result = probationService.adjustPayrollCalculation(result);
-    }
-
-    const existingPeriod = await prisma.payrollPeriod.findFirst({
+    // 4. Create payroll record
+    const payrollPeriod = await prisma.payrollPeriod.upsert({
       where: {
+        startDate_endDate: {
+          startDate: new Date(periodStart),
+          endDate: new Date(periodEnd),
+        },
+      },
+      update: {
+        status: 'processing',
+      },
+      create: {
         startDate: new Date(periodStart),
         endDate: new Date(periodEnd),
+        status: 'processing',
       },
     });
 
-    // Create or update payroll period - Fixed upsert logic
-    let payrollPeriod;
-    if (existingPeriod) {
-      payrollPeriod = await prisma.payrollPeriod.update({
-        where: { id: existingPeriod.id },
-        data: {
-          status: 'processing',
-        },
-      });
-    } else {
-      payrollPeriod = await prisma.payrollPeriod.create({
-        data: {
-          startDate: new Date(periodStart),
-          endDate: new Date(periodEnd),
-          status: 'processing',
-        },
-      });
-    }
-
+    // 5. Create payroll record
     const payroll = await prisma.payroll.create({
       data: {
         employeeId,
         payrollPeriodId: payrollPeriod.id,
-        regularHours: workingHours.regularHours,
+        regularHours: result.regularHours,
         overtimeHours:
-          workingHours.workdayOvertimeHours +
-          workingHours.weekendShiftOvertimeHours +
-          workingHours.holidayOvertimeHours,
-        holidayHours: attendance.holidayDays * 8,
-        holidayOvertimeHours: workingHours.holidayOvertimeHours,
-        lateMinutes: attendance.totalLateMinutes || 0,
-        earlyLeaveMinutes: attendance.earlyDepartures || 0,
-        sickLeaveDays: leaves.sick,
-        businessLeaveDays: leaves.business,
-        annualLeaveDays: leaves.annual,
-        unpaidLeaveDays: leaves.unpaid,
-        basePayAmount: result.actualBasePayAmount,
-        overtimeAmount: result.overtimeAmount.total,
-        holidayAmount: result.allowances.total,
-        totalAllowances: result.allowances.total,
+          result.overtimeBreakdown.workdayOutside.hours +
+          result.overtimeBreakdown.weekendInside.hours +
+          result.overtimeBreakdown.weekendOutside.hours,
+        basePayAmount:
+          (result.regularHours * employee.baseSalary!) /
+          (employee.salaryType === 'monthly' ? 176 : 8),
+        overtimeAmount:
+          result.overtimeBreakdown.workdayOutside.amount +
+          result.overtimeBreakdown.weekendInside.amount +
+          result.overtimeBreakdown.weekendOutside.amount,
+        totalAllowances:
+          result.allowances.transportation +
+          result.allowances.meal +
+          result.allowances.housing,
         totalDeductions: result.deductions.total,
         netPayable: result.netPayable,
         status: 'draft',
       },
     });
-
-    // 7. Create processing result
-    await prisma.payrollProcessingResult.create({
-      data: {
-        employeeId: employee.employeeId,
-        periodStart: parseISO(periodStart),
-        periodEnd: parseISO(periodEnd),
-        totalWorkingDays:
-          attendance.presentDays +
-          attendance.paidLeaveDays +
-          attendance.holidayDays,
-        totalPresent: attendance.presentDays,
-        totalAbsent: attendance.unpaidLeaveDays,
-        totalOvertimeHours:
-          workingHours.workdayOvertimeHours +
-          workingHours.weekendShiftOvertimeHours +
-          workingHours.holidayOvertimeHours,
-        totalRegularHours: workingHours.regularHours,
-        processedData: JSON.stringify(result),
-        status: 'completed',
-      },
-    });
-
-    console.log('Payroll calculation completed:', payroll.id);
 
     return res.status(200).json({
       payrollId: payroll.id,

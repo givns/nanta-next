@@ -1,7 +1,7 @@
 // pages/api/payroll/export.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PayrollExportService } from '../../../services/PayrollExportService';
+import { PayrollExportService } from '../../../../services/PayrollExportService';
 
 const payrollExportService = new PayrollExportService();
 

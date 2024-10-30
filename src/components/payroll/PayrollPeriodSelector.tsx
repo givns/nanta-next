@@ -1,3 +1,4 @@
+//PayrollPeriodSelector.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   format,
@@ -26,6 +27,7 @@ import type {
   EmployeePayrollSummary,
   PayrollProcessingResult,
 } from '@/types/payroll/api';
+import { EmployeeType } from '@prisma/client';
 
 // Custom type for payroll period
 interface PayrollPeriodInfo {
@@ -110,10 +112,45 @@ const DetailedPayrollSummary: React.FC<{
   payrollData: PayrollProcessingResult;
   settings: PayrollSettings;
 }> = ({ payrollData, settings }) => {
-  const { totalRegularHours, totalOvertimeHours, processedData } = payrollData;
-
-  const calculateRate = (hours: number, rate: number): string =>
-    `฿${(hours * rate).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const overtimeBreakdown = {
+    workdayOutside: {
+      hours: payrollData.hours.workdayOvertimeHours,
+      rate: settings.overtimeRates[payrollData.employee.employeeType]
+        .workdayOutsideShift,
+      amount:
+        payrollData.hours.workdayOvertimeHours *
+        settings.overtimeRates[payrollData.employee.employeeType]
+          .workdayOutsideShift *
+        payrollData.rates.regularHourlyRate,
+    },
+    weekendInside: {
+      hours: payrollData.hours.weekendShiftOvertimeHours,
+      rate:
+        payrollData.employee.employeeType === EmployeeType.Fulltime
+          ? settings.overtimeRates[payrollData.employee.employeeType]
+              .weekendInsideShiftFulltime
+          : settings.overtimeRates[payrollData.employee.employeeType]
+              .weekendInsideShiftParttime,
+      amount:
+        payrollData.hours.weekendShiftOvertimeHours *
+        (payrollData.employee.employeeType === EmployeeType.Fulltime
+          ? settings.overtimeRates[payrollData.employee.employeeType]
+              .weekendInsideShiftFulltime
+          : settings.overtimeRates[payrollData.employee.employeeType]
+              .weekendInsideShiftParttime) *
+        payrollData.rates.regularHourlyRate,
+    },
+    weekendOutside: {
+      hours: payrollData.hours.holidayOvertimeHours,
+      rate: settings.overtimeRates[payrollData.employee.employeeType]
+        .weekendOutsideShift,
+      amount:
+        payrollData.hours.holidayOvertimeHours *
+        settings.overtimeRates[payrollData.employee.employeeType]
+          .weekendOutsideShift *
+        payrollData.rates.regularHourlyRate,
+    },
+  };
 
   return (
     <div className="space-y-6">
@@ -123,102 +160,166 @@ const DetailedPayrollSummary: React.FC<{
           <CardTitle className="text-lg">Working Hours</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
+            {/* Regular Hours */}
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-600">Regular Hours</span>
-                <span className="font-medium">{totalRegularHours}</span>
+                <span className="font-medium">
+                  {payrollData.hours.regularHours}
+                </span>
               </div>
               <div className="text-sm text-gray-500">
-                Rate: ฿{settings.regularHourlyRate}/hr
+                Rate: ฿{payrollData.rates.regularHourlyRate}/hr
                 <br />
-                Total:{' '}
-                {calculateRate(totalRegularHours, settings.regularHourlyRate)}
+                Amount: ฿{payrollData.processedData.basePay.toLocaleString()}
               </div>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Overtime Hours</span>
-                <span className="font-medium">{totalOvertimeHours}</span>
+
+            {/* Overtime Breakdown */}
+            <div className="space-y-4 pt-4 border-t">
+              <h4 className="font-medium">Overtime Breakdown</h4>
+
+              {/* Workday Outside Shift */}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <span className="text-sm text-gray-600">Regular OT</span>
+                  <p className="font-medium">
+                    {overtimeBreakdown.workdayOutside.hours}hrs
+                  </p>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">Rate</span>
+                  <p className="font-medium">
+                    {overtimeBreakdown.workdayOutside.rate}x
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm text-gray-600">Amount</span>
+                  <p className="font-medium">
+                    ฿{overtimeBreakdown.workdayOutside.amount.toLocaleString()}
+                  </p>
+                </div>
               </div>
-              <div className="text-sm text-gray-500">
-                Rate: ฿
-                {settings.regularHourlyRate * settings.overtimeRates.regular}/hr
-                <br />
-                Total:{' '}
-                {calculateRate(
-                  totalOvertimeHours,
-                  settings.regularHourlyRate * settings.overtimeRates.regular,
-                )}
+
+              {/* Weekend Inside Shift */}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <span className="text-sm text-gray-600">
+                    Weekend (Regular)
+                  </span>
+                  <p className="font-medium">
+                    {overtimeBreakdown.weekendInside.hours}hrs
+                  </p>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">Rate</span>
+                  <p className="font-medium">
+                    {overtimeBreakdown.weekendInside.rate}x
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm text-gray-600">Amount</span>
+                  <p className="font-medium">
+                    ฿{overtimeBreakdown.weekendInside.amount.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Weekend Outside Shift */}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <span className="text-sm text-gray-600">
+                    Weekend (Outside)
+                  </span>
+                  <p className="font-medium">
+                    {overtimeBreakdown.weekendOutside.hours}hrs
+                  </p>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">Rate</span>
+                  <p className="font-medium">
+                    {overtimeBreakdown.weekendOutside.rate}x
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm text-gray-600">Amount</span>
+                  <p className="font-medium">
+                    ฿{overtimeBreakdown.weekendOutside.amount.toLocaleString()}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Earnings Breakdown */}
+      {/* Allowances & Deductions */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Earnings Breakdown</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {/* Base Pay */}
-            <div className="flex justify-between">
-              <span className="text-gray-600">Base Pay</span>
-              <span className="font-medium">
-                ฿{processedData.basePay.toLocaleString()}
-              </span>
-            </div>
-
-            {/* Overtime Pay */}
-            <div className="flex justify-between">
-              <span className="text-gray-600">Overtime Pay</span>
-              <span className="font-medium">
-                ฿{processedData.overtimePay.toLocaleString()}
-              </span>
-            </div>
-
-            {/* Holiday Pay */}
-            <div className="flex justify-between">
-              <span className="text-gray-600">Holiday Pay</span>
-              <span className="font-medium">
-                ฿{processedData.holidayPay.toLocaleString()}
-              </span>
-            </div>
-
             {/* Allowances */}
-            <div className="pt-3 border-t">
+            <div>
+              <h4 className="font-medium mb-2">Allowances</h4>
               <div className="space-y-2">
                 <div className="flex justify-between text-gray-600">
-                  <span>Transportation Allowance</span>
+                  <span>Transportation</span>
                   <span>
-                    ฿{settings.allowances.transportation.toLocaleString()}
+                    ฿
+                    {payrollData.processedData.allowances.transportation.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between text-gray-600">
-                  <span>Meal Allowance</span>
-                  <span>฿{settings.allowances.meal.toLocaleString()}</span>
+                  <span>Meal</span>
+                  <span>
+                    ฿
+                    {payrollData.processedData.allowances.meal.toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex justify-between text-gray-600">
-                  <span>Housing Allowance</span>
-                  <span>฿{settings.allowances.housing.toLocaleString()}</span>
+                  <span>Housing</span>
+                  <span>
+                    ฿
+                    {payrollData.processedData.allowances.housing.toLocaleString()}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Deductions */}
-            <div className="pt-3 border-t">
+            <div className="pt-4 border-t">
+              <h4 className="font-medium mb-2">Deductions</h4>
               <div className="space-y-2">
                 <div className="flex justify-between text-red-600">
-                  <span>Social Security (5%)</span>
+                  <span>Social Security</span>
                   <span>
-                    -฿{processedData.deductions.socialSecurity.toLocaleString()}
+                    -฿
+                    {payrollData.processedData.deductions.socialSecurity.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between text-red-600">
                   <span>Tax</span>
-                  <span>-฿{processedData.deductions.tax.toLocaleString()}</span>
+                  <span>
+                    -฿
+                    {payrollData.processedData.deductions.tax.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between text-red-600">
+                  <span>Unpaid Leave</span>
+                  <span>
+                    -฿
+                    {payrollData.processedData.deductions.unpaidLeave.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between font-medium text-red-600 pt-2 border-t">
+                  <span>Total Deductions</span>
+                  <span>
+                    -฿
+                    {payrollData.processedData.deductions.total.toLocaleString()}
+                  </span>
                 </div>
               </div>
             </div>
@@ -228,24 +329,13 @@ const DetailedPayrollSummary: React.FC<{
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-lg">Net Payable</span>
                 <span className="font-bold text-lg text-green-600">
-                  ฿{processedData.netPayable.toLocaleString()}
+                  ฿{payrollData.processedData.netPayable.toLocaleString()}
                 </span>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* Payment Status */}
-      {payrollData.processedData.adjustments.length > 0 && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            This payroll includes {payrollData.processedData.adjustments.length}{' '}
-            adjustment(s). Check with HR for details.
-          </AlertDescription>
-        </Alert>
-      )}
     </div>
   );
 };
