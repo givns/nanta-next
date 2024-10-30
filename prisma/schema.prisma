@@ -146,6 +146,7 @@ model OvertimeRequest {
   approverId         String?         @db.ObjectId
   approver           User?           @relation("OvertimeApprover", fields: [approverId], references: [id])
   isDayOffOvertime   Boolean         @default(false)
+  isInsideShiftHours Boolean         @default(false)
   overtimeEntries    OvertimeEntry[]
   timeEntries        TimeEntry[]
   createdAt          DateTime        @default(now())
@@ -206,6 +207,7 @@ model TimeEntry {
   overtimeRequestId String?   @db.ObjectId
   overtimeRequest   OvertimeRequest? @relation(fields: [overtimeRequestId], references: [id])
   entryType         String    // "regular", "overtime"
+  overtimeMetadata  String?
   timeEntryPayrollPeriods TimeEntryPayrollPeriod[]
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

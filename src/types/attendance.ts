@@ -61,8 +61,16 @@ export interface ApprovedOvertime {
   reason: string | null;
   approverId: string | null;
   isDayOffOvertime: boolean;
+  isInsideShiftHours: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface OvertimeInfo {
+  isDayOffOvertime: boolean;
+  isInsideShiftHours: boolean;
+  startTime: string;
+  endTime: string;
 }
 
 export interface ExtendedApprovedOvertime extends ApprovedOvertime {
@@ -185,6 +193,7 @@ export interface ProcessedAttendance {
   status: AttendanceStatusValue;
   regularHours: number;
   overtimeHours: number;
+  overtimeInfo?: OvertimeInfo;
   detailedStatus: string;
   attendanceStatusType: AttendanceStatusType;
 }
@@ -202,6 +211,10 @@ export interface TimeEntryData {
   attendanceId: string | null;
   overtimeRequestId: string | null;
   entryType: 'regular' | 'overtime';
+  overtimeMetadata?: {
+    isDayOffOvertime: boolean;
+    isInsideShiftHours: boolean;
+  };
 }
 
 // Raw data from API/Database
@@ -217,6 +230,10 @@ export interface RawTimeEntry {
   attendanceId: string | null;
   overtimeRequestId: string | null;
   entryType: string;
+  overtimeMetadata?: {
+    isDayOffOvertime: boolean;
+    isInsideShiftHours: boolean;
+  };
 }
 
 export function transformTimeEntry(raw: RawTimeEntry): TimeEntryData {
@@ -232,6 +249,10 @@ export function transformTimeEntry(raw: RawTimeEntry): TimeEntryData {
     attendanceId: raw.attendanceId,
     overtimeRequestId: raw.overtimeRequestId,
     entryType: raw.entryType === 'overtime' ? 'overtime' : 'regular',
+    overtimeMetadata: {
+      isDayOffOvertime: raw.overtimeMetadata?.isDayOffOvertime || false,
+      isInsideShiftHours: raw.overtimeMetadata?.isInsideShiftHours || false,
+    },
   };
 }
 
@@ -318,6 +339,7 @@ export interface CheckInOutAllowance {
   isLateCheckIn?: boolean;
   isLateCheckOut?: boolean;
   isVeryLateCheckOut?: boolean;
+  isInsideShift?: boolean;
   lateCheckOutMinutes?: number;
   isPotentialOvertime?: boolean;
   isAfternoonShift?: boolean;

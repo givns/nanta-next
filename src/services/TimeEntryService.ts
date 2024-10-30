@@ -31,13 +31,17 @@ export class TimeEntryService {
   private calculateWorkingHours(
     checkInTime: Date,
     checkOutTime: Date | null,
-    shiftStart: Date,
-    shiftEnd: Date,
+    shiftStartTime: Date,
+    shiftEndTime: Date,
     approvedOvertimeRequest: ApprovedOvertime | null,
     leaveRequests: LeaveRequest[] = [],
   ): {
     regularHours: number;
     overtimeHours: number;
+    overtimeMetadata?: {
+      isDayOffOvertime: boolean;
+      isInsideShiftHours: boolean;
+    };
   } {
     if (!checkOutTime) {
       return {
@@ -61,6 +65,8 @@ export class TimeEntryService {
 
     // Calculate overtime if any
     let overtimeHours = 0;
+    let overtimeMetadata;
+
     if (approvedOvertimeRequest) {
       const overtimeStart = this.parseShiftTime(
         approvedOvertimeRequest.startTime,
@@ -84,12 +90,19 @@ export class TimeEntryService {
         );
 
         overtimeHours = overtimeMinutes / 60;
+
+        // Set overtime metadata for payroll processing
+        overtimeMetadata = {
+          isDayOffOvertime: approvedOvertimeRequest.isDayOffOvertime,
+          isInsideShiftHours: approvedOvertimeRequest.isInsideShiftHours,
+        };
       }
     }
 
     return {
       regularHours: Math.round(regularHours * 100) / 100,
       overtimeHours: Math.round(overtimeHours * 100) / 100,
+      ...(overtimeMetadata && { overtimeMetadata }),
     };
   }
 
@@ -126,12 +139,6 @@ export class TimeEntryService {
 
       // Only notify on check-in if late
       if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
-        console.log('Sending late notification to admin:', {
-          employeeId: attendance.employeeId,
-          minutesLate,
-          date: attendance.date,
-        });
-
         try {
           await this.notifyAdminOfLateness(
             attendance.employeeId,
@@ -146,8 +153,12 @@ export class TimeEntryService {
     }
 
     // Calculate hours only on check-out
-    const { regularHours, overtimeHours } = isCheckIn
-      ? { regularHours: 0, overtimeHours: 0 }
+    const workingHours = isCheckIn
+      ? {
+          regularHours: 0,
+          overtimeHours: 0,
+          overtimeMetadata: null,
+        }
       : this.calculateWorkingHours(
           attendance.regularCheckInTime!,
           attendance.regularCheckOutTime,
@@ -162,15 +173,16 @@ export class TimeEntryService {
       where: { attendanceId: attendance.id },
     });
 
-    // Handle time entries, ensuring we only include times that exist
     const timeEntryData: Prisma.TimeEntryUncheckedCreateInput = {
       employeeId: attendance.employeeId,
       date: attendance.date,
-      // Ensure startTime and endTime are handled correctly
       startTime: attendance.regularCheckInTime || attendance.date,
       endTime: attendance.regularCheckOutTime || null,
-      regularHours: regularHours || 0,
-      overtimeHours: overtimeHours || 0,
+      regularHours: workingHours.regularHours,
+      overtimeHours: workingHours.overtimeHours,
+      overtimeMetadata: workingHours.overtimeMetadata
+        ? JSON.stringify(workingHours.overtimeMetadata)
+        : null,
       actualMinutesLate: isCheckIn
         ? minutesLate
         : (existingEntry?.actualMinutesLate ?? 0),
@@ -179,26 +191,18 @@ export class TimeEntryService {
         : (existingEntry?.isHalfDayLate ?? false),
       status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
       attendanceId: attendance.id,
-      // Ensure entryType is never null
-      entryType: overtimeHours > 0 ? 'overtime' : 'regular',
+      overtimeRequestId: approvedOvertimeRequest?.id || null,
+      entryType: workingHours.overtimeHours > 0 ? 'overtime' : 'regular',
     };
-
-    // Only add times if they exist
-    if (attendance.regularCheckInTime) {
-      timeEntryData.startTime = attendance.regularCheckInTime;
-    }
-    if (attendance.regularCheckOutTime) {
-      timeEntryData.endTime = attendance.regularCheckOutTime;
-    }
 
     if (existingEntry) {
       return this.prisma.timeEntry.update({
         where: { id: existingEntry.id },
-        data: timeEntryData as Prisma.TimeEntryUncheckedCreateInput,
+        data: timeEntryData,
       });
     } else {
       return this.prisma.timeEntry.create({
-        data: timeEntryData as Prisma.TimeEntryUncheckedCreateInput,
+        data: timeEntryData,
       });
     }
   }
@@ -237,11 +241,11 @@ export class TimeEntryService {
     const message = {
       type: 'text',
       text: `แจ้งเตือน: พนักงานมาสาย
-พนักงาน: ${user.name}
-แผนก: ${user.departmentName}
-วันที่: ${format(date, 'dd/MM/yyyy')}
-สาย: ${Math.floor(minutesLate)} นาที
-${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
+      พนักงาน: ${user.name}
+      แผนก: ${user.departmentName}
+      วันที่: ${format(date, 'dd/MM/yyyy')}
+      สาย: ${Math.floor(minutesLate)} นาที
+      ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
     };
 
     for (const admin of admins) {
@@ -321,6 +325,7 @@ ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}`,
       ...entry,
       updatedAt: new Date(),
       createdAt: new Date(),
+      overtimeMetadata: null, // Add this line to include the overtimeMetadata property
     }));
   }
 

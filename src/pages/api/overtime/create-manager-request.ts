@@ -51,12 +51,13 @@ export default async function handler(
             where: { employeeId },
             include: { assignedShift: true },
           });
+
           if (!employee) {
             console.warn(`Employee with id ${employeeId} not found`);
             return null;
           }
 
-          // Check if the employee is in one of the allowed departments
+          // Check department
           if (!departmentNames.includes(employee.departmentName)) {
             console.warn(
               `Employee ${employeeId} is not in an allowed department`,
@@ -64,15 +65,29 @@ export default async function handler(
             return null;
           }
 
-          // Check if it's a day off for the employee
+          // Get effective shift
           const shiftData =
             await shiftManagementService.getEffectiveShiftAndStatus(
               employee.employeeId,
               overtimeDate,
             );
-          const isDayOff =
+
+          // Check if it's a day off
+          const isDayOffOvertime =
             isHoliday ||
             !shiftData.effectiveShift.workDays.includes(overtimeDate.getDay());
+
+          // Determine if overtime is inside or outside shift hours
+          const requestStartTime = parseTime(startTime);
+          const requestEndTime = parseTime(endTime);
+          const shiftStartTime = parseTime(shiftData.effectiveShift.startTime);
+          const shiftEndTime = parseTime(shiftData.effectiveShift.endTime);
+
+          // For day off overtime, check if it's within regular shift hours
+          const isInsideShift =
+            isDayOffOvertime &&
+            requestStartTime >= shiftStartTime &&
+            requestEndTime <= shiftEndTime;
 
           const request = await prisma.overtimeRequest.create({
             data: {
@@ -84,19 +99,17 @@ export default async function handler(
               reason: formattedReason,
               status: 'pending_response',
               approverId: manager.id,
-              isDayOffOvertime: isDayOff,
+              isDayOffOvertime, // Whether it's a day off (holiday or weekly off)
+              isInsideShiftHours: isInsideShift, // Only relevant for day off OT
             },
           });
 
+          // Send notification
           if (employee.lineUserId) {
             await notificationService.sendOvertimeRequestNotification(
               request,
               employee.employeeId,
               employee.lineUserId,
-            );
-          } else {
-            console.warn(
-              `Employee ${employee.employeeId} does not have a LINE User ID`,
             );
           }
 
@@ -127,4 +140,10 @@ export default async function handler(
       error: error.message,
     });
   }
+}
+
+// Helper function to parse time string to minutes since midnight
+function parseTime(timeString: string): number {
+  const [hours, minutes] = timeString.split(':').map(Number);
+  return hours * 60 + minutes;
 }

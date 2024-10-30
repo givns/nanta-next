@@ -45,6 +45,7 @@ import {
   LateCheckOutStatus,
   AttendanceRecord,
   HalfDayLeaveContext,
+  OvertimeInfo,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
@@ -351,7 +352,7 @@ export class AttendanceService {
 
   private handleDayOffScenario(
     dayOffOvertimeRequest: any,
-    approvedOvertime: any,
+    approvedOvertime: ApprovedOvertime | null,
     inPremises: boolean,
     address: string,
     now: Date,
@@ -368,7 +369,13 @@ export class AttendanceService {
         return this.createResponse(
           true,
           'คุณกำลังลงเวลาทำงานล่วงเวลาในวันหยุดที่ได้รับอนุมัติ',
-          { isOvertime: true, isDayOffOvertime: true, inPremises, address },
+          {
+            isOvertime: true,
+            isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+            isInsideShift: approvedOvertime.isInsideShiftHours,
+            inPremises,
+            address,
+          },
         );
       } else {
         return this.createResponse(
@@ -774,6 +781,7 @@ export class AttendanceService {
       let isEarlyCheckIn = false;
       let isLateCheckIn = false;
       let isLateCheckOut = false;
+      let overtimeInfo: OvertimeInfo | undefined;
 
       const existingAttendance = await this.getLatestAttendance(
         user.employeeId,
@@ -809,11 +817,30 @@ export class AttendanceService {
           isLateCheckIn = existingAttendance.isLateCheckIn ?? false;
 
           if (approvedOvertimeRequest) {
-            const overtimeStart = parseISO(approvedOvertimeRequest.startTime);
+            const overtimeStart = parseISO(
+              `${format(attendanceDate, 'yyyy-MM-dd')}T${approvedOvertimeRequest.startTime}`,
+            );
+            const overtimeEnd = parseISO(
+              `${format(attendanceDate, 'yyyy-MM-dd')}T${approvedOvertimeRequest.endTime}`,
+            );
+
+            // Check if overtime is within shift hours
+            const isInsideShift =
+              overtimeStart >= shiftStart && overtimeEnd <= shiftEnd;
 
             if (isAfter(parsedCheckTime, overtimeStart)) {
               isOvertime = true;
               status = 'overtime';
+
+              // Set overtime info
+              overtimeInfo = {
+                isDayOffOvertime:
+                  isHoliday ||
+                  !effectiveShift.workDays.includes(attendanceDate.getDay()),
+                isInsideShiftHours: isInsideShift,
+                startTime: approvedOvertimeRequest.startTime,
+                endTime: approvedOvertimeRequest.endTime,
+              };
             } else {
               status = 'present';
             }
@@ -861,6 +888,7 @@ export class AttendanceService {
         status,
         regularHours: timeEntry.regularHours,
         overtimeHours: timeEntry.overtimeHours,
+        ...(overtimeInfo && { overtimeInfo }), // Only include if defined
         detailedStatus,
         attendanceStatusType: this.mapStatusToAttendanceStatusType(
           status,
