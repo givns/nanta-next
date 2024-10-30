@@ -314,7 +314,7 @@ export default function OvertimeRequests() {
   const fetchOvertimeRequests = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/overtime/existing-requests', {
+      const response = await fetch('/api/admin/attendance/overtime/', {
         headers: {
           'x-line-userid': user?.lineUserId || '',
         },

@@ -25,14 +25,6 @@ import {
 import { AdminPayrollData, PayrollStatus } from '@/types/payroll';
 import { User } from '@prisma/client';
 
-interface AdminDashboardProps {
-  initialEmployeeId?: string;
-  initialPeriod?: {
-    startDate: Date;
-    endDate: Date;
-  };
-}
-
 interface Employee
   extends Pick<User, 'employeeId' | 'name' | 'departmentName'> {}
 
@@ -46,6 +38,7 @@ interface Period {
 export default function PayrollAdminDashboard() {
   const { user } = useAdmin();
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   const [currentPeriod, setCurrentPeriod] = useState<string>('');
   const [activeTab, setActiveTab] = useState('overview');
   const [payrollData, setPayrollData] = useState<AdminPayrollData | null>(null);

@@ -224,3 +224,57 @@ export type PayrollStatus =
   | 'completed'
   | 'approved'
   | 'paid';
+
+export interface OvertimeDetail {
+  hours: number;
+  rate: number;
+  amount: number;
+}
+
+export interface OvertimeBreakdown {
+  workdayOutsideShift: OvertimeDetail; // Regular overtime
+  weekendInsideShift: OvertimeDetail; // Weekend during normal shift
+  weekendOutsideShift: OvertimeDetail; // Weekend outside normal shift
+  total: {
+    hours: number;
+    amount: number;
+  };
+}
+
+export interface PayrollSummary {
+  employee: {
+    id: string;
+    name: string;
+    employeeId: string;
+    departmentName: string;
+    employeeType: 'fulltime' | 'parttime' | 'probation';
+  };
+  period: {
+    startDate: string;
+    endDate: string;
+  };
+  regularHours: number;
+  overtime: OvertimeBreakdown;
+  leaves: {
+    sick: number;
+    annual: number;
+    business: number;
+    unpaid: number;
+  };
+  earnings: {
+    base: number;
+    overtime: number;
+    allowances: {
+      transportation: number;
+      meal: number;
+      housing: number;
+    };
+    total: number;
+  };
+  deductions: {
+    socialSecurity: number;
+    tax: number;
+    total: number;
+  };
+  netPayable: number;
+}

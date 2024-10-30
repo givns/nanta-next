@@ -156,6 +156,16 @@ model OvertimeRequest {
   @@index([status, date])
 }
 
+model OvertimeMetadata {
+  id                String    @id @default(cuid())
+  timeEntryId      String    @unique
+  timeEntry        TimeEntry @relation(fields: [timeEntryId], references: [id])
+  isInsideShiftHours Boolean
+  isDayOffOvertime   Boolean
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
 model Attendance {
   id                   String          @id @default(auto()) @map("_id") @db.ObjectId
   employeeId           String   
@@ -272,17 +282,12 @@ model Payroll {
 }
 
 model PayrollSettings {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeType      String
-  regularHourlyRate Float
-  overtimeRate      Float
-  holidayRate       Float
-  allowances        Json     // Stores allowance configuration
-  deductions        Json     // Stores deduction rules
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@unique([employeeType], name: "employee_type_settings")
+  id                    String @id @default(cuid())
+  overtimeRates        Json    // Stores the complete rate structure
+  allowances           Json    // Stores allowance configuration
+  deductions           Json    // Stores deduction rules
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 model PayrollProcessingResult {

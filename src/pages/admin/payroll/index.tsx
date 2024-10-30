@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 
 const PayrollAdminDashboard = dynamic(
-  () => import('@/components/admin/PayrollAdminDashboard'),
+  () => import('@/components/admin/payroll/PayrollAdminDashboard'),
   {
     ssr: false,
     loading: () => <DashboardSkeleton />,
