@@ -1,162 +1,188 @@
-// components/payroll/PayrollProcessing.tsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { PayrollPeriod, ProcessingStatus } from '@/types/payroll/payroll';
-import { format } from 'date-fns';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { PayrollPeriodSelector } from './PayrollPeriodSelector';
+import { PayrollProcessingResult, PayrollStatus } from '@/types/payroll';
+import { AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
-export default function PayrollProcessing() {
-  const [periods, setPeriods] = useState<PayrollPeriod[]>([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+interface ProcessingStatus {
+  totalEmployees: number;
+  processedCount: number;
+  status: 'idle' | 'processing' | 'completed' | 'error';
+  error?: string;
+}
+
+export const PayrollProcessing: React.FC = () => {
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>({
     totalEmployees: 0,
     processedCount: 0,
     status: 'idle',
   });
-
-  useEffect(() => {
-    fetchPayrollPeriods();
-  }, []);
-
-  const fetchPayrollPeriods = async () => {
-    try {
-      const response = await fetch('/api/payroll/periods');
-      if (response.ok) {
-        const data = await response.json();
-        setPeriods(data);
-      }
-    } catch (error) {
-      console.error('Error fetching payroll periods:', error);
-    }
-  };
+  const [results, setResults] = useState<PayrollProcessingResult[]>([]);
 
   const startProcessing = async () => {
-    if (!selectedPeriodId) return;
+    if (!selectedPeriod) return;
 
     setProcessingStatus((prev) => ({ ...prev, status: 'processing' }));
 
     try {
-      const response = await fetch(`/api/payroll/process/${selectedPeriodId}`, {
+      // Start processing
+      const response = await fetch('/api/admin/payroll/process', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ periodYearMonth: selectedPeriod }),
       });
 
-      if (response.ok) {
-        // Set up SSE for progress updates
-        const eventSource = new EventSource(
-          `/api/payroll/process-status/${selectedPeriodId}`,
-        );
+      if (!response.ok) throw new Error('Failed to start processing');
 
-        eventSource.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          setProcessingStatus(data);
+      // Set up SSE for progress updates
+      const eventSource = new EventSource(
+        `/api/admin/payroll/process-status?period=${selectedPeriod}`,
+      );
 
-          if (data.status === 'completed' || data.status === 'error') {
-            eventSource.close();
-          }
-        };
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        setProcessingStatus(data);
 
-        eventSource.onerror = () => {
+        if (data.results) {
+          setResults(data.results);
+        }
+
+        if (data.status === 'completed' || data.status === 'error') {
           eventSource.close();
-          setProcessingStatus((prev) => ({
-            ...prev,
-            status: 'error',
-            error: 'Lost connection to server',
-          }));
-        };
-      }
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        setProcessingStatus((prev) => ({
+          ...prev,
+          status: 'error',
+          error: 'Lost connection to server',
+        }));
+      };
     } catch (error) {
-      console.error('Error processing payroll:', error);
       setProcessingStatus((prev) => ({
         ...prev,
         status: 'error',
-        error: 'Failed to start processing',
+        error:
+          error instanceof Error ? error.message : 'Failed to process payroll',
       }));
     }
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Process Payroll</CardTitle>
+          <CardTitle>Payroll Processing</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex space-x-4">
-            <Select
-              value={selectedPeriodId}
-              onValueChange={setSelectedPeriodId}
-            >
-              <SelectTrigger className="w-[280px]">
-                <SelectValue placeholder="Select payroll period" />
-              </SelectTrigger>
-              <SelectContent>
-                {periods.map((period) => (
-                  <SelectItem key={period.id} value={period.id}>
-                    {format(new Date(period.startDate), 'MMM dd')} -{' '}
-                    {format(new Date(period.endDate), 'MMM dd, yyyy')}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button
-              onClick={startProcessing}
-              disabled={
-                !selectedPeriodId || processingStatus.status === 'processing'
-              }
-            >
-              {processingStatus.status === 'processing'
-                ? 'Processing...'
-                : 'Start Processing'}
-            </Button>
-          </div>
-
-          {processingStatus.status !== 'idle' && (
-            <div className="space-y-4">
-              <Progress
-                value={
-                  (processingStatus.processedCount /
-                    processingStatus.totalEmployees) *
-                  100
-                }
+        <CardContent>
+          <div className="space-y-4">
+            {/* Period Selection */}
+            <div className="flex space-x-4">
+              <PayrollPeriodSelector
+                currentValue={selectedPeriod}
+                onChange={setSelectedPeriod}
+                disabled={processingStatus.status === 'processing'}
               />
-              <div className="text-sm text-gray-500">
-                Processed {processingStatus.processedCount} of{' '}
-                {processingStatus.totalEmployees} employees
-              </div>
 
-              {processingStatus.status === 'completed' && (
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Payroll processing completed successfully
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {processingStatus.status === 'error' && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    {processingStatus.error ||
-                      'An error occurred during processing'}
-                  </AlertDescription>
-                </Alert>
-              )}
+              <Button
+                onClick={startProcessing}
+                disabled={
+                  !selectedPeriod || processingStatus.status === 'processing'
+                }
+              >
+                {processingStatus.status === 'processing' ? (
+                  <>
+                    <Clock className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  'Process Payroll'
+                )}
+              </Button>
             </div>
-          )}
+
+            {/* Processing Status */}
+            {processingStatus.status !== 'idle' && (
+              <div className="space-y-4">
+                <Progress
+                  value={
+                    (processingStatus.processedCount /
+                      processingStatus.totalEmployees) *
+                    100
+                  }
+                  className="h-2"
+                />
+
+                <div className="text-sm text-muted-foreground">
+                  Processed {processingStatus.processedCount} of{' '}
+                  {processingStatus.totalEmployees} employees
+                </div>
+
+                {/* Results Summary */}
+                {results.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Processing Results</h4>
+                    <div className="grid gap-2">
+                      {results.map((result, index) => (
+                        <div
+                          key={result.employee.id}
+                          className="flex justify-between items-center p-2 bg-muted rounded-md"
+                        >
+                          <div>
+                            <p className="font-medium">
+                              {result.employee.name}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {result.employee.departmentName}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">
+                              ฿
+                              {result.processedData.netPayable.toLocaleString()}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Net Payable
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Status Alerts */}
+                {processingStatus.status === 'completed' && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Payroll processing completed successfully
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {processingStatus.status === 'error' && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {processingStatus.error ||
+                        'An error occurred during processing'}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
   );
-}
+};
+
+export default PayrollProcessing;

@@ -1,250 +1,257 @@
 // services/PayrollCalculation/PayrollCalculationService.ts
+// REPLACEMENT: This is a complete replacement of the existing service
 
-import { PrismaClient, TimeEntry, User, EmployeeType } from '@prisma/client';
-import { PayrollSettings } from '@/types/payroll';
-import { PayrollCalculationResult } from '@/types/payroll/api';
-
-interface PayrollResult {
-  regularHours: number;
-  overtimeBreakdown: {
-    workdayOutside: { hours: number; amount: number };
-    weekendInside: { hours: number; amount: number };
-    weekendOutside: { hours: number; amount: number };
-  };
-  allowances: {
-    transportation: number;
-    meal: number;
-    housing: number;
-  };
-  deductions: {
-    socialSecurity: number;
-    tax: number;
-    unpaidLeave: number;
-    total: number;
-  };
-  netPayable: number;
-}
+import {
+  PrismaClient,
+  User,
+  TimeEntry,
+  LeaveRequest,
+  EmployeeType,
+} from '@prisma/client';
+import { PayrollCalculationResult, PayrollSettings } from '@/types/payroll';
+import { formatISO } from 'date-fns';
 
 export class PayrollCalculationService {
-  private hourlyRate: number = 0;
-
-  constructor(private settings: PayrollSettings) {}
+  constructor(
+    private settings: PayrollSettings,
+    private prisma: PrismaClient,
+  ) {}
 
   async calculatePayroll(
     employee: User,
     timeEntries: TimeEntry[],
-    leaveRequests: any[],
+    leaveRequests: LeaveRequest[],
     periodStart: Date,
     periodEnd: Date,
   ): Promise<PayrollCalculationResult> {
-    this.setHourlyRate(employee);
+    try {
+      // Process time entries
+      const hours = this.calculateWorkingHours(timeEntries);
 
-    // Process time entries
-    const processedTime = this.processTimeEntries(timeEntries, employee);
-    const workDays = Math.ceil(processedTime.regularHours / 8);
+      // Calculate attendance metrics
+      const attendance = this.calculateAttendance(timeEntries);
+
+      // Process leaves
+      const leaves = this.calculateLeaves(leaveRequests);
+
+      // Calculate rates
+      const rates = this.calculateRates(employee);
+
+      // Calculate processed data (financial calculations)
+      const processedData = this.calculateFinancials(
+        employee,
+        hours,
+        attendance,
+        rates,
+      );
+
+      return {
+        employee: {
+          id: employee.id,
+          employeeId: employee.employeeId,
+          name: employee.name,
+          departmentName: employee.departmentName,
+          role: employee.role,
+          employeeType: employee.employeeType,
+        },
+        summary: {
+          totalWorkingDays: this.calculateTotalWorkingDays(
+            periodStart,
+            periodEnd,
+          ),
+          totalPresent: Math.ceil(hours.regularHours / 8),
+          totalAbsent: leaves.unpaid,
+        },
+        hours,
+        attendance,
+        leaves,
+        rates,
+        processedData,
+      };
+    } catch (error) {
+      console.error('Error calculating payroll:', error);
+      throw new Error('Failed to calculate payroll');
+    }
+  }
+
+  private calculateWorkingHours(timeEntries: TimeEntry[]) {
+    return timeEntries.reduce(
+      (acc, entry) => ({
+        regularHours: acc.regularHours + entry.regularHours,
+        workdayOvertimeHours:
+          acc.workdayOvertimeHours +
+          (entry.overtimeMetadata?.isDayOffOvertime ? 0 : entry.overtimeHours),
+        weekendShiftOvertimeHours:
+          acc.weekendShiftOvertimeHours +
+          (entry.overtimeMetadata?.isDayOffOvertime &&
+          entry.overtimeMetadata?.isInsideShiftHours
+            ? entry.overtimeHours
+            : 0),
+        holidayOvertimeHours:
+          acc.holidayOvertimeHours +
+          (entry.overtimeMetadata?.isDayOffOvertime &&
+          !entry.overtimeMetadata?.isInsideShiftHours
+            ? entry.overtimeHours
+            : 0),
+      }),
+      {
+        regularHours: 0,
+        workdayOvertimeHours: 0,
+        weekendShiftOvertimeHours: 0,
+        holidayOvertimeHours: 0,
+      },
+    );
+  }
+
+  private calculateAttendance(timeEntries: TimeEntry[]) {
+    return timeEntries.reduce(
+      (acc, entry) => ({
+        totalLateMinutes: acc.totalLateMinutes + (entry.actualMinutesLate || 0),
+        earlyDepartures:
+          acc.earlyDepartures +
+          (entry.endTime ? this.calculateEarlyDeparture(entry.endTime) : 0),
+      }),
+      { totalLateMinutes: 0, earlyDepartures: 0 },
+    );
+  }
+
+  private calculateLeaves(leaveRequests: LeaveRequest[]) {
+    return leaveRequests.reduce(
+      (acc, leave) => ({
+        ...acc,
+        [leave.leaveType.toLowerCase()]:
+          acc[leave.leaveType.toLowerCase()] + leave.fullDayCount,
+      }),
+      { sick: 0, annual: 0, business: 0, holidays: 0, unpaid: 0 },
+    );
+  }
+
+  private calculateRates(employee: User) {
+    const baseHourlyRate = employee.baseSalary
+      ? employee.salaryType === 'monthly'
+        ? employee.baseSalary / 176 // Standard monthly hours
+        : employee.baseSalary
+      : 0;
+
+    return {
+      regularHourlyRate: baseHourlyRate,
+      overtimeRate:
+        this.settings.overtimeRates[employee.employeeType].workdayOutsideShift,
+    };
+  }
+
+  private calculateFinancials(
+    employee: User,
+    hours: PayrollCalculationResult['hours'],
+    attendance: PayrollCalculationResult['attendance'],
+    rates: PayrollCalculationResult['rates'],
+  ) {
+    // Calculate base pay
+    const basePay = hours.regularHours * rates.regularHourlyRate;
+
+    // Calculate overtime pay
+    const overtimePay = this.calculateOvertimePay(
+      hours,
+      rates.regularHourlyRate,
+      employee.employeeType,
+    );
 
     // Calculate allowances
-    const allowances = this.calculateAllowances(employee, workDays);
-
-    // Calculate gross pay including overtime
-    const grossPay =
-      processedTime.regularHours * this.hourlyRate +
-      processedTime.overtimeBreakdown.workdayOutside.amount +
-      processedTime.overtimeBreakdown.weekendInside.amount +
-      processedTime.overtimeBreakdown.weekendOutside.amount +
-      Object.values(allowances).reduce((sum, val) => sum + val, 0);
+    const allowances = {
+      transportation: this.settings.allowances.transportation,
+      meal:
+        this.settings.allowances.meal[employee.employeeType] *
+        Math.ceil(hours.regularHours / 8),
+      housing: this.settings.allowances.housing,
+    };
 
     // Calculate deductions
+    const grossPay =
+      basePay +
+      overtimePay +
+      Object.values(allowances).reduce((a, b) => a + b, 0);
     const deductions = this.calculateDeductions(grossPay);
 
     return {
-      regularHours: processedTime.regularHours,
-      overtimeBreakdown: processedTime.overtimeBreakdown,
+      basePay,
+      overtimePay,
       allowances,
       deductions,
       netPayable: grossPay - deductions.total,
     };
   }
 
-  private processTimeEntries(timeEntries: TimeEntry[], employee: User) {
-    let regularHours = 0;
-    const overtimeBreakdown = {
-      workdayOutside: { hours: 0, amount: 0 },
-      weekendInside: { hours: 0, amount: 0 },
-      weekendOutside: { hours: 0, amount: 0 },
-    };
-
-    timeEntries.forEach((entry) => {
-      regularHours += entry.regularHours;
-
-      if (entry.overtimeHours > 0 && entry.overtimeMetadata) {
-        const metadata = JSON.parse(entry.overtimeMetadata);
-        const overtimeHours = this.calculateOvertimeHours(
-          entry.overtimeHours * 60,
-        );
-
-        if (metadata.isDayOffOvertime) {
-          if (metadata.isInsideShiftHours) {
-            overtimeBreakdown.weekendInside.hours += overtimeHours;
-            overtimeBreakdown.weekendInside.amount += this.calculateOvertimePay(
-              overtimeHours,
-              this.hourlyRate,
-              employee.employeeType,
-              true,
-              true,
-            );
-          } else {
-            overtimeBreakdown.weekendOutside.hours += overtimeHours;
-            overtimeBreakdown.weekendOutside.amount +=
-              this.calculateOvertimePay(
-                overtimeHours,
-                this.hourlyRate,
-                employee.employeeType,
-                false,
-                true,
-              );
-          }
-        } else {
-          overtimeBreakdown.workdayOutside.hours += overtimeHours;
-          overtimeBreakdown.workdayOutside.amount += this.calculateOvertimePay(
-            overtimeHours,
-            this.hourlyRate,
-            employee.employeeType,
-            false,
-            false,
-          );
-        }
-      }
-    });
-
-    return { regularHours, overtimeBreakdown };
-  }
-
-  calculateOvertimeHours(minutes: number): number {
-    if (minutes < this.settings.rules.overtimeMinimumMinutes) {
-      return 0;
-    }
-
-    // Round to the nearest interval
-    const roundTo = this.settings.rules.roundOvertimeTo;
-    return (Math.round(minutes / roundTo) * roundTo) / 60;
-  }
-
-  calculateOvertimePay(
-    hours: number,
-    hourlyRate: number,
+  private calculateOvertimePay(
+    hours: PayrollCalculationResult['hours'],
+    regularHourlyRate: number,
     employeeType: EmployeeType,
-    isInsideShift: boolean,
-    isDayOffOvertime: boolean,
-  ): number {
+  ) {
     const rates = this.settings.overtimeRates[employeeType];
-    let rate: number;
 
-    if (isDayOffOvertime) {
-      if (isInsideShift) {
-        // Weekend/Holiday during shift hours
-        rate =
-          employeeType === EmployeeType.Fulltime
-            ? rates.weekendInsideShiftFulltime
-            : rates.weekendInsideShiftParttime;
-      } else {
-        // Weekend/Holiday outside shift hours
-        rate = rates.weekendOutsideShift;
-      }
-    } else {
-      // Regular workday overtime
-      rate = rates.workdayOutsideShift;
-    }
-
-    return hours * hourlyRate * rate;
+    return (
+      hours.workdayOvertimeHours *
+        regularHourlyRate *
+        rates.workdayOutsideShift +
+      hours.weekendShiftOvertimeHours *
+        regularHourlyRate *
+        (employeeType === EmployeeType.Fulltime
+          ? rates.weekendInsideShiftFulltime
+          : rates.weekendInsideShiftParttime) +
+      hours.holidayOvertimeHours * regularHourlyRate * rates.weekendOutsideShift
+    );
   }
 
-  calculateAllowances(employee: User, workDays: number) {
-    return {
-      transportation: this.settings.allowances.transportation,
-      meal: this.settings.allowances.meal[employee.employeeType] * workDays,
-      housing: this.settings.allowances.housing,
-    };
-  }
-
-  private setHourlyRate(employee: User) {
-    if (!employee.baseSalary) {
-      this.hourlyRate = 0;
-      return;
-    }
-    this.hourlyRate =
-      employee.salaryType === 'monthly'
-        ? employee.baseSalary / 176
-        : employee.baseSalary / 8;
-  }
-
-  calculateDeductions(grossPay: number) {
+  private calculateDeductions(grossPay: number) {
     const socialSecurityBase = Math.min(
       Math.max(grossPay, this.settings.deductions.socialSecurityMinBase),
       this.settings.deductions.socialSecurityMaxBase,
     );
 
+    const socialSecurity =
+      socialSecurityBase * this.settings.deductions.socialSecurityRate;
+    const tax = this.calculateTax(grossPay);
+
     return {
-      socialSecurity:
-        socialSecurityBase * this.settings.deductions.socialSecurityRate,
-      tax: 0, // Implement tax calculation if needed
+      socialSecurity,
+      tax,
+      unpaidLeave: 0, // Calculate based on leave records if needed
+      total: socialSecurity + tax,
     };
   }
 
-  // Example usage in processTimeEntry
-  async processTimeEntry(
-    timeEntry: TimeEntry & {
-      overtimeMetadata: {
-        isInsideShiftHours: boolean;
-        isDayOffOvertime: boolean;
-      } | null;
-    },
-    employee: User,
-  ) {
-    const overtimeMinutes = timeEntry.overtimeHours * 60;
-    const overtimeHours = this.calculateOvertimeHours(overtimeMinutes);
+  private calculateTax(grossPay: number): number {
+    // Simplified progressive tax calculation
+    if (grossPay <= 20000) return 0;
 
-    this.setHourlyRate(employee);
+    let tax = 0;
+    let remainingPay = grossPay;
 
-    if (overtimeHours > 0 && timeEntry.overtimeMetadata) {
-      const { isInsideShiftHours, isDayOffOvertime } =
-        timeEntry.overtimeMetadata;
-
-      const overtimePay = this.calculateOvertimePay(
-        overtimeHours,
-        this.hourlyRate,
-        employee.employeeType,
-        isInsideShiftHours,
-        isDayOffOvertime,
-      );
-
-      return {
-        regularHours: timeEntry.regularHours,
-        overtimeHours,
-        overtimePay,
-      };
+    if (remainingPay > 20000) {
+      const taxableAmount = Math.min(remainingPay - 20000, 10000);
+      tax += taxableAmount * 0.05;
+      remainingPay -= taxableAmount;
     }
 
-    return {
-      regularHours: timeEntry.regularHours,
-      overtimeHours: 0,
-      overtimePay: 0,
-    };
-  }
-}
+    if (remainingPay > 30000) {
+      const taxableAmount = Math.min(remainingPay - 30000, 20000);
+      tax += taxableAmount * 0.1;
+      remainingPay -= taxableAmount;
+    }
 
-// Helper function to initialize the service
-// Initialize service helper
-export async function initializePayrollService(prisma: PrismaClient) {
-  const settings = await prisma.payrollSettings.findFirst();
-  if (!settings) {
-    throw new Error('Payroll settings not found');
+    if (remainingPay > 50000) {
+      tax += (remainingPay - 50000) * 0.15;
+    }
+
+    return tax;
   }
 
-  return new PayrollCalculationService({
-    overtimeRates: JSON.parse(settings.overtimeRates as string),
-    allowances: JSON.parse(settings.allowances as string),
-    deductions: JSON.parse(settings.deductions as string),
-    rules: JSON.parse(settings.overtimeRates as string).rules,
-  });
+  private calculateTotalWorkingDays(start: Date, end: Date): number {
+    // Implementation needed based on your business rules
+    return 22; // Placeholder - typical working days in a month
+  }
+
+  private calculateEarlyDeparture(endTime: Date): number {
+    // Implementation needed based on your business rules
+    return 0;
+  }
 }

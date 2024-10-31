@@ -291,21 +291,32 @@ model PayrollSettings {
   updatedAt            DateTime @updatedAt
 }
 
-model PayrollProcessingResult {
+model PayrollProcessingSession {
   id                String    @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId        String
-  user              User      @relation(fields: [employeeId], references: [employeeId])
-  periodStart       DateTime
-  periodEnd         DateTime
-  totalWorkingDays  Int
-  totalPresent      Int
-  totalAbsent       Int
-  totalOvertimeHours Float
-  totalRegularHours Float
-  processedData     String    // JSON string of detailed calculations
-  status           String    @default("completed") // "processing", "completed", "error"
+  periodYearMonth   String
+  status            String    // 'processing', 'completed', 'error'
+  totalEmployees    Int
+  processedCount    Int
+  error             String?
+  results          PayrollProcessingResult[]
+  errors           PayrollProcessingError[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+
+  @@index([periodYearMonth, status])
+}
+
+model PayrollProcessingResult {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId      String    @db.ObjectId
+  session        PayrollProcessingSession @relation(fields: [sessionId], references: [id])
+  employeeId     String
+  periodStart    DateTime
+  periodEnd      DateTime
+  processedData  String    // JSON string of PayrollCalculationResult
+  status         String    // 'completed', 'error'
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([employeeId, periodStart, periodEnd])
 }

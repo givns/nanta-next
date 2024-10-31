@@ -1,6 +1,6 @@
 // types/payroll/index.ts
 
-import { Prisma } from '@prisma/client';
+import { Prisma, EmployeeType } from '@prisma/client';
 
 // Base Types
 export type EmployeeBaseType = 'FULLTIME' | 'PARTTIME';
@@ -41,109 +41,80 @@ export interface Attendance {
   holidayDays: number;
 }
 
-export interface PayrollCalculationInput {
-  basePayAmount: number;
-  employeeBaseType: EmployeeBaseType;
-  employeeStatus: EmployeeStatus;
-  isGovernmentRegistered: boolean;
-  workingHours: WorkingHours;
-  attendance: Attendance;
-  additionalAllowances: {
-    managerAllowance?: number;
-    other?: number;
-  };
+export interface PayrollPeriodDisplay {
+  startDate: Date;
+  endDate: Date;
+  status: PayrollStatus;
+  isCurrentPeriod: boolean;
 }
 
-export interface PayrollCalculationResult {
-  actualBasePayAmount: number;
-  overtimeAmount: {
-    workday: number;
-    weekendShift: number;
-    holiday: number;
-    total: number;
+export interface PayrollSettings {
+  overtimeRates: {
+    [key in EmployeeType]: {
+      workdayOutsideShift: number;
+      weekendInsideShiftFulltime: number;
+      weekendInsideShiftParttime: number;
+      weekendOutsideShift: number;
+    };
   };
   allowances: {
-    meal: number;
-    manager: number;
-    other: number;
-    total: number;
+    transportation: number;
+    meal: {
+      [key in EmployeeType]: number;
+    };
+    housing: number;
   };
   deductions: {
-    socialSecurity: number;
-    other: number;
-    total: number;
+    socialSecurityRate: number;
+    socialSecurityMinBase: number;
+    socialSecurityMaxBase: number;
   };
-  grossAmount: number;
-  netPayable: number;
+  rules: {
+    payrollPeriodStart: number;
+    payrollPeriodEnd: number;
+    overtimeMinimumMinutes: number;
+    roundOvertimeTo: number;
+  };
 }
 
-// API Response Types
-export interface PayrollSummaryResponse {
+// Export interfaces for API responses
+export interface PayrollSummaryResponse extends PayrollCalculationResult {
   periodStart: string;
   periodEnd: string;
-  employeeName: string;
-  departmentName: string;
-  totalWorkDays: number;
-  holidays: number;
-  regularHours: number;
-  overtimeHours: number;
-  daysPresent: number;
-  daysAbsent: number;
-  leaves: {
-    sick: number;
-    business: number;
-    annual: number;
-    unpaid: number;
-  };
-  earnings: {
-    basePay: number;
-    overtimePay: number;
-    holidayPay: number;
-    allowances: number;
-    totalDeductions: number;
-    netPayable: number;
-    deductions: {
-      socialSecurity: number;
-      tax: number;
-    };
-  };
-  bankInfo?: {
-    bankName: string;
-    accountNumber: string;
+}
+
+export interface PayrollPeriodResponse {
+  periods: PayrollPeriodDisplay[];
+  currentPeriod: {
+    startDate: string;
+    endDate: string;
   };
 }
 
-// Administrative Interface Types
-export interface AdminPayrollData {
+// New consolidated interfaces
+export interface PayrollCalculationResult {
   employee: {
     id: string;
-    name: string;
     employeeId: string;
+    name: string;
     departmentName: string;
     role: string;
-    bankInfo?: {
-      bankName: string;
-      accountNumber: string;
-    };
+    employeeType: EmployeeType;
   };
   summary: {
     totalWorkingDays: number;
     totalPresent: number;
     totalAbsent: number;
-    periodStart: string;
-    periodEnd: string;
   };
   hours: {
     regularHours: number;
-    overtimeHours: number;
-    holidayHours: number;
+    workdayOvertimeHours: number;
+    weekendShiftOvertimeHours: number;
     holidayOvertimeHours: number;
   };
   attendance: {
     totalLateMinutes: number;
     earlyDepartures: number;
-    lateArrivals: number;
-    incompleteAttendance: number;
   };
   leaves: {
     sick: number;
@@ -155,24 +126,78 @@ export interface AdminPayrollData {
   rates: {
     regularHourlyRate: number;
     overtimeRate: number;
-    holidayRate: number;
   };
-  earnings: {
-    baseAmount: number;
-    overtimeAmount: number;
-    holidayAmount: number;
+  processedData: {
+    basePay: number;
+    overtimePay: number;
+    allowances: {
+      transportation: number;
+      meal: number;
+      housing: number;
+    };
+    deductions: {
+      socialSecurity: number;
+      tax: number;
+      unpaidLeave: number;
+      total: number;
+    };
+    netPayable: number;
+  };
+}
+
+// Update PayrollSettings to match current implementation
+export interface PayrollSettings {
+  overtimeRates: {
+    [key in EmployeeType]: {
+      workdayOutsideShift: number;
+      weekendInsideShiftFulltime: number;
+      weekendInsideShiftParttime: number;
+      weekendOutsideShift: number;
+    };
   };
   allowances: {
     transportation: number;
-    meal: number;
+    meal: {
+      [key in EmployeeType]: number;
+    };
     housing: number;
-    other: number;
   };
   deductions: {
-    socialSecurity: number;
-    tax: number;
-    other: number;
+    socialSecurityRate: number;
+    socialSecurityMinBase: number;
+    socialSecurityMaxBase: number;
   };
+  rules: {
+    payrollPeriodStart: number;
+    payrollPeriodEnd: number;
+    overtimeMinimumMinutes: number;
+    roundOvertimeTo: number;
+  };
+}
+
+// Keep existing AdminPayrollData but update it to use new types
+export interface AdminPayrollData {
+  // ... update to extend PayrollCalculationResult
+  employee: PayrollCalculationResult['employee'] & {
+    bankInfo?: {
+      bankName: string;
+      accountNumber: string;
+    };
+  };
+  summary: PayrollCalculationResult['summary'] & {
+    periodStart: string;
+    periodEnd: string;
+  };
+  hours: PayrollCalculationResult['hours'];
+  attendance: PayrollCalculationResult['attendance'] & {
+    lateArrivals: number;
+    incompleteAttendance: number;
+  };
+  leaves: PayrollCalculationResult['leaves'];
+  rates: PayrollCalculationResult['rates'] & {
+    holidayRate: number;
+  };
+  processedData: PayrollCalculationResult['processedData'];
   adjustments: Array<{
     id: string;
     type: 'addition' | 'deduction';
@@ -180,47 +205,22 @@ export interface AdminPayrollData {
     reason: string;
     date: string;
   }>;
-  netPayable: number;
   status: PayrollStatus;
   processingNote?: string;
 }
 
-// Database Input Types
+// Utility types remain unchanged
 export type PayrollCreateInput = Prisma.PayrollCreateInput;
 export type PayrollUpdateInput = Prisma.PayrollUpdateInput;
 
-// Utility Types
-export interface PayrollPeriodInfo {
-  id: string;
-  startDate: Date;
-  endDate: Date;
-  status: PayrollStatus;
-}
-
-export interface PayrollSettings {
-  id: string;
-  employeeType: string;
-  regularHourlyRate: number;
-  overtimeRates: {
-    regular: number;
-    holiday: number;
-  };
-  allowances: {
-    transportation: number;
-    meal: number;
-    housing: number;
-  };
-  deductions: {
-    socialSecurity: number;
-    tax: number;
-  };
-  workingHours: {
-    regularHoursPerDay: number;
-    regularDaysPerWeek: number;
-  };
-  leaveSettings: {
-    sickLeavePerYear: number;
-    annualLeavePerYear: number;
-    businessLeavePerYear: number;
-  };
-}
+// Export a migration guide constant
+export const TYPE_MIGRATION_GUIDE = {
+  version: '2.0.0',
+  migrationSteps: [
+    'Replace PayrollRates with PayrollCalculationResult["rates"]',
+    'Replace WorkingHours with PayrollCalculationResult["hours"]',
+    'Update API responses to use PayrollCalculationResult',
+    'Update components to use new type structure',
+  ],
+  completionDeadline: '2024-12-31',
+} as const;

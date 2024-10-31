@@ -1,15 +1,16 @@
-// components/payroll/PayrollCalculation.tsx
-
 import React, { useState } from 'react';
+import { PayrollCalculationResult } from '@/types/payroll';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
+import { AlertCircle, Check } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface PayrollCalculationProps {
   employeeId: string;
   periodStart: Date;
   periodEnd: Date;
-  onCalculationComplete?: (result: any) => void;
+  onCalculationComplete?: (result: PayrollCalculationResult) => void;
 }
 
 export const PayrollCalculation: React.FC<PayrollCalculationProps> = ({
@@ -19,7 +20,7 @@ export const PayrollCalculation: React.FC<PayrollCalculationProps> = ({
   onCalculationComplete,
 }) => {
   const [isCalculating, setIsCalculating] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<PayrollCalculationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const calculatePayroll = async () => {
@@ -79,39 +80,115 @@ export const PayrollCalculation: React.FC<PayrollCalculationProps> = ({
               {isCalculating ? 'Calculating...' : 'Calculate Payroll'}
             </Button>
 
-            {error && <div className="text-red-500 text-sm">{error}</div>}
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
             {result && (
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Employee Info */}
+                <div className="grid grid-cols-2 gap-4 bg-muted/50 p-4 rounded-lg">
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground">
+                      Employee
+                    </h4>
+                    <p className="mt-1">{result.employee.name}</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground">
+                      Department
+                    </h4>
+                    <p className="mt-1">{result.employee.departmentName}</p>
+                  </div>
+                </div>
+
+                {/* Hours Summary */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <h4 className="font-medium">Base Pay</h4>
-                    <p>฿{result.actualBasePayAmount.toFixed(2)}</p>
+                    <h4 className="font-medium">Regular Hours</h4>
+                    <p className="text-xl mt-1">
+                      {result.hours.regularHours.toFixed(1)}h
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      ฿{result.processedData.basePay.toLocaleString()} base pay
+                    </p>
                   </div>
                   <div>
-                    <h4 className="font-medium">Overtime</h4>
-                    <p>฿{result.overtimeAmount.total.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium">Allowances</h4>
-                    <p>฿{result.allowances.total.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium">Deductions</h4>
-                    <p className="text-red-600">
-                      -฿{result.deductions.total.toFixed(2)}
+                    <h4 className="font-medium">Total Overtime</h4>
+                    <p className="text-xl mt-1">
+                      {(
+                        result.hours.workdayOvertimeHours +
+                        result.hours.weekendShiftOvertimeHours +
+                        result.hours.holidayOvertimeHours
+                      ).toFixed(1)}
+                      h
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      ฿{result.processedData.overtimePay.toLocaleString()}{' '}
+                      overtime pay
                     </p>
                   </div>
                 </div>
 
+                {/* Allowances */}
+                <div>
+                  <h4 className="font-medium mb-3">Allowances</h4>
+                  <div className="space-y-2">
+                    {Object.entries(result.processedData.allowances).map(
+                      ([key, value]) => (
+                        <div
+                          key={key}
+                          className="flex justify-between items-center"
+                        >
+                          <span className="capitalize">{key}</span>
+                          <span>฿{value.toLocaleString()}</span>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+
+                {/* Deductions */}
+                <div>
+                  <h4 className="font-medium mb-3">Deductions</h4>
+                  <div className="space-y-2 text-red-600">
+                    {Object.entries(result.processedData.deductions).map(
+                      ([key, value]) =>
+                        key !== 'total' && (
+                          <div
+                            key={key}
+                            className="flex justify-between items-center"
+                          >
+                            <span className="capitalize">
+                              {key.replace(/([A-Z])/g, ' $1').trim()}
+                            </span>
+                            <span>-฿{value.toLocaleString()}</span>
+                          </div>
+                        ),
+                    )}
+                  </div>
+                </div>
+
+                {/* Net Payable */}
                 <div className="pt-4 border-t">
                   <div className="flex justify-between items-center">
                     <h4 className="font-medium">Net Payable</h4>
                     <p className="text-xl font-bold text-green-600">
-                      ฿{result.netPayable.toFixed(2)}
+                      ฿{result.processedData.netPayable.toLocaleString()}
                     </p>
                   </div>
                 </div>
+
+                {/* Success Indicator */}
+                <Alert>
+                  <Check className="h-4 w-4" />
+                  <AlertDescription>
+                    Payroll calculation completed successfully
+                  </AlertDescription>
+                </Alert>
               </div>
             )}
           </div>
@@ -120,3 +197,5 @@ export const PayrollCalculation: React.FC<PayrollCalculationProps> = ({
     </div>
   );
 };
+
+export default PayrollCalculation;
