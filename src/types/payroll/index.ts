@@ -1,97 +1,12 @@
 // types/payroll/index.ts
 
-import { Prisma, EmployeeType } from '@prisma/client';
+import { EmployeeType } from '@prisma/client';
 
-// Base Types
-export type EmployeeBaseType = 'FULLTIME' | 'PARTTIME';
-export type EmployeeStatus = 'PROBATION' | 'REGULAR';
-export type PayrollStatus =
-  | 'draft'
-  | 'processing'
-  | 'completed'
-  | 'approved'
-  | 'paid';
+// Base enums and types
+export type PayrollStatus = 'draft' | 'processing' | 'completed' | 'approved' | 'paid';
+export type CommissionStatus = 'calculated' | 'approved' | 'paid';
 
-// Calculation Types
-export interface PayrollRates {
-  socialSecurityRate: number;
-  socialSecurityMinBase: number;
-  socialSecurityMaxBase: number;
-  workdayOvertimeRate: number;
-  weekendShiftOvertimeRate: {
-    fulltime: number;
-    parttime: number;
-  };
-  holidayOvertimeRate: number;
-  mealAllowancePerDay: number;
-  hourlyRate?: number; // Optional, calculated based on salary type
-}
-
-export interface WorkingHours {
-  regularHours: number;
-  workdayOvertimeHours: number;
-  weekendShiftOvertimeHours: number;
-  holidayOvertimeHours: number;
-}
-
-export interface Attendance {
-  presentDays: number;
-  unpaidLeaveDays: number;
-  paidLeaveDays: number;
-  holidayDays: number;
-}
-
-export interface PayrollPeriodDisplay {
-  startDate: Date;
-  endDate: Date;
-  status: PayrollStatus;
-  isCurrentPeriod: boolean;
-}
-
-export interface PayrollSettings {
-  overtimeRates: {
-    [key in EmployeeType]: {
-      workdayOutsideShift: number;
-      weekendInsideShiftFulltime: number;
-      weekendInsideShiftParttime: number;
-      weekendOutsideShift: number;
-    };
-  };
-  allowances: {
-    transportation: number;
-    meal: {
-      [key in EmployeeType]: number;
-    };
-    housing: number;
-  };
-  deductions: {
-    socialSecurityRate: number;
-    socialSecurityMinBase: number;
-    socialSecurityMaxBase: number;
-  };
-  rules: {
-    payrollPeriodStart: number;
-    payrollPeriodEnd: number;
-    overtimeMinimumMinutes: number;
-    roundOvertimeTo: number;
-  };
-}
-
-// Export interfaces for API responses
-export interface PayrollSummaryResponse extends PayrollCalculationResult {
-  periodStart: string;
-  periodEnd: string;
-}
-
-export interface PayrollPeriodResponse {
-  periods: PayrollPeriodDisplay[];
-  currentPeriod: {
-    startDate: string;
-    endDate: string;
-  };
-}
-
-// New consolidated interfaces
+// Core Calculation Result Interface
 export interface PayrollCalculationResult {
   employee: {
     id: string;
@@ -127,6 +42,13 @@ export interface PayrollCalculationResult {
     regularHourlyRate: number;
     overtimeRate: number;
   };
+  commission?: {
+    salesAmount: number;
+    commissionRate: number;
+    commissionAmount: number;
+    quarterlyBonus?: number;
+    yearlyBonus?: number;
+  };
   processedData: {
     basePay: number;
     overtimePay: number;
@@ -145,7 +67,30 @@ export interface PayrollCalculationResult {
   };
 }
 
-// Update PayrollSettings to match current implementation
+// Commission related types
+export interface CommissionTier {
+  minAmount: number;
+  maxAmount?: number;
+  percentage: number;
+}
+
+export interface CommissionBonus {
+  type: 'quarterly' | 'yearly';
+  targetAmount: number;
+  requiredMonths: number;
+  bonusAmount: number;
+}
+
+export interface SalesCommission {
+  salesAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  quarterlyBonus?: number;
+  yearlyBonus?: number;
+  status: CommissionStatus;
+}
+
+// Settings related types
 export interface PayrollSettings {
   overtimeRates: {
     [key in EmployeeType]: {
@@ -175,52 +120,46 @@ export interface PayrollSettings {
   };
 }
 
-// Keep existing AdminPayrollData but update it to use new types
-export interface AdminPayrollData {
-  // ... update to extend PayrollCalculationResult
-  employee: PayrollCalculationResult['employee'] & {
-    bankInfo?: {
-      bankName: string;
-      accountNumber: string;
-    };
-  };
-  summary: PayrollCalculationResult['summary'] & {
-    periodStart: string;
-    periodEnd: string;
-  };
-  hours: PayrollCalculationResult['hours'];
-  attendance: PayrollCalculationResult['attendance'] & {
-    lateArrivals: number;
-    incompleteAttendance: number;
-  };
-  leaves: PayrollCalculationResult['leaves'];
-  rates: PayrollCalculationResult['rates'] & {
-    holidayRate: number;
-  };
-  processedData: PayrollCalculationResult['processedData'];
-  adjustments: Array<{
-    id: string;
-    type: 'addition' | 'deduction';
-    amount: number;
-    reason: string;
-    date: string;
-  }>;
-  status: PayrollStatus;
-  processingNote?: string;
+// Processing related types
+export interface PayrollProcessingSession {
+  periodYearMonth: string;
+  status: 'processing' | 'completed' | 'error';
+  totalEmployees: number;
+  processedCount: number;
+  error?: string;
+  approvedBy?: string;
+  approvedAt?: Date;
 }
 
-// Utility types remain unchanged
-export type PayrollCreateInput = Prisma.PayrollCreateInput;
-export type PayrollUpdateInput = Prisma.PayrollUpdateInput;
+export interface PayrollProcessingResult {
+  employeeId: string;
+  periodStart: Date;
+  periodEnd: Date;
+  processedData: PayrollCalculationResult;
+  status: 'completed' | 'error';
+}
 
-// Export a migration guide constant
-export const TYPE_MIGRATION_GUIDE = {
-  version: '2.0.0',
-  migrationSteps: [
-    'Replace PayrollRates with PayrollCalculationResult["rates"]',
-    'Replace WorkingHours with PayrollCalculationResult["hours"]',
-    'Update API responses to use PayrollCalculationResult',
-    'Update components to use new type structure',
-  ],
-  completionDeadline: '2024-12-31',
-} as const;
+export interface PayrollAdjustment {
+  type: 'bonus' | 'deduction' | 'correction';
+  amount: number;
+  reason: string;
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+// Period related types
+export interface PayrollPeriod {
+  startDate: Date;
+  endDate: Date;
+  status: PayrollStatus;
+}
+
+// Response types for API endpoints
+export interface PayrollSummaryResponse extends PayrollCalculationResult {
+  periodStart: string;
+  periodEnd: string;
+  bankInfo?: {
+    bankName: string;
+    accountNumber: string;
+  };
+}

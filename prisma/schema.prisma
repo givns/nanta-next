@@ -15,6 +15,7 @@ enum UserRole {
   Admin
   Operation
   Driver
+  Sales
 }
 
 enum EmployeeType {
@@ -51,8 +52,9 @@ model User {
   isPreImported           String                   @default("No")
   overtimeRequests        OvertimeRequest[]
   approvedOvertimeRequests OvertimeRequest[]       @relation("OvertimeApprover")
-  payrolls               Payroll[]                // Added this line
-  payrollProcessingResults PayrollProcessingResult[]
+  payrolls           Payroll[]
+  processedPayrolls  PayrollProcessingResult[] @relation("EmployeePayrollResults")
+  salesCommissions   SalesCommission[]         @relation("EmployeeCommissions")
   payrollAdjustments      PayrollAdjustment[]
   baseSalary              Float?
   salaryType              String?    // "hourly" or "monthly"
@@ -61,6 +63,46 @@ model User {
   timeEntries             TimeEntry[]
   isRegistrationComplete  String                   @default("No")
   updatedAt               DateTime?                 @updatedAt
+}
+
+model CommissionTier {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  minAmount      Float    // Lower bound of sales amount
+  maxAmount      Float?   // Upper bound (null for unlimited)
+  percentage     Float    // Commission percentage
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model CommissionBonus {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  type              String   // 'quarterly' or 'yearly'
+  targetAmount      Float    // Sales target amount
+  requiredMonths    Int     // Number of consecutive months required
+  bonusAmount       Float    // Bonus amount to be paid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model SalesCommission {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String
+  employee        User     @relation("EmployeeCommissions", fields: [employeeId], references: [employeeId])
+  periodStart     DateTime
+  periodEnd       DateTime
+  salesAmount     Float
+  commissionRate  Float
+  commissionAmount Float
+  quarterlyBonus  Float?
+  yearlyBonus     Float?
+  status          String   // 'calculated', 'approved', 'paid'
+  payrollId       String?  @db.ObjectId
+  payroll         Payroll? @relation(fields: [payrollId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([employeeId, periodStart, periodEnd])
+  @@index([status])
 }
 
 model Shift {
@@ -242,53 +284,94 @@ model OvertimeEntry {
 }
 
 model Payroll {
-  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId           String   
-  user                 User     @relation(fields: [employeeId], references: [employeeId])
-  payrollPeriodId      String   @db.ObjectId
-  payrollPeriod        PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId            String   
+  user                  User      @relation(fields: [employeeId], references: [employeeId])
+  payrollPeriodId       String    @db.ObjectId
+  payrollPeriod         PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
   
-  // Working hours
-  regularHours         Float
-  overtimeHours        Float
-  holidayHours         Float
-  holidayOvertimeHours Float
+  // Summary
+  totalWorkingDays      Int
+  totalPresent          Int
+  totalAbsent           Int
+  
+  // Hours
+  regularHours          Float
+  workdayOvertimeHours  Float
+  weekendShiftOvertimeHours Float
+  holidayOvertimeHours  Float
+  
+  // Attendance
+  totalLateMinutes      Int
+  earlyDepartures       Int
+  
+  // Leaves
+  sickLeaveDays         Float
+  businessLeaveDays     Float
+  annualLeaveDays       Float
+  unpaidLeaveDays       Float
+  holidays              Int
+  
+  // Rates
+  regularHourlyRate     Float
+  overtimeRate          Float
+  
+  // Commission
+  salesAmount           Float?
+  commissionRate        Float?
+  commissionAmount      Float?
+  quarterlyBonus        Float?
+  yearlyBonus          Float?
+  
+  // Financial Calculations
+  basePay              Float
+  overtimePay          Float
+  
+  // Allowances
+  transportationAllowance Float @default(0)
+  mealAllowance        Float    @default(0)
+  housingAllowance     Float    @default(0)
   
   // Deductions
-  lateMinutes          Int
-  earlyLeaveMinutes    Int
+  socialSecurity       Float    @default(0)
+  tax                 Float    @default(0)
+  unpaidLeaveDeduction Float    @default(0)
+  totalDeductions     Float    @default(0)
   
-  // Leave counts
-  sickLeaveDays        Float
-  businessLeaveDays    Float
-  annualLeaveDays      Float
-  unpaidLeaveDays      Float
-  
-  // Financial calculations
-  basePayAmount        Float
-  overtimeAmount       Float
-  holidayAmount        Float
-  totalAllowances      Float
-  totalDeductions      Float
   netPayable           Float
-  status              String    // 'draft', 'approved', 'paid'
-  processingNote      String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  status               String    // matches PayrollStatus type
+  processingNote       String?
+  
+  salesCommissions     SalesCommission[]
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-   @@unique([employeeId, payrollPeriodId], name: "employee_period")
+  @@unique([employeeId, payrollPeriodId], name: "employee_period")
   @@index([payrollPeriodId, status])
   @@index([employeeId, status])
 }
 
 model PayrollSettings {
-  id                   String @id @default(auto()) @map("_id") @db.ObjectId
-  overtimeRates        Json    // Stores the complete rate structure
-  allowances           Json    // Stores allowance configuration
-  deductions           Json    // Stores deduction rules
-  rules         Json    // Stores payroll period and overtime rules
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  overtimeRates  Json     // Maps to PayrollSettings.overtimeRates
+  allowances     Json     // Maps to PayrollSettings.allowances
+  deductions     Json     // Maps to PayrollSettings.deductions
+  rules          Json     // Maps to PayrollSettings.rules
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PayrollPeriod {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  startDate   DateTime
+  endDate     DateTime
+  status      String   // matches PayrollStatus type
+  payrolls    Payroll[]
+  timeEntryPayrollPeriods TimeEntryPayrollPeriod[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([startDate, endDate], name: "period_range")
 }
 
 model PayrollProcessingSession {
@@ -298,10 +381,11 @@ model PayrollProcessingSession {
   totalEmployees    Int
   processedCount    Int
   error             String?
-  results          PayrollProcessingResult[]
-  errors           PayrollProcessingError[]
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  approvedBy        String?
+  approvedAt        DateTime?
+  results           PayrollProcessingResult[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([periodYearMonth, status])
 }
@@ -311,10 +395,13 @@ model PayrollProcessingResult {
   sessionId      String    @db.ObjectId
   session        PayrollProcessingSession @relation(fields: [sessionId], references: [id])
   employeeId     String
+  employee       User      @relation("EmployeePayrollResults", fields: [employeeId], references: [employeeId])
   periodStart    DateTime
   periodEnd      DateTime
   processedData  String    // JSON string of PayrollCalculationResult
   status         String    // 'completed', 'error'
+  error          String?   // Error message if status is 'error'
+  errorDetails   Json?     // Detailed error information including stack trace if needed
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -325,7 +412,7 @@ model PayrollAdjustment {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   employeeId  String
   user        User     @relation(fields: [employeeId], references: [employeeId])
-  type        String   // "bonus", "deduction", "correction"
+  type        String   // 'bonus', 'deduction', 'correction'
   amount      Float
   reason      String
   periodStart DateTime
@@ -334,19 +421,6 @@ model PayrollAdjustment {
   updatedAt   DateTime @updatedAt
 
   @@index([employeeId, periodStart, periodEnd])
-}
-
-model PayrollPeriod {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  startDate   DateTime
-  endDate     DateTime
-  status      String   // 'processing', 'completed', 'approved'
-  payrolls    Payroll[]
-  timeEntryPayrollPeriods TimeEntryPayrollPeriod[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([startDate, endDate], name: "period_range")
 }
 
 model TimeEntryPayrollPeriod {

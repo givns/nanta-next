@@ -5,4 +5,5 @@ export enum UserRole {
   ADMIN = 'Admin',
   OPERATION = 'Operation',
   DRIVER = 'Driver',
+  SALES = 'Sales',
 }

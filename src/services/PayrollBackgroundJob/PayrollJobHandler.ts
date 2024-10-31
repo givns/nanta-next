@@ -20,7 +20,7 @@ export class PayrollJobHandler {
     }
     this.payrollService = new PayrollCalculationService(
       JSON.parse(settings.overtimeRates as string),
-      this.prisma
+      this.prisma,
     );
   }
 
@@ -28,12 +28,12 @@ export class PayrollJobHandler {
     employeeId: string,
     periodStart: Date,
     periodEnd: Date,
-    sessionId: string
+    sessionId: string,
   ): Promise<PayrollCalculationResult> {
     try {
       // Fetch employee data
       const employee = await this.prisma.user.findUnique({
-        where: { employeeId }
+        where: { employeeId },
       });
 
       if (!employee) {
@@ -45,18 +45,18 @@ export class PayrollJobHandler {
         this.prisma.timeEntry.findMany({
           where: {
             employeeId,
-            date: { gte: periodStart, lte: periodEnd }
+            date: { gte: periodStart, lte: periodEnd },
           },
-          include: { overtimeMetadata: true }
+          include: { overtimeMetadata: true },
         }),
         this.prisma.leaveRequest.findMany({
           where: {
             employeeId,
             status: 'approved',
             startDate: { lte: periodEnd },
-            endDate: { gte: periodStart }
-          }
-        })
+            endDate: { gte: periodStart },
+          },
+        }),
       ]);
 
       // Calculate payroll
@@ -65,7 +65,7 @@ export class PayrollJobHandler {
         timeEntries,
         leaveRequests,
         periodStart,
-        periodEnd
+        periodEnd,
       );
 
       // Validate results
@@ -82,8 +82,8 @@ export class PayrollJobHandler {
           periodStart,
           periodEnd,
           processedData: JSON.stringify(result),
-          status: 'completed'
-        }
+          status: 'completed',
+        },
       });
 
       return result;
@@ -94,8 +94,8 @@ export class PayrollJobHandler {
           sessionId,
           employeeId,
           error: error instanceof Error ? error.message : 'Unknown error',
-          stackTrace: error instanceof Error ? error.stack : undefined
-        }
+          stackTrace: error instanceof Error ? error.stack : undefined,
+        },
       });
       throw error;
     }
@@ -113,8 +113,8 @@ export class PayrollJobHandler {
       const employees = await this.prisma.user.findMany({
         where: {
           employeeType: { not: null },
-          isRegistrationComplete: 'Yes'
-        }
+          isRegistrationComplete: 'Yes',
+        },
       });
 
       // Process in batches of 10
@@ -122,35 +122,35 @@ export class PayrollJobHandler {
       for (let i = 0; i < employees.length; i += batchSize) {
         const batch = employees.slice(i, i + batchSize);
         await Promise.all(
-          batch.map(employee =>
+          batch.map((employee) =>
             this.processEmployeePayroll(
               employee.employeeId,
               periodStart,
               periodEnd,
-              sessionId
-            ).catch(error => {
+              sessionId,
+            ).catch((error) => {
               console.error(
                 `Error processing employee ${employee.employeeId}:`,
-                error
+                error,
               );
               return null;
-            })
-          )
+            }),
+          ),
         );
 
         // Update progress
         await this.prisma.payrollProcessingSession.update({
           where: { id: sessionId },
           data: {
-            processedCount: Math.min(i + batchSize, employees.length)
-          }
+            processedCount: Math.min(i + batchSize, employees.length),
+          },
         });
       }
 
       // Mark session as completed
       await this.prisma.payrollProcessingSession.update({
         where: { id: sessionId },
-        data: { status: 'completed' }
+        data: { status: 'completed' },
       });
     } catch (error) {
       console.error('Error in batch processing:', error);
@@ -158,8 +158,8 @@ export class PayrollJobHandler {
         where: { id: sessionId },
         data: {
           status: 'error',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
       });
       throw error;
     }
