@@ -284,71 +284,83 @@ model OvertimeEntry {
 }
 
 model Payroll {
-  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId            String   
-  user                  User      @relation(fields: [employeeId], references: [employeeId])
-  payrollPeriodId       String    @db.ObjectId
-  payrollPeriod         PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
-  
-  // Summary
-  totalWorkingDays      Int
-  totalPresent          Int
-  totalAbsent           Int
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String   
+  user            User     @relation(fields: [employeeId], references: [employeeId])
+  payrollPeriodId String   @db.ObjectId
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
   
   // Hours
-  regularHours          Float
-  workdayOvertimeHours  Float
-  weekendShiftOvertimeHours Float
-  holidayOvertimeHours  Float
+  regularHours    Float
+  overtimeHoursByType Json    // Maps to PayrollHours.overtimeHours
+  totalOvertimeHours Float
   
   // Attendance
-  totalLateMinutes      Int
-  earlyDepartures       Int
+  totalWorkingDays   Int
+  totalPresent       Int
+  totalAbsent        Int
+  totalLateMinutes   Int
+  earlyDepartures    Int
   
   // Leaves
-  sickLeaveDays         Float
-  businessLeaveDays     Float
-  annualLeaveDays       Float
-  unpaidLeaveDays       Float
-  holidays              Int
+  sickLeaveDays      Float
+  businessLeaveDays  Float
+  annualLeaveDays    Float
+  unpaidLeaveDays    Float
+  holidays           Int
   
   // Rates
-  regularHourlyRate     Float
-  overtimeRate          Float
+  regularHourlyRate  Float
+  overtimeRatesByType Json  // Maps to PayrollRates.overtimeRates
   
-  // Commission
-  salesAmount           Float?
-  commissionRate        Float?
-  commissionAmount      Float?
-  quarterlyBonus        Float?
-  yearlyBonus          Float?
-  
-  // Financial Calculations
-  basePay              Float
-  overtimePay          Float
+  // Calculations
+  basePay            Float
+  overtimePayByType  Json   // Maps to PayrollCalculation.overtimePay
+  totalOvertimePay   Float
   
   // Allowances
   transportationAllowance Float @default(0)
-  mealAllowance        Float    @default(0)
-  housingAllowance     Float    @default(0)
+  mealAllowance    Float    @default(0)
+  housingAllowance Float    @default(0)
+  totalAllowances  Float    @default(0)
   
   // Deductions
-  socialSecurity       Float    @default(0)
-  tax                 Float    @default(0)
-  unpaidLeaveDeduction Float    @default(0)
-  totalDeductions     Float    @default(0)
+  socialSecurity   Float    @default(0)
+  tax             Float    @default(0)
+  unpaidLeaveDeduction Float @default(0)
+  totalDeductions Float    @default(0)
   
-  netPayable           Float
-  status               String    // matches PayrollStatus type
-  processingNote       String?
+  // Commission
+  salesAmount     Float?
+  commissionRate  Float?
+  commissionAmount Float?
+  quarterlyBonus  Float?
+  yearlyBonus    Float?
   
-  salesCommissions     SalesCommission[]
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  netPayable      Float
+  status          PayrollStatus @default(draft)
+  processingNote  String?
+  
+  // Approval
+  approvedBy      String?
+  approvedAt      DateTime?
+  lastModifiedBy  String?
+  
+  salesCommissions SalesCommission[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([employeeId, payrollPeriodId], name: "employee_period")
   @@index([payrollPeriodId, status])
   @@index([employeeId, status])
+}
+
+enum PayrollStatus {
+  draft
+  processing
+  completed
+  approved
+  paid
 }
 
 model PayrollSettings {

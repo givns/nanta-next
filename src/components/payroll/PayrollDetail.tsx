@@ -1,19 +1,19 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { 
-  OvertimeHours, 
-  OvertimeAmounts, 
-  HolidayHours, 
-  HolidayAmounts 
+import {
+  OvertimeHours,
+  OvertimeAmounts,
+  HolidayHours,
+  HolidayAmounts,
 } from '@/types/payroll';
 
 interface PayrollBreakdownProps {
@@ -33,11 +33,10 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
   overtimeAmounts,
   holidayAmounts,
 }) => {
-  const formatCurrency = (amount: number) => 
+  const formatCurrency = (amount: number) =>
     `฿${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
-  
-  const formatHours = (hours: number) => 
-    `${hours.toFixed(2)} hrs`;
+
+  const formatHours = (hours: number) => `${hours.toFixed(2)} hrs`;
 
   return (
     <div className="space-y-6">
@@ -50,7 +49,9 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm text-gray-500">Regular Hours</p>
-              <p className="text-lg font-semibold">{formatHours(regularHours)}</p>
+              <p className="text-lg font-semibold">
+                {formatHours(regularHours)}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Base Pay</p>
@@ -81,10 +82,14 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
                 <TableCell>
                   <div className="space-y-1">
                     <span>Regular Workday</span>
-                    <Badge variant="outline" className="ml-2">1.5x</Badge>
+                    <Badge variant="outline" className="ml-2">
+                      1.5x
+                    </Badge>
                   </div>
                 </TableCell>
-                <TableCell>{formatHours(overtimeHours.workdayRegular)}</TableCell>
+                <TableCell>
+                  {formatHours(overtimeHours.workdayRegular)}
+                </TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(overtimeAmounts.workdayRegular)}
                 </TableCell>
@@ -93,10 +98,14 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
                 <TableCell>
                   <div className="space-y-1">
                     <span>Outside Shift</span>
-                    <Badge variant="outline" className="ml-2">2.0x</Badge>
+                    <Badge variant="outline" className="ml-2">
+                      2.0x
+                    </Badge>
                   </div>
                 </TableCell>
-                <TableCell>{formatHours(overtimeHours.workdayOutside)}</TableCell>
+                <TableCell>
+                  {formatHours(overtimeHours.workdayOutside)}
+                </TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(overtimeAmounts.workdayOutside)}
                 </TableCell>
@@ -105,10 +114,14 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
                 <TableCell>
                   <div className="space-y-1">
                     <span>Weekend (Regular)</span>
-                    <Badge variant="outline" className="ml-2">2.0x</Badge>
+                    <Badge variant="outline" className="ml-2">
+                      2.0x
+                    </Badge>
                   </div>
                 </TableCell>
-                <TableCell>{formatHours(overtimeHours.weekendInside)}</TableCell>
+                <TableCell>
+                  {formatHours(overtimeHours.weekendInside)}
+                </TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(overtimeAmounts.weekendInside)}
                 </TableCell>
@@ -117,10 +130,14 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
                 <TableCell>
                   <div className="space-y-1">
                     <span>Weekend (Outside)</span>
-                    <Badge variant="outline" className="ml-2">3.0x</Badge>
+                    <Badge variant="outline" className="ml-2">
+                      3.0x
+                    </Badge>
                   </div>
                 </TableCell>
-                <TableCell>{formatHours(overtimeHours.weekendOutside)}</TableCell>
+                <TableCell>
+                  {formatHours(overtimeHours.weekendOutside)}
+                </TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(overtimeAmounts.weekendOutside)}
                 </TableCell>
@@ -156,7 +173,9 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
                 <TableCell>
                   <div className="space-y-1">
                     <span>Regular Holiday</span>
-                    <Badge variant="outline" className="ml-2">1.0x</Badge>
+                    <Badge variant="outline" className="ml-2">
+                      1.0x
+                    </Badge>
                   </div>
                 </TableCell>
                 <TableCell>{formatHours(holidayHours.regularDay)}</TableCell>
@@ -168,7 +187,9 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
                 <TableCell>
                   <div className="space-y-1">
                     <span>Weekend Holiday</span>
-                    <Badge variant="outline" className="ml-2">2.0x</Badge>
+                    <Badge variant="outline" className="ml-2">
+                      2.0x
+                    </Badge>
                   </div>
                 </TableCell>
                 <TableCell>{formatHours(holidayHours.weekend)}</TableCell>
@@ -180,10 +201,14 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
                 <TableCell>
                   <div className="space-y-1">
                     <span>Special Holiday</span>
-                    <Badge variant="outline" className="ml-2">3.0x</Badge>
+                    <Badge variant="outline" className="ml-2">
+                      3.0x
+                    </Badge>
                   </div>
                 </TableCell>
-                <TableCell>{formatHours(holidayHours.specialHoliday)}</TableCell>
+                <TableCell>
+                  {formatHours(holidayHours.specialHoliday)}
+                </TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(holidayAmounts.specialHoliday)}
                 </TableCell>
