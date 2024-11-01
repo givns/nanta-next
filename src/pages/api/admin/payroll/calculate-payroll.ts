@@ -29,6 +29,11 @@ export default async function handler(
 
   try {
     const { employeeId, periodStart, periodEnd } = req.body;
+    console.log('Calculating payroll for:', {
+      employeeId,
+      periodStart,
+      periodEnd,
+    });
 
     if (!employeeId || !periodStart || !periodEnd) {
       return res.status(400).json({
@@ -76,6 +81,7 @@ export default async function handler(
           overtimeMetadata: true,
         },
       }),
+
       prisma.leaveRequest.findMany({
         where: {
           employeeId,
@@ -90,6 +96,13 @@ export default async function handler(
       }),
       prisma.payrollSettings.findFirst(),
     ]);
+
+    console.log('Fetched data:', {
+      employee,
+      timeEntries,
+      leaveRequests,
+      settings,
+    });
 
     if (!employee || !settings) {
       return res.status(404).json({
