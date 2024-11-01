@@ -1,16 +1,10 @@
 // components/admin/PayrollAdminDashboard.tsx
 import { useState, useEffect } from 'react';
 import { useAdmin } from '@/contexts/AdminContext';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  AlertCircle,
-  Calendar,
-  Clock,
-  UserCheck,
-  DollarSign,
-} from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 import { PayrollUtils } from '@/utils/payrollUtils';
 import { PayrollCalculationResult, PayrollApiResponse } from '@/types/payroll';
@@ -20,14 +14,10 @@ import { AttendanceDetails } from './cards/AttendanceDetails';
 import { LeaveDetails } from './cards/LeaveDetails';
 import { PayrollCalculation } from './cards/PayrollCalculation';
 
-import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 import { Button } from '@/components/ui/button';
 import { PayrollProcessing } from '@/components/payroll/PayrollProcessing';
-import {
-  calculatePayroll,
-  getPayroll,
-  savePayroll,
-} from '../../../utils/api/payroll';
+
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // Animation variants
 const tabVariants = {
@@ -83,7 +73,23 @@ export default function PayrollAdminDashboard() {
     }));
   };
 
-  // Fetch data logic
+  // Set default period to current period on component mount
+  useEffect(() => {
+    const currentPeriod = periods.find((period) => {
+      const now = new Date();
+      const startDate = new Date(period.startDate);
+      const endDate = new Date(period.endDate);
+      return now >= startDate && now <= endDate;
+    });
+
+    if (currentPeriod) {
+      setState((prev) => ({
+        ...prev,
+        selectedPeriod: `${currentPeriod.startDate}_${currentPeriod.endDate}`,
+      }));
+    }
+  }, []);
+
   useEffect(() => {
     if (user?.lineUserId) {
       fetchEmployees();
@@ -92,6 +98,7 @@ export default function PayrollAdminDashboard() {
 
   const fetchEmployees = async () => {
     try {
+      setState((prev) => ({ ...prev, isLoading: true }));
       const response = await fetch('/api/admin/employees', {
         headers: {
           'x-line-userid': user?.lineUserId || '',
@@ -105,59 +112,96 @@ export default function PayrollAdminDashboard() {
         ...prev,
         error: 'Failed to load employees',
       }));
+    } finally {
+      setState((prev) => ({ ...prev, isLoading: false }));
     }
   };
 
+  // Modify the handleCalculate function
   const handleCalculate = async () => {
-    if (!state.selectedEmployee || !state.selectedPeriod || !user?.lineUserId)
+    if (!state.selectedEmployee || !state.selectedPeriod || !user?.lineUserId) {
+      setState((prev) => ({
+        ...prev,
+        error: 'Please select both employee and period',
+      }));
       return;
+    }
 
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // First, check if payroll exists
-      const period = PayrollUtils.parsePeriodValue(state.selectedPeriod);
-      if (!period) throw new Error('Invalid period');
+      // Parse period properly using PayrollUtils
+      const periodRange = PayrollUtils.parsePeriodValue(state.selectedPeriod);
 
-      const existingPayroll = await getPayroll({
-        employeeId: state.selectedEmployee,
-        periodStart: PayrollUtils.formatDateForAPI(period.startDate),
-        periodEnd: PayrollUtils.formatDateForAPI(period.endDate),
-        lineUserId: user.lineUserId,
-      });
+      if (!periodRange) {
+        throw new Error('Invalid period selected');
+      }
 
-      if (existingPayroll) {
-        setState((prev) => ({
-          ...prev,
-          payrollData: existingPayroll,
-          isLoading: false,
-        }));
-        return;
+      const formattedStartDate = PayrollUtils.formatDateForAPI(
+        periodRange.startDate,
+      );
+      const formattedEndDate = PayrollUtils.formatDateForAPI(
+        periodRange.endDate,
+      );
+
+      // First check if payroll exists
+      const payrollResponse = await fetch(
+        `/api/admin/payroll/payroll?` +
+          new URLSearchParams({
+            employeeId: state.selectedEmployee,
+            periodStart: formattedStartDate,
+            periodEnd: formattedEndDate,
+          }).toString(),
+        {
+          headers: {
+            'x-line-userid': user.lineUserId,
+          },
+        },
+      );
+
+      if (payrollResponse.ok) {
+        const existingPayroll = await payrollResponse.json();
+        if (existingPayroll.success) {
+          setState((prev) => ({
+            ...prev,
+            payrollData: existingPayroll.data,
+            isLoading: false,
+          }));
+          return;
+        }
       }
 
       // Calculate new payroll
-      const calculatedPayroll = await calculatePayroll({
-        employeeId: state.selectedEmployee,
-        periodStart: PayrollUtils.formatDateForAPI(period.startDate),
-        periodEnd: PayrollUtils.formatDateForAPI(period.endDate),
-        lineUserId: user.lineUserId,
-      });
+      const calculateResponse = await fetch(
+        '/api/admin/payroll/calculate-payroll',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-line-userid': user.lineUserId,
+          },
+          body: JSON.stringify({
+            employeeId: state.selectedEmployee,
+            periodStart: formattedStartDate,
+            periodEnd: formattedEndDate,
+          }),
+        },
+      );
 
-      // Save calculated payroll
-      const savedPayroll = await savePayroll({
-        employeeId: state.selectedEmployee,
-        periodStart: PayrollUtils.formatDateForAPI(period.startDate),
-        periodEnd: PayrollUtils.formatDateForAPI(period.endDate),
-        payrollData: calculatedPayroll,
-        lineUserId: user.lineUserId,
-      });
+      if (!calculateResponse.ok) {
+        const errorData = await calculateResponse.json();
+        throw new Error(errorData.message || 'Failed to calculate payroll');
+      }
+
+      const calculatedPayroll = await calculateResponse.json();
 
       setState((prev) => ({
         ...prev,
-        payrollData: savedPayroll,
+        payrollData: calculatedPayroll.calculation,
         isLoading: false,
       }));
     } catch (error) {
+      console.error('Payroll calculation error:', error);
       setState((prev) => ({
         ...prev,
         error:
@@ -166,6 +210,37 @@ export default function PayrollAdminDashboard() {
       }));
     }
   };
+
+  // Modify the handlePeriodChange function
+  const handlePeriodChange = (value: string) => {
+    const periodRange = PayrollUtils.parsePeriodValue(value);
+    if (periodRange) {
+      setState((prev) => ({
+        ...prev,
+        selectedPeriod: value,
+        error: null,
+      }));
+    } else {
+      setState((prev) => ({
+        ...prev,
+        error: 'Invalid period selected',
+      }));
+    }
+  };
+
+  // Set default period on component mount
+  useEffect(() => {
+    const periods = PayrollUtils.generatePayrollPeriods();
+    const currentPeriod = periods.find((p) => p.isCurrentPeriod);
+
+    if (currentPeriod) {
+      const periodValue = `${PayrollUtils.formatDateForAPI(currentPeriod.startDate)}_${PayrollUtils.formatDateForAPI(currentPeriod.endDate)}`;
+      setState((prev) => ({
+        ...prev,
+        selectedPeriod: periodValue,
+      }));
+    }
+  }, []);
 
   const fetchPayrollData = async () => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
@@ -271,63 +346,77 @@ export default function PayrollAdminDashboard() {
     setState((prev) => ({ ...prev, selectedEmployee: value }));
   };
 
-  const handlePeriodChange = (value: string) => {
-    setState((prev) => ({ ...prev, selectedPeriod: value }));
-  };
-
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-6">
-      {/* Header with View Toggle */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h1 className="text-xl md:text-2xl font-bold">Payroll Management</h1>
-
-        <div className="flex space-x-2">
-          <Button
-            variant={view === 'calculate' ? 'default' : 'outline'}
-            onClick={() => setView('calculate')}
-          >
-            Calculate Individual
-          </Button>
-          <Button
-            variant={view === 'process' ? 'default' : 'outline'}
-            onClick={() => setView('process')}
-          >
-            Batch Process
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      {view === 'calculate' ? (
-        // Individual Calculation View
-        <>
-          {/* Controls Section */}
-          <div className="w-full md:w-auto mb-6">
-            <div className="hidden md:block">
-              <DesktopControls
-                selectedEmployee={state.selectedEmployee}
-                selectedPeriod={state.selectedPeriod}
-                employees={employees}
-                periods={periods}
-                onEmployeeChange={handleEmployeeChange}
-                onPeriodChange={handlePeriodChange}
-                onCalculate={handleCalculate}
-                isLoading={state.isLoading}
-              />
-            </div>
-            <div className="md:hidden">
-              <MobileControls
-                selectedEmployee={state.selectedEmployee}
-                selectedPeriod={state.selectedPeriod}
-                employees={employees}
-                periods={periods}
-                onEmployeeChange={handleEmployeeChange}
-                onPeriodChange={handlePeriodChange}
-                onCalculate={handleCalculate}
-                isLoading={state.isLoading}
-              />
-            </div>
+    <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+      {/* Mode Selection Card */}
+      <Card className="bg-white">
+        <CardHeader>
+          <CardTitle>Payroll Management</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex space-x-4">
+            <Button
+              variant={view === 'calculate' ? 'default' : 'outline'}
+              onClick={() => setView('calculate')}
+              className="flex-1 sm:flex-none"
+            >
+              Calculate Individual
+            </Button>
+            <Button
+              variant={view === 'process' ? 'default' : 'outline'}
+              onClick={() => setView('process')}
+              className="flex-1 sm:flex-none"
+            >
+              Batch Process
+            </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {view === 'calculate' ? (
+        <>
+          {/* Calculation Controls Card */}
+          <Card className="bg-white">
+            <CardHeader>
+              <CardTitle>Payroll Calculation</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div className="hidden md:block">
+                  <DesktopControls
+                    selectedEmployee={state.selectedEmployee}
+                    selectedPeriod={state.selectedPeriod}
+                    employees={employees}
+                    periods={periods}
+                    onEmployeeChange={handleEmployeeChange}
+                    onPeriodChange={handlePeriodChange}
+                    onCalculate={handleCalculate}
+                    isLoading={state.isLoading}
+                  />
+                </div>
+                <div className="md:hidden">
+                  <MobileControls
+                    selectedEmployee={state.selectedEmployee}
+                    selectedPeriod={state.selectedPeriod}
+                    employees={employees}
+                    periods={periods}
+                    onEmployeeChange={handleEmployeeChange}
+                    onPeriodChange={handlePeriodChange}
+                    onCalculate={handleCalculate}
+                    isLoading={state.isLoading}
+                  />
+                </div>
+
+                {/* Error Display */}
+                {state.error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{state.error}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Error Display */}
           <AnimatePresence>

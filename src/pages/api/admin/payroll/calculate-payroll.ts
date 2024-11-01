@@ -1,19 +1,23 @@
 // pages/api/admin/payroll/calculate-payroll.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient, EmployeeType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { PayrollCalculationService } from '@/services/PayrollCalculation/PayrollCalculationService';
-import { parseISO } from 'date-fns';
-import { PayrollCalculationResult } from '@/types/payroll';
+import { parseISO, isValid } from 'date-fns';
+import { PayrollApiResponse, PayrollCalculationResult } from '@/types/payroll';
+import { start } from 'repl';
 
 const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse,
+  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
 ) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+    return res.status(405).json({
+      success: false,
+      error: 'Method not allowed',
+    });
   }
 
   try {
@@ -22,11 +26,28 @@ export default async function handler(
 
     // Validate input
     if (!employeeId || !periodStart || !periodEnd) {
-      return res.status(400).json({ message: 'Missing required parameters' });
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters',
+      });
     }
 
     if (!lineUserId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+      });
+    }
+
+    // Parse and validate dates
+    const startDate = parseISO(periodStart);
+    const endDate = parseISO(periodEnd);
+
+    if (!isValid(startDate) || !isValid(endDate)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid date format. Expected YYYY-MM-DD',
+      });
     }
 
     // Fetch required data
@@ -49,8 +70,8 @@ export default async function handler(
         where: {
           employeeId,
           date: {
-            gte: parseISO(periodStart),
-            lte: parseISO(periodEnd),
+            gte: startDate,
+            lte: endDate,
           },
         },
         include: {
@@ -62,10 +83,10 @@ export default async function handler(
           employeeId,
           status: 'approved',
           startDate: {
-            lte: parseISO(periodEnd),
+            lte: startDate,
           },
           endDate: {
-            gte: parseISO(periodStart),
+            gte: endDate,
           },
         },
       }),
@@ -73,9 +94,10 @@ export default async function handler(
     ]);
 
     if (!employee || !settings) {
-      return res
-        .status(404)
-        .json({ message: 'Employee or settings not found' });
+      return res.status(404).json({
+        success: false,
+        error: 'Employee or settings not found',
+      });
     }
 
     // Initialize service and calculate payroll
@@ -267,13 +289,14 @@ export default async function handler(
     });
 
     return res.status(200).json({
-      payrollId: payroll.id,
-      calculation: result,
+      success: true,
+      data: result,
     });
   } catch (error) {
     console.error('Error calculating payroll:', error);
     return res.status(500).json({
-      message:
+      success: false,
+      error:
         error instanceof Error ? error.message : 'Error calculating payroll',
     });
   }

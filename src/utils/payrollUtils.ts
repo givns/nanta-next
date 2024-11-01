@@ -7,6 +7,8 @@ import {
   startOfYear,
   endOfMonth,
   parse,
+  parseISO,
+  isValid,
 } from 'date-fns';
 import {
   PayrollCalculateParams,
@@ -152,24 +154,48 @@ export class PayrollUtils {
   }
 
   // Helper to parse period value into date range
+  // Modified parsePeriodValue to handle the new format
   static parsePeriodValue(periodValue: string): PeriodRange | null {
     try {
-      if (periodValue === 'current') {
-        return this.getCurrentPayrollPeriod();
+      if (!periodValue) return null;
+
+      // Handle the new format: YYYY-MM-DD_YYYY-MM-DD
+      if (periodValue.includes('_')) {
+        const [startStr, endStr] = periodValue.split('_');
+        const startDate = parseISO(startStr);
+        const endDate = parseISO(endStr);
+
+        if (!isValid(startDate) || !isValid(endDate)) {
+          return null;
+        }
+
+        return {
+          startDate,
+          endDate,
+          label: `${format(startDate, 'MMM dd')} - ${format(endDate, 'MMM dd, yyyy')}`,
+          value: periodValue,
+        };
       }
 
+      // Handle the old format: yyyy-MM
       const date = parse(periodValue, 'yyyy-MM', new Date());
+      if (!isValid(date)) return null;
+
+      const startDate = new Date(date.getFullYear(), date.getMonth(), 26);
+      const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 25);
+
       return {
-        startDate: new Date(date.getFullYear(), date.getMonth(), 26),
-        endDate: new Date(date.getFullYear(), date.getMonth() + 1, 25),
-        label: `${format(date, 'MMM dd')} - ${format(addMonths(date, 1), 'MMM dd, yyyy')}`,
-        value: periodValue,
+        startDate,
+        endDate,
+        label: `${format(startDate, 'MMM dd')} - ${format(endDate, 'MMM dd, yyyy')}`,
+        value: `${this.formatDateForAPI(startDate)}_${this.formatDateForAPI(endDate)}`,
       };
     } catch (error) {
       console.error('Error parsing period value:', error);
       return null;
     }
   }
+
   static formatAPIRequest(params: PayrollCalculateParams) {
     return new URLSearchParams({
       employeeId: params.employeeId,
@@ -179,6 +205,10 @@ export class PayrollUtils {
   }
 
   static formatDateForAPI(date: Date): string {
+    // Ensure we have a valid date
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      throw new Error('Invalid date provided');
+    }
     return format(date, 'yyyy-MM-dd');
   }
 
