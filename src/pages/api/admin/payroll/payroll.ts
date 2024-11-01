@@ -4,6 +4,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient, Prisma, PayrollStatus } from '@prisma/client';
 import { PayrollCalculationResult, PayrollApiResponse } from '@/types/payroll';
 import { z } from 'zod';
+import { isValid, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
 
@@ -44,49 +45,6 @@ const payrollInputSchema = z.object({
   }),
 });
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
-) {
-  const lineUserId = req.headers['x-line-userid'];
-  if (!lineUserId) {
-    return res.status(401).json({
-      success: false,
-      error: 'Unauthorized',
-    });
-  }
-
-  try {
-    switch (req.method) {
-      case 'GET':
-        return await handleGetPayroll(req, res);
-      case 'POST':
-        return await handleCreatePayroll(req, res);
-      case 'PUT':
-        return await handleUpdatePayroll(req, res);
-      default:
-        res.setHeader('Allow', ['GET', 'POST', 'PUT']);
-        return res.status(405).json({
-          success: false,
-          error: `Method ${req.method} Not Allowed`,
-        });
-    }
-  } catch (error) {
-    console.error('Error in payroll handler:', error);
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation error',
-        meta: { details: error.errors },
-      });
-    }
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-    });
-  }
-}
-
 async function handleGetPayroll(
   req: NextApiRequest,
   res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
@@ -101,12 +59,23 @@ async function handleGetPayroll(
   }
 
   try {
+    // Parse and validate dates
+    const startDate = parseISO(periodStart as string);
+    const endDate = parseISO(periodEnd as string);
+
+    if (!isValid(startDate) || !isValid(endDate)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid date format. Expected YYYY-MM-DD',
+      });
+    }
+
     const existingPayroll = await prisma.payroll.findFirst({
       where: {
         employeeId: employeeId as string,
         payrollPeriod: {
-          startDate: new Date(periodStart as string),
-          endDate: new Date(periodEnd as string),
+          startDate,
+          endDate,
         },
       },
       include: {
@@ -115,16 +84,16 @@ async function handleGetPayroll(
       },
     });
 
-    if (existingPayroll) {
-      return res.status(200).json({
-        success: true,
-        data: formatPayrollResponse(existingPayroll),
+    if (!existingPayroll) {
+      return res.status(404).json({
+        success: false,
+        error: 'Payroll record not found',
       });
     }
 
-    return res.status(404).json({
-      success: false,
-      error: 'Payroll record not found',
+    return res.status(200).json({
+      success: true,
+      data: formatPayrollResponse(existingPayroll),
     });
   } catch (error) {
     console.error('Error in handleGetPayroll:', error);
@@ -349,4 +318,47 @@ function formatPayrollResponse(payroll: any): PayrollCalculationResult {
     netPayable: payroll.netPayable,
     status: payroll.status,
   };
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
+) {
+  const lineUserId = req.headers['x-line-userid'];
+  if (!lineUserId) {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized',
+    });
+  }
+
+  try {
+    switch (req.method) {
+      case 'GET':
+        return await handleGetPayroll(req, res);
+      case 'POST':
+        return await handleCreatePayroll(req, res);
+      case 'PUT':
+        return await handleUpdatePayroll(req, res);
+      default:
+        res.setHeader('Allow', ['GET', 'POST', 'PUT']);
+        return res.status(405).json({
+          success: false,
+          error: `Method ${req.method} Not Allowed`,
+        });
+    }
+  } catch (error) {
+    console.error('Error in payroll handler:', error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation error',
+        meta: { details: error.errors },
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Internal server error',
+    });
+  }
 }
