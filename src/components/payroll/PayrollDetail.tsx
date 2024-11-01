@@ -1,3 +1,5 @@
+// components/admin/payroll/PayrollDetail.tsx
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -9,34 +11,40 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import {
-  OvertimeHours,
-  OvertimeAmounts,
-  HolidayHours,
-  HolidayAmounts,
-} from '@/types/payroll';
+import { PayrollUtils } from '@/utils/payrollUtils';
+import { PayrollComponentProps } from '@/types/payroll/components';
 
-interface PayrollBreakdownProps {
-  regularHours: number;
-  overtimeHours: OvertimeHours;
-  holidayHours: HolidayHours;
-  basePayAmount: number;
-  overtimeAmounts: OvertimeAmounts;
-  holidayAmounts: HolidayAmounts;
+interface DetailRowProps {
+  label: string;
+  hours: number;
+  rate: number;
+  amount: number;
 }
 
-export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
-  regularHours,
-  overtimeHours,
-  holidayHours,
-  basePayAmount,
-  overtimeAmounts,
-  holidayAmounts,
+export const PayrollDetail: React.FC<PayrollComponentProps> = ({
+  payrollData,
 }) => {
-  const formatCurrency = (amount: number) =>
-    `฿${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
-
-  const formatHours = (hours: number) => `${hours.toFixed(2)} hrs`;
+  const DetailRow: React.FC<DetailRowProps> = ({
+    label,
+    hours,
+    rate,
+    amount,
+  }) => (
+    <TableRow>
+      <TableCell>
+        <div className="space-y-1">
+          <span>{label}</span>
+          <Badge variant="outline" className="ml-2">
+            {rate}x
+          </Badge>
+        </div>
+      </TableCell>
+      <TableCell>{PayrollUtils.formatHours(hours)}</TableCell>
+      <TableCell className="text-right">
+        {PayrollUtils.formatCurrency(amount)}
+      </TableCell>
+    </TableRow>
+  );
 
   return (
     <div className="space-y-6">
@@ -50,13 +58,13 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
             <div>
               <p className="text-sm text-gray-500">Regular Hours</p>
               <p className="text-lg font-semibold">
-                {formatHours(regularHours)}
+                {PayrollUtils.formatHours(payrollData.regularHours)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Base Pay</p>
               <p className="text-lg font-semibold text-green-600">
-                {formatCurrency(basePayAmount)}
+                {PayrollUtils.formatCurrency(payrollData.basePay)}
               </p>
             </div>
           </div>
@@ -78,75 +86,43 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow>
-                <TableCell>
-                  <div className="space-y-1">
-                    <span>Regular Workday</span>
-                    <Badge variant="outline" className="ml-2">
-                      1.5x
-                    </Badge>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {formatHours(overtimeHours.workdayRegular)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(overtimeAmounts.workdayRegular)}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>
-                  <div className="space-y-1">
-                    <span>Outside Shift</span>
-                    <Badge variant="outline" className="ml-2">
-                      2.0x
-                    </Badge>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {formatHours(overtimeHours.workdayOutside)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(overtimeAmounts.workdayOutside)}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>
-                  <div className="space-y-1">
-                    <span>Weekend (Regular)</span>
-                    <Badge variant="outline" className="ml-2">
-                      2.0x
-                    </Badge>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {formatHours(overtimeHours.weekendInside)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(overtimeAmounts.weekendInside)}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>
-                  <div className="space-y-1">
-                    <span>Weekend (Outside)</span>
-                    <Badge variant="outline" className="ml-2">
-                      3.0x
-                    </Badge>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {formatHours(overtimeHours.weekendOutside)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(overtimeAmounts.weekendOutside)}
-                </TableCell>
-              </TableRow>
+              <DetailRow
+                label="Workday (Outside Shift)"
+                hours={payrollData.overtimeHoursByType.workdayOutside}
+                rate={payrollData.overtimeRatesByType.workdayOutside}
+                amount={payrollData.overtimePayByType.workdayOutside}
+              />
+              <DetailRow
+                label="Weekend (Regular)"
+                hours={payrollData.overtimeHoursByType.weekendInside}
+                rate={payrollData.overtimeRatesByType.weekendInside}
+                amount={payrollData.overtimePayByType.weekendInside}
+              />
+              <DetailRow
+                label="Weekend (Outside)"
+                hours={payrollData.overtimeHoursByType.weekendOutside}
+                rate={payrollData.overtimeRatesByType.weekendOutside}
+                amount={payrollData.overtimePayByType.weekendOutside}
+              />
+              <DetailRow
+                label="Holiday (Regular)"
+                hours={payrollData.overtimeHoursByType.holidayRegular}
+                rate={payrollData.overtimeRatesByType.holidayRegular}
+                amount={payrollData.overtimePayByType.holidayRegular}
+              />
+              <DetailRow
+                label="Holiday (Overtime)"
+                hours={payrollData.overtimeHoursByType.holidayOvertime}
+                rate={payrollData.overtimeRatesByType.holidayOvertime}
+                amount={payrollData.overtimePayByType.holidayOvertime}
+              />
               <TableRow className="font-semibold">
                 <TableCell>Total Overtime</TableCell>
-                <TableCell>{formatHours(overtimeHours.total)}</TableCell>
+                <TableCell>
+                  {PayrollUtils.formatHours(payrollData.totalOvertimeHours)}
+                </TableCell>
                 <TableCell className="text-right text-green-600">
-                  {formatCurrency(overtimeAmounts.total)}
+                  {PayrollUtils.formatCurrency(payrollData.totalOvertimePay)}
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -154,76 +130,144 @@ export const PayrollBreakdown: React.FC<PayrollBreakdownProps> = ({
         </CardContent>
       </Card>
 
-      {/* Holiday Pay Breakdown */}
+      {/* Allowances Breakdown */}
       <Card>
         <CardHeader>
-          <CardTitle>Holiday Pay Breakdown</CardTitle>
+          <CardTitle>Allowances</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead>Hours</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell>
-                  <div className="space-y-1">
-                    <span>Regular Holiday</span>
-                    <Badge variant="outline" className="ml-2">
-                      1.0x
-                    </Badge>
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">Transportation</p>
+                <p className="text-lg font-medium">
+                  {PayrollUtils.formatCurrency(
+                    payrollData.transportationAllowance,
+                  )}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Meal</p>
+                <p className="text-lg font-medium">
+                  {PayrollUtils.formatCurrency(payrollData.mealAllowance)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Housing</p>
+                <p className="text-lg font-medium">
+                  {PayrollUtils.formatCurrency(payrollData.housingAllowance)}
+                </p>
+              </div>
+            </div>
+            <div className="pt-4 border-t flex justify-between">
+              <span className="font-medium">Total Allowances</span>
+              <span className="font-medium text-green-600">
+                {PayrollUtils.formatCurrency(payrollData.totalAllowances)}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Commission Details (if applicable) */}
+      {payrollData.salesAmount && payrollData.commissionRate && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Commission Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Sales Amount</p>
+                  <p className="text-lg font-medium">
+                    {PayrollUtils.formatCurrency(payrollData.salesAmount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Commission Rate</p>
+                  <p className="text-lg font-medium">
+                    {payrollData.commissionRate}%
+                  </p>
+                </div>
+              </div>
+              <div className="pt-4 border-t space-y-2">
+                <div className="flex justify-between">
+                  <span>Commission Amount</span>
+                  <span className="font-medium">
+                    {PayrollUtils.formatCurrency(
+                      payrollData.commissionAmount || 0,
+                    )}
+                  </span>
+                </div>
+                {payrollData.quarterlyBonus && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Quarterly Bonus</span>
+                    <span>
+                      +{PayrollUtils.formatCurrency(payrollData.quarterlyBonus)}
+                    </span>
                   </div>
-                </TableCell>
-                <TableCell>{formatHours(holidayHours.regularDay)}</TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(holidayAmounts.regularDay)}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>
-                  <div className="space-y-1">
-                    <span>Weekend Holiday</span>
-                    <Badge variant="outline" className="ml-2">
-                      2.0x
-                    </Badge>
+                )}
+                {payrollData.yearlyBonus && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Yearly Bonus</span>
+                    <span>
+                      +{PayrollUtils.formatCurrency(payrollData.yearlyBonus)}
+                    </span>
                   </div>
-                </TableCell>
-                <TableCell>{formatHours(holidayHours.weekend)}</TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(holidayAmounts.weekend)}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>
-                  <div className="space-y-1">
-                    <span>Special Holiday</span>
-                    <Badge variant="outline" className="ml-2">
-                      3.0x
-                    </Badge>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {formatHours(holidayHours.specialHoliday)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(holidayAmounts.specialHoliday)}
-                </TableCell>
-              </TableRow>
-              <TableRow className="font-semibold">
-                <TableCell>Total Holiday Pay</TableCell>
-                <TableCell>{formatHours(holidayHours.total)}</TableCell>
-                <TableCell className="text-right text-green-600">
-                  {formatCurrency(holidayAmounts.total)}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Deductions Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Deductions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex justify-between text-red-600">
+              <span>Social Security</span>
+              <span>
+                -{PayrollUtils.formatCurrency(payrollData.socialSecurity)}
+              </span>
+            </div>
+            <div className="flex justify-between text-red-600">
+              <span>Tax</span>
+              <span>-{PayrollUtils.formatCurrency(payrollData.tax)}</span>
+            </div>
+            <div className="flex justify-between text-red-600">
+              <span>Unpaid Leave</span>
+              <span>
+                -{PayrollUtils.formatCurrency(payrollData.unpaidLeaveDeduction)}
+              </span>
+            </div>
+            <div className="pt-4 border-t flex justify-between font-medium text-red-600">
+              <span>Total Deductions</span>
+              <span>
+                -{PayrollUtils.formatCurrency(payrollData.totalDeductions)}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Net Payable */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Net Payable</h3>
+            <p className="text-2xl font-bold text-green-600">
+              {PayrollUtils.formatCurrency(payrollData.netPayable)}
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 };
+
+export default PayrollDetail;

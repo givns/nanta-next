@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { format, parse, setDate, subMonths } from 'date-fns';
+// components/admin/PayrollPeriodSelector.tsx
+
+import { useState, useEffect, useMemo } from 'react';
+import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import {
   Select,
@@ -10,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { CalendarIcon } from 'lucide-react';
-import { PayrollPeriodDisplay } from '@/types/payroll';
+import { PayrollUtils } from '@/utils/payrollUtils';
 
 interface PayrollPeriodSelectorProps {
   currentValue: string;
@@ -25,23 +27,7 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
   disabled = false,
   showBadges = true,
 }) => {
-  // Generate periods for last 12 months
-  const periods = useMemo(() => {
-    const now = new Date();
-    return Array.from({ length: 12 }, (_, i) => {
-      const date = subMonths(now, i);
-      const startDate = setDate(subMonths(date, 1), 26);
-      const endDate = setDate(date, 25);
-
-      return {
-        value: format(startDate, 'yyyy-MM'),
-        label: `${format(startDate, 'MMM dd', { locale: th })} - ${format(endDate, 'MMM dd, yyyy', { locale: th })}`,
-        startDate,
-        endDate,
-        isPending: i === 0,
-      };
-    });
-  }, []);
+  const periods = PayrollUtils.generatePayrollPeriods();
 
   return (
     <div className="flex items-center space-x-2">
@@ -49,7 +35,7 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
         <SelectTrigger className="w-[280px]">
           <div className="flex items-center">
             <CalendarIcon className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="เลือกรอบเงินเดือน" />
+            <SelectValue placeholder="Select Period" />
           </div>
         </SelectTrigger>
         <SelectContent>
@@ -61,7 +47,7 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
             >
               <div className="flex items-center justify-between w-full">
                 <span>{period.label}</span>
-                {showBadges && period.isPending && (
+                {showBadges && period.isCurrentPeriod && (
                   <Badge variant="secondary" className="ml-2">
                     Current
                   </Badge>
@@ -74,5 +60,3 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
     </div>
   );
 };
-
-export default PayrollPeriodSelector;

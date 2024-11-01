@@ -1,151 +1,134 @@
 // utils/payrollUtils.ts
+
 import {
-  addMonths,
   format,
+  addMonths,
+  subMonths,
   startOfYear,
   endOfMonth,
-  subMonths,
   parse,
 } from 'date-fns';
-import { PayrollCalculationResult, PayrollSettings } from '@/types/payroll';
+import {
+  PayrollCalculateParams,
+  PayrollCalculationResult,
+} from '@/types/payroll';
 import { EmployeeType } from '@prisma/client';
 
-// Existing period interfaces
-export interface PayrollPeriod {
+export interface PeriodRange {
+  startDate: Date;
+  endDate: Date;
   label: string;
   value: string;
-  start: string;
-  end: string;
+  isCurrentPeriod?: boolean;
 }
 
 export class PayrollUtils {
-  // Keep existing period calculation functions
-  static generatePayrollPeriods(currentDate = new Date()): PayrollPeriod[] {
-    const formatDate = (date: Date) => format(date, 'yyyy-MM-dd');
-    const periods: PayrollPeriod[] = [];
-
-    let startDate = startOfYear(currentDate);
-    startDate = subMonths(startDate, 1); // Start from December of previous year
-    startDate.setDate(26);
-
-    while (startDate <= currentDate) {
-      const endDate = endOfMonth(addMonths(startDate, 1));
-      endDate.setDate(25);
-
-      const periodLabel = format(addMonths(startDate, 1), 'MMMM yyyy');
-      const period: PayrollPeriod = {
-        label: periodLabel,
-        value: periodLabel.toLowerCase().replace(' ', '-'),
-        start: formatDate(startDate),
-        end: formatDate(endDate),
-      };
-
-      periods.push(period);
-      startDate = addMonths(startDate, 1);
-    }
-
-    // Add "Current" period
-    const currentPeriod = periods[periods.length - 1];
-    periods.push({
-      label: 'Current',
-      value: 'current',
-      start: currentPeriod.start,
-      end: currentPeriod.end,
-    });
-
-    return periods;
-  }
-
-  static getCurrentPayrollPeriod(currentDate = new Date()): PayrollPeriod {
-    const formatDate = (date: Date) => format(date, 'yyyy-MM-dd');
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
+  // Get current payroll period based on settings
+  static getCurrentPayrollPeriod(
+    currentDate = new Date(),
+    periodStartDay = 26,
+  ): PeriodRange {
     const day = currentDate.getDate();
-
     let startDate: Date;
     let endDate: Date;
 
-    if (day < 26) {
-      startDate = new Date(year, month - 1, 26);
-      endDate = new Date(year, month, 25);
+    if (day < periodStartDay) {
+      // Current period is previous month's 26th to current month's 25th
+      startDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() - 1,
+        periodStartDay,
+      );
+      endDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        periodStartDay - 1,
+      );
     } else {
-      startDate = new Date(year, month, 26);
-      endDate = new Date(year, month + 1, 25);
+      // Current period is current month's 26th to next month's 25th
+      startDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        periodStartDay,
+      );
+      endDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + 1,
+        periodStartDay - 1,
+      );
     }
 
-    endDate = endOfMonth(endDate) < endDate ? endOfMonth(endDate) : endDate;
-
     return {
-      label: 'Current',
-      value: 'current',
-      start: formatDate(startDate),
-      end: formatDate(endDate),
+      startDate,
+      endDate,
+      label: `${format(startDate, 'MMM dd')} - ${format(endDate, 'MMM dd, yyyy')}`,
+      value: format(startDate, 'yyyy-MM'),
+      isCurrentPeriod: true,
     };
   }
 
-  static isCurrentPeriod(period: PayrollPeriod): boolean {
-    const currentPeriod = this.getCurrentPayrollPeriod();
-    return (
-      period.start === currentPeriod.start && period.end === currentPeriod.end
+  // Generate list of payroll periods
+  static generatePayrollPeriods(
+    monthsBack = 12,
+    currentDate = new Date(),
+    periodStartDay = 26,
+  ): PeriodRange[] {
+    const periods: PeriodRange[] = [];
+    const currentPeriod = this.getCurrentPayrollPeriod(
+      currentDate,
+      periodStartDay,
     );
+
+    // Add past periods
+    for (let i = 0; i < monthsBack; i++) {
+      const date = subMonths(currentPeriod.startDate, i);
+      const period: PeriodRange = {
+        startDate: new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          periodStartDay,
+        ),
+        endDate: new Date(
+          date.getFullYear(),
+          date.getMonth() + 1,
+          periodStartDay - 1,
+        ),
+        label: `${format(date, 'MMM dd')} - ${format(addMonths(date, 1), 'MMM dd, yyyy')}`,
+        value: format(date, 'yyyy-MM'),
+        isCurrentPeriod: i === 0,
+      };
+      periods.push(period);
+    }
+
+    return periods.reverse();
   }
 
-  // New calculation methods from the previous implementation
-  static calculateOvertimePay(
-    hours: PayrollCalculationResult['hours'],
-    baseRate: number,
-    employeeType: EmployeeType,
-    settings: PayrollSettings,
-  ): number {
-    const rates = settings.overtimeRates[employeeType];
-
-    return (
-      hours.workdayOvertimeHours * baseRate * rates.workdayOutsideShift +
-      hours.weekendShiftOvertimeHours *
-        baseRate *
-        (employeeType === EmployeeType.Fulltime
-          ? rates.weekendInsideShiftFulltime
-          : rates.weekendInsideShiftParttime) +
-      hours.holidayOvertimeHours * baseRate * rates.weekendOutsideShift
-    );
-  }
-
-  static calculateSocialSecurity(
-    grossPay: number,
-    settings: PayrollSettings,
-  ): number {
-    const base = Math.min(
-      Math.max(grossPay, settings.deductions.socialSecurityMinBase),
-      settings.deductions.socialSecurityMaxBase,
-    );
-    return base * settings.deductions.socialSecurityRate;
-  }
-
-  static formatCurrency(amount: number): string {
-    return amount.toLocaleString('th-TH', {
-      style: 'currency',
-      currency: 'THB',
-      minimumFractionDigits: 2,
-    });
-  }
-
+  // Validate payroll calculation result
   static validatePayrollData(data: PayrollCalculationResult): {
     isValid: boolean;
     errors: string[];
   } {
     const errors: string[] = [];
 
+    // Required field validation
     if (!data.employee?.id) errors.push('Missing employee ID');
-    if (!data.processedData?.netPayable)
-      errors.push('Missing net payable amount');
+    if (!data.netPayable) errors.push('Missing net payable amount');
+    if (!data.regularHours) errors.push('Missing regular hours');
 
-    const totalOvertime =
-      data.hours.workdayOvertimeHours +
-      data.hours.weekendShiftOvertimeHours +
-      data.hours.holidayOvertimeHours;
+    // Business logic validation
+    if (data.netPayable < 0) {
+      errors.push('Net payable cannot be negative');
+    }
 
-    if (totalOvertime > 0 && !data.processedData.overtimePay) {
+    if (data.totalOvertimeHours > 0 && !data.totalOvertimePay) {
       errors.push('Overtime hours present but no overtime pay calculated');
+    }
+
+    // Deductions validation
+    const totalDeductions = data.totalDeductions;
+    const grossPay = data.basePay + data.totalOvertimePay;
+    if (totalDeductions > grossPay) {
+      errors.push('Total deductions cannot exceed gross pay');
     }
 
     return {
@@ -154,26 +137,63 @@ export class PayrollUtils {
     };
   }
 
-  // Helper method to get period dates from value
-  static getPeriodDates(periodValue: string): {
-    startDate: Date;
-    endDate: Date;
-  } {
-    if (periodValue === 'current') {
-      const currentPeriod = this.getCurrentPayrollPeriod();
-      return {
-        startDate: parse(currentPeriod.start, 'yyyy-MM-dd', new Date()),
-        endDate: parse(currentPeriod.end, 'yyyy-MM-dd', new Date()),
-      };
-    }
+  // Format currency for display
+  static formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('th-TH', {
+      style: 'currency',
+      currency: 'THB',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  }
 
-    // Handle period values in format "month-yyyy" (e.g., "january-2024")
-    const [month, year] = periodValue.split('-');
-    const date = parse(`01 ${month} ${year}`, 'dd MMMM yyyy', new Date());
+  // Format hours for display
+  static formatHours(hours: number): string {
+    return `${hours.toFixed(1)} hrs`;
+  }
+
+  // Helper to parse period value into date range
+  static parsePeriodValue(periodValue: string): PeriodRange | null {
+    try {
+      if (periodValue === 'current') {
+        return this.getCurrentPayrollPeriod();
+      }
+
+      const date = parse(periodValue, 'yyyy-MM', new Date());
+      return {
+        startDate: new Date(date.getFullYear(), date.getMonth(), 26),
+        endDate: new Date(date.getFullYear(), date.getMonth() + 1, 25),
+        label: `${format(date, 'MMM dd')} - ${format(addMonths(date, 1), 'MMM dd, yyyy')}`,
+        value: periodValue,
+      };
+    } catch (error) {
+      console.error('Error parsing period value:', error);
+      return null;
+    }
+  }
+  static formatAPIRequest(params: PayrollCalculateParams) {
+    return new URLSearchParams({
+      employeeId: params.employeeId,
+      periodStart: params.periodStart,
+      periodEnd: params.periodEnd,
+    }).toString();
+  }
+
+  static formatDateForAPI(date: Date): string {
+    return format(date, 'yyyy-MM-dd');
+  }
+
+  static validateAPIParams(params: PayrollCalculateParams): {
+    isValid: boolean;
+    errors: string[];
+  } {
+    const errors: string[] = [];
+    if (!params.employeeId) errors.push('Employee ID is required');
+    if (!params.periodStart) errors.push('Period start is required');
+    if (!params.periodEnd) errors.push('Period end is required');
 
     return {
-      startDate: new Date(date.getFullYear(), date.getMonth(), 26),
-      endDate: new Date(date.getFullYear(), date.getMonth() + 1, 25),
+      isValid: errors.length === 0,
+      errors,
     };
   }
 }

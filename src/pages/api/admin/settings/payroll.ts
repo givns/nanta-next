@@ -119,6 +119,7 @@ async function updateSettings(req: NextApiRequest, res: NextApiResponse) {
       overtimeRates: JSON.stringify(overtimeRates),
       allowances: JSON.stringify(allowances),
       deductions: JSON.stringify(deductions),
+      rules: JSON.stringify(rules),
     },
     update: {
       overtimeRates: JSON.stringify({ ...overtimeRates, rules }),

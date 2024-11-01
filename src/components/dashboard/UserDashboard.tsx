@@ -10,7 +10,6 @@ import { AlertCircle, Calendar, Clock, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AttendanceTable from '../AttendanceTable';
 import UserShiftInfo from '../UserShiftInfo';
-import { PayrollContainer } from '../payroll/PayrollContainer';
 import { DashboardData } from '@/types/dashboard';
 
 interface UserDashboardProps {
@@ -175,15 +174,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         </TabsContent>
 
-        <TabsContent value="payroll">
-          <PayrollContainer
-            employeeId={user.employeeId}
-            initialPeriod={{
-              startDate: new Date(data.payrollPeriod.startDate),
-              endDate: new Date(data.payrollPeriod.endDate),
-            }}
-          />
-        </TabsContent>
+        <TabsContent value="payroll"></TabsContent>
       </Tabs>
     </div>
   );

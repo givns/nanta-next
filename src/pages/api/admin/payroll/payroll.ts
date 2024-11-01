@@ -1,53 +1,112 @@
 // pages/api/admin/payroll/payroll.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
-import { PayrollCalculationService } from '@/services/PayrollCalculation/PayrollCalculationService';
-import { ProbationAdjustmentService } from '@/services/PayrollCalculation/ProbationAdjustmentService';
-import { AdminPayrollData, PayrollStatus } from '@/types/payroll';
+import { PrismaClient, Prisma, PayrollStatus } from '@prisma/client';
+import { PayrollCalculationResult, PayrollApiResponse } from '@/types/payroll';
+import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
+// Validation schemas
+const payrollInputSchema = z.object({
+  employeeId: z.string(),
+  periodStart: z.string().datetime(),
+  periodEnd: z.string().datetime(),
+  payrollData: z.object({
+    regularHours: z.number(),
+    overtimeHoursByType: z.record(z.string(), z.number()),
+    totalOvertimeHours: z.number(),
+    totalWorkingDays: z.number(),
+    totalPresent: z.number(),
+    totalAbsent: z.number(),
+    totalLateMinutes: z.number(),
+    earlyDepartures: z.number(),
+    sickLeaveDays: z.number(),
+    businessLeaveDays: z.number(),
+    annualLeaveDays: z.number(),
+    unpaidLeaveDays: z.number(),
+    holidays: z.number(),
+    regularHourlyRate: z.number(),
+    overtimeRatesByType: z.record(z.string(), z.number()),
+    basePay: z.number(),
+    overtimePayByType: z.record(z.string(), z.number()),
+    totalOvertimePay: z.number(),
+    transportationAllowance: z.number(),
+    mealAllowance: z.number(),
+    housingAllowance: z.number(),
+    totalAllowances: z.number(),
+    socialSecurity: z.number(),
+    tax: z.number(),
+    unpaidLeaveDeduction: z.number(),
+    totalDeductions: z.number(),
+    netPayable: z.number(),
+    status: z.enum(['draft', 'processing', 'completed', 'approved', 'paid']),
+  }),
+});
+
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse,
+  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
 ) {
-  switch (req.method) {
-    case 'GET':
-      return handleGetPayroll(req, res);
-    case 'POST':
-      return handleCreatePayroll(req, res);
-    default:
-      res.setHeader('Allow', ['GET', 'POST']);
-      return res.status(405).end(`Method ${req.method} Not Allowed`);
+  const lineUserId = req.headers['x-line-userid'];
+  if (!lineUserId) {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized',
+    });
+  }
+
+  try {
+    switch (req.method) {
+      case 'GET':
+        return await handleGetPayroll(req, res);
+      case 'POST':
+        return await handleCreatePayroll(req, res);
+      case 'PUT':
+        return await handleUpdatePayroll(req, res);
+      default:
+        res.setHeader('Allow', ['GET', 'POST', 'PUT']);
+        return res.status(405).json({
+          success: false,
+          error: `Method ${req.method} Not Allowed`,
+        });
+    }
+  } catch (error) {
+    console.error('Error in payroll handler:', error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation error',
+        meta: { details: error.errors },
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
   }
 }
 
 async function handleGetPayroll(
   req: NextApiRequest,
-  res: NextApiResponse<AdminPayrollData | { error: string }>,
+  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
 ) {
+  const { employeeId, periodStart, periodEnd } = req.query;
+
+  if (!employeeId || !periodStart || !periodEnd) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required parameters',
+    });
+  }
+
   try {
-    const { employeeId, periodStart, periodEnd } = req.query;
-
-    if (
-      !employeeId ||
-      !periodStart ||
-      !periodEnd ||
-      typeof employeeId !== 'string' ||
-      typeof periodStart !== 'string' ||
-      typeof periodEnd !== 'string'
-    ) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
-
-    // Get existing payroll record
     const existingPayroll = await prisma.payroll.findFirst({
       where: {
-        employeeId,
+        employeeId: employeeId as string,
         payrollPeriod: {
-          startDate: new Date(periodStart),
-          endDate: new Date(periodEnd),
+          startDate: new Date(periodStart as string),
+          endDate: new Date(periodEnd as string),
         },
       },
       include: {
@@ -57,241 +116,237 @@ async function handleGetPayroll(
     });
 
     if (existingPayroll) {
-      return res.status(200).json(formatPayrollResponse(existingPayroll));
+      return res.status(200).json({
+        success: true,
+        data: formatPayrollResponse(existingPayroll),
+      });
     }
 
-    // If no existing payroll, return empty template
-    const employee = await prisma.user.findUnique({
-      where: { employeeId },
-      select: {
-        id: true,
-        employeeId: true,
-        name: true,
-        departmentName: true,
-        role: true,
-        bankAccountNumber: true,
-      },
+    return res.status(404).json({
+      success: false,
+      error: 'Payroll record not found',
     });
-
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee not found' });
-    }
-
-    const emptyPayrollData: AdminPayrollData = {
-      employee: {
-        id: employee.id,
-        name: employee.name,
-        employeeId: employee.employeeId,
-        departmentName: employee.departmentName,
-        role: employee.role,
-        bankInfo: employee.bankAccountNumber
-          ? {
-              bankName: 'Bank Name', // Add bank name field to User model if needed
-              accountNumber: employee.bankAccountNumber,
-            }
-          : undefined,
-      },
-      summary: {
-        totalWorkingDays: 0,
-        totalPresent: 0,
-        totalAbsent: 0,
-        periodStart,
-        periodEnd,
-      },
-      hours: {
-        regularHours: 0,
-        overtimeHours: 0,
-        holidayHours: 0,
-        holidayOvertimeHours: 0,
-      },
-      attendance: {
-        totalLateMinutes: 0,
-        earlyDepartures: 0,
-        lateArrivals: 0,
-        incompleteAttendance: 0,
-      },
-      leaves: {
-        sick: 0,
-        annual: 0,
-        business: 0,
-        holidays: 0,
-        unpaid: 0,
-      },
-      rates: {
-        regularHourlyRate: 0,
-        overtimeRate: 0,
-        holidayRate: 0,
-      },
-      earnings: {
-        baseAmount: 0,
-        overtimeAmount: 0,
-        holidayAmount: 0,
-      },
-      allowances: {
-        transportation: 0,
-        meal: 0,
-        housing: 0,
-        other: 0,
-      },
-      deductions: {
-        socialSecurity: 0,
-        tax: 0,
-        other: 0,
-      },
-      adjustments: [],
-      netPayable: 0,
-      status: 'draft',
-    };
-
-    return res.status(200).json(emptyPayrollData);
   } catch (error) {
     console.error('Error in handleGetPayroll:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch payroll record',
+    });
   }
 }
 
-async function handleCreatePayroll(req: NextApiRequest, res: NextApiResponse) {
+async function handleCreatePayroll(
+  req: NextApiRequest,
+  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
+) {
   try {
-    const { employeeId, periodStart, periodEnd, payrollData } = req.body;
+    const validatedData = payrollInputSchema.parse(req.body);
+    const { employeeId, periodStart, periodEnd, payrollData } = validatedData;
 
-    if (!employeeId || !periodStart || !periodEnd || !payrollData) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
+    // Begin transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create or get payroll period
+      const payrollPeriod = await tx.payrollPeriod.upsert({
+        where: {
+          period_range: {
+            startDate: new Date(periodStart),
+            endDate: new Date(periodEnd),
+          },
+        },
+        update: {},
+        create: {
+          startDate: new Date(periodStart),
+          endDate: new Date(periodEnd),
+          status: 'draft',
+        },
+      });
 
-    // Create or update payroll period
-    const payrollPeriod = await prisma.payrollPeriod.upsert({
-      where: {
-        id: payrollData.periodId || '',
-      },
-      update: {
-        status: payrollData.status as PayrollStatus,
-      },
-      create: {
-        startDate: new Date(periodStart),
-        endDate: new Date(periodEnd),
-        status: 'draft',
-      },
+      // Create payroll record
+      const payroll = await tx.payroll.create({
+        data: {
+          employeeId,
+          payrollPeriodId: payrollPeriod.id,
+          // Map all fields from our new type structure
+          regularHours: payrollData.regularHours,
+          overtimeHoursByType: JSON.stringify(payrollData.overtimeHoursByType),
+          totalOvertimeHours: payrollData.totalOvertimeHours,
+          totalWorkingDays: payrollData.totalWorkingDays,
+          totalPresent: payrollData.totalPresent,
+          totalAbsent: payrollData.totalAbsent,
+          totalLateMinutes: payrollData.totalLateMinutes,
+          earlyDepartures: payrollData.earlyDepartures,
+          sickLeaveDays: payrollData.sickLeaveDays,
+          businessLeaveDays: payrollData.businessLeaveDays,
+          annualLeaveDays: payrollData.annualLeaveDays,
+          unpaidLeaveDays: payrollData.unpaidLeaveDays,
+          holidays: payrollData.holidays,
+          regularHourlyRate: payrollData.regularHourlyRate,
+          overtimeRatesByType: JSON.stringify(payrollData.overtimeRatesByType),
+          basePay: payrollData.basePay,
+          overtimePayByType: JSON.stringify(payrollData.overtimePayByType),
+          totalOvertimePay: payrollData.totalOvertimePay,
+          transportationAllowance: payrollData.transportationAllowance,
+          mealAllowance: payrollData.mealAllowance,
+          housingAllowance: payrollData.housingAllowance,
+          totalAllowances: payrollData.totalAllowances,
+          socialSecurity: payrollData.socialSecurity,
+          tax: payrollData.tax,
+          unpaidLeaveDeduction: payrollData.unpaidLeaveDeduction,
+          totalDeductions: payrollData.totalDeductions,
+          netPayable: payrollData.netPayable,
+          status: payrollData.status as PayrollStatus,
+        },
+        include: {
+          user: true,
+          payrollPeriod: true,
+        },
+      });
+
+      return payroll;
     });
 
-    // Create or update payroll record
-    const payroll = await prisma.payroll.upsert({
-      where: {
-        id: payrollData.id || '',
-      },
-      update: {
-        ...formatPayrollInput(payrollData),
-        status: payrollData.status as PayrollStatus,
-      },
-      create: {
-        employeeId,
-        payrollPeriodId: payrollPeriod.id,
-        ...formatPayrollInput(payrollData),
-        status: 'draft',
-      },
+    return res.status(201).json({
+      success: true,
+      data: formatPayrollResponse(result),
     });
-
-    return res.status(200).json(payroll);
   } catch (error) {
     console.error('Error in handleCreatePayroll:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Database error',
+        meta: { code: error.code },
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create payroll record',
+    });
   }
 }
 
-// pages/api/admin/payroll.ts
-function formatPayrollResponse(payroll: any): AdminPayrollData {
+async function handleUpdatePayroll(
+  req: NextApiRequest,
+  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
+) {
+  try {
+    const validatedData = payrollInputSchema.parse(req.body);
+    const { employeeId, periodStart, periodEnd, payrollData } = validatedData;
+
+    const payrollPeriod = await prisma.payrollPeriod.findFirst({
+      where: {
+        startDate: new Date(periodStart),
+        endDate: new Date(periodEnd),
+      },
+    });
+
+    if (!payrollPeriod) {
+      return res.status(404).json({
+        success: false,
+        error: 'Payroll period not found',
+      });
+    }
+
+    const updatedPayroll = await prisma.payroll.update({
+      where: {
+        employee_period: {
+          employeeId,
+          payrollPeriodId: payrollPeriod.id,
+        },
+      },
+      data: {
+        regularHours: payrollData.regularHours,
+        overtimeHoursByType: JSON.stringify(payrollData.overtimeHoursByType),
+        totalOvertimeHours: payrollData.totalOvertimeHours,
+        totalWorkingDays: payrollData.totalWorkingDays,
+        totalPresent: payrollData.totalPresent,
+        totalAbsent: payrollData.totalAbsent,
+        totalLateMinutes: payrollData.totalLateMinutes,
+        earlyDepartures: payrollData.earlyDepartures,
+        sickLeaveDays: payrollData.sickLeaveDays,
+        businessLeaveDays: payrollData.businessLeaveDays,
+        annualLeaveDays: payrollData.annualLeaveDays,
+        unpaidLeaveDays: payrollData.unpaidLeaveDays,
+        holidays: payrollData.holidays,
+        regularHourlyRate: payrollData.regularHourlyRate,
+        overtimeRatesByType: JSON.stringify(payrollData.overtimeRatesByType),
+        basePay: payrollData.basePay,
+        overtimePayByType: JSON.stringify(payrollData.overtimePayByType),
+        totalOvertimePay: payrollData.totalOvertimePay,
+        transportationAllowance: payrollData.transportationAllowance,
+        mealAllowance: payrollData.mealAllowance,
+        housingAllowance: payrollData.housingAllowance,
+        totalAllowances: payrollData.totalAllowances,
+        socialSecurity: payrollData.socialSecurity,
+        tax: payrollData.tax,
+        unpaidLeaveDeduction: payrollData.unpaidLeaveDeduction,
+        totalDeductions: payrollData.totalDeductions,
+        netPayable: payrollData.netPayable,
+        status: payrollData.status as PayrollStatus,
+      },
+      include: {
+        user: true,
+        payrollPeriod: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: formatPayrollResponse(updatedPayroll),
+    });
+  } catch (error) {
+    console.error('Error in handleUpdatePayroll:', error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Database error',
+        meta: { code: error.code },
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to update payroll record',
+    });
+  }
+}
+
+function formatPayrollResponse(payroll: any): PayrollCalculationResult {
   return {
     employee: {
       id: payroll.user.id,
-      name: payroll.user.name,
       employeeId: payroll.user.employeeId,
+      name: payroll.user.name,
       departmentName: payroll.user.departmentName,
       role: payroll.user.role,
-      bankInfo: payroll.user.bankAccountNumber
-        ? {
-            bankName: 'Bank Name', // Add bank name if available
-            accountNumber: payroll.user.bankAccountNumber,
-          }
-        : undefined,
+      employeeType: payroll.user.employeeType,
     },
-    summary: {
-      totalWorkingDays: payroll.payrollPeriod.workingDays || 0,
-      totalPresent: payroll.regularHours / 8, // Convert hours to days
-      totalAbsent: 0, // Calculate from unpaid leaves
-      periodStart: payroll.payrollPeriod.startDate.toISOString(),
-      periodEnd: payroll.payrollPeriod.endDate.toISOString(),
-    },
-    hours: {
-      regularHours: payroll.regularHours || 0,
-      overtimeHours: payroll.overtimeHours || 0,
-      holidayHours: payroll.holidayHours || 0,
-      holidayOvertimeHours: payroll.holidayOvertimeHours || 0,
-    },
-    attendance: {
-      totalLateMinutes: payroll.lateMinutes || 0,
-      earlyDepartures: payroll.earlyLeaveMinutes || 0,
-      lateArrivals: 0, // Add if tracked
-      incompleteAttendance: 0, // Add if tracked
-    },
-    leaves: {
-      sick: payroll.sickLeaveDays || 0,
-      annual: payroll.annualLeaveDays || 0,
-      business: payroll.businessLeaveDays || 0,
-      holidays: 0, // Get from holidays in period
-      unpaid: payroll.unpaidLeaveDays || 0,
-    },
-    rates: {
-      regularHourlyRate: payroll.basePayAmount / (payroll.regularHours || 1),
-      overtimeRate: 1.5, // Get from settings
-      holidayRate: 2.0, // Get from settings
-    },
-    earnings: {
-      baseAmount: payroll.basePayAmount || 0,
-      overtimeAmount: payroll.overtimeAmount || 0,
-      holidayAmount: payroll.holidayAmount || 0,
-    },
-    allowances: {
-      transportation: 0, // Add from settings or calculations
-      meal: 0,
-      housing: 0,
-      other: 0,
-    },
-    deductions: {
-      socialSecurity: payroll.totalDeductions * 0.05, // 5% of total deductions
-      tax: 0, // Calculate based on earnings
-      other: 0,
-    },
-    adjustments: [], // Add any adjustments
-    netPayable: payroll.netPayable || 0,
-    status: payroll.status || 'draft',
-  };
-}
-
-function formatPayrollInput(data: any) {
-  // Format the input data for Prisma create/update
-  // Implementation needed based on your data structure
-  return {
-    regularHours: data.hours.regularHours,
-    overtimeHours: data.hours.overtimeHours,
-    holidayHours: data.hours.holidayHours,
-    holidayOvertimeHours: data.hours.holidayOvertimeHours,
-    lateMinutes: data.attendance.totalLateMinutes,
-    earlyLeaveMinutes: data.attendance.earlyDepartures,
-    sickLeaveDays: data.leaves.sick,
-    businessLeaveDays: data.leaves.business,
-    annualLeaveDays: data.leaves.annual,
-    unpaidLeaveDays: data.leaves.unpaid,
-    basePayAmount: data.earnings.baseAmount,
-    overtimeAmount: data.earnings.overtimeAmount,
-    holidayAmount: data.earnings.holidayAmount,
-    totalAllowances:
-      data.allowances.transportation +
-      data.allowances.meal +
-      data.allowances.housing +
-      data.allowances.other,
-    totalDeductions:
-      data.deductions.socialSecurity +
-      data.deductions.tax +
-      data.deductions.other,
-    netPayable: data.netPayable,
+    regularHours: payroll.regularHours,
+    overtimeHoursByType: JSON.parse(payroll.overtimeHoursByType),
+    totalOvertimeHours: payroll.totalOvertimeHours,
+    totalWorkingDays: payroll.totalWorkingDays,
+    totalPresent: payroll.totalPresent,
+    totalAbsent: payroll.totalAbsent,
+    totalLateMinutes: payroll.totalLateMinutes,
+    earlyDepartures: payroll.earlyDepartures,
+    sickLeaveDays: payroll.sickLeaveDays,
+    businessLeaveDays: payroll.businessLeaveDays,
+    annualLeaveDays: payroll.annualLeaveDays,
+    unpaidLeaveDays: payroll.unpaidLeaveDays,
+    holidays: payroll.holidays,
+    regularHourlyRate: payroll.regularHourlyRate,
+    overtimeRatesByType: JSON.parse(payroll.overtimeRatesByType),
+    basePay: payroll.basePay,
+    overtimePayByType: JSON.parse(payroll.overtimePayByType),
+    totalOvertimePay: payroll.totalOvertimePay,
+    transportationAllowance: payroll.transportationAllowance,
+    mealAllowance: payroll.mealAllowance,
+    housingAllowance: payroll.housingAllowance,
+    totalAllowances: payroll.totalAllowances,
+    socialSecurity: payroll.socialSecurity,
+    tax: payroll.tax,
+    unpaidLeaveDeduction: payroll.unpaidLeaveDeduction,
+    totalDeductions: payroll.totalDeductions,
+    netPayable: payroll.netPayable,
+    status: payroll.status,
   };
 }

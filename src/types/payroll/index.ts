@@ -1,82 +1,132 @@
 // types/payroll/index.ts
+
 import { EmployeeType } from '@prisma/client';
-import { ProcessedSalesCommission } from '../commissions';
 
-export type PayrollStatus = 'draft' | 'processing' | 'completed' | 'approved' | 'paid';
+export type PayrollStatus =
+  | 'draft'
+  | 'processing'
+  | 'completed'
+  | 'approved'
+  | 'paid';
 
-export interface PayrollEmployee {
-  id: string;
+// API Response Types
+export type ApiErrorResponse = {
+  success: false;
+  error: string;
+  meta?: Record<string, unknown>;
+};
+
+export type ApiSuccessResponse<T> = {
+  success: true;
+  data: T;
+  meta?: Record<string, unknown>;
+};
+
+export type PayrollApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
+export interface EmployeeListResponse {
   employeeId: string;
   name: string;
-  departmentName: string;
-  role: string;
-  employeeType: EmployeeType;
 }
 
-export interface WorkingHours {
-  regularHours: number;
-  workdayOvertimeHours: number;
-  weekendShiftOvertimeHours: number;
-  holidayOvertimeHours: number;
+export interface PayrollCalculateParams {
+  employeeId: string;
+  periodStart: string;
+  periodEnd: string;
+}
+// Matches the JSON structure in schema
+export interface OvertimeHoursByType {
+  workdayOutside: number;
+  weekendInside: number;
+  weekendOutside: number;
+  holidayRegular: number;
+  holidayOvertime: number;
 }
 
-export interface AttendanceRecord {
-  totalLateMinutes: number;
-  earlyDepartures: number;
-  presentDays: number;
-  unpaidLeaveDays: number;
-  paidLeaveDays: number;
-  holidayDays: number;
+export interface OvertimeRatesByType {
+  workdayOutside: number;
+  weekendInside: number;
+  weekendOutside: number;
+  holidayRegular: number;
+  holidayOvertime: number;
 }
 
-export interface LeaveRecord {
-  sick: number;
-  annual: number;
-  business: number;
-  holidays: number;
-  unpaid: number;
-}
-
-export interface PayrollRates {
-  regularHourlyRate: number;
-  overtimeRate: number;
-}
-
-export interface PayrollAllowances {
-  transportation: number;
-  meal: number;
-  housing: number;
-}
-
-export interface PayrollDeductions {
-  socialSecurity: number;
-  tax: number;
-  unpaidLeave: number;
-  total: number;
+export interface OvertimePayByType {
+  workdayOutside: number;
+  weekendInside: number;
+  weekendOutside: number;
+  holidayRegular: number;
+  holidayOvertime: number;
 }
 
 export interface PayrollCalculationResult {
-  employee: PayrollEmployee;
-  summary: {
-    totalWorkingDays: number;
-    totalPresent: number;
-    totalAbsent: number;
+  employee: {
+    id: string;
+    employeeId: string;
+    name: string;
+    departmentName: string;
+    role: string;
+    employeeType: EmployeeType;
   };
-  hours: WorkingHours;
-  attendance: AttendanceRecord;
-  leaves: LeaveRecord;
-  rates: PayrollRates;
-  commission?: ProcessedSalesCommission;
-  processedData: {
-    basePay: number;
-    overtimePay: number;
-    allowances: PayrollAllowances;
-    deductions: PayrollDeductions;
-    netPayable: number;
-  };
+
+  // Hours (matching schema)
+  regularHours: number;
+  overtimeHoursByType: OvertimeHoursByType;
+  totalOvertimeHours: number;
+
+  // Attendance
+  totalWorkingDays: number;
+  totalPresent: number;
+  totalAbsent: number;
+  totalLateMinutes: number;
+  earlyDepartures: number;
+
+  // Leaves
+  sickLeaveDays: number;
+  businessLeaveDays: number;
+  annualLeaveDays: number;
+  unpaidLeaveDays: number;
+  holidays: number;
+
+  // Rates
+  regularHourlyRate: number;
+  overtimeRatesByType: OvertimeRatesByType;
+
+  // Calculations
+  basePay: number;
+  overtimePayByType: OvertimePayByType;
+  totalOvertimePay: number;
+
+  // Allowances
+  transportationAllowance: number;
+  mealAllowance: number;
+  housingAllowance: number;
+  totalAllowances: number;
+
+  // Deductions
+  socialSecurity: number;
+  tax: number;
+  unpaidLeaveDeduction: number;
+  totalDeductions: number;
+
+  // Commission
+  salesAmount?: number;
+  commissionRate?: number;
+  commissionAmount?: number;
+  quarterlyBonus?: number | null | undefined;
+  yearlyBonus?: number | null | undefined;
+
+  netPayable: number;
+  status: PayrollStatus;
+  processingNote?: string;
+
+  // Approval
+  approvedBy?: string;
+  approvedAt?: Date;
+  lastModifiedBy?: string;
 }
 
-export interface PayrollSettings {
+// Settings types matching the JSON in PayrollSettings model
+export interface PayrollSettingsData {
   overtimeRates: {
     [key in EmployeeType]: {
       workdayOutsideShift: number;
@@ -105,49 +155,17 @@ export interface PayrollSettings {
   };
 }
 
-export interface PayrollProcessingSession {
-  periodYearMonth: string;
-  status: 'processing' | 'completed' | 'error';
-  totalEmployees: number;
-  processedCount: number;
-  error?: string;
-  approvedBy?: string;
-  approvedAt?: Date;
-}
-
+// Processing types matching the schema
 export interface PayrollProcessingResult {
   employeeId: string;
   periodStart: Date;
   periodEnd: Date;
-  processedData: PayrollCalculationResult;
+  processedData: string; // JSON string of PayrollCalculationResult
   status: 'completed' | 'error';
   error?: string;
   errorDetails?: {
     message: string;
     stackTrace?: string;
     context?: Record<string, unknown>;
-  };
-}
-
-export interface PayrollPeriod {
-  startDate: Date;
-  endDate: Date;
-  status: PayrollStatus;
-}
-
-export interface PayrollAdjustment {
-  type: 'bonus' | 'deduction' | 'correction';
-  amount: number;
-  reason: string;
-  periodStart: Date;
-  periodEnd: Date;
-}
-
-export interface PayrollSummaryResponse extends PayrollCalculationResult {
-  periodStart: string;
-  periodEnd: string;
-  bankInfo?: {
-    bankName: string;
-    accountNumber: string;
   };
 }
