@@ -93,7 +93,7 @@ export default function PayrollAdminDashboard() {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/employees', {
+      const response = await fetch('/api/admin/employees', {
         headers: {
           'x-line-userid': user?.lineUserId || '',
         },
