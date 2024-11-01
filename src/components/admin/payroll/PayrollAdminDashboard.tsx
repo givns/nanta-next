@@ -68,7 +68,6 @@ export default function PayrollAdminDashboard() {
   >([]);
   const [view, setView] = useState<'calculate' | 'process'>('calculate');
   const periods = PayrollUtils.generatePayrollPeriods();
-  const [isLoading, setIsLoading] = useState(true);
 
   // Tab management with direction tracking
   const handleTabChange = (newTab: string) => {
@@ -275,10 +274,6 @@ export default function PayrollAdminDashboard() {
   const handlePeriodChange = (value: string) => {
     setState((prev) => ({ ...prev, selectedPeriod: value }));
   };
-
-  if (isLoading) {
-    return <DashboardSkeleton />;
-  }
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-6">
