@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { PayrollCalculationService } from '@/services/PayrollCalculation/PayrollCalculationService';
 import { PayrollSettingsData } from '@/types/payroll';
+import { HolidayService } from '@/services/HolidayService';
 
 const prisma = new PrismaClient();
 
@@ -58,9 +59,13 @@ export default async function handler(
       rules: JSON.parse(settings.rules as string),
     };
 
+    // Initialize HolidayService
+    const holidayService = new HolidayService(prisma);
+
     const payrollService = new PayrollCalculationService(
       parsedSettings,
       prisma,
+      holidayService,
     );
     const payrollData = await payrollService.calculatePayroll(
       employee,
