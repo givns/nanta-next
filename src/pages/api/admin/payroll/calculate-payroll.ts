@@ -92,10 +92,21 @@ export default async function handler(
       prisma.payrollSettings.findFirst(),
     ]);
 
+    console.log('Data fetch results:', {
+      employeeFound: !!employee,
+      timeEntriesCount: timeEntries.length,
+      leaveRequestsCount: leaveRequests.length,
+      settingsFound: !!settings,
+    });
+
     if (!employee || !settings) {
+      console.log('Missing data:', {
+        employee: !!employee,
+        settings: !!settings,
+      });
       return res.status(404).json({
         success: false,
-        error: 'Employee or settings not found',
+        error: `Missing required data: ${!employee ? 'Employee' : 'Settings'} not found`,
       });
     }
 
