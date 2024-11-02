@@ -11,12 +11,13 @@ import PayrollTabs from './PayrollTabs';
 import { Button } from '@/components/ui/button';
 import { PayrollProcessing } from '@/components/payroll/PayrollProcessing';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { isValid, parseISO } from 'date-fns';
 
 export default function PayrollAdminDashboard() {
   const { user } = useAdmin();
   const [state, setState] = useState({
     selectedEmployee: '',
-    selectedPeriod: '',
+    selectedPeriod: '', // Initialize as empty string
     payrollData: null as PayrollCalculationResult | null,
     isLoading: false,
     error: null as string | null,
@@ -43,19 +44,15 @@ export default function PayrollAdminDashboard() {
     }));
   };
 
-  // Set default period to current period on component mount
+  // Modify the useEffect for setting default period
   useEffect(() => {
-    const currentPeriod = periods.find((period) => {
-      const now = new Date();
-      const startDate = new Date(period.startDate);
-      const endDate = new Date(period.endDate);
-      return now >= startDate && now <= endDate;
-    });
+    const periods = PayrollUtils.generatePayrollPeriods();
+    const currentPeriod = periods.find((period) => period.isCurrentPeriod);
 
-    if (currentPeriod) {
+    if (currentPeriod && currentPeriod.value) {
       setState((prev) => ({
         ...prev,
-        selectedPeriod: `${currentPeriod.startDate}_${currentPeriod.endDate}`,
+        selectedPeriod: currentPeriod.value,
       }));
     }
   }, []);
@@ -181,36 +178,43 @@ export default function PayrollAdminDashboard() {
     }
   };
 
-  // Modify the handlePeriodChange function
+  // Update handlePeriodChange to include validation
   const handlePeriodChange = (value: string) => {
-    const periodRange = PayrollUtils.parsePeriodValue(value);
-    if (periodRange) {
+    if (!value) {
+      setState((prev) => ({
+        ...prev,
+        error: 'Invalid period selected',
+        selectedPeriod: '',
+      }));
+      return;
+    }
+
+    try {
+      const [startDate, endDate] = value.split('_');
+      if (!startDate || !endDate) {
+        throw new Error('Invalid period format');
+      }
+
+      // Validate dates
+      const start = parseISO(startDate);
+      const end = parseISO(endDate);
+      if (!isValid(start) || !isValid(end)) {
+        throw new Error('Invalid date format');
+      }
+
       setState((prev) => ({
         ...prev,
         selectedPeriod: value,
         error: null,
       }));
-    } else {
+    } catch (error) {
       setState((prev) => ({
         ...prev,
-        error: 'Invalid period selected',
+        error: 'Invalid period format',
+        selectedPeriod: '',
       }));
     }
   };
-
-  // Set default period on component mount
-  useEffect(() => {
-    const periods = PayrollUtils.generatePayrollPeriods();
-    const currentPeriod = periods.find((p) => p.isCurrentPeriod);
-
-    if (currentPeriod) {
-      const periodValue = `${PayrollUtils.formatDateForAPI(currentPeriod.startDate)}_${PayrollUtils.formatDateForAPI(currentPeriod.endDate)}`;
-      setState((prev) => ({
-        ...prev,
-        selectedPeriod: periodValue,
-      }));
-    }
-  }, []);
 
   const fetchPayrollData = async () => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));

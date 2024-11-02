@@ -1,6 +1,3 @@
-// components/admin/PayrollPeriodSelector.tsx
-
-import { useState, useEffect, useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import {
@@ -21,21 +18,37 @@ interface PayrollPeriodSelectorProps {
   showBadges?: boolean;
 }
 
-const formatPayrollMonth = (periodValue: string) => {
-  const [startDate, endDate] = periodValue.split('_');
-  // The payroll month is the month of the end date since it represents
-  // the month for which the payroll is being processed
-  const endDateObj = parseISO(endDate);
-  return format(endDateObj, 'MMMM yyyy', { locale: th });
+const formatPayrollMonth = (periodValue: string | null | undefined) => {
+  if (!periodValue) return '';
+
+  try {
+    const [startDate, endDate] = periodValue.split('_');
+    if (!startDate || !endDate) return '';
+
+    const endDateObj = parseISO(endDate);
+    return format(endDateObj, 'MMMM yyyy', { locale: th });
+  } catch (error) {
+    console.error('Error formatting payroll month:', error);
+    return '';
+  }
 };
 
-const formatDateRange = (periodValue: string) => {
-  const [startDate, endDate] = periodValue.split('_');
-  return `${format(parseISO(startDate), 'd MMM', { locale: th })} - ${format(
-    parseISO(endDate),
-    'd MMM yyyy',
-    { locale: th },
-  )}`;
+const formatDateRange = (periodValue: string | null | undefined) => {
+  if (!periodValue) return '';
+
+  try {
+    const [startDate, endDate] = periodValue.split('_');
+    if (!startDate || !endDate) return '';
+
+    return `${format(parseISO(startDate), 'd MMM', { locale: th })} - ${format(
+      parseISO(endDate),
+      'd MMM yyyy',
+      { locale: th },
+    )}`;
+  } catch (error) {
+    console.error('Error formatting date range:', error);
+    return '';
+  }
 };
 
 export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
@@ -48,7 +61,11 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
 
   return (
     <div className="flex items-center space-x-2">
-      <Select value={currentValue} onValueChange={onChange} disabled={disabled}>
+      <Select
+        value={currentValue || ''}
+        onValueChange={onChange}
+        disabled={disabled}
+      >
         <SelectTrigger className="w-[280px]">
           <div className="flex items-center">
             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -56,11 +73,13 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
               {currentValue && (
                 <div className="flex flex-col">
                   <span className="font-medium">
-                    {formatPayrollMonth(currentValue)}
+                    {formatPayrollMonth(currentValue) || 'Select Period'}
                   </span>
-                  <span className="text-sm text-gray-500">
-                    {formatDateRange(currentValue)}
-                  </span>
+                  {formatDateRange(currentValue) && (
+                    <span className="text-sm text-gray-500">
+                      {formatDateRange(currentValue)}
+                    </span>
+                  )}
                 </div>
               )}
             </SelectValue>
