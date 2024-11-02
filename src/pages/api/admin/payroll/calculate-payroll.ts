@@ -211,6 +211,7 @@ export default async function handler(
             baseSalary: true,
             salaryType: true,
             bankAccountNumber: true,
+            shiftCode: true,
           },
         }),
         prisma.timeEntry.findMany({
@@ -251,6 +252,15 @@ export default async function handler(
       type: employee?.employeeType,
       rawSettings: rawSettings,
     });
+
+    // Add validation for shiftCode
+    if (!employee?.shiftCode) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Employee shift code not found. Please assign a shift to the employee.',
+      });
+    }
 
     if (!employee || !rawSettings) {
       return res.status(404).json({
@@ -304,7 +314,7 @@ export default async function handler(
         workStartDate: null,
         profilePictureUrl: null,
         shiftId: null,
-        shiftCode: null,
+        shiftCode: employee.shiftCode, // Ensure this is passed
         overtimeHours: 0,
         sickLeaveBalance: 0,
         businessLeaveBalance: 0,

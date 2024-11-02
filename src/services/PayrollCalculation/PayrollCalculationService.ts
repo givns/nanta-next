@@ -205,60 +205,70 @@ export class PayrollCalculationService {
     startDate: Date,
     endDate: Date,
   ): Promise<number> {
-    // Get the current date
-    const currentDate = new Date();
-
-    // Use the earlier of current date or period end date
-    const effectiveEndDate = min([currentDate, endDate]);
-
-    // Get shift data
-    const shiftData = employee.shiftCode
-      ? await this.shiftManagementService.getShiftByCode(employee.shiftCode)
-      : null;
-    if (!shiftData) {
-      throw new Error(`Shift not found for code: ${employee.shiftCode}`);
+    if (!employee.shiftCode) {
+      throw new Error(
+        'Employee shift code not found. Please assign a shift to the employee.',
+      );
     }
 
-    // Get holidays within the period
-    const holidays = await this.prisma.holiday.findMany({
-      where: {
-        date: {
-          gte: startDate,
-          lte: effectiveEndDate,
-        },
-      },
-    });
-
-    // Function to check if a date is a working day based on shift
-    const isWorkingDay = (date: Date): boolean => {
-      // Get day of week (0 = Sunday, 1 = Monday, etc.)
-      const dayOfWeek = date.getDay();
-
-      // Check if this day is in the shift's workDays
-      return shiftData.workDays.includes(dayOfWeek);
-    };
-
-    // Count working days
-    let workingDaysCount = 0;
-    let currentDatePointer = new Date(startDate);
-
-    while (currentDatePointer <= effectiveEndDate) {
-      if (isWorkingDay(currentDatePointer)) {
-        // Check if this day is not a holiday
-        const isHoliday = holidays.some((holiday) =>
-          isSameDay(holiday.date, currentDatePointer),
+    try {
+      // Get shift data
+      const shiftData = await this.shiftManagementService.getShiftByCode(
+        employee.shiftCode,
+      );
+      if (!shiftData) {
+        throw new Error(
+          `Shift configuration not found for code: ${employee.shiftCode}`,
         );
-
-        if (!isHoliday) {
-          workingDaysCount++;
-        }
       }
 
-      // Move to next day
-      currentDatePointer.setDate(currentDatePointer.getDate() + 1);
-    }
+      // Use a default work schedule if none is defined
+      const workDays = shiftData.workDays ?? [1, 2, 3, 4, 5]; // Mon-Fri default
 
-    return workingDaysCount;
+      // Get the current date
+      const currentDate = new Date();
+
+      // Use the earlier of current date or period end date
+      const effectiveEndDate = currentDate < endDate ? currentDate : endDate;
+
+      // Get holidays within the period
+      const holidays = await this.prisma.holiday.findMany({
+        where: {
+          date: {
+            gte: startDate,
+            lte: effectiveEndDate,
+          },
+        },
+      });
+
+      // Count working days
+      let workingDaysCount = 0;
+      let currentDatePointer = new Date(startDate);
+
+      while (currentDatePointer <= effectiveEndDate) {
+        // Get day of week (0 = Sunday, 1 = Monday, etc.)
+        const dayOfWeek = currentDatePointer.getDay();
+
+        if (workDays.includes(dayOfWeek)) {
+          // Check if this day is not a holiday
+          const isHoliday = holidays.some((holiday) =>
+            isSameDay(holiday.date, currentDatePointer),
+          );
+
+          if (!isHoliday) {
+            workingDaysCount++;
+          }
+        }
+
+        // Move to next day
+        currentDatePointer.setDate(currentDatePointer.getDate() + 1);
+      }
+
+      return workingDaysCount;
+    } catch (error) {
+      console.error('Error calculating working days:', error);
+      throw error;
+    }
   }
 
   private calculateWorkingHours(timeEntries: TimeEntryWithMetadata[]): {

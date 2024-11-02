@@ -1,4 +1,5 @@
-import { format, parseISO } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import {
   Select,
@@ -9,7 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { CalendarIcon } from 'lucide-react';
-import { PayrollUtils } from '@/utils/payrollUtils';
+import { PayrollUtils, PeriodRange } from '@/utils/payrollUtils';
 
 interface PayrollPeriodSelectorProps {
   currentValue: string;
@@ -18,38 +19,15 @@ interface PayrollPeriodSelectorProps {
   showBadges?: boolean;
 }
 
-const formatPayrollMonth = (periodValue: string | null | undefined) => {
-  if (!periodValue) return '';
+interface FormattedPeriod {
+  startDate: string;
+  endDate: string;
+}
 
-  try {
-    const [startDate, endDate] = periodValue.split('_');
-    if (!startDate || !endDate) return '';
-
-    const endDateObj = parseISO(endDate);
-    return format(endDateObj, 'MMMM yyyy', { locale: th });
-  } catch (error) {
-    console.error('Error formatting payroll month:', error);
-    return '';
-  }
-};
-
-const formatDateRange = (periodValue: string | null | undefined) => {
-  if (!periodValue) return '';
-
-  try {
-    const [startDate, endDate] = periodValue.split('_');
-    if (!startDate || !endDate) return '';
-
-    return `${format(parseISO(startDate), 'd MMM', { locale: th })} - ${format(
-      parseISO(endDate),
-      'd MMM yyyy',
-      { locale: th },
-    )}`;
-  } catch (error) {
-    console.error('Error formatting date range:', error);
-    return '';
-  }
-};
+interface PeriodDisplay {
+  label: string;
+  dates: string;
+}
 
 export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
   currentValue,
@@ -57,32 +35,54 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
   disabled = false,
   showBadges = true,
 }) => {
-  const periods = PayrollUtils.generatePayrollPeriods();
+  const [periods] = useState(() => PayrollUtils.generatePayrollPeriods());
+
+  const formatPeriodToString = (period: PeriodRange): FormattedPeriod => {
+    return {
+      startDate: format(period.startDate, 'yyyy-MM-dd'),
+      endDate: format(period.endDate, 'yyyy-MM-dd'),
+    };
+  };
+
+  const formatPeriodLabel = (period: PeriodRange): string => {
+    return format(period.endDate, 'MMMM yyyy', { locale: th });
+  };
+
+  const formatPeriodDates = (period: PeriodRange): string => {
+    return `${format(period.startDate, 'd MMM', { locale: th })} - ${format(period.endDate, 'd MMM yyyy', { locale: th })}`;
+  };
+
+  const getCurrentPeriodValue = (): PeriodDisplay | null => {
+    if (!currentValue) return null;
+    const period = periods.find((p) => p.value === currentValue);
+    if (!period) return null;
+
+    return {
+      label: formatPeriodLabel(period),
+      dates: formatPeriodDates(period),
+    };
+  };
+
+  const currentPeriodDisplay = getCurrentPeriodValue();
 
   return (
     <div className="flex items-center space-x-2">
-      <Select
-        value={currentValue || ''}
-        onValueChange={onChange}
-        disabled={disabled}
-      >
+      <Select value={currentValue} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger className="w-[280px]">
           <div className="flex items-center">
             <CalendarIcon className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="Select Period">
-              {currentValue && (
-                <div className="flex flex-col">
-                  <span className="font-medium">
-                    {formatPayrollMonth(currentValue) || 'Select Period'}
-                  </span>
-                  {formatDateRange(currentValue) && (
-                    <span className="text-sm text-gray-500">
-                      {formatDateRange(currentValue)}
-                    </span>
-                  )}
-                </div>
-              )}
-            </SelectValue>
+            {currentPeriodDisplay ? (
+              <div className="flex flex-col">
+                <span className="font-medium">
+                  {currentPeriodDisplay.label}
+                </span>
+                <span className="text-sm text-gray-500">
+                  {currentPeriodDisplay.dates}
+                </span>
+              </div>
+            ) : (
+              <span>Select Period</span>
+            )}
           </div>
         </SelectTrigger>
         <SelectContent>
@@ -95,7 +95,7 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
               <div className="flex flex-col flex-1">
                 <div className="flex items-center justify-between w-full">
                   <span className="font-medium">
-                    {formatPayrollMonth(period.value)}
+                    {formatPeriodLabel(period)}
                   </span>
                   {showBadges && period.isCurrentPeriod && (
                     <Badge variant="secondary" className="ml-2">
@@ -104,7 +104,7 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
                   )}
                 </div>
                 <span className="text-sm text-gray-500">
-                  {formatDateRange(period.value)}
+                  {formatPeriodDates(period)}
                 </span>
               </div>
             </SelectItem>
