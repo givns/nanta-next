@@ -1,20 +1,14 @@
+// components/admin/settings/PayrollSettings.tsx
 import { useState, useEffect } from 'react';
+import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
-import { useAdmin } from '@/contexts/AdminContext'; // Add this import
+import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 
 interface OvertimeRates {
   workdayOutsideShift: number; // For isInsideShift: false, isDayOffOvertime: false
@@ -51,67 +45,84 @@ interface PayrollSettingsData {
   };
 }
 
-export default function PayrollSettings() {
-  const { user } = useAdmin();
-  const [settings, setSettings] = useState<PayrollSettingsData>({
-    overtimeRates: {
-      fulltime: {
-        workdayOutsideShift: 1.5,
-        weekendInsideShiftFulltime: 1.0,
-        weekendInsideShiftParttime: 2.0,
-        weekendOutsideShift: 3.0,
-      },
-      parttime: {
-        workdayOutsideShift: 1.5,
-        weekendInsideShiftFulltime: 1.0,
-        weekendInsideShiftParttime: 2.0,
-        weekendOutsideShift: 3.0,
-      },
-      probation: {
-        workdayOutsideShift: 1.5,
-        weekendInsideShiftFulltime: 1.0,
-        weekendInsideShiftParttime: 2.0,
-        weekendOutsideShift: 3.0,
-      },
+const DEFAULT_SETTINGS: PayrollSettingsData = {
+  overtimeRates: {
+    fulltime: {
+      workdayOutsideShift: 1.5,
+      weekendInsideShiftFulltime: 1.0,
+      weekendInsideShiftParttime: 2.0,
+      weekendOutsideShift: 3.0,
     },
-    allowances: {
-      transportation: 0,
-      meal: {
-        fulltime: 0,
-        parttime: 30,
-        probation: 0,
-      },
-      housing: 0,
+    parttime: {
+      workdayOutsideShift: 1.5,
+      weekendInsideShiftFulltime: 1.0,
+      weekendInsideShiftParttime: 2.0,
+      weekendOutsideShift: 3.0,
     },
-    deductions: {
-      socialSecurityRate: 0.05,
-      socialSecurityMinBase: 1650,
-      socialSecurityMaxBase: 15000,
+    probation: {
+      workdayOutsideShift: 1.5,
+      weekendInsideShiftFulltime: 1.0,
+      weekendInsideShiftParttime: 2.0,
+      weekendOutsideShift: 3.0,
     },
-    rules: {
-      payrollPeriodStart: 26,
-      payrollPeriodEnd: 25,
-      overtimeMinimumMinutes: 30,
-      roundOvertimeTo: 30,
+  },
+  allowances: {
+    transportation: 0,
+    meal: {
+      fulltime: 0,
+      parttime: 30,
+      probation: 0,
     },
-  });
+    housing: 0,
+  },
+  deductions: {
+    socialSecurityRate: 0.05,
+    socialSecurityMinBase: 1650,
+    socialSecurityMaxBase: 15000,
+  },
+  rules: {
+    payrollPeriodStart: 26,
+    payrollPeriodEnd: 25,
+    overtimeMinimumMinutes: 30,
+    roundOvertimeTo: 30,
+  },
+};
 
+export default function PayrollSettings() {
+  const { user, isLoading: isUserLoading } = useAdmin();
+  const [settings, setSettings] =
+    useState<PayrollSettingsData>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('overtime');
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    if (user?.lineUserId) {
+      fetchSettings();
+    }
+  }, [user]);
 
   const fetchSettings = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/admin/settings/payroll');
-      if (!response.ok) throw new Error('Failed to fetch settings');
+      const response = await fetch('/api/admin/settings/payroll', {
+        headers: {
+          'x-line-userid': user?.lineUserId || '',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch settings');
+      }
+
       const data = await response.json();
-      setSettings(data);
+
+      if (data.data) {
+        setSettings(data.data);
+      }
       setError(null);
     } catch (error) {
+      console.error('Error fetching settings:', error);
       setError(
         error instanceof Error ? error.message : 'Failed to fetch settings',
       );
@@ -142,9 +153,11 @@ export default function PayrollSettings() {
         throw new Error(errorData.error || 'Failed to save settings');
       }
 
-      const savedSettings = await response.json();
-      setSettings(savedSettings);
-      setError(null);
+      const savedData = await response.json();
+      if (savedData.data) {
+        setSettings(savedData.data);
+        setError(null);
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
       setError(
@@ -155,10 +168,8 @@ export default function PayrollSettings() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-48">Loading...</div>
-    );
+  if (isUserLoading || isLoading) {
+    return <DashboardSkeleton />;
   }
 
   return (

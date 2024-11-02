@@ -52,6 +52,7 @@ interface PayrollSettingsData {
 }
 
 interface ApiResponse {
+  success?: boolean;
   error?: string;
   data?: PayrollSettingsData;
 }
@@ -119,17 +120,44 @@ function safeStringifyJSON(data: unknown): string {
   }
 }
 
+async function initializeSettings() {
+  try {
+    // Use upsert to either create or update settings
+    const settings = await prisma.payrollSettings.upsert({
+      where: {
+        id: 'default-settings',
+      },
+      update: {}, // No updates if exists
+      create: {
+        id: 'default-settings',
+        overtimeRates: JSON.stringify(DEFAULT_SETTINGS.overtimeRates),
+        allowances: JSON.stringify(DEFAULT_SETTINGS.allowances),
+        deductions: JSON.stringify(DEFAULT_SETTINGS.deductions),
+        rules: JSON.stringify(DEFAULT_SETTINGS.rules),
+      },
+    });
+
+    return settings;
+  } catch (error) {
+    console.error('Error initializing settings:', error);
+    throw error;
+  }
+}
+
 async function getSettings(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
 ) {
-  const settings = await prisma.payrollSettings.findFirst();
-
-  if (!settings) {
-    return res.status(200).json({ data: DEFAULT_SETTINGS });
-  }
-
   try {
+    let settings = await prisma.payrollSettings.findFirst();
+
+    // If no settings exist, initialize them
+    if (!settings) {
+      console.log('No settings found, initializing defaults...');
+      settings = await initializeSettings();
+      console.log('Default settings created:', settings);
+    }
+
     // Parse stored JSON with defaults
     const parsedSettings: PayrollSettingsData = {
       overtimeRates: safeParseJSON(
@@ -149,7 +177,8 @@ async function getSettings(
 
     return res.status(200).json({ data: parsedSettings });
   } catch (error) {
-    console.error('Error parsing settings:', error);
+    console.error('Error getting settings:', error);
+    // Always return default settings on error
     return res.status(200).json({ data: DEFAULT_SETTINGS });
   }
 }
@@ -168,9 +197,17 @@ async function updateSettings(
       !settingsData.deductions ||
       !settingsData.rules
     ) {
-      return res.status(400).json({ error: 'Missing required settings data' });
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required settings data',
+      });
     }
 
+    // Ensure settings exist before updating
+    let settings = await prisma.payrollSettings.findFirst();
+    if (!settings) {
+      settings = await initializeSettings();
+    }
     // Convert data to Prisma-compatible format
     const prismaData: Prisma.PayrollSettingsCreateInput = {
       id: 'default-settings',
