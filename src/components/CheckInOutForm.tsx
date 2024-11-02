@@ -289,12 +289,33 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
-      console.log('handleAction called with:', action, { checkInOutAllowance });
+      console.log('handleAction details:', {
+        action,
+        checkInOutAllowance: {
+          allowed: checkInOutAllowance?.allowed,
+          reason: checkInOutAllowance?.reason,
+          inPremises: checkInOutAllowance?.inPremises,
+          isLateCheckIn: checkInOutAllowance?.isLateCheckIn,
+        },
+        userData: {
+          employeeId: userData?.employeeId,
+          hasData: !!userData,
+        },
+        currentStep: step,
+        isSubmitting,
+      });
 
       // Clear any existing timers
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
+      }
+
+      // Validate basic conditions with detailed logging
+      if (!checkInOutAllowance) {
+        console.error('CheckInOutAllowance is missing');
+        setError('Check-in/out allowance data is missing');
+        return;
       }
 
       // Validate basic conditions
@@ -319,6 +340,20 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     },
     [checkInOutAllowance, userData, liveAttendanceStatus, effectiveShift],
   );
+
+  // Add useEffect to monitor checkInOutAllowance changes
+  useEffect(() => {
+    if (checkInOutAllowance) {
+      console.log('CheckInOutAllowance updated:', {
+        allowed: checkInOutAllowance.allowed,
+        reason: checkInOutAllowance.reason,
+        inPremises: checkInOutAllowance.inPremises,
+        isLateCheckIn: checkInOutAllowance.isLateCheckIn,
+        isEarlyCheckOut: checkInOutAllowance.isEarlyCheckOut,
+        requireConfirmation: checkInOutAllowance.requireConfirmation,
+      });
+    }
+  }, [checkInOutAllowance]);
 
   // Helper functions
   const handleCheckIn = async () => {
@@ -430,57 +465,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const midpoint = new Date((shiftStart.getTime() + shiftEnd.getTime()) / 2);
 
     return { shiftStart, shiftEnd, midpoint };
-  };
-
-  const processEarlyCheckout = async (now: Date) => {
-    if (!userData?.lineUserId) return;
-
-    setIsLoading(true);
-    try {
-      // Case 1: Pre-approved half-day leave
-      if (checkInOutAllowance?.isPlannedHalfDayLeave) {
-        setStep('camera');
-        resetDetection();
-        return;
-      }
-
-      // Case 2: Emergency leave (before midshift)
-      if (checkInOutAllowance?.isEmergencyLeave) {
-        const confirmed = window.confirm(
-          'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
-        );
-
-        if (confirmed) {
-          // Create leave request asynchronously
-          createSickLeaveRequest(userData.lineUserId, now).catch((error) => {
-            console.error('Emergency leave request creation failed:', error);
-            setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
-          });
-
-          setStep('camera');
-          resetDetection();
-        }
-        return;
-      }
-
-      // Case 3: Regular early checkout (after midshift)
-      if (checkInOutAllowance?.isAfterMidshift) {
-        const confirmed = window.confirm(
-          'คุณกำลังจะลงเวลาออกก่อนเวลาเลิกงาน ต้องการดำเนินการต่อหรือไม่?',
-        );
-
-        if (confirmed) {
-          setStep('camera');
-          resetDetection();
-        }
-        return;
-      }
-    } catch (error) {
-      console.error('Error in processEarlyCheckout:', error);
-      setError('เกิดข้อผิดพลาดในการดำเนินการ กรุณาลองใหม่อีกครั้ง');
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const memoizedUserShiftInfo = useMemo(
