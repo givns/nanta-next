@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { useAdmin } from '@/contexts/AdminContext'; // Add this import
 
 interface OvertimeRates {
   workdayOutsideShift: number; // For isInsideShift: false, isDayOffOvertime: false
@@ -51,6 +52,7 @@ interface PayrollSettingsData {
 }
 
 export default function PayrollSettings() {
+  const { user } = useAdmin();
   const [settings, setSettings] = useState<PayrollSettingsData>({
     overtimeRates: {
       fulltime: {
@@ -119,18 +121,37 @@ export default function PayrollSettings() {
   };
 
   const handleSave = async () => {
+    if (!user?.lineUserId) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
+      setIsLoading(true);
       const response = await fetch('/api/admin/settings/payroll', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-line-userid': user.lineUserId,
+        },
         body: JSON.stringify(settings),
       });
 
-      if (!response.ok) throw new Error('Failed to save settings');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save settings');
+      }
+
+      const savedSettings = await response.json();
+      setSettings(savedSettings);
+      setError(null);
     } catch (error) {
+      console.error('Error saving settings:', error);
       setError(
         error instanceof Error ? error.message : 'Failed to save settings',
       );
+    } finally {
+      setIsLoading(false);
     }
   };
 

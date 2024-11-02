@@ -1,13 +1,231 @@
 // pages/api/admin/settings/payroll.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Define detailed types for settings
+interface OvertimeRates {
+  workdayOutsideShift: number;
+  weekendInsideShiftFulltime: number;
+  weekendInsideShiftParttime: number;
+  weekendOutsideShift: number;
+}
+
+interface EmployeeTypeRates {
+  fulltime: OvertimeRates;
+  parttime: OvertimeRates;
+  probation: OvertimeRates;
+}
+
+interface MealAllowances {
+  fulltime: number;
+  parttime: number;
+  probation: number;
+}
+
+interface Allowances {
+  transportation: number;
+  meal: MealAllowances;
+  housing: number;
+}
+
+interface Deductions {
+  socialSecurityRate: number;
+  socialSecurityMinBase: number;
+  socialSecurityMaxBase: number;
+}
+
+interface Rules {
+  payrollPeriodStart: number;
+  payrollPeriodEnd: number;
+  overtimeMinimumMinutes: number;
+  roundOvertimeTo: number;
+}
+
+interface PayrollSettingsData {
+  overtimeRates: EmployeeTypeRates;
+  allowances: Allowances;
+  deductions: Deductions;
+  rules: Rules;
+}
+
+interface ApiResponse {
+  error?: string;
+  data?: PayrollSettingsData;
+}
+
+// Default settings as a constant
+const DEFAULT_SETTINGS: PayrollSettingsData = {
+  overtimeRates: {
+    fulltime: {
+      workdayOutsideShift: 1.5,
+      weekendInsideShiftFulltime: 1.0,
+      weekendInsideShiftParttime: 2.0,
+      weekendOutsideShift: 3.0,
+    },
+    parttime: {
+      workdayOutsideShift: 1.5,
+      weekendInsideShiftFulltime: 1.0,
+      weekendInsideShiftParttime: 2.0,
+      weekendOutsideShift: 3.0,
+    },
+    probation: {
+      workdayOutsideShift: 1.5,
+      weekendInsideShiftFulltime: 1.0,
+      weekendInsideShiftParttime: 2.0,
+      weekendOutsideShift: 3.0,
+    },
+  },
+  allowances: {
+    transportation: 0,
+    meal: {
+      fulltime: 0,
+      parttime: 30,
+      probation: 0,
+    },
+    housing: 0,
+  },
+  deductions: {
+    socialSecurityRate: 0.05,
+    socialSecurityMinBase: 1650,
+    socialSecurityMaxBase: 15000,
+  },
+  rules: {
+    payrollPeriodStart: 26,
+    payrollPeriodEnd: 25,
+    overtimeMinimumMinutes: 30,
+    roundOvertimeTo: 30,
+  },
+};
+
+// Helper function to safely parse JSON with a default value
+function safeParseJSON<T>(jsonString: string | null, defaultValue: T): T {
+  if (!jsonString) return defaultValue;
+  try {
+    return JSON.parse(jsonString) as T;
+  } catch {
+    return defaultValue;
+  }
+}
+
+// Helper function to safely stringify with type assertion
+function safeStringifyJSON(data: unknown): string {
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return '{}';
+  }
+}
+
+async function getSettings(
+  req: NextApiRequest,
+  res: NextApiResponse<ApiResponse>,
+) {
+  const settings = await prisma.payrollSettings.findFirst();
+
+  if (!settings) {
+    return res.status(200).json({ data: DEFAULT_SETTINGS });
+  }
+
+  try {
+    // Parse stored JSON with defaults
+    const parsedSettings: PayrollSettingsData = {
+      overtimeRates: safeParseJSON(
+        settings.overtimeRates as string,
+        DEFAULT_SETTINGS.overtimeRates,
+      ),
+      allowances: safeParseJSON(
+        settings.allowances as string,
+        DEFAULT_SETTINGS.allowances,
+      ),
+      deductions: safeParseJSON(
+        settings.deductions as string,
+        DEFAULT_SETTINGS.deductions,
+      ),
+      rules: safeParseJSON(settings.rules as string, DEFAULT_SETTINGS.rules),
+    };
+
+    return res.status(200).json({ data: parsedSettings });
+  } catch (error) {
+    console.error('Error parsing settings:', error);
+    return res.status(200).json({ data: DEFAULT_SETTINGS });
+  }
+}
+
+async function updateSettings(
+  req: NextApiRequest,
+  res: NextApiResponse<ApiResponse>,
+) {
+  try {
+    const settingsData = req.body as PayrollSettingsData;
+
+    // Validate required fields
+    if (
+      !settingsData.overtimeRates ||
+      !settingsData.allowances ||
+      !settingsData.deductions ||
+      !settingsData.rules
+    ) {
+      return res.status(400).json({ error: 'Missing required settings data' });
+    }
+
+    // Convert data to Prisma-compatible format
+    const prismaData: Prisma.PayrollSettingsCreateInput = {
+      id: 'default-settings',
+      overtimeRates: safeStringifyJSON(settingsData.overtimeRates),
+      allowances: safeStringifyJSON(settingsData.allowances),
+      deductions: safeStringifyJSON(settingsData.deductions),
+      rules: safeStringifyJSON(settingsData.rules),
+    };
+
+    // Store settings using Prisma's types
+    const updatedSettings = await prisma.payrollSettings.upsert({
+      where: {
+        id: 'default-settings',
+      },
+      create: prismaData,
+      update: {
+        overtimeRates: prismaData.overtimeRates,
+        allowances: prismaData.allowances,
+        deductions: prismaData.deductions,
+        rules: prismaData.rules,
+      },
+    });
+
+    // Parse and return the updated settings
+    const parsedSettings: PayrollSettingsData = {
+      overtimeRates: safeParseJSON(
+        updatedSettings.overtimeRates as string,
+        DEFAULT_SETTINGS.overtimeRates,
+      ),
+      allowances: safeParseJSON(
+        updatedSettings.allowances as string,
+        DEFAULT_SETTINGS.allowances,
+      ),
+      deductions: safeParseJSON(
+        updatedSettings.deductions as string,
+        DEFAULT_SETTINGS.deductions,
+      ),
+      rules: safeParseJSON(
+        updatedSettings.rules as string,
+        DEFAULT_SETTINGS.rules,
+      ),
+    };
+
+    return res.status(200).json({ data: parsedSettings });
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    return res.status(500).json({
+      error:
+        error instanceof Error ? error.message : 'Failed to update settings',
+    });
+  }
+}
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse,
+  res: NextApiResponse<ApiResponse>,
 ) {
   const lineUserId = req.headers['x-line-userid'] as string;
   if (!lineUserId) {
@@ -40,98 +258,4 @@ export default async function handler(
     console.error('PayrollSettings API error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
-}
-
-async function getSettings(req: NextApiRequest, res: NextApiResponse) {
-  const settings = await prisma.payrollSettings.findFirst();
-
-  if (!settings) {
-    // Return default settings if none exist
-    const defaultSettings = {
-      overtimeRates: {
-        fulltime: {
-          workdayOutsideShift: 1.5,
-          weekendInsideShiftFulltime: 1.0,
-          weekendInsideShiftParttime: 2.0,
-          weekendOutsideShift: 3.0,
-        },
-        parttime: {
-          workdayOutsideShift: 1.5,
-          weekendInsideShiftFulltime: 1.0,
-          weekendInsideShiftParttime: 2.0,
-          weekendOutsideShift: 3.0,
-        },
-        probation: {
-          workdayOutsideShift: 1.5,
-          weekendInsideShiftFulltime: 1.0,
-          weekendInsideShiftParttime: 2.0,
-          weekendOutsideShift: 3.0,
-        },
-      },
-      allowances: {
-        transportation: 0,
-        meal: {
-          fulltime: 0,
-          parttime: 30,
-          probation: 0,
-        },
-        housing: 0,
-      },
-      deductions: {
-        socialSecurityRate: 0.05,
-        socialSecurityMinBase: 1650,
-        socialSecurityMaxBase: 15000,
-      },
-      rules: {
-        payrollPeriodStart: 26,
-        payrollPeriodEnd: 25,
-        overtimeMinimumMinutes: 30,
-        roundOvertimeTo: 30,
-      },
-    };
-
-    return res.status(200).json(defaultSettings);
-  }
-
-  return res.status(200).json({
-    overtimeRates: JSON.parse(settings.overtimeRates as string),
-    allowances: JSON.parse(settings.allowances as string),
-    deductions: JSON.parse(settings.deductions as string),
-    rules: JSON.parse(settings.overtimeRates as string).rules || {
-      payrollPeriodStart: 26,
-      payrollPeriodEnd: 25,
-      overtimeMinimumMinutes: 30,
-      roundOvertimeTo: 30,
-    },
-  });
-}
-
-async function updateSettings(req: NextApiRequest, res: NextApiResponse) {
-  const { overtimeRates, allowances, deductions, rules } = req.body;
-
-  // Store settings as JSON strings
-  const updatedSettings = await prisma.payrollSettings.upsert({
-    where: {
-      id: 'default-settings',
-    },
-    create: {
-      id: 'default-settings',
-      overtimeRates: JSON.stringify(overtimeRates),
-      allowances: JSON.stringify(allowances),
-      deductions: JSON.stringify(deductions),
-      rules: JSON.stringify(rules),
-    },
-    update: {
-      overtimeRates: JSON.stringify({ ...overtimeRates, rules }),
-      allowances: JSON.stringify(allowances),
-      deductions: JSON.stringify(deductions),
-    },
-  });
-
-  return res.status(200).json({
-    overtimeRates: JSON.parse(updatedSettings.overtimeRates as string),
-    allowances: JSON.parse(updatedSettings.allowances as string),
-    deductions: JSON.parse(updatedSettings.deductions as string),
-    rules: JSON.parse(updatedSettings.overtimeRates as string).rules,
-  });
 }
