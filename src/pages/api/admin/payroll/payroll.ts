@@ -2,11 +2,41 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient, Prisma, PayrollStatus } from '@prisma/client';
-import { PayrollCalculationResult, PayrollApiResponse } from '@/types/payroll';
+import {
+  PayrollCalculationResult,
+  PayrollApiResponse,
+  OvertimeRatesByType,
+  OvertimeHoursByType,
+  OvertimePayByType,
+} from '@/types/payroll';
 import { z } from 'zod';
 import { isValid, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
+
+const DEFAULT_OVERTIME_RATES: OvertimeRatesByType = {
+  workdayOutside: 0,
+  weekendInside: 0,
+  weekendOutside: 0,
+  holidayRegular: 0,
+  holidayOvertime: 0,
+};
+
+const DEFAULT_OVERTIME_HOURS: OvertimeHoursByType = {
+  workdayOutside: 0,
+  weekendInside: 0,
+  weekendOutside: 0,
+  holidayRegular: 0,
+  holidayOvertime: 0,
+};
+
+const DEFAULT_OVERTIME_PAY: OvertimePayByType = {
+  workdayOutside: 0,
+  weekendInside: 0,
+  weekendOutside: 0,
+  holidayRegular: 0,
+  holidayOvertime: 0,
+};
 
 // Validation schemas
 const payrollInputSchema = z.object({
@@ -52,6 +82,19 @@ const payrollInputSchema = z.object({
     status: z.enum(['draft', 'processing', 'completed', 'approved', 'paid']),
   }),
 });
+
+// Add this helper function
+function safeParseJSON<T>(
+  jsonString: string | null | undefined,
+  defaultValue: T,
+): T {
+  if (!jsonString) return defaultValue;
+  try {
+    return JSON.parse(jsonString) as T;
+  } catch {
+    return defaultValue;
+  }
+}
 
 async function handleGetPayroll(
   req: NextApiRequest,
@@ -143,7 +186,6 @@ async function handleCreatePayroll(
         data: {
           employeeId,
           payrollPeriodId: payrollPeriod.id,
-          // Map all fields from our new type structure
           regularHours: payrollData.regularHours,
           overtimeHoursByType: JSON.stringify(payrollData.overtimeHoursByType),
           totalOvertimeHours: payrollData.totalOvertimeHours,
@@ -298,7 +340,10 @@ function formatPayrollResponse(payroll: any): PayrollCalculationResult {
       employeeType: payroll.user.employeeType,
     },
     regularHours: payroll.regularHours,
-    overtimeHoursByType: JSON.parse(payroll.overtimeHoursByType),
+    overtimeHoursByType: safeParseJSON(
+      payroll.overtimeHoursByType,
+      DEFAULT_OVERTIME_HOURS,
+    ),
     totalOvertimeHours: payroll.totalOvertimeHours,
     totalWorkingDays: payroll.totalWorkingDays,
     totalPresent: payroll.totalPresent,
@@ -311,9 +356,15 @@ function formatPayrollResponse(payroll: any): PayrollCalculationResult {
     unpaidLeaveDays: payroll.unpaidLeaveDays,
     holidays: payroll.holidays,
     regularHourlyRate: payroll.regularHourlyRate,
-    overtimeRatesByType: JSON.parse(payroll.overtimeRatesByType),
+    overtimeRatesByType: safeParseJSON(
+      payroll.overtimeRatesByType,
+      DEFAULT_OVERTIME_RATES,
+    ),
     basePay: payroll.basePay,
-    overtimePayByType: JSON.parse(payroll.overtimePayByType),
+    overtimePayByType: safeParseJSON(
+      payroll.overtimePayByType,
+      DEFAULT_OVERTIME_PAY,
+    ),
     totalOvertimePay: payroll.totalOvertimePay,
     transportationAllowance: payroll.transportationAllowance,
     mealAllowance: payroll.mealAllowance,
