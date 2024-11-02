@@ -3,7 +3,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { EmployeeType, Prisma, PrismaClient } from '@prisma/client';
 import { PayrollCalculationService } from '@/services/PayrollCalculation/PayrollCalculationService';
-import { parseISO, isValid } from 'date-fns';
+import { parseISO, isValid, format } from 'date-fns';
 import {
   PayrollApiResponse,
   PayrollCalculationResult,
@@ -122,6 +122,37 @@ function convertSettings(settingsDoc: MongoSettingsDoc): PayrollSettingsData {
       roundOvertimeTo: safeGet(settingsDoc.rules, ['roundOvertimeTo'], 30),
     },
   };
+}
+
+// Move this function up with other helper functions, before the handler
+async function createOrGetProcessingSession(
+  prisma: PrismaClient,
+  periodStart: Date,
+  employeeId: string,
+): Promise<string> {
+  const periodYearMonth = format(periodStart, 'yyyy-MM');
+
+  // Try to find existing session for this period
+  let session = await prisma.payrollProcessingSession.findFirst({
+    where: {
+      periodYearMonth,
+      status: 'processing',
+    },
+  });
+
+  // If no session exists, create one
+  if (!session) {
+    session = await prisma.payrollProcessingSession.create({
+      data: {
+        periodYearMonth,
+        status: 'processing',
+        totalEmployees: 1,
+        processedCount: 0,
+      },
+    });
+  }
+
+  return session.id;
 }
 
 export default async function handler(
@@ -420,15 +451,32 @@ export default async function handler(
       },
     });
 
-    // Store processing result
+    // Get or create processing session
+    const sessionId = await createOrGetProcessingSession(
+      prisma,
+      startDate,
+      employeeId,
+    );
+
+    // Store processing result with valid session ID
     await prisma.payrollProcessingResult.create({
       data: {
         employeeId,
-        sessionId: '', // You might want to handle session ID differently
-        periodStart: parseISO(periodStart),
-        periodEnd: parseISO(periodEnd),
+        sessionId, // Now using valid MongoDB ObjectId
+        periodStart: startDate,
+        periodEnd: endDate,
         processedData: JSON.stringify(result),
         status: 'completed',
+      },
+    });
+
+    // Update session processed count
+    await prisma.payrollProcessingSession.update({
+      where: { id: sessionId },
+      data: {
+        processedCount: {
+          increment: 1,
+        },
       },
     });
 
@@ -438,6 +486,31 @@ export default async function handler(
     });
   } catch (error) {
     console.error('Error calculating payroll:', error);
+
+    // Try to log error to processing result if we have a sessionId
+    const sessionId = req.body.sessionId;
+    const startDate = req.body.startDate;
+    const endDate = req.body.endDate;
+    if (sessionId && startDate && endDate) {
+      try {
+        await prisma.payrollProcessingResult.create({
+          data: {
+            employeeId: req.body.employeeId,
+            sessionId,
+            periodStart: startDate,
+            periodEnd: endDate,
+            processedData: JSON.stringify({
+              error: error instanceof Error ? error.message : 'Unknown error',
+            }),
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        });
+      } catch (logError) {
+        console.error('Failed to log processing error:', logError);
+      }
+    }
+
     return res.status(500).json({
       success: false,
       error:

@@ -417,7 +417,8 @@ model PayrollProcessingResult {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  @@index([employeeId, periodStart, periodEnd])
+  @@index([employeeId, status])
+  @@index([sessionId, status])
 }
 
 model PayrollAdjustment {
