@@ -11,8 +11,16 @@ const prisma = new PrismaClient();
 // Validation schemas
 const payrollInputSchema = z.object({
   employeeId: z.string(),
-  periodStart: z.string().datetime(),
-  periodEnd: z.string().datetime(),
+  periodStart: z.preprocess((arg) => {
+    if (typeof arg === 'string' || arg instanceof Date) {
+      return new Date(arg);
+    }
+  }, z.date()),
+  periodEnd: z.preprocess((arg) => {
+    if (typeof arg === 'string' || arg instanceof Date) {
+      return new Date(arg);
+    }
+  }, z.date()),
   payrollData: z.object({
     regularHours: z.number(),
     overtimeHoursByType: z.record(z.string(), z.number()),
