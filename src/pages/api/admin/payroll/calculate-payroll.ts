@@ -9,7 +9,7 @@ import {
   PayrollCalculationResult,
   PayrollSettingsData,
 } from '@/types/payroll';
-import { raw } from '@prisma/client/runtime/library';
+import { HolidayService } from '@/services/HolidayService';
 
 const prisma = new PrismaClient();
 
@@ -276,9 +276,14 @@ export default async function handler(
       });
     }
 
-    // Initialize service with full settings object
-    const payrollService = new PayrollCalculationService(settings, prisma);
+    const holidayService = new HolidayService(prisma);
 
+    // Initialize service with full settings object
+    const payrollService = new PayrollCalculationService(
+      settings,
+      prisma,
+      holidayService,
+    );
     const result = await payrollService.calculatePayroll(
       {
         id: employee.id,

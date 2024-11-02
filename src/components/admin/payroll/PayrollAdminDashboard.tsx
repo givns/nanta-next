@@ -2,45 +2,15 @@
 import { useState, useEffect } from 'react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle } from 'lucide-react';
-
 import { PayrollUtils } from '@/utils/payrollUtils';
 import { PayrollCalculationResult, PayrollApiResponse } from '@/types/payroll';
 import { MobileControls, DesktopControls } from './controls';
-import { OverviewCards } from './cards/OverviewCards';
-import { AttendanceDetails } from './cards/AttendanceDetails';
-import { LeaveDetails } from './cards/LeaveDetails';
-import { PayrollCalculation } from './cards/PayrollCalculation';
-
+import PayrollTabs from './PayrollTabs';
 import { Button } from '@/components/ui/button';
 import { PayrollProcessing } from '@/components/payroll/PayrollProcessing';
-
 import { Alert, AlertDescription } from '@/components/ui/alert';
-
-// Animation variants
-const tabVariants = {
-  enter: (direction: number) => ({
-    x: direction > 0 ? 1000 : -1000,
-    opacity: 0,
-  }),
-  center: {
-    zIndex: 1,
-    x: 0,
-    opacity: 1,
-  },
-  exit: (direction: number) => ({
-    zIndex: 0,
-    x: direction < 0 ? 1000 : -1000,
-    opacity: 0,
-  }),
-};
-
-const transition = {
-  type: 'tween',
-  duration: 0.35,
-};
 
 export default function PayrollAdminDashboard() {
   const { user } = useAdmin();
@@ -435,44 +405,12 @@ export default function PayrollAdminDashboard() {
 
           {/* Payroll Data Display */}
           {state.payrollData && (
-            <Tabs
-              value={state.activeTab}
-              onValueChange={handleTabChange}
-              className="mt-6"
-            >
-              <TabsList className="grid grid-cols-4 w-full">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="attendance">Attendance</TabsTrigger>
-                <TabsTrigger value="leaves">Leaves</TabsTrigger>
-                <TabsTrigger value="calculation">Calculation</TabsTrigger>
-              </TabsList>
-
-              <AnimatePresence initial={false} custom={state.direction}>
-                <motion.div
-                  key={state.activeTab}
-                  custom={state.direction}
-                  variants={tabVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={transition}
-                  className="mt-6"
-                >
-                  <TabsContent value="overview" forceMount>
-                    <OverviewCards payrollData={state.payrollData} />
-                  </TabsContent>
-                  <TabsContent value="attendance" forceMount>
-                    <AttendanceDetails payrollData={state.payrollData} />
-                  </TabsContent>
-                  <TabsContent value="leaves" forceMount>
-                    <LeaveDetails payrollData={state.payrollData} />
-                  </TabsContent>
-                  <TabsContent value="calculation" forceMount>
-                    <PayrollCalculation payrollData={state.payrollData} />
-                  </TabsContent>
-                </motion.div>
-              </AnimatePresence>
-            </Tabs>
+            <PayrollTabs
+              activeTab={state.activeTab}
+              direction={state.direction}
+              onTabChange={handleTabChange}
+              payrollData={state.payrollData}
+            />
           )}
         </>
       ) : (
@@ -487,22 +425,3 @@ export default function PayrollAdminDashboard() {
     </div>
   );
 }
-
-// Add slide animation for tab transitions
-const TabContent: React.FC<{
-  children: React.ReactNode;
-  isActive: boolean;
-  direction: number;
-}> = ({ children, isActive, direction }) => (
-  <motion.div
-    initial={{ opacity: 0, x: direction > 0 ? '100%' : '-100%' }}
-    animate={{
-      opacity: isActive ? 1 : 0,
-      x: isActive ? 0 : direction > 0 ? '-100%' : '100%',
-    }}
-    transition={{ duration: 0.3 }}
-    style={{ display: isActive ? 'block' : 'none' }}
-  >
-    {children}
-  </motion.div>
-);

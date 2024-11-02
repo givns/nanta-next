@@ -15,7 +15,9 @@ import {
   OvertimePayByType,
   PayrollStatus,
 } from '@/types/payroll';
-import { differenceInBusinessDays, isWeekend, parseISO } from 'date-fns';
+import { differenceInBusinessDays, isSameDay, isWeekend, min } from 'date-fns';
+import { ShiftManagementService } from '../ShiftManagementService';
+import { HolidayService } from '../HolidayService';
 
 interface TimeEntryWithMetadata extends TimeEntry {
   overtimeMetadata?: {
@@ -29,10 +31,18 @@ interface TimeEntryWithMetadata extends TimeEntry {
 }
 
 export class PayrollCalculationService {
+  private shiftManagementService: ShiftManagementService;
+
   constructor(
     private settings: PayrollSettingsData,
     private prisma: PrismaClient,
-  ) {}
+    private holidayService: HolidayService,
+  ) {
+    this.shiftManagementService = new ShiftManagementService(
+      prisma,
+      holidayService,
+    );
+  }
 
   async calculatePayroll(
     employee: User,
@@ -54,6 +64,7 @@ export class PayrollCalculationService {
 
       // Calculate total working days first as it's needed for other calculations
       const totalWorkingDays = await this.calculateTotalWorkingDays(
+        employee,
         periodStart,
         periodEnd,
       );
@@ -83,8 +94,14 @@ export class PayrollCalculationService {
       // Leave calculations
       const leaves = this.calculateLeaves(leaveRequests);
 
-      // Calculate present and absent days
-      const totalPresent = Math.ceil(regularHours / 8);
+      // Calculate present days based on time entries
+      const totalPresent = Math.ceil(
+        timeEntries.reduce((sum, entry) => sum + entry.regularHours, 0) / 8,
+      );
+
+      // Calculate absents using the effective end date
+      const currentDate = new Date();
+      const effectiveEndDate = min([currentDate, periodEnd]);
       const totalAbsent = totalWorkingDays - totalPresent - leaves.holidays;
 
       // Calculate allowances
@@ -184,24 +201,64 @@ export class PayrollCalculationService {
   }
 
   private async calculateTotalWorkingDays(
+    employee: User,
     startDate: Date,
     endDate: Date,
   ): Promise<number> {
+    // Get the current date
+    const currentDate = new Date();
+
+    // Use the earlier of current date or period end date
+    const effectiveEndDate = min([currentDate, endDate]);
+
+    // Get shift data
+    const shiftData = employee.shiftCode
+      ? await this.shiftManagementService.getShiftByCode(employee.shiftCode)
+      : null;
+    if (!shiftData) {
+      throw new Error(`Shift not found for code: ${employee.shiftCode}`);
+    }
+
+    // Get holidays within the period
     const holidays = await this.prisma.holiday.findMany({
       where: {
         date: {
           gte: startDate,
-          lte: endDate,
+          lte: effectiveEndDate,
         },
       },
     });
 
-    const businessDays = differenceInBusinessDays(endDate, startDate) + 1;
-    const holidaysOnBusinessDays = holidays.filter(
-      (holiday) => !isWeekend(holiday.date),
-    ).length;
+    // Function to check if a date is a working day based on shift
+    const isWorkingDay = (date: Date): boolean => {
+      // Get day of week (0 = Sunday, 1 = Monday, etc.)
+      const dayOfWeek = date.getDay();
 
-    return businessDays - holidaysOnBusinessDays;
+      // Check if this day is in the shift's workDays
+      return shiftData.workDays.includes(dayOfWeek);
+    };
+
+    // Count working days
+    let workingDaysCount = 0;
+    let currentDatePointer = new Date(startDate);
+
+    while (currentDatePointer <= effectiveEndDate) {
+      if (isWorkingDay(currentDatePointer)) {
+        // Check if this day is not a holiday
+        const isHoliday = holidays.some((holiday) =>
+          isSameDay(holiday.date, currentDatePointer),
+        );
+
+        if (!isHoliday) {
+          workingDaysCount++;
+        }
+      }
+
+      // Move to next day
+      currentDatePointer.setDate(currentDatePointer.getDate() + 1);
+    }
+
+    return workingDaysCount;
   }
 
   private calculateWorkingHours(timeEntries: TimeEntryWithMetadata[]): {
@@ -341,13 +398,24 @@ export class PayrollCalculationService {
   }
 
   private calculateLeaves(leaveRequests: LeaveRequest[]) {
+    // Mapping of Thai leave types to system leave types
+    const leaveTypeMapping: Record<string, string> = {
+      ลาป่วย: 'sick',
+      ลากิจ: 'business',
+      ลาพักร้อน: 'annual',
+      ลาไม่รับค่าจ้าง: 'unpaid',
+    };
+
     return leaveRequests.reduce(
       (acc, leave) => {
-        const field =
-          `${leave.leaveType.toLowerCase()}LeaveDays` as keyof typeof acc;
-        if (field in acc) {
+        // Get the system leave type from the Thai leave type
+        const systemLeaveType = leaveTypeMapping[leave.leaveType];
+
+        if (systemLeaveType) {
+          const field = `${systemLeaveType}LeaveDays` as keyof typeof acc;
           acc[field] += leave.fullDayCount;
         }
+
         return acc;
       },
       {
