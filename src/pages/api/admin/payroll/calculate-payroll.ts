@@ -4,7 +4,11 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { PayrollCalculationService } from '@/services/PayrollCalculation/PayrollCalculationService';
 import { parseISO, isValid } from 'date-fns';
-import { PayrollApiResponse, PayrollCalculationResult } from '@/types/payroll';
+import {
+  PayrollApiResponse,
+  PayrollCalculationResult,
+  PayrollSettingsData,
+} from '@/types/payroll';
 
 const prisma = new PrismaClient();
 
@@ -50,71 +54,73 @@ export default async function handler(
     }
 
     // Fetch required data
-    const [employee, timeEntries, leaveRequests, settings] = await Promise.all([
-      prisma.user.findUnique({
-        where: { employeeId },
-        select: {
-          id: true,
-          employeeId: true,
-          name: true,
-          departmentName: true,
-          role: true,
-          employeeType: true,
-          baseSalary: true,
-          salaryType: true,
-          bankAccountNumber: true,
-        },
-      }),
-      prisma.timeEntry.findMany({
-        where: {
-          employeeId,
-          date: {
-            gte: startDate,
-            lte: endDate,
+    const [employee, timeEntries, leaveRequests, settingsDoc] =
+      await Promise.all([
+        prisma.user.findUnique({
+          where: { employeeId },
+          select: {
+            id: true,
+            employeeId: true,
+            name: true,
+            departmentName: true,
+            role: true,
+            employeeType: true,
+            baseSalary: true,
+            salaryType: true,
+            bankAccountNumber: true,
           },
-        },
-        include: {
-          overtimeMetadata: true,
-        },
-      }),
-      prisma.leaveRequest.findMany({
-        where: {
-          employeeId,
-          status: 'approved',
-          startDate: {
-            lte: startDate,
+        }),
+        prisma.timeEntry.findMany({
+          where: {
+            employeeId,
+            date: {
+              gte: startDate,
+              lte: endDate,
+            },
           },
-          endDate: {
-            gte: endDate,
+          include: {
+            overtimeMetadata: true,
           },
-        },
-      }),
-      prisma.payrollSettings.findFirst(),
-    ]);
+        }),
+        prisma.leaveRequest.findMany({
+          where: {
+            employeeId,
+            status: 'approved',
+            startDate: {
+              lte: endDate,
+            },
+            endDate: {
+              gte: startDate,
+            },
+          },
+        }),
+        prisma.payrollSettings.findFirst(),
+      ]);
 
     console.log('Data fetch results:', {
       employeeFound: !!employee,
       timeEntriesCount: timeEntries.length,
       leaveRequestsCount: leaveRequests.length,
-      settingsFound: !!settings,
+      settingsFound: !!settingsDoc,
     });
 
-    if (!employee || !settings) {
-      console.log('Missing data:', {
-        employee: !!employee,
-        settings: !!settings,
-      });
+    if (!employee || !settingsDoc) {
       return res.status(404).json({
         success: false,
         error: `Missing required data: ${!employee ? 'Employee' : 'Settings'} not found`,
       });
     }
 
-    // Initialize service and calculate payroll
-    const payrollService = new PayrollCalculationService(
-      JSON.parse(settings.overtimeRates as string),
-      prisma,
-    );
+    // Convert MongoDB document to PayrollSettingsData
+    const settings: PayrollSettingsData = {
+      overtimeRates: settingsDoc.overtimeRates as any,
+      allowances: settingsDoc.allowances as any,
+      deductions: settingsDoc.deductions as any,
+      rules: settingsDoc.rules as any,
+    };
+
+    // Initialize service with full settings object
+    const payrollService = new PayrollCalculationService(settings, prisma);
 
     const result = await payrollService.calculatePayroll(
       {
@@ -146,24 +152,24 @@ export default async function handler(
       },
       timeEntries,
       leaveRequests,
-      parseISO(periodStart),
-      parseISO(periodEnd),
+      startDate,
+      endDate,
     );
 
     // Create or update payroll period
     const payrollPeriod = await prisma.payrollPeriod.upsert({
       where: {
         period_range: {
-          startDate: parseISO(periodStart),
-          endDate: parseISO(periodEnd),
+          startDate,
+          endDate,
         },
       },
       update: {
         status: 'processing',
       },
       create: {
-        startDate: parseISO(periodStart),
-        endDate: parseISO(periodEnd),
+        startDate,
+        endDate,
         status: 'processing',
       },
     });
@@ -179,7 +185,7 @@ export default async function handler(
       update: {
         // Hours
         regularHours: result.regularHours,
-        overtimeHoursByType: JSON.stringify(result.overtimeHoursByType),
+        overtimeHoursByType: result.overtimeHoursByType as any,
         totalOvertimeHours: result.totalOvertimeHours,
 
         // Attendance
@@ -198,11 +204,11 @@ export default async function handler(
 
         // Rates
         regularHourlyRate: result.regularHourlyRate,
-        overtimeRatesByType: JSON.stringify(result.overtimeRatesByType),
+        overtimeRatesByType: result.overtimeRatesByType as any,
 
         // Calculations
         basePay: result.basePay,
-        overtimePayByType: JSON.stringify(result.overtimePayByType),
+        overtimePayByType: result.overtimePayByType as any,
         totalOvertimePay: result.totalOvertimePay,
 
         // Allowances
@@ -235,8 +241,10 @@ export default async function handler(
         payrollPeriodId: payrollPeriod.id,
         // All the same fields as update
         regularHours: result.regularHours,
-        overtimeHoursByType: JSON.stringify(result.overtimeHoursByType),
+        overtimeHoursByType: result.overtimeHoursByType as any,
         totalOvertimeHours: result.totalOvertimeHours,
+
+        // Attendance
         totalWorkingDays: result.totalWorkingDays,
         totalPresent: result.totalPresent,
         totalAbsent: result.totalAbsent,
@@ -252,11 +260,11 @@ export default async function handler(
 
         // Rates
         regularHourlyRate: result.regularHourlyRate,
-        overtimeRatesByType: JSON.stringify(result.overtimeRatesByType),
+        overtimeRatesByType: result.overtimeRatesByType as any,
 
         // Calculations
         basePay: result.basePay,
-        overtimePayByType: JSON.stringify(result.overtimePayByType),
+        overtimePayByType: result.overtimePayByType as any,
         totalOvertimePay: result.totalOvertimePay,
 
         // Allowances
