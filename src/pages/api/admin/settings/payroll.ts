@@ -101,43 +101,27 @@ const DEFAULT_SETTINGS: PayrollSettingsData = {
   },
 };
 
-// Helper function to safely parse JSON with a default value
-function safeParseJSON<T>(jsonString: string | null, defaultValue: T): T {
-  if (!jsonString) return defaultValue;
-  try {
-    return JSON.parse(jsonString) as T;
-  } catch {
-    return defaultValue;
-  }
-}
-
-// Helper function to safely stringify with type assertion
-function safeStringifyJSON(data: unknown): string {
-  try {
-    return JSON.stringify(data);
-  } catch {
-    return '{}';
-  }
-}
-
 async function initializeSettings() {
   try {
-    // Use upsert to either create or update settings
-    const settings = await prisma.payrollSettings.upsert({
-      where: {
-        id: 'default-settings',
-      },
-      update: {}, // No updates if exists
-      create: {
-        id: 'default-settings',
-        overtimeRates: JSON.stringify(DEFAULT_SETTINGS.overtimeRates),
-        allowances: JSON.stringify(DEFAULT_SETTINGS.allowances),
-        deductions: JSON.stringify(DEFAULT_SETTINGS.deductions),
-        rules: JSON.stringify(DEFAULT_SETTINGS.rules),
+    // Find existing settings first
+    const existingSettings = await prisma.payrollSettings.findFirst();
+
+    if (existingSettings) {
+      return existingSettings;
+    }
+
+    // Create new settings if none exist
+    const newSettings = await prisma.payrollSettings.create({
+      data: {
+        // For MongoDB, let Prisma auto-generate the ObjectId
+        overtimeRates: DEFAULT_SETTINGS.overtimeRates as any,
+        allowances: DEFAULT_SETTINGS.allowances as any,
+        deductions: DEFAULT_SETTINGS.deductions as any,
+        rules: DEFAULT_SETTINGS.rules as any,
       },
     });
 
-    return settings;
+    return newSettings;
   } catch (error) {
     console.error('Error initializing settings:', error);
     throw error;
@@ -158,28 +142,24 @@ async function getSettings(
       console.log('Default settings created:', settings);
     }
 
-    // Parse stored JSON with defaults
-    const parsedSettings: PayrollSettingsData = {
-      overtimeRates: safeParseJSON(
-        settings.overtimeRates as string,
-        DEFAULT_SETTINGS.overtimeRates,
-      ),
-      allowances: safeParseJSON(
-        settings.allowances as string,
-        DEFAULT_SETTINGS.allowances,
-      ),
-      deductions: safeParseJSON(
-        settings.deductions as string,
-        DEFAULT_SETTINGS.deductions,
-      ),
-      rules: safeParseJSON(settings.rules as string, DEFAULT_SETTINGS.rules),
+    // With MongoDB Json type, we don't need to parse the values
+    const formattedSettings: PayrollSettingsData = {
+      overtimeRates: settings.overtimeRates as any,
+      allowances: settings.allowances as any,
+      deductions: settings.deductions as any,
+      rules: settings.rules as any,
     };
 
-    return res.status(200).json({ data: parsedSettings });
+    return res.status(200).json({
+      success: true,
+      data: formattedSettings,
+    });
   } catch (error) {
     console.error('Error getting settings:', error);
-    // Always return default settings on error
-    return res.status(200).json({ data: DEFAULT_SETTINGS });
+    return res.status(200).json({
+      success: true,
+      data: DEFAULT_SETTINGS,
+    });
   }
 }
 
@@ -203,63 +183,57 @@ async function updateSettings(
       });
     }
 
-    // Ensure settings exist before updating
+    // Find existing settings
     let settings = await prisma.payrollSettings.findFirst();
+
     if (!settings) {
-      settings = await initializeSettings();
+      // If no settings exist, create new
+      settings = await prisma.payrollSettings.create({
+        data: {
+          overtimeRates: settingsData.overtimeRates as any,
+          allowances: settingsData.allowances as any,
+          deductions: settingsData.deductions as any,
+          rules: settingsData.rules as any,
+        },
+      });
+    } else {
+      // Update existing settings
+      settings = await prisma.payrollSettings.update({
+        where: {
+          id: settings.id, // Use the existing settings id
+        },
+        data: {
+          overtimeRates: settingsData.overtimeRates as any,
+          allowances: settingsData.allowances as any,
+          deductions: settingsData.deductions as any,
+          rules: settingsData.rules as any,
+        },
+      });
     }
-    // Convert data to Prisma-compatible format
-    const prismaData: Prisma.PayrollSettingsCreateInput = {
-      id: 'default-settings',
-      overtimeRates: safeStringifyJSON(settingsData.overtimeRates),
-      allowances: safeStringifyJSON(settingsData.allowances),
-      deductions: safeStringifyJSON(settingsData.deductions),
-      rules: safeStringifyJSON(settingsData.rules),
+
+    // Return the updated settings
+    const formattedSettings: PayrollSettingsData = {
+      overtimeRates: settings.overtimeRates as any,
+      allowances: settings.allowances as any,
+      deductions: settings.deductions as any,
+      rules: settings.rules as any,
     };
 
-    // Store settings using Prisma's types
-    const updatedSettings = await prisma.payrollSettings.upsert({
-      where: {
-        id: 'default-settings',
-      },
-      create: prismaData,
-      update: {
-        overtimeRates: prismaData.overtimeRates,
-        allowances: prismaData.allowances,
-        deductions: prismaData.deductions,
-        rules: prismaData.rules,
-      },
+    return res.status(200).json({
+      success: true,
+      data: formattedSettings,
     });
-
-    // Parse and return the updated settings
-    const parsedSettings: PayrollSettingsData = {
-      overtimeRates: safeParseJSON(
-        updatedSettings.overtimeRates as string,
-        DEFAULT_SETTINGS.overtimeRates,
-      ),
-      allowances: safeParseJSON(
-        updatedSettings.allowances as string,
-        DEFAULT_SETTINGS.allowances,
-      ),
-      deductions: safeParseJSON(
-        updatedSettings.deductions as string,
-        DEFAULT_SETTINGS.deductions,
-      ),
-      rules: safeParseJSON(
-        updatedSettings.rules as string,
-        DEFAULT_SETTINGS.rules,
-      ),
-    };
-
-    return res.status(200).json({ data: parsedSettings });
   } catch (error) {
     console.error('Error updating settings:', error);
     return res.status(500).json({
+      success: false,
       error:
         error instanceof Error ? error.message : 'Failed to update settings',
     });
   }
 }
+
+// Main handler remains the same...
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,

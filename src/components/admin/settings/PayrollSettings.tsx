@@ -145,7 +145,12 @@ export default function PayrollSettings() {
           'Content-Type': 'application/json',
           'x-line-userid': user.lineUserId,
         },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({
+          overtimeRates: settings.overtimeRates,
+          allowances: settings.allowances,
+          deductions: settings.deductions,
+          rules: settings.rules,
+        }),
       });
 
       if (!response.ok) {
@@ -154,7 +159,7 @@ export default function PayrollSettings() {
       }
 
       const savedData = await response.json();
-      if (savedData.data) {
+      if (savedData.success && savedData.data) {
         setSettings(savedData.data);
         setError(null);
       }
