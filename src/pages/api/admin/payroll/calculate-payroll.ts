@@ -1,7 +1,7 @@
 // pages/api/admin/calculate-payroll.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
+import { EmployeeType, Prisma, PrismaClient } from '@prisma/client';
 import { PayrollCalculationService } from '@/services/PayrollCalculation/PayrollCalculationService';
 import { parseISO, isValid } from 'date-fns';
 import {
@@ -9,8 +9,120 @@ import {
   PayrollCalculationResult,
   PayrollSettingsData,
 } from '@/types/payroll';
+import { raw } from '@prisma/client/runtime/library';
 
 const prisma = new PrismaClient();
+
+// Add type for MongoDB settings document
+type MongoSettingsDoc = {
+  overtimeRates: Prisma.JsonValue;
+  allowances: Prisma.JsonValue;
+  deductions: Prisma.JsonValue;
+  rules: Prisma.JsonValue;
+};
+
+// Helper to safely access nested JSON values
+function safeGet<T>(
+  obj: Prisma.JsonValue | null | undefined,
+  path: string[],
+  defaultValue: T,
+): T {
+  try {
+    let current = obj;
+    for (const key of path) {
+      if (current && typeof current === 'object' && key in current) {
+        current = (current as any)[key];
+      } else {
+        return defaultValue;
+      }
+    }
+    return (current as T) ?? defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+// Convert settings document to PayrollSettingsData
+function convertSettings(settingsDoc: MongoSettingsDoc): PayrollSettingsData {
+  const defaultRates = {
+    workdayOutsideShift: 1.5,
+    weekendInsideShiftFulltime: 1.0,
+    weekendInsideShiftParttime: 2.0,
+    weekendOutsideShift: 3.0,
+  };
+
+  return {
+    overtimeRates: {
+      [EmployeeType.Fulltime]: safeGet(
+        settingsDoc.overtimeRates,
+        ['Fulltime'],
+        defaultRates,
+      ),
+      [EmployeeType.Parttime]: safeGet(
+        settingsDoc.overtimeRates,
+        ['Parttime'],
+        defaultRates,
+      ),
+      [EmployeeType.Probation]: safeGet(
+        settingsDoc.overtimeRates,
+        ['Probation'],
+        defaultRates,
+      ),
+    },
+    allowances: {
+      transportation: safeGet(settingsDoc.allowances, ['transportation'], 0),
+      meal: {
+        [EmployeeType.Fulltime]: safeGet(
+          settingsDoc.allowances,
+          ['meal', 'Fulltime'],
+          0,
+        ),
+        [EmployeeType.Parttime]: safeGet(
+          settingsDoc.allowances,
+          ['meal', 'Parttime'],
+          30,
+        ),
+        [EmployeeType.Probation]: safeGet(
+          settingsDoc.allowances,
+          ['meal', 'Probation'],
+          0,
+        ),
+      },
+      housing: safeGet(settingsDoc.allowances, ['housing'], 0),
+    },
+    deductions: {
+      socialSecurityRate: safeGet(
+        settingsDoc.deductions,
+        ['socialSecurityRate'],
+        0.05,
+      ),
+      socialSecurityMinBase: safeGet(
+        settingsDoc.deductions,
+        ['socialSecurityMinBase'],
+        1650,
+      ),
+      socialSecurityMaxBase: safeGet(
+        settingsDoc.deductions,
+        ['socialSecurityMaxBase'],
+        15000,
+      ),
+    },
+    rules: {
+      payrollPeriodStart: safeGet(
+        settingsDoc.rules,
+        ['payrollPeriodStart'],
+        26,
+      ),
+      payrollPeriodEnd: safeGet(settingsDoc.rules, ['payrollPeriodEnd'], 25),
+      overtimeMinimumMinutes: safeGet(
+        settingsDoc.rules,
+        ['overtimeMinimumMinutes'],
+        30,
+      ),
+      roundOvertimeTo: safeGet(settingsDoc.rules, ['roundOvertimeTo'], 30),
+    },
+  };
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -54,7 +166,7 @@ export default async function handler(
     }
 
     // Fetch required data
-    const [employee, timeEntries, leaveRequests, settingsDoc] =
+    const [employee, timeEntries, leaveRequests, rawSettings] =
       await Promise.all([
         prisma.user.findUnique({
           where: { employeeId },
@@ -101,23 +213,37 @@ export default async function handler(
       employeeFound: !!employee,
       timeEntriesCount: timeEntries.length,
       leaveRequestsCount: leaveRequests.length,
-      settingsFound: !!settingsDoc,
+      settingsFound: !!rawSettings,
     });
 
-    if (!employee || !settingsDoc) {
+    console.log('Employee data:', {
+      type: employee?.employeeType,
+      rawSettings: rawSettings,
+    });
+
+    if (!employee || !rawSettings) {
       return res.status(404).json({
         success: false,
         error: `Missing required data: ${!employee ? 'Employee' : 'Settings'} not found`,
       });
     }
 
-    // Convert MongoDB document to PayrollSettingsData
-    const settings: PayrollSettingsData = {
-      overtimeRates: settingsDoc.overtimeRates as any,
-      allowances: settingsDoc.allowances as any,
-      deductions: settingsDoc.deductions as any,
-      rules: settingsDoc.rules as any,
-    };
+    // Convert MongoDB document to typed settings
+    const settings = convertSettings(rawSettings as MongoSettingsDoc);
+
+    console.log('Debug:', {
+      employeeType: employee.employeeType,
+      hasSettings: !!settings,
+      hasOvertimeRates: !!settings.overtimeRates[employee.employeeType],
+    });
+
+    // Verify required settings exist
+    if (!settings.overtimeRates[employee.employeeType]) {
+      return res.status(500).json({
+        success: false,
+        error: `Missing overtime rates for employee type: ${employee.employeeType}`,
+      });
+    }
 
     // Initialize service with full settings object
     const payrollService = new PayrollCalculationService(settings, prisma);
