@@ -229,7 +229,7 @@ export default async function handler(
         prisma.leaveRequest.findMany({
           where: {
             employeeId,
-            status: 'approved',
+            status: 'Approved',
             startDate: {
               lte: endDate,
             },

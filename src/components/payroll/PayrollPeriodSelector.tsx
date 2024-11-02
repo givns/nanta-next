@@ -37,13 +37,6 @@ export const PayrollPeriodSelector: React.FC<PayrollPeriodSelectorProps> = ({
 }) => {
   const [periods] = useState(() => PayrollUtils.generatePayrollPeriods());
 
-  const formatPeriodToString = (period: PeriodRange): FormattedPeriod => {
-    return {
-      startDate: format(period.startDate, 'yyyy-MM-dd'),
-      endDate: format(period.endDate, 'yyyy-MM-dd'),
-    };
-  };
-
   const formatPeriodLabel = (period: PeriodRange): string => {
     return format(period.endDate, 'MMMM yyyy', { locale: th });
   };
