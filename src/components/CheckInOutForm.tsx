@@ -513,13 +513,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [memoizedUserShiftInfo, memoizedActionButton, timeRemaining],
   );
 
-  // In CheckInOutForm
   const renderStep2 = () => {
     console.log('Rendering Step 2 (Camera):', {
       isModelLoading,
       hasWebcamRef: !!webcamRef.current,
       faceDetectionCount,
-      message,
     });
 
     return (
@@ -531,41 +529,52 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </>
         ) : (
           <>
-            <div className="relative">
+            <div className="relative w-full max-w-md">
               <Webcam
                 audio={false}
                 ref={webcamRef}
                 screenshotFormat="image/jpeg"
-                className="w-full rounded-lg mb-4"
+                className="w-full rounded-lg"
                 videoConstraints={{
                   facingMode: 'user',
                   width: { ideal: 640 },
                   height: { ideal: 480 },
                 }}
-                onUserMedia={(stream) => {
-                  console.log('Webcam stream obtained');
-                }}
-                onUserMediaError={(error) => {
-                  console.error('Webcam error:', error);
-                  setError(
-                    'Failed to access camera. Please check camera permissions.',
-                  );
-                }}
               />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="border-4 border-blue-500 rounded-full w-48 h-48"></div>
-              </div>
+              {/* Face guide overlay - only show when webcam is active */}
+              {webcamRef.current && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <svg
+                    viewBox="0 0 100 100"
+                    className="w-48 h-48 text-blue-500 opacity-50"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="0.5"
+                  >
+                    {/* Face shape outline */}
+                    <path d="M50 95C75 95 85 80 85 65C85 50 75 35 50 35C25 35 15 50 15 65C15 80 25 95 50 95Z" />
+                    {/* Head outline */}
+                    <path d="M50 35C65 35 75 25 75 12.5C75 0 65 -10 50 -10C35 -10 25 0 25 12.5C25 25 35 35 50 35" />
+                    {/* Eyes */}
+                    <circle cx="35" cy="60" r="5" />
+                    <circle cx="65" cy="60" r="5" />
+                    {/* Mouth */}
+                    <path d="M35 75Q50 85 65 75" fill="none" />
+                  </svg>
+                </div>
+              )}
             </div>
-            <p className="text-center mb-2">{message}</p>
+            <p className="text-center mb-2 mt-4">{message}</p>
+            {/* Progress bar */}
             {faceDetectionCount > 0 && (
-              <div className="w-full px-4">
-                <div className="bg-gray-200 h-2 rounded-full">
+              <div className="w-full max-w-md px-4">
+                <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-blue-500 h-2 rounded-full"
+                    className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
                     style={{
                       width: `${(faceDetectionCount / captureThreshold) * 100}%`,
                     }}
-                  ></div>
+                  />
                 </div>
                 <p className="text-center text-sm mt-1">
                   {faceDetectionCount} / {captureThreshold}
