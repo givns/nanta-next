@@ -28,6 +28,40 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
   ({ userData, attendanceStatus, effectiveShift }) => {
     const latestAttendance = attendanceStatus?.latestAttendance;
 
+    // Move overtime calculation to its own useMemo
+    const todayOvertime = useMemo(() => {
+      if (!attendanceStatus?.approvedOvertime) return null;
+
+      const overtime = attendanceStatus.approvedOvertime;
+      const currentTime = new Date();
+      const overtimeDate = parseISO(overtime.date.toString());
+
+      if (!isValid(overtimeDate) || !isToday(overtimeDate)) {
+        return null;
+      }
+
+      const overtimeStart = parseISO(
+        `${format(currentTime, 'yyyy-MM-dd')}T${overtime.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(currentTime, 'yyyy-MM-dd')}T${overtime.endTime}`,
+      );
+
+      // Show overtime if:
+      // 1. It hasn't started yet
+      // 2. It's currently ongoing
+      // 3. It just ended (within the last hour for display purposes)
+      if (
+        isBefore(currentTime, overtimeEnd) ||
+        (isBefore(currentTime, addHours(overtimeEnd, 1)) &&
+          isAfter(currentTime, overtimeStart))
+      ) {
+        return overtime;
+      }
+
+      return null;
+    }, [attendanceStatus?.approvedOvertime]);
+
     const getStatusMessage = useMemo(() => {
       if (attendanceStatus?.isDayOff) {
         // Distinguish between holiday and regular day off
@@ -74,39 +108,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
     }, []);
 
     const renderTodayInfo = useMemo(() => {
-      // For UserShiftInfo component, modify the overtime display logic:
-      const todayOvertime = useMemo(() => {
-        if (!attendanceStatus?.approvedOvertime) return null;
-
-        const overtime = attendanceStatus.approvedOvertime;
-        const currentTime = new Date();
-        const overtimeDate = parseISO(overtime.date.toString());
-
-        if (!isValid(overtimeDate) || !isToday(overtimeDate)) {
-          return null;
-        }
-
-        const overtimeStart = parseISO(
-          `${format(currentTime, 'yyyy-MM-dd')}T${overtime.startTime}`,
-        );
-        const overtimeEnd = parseISO(
-          `${format(currentTime, 'yyyy-MM-dd')}T${overtime.endTime}`,
-        );
-
-        // Show overtime if:
-        // 1. It hasn't started yet
-        // 2. It's currently ongoing
-        // 3. It just ended (within the last hour for display purposes)
-        if (
-          isBefore(currentTime, overtimeEnd) ||
-          (isBefore(currentTime, addHours(overtimeEnd, 1)) &&
-            isAfter(currentTime, overtimeStart))
-        ) {
-          return overtime;
-        }
-
-        return null;
-      }, [attendanceStatus?.approvedOvertime]);
       const today = new Date();
 
       return (
@@ -235,10 +236,11 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
         </div>
       );
     }, [
-      attendanceStatus,
+      attendanceStatus?.isDayOff,
+      attendanceStatus?.holidayInfo,
       effectiveShift,
-      isOvertimeForToday,
       latestAttendance,
+      todayOvertime,
     ]);
 
     const renderFutureInfo = useMemo(() => {
