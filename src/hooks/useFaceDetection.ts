@@ -5,7 +5,7 @@ import '@tensorflow/tfjs-backend-webgl';
 import Webcam from 'react-webcam';
 
 export const useFaceDetection = (
-  captureThreshold: number = 5,
+  captureThreshold = 5,
   onPhotoCapture: (photo: string) => void,
 ) => {
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
@@ -17,34 +17,52 @@ export const useFaceDetection = (
   const [faceDetectionCountState, setFaceDetectionCountState] = useState(0);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const modelLoadingTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState(false);
 
-  // Initialize model with timeout and retries
+  // Check camera permission and load model afterward
   useEffect(() => {
+    const checkCameraPermission = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        if (stream) {
+          setHasCameraPermission(true);
+          stream.getTracks().forEach((track) => track.stop());
+        }
+      } catch (error) {
+        setMessage('ไม่สามารถเปิดกล้องได้');
+      }
+    };
+
+    checkCameraPermission();
+  }, []);
+
+  // Load the model after camera permission is granted
+  useEffect(() => {
+    if (!hasCameraPermission) return;
+
     let retryCount = 0;
     const MAX_RETRIES = 3;
-    const TIMEOUT_MS = 15000; // 15 seconds timeout
+    const TIMEOUT_MS = 20000; // Increased timeout to 20 seconds
     let isMounted = true;
 
     const initializeModel = async () => {
       try {
-        // Clear any existing intervals/timeouts
         if (detectionIntervalRef.current)
           clearInterval(detectionIntervalRef.current);
         if (modelLoadingTimeout.current)
           clearTimeout(modelLoadingTimeout.current);
 
-        // Set loading timeout
         modelLoadingTimeout.current = setTimeout(() => {
           if (isMounted && isModelLoading) {
             throw new Error('Model loading timeout');
           }
         }, TIMEOUT_MS);
 
-        // Ensure WebGL backend is initialized
         await tf.setBackend('webgl');
         await tf.ready();
 
-        // Try to initialize with lower memory usage settings
         const modelConfig = {
           runtime: 'tfjs' as const,
           modelType: 'short' as const,
@@ -62,7 +80,6 @@ export const useFaceDetection = (
           throw new Error('Failed to create detector');
         }
 
-        // Test the model with a simple detection
         const testImg = new Image(100, 100);
         await detector.estimateFaces(testImg).catch(() => {
           throw new Error('Model validation failed');
@@ -77,7 +94,6 @@ export const useFaceDetection = (
       } catch (error) {
         if (!isMounted) return;
 
-        // Handle retry logic
         if (retryCount < MAX_RETRIES) {
           retryCount++;
           setMessage(`กำลังลองใหม่... (${retryCount}/${MAX_RETRIES})`);
@@ -88,7 +104,6 @@ export const useFaceDetection = (
         setIsModelLoading(false);
         setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
 
-        // Try to reinitialize without WebGL if all retries fail
         try {
           await tf.setBackend('cpu');
           await tf.ready();
@@ -118,7 +133,7 @@ export const useFaceDetection = (
       if (modelLoadingTimeout.current)
         clearTimeout(modelLoadingTimeout.current);
     };
-  }, []);
+  }, [hasCameraPermission]);
 
   const detectFace = useCallback(async () => {
     if (!webcamRef.current || !model) return;
@@ -160,7 +175,6 @@ export const useFaceDetection = (
         setMessage('ไม่พบใบหน้า กรุณาวางใบหน้าให้อยู่ในกรอบ');
       }
     } catch (error) {
-      // Silent fail for detection errors, just reset the counter
       faceDetectionCount.current = 0;
       setFaceDetectionCountState(0);
     }
