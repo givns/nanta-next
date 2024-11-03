@@ -8,11 +8,18 @@ import {
   OvertimeRatesByType,
   OvertimeHoursByType,
   OvertimePayByType,
+  ApiSuccessResponse,
+  ApiErrorResponse,
 } from '@/types/payroll';
 import { z } from 'zod';
 import { isValid, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
+
+interface PayrollMeta {
+  exists: boolean;
+  message: string;
+}
 
 const DEFAULT_OVERTIME_RATES: OvertimeRatesByType = {
   workdayOutside: 0,
@@ -98,15 +105,16 @@ function safeParseJSON<T>(
 
 async function handleGetPayroll(
   req: NextApiRequest,
-  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
+  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult | null>>,
 ) {
   const { employeeId, periodStart, periodEnd } = req.query;
 
   if (!employeeId || !periodStart || !periodEnd) {
-    return res.status(400).json({
+    const errorResponse: ApiErrorResponse = {
       success: false,
       error: 'Missing required parameters',
-    });
+    };
+    return res.status(400).json(errorResponse);
   }
 
   try {
@@ -115,10 +123,11 @@ async function handleGetPayroll(
     const endDate = parseISO(periodEnd as string);
 
     if (!isValid(startDate) || !isValid(endDate)) {
-      return res.status(400).json({
+      const errorResponse: ApiErrorResponse = {
         success: false,
         error: 'Invalid date format. Expected YYYY-MM-DD',
-      });
+      };
+      return res.status(400).json(errorResponse);
     }
 
     const existingPayroll = await prisma.payroll.findFirst({
@@ -135,23 +144,26 @@ async function handleGetPayroll(
       },
     });
 
-    if (!existingPayroll) {
-      return res.status(404).json({
-        success: false,
-        error: 'Payroll record not found',
-      });
-    }
+    const successResponse: ApiSuccessResponse<PayrollCalculationResult | null> =
+      {
+        success: true,
+        data: existingPayroll ? formatPayrollResponse(existingPayroll) : null,
+        meta: {
+          exists: !!existingPayroll,
+          message: existingPayroll
+            ? 'Payroll record found'
+            : 'No existing payroll record for this period',
+        } as Record<string, unknown>, // Add index signature for type 'string'
+      };
 
-    return res.status(200).json({
-      success: true,
-      data: formatPayrollResponse(existingPayroll),
-    });
+    return res.status(200).json(successResponse);
   } catch (error) {
     console.error('Error in handleGetPayroll:', error);
-    return res.status(500).json({
+    const errorResponse: ApiErrorResponse = {
       success: false,
       error: 'Failed to fetch payroll record',
-    });
+    };
+    return res.status(500).json(errorResponse);
   }
 }
 
@@ -224,23 +236,26 @@ async function handleCreatePayroll(
       return payroll;
     });
 
-    return res.status(201).json({
+    const successResponse: ApiSuccessResponse<PayrollCalculationResult> = {
       success: true,
       data: formatPayrollResponse(result),
-    });
+    };
+
+    return res.status(201).json(successResponse);
   } catch (error) {
     console.error('Error in handleCreatePayroll:', error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      return res.status(400).json({
-        success: false,
-        error: 'Database error',
-        meta: { code: error.code },
-      });
-    }
-    return res.status(500).json({
+    const errorResponse: ApiErrorResponse = {
       success: false,
-      error: 'Failed to create payroll record',
-    });
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to create payroll record',
+      meta:
+        error instanceof Prisma.PrismaClientKnownRequestError
+          ? { code: error.code }
+          : undefined,
+    };
+    return res.status(500).json(errorResponse);
   }
 }
 
@@ -381,14 +396,15 @@ function formatPayrollResponse(payroll: any): PayrollCalculationResult {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult>>,
+  res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult | null>>,
 ) {
   const lineUserId = req.headers['x-line-userid'];
   if (!lineUserId) {
-    return res.status(401).json({
+    const errorResponse: ApiErrorResponse = {
       success: false,
       error: 'Unauthorized',
-    });
+    };
+    return res.status(401).json(errorResponse);
   }
 
   try {
@@ -401,23 +417,19 @@ export default async function handler(
         return await handleUpdatePayroll(req, res);
       default:
         res.setHeader('Allow', ['GET', 'POST', 'PUT']);
-        return res.status(405).json({
+        const errorResponse: ApiErrorResponse = {
           success: false,
           error: `Method ${req.method} Not Allowed`,
-        });
+        };
+        return res.status(405).json(errorResponse);
     }
   } catch (error) {
     console.error('Error in payroll handler:', error);
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation error',
-        meta: { details: error.errors },
-      });
-    }
-    return res.status(500).json({
+    const errorResponse: ApiErrorResponse = {
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
-    });
+      meta: error instanceof z.ZodError ? { details: error.errors } : undefined,
+    };
+    return res.status(500).json(errorResponse);
   }
 }

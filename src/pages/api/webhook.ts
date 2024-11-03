@@ -126,13 +126,15 @@ async function handlePostback(event: WebhookEvent) {
   const data = event.postback.data;
   const lineUserId = event.source.userId;
 
+  console.log('Processing postback data:', data);
+
   const params = new URLSearchParams(data);
   const action = params.get('action');
   const requestId = params.get('requestId');
-  const approverId = params.get('approverId');
+  // Remove approverId check from here since we get it from the user
 
-  if (!action || !requestId || !lineUserId || !approverId) {
-    console.log('Invalid postback data received');
+  if (!action || !requestId || !lineUserId) {
+    console.log('Invalid postback data:', { action, requestId, lineUserId });
     return;
   }
 
@@ -142,6 +144,9 @@ async function handlePostback(event: WebhookEvent) {
       console.error('User not found:', lineUserId);
       return;
     }
+
+    // Use the user's employeeId as the approverId
+    const approverId = user.employeeId;
 
     // Determine the request type based on the request in the database
     const leaveRequest = await prisma.leaveRequest.findUnique({
@@ -155,16 +160,15 @@ async function handlePostback(event: WebhookEvent) {
       await handleLeaveRequest(
         action,
         requestId,
-        user.employeeId,
+        approverId, // Pass the approverId from the user
         event.replyToken,
       );
     } else if (overtimeRequest) {
-      await handleOvertimeRequest(action, requestId, user.employeeId);
+      await handleOvertimeRequest(action, requestId, approverId); // Pass the approverId
     } else {
       console.error('Request not found:', requestId);
     }
   } catch (error) {
-    // Just log the error, don't send any replies
     console.error('Error processing postback action:', error);
   }
 }
@@ -198,21 +202,19 @@ async function handleLeaveRequest(
       });
       return;
     }
-    // Clean the approver ID before processing
-    const cleanApproverId = approverId.split('-')[0]; // Gets just "E1065" part
 
     let result;
     if (action === 'approve') {
       result = await leaveServiceServer.approveLeaveRequest(
         requestId,
-        cleanApproverId,
-        replyToken, // Pass the replyToken here
+        approverId,
+        replyToken,
       );
     } else if (action === 'deny') {
       result = await leaveServiceServer.denyLeaveRequest(
         requestId,
-        cleanApproverId,
-        replyToken, // Pass the replyToken here
+        approverId,
+        replyToken,
       );
     } else {
       throw new Error('Invalid action');
@@ -234,8 +236,6 @@ async function handleLeaveRequest(
     return result;
   } catch (error) {
     console.error('Error handling leave request:', error);
-
-    // Ensure we send an error reply if we have a replyToken
     if (replyToken) {
       try {
         await client.replyMessage(replyToken, {
@@ -246,7 +246,6 @@ async function handleLeaveRequest(
         console.error('Error sending error reply:', replyError);
       }
     }
-
     throw error;
   }
 }
