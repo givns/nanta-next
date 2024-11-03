@@ -218,10 +218,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const {
     webcamRef,
     isModelLoading,
-    faceDetectionCount,
+    loadingError,
+    faceDetected,
+    faceDetectionCount: faceDetectionCountState,
+    photo,
     message,
     resetDetection,
     captureThreshold,
+    tfBackendReady,
   } = useFaceDetection(5, handlePhotoCapture);
 
   // Add monitoring for critical state changes
@@ -518,7 +522,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     console.log('Rendering Step 2 (Camera):', {
       isModelLoading,
       hasWebcamRef: !!webcamRef.current,
-      faceDetectionCount,
+      faceDetectionCountState,
       message,
     });
 
@@ -557,18 +561,18 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               </div>
             </div>
             <p className="text-center mb-2">{message}</p>
-            {faceDetectionCount > 0 && (
+            {faceDetectionCountState > 0 && (
               <div className="w-full px-4">
                 <div className="bg-gray-200 h-2 rounded-full">
                   <div
                     className="bg-blue-500 h-2 rounded-full"
                     style={{
-                      width: `${(faceDetectionCount / captureThreshold) * 100}%`,
+                      width: `${(faceDetectionCountState / captureThreshold) * 100}%`,
                     }}
                   ></div>
                 </div>
                 <p className="text-center text-sm mt-1">
-                  {faceDetectionCount} / {captureThreshold}
+                  {faceDetectionCountState} / {captureThreshold}
                 </p>
               </div>
             )}
