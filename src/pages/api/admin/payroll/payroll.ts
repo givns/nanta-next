@@ -394,6 +394,15 @@ function formatPayrollResponse(payroll: any): PayrollCalculationResult {
   };
 }
 
+async function handleMethodNotAllowed(
+  req: NextApiRequest,
+): Promise<ApiErrorResponse> {
+  return {
+    success: false,
+    error: `Method ${req.method} Not Allowed`,
+  };
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<PayrollApiResponse<PayrollCalculationResult | null>>,
@@ -417,18 +426,17 @@ export default async function handler(
         return await handleUpdatePayroll(req, res);
       default:
         res.setHeader('Allow', ['GET', 'POST', 'PUT']);
-        const errorResponse: ApiErrorResponse = {
-          success: false,
-          error: `Method ${req.method} Not Allowed`,
-        };
-        return res.status(405).json(errorResponse);
+        return res.status(405).json(await handleMethodNotAllowed(req));
     }
   } catch (error) {
     console.error('Error in payroll handler:', error);
+
+    const meta =
+      error instanceof z.ZodError ? { details: error.errors } : undefined;
     const errorResponse: ApiErrorResponse = {
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
-      meta: error instanceof z.ZodError ? { details: error.errors } : undefined,
+      meta,
     };
     return res.status(500).json(errorResponse);
   }
