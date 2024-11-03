@@ -90,12 +90,13 @@ export default async function handler(
   const { employeeId, lineUserId, inPremises, address, forceRefresh } =
     req.query;
 
-  console.log('Request params:', {
+  console.log('Attendance Status API Request:', {
     employeeId,
     lineUserId,
     inPremises,
     address,
     forceRefresh,
+    timestamp: new Date().toISOString(),
   });
 
   try {
@@ -163,6 +164,32 @@ export default async function handler(
               leaveServiceServer.getLeaveRequests(preparedUser.employeeId),
             ]);
 
+            console.log('Fetched Data:', {
+              shiftData: {
+                hasShift: !!shiftData,
+                effectiveShift: shiftData?.effectiveShift,
+                shiftStatus: shiftData?.shiftstatus,
+              },
+              attendanceStatus: {
+                isCheckingIn: attendanceStatus?.isCheckingIn,
+                isDayOff: attendanceStatus?.isDayOff,
+                status: attendanceStatus?.status,
+                latestAttendance: attendanceStatus?.latestAttendance,
+              },
+              overtimeData: {
+                hasOvertime: !!approvedOvertime,
+                overtimeDetails: approvedOvertime
+                  ? {
+                      startTime: approvedOvertime.startTime,
+                      endTime: approvedOvertime.endTime,
+                      isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+                      isInsideShiftHours: approvedOvertime.isInsideShiftHours,
+                    }
+                  : null,
+              },
+              leaveRequestsCount: leaveRequests?.length,
+            });
+
             return {
               shiftData,
               attendanceStatus,
@@ -215,6 +242,17 @@ export default async function handler(
       req.query.address as string,
     );
 
+    console.log('Check-in/out Allowance:', {
+      allowed: checkInOutAllowance.allowed,
+      reason: checkInOutAllowance.reason,
+      isOvertime: checkInOutAllowance.isOvertime,
+      isDayOffOvertime: checkInOutAllowance.isDayOffOvertime,
+      isInsideShift: checkInOutAllowance.isInsideShift,
+      isAutoCheckIn: checkInOutAllowance.isAutoCheckIn,
+      requireConfirmation: checkInOutAllowance.requireConfirmation,
+      currentTime: new Date().toISOString(),
+    });
+
     // Prepare final response
     const finalResponseData = {
       user: preparedUser,
@@ -224,6 +262,15 @@ export default async function handler(
       approvedOvertime: responseData.approvedOvertime,
       leaveRequests: responseData.leaveRequests ?? [],
     };
+
+    console.log('Final Response Summary:', {
+      userEmployeeId: preparedUser.employeeId,
+      hasAttendanceStatus: !!responseData.attendanceStatus,
+      hasEffectiveShift: !!responseData.shiftData?.effectiveShift,
+      checkInOutAllowed: checkInOutAllowance.allowed,
+      hasApprovedOvertime: !!responseData.approvedOvertime,
+      leaveRequestsCount: responseData.leaveRequests?.length ?? 0,
+    });
 
     try {
       const validatedData = ResponseDataSchema.parse(finalResponseData);
