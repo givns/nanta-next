@@ -73,6 +73,18 @@ export interface OvertimeInfo {
   endTime: string;
 }
 
+export interface OvertimeWindows {
+  earlyCheckInWindow: Date;
+  lateCheckOutWindow: Date;
+}
+
+export interface OvertimeCheckInOutData {
+  actualStartTime?: Date;
+  actualEndTime?: Date;
+  plannedStartTime?: Date;
+  plannedEndTime?: Date;
+}
+
 export interface ExtendedApprovedOvertime extends ApprovedOvertime {
   overtimeEntries: OvertimeEntryData[];
 }
@@ -359,6 +371,11 @@ export interface CheckInOutAllowance {
   isLateCheckOut?: boolean;
   isVeryLateCheckOut?: boolean;
   isInsideShift?: boolean;
+  actualStartTime?: Date;
+  actualEndTime?: Date;
+  plannedStartTime?: Date;
+  plannedEndTime?: Date;
+  isAutoCheckIn?: boolean;
   lateCheckOutMinutes?: number;
   isPotentialOvertime?: boolean;
   isAfternoonShift?: boolean;

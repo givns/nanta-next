@@ -46,6 +46,8 @@ import {
   AttendanceRecord,
   HalfDayLeaveContext,
   OvertimeInfo,
+  OvertimeWindows,
+  OvertimeCheckInOutData,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
@@ -287,6 +289,8 @@ export class AttendanceService {
           now,
           inPremises,
           address,
+          isCheckingIn,
+          latestAttendance,
         );
         if (response) return response;
       }
@@ -403,11 +407,14 @@ export class AttendanceService {
     );
   }
 
+  // Current implementation in AttendanceService.ts
   private handleApprovedOvertime(
     approvedOvertime: ApprovedOvertime,
     now: Date,
     inPremises: boolean,
     address: string,
+    isCheckingIn: boolean,
+    latestAttendance: AttendanceRecord | null,
   ): CheckInOutAllowance | null {
     const overtimeStart = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
@@ -415,12 +422,64 @@ export class AttendanceService {
     const overtimeEnd = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
     );
-    if (now >= overtimeStart && now <= overtimeEnd) {
-      return this.createResponse(
-        true,
-        'คุณกำลังลงเวลาในช่วงทำงานล่วงเวลาที่ได้รับอนุมัติ',
-        { isOvertime: true, inPremises, address },
-      );
+
+    const { earlyCheckInWindow, lateCheckOutWindow } = this.getOvertimeWindows(
+      overtimeStart,
+      overtimeEnd,
+    );
+
+    if (isCheckingIn) {
+      if (now >= earlyCheckInWindow && now <= overtimeEnd) {
+        return this.createResponse(
+          true,
+          'คุณกำลังลงเวลาทำงานล่วงเวลาที่ได้รับอนุมัติ',
+          {
+            isOvertime: true,
+            inPremises,
+            address,
+            isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+            isInsideShift: approvedOvertime.isInsideShiftHours,
+            actualStartTime: now >= overtimeStart ? now : overtimeStart,
+            plannedStartTime: overtimeStart,
+          },
+        );
+      }
+    } else {
+      const missedOvertimeCheckIn =
+        !latestAttendance?.regularCheckInTime && isAfter(now, overtimeStart);
+
+      if (missedOvertimeCheckIn) {
+        return this.createResponse(
+          true,
+          'ระบบจะทำการลงเวลาเข้างานล่วงเวลาย้อนหลังให้ตามเวลาที่ได้รับอนุมัติ',
+          {
+            isOvertime: true,
+            inPremises,
+            address,
+            isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+            isInsideShift: approvedOvertime.isInsideShiftHours,
+            actualStartTime: overtimeStart,
+            requireConfirmation: true,
+            isAutoCheckIn: true,
+          },
+        );
+      }
+
+      if (now <= lateCheckOutWindow) {
+        return this.createResponse(
+          true,
+          'คุณกำลังลงเวลาออกจากการทำงานล่วงเวลา',
+          {
+            isOvertime: true,
+            inPremises,
+            address,
+            isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+            isInsideShift: approvedOvertime.isInsideShiftHours,
+            actualEndTime: now <= overtimeEnd ? now : overtimeEnd,
+            plannedEndTime: overtimeEnd,
+          },
+        );
+      }
     }
     return null;
   }
@@ -709,6 +768,7 @@ export class AttendanceService {
         JSON.stringify(attendanceData),
       );
 
+      // Resolve employeeId from lineUserId if needed
       if (!attendanceData.employeeId && attendanceData.lineUserId) {
         const user = await this.prisma.user.findUnique({
           where: { lineUserId: attendanceData.lineUserId },
@@ -727,13 +787,17 @@ export class AttendanceService {
         throw new Error('User not found');
       }
 
+      // Prepare check time and determine attendance date
       const { isCheckIn, checkTime } = attendanceData;
       let parsedCheckTime = new Date(checkTime);
       let attendanceDate = startOfDay(parsedCheckTime);
+
+      // Adjust date for after-midnight check-outs
       if (!isCheckIn && parsedCheckTime.getHours() < 4) {
         attendanceDate = subDays(attendanceDate, 1);
       }
 
+      // Get shift data
       const shiftData =
         await this.shiftManagementService.getEffectiveShiftAndStatus(
           user.employeeId,
@@ -752,6 +816,8 @@ export class AttendanceService {
         effectiveShift.endTime,
         attendanceDate,
       );
+
+      // Handle overnight shifts
       const isOvernightShift = this.isOvernightShift(shiftStart, shiftEnd);
       if (isOvernightShift) {
         parsedCheckTime = this.adjustDateForOvernightShift(
@@ -761,21 +827,29 @@ export class AttendanceService {
           shiftEnd,
         );
       }
-      const isHoliday = await this.holidayService.isHoliday(
-        attendanceDate,
-        [],
-        user.shiftCode === 'SHIFT104',
-      );
-      const leaveRequest = await this.leaveService.checkUserOnLeave(
-        user.employeeId,
-        attendanceDate,
-      );
-      const approvedOvertimeRequest =
-        await this.overtimeService.getApprovedOvertimeRequest(
-          user.employeeId,
-          attendanceDate,
-        );
 
+      // Get relevant data for attendance processing
+      const [isHoliday, leaveRequest, approvedOvertimeRequest] =
+        await Promise.all([
+          this.holidayService.isHoliday(
+            attendanceDate,
+            await this.holidayService.getHolidays(
+              attendanceDate,
+              attendanceDate,
+            ),
+            user.shiftCode === 'SHIFT104',
+          ),
+          this.leaveService.checkUserOnLeave(user.employeeId, attendanceDate),
+          this.overtimeService.getApprovedOvertimeRequest(
+            user.employeeId,
+            attendanceDate,
+          ),
+        ]);
+
+      // Get initial attendance separately so we can modify it
+      let existingAttendance = await this.getLatestAttendance(user.employeeId);
+
+      // Initialize status values
       let status: AttendanceStatusValue = 'absent';
       let isOvertime = false;
       let isEarlyCheckIn = false;
@@ -783,38 +857,38 @@ export class AttendanceService {
       let isLateCheckOut = false;
       let overtimeInfo: OvertimeInfo | undefined;
 
-      const existingAttendance = await this.getLatestAttendance(
-        user.employeeId,
-      );
+      // Validate check-in/out sequence
+      if (isCheckIn) {
+        if (existingAttendance?.regularCheckInTime) {
+          throw new Error('Already checked in for today');
+        }
+      } else {
+        if (!existingAttendance || !existingAttendance.regularCheckInTime) {
+          throw new Error('Cannot check out without checking in first');
+        }
+      }
 
+      // Handle special cases (holiday, leave)
       if (isHoliday) {
         status = 'holiday';
       } else if (leaveRequest && leaveRequest.status === 'approved') {
         status = 'off';
       } else {
+        // Process regular attendance
         if (isCheckIn) {
-          if (existingAttendance && existingAttendance.regularCheckInTime) {
-            throw new Error('Already checked in for today');
-          }
           status = 'incomplete';
           isEarlyCheckIn = isBefore(parsedCheckTime, shiftStart);
           isLateCheckIn = isAfter(
             parsedCheckTime,
             addMinutes(shiftStart, LATE_CHECK_IN_THRESHOLD),
           );
-          isLateCheckOut = false; // Reset late check-out
         } else {
-          // Check-out
-          if (!existingAttendance || !existingAttendance.regularCheckInTime) {
-            throw new Error('Cannot check out without checking in first');
-          }
-
+          // Process check-out
           const checkOutTime = parsedCheckTime;
           isLateCheckOut = isAfter(
             checkOutTime,
             addMinutes(shiftEnd, LATE_CHECK_OUT_THRESHOLD),
           );
-          isLateCheckIn = existingAttendance.isLateCheckIn ?? false;
 
           if (approvedOvertimeRequest) {
             const overtimeStart = parseISO(
@@ -824,35 +898,86 @@ export class AttendanceService {
               `${format(attendanceDate, 'yyyy-MM-dd')}T${approvedOvertimeRequest.endTime}`,
             );
 
-            // Check if overtime is within shift hours
-            const isInsideShift =
-              overtimeStart >= shiftStart && overtimeEnd <= shiftEnd;
+            // Handle missed overtime check-in
+            if (!isCheckIn && !existingAttendance?.regularCheckInTime) {
+              console.log('Handling missed overtime check-in');
 
-            if (isAfter(parsedCheckTime, overtimeStart)) {
+              // Create attendance record with overtime start
+              existingAttendance = await this.updateOrCreateAttendanceRecord(
+                user.employeeId,
+                attendanceDate,
+                overtimeStart,
+                true, // isCheckIn
+                'incomplete',
+                false, // isEarlyCheckIn
+                false, // isLateCheckIn
+                false, // isLateCheckOut
+              );
+
+              console.log(
+                'Auto-created overtime check-in record:',
+                existingAttendance,
+              );
+            }
+
+            // Calculate effective time within overtime bounds
+            const effectiveTime = isCheckIn
+              ? max([parsedCheckTime, overtimeStart])
+              : min([parsedCheckTime, overtimeEnd]);
+
+            // Handle overtime check-in/out
+            const isWithinOvertimeWindow = isCheckIn
+              ? isAfter(
+                  parsedCheckTime,
+                  subMinutes(overtimeStart, EARLY_CHECK_IN_THRESHOLD),
+                ) && !isAfter(parsedCheckTime, overtimeEnd)
+              : isAfter(parsedCheckTime, overtimeStart) &&
+                !isAfter(
+                  parsedCheckTime,
+                  addMinutes(overtimeEnd, LATE_CHECK_OUT_THRESHOLD),
+                );
+
+            if (isWithinOvertimeWindow) {
               isOvertime = true;
               status = 'overtime';
 
-              // Set overtime info
               overtimeInfo = {
-                isDayOffOvertime:
-                  isHoliday ||
-                  !effectiveShift.workDays.includes(attendanceDate.getDay()),
-                isInsideShiftHours: isInsideShift,
+                isDayOffOvertime: approvedOvertimeRequest.isDayOffOvertime,
+                isInsideShiftHours: approvedOvertimeRequest.isInsideShiftHours,
                 startTime: approvedOvertimeRequest.startTime,
                 endTime: approvedOvertimeRequest.endTime,
               };
-            } else {
-              status = 'present';
+
+              // Create overtime entry for check-out
+              if (!isCheckIn && existingAttendance) {
+                await this.prisma.overtimeEntry.create({
+                  data: {
+                    attendanceId: existingAttendance.id,
+                    overtimeRequestId: approvedOvertimeRequest.id,
+                    actualStartTime: max([
+                      existingAttendance.regularCheckInTime!,
+                      overtimeStart,
+                    ]),
+                    actualEndTime: effectiveTime,
+                  },
+                });
+
+                console.log(
+                  'Created overtime entry for attendance:',
+                  existingAttendance.id,
+                );
+              }
             }
-          } else if (isAfter(parsedCheckTime, shiftEnd)) {
-            status = 'present';
-            isOvertime = true;
-          } else {
-            status = 'present';
+          }
+
+          // Set final status if not overtime
+          if (!isOvertime) {
+            status = isAfter(parsedCheckTime, shiftEnd) ? 'present' : 'present';
           }
         }
       }
 
+      // Create or update attendance record
       const attendanceRecord = await this.updateOrCreateAttendanceRecord(
         user.employeeId,
         attendanceDate,
@@ -864,12 +989,15 @@ export class AttendanceService {
         isLateCheckOut,
       );
 
+      // Create or update time entry
       const timeEntry = await this.timeEntryService.createOrUpdateTimeEntry(
         attendanceRecord,
         isCheckIn,
-        approvedOvertimeRequest,
+        isOvertime ? approvedOvertimeRequest : null,
+        leaveRequest ? [leaveRequest] : [],
       );
 
+      // Generate detailed status
       const detailedStatus = this.generateDetailedStatus(
         status,
         isCheckIn,
@@ -877,10 +1005,11 @@ export class AttendanceService {
         isLateCheckIn,
         isLateCheckOut,
         isOvertime,
-        this.isOvernightShift(shiftStart, shiftEnd),
+        isOvernightShift,
         existingAttendance,
       );
 
+      // Prepare and return processed attendance result
       const processedAttendance: ProcessedAttendance = {
         id: attendanceRecord.id,
         employeeId: attendanceData.employeeId,
@@ -888,7 +1017,7 @@ export class AttendanceService {
         status,
         regularHours: timeEntry.regularHours,
         overtimeHours: timeEntry.overtimeHours,
-        ...(overtimeInfo && { overtimeInfo }), // Only include if defined
+        ...(overtimeInfo && { overtimeInfo }),
         detailedStatus,
         attendanceStatusType: this.mapStatusToAttendanceStatusType(
           status,
@@ -897,10 +1026,13 @@ export class AttendanceService {
         ),
       };
 
-      await this.invalidateAttendanceCache(attendanceData.employeeId);
-      await this.shiftManagementService.invalidateShiftCache(
-        attendanceData.employeeId,
-      );
+      // Invalidate caches
+      await Promise.all([
+        this.invalidateAttendanceCache(attendanceData.employeeId),
+        this.shiftManagementService.invalidateShiftCache(
+          attendanceData.employeeId,
+        ),
+      ]);
 
       console.log('Processed attendance:', JSON.stringify(processedAttendance));
       return processedAttendance;
@@ -1097,7 +1229,7 @@ export class AttendanceService {
     isEarlyCheckIn: boolean,
     isLateCheckIn: boolean,
     isLateCheckOut: boolean,
-  ): Promise<Attendance> {
+  ): Promise<AttendanceRecord> {
     try {
       const existingAttendance = await this.prisma.attendance.findFirst({
         where: {
@@ -1106,6 +1238,10 @@ export class AttendanceService {
             gte: startOfDay(date),
             lt: endOfDay(date),
           },
+        },
+        include: {
+          overtimeEntries: true,
+          timeEntries: true,
         },
       });
 
@@ -1128,10 +1264,16 @@ export class AttendanceService {
           isLateCheckOut,
         };
 
-        return this.prisma.attendance.update({
+        const updatedAttendance = await this.prisma.attendance.update({
           where: { id: existingAttendance.id },
           data: updateData,
+          include: {
+            overtimeEntries: true,
+            timeEntries: true,
+          },
         });
+
+        return this.toAttendanceRecord(updatedAttendance);
       } else {
         const createData: Prisma.AttendanceUncheckedCreateInput = {
           employeeId,
@@ -1150,11 +1292,20 @@ export class AttendanceService {
             shiftData.effectiveShift.endTime,
             date,
           ),
+          isVeryLateCheckOut: false,
+          lateCheckOutMinutes: 0,
+          version: 0,
         };
 
-        return this.prisma.attendance.create({
+        const newAttendance = await this.prisma.attendance.create({
           data: createData,
+          include: {
+            overtimeEntries: true,
+            timeEntries: true,
+          },
         });
+
+        return this.toAttendanceRecord(newAttendance);
       }
     } catch (error) {
       console.error('Error in updateOrCreateAttendanceRecord:', error);
@@ -1750,6 +1901,13 @@ export class AttendanceService {
         await this.sendMissingCheckOutNotification(user);
       }
     }
+  }
+
+  private getOvertimeWindows(overtimeStart: Date, overtimeEnd: Date) {
+    return {
+      earlyCheckInWindow: subMinutes(overtimeStart, EARLY_CHECK_IN_THRESHOLD),
+      lateCheckOutWindow: addMinutes(overtimeEnd, LATE_CHECK_OUT_THRESHOLD),
+    };
   }
 
   private getShiftTimes(shift: ShiftData, date: Date) {
