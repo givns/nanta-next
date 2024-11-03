@@ -518,6 +518,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       isModelLoading,
       hasWebcamRef: !!webcamRef.current,
       faceDetectionCount,
+      message,
     });
 
     return (
@@ -525,7 +526,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         {isModelLoading ? (
           <>
             <SkeletonLoader />
-            <p>Loading face detection model...</p>
+            <p className="mt-4">กำลังโหลดระบบตรวจจับใบหน้า...</p>
           </>
         ) : (
           <>
@@ -540,32 +541,34 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                   width: { ideal: 640 },
                   height: { ideal: 480 },
                 }}
+                onUserMedia={() => {
+                  console.log('Webcam stream started');
+                  resetDetection();
+                }}
               />
-              {/* Face guide overlay - only show when webcam is active */}
               {webcamRef.current && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <svg
                     viewBox="0 0 100 100"
-                    className="w-48 h-48 text-blue-500 opacity-50"
+                    className={`w-48 h-48 transition-colors duration-300 ${
+                      faceDetectionCount > 0
+                        ? 'text-green-500'
+                        : 'text-blue-500'
+                    } opacity-50`}
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="0.5"
                   >
-                    {/* Face shape outline */}
                     <path d="M50 95C75 95 85 80 85 65C85 50 75 35 50 35C25 35 15 50 15 65C15 80 25 95 50 95Z" />
-                    {/* Head outline */}
                     <path d="M50 35C65 35 75 25 75 12.5C75 0 65 -10 50 -10C35 -10 25 0 25 12.5C25 25 35 35 50 35" />
-                    {/* Eyes */}
                     <circle cx="35" cy="60" r="5" />
                     <circle cx="65" cy="60" r="5" />
-                    {/* Mouth */}
                     <path d="M35 75Q50 85 65 75" fill="none" />
                   </svg>
                 </div>
               )}
             </div>
-            <p className="text-center mb-2 mt-4">{message}</p>
-            {/* Progress bar */}
+            <p className="text-center mb-2 mt-4 font-medium">{message}</p>
             {faceDetectionCount > 0 && (
               <div className="w-full max-w-md px-4">
                 <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
