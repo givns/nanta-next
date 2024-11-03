@@ -19,7 +19,7 @@ export const useFaceDetection = (
   const modelLoadingTimeout = useRef<NodeJS.Timeout | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
 
-  // Check camera permission and load model afterward
+  // Check camera permission before loading model
   useEffect(() => {
     const checkCameraPermission = async () => {
       try {
@@ -38,101 +38,83 @@ export const useFaceDetection = (
     checkCameraPermission();
   }, []);
 
-  // Load the model after camera permission is granted
+  // Initialize model after permission is granted
   useEffect(() => {
     if (!hasCameraPermission) return;
 
-    let retryCount = 0;
-    const MAX_RETRIES = 3;
-    const TIMEOUT_MS = 20000; // Increased timeout to 20 seconds
-    let isMounted = true;
+    const loadModel = async (useCpu = false) => {
+      const MAX_RETRIES = 3;
+      const TIMEOUT_MS = 20000;
+      let retryCount = 0;
+      let isMounted = true;
 
-    const initializeModel = async () => {
-      try {
+      const attemptModelLoad = async () => {
+        try {
+          if (detectionIntervalRef.current)
+            clearInterval(detectionIntervalRef.current);
+          if (modelLoadingTimeout.current)
+            clearTimeout(modelLoadingTimeout.current);
+
+          modelLoadingTimeout.current = setTimeout(() => {
+            if (isMounted && isModelLoading) {
+              throw new Error('Model loading timeout');
+            }
+          }, TIMEOUT_MS);
+
+          // Load WebGL or CPU backend
+          const backend = useCpu ? 'cpu' : 'webgl';
+          await tf.setBackend(backend);
+          await tf.ready();
+
+          if (backend === 'webgl' && !tf.ENV.getBool('WEBGL_VERSION')) {
+            throw new Error('WebGL not supported on this device');
+          }
+
+          const detector = await faceDetection.createDetector(
+            faceDetection.SupportedModels.MediaPipeFaceDetector,
+            {
+              runtime: 'tfjs',
+              modelType: 'short',
+              maxFaces: 1,
+            },
+          );
+
+          if (!detector) throw new Error('Failed to create detector');
+          if (isMounted) {
+            clearTimeout(modelLoadingTimeout.current!);
+            setModel(detector);
+            setIsModelLoading(false);
+            setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
+          }
+        } catch (error) {
+          if (!isMounted) return;
+
+          if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            setMessage(`กำลังลองใหม่... (${retryCount}/${MAX_RETRIES})`);
+            setTimeout(attemptModelLoad, 1000);
+          } else if (!useCpu) {
+            setMessage('WebGL failed, retrying with CPU backend...');
+            await loadModel(true); // Retry with CPU if WebGL fails
+          } else {
+            setIsModelLoading(false);
+            setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
+          }
+        }
+      };
+
+      attemptModelLoad();
+
+      return () => {
+        isMounted = false;
         if (detectionIntervalRef.current)
           clearInterval(detectionIntervalRef.current);
         if (modelLoadingTimeout.current)
           clearTimeout(modelLoadingTimeout.current);
-
-        modelLoadingTimeout.current = setTimeout(() => {
-          if (isMounted && isModelLoading) {
-            throw new Error('Model loading timeout');
-          }
-        }, TIMEOUT_MS);
-
-        await tf.setBackend('webgl');
-        await tf.ready();
-
-        const modelConfig = {
-          runtime: 'tfjs' as const,
-          modelType: 'short' as const,
-          maxFaces: 1,
-          scoreThreshold: 0.5,
-          iouThreshold: 0.3,
-        };
-
-        const detector = await faceDetection.createDetector(
-          faceDetection.SupportedModels.MediaPipeFaceDetector,
-          modelConfig,
-        );
-
-        if (!detector) {
-          throw new Error('Failed to create detector');
-        }
-
-        const testImg = new Image(100, 100);
-        await detector.estimateFaces(testImg).catch(() => {
-          throw new Error('Model validation failed');
-        });
-
-        if (isMounted) {
-          clearTimeout(modelLoadingTimeout.current!);
-          setModel(detector);
-          setIsModelLoading(false);
-          setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
-        }
-      } catch (error) {
-        if (!isMounted) return;
-
-        if (retryCount < MAX_RETRIES) {
-          retryCount++;
-          setMessage(`กำลังลองใหม่... (${retryCount}/${MAX_RETRIES})`);
-          setTimeout(initializeModel, 1000);
-          return;
-        }
-
-        setIsModelLoading(false);
-        setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
-
-        try {
-          await tf.setBackend('cpu');
-          await tf.ready();
-          const cpuDetector = await faceDetection.createDetector(
-            faceDetection.SupportedModels.MediaPipeFaceDetector,
-            { runtime: 'tfjs', modelType: 'short' },
-          );
-          if (cpuDetector && isMounted) {
-            setModel(cpuDetector);
-            setIsModelLoading(false);
-            setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
-          }
-        } catch (cpuError) {
-          if (isMounted) {
-            setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
-          }
-        }
-      }
+      };
     };
 
-    initializeModel();
-
-    return () => {
-      isMounted = false;
-      if (detectionIntervalRef.current)
-        clearInterval(detectionIntervalRef.current);
-      if (modelLoadingTimeout.current)
-        clearTimeout(modelLoadingTimeout.current);
-    };
+    loadModel();
   }, [hasCameraPermission]);
 
   const detectFace = useCallback(async () => {
