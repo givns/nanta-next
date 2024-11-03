@@ -485,6 +485,21 @@ export class AttendanceService {
     isCheckingIn: boolean,
     latestAttendance: AttendanceRecord | null,
   ): CheckInOutAllowance | null {
+    console.log('handleApprovedOvertime called:', {
+      currentTime: now.toISOString(),
+      overtimeDetails: {
+        startTime: approvedOvertime.startTime,
+        endTime: approvedOvertime.endTime,
+        isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+        date: approvedOvertime.date,
+      },
+      checkInStatus: {
+        isCheckingIn,
+        hasLatestAttendance: !!latestAttendance,
+        latestCheckInTime: latestAttendance?.regularCheckInTime,
+      },
+    });
+
     const overtimeStart = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
     );
@@ -497,8 +512,23 @@ export class AttendanceService {
       overtimeEnd,
     );
 
+    console.log('Overtime windows:', {
+      overtimeStart: overtimeStart.toISOString(),
+      overtimeEnd: overtimeEnd.toISOString(),
+      earlyWindow: earlyCheckInWindow.toISOString(),
+      lateWindow: lateCheckOutWindow.toISOString(),
+      currentTime: now.toISOString(),
+    });
+
     if (isCheckingIn) {
-      if (now >= earlyCheckInWindow && now <= overtimeEnd) {
+      const canCheckIn = now >= earlyCheckInWindow && now <= overtimeEnd;
+      console.log('Check-in evaluation:', {
+        canCheckIn,
+        isBeforeEnd: now <= overtimeEnd,
+        isAfterEarlyWindow: now >= earlyCheckInWindow,
+      });
+
+      if (canCheckIn) {
         return this.createResponse(
           true,
           'คุณกำลังลงเวลาทำงานล่วงเวลาที่ได้รับอนุมัติ',
