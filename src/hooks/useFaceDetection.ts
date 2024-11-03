@@ -1,13 +1,8 @@
-//useFaceDetection.ts
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import '@tensorflow/tfjs-backend-webgl';
 import Webcam from 'react-webcam';
-
-console.log('TensorFlow version:', tf.version);
-console.log('Face Detection Models:', faceDetection.SupportedModels);
 
 export const useFaceDetection = (
   captureThreshold: number = 5,
@@ -16,73 +11,112 @@ export const useFaceDetection = (
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [faceDetected, setFaceDetected] = useState(false);
-  const [message, setMessage] = useState<string>('');
+  const [message, setMessage] = useState<string>('กำลังเริ่มต้นระบบ...');
   const webcamRef = useRef<Webcam>(null);
   const faceDetectionCount = useRef(0);
   const [faceDetectionCountState, setFaceDetectionCountState] = useState(0);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const modelLoadingTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  // Initialize model with timeout and retries
   useEffect(() => {
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    const TIMEOUT_MS = 15000; // 15 seconds timeout
     let isMounted = true;
 
     const initializeModel = async () => {
       try {
-        // 1. Check WebGL support
-        const webGLSupported = tf.findBackend('webgl') !== undefined;
-        console.log('WebGL Support:', webGLSupported);
+        // Clear any existing intervals/timeouts
+        if (detectionIntervalRef.current)
+          clearInterval(detectionIntervalRef.current);
+        if (modelLoadingTimeout.current)
+          clearTimeout(modelLoadingTimeout.current);
 
-        if (!webGLSupported) {
-          throw new Error('WebGL not supported');
-        }
+        // Set loading timeout
+        modelLoadingTimeout.current = setTimeout(() => {
+          if (isMounted && isModelLoading) {
+            throw new Error('Model loading timeout');
+          }
+        }, TIMEOUT_MS);
 
-        // 2. Initialize TensorFlow
+        // Ensure WebGL backend is initialized
         await tf.setBackend('webgl');
         await tf.ready();
-        console.log('TensorFlow initialized:', {
-          backend: tf.getBackend(),
-          memory: tf.memory(),
-        });
 
-        // 3. Create detector with specific model type
+        // Try to initialize with lower memory usage settings
+        const modelConfig = {
+          runtime: 'tfjs' as const,
+          modelType: 'short' as const,
+          maxFaces: 1,
+          scoreThreshold: 0.5,
+          iouThreshold: 0.3,
+        };
+
         const detector = await faceDetection.createDetector(
           faceDetection.SupportedModels.MediaPipeFaceDetector,
-          {
-            runtime: 'tfjs',
-            modelType: 'short',
-            maxFaces: 1,
-            detectorModelUrl: undefined, // Let it use default URL
-          },
+          modelConfig,
         );
-        console.log('Face detector created successfully');
 
-        // Only update state if component is still mounted
+        if (!detector) {
+          throw new Error('Failed to create detector');
+        }
+
+        // Test the model with a simple detection
+        const testImg = new Image(100, 100);
+        await detector.estimateFaces(testImg).catch(() => {
+          throw new Error('Model validation failed');
+        });
+
         if (isMounted) {
+          clearTimeout(modelLoadingTimeout.current!);
           setModel(detector);
           setIsModelLoading(false);
           setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
         }
       } catch (error) {
-        console.error('Model initialization error:', error);
-        if (error instanceof Error) {
-          console.error('Error details:', error.message, error.stack);
+        if (!isMounted) return;
+
+        // Handle retry logic
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          setMessage(`กำลังลองใหม่... (${retryCount}/${MAX_RETRIES})`);
+          setTimeout(initializeModel, 1000);
+          return;
         }
 
-        // Only update state if component is still mounted
-        if (isMounted) {
-          setIsModelLoading(false);
-          setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
+        setIsModelLoading(false);
+        setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
+
+        // Try to reinitialize without WebGL if all retries fail
+        try {
+          await tf.setBackend('cpu');
+          await tf.ready();
+          const cpuDetector = await faceDetection.createDetector(
+            faceDetection.SupportedModels.MediaPipeFaceDetector,
+            { runtime: 'tfjs', modelType: 'short' },
+          );
+          if (cpuDetector && isMounted) {
+            setModel(cpuDetector);
+            setIsModelLoading(false);
+            setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
+          }
+        } catch (cpuError) {
+          if (isMounted) {
+            setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
+          }
         }
       }
     };
 
     initializeModel();
 
-    // Cleanup
     return () => {
       isMounted = false;
-      if (detectionIntervalRef.current) {
+      if (detectionIntervalRef.current)
         clearInterval(detectionIntervalRef.current);
-      }
+      if (modelLoadingTimeout.current)
+        clearTimeout(modelLoadingTimeout.current);
     };
   }, []);
 
@@ -95,33 +129,28 @@ export const useFaceDetection = (
 
       const img = new Image();
       img.src = imageSrc;
-      await new Promise((resolve) => {
-        img.onload = resolve;
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image'));
+        setTimeout(() => reject(new Error('Image load timeout')), 3000);
       });
 
-      console.log('Running face detection on image');
       const detections = await model.estimateFaces(img, {
         flipHorizontal: false,
       });
 
-      console.log('Detection result:', {
-        facesFound: detections.length,
-        currentCount: faceDetectionCount.current,
-      });
-
-      if (detections.length > 0) {
+      if (detections && detections.length > 0) {
         setFaceDetected(true);
         faceDetectionCount.current += 1;
         setFaceDetectionCountState(faceDetectionCount.current);
         setMessage('ตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...');
 
         if (faceDetectionCount.current >= captureThreshold) {
-          if (imageSrc) {
-            onPhotoCapture(imageSrc);
-            setMessage('บันทึกภาพสำเร็จ');
-            if (detectionIntervalRef.current) {
-              clearInterval(detectionIntervalRef.current);
-            }
+          onPhotoCapture(imageSrc);
+          setMessage('บันทึกภาพสำเร็จ');
+          if (detectionIntervalRef.current) {
+            clearInterval(detectionIntervalRef.current);
           }
         }
       } else {
@@ -131,20 +160,27 @@ export const useFaceDetection = (
         setMessage('ไม่พบใบหน้า กรุณาวางใบหน้าให้อยู่ในกรอบ');
       }
     } catch (error) {
-      console.error('Face detection error:', error);
+      // Silent fail for detection errors, just reset the counter
+      faceDetectionCount.current = 0;
+      setFaceDetectionCountState(0);
     }
   }, [model, captureThreshold, onPhotoCapture]);
 
-  // Start detection when model is ready
   const startDetection = useCallback(() => {
-    if (!model) return;
-
-    console.log('Starting face detection');
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
     }
-    detectionIntervalRef.current = setInterval(detectFace, 500);
-  }, [detectFace, model]);
+    if (model && !isModelLoading) {
+      detectionIntervalRef.current = setInterval(detectFace, 500);
+    }
+  }, [detectFace, model, isModelLoading]);
+
+  const resetDetection = useCallback(() => {
+    faceDetectionCount.current = 0;
+    setFaceDetectionCountState(0);
+    setFaceDetected(false);
+    startDetection();
+  }, [startDetection]);
 
   useEffect(() => {
     if (model && !isModelLoading) {
@@ -156,13 +192,6 @@ export const useFaceDetection = (
       }
     };
   }, [model, isModelLoading, startDetection]);
-
-  const resetDetection = useCallback(() => {
-    faceDetectionCount.current = 0;
-    setFaceDetectionCountState(0);
-    setFaceDetected(false);
-    startDetection();
-  }, [startDetection]);
 
   return {
     webcamRef,
