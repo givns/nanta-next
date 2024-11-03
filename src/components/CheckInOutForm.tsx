@@ -513,46 +513,70 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [memoizedUserShiftInfo, memoizedActionButton, timeRemaining],
   );
 
-  const renderStep2 = () => (
-    <div className="h-full flex flex-col justify-center items-center relative">
-      {isModelLoading ? (
-        <SkeletonLoader />
-      ) : (
-        <>
-          <div className="relative">
-            <Webcam
-              audio={false}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              className="w-full rounded-lg mb-4"
-              videoConstraints={{
-                facingMode: 'user',
-              }}
-            />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="border-4 border-blue-500 rounded-full w-48 h-48"></div>
-            </div>
-          </div>
-          <p className="text-center mb-2">{message}</p>
-          {faceDetectionCount > 0 && (
-            <div className="w-full px-4">
-              <div className="bg-gray-200 h-2 rounded-full">
-                <div
-                  className="bg-blue-500 h-2 rounded-full"
-                  style={{
-                    width: `${(faceDetectionCount / captureThreshold) * 100}%`,
-                  }}
-                ></div>
+  // In CheckInOutForm
+  const renderStep2 = () => {
+    console.log('Rendering Step 2 (Camera):', {
+      isModelLoading,
+      hasWebcamRef: !!webcamRef.current,
+      faceDetectionCount,
+      message,
+    });
+
+    return (
+      <div className="h-full flex flex-col justify-center items-center relative">
+        {isModelLoading ? (
+          <>
+            <SkeletonLoader />
+            <p>Loading face detection model...</p>
+          </>
+        ) : (
+          <>
+            <div className="relative">
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                className="w-full rounded-lg mb-4"
+                videoConstraints={{
+                  facingMode: 'user',
+                  width: { ideal: 640 },
+                  height: { ideal: 480 },
+                }}
+                onUserMedia={(stream) => {
+                  console.log('Webcam stream obtained');
+                }}
+                onUserMediaError={(error) => {
+                  console.error('Webcam error:', error);
+                  setError(
+                    'Failed to access camera. Please check camera permissions.',
+                  );
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="border-4 border-blue-500 rounded-full w-48 h-48"></div>
               </div>
-              <p className="text-center text-sm mt-1">
-                {faceDetectionCount} / {captureThreshold}
-              </p>
             </div>
-          )}
-        </>
-      )}
-    </div>
-  );
+            <p className="text-center mb-2">{message}</p>
+            {faceDetectionCount > 0 && (
+              <div className="w-full px-4">
+                <div className="bg-gray-200 h-2 rounded-full">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full"
+                    style={{
+                      width: `${(faceDetectionCount / captureThreshold) * 100}%`,
+                    }}
+                  ></div>
+                </div>
+                <p className="text-center text-sm mt-1">
+                  {faceDetectionCount} / {captureThreshold}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
 
   const renderStep3 = useCallback(
     () => (
