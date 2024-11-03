@@ -361,7 +361,7 @@ export class AttendanceService {
     inPremises: boolean,
     address: string,
     now: Date,
-    latestAttendance?: AttendanceRecord | null,
+    latestAttendance: AttendanceRecord | null,
   ): CheckInOutAllowance {
     if (approvedOvertime) {
       const overtimeStart = parseISO(
@@ -377,7 +377,6 @@ export class AttendanceService {
       const isCheckingIn = !latestAttendance?.regularCheckInTime;
 
       if (isCheckingIn) {
-        // Handle check-in with early window allowance
         if (now >= earlyCheckInWindow && now <= overtimeEnd) {
           return this.createResponse(
             true,
@@ -392,37 +391,50 @@ export class AttendanceService {
               plannedStartTime: overtimeStart,
             },
           );
-        } else {
-          return this.createResponse(
-            false,
-            'คุณมาเร็วหรือช้าเกินไปสำหรับเวลาทำงานล่วงเวลาที่ได้รับอนุมัติ',
-            { inPremises, address },
-          );
         }
       } else {
-        // Handle check-out with missed check-in scenario
-        const missedOvertimeCheckIn =
-          !latestAttendance?.regularCheckInTime && isAfter(now, overtimeStart);
+        // Check for missed check-in with late check-out
+        const missedOvertimeCheckIn = !latestAttendance?.regularCheckInTime;
+        const isLateCheckout = now <= lateCheckOutWindow;
 
-        if (missedOvertimeCheckIn) {
-          return this.createResponse(
-            true,
-            'ระบบจะทำการลงเวลาเข้างานล่วงเวลาย้อนหลังให้ตามเวลาที่ได้รับอนุมัติ',
-            {
-              isOvertime: true,
-              isDayOffOvertime: approvedOvertime.isDayOffOvertime,
-              isInsideShift: approvedOvertime.isInsideShiftHours,
-              inPremises,
-              address,
-              actualStartTime: overtimeStart,
-              requireConfirmation: true,
-              isAutoCheckIn: true,
-            },
-          );
+        if (missedOvertimeCheckIn && isLateCheckout) {
+          // Only allow auto check-in if within reasonable time from overtime start
+          const missedTime = differenceInMinutes(now, overtimeStart);
+          const MAX_MISSED_TIME = 60; // Configure this as needed
+
+          if (missedTime <= MAX_MISSED_TIME) {
+            return this.createResponse(
+              true,
+              'ระบบจะทำการลงเวลาเข้า-ออกงานล่วงเวลาในวันหยุดย้อนหลังให้',
+              {
+                isOvertime: true,
+                isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+                isInsideShift: approvedOvertime.isInsideShiftHours,
+                inPremises,
+                address,
+                actualStartTime: overtimeStart,
+                actualEndTime: now <= overtimeEnd ? now : overtimeEnd,
+                requireConfirmation: true,
+                isAutoCheckIn: true,
+                isAutoCheckOut: true,
+                missedCheckInTime: missedTime,
+              },
+            );
+          } else {
+            return this.createResponse(
+              false,
+              'ไม่สามารถลงเวลาได้เนื่องจากไม่ได้ลงเวลาเข้างานในวันหยุดและเวลาผ่านมานานเกินไป',
+              {
+                inPremises,
+                address,
+                missedCheckInTime: missedTime,
+              },
+            );
+          }
         }
 
-        // Handle normal check-out with late window allowance
-        if (now <= lateCheckOutWindow) {
+        // Normal check-out flow
+        if (isLateCheckout && latestAttendance?.regularCheckInTime) {
           return this.createResponse(
             true,
             'คุณกำลังลงเวลาออกจากการทำงานล่วงเวลาในวันหยุด',
@@ -436,14 +448,15 @@ export class AttendanceService {
               plannedEndTime: overtimeEnd,
             },
           );
-        } else {
-          return this.createResponse(
-            false,
-            'เลยเวลาที่กำหนดสำหรับการลงเวลาออกจากการทำงานล่วงเวลา',
-            { inPremises, address },
-          );
         }
       }
+
+      // If none of the above conditions met
+      return this.createResponse(
+        false,
+        'คุณมาเร็วหรือช้าเกินไปสำหรับเวลาทำงานล่วงเวลาในวันหยุดที่ได้รับอนุมัติ',
+        { inPremises, address },
+      );
     } else if (dayOffOvertimeRequest?.status === 'pending') {
       return this.createResponse(
         true,
@@ -464,7 +477,6 @@ export class AttendanceService {
     );
   }
 
-  // Current implementation in AttendanceService.ts
   private handleApprovedOvertime(
     approvedOvertime: ApprovedOvertime,
     now: Date,
@@ -502,27 +514,48 @@ export class AttendanceService {
         );
       }
     } else {
-      const missedOvertimeCheckIn =
-        !latestAttendance?.regularCheckInTime && isAfter(now, overtimeStart);
+      // Check for missed check-in with late check-out
+      const missedOvertimeCheckIn = !latestAttendance?.regularCheckInTime;
+      const isLateCheckout = now <= lateCheckOutWindow;
 
-      if (missedOvertimeCheckIn) {
-        return this.createResponse(
-          true,
-          'ระบบจะทำการลงเวลาเข้างานล่วงเวลาย้อนหลังให้ตามเวลาที่ได้รับอนุมัติ',
-          {
-            isOvertime: true,
-            inPremises,
-            address,
-            isDayOffOvertime: approvedOvertime.isDayOffOvertime,
-            isInsideShift: approvedOvertime.isInsideShiftHours,
-            actualStartTime: overtimeStart,
-            requireConfirmation: true,
-            isAutoCheckIn: true,
-          },
-        );
+      if (missedOvertimeCheckIn && isLateCheckout) {
+        // Only allow auto check-in if within reasonable time from overtime start
+        const missedTime = differenceInMinutes(now, overtimeStart);
+        const MAX_MISSED_TIME = 60; // Configure this as needed (e.g., 60 minutes)
+
+        if (missedTime <= MAX_MISSED_TIME) {
+          return this.createResponse(
+            true,
+            'ระบบจะทำการลงเวลาเข้า-ออกงานล่วงเวลาย้อนหลังให้',
+            {
+              isOvertime: true,
+              inPremises,
+              address,
+              isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+              isInsideShift: approvedOvertime.isInsideShiftHours,
+              actualStartTime: overtimeStart,
+              actualEndTime: now <= overtimeEnd ? now : overtimeEnd,
+              requireConfirmation: true,
+              isAutoCheckIn: true,
+              isAutoCheckOut: true,
+              missedCheckInTime: missedTime,
+            },
+          );
+        } else {
+          return this.createResponse(
+            false,
+            'ไม่สามารถลงเวลาได้เนื่องจากไม่ได้ลงเวลาเข้างานและเวลาผ่านมานานเกินไป',
+            {
+              inPremises,
+              address,
+              missedCheckInTime: missedTime,
+            },
+          );
+        }
       }
 
-      if (now <= lateCheckOutWindow) {
+      // Normal check-out flow
+      if (isLateCheckout && latestAttendance?.regularCheckInTime) {
         return this.createResponse(
           true,
           'คุณกำลังลงเวลาออกจากการทำงานล่วงเวลา',

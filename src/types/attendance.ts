@@ -377,6 +377,8 @@ export interface CheckInOutAllowance {
   plannedStartTime?: Date;
   plannedEndTime?: Date;
   isAutoCheckIn?: boolean;
+  isAutoCheckOut?: boolean;
+  missedCheckInTime?: number;
   lateCheckOutMinutes?: number;
   isPotentialOvertime?: boolean;
   isAfternoonShift?: boolean;
