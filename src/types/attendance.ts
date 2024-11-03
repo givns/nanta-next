@@ -153,6 +153,7 @@ export interface AttendanceStatusInfo {
     requestedShift: ShiftData;
   } | null;
   approvedOvertime: ApprovedOvertime | null;
+  allApprovedOvertimes?: ApprovedOvertime[]; // Add this field to track all overtimes
   futureShifts: Array<{
     date: string;
     shift: ShiftData;

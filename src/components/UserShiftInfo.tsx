@@ -6,7 +6,15 @@ import {
   OvertimeRequestStatus,
 } from '../types/attendance';
 import { UserData } from '../types/user';
-import { format, isToday, isValid, parseISO } from 'date-fns';
+import {
+  addHours,
+  format,
+  isAfter,
+  isBefore,
+  isToday,
+  isValid,
+  parseISO,
+} from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Calendar, Clock, Briefcase, AlertCircle } from 'lucide-react';
 
@@ -66,12 +74,39 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
     }, []);
 
     const renderTodayInfo = useMemo(() => {
-      const todayOvertime =
-        attendanceStatus?.approvedOvertime &&
-        isOvertimeForToday(attendanceStatus.approvedOvertime)
-          ? attendanceStatus.approvedOvertime
-          : null;
+      // For UserShiftInfo component, modify the overtime display logic:
+      const todayOvertime = useMemo(() => {
+        if (!attendanceStatus?.approvedOvertime) return null;
 
+        const overtime = attendanceStatus.approvedOvertime;
+        const currentTime = new Date();
+        const overtimeDate = parseISO(overtime.date.toString());
+
+        if (!isValid(overtimeDate) || !isToday(overtimeDate)) {
+          return null;
+        }
+
+        const overtimeStart = parseISO(
+          `${format(currentTime, 'yyyy-MM-dd')}T${overtime.startTime}`,
+        );
+        const overtimeEnd = parseISO(
+          `${format(currentTime, 'yyyy-MM-dd')}T${overtime.endTime}`,
+        );
+
+        // Show overtime if:
+        // 1. It hasn't started yet
+        // 2. It's currently ongoing
+        // 3. It just ended (within the last hour for display purposes)
+        if (
+          isBefore(currentTime, overtimeEnd) ||
+          (isBefore(currentTime, addHours(overtimeEnd, 1)) &&
+            isAfter(currentTime, overtimeStart))
+        ) {
+          return overtime;
+        }
+
+        return null;
+      }, [attendanceStatus?.approvedOvertime]);
       const today = new Date();
 
       return (

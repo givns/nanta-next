@@ -22,12 +22,18 @@ import {
   addDays,
   parse,
   addMinutes,
+  isBefore,
+  isAfter,
 } from 'date-fns';
 import { NotificationService } from './NotificationService';
 import { th } from 'date-fns/locale';
 import { HolidayService } from './HolidayService';
 import { LeaveServiceServer } from './LeaveServiceServer';
 import { ShiftManagementService } from './ShiftManagementService';
+import { getCurrentTime } from '@/utils/dateUtils';
+import { useMemo } from 'react';
+
+const LATE_CHECK_OUT_THRESHOLD = 15; // 15 minutes after shift end
 
 type OvertimeRequestStatus =
   | 'pending_response'
@@ -279,7 +285,10 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     employeeId: string,
     date: Date,
   ): Promise<ApprovedOvertime | null> {
-    const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
+    const currentTime = getCurrentTime();
+
+    // Get all approved overtimes for the day
+    const overtimes = await this.prisma.overtimeRequest.findMany({
       where: {
         employeeId,
         date: {
@@ -287,26 +296,50 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
           lt: endOfDay(date),
         },
         status: 'approved',
+        employeeResponse: 'approve',
       },
     });
 
-    if (!overtimeRequest) return null;
+    if (!overtimes.length) {
+      return null;
+    }
 
-    return {
-      id: overtimeRequest.id,
-      employeeId: overtimeRequest.employeeId,
-      date: overtimeRequest.date,
-      startTime: overtimeRequest.startTime,
-      endTime: overtimeRequest.endTime,
-      status: overtimeRequest.status as ApprovedOvertime['status'],
-      employeeResponse: overtimeRequest.employeeResponse,
-      reason: overtimeRequest.reason,
-      approverId: overtimeRequest.approverId,
-      isDayOffOvertime: overtimeRequest.isDayOffOvertime,
-      isInsideShiftHours: overtimeRequest.isInsideShiftHours,
-      createdAt: overtimeRequest.createdAt,
-      updatedAt: overtimeRequest.updatedAt,
-    };
+    // Sort by start time and filter for relevancy
+    const relevantOvertimes = overtimes
+      .filter((overtime) => {
+        const overtimeEnd = parseISO(
+          `${format(date, 'yyyy-MM-dd')}T${overtime.endTime}`,
+        );
+        const overtimeStart = parseISO(
+          `${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`,
+        );
+
+        // Consider overtime relevant if:
+        // 1. It hasn't started yet, or
+        // 2. It's currently ongoing, or
+        // 3. It just ended (within late checkout window)
+        return (
+          isBefore(currentTime, overtimeEnd) ||
+          (isBefore(
+            currentTime,
+            addMinutes(overtimeEnd, LATE_CHECK_OUT_THRESHOLD),
+          ) &&
+            isAfter(currentTime, overtimeStart))
+        );
+      })
+      .sort((a, b) => {
+        const timeA = parseISO(`${format(date, 'yyyy-MM-dd')}T${a.startTime}`);
+        const timeB = parseISO(`${format(date, 'yyyy-MM-dd')}T${b.startTime}`);
+        return timeA.getTime() - timeB.getTime();
+      });
+
+    // Return the next relevant overtime or most recent one within grace period
+    return relevantOvertimes[0]
+      ? {
+          ...relevantOvertimes[0],
+          status: 'approved', // Assign a value from the 'OvertimeRequestStatus' enum
+        }
+      : null;
   }
 
   async employeeRespondToOvertimeRequest(
