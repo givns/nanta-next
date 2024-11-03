@@ -291,6 +291,25 @@ export interface LeaveRequestData {
   reason: string;
 }
 
+export interface LeaveRequest {
+  id: string;
+  employeeId: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  leaveType: string;
+  leaveFormat: string;
+  reason: string;
+  startDate: Date;
+  endDate: Date;
+  fullDayCount: number;
+  approverId: string | null;
+  denierId: string | null;
+  denialReason: string | null;
+  resubmitted: boolean;
+  originalRequestId: string | null;
+}
+
 // Overtime Approval Interface
 export interface OvertimeApproval {
   id: string;

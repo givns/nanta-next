@@ -10,6 +10,7 @@ import {
   PayrollSettingsData,
 } from '@/types/payroll';
 import { HolidayService } from '@/services/HolidayService';
+import { LeaveRequest } from '../../../../types/attendance';
 
 const prisma = new PrismaClient();
 
@@ -230,12 +231,29 @@ export default async function handler(
           where: {
             employeeId,
             status: 'Approved',
-            startDate: {
-              lte: endDate,
-            },
-            endDate: {
-              gte: startDate,
-            },
+            AND: [
+              {
+                startDate: {
+                  lte: endDate,
+                },
+              },
+              {
+                endDate: {
+                  gte: startDate,
+                },
+              },
+            ],
+          },
+          select: {
+            id: true,
+            employeeId: true,
+            leaveType: true,
+            leaveFormat: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            fullDayCount: true,
+            reason: true,
           },
         }),
         prisma.payrollSettings.findFirst(),
@@ -251,6 +269,30 @@ export default async function handler(
     console.log('Employee data:', {
       type: employee?.employeeType,
       rawSettings: rawSettings,
+    });
+
+    // Add detailed leave request debugging
+    console.log('Leave Request Query Parameters:', {
+      employeeId,
+      periodStart: format(startDate, 'yyyy-MM-dd'),
+      periodEnd: format(endDate, 'yyyy-MM-dd'),
+      query: {
+        status: 'Approved',
+        startDate: { lte: format(endDate, 'yyyy-MM-dd') },
+        endDate: { gte: format(startDate, 'yyyy-MM-dd') },
+      },
+    });
+
+    console.log('Found Leave Requests:', {
+      count: leaveRequests.length,
+      details: leaveRequests.map((leave) => ({
+        id: leave.id,
+        type: leave.leaveType,
+        start: format(leave.startDate, 'yyyy-MM-dd'),
+        end: format(leave.endDate, 'yyyy-MM-dd'),
+        status: leave.status,
+        days: leave.fullDayCount,
+      })),
     });
 
     // Add validation for shiftCode
@@ -288,12 +330,36 @@ export default async function handler(
 
     const holidayService = new HolidayService(prisma);
 
+    // Before passing to PayrollCalculationService
+    const mappedLeaveRequests = leaveRequests.map((leave) => ({
+      ...leave,
+      startDate: new Date(leave.startDate),
+      endDate: new Date(leave.endDate),
+      createdAt: new Date(), // Add missing required fields
+      updatedAt: new Date(),
+      approverId: null,
+      denierId: null,
+      denialReason: null,
+      resubmitted: false,
+      originalRequestId: null,
+    })) as LeaveRequest[];
+
     // Initialize service with full settings object
     const payrollService = new PayrollCalculationService(
       settings,
       prisma,
       holidayService,
     );
+
+    console.log('Passing to calculatePayroll:', {
+      employeeId: employee.employeeId,
+      leaveCount: mappedLeaveRequests.length,
+      leaveDetails: mappedLeaveRequests.map((l) => ({
+        type: l.leaveType,
+        days: l.fullDayCount,
+      })),
+    });
+
     const result = await payrollService.calculatePayroll(
       {
         id: employee.id,
@@ -323,10 +389,19 @@ export default async function handler(
         isRegistrationComplete: '',
       },
       timeEntries,
-      leaveRequests,
+      mappedLeaveRequests, // Use mapped leave requests
       startDate,
       endDate,
     );
+
+    // After calculation, log the results
+    console.log('Payroll Calculation Results (Leave-related):', {
+      sickLeaveDays: result.sickLeaveDays,
+      businessLeaveDays: result.businessLeaveDays,
+      annualLeaveDays: result.annualLeaveDays,
+      unpaidLeaveDays: result.unpaidLeaveDays,
+      holidays: result.holidays,
+    });
 
     // Create or update payroll period
     const payrollPeriod = await prisma.payrollPeriod.upsert({
@@ -347,124 +422,108 @@ export default async function handler(
     });
 
     // Create or update payroll record
-    const payroll = await prisma.payroll.upsert({
-      where: {
-        employee_period: {
+    if (result && result.netPayable !== undefined) {
+      const payroll = await prisma.payroll.upsert({
+        where: {
+          employee_period: {
+            employeeId,
+            payrollPeriodId: payrollPeriod.id,
+          },
+        },
+        update: {
+          regularHours: result.regularHours || 0,
+          overtimeHoursByType: result.overtimeHoursByType as any,
+          totalOvertimeHours: result.totalOvertimeHours || 0,
+          totalWorkingDays: result.totalWorkingDays || 0,
+          totalPresent: result.totalPresent || 0,
+          totalAbsent: result.totalAbsent || 0,
+          totalLateMinutes: result.totalLateMinutes || 0,
+          earlyDepartures: result.earlyDepartures || 0,
+          sickLeaveDays: result.sickLeaveDays || 0,
+          businessLeaveDays: result.businessLeaveDays || 0,
+          annualLeaveDays: result.annualLeaveDays || 0,
+          unpaidLeaveDays: result.unpaidLeaveDays || 0,
+          holidays: result.holidays || 0,
+          regularHourlyRate: result.regularHourlyRate || 0,
+          overtimeRatesByType: result.overtimeRatesByType as any,
+          basePay: result.basePay || 0,
+          overtimePayByType: result.overtimePayByType as any,
+          totalOvertimePay: result.totalOvertimePay || 0,
+          transportationAllowance: result.transportationAllowance || 0,
+          mealAllowance: result.mealAllowance || 0,
+          housingAllowance: result.housingAllowance || 0,
+          totalAllowances: result.totalAllowances
+            ? Object.values(result.totalAllowances).reduce(
+                (sum, val) => sum + (val || 0),
+                0,
+              )
+            : 0,
+          socialSecurity: result.socialSecurity || 0,
+          tax: result.tax || 0,
+          unpaidLeaveDeduction: result.unpaidLeaveDeduction || 0,
+          totalDeductions: result.totalDeductions || 0,
+          salesAmount: result.salesAmount || 0,
+          commissionRate: result.commissionRate || 0,
+          commissionAmount: result.commissionAmount || 0,
+          quarterlyBonus: result.quarterlyBonus || 0,
+          yearlyBonus: result.yearlyBonus || 0,
+          netPayable: result.netPayable || 0,
+          status: 'draft',
+        },
+        create: {
           employeeId,
           payrollPeriodId: payrollPeriod.id,
+          regularHours: result.regularHours || 0,
+          overtimeHoursByType: result.overtimeHoursByType as any,
+          totalOvertimeHours: result.totalOvertimeHours || 0,
+          totalWorkingDays: result.totalWorkingDays || 0,
+          totalPresent: result.totalPresent || 0,
+          totalAbsent: result.totalAbsent || 0,
+          totalLateMinutes: result.totalLateMinutes || 0,
+          earlyDepartures: result.earlyDepartures || 0,
+          sickLeaveDays: result.sickLeaveDays || 0,
+          businessLeaveDays: result.businessLeaveDays || 0,
+          annualLeaveDays: result.annualLeaveDays || 0,
+          unpaidLeaveDays: result.unpaidLeaveDays || 0,
+          holidays: result.holidays || 0,
+          regularHourlyRate: result.regularHourlyRate || 0,
+          overtimeRatesByType: result.overtimeRatesByType as any,
+          basePay: result.basePay || 0,
+          overtimePayByType: result.overtimePayByType as any,
+          totalOvertimePay: result.totalOvertimePay || 0,
+          transportationAllowance: result.transportationAllowance || 0,
+          mealAllowance: result.mealAllowance || 0,
+          housingAllowance: result.housingAllowance || 0,
+          totalAllowances: result.totalAllowances
+            ? Object.values(result.totalAllowances).reduce(
+                (sum, val) => sum + (val || 0),
+                0,
+              )
+            : 0,
+          socialSecurity: result.socialSecurity || 0,
+          tax: result.tax || 0,
+          unpaidLeaveDeduction: result.unpaidLeaveDeduction || 0,
+          totalDeductions: result.totalDeductions || 0,
+          salesAmount: result.salesAmount || 0,
+          commissionRate: result.commissionRate || 0,
+          commissionAmount: result.commissionAmount || 0,
+          quarterlyBonus: result.quarterlyBonus || 0,
+          yearlyBonus: result.yearlyBonus || 0,
+          netPayable: result.netPayable || 0,
+          status: 'draft',
         },
-      },
-      update: {
-        // Hours
-        regularHours: result.regularHours,
-        overtimeHoursByType: result.overtimeHoursByType as any,
-        totalOvertimeHours: result.totalOvertimeHours,
+      });
 
-        // Attendance
-        totalWorkingDays: result.totalWorkingDays,
-        totalPresent: result.totalPresent,
-        totalAbsent: result.totalAbsent,
-        totalLateMinutes: result.totalLateMinutes,
-        earlyDepartures: result.earlyDepartures,
-
-        // Leaves
-        sickLeaveDays: result.sickLeaveDays,
-        businessLeaveDays: result.businessLeaveDays,
-        annualLeaveDays: result.annualLeaveDays,
-        unpaidLeaveDays: result.unpaidLeaveDays,
-        holidays: result.holidays,
-
-        // Rates
-        regularHourlyRate: result.regularHourlyRate,
-        overtimeRatesByType: result.overtimeRatesByType as any,
-
-        // Calculations
-        basePay: result.basePay,
-        overtimePayByType: result.overtimePayByType as any,
-        totalOvertimePay: result.totalOvertimePay,
-
-        // Allowances
-        transportationAllowance: result.transportationAllowance,
-        mealAllowance: result.mealAllowance,
-        housingAllowance: result.housingAllowance,
-        totalAllowances: Object.values(result.totalAllowances).reduce(
-          (sum, val) => sum + val,
-          0,
-        ),
-
-        // Deductions
-        socialSecurity: result.socialSecurity,
-        tax: result.tax,
-        unpaidLeaveDeduction: result.unpaidLeaveDeduction,
-        totalDeductions: result.totalDeductions,
-
-        // Commission (if exists)
-        salesAmount: result.salesAmount,
-        commissionRate: result.commissionRate,
-        commissionAmount: result.commissionAmount,
-        quarterlyBonus: result.quarterlyBonus,
-        yearlyBonus: result.yearlyBonus,
-
-        netPayable: result.netPayable,
-        status: 'draft',
-      },
-      create: {
+      console.log('Payroll record created/updated:', {
         employeeId,
-        payrollPeriodId: payrollPeriod.id,
-        // All the same fields as update
-        regularHours: result.regularHours,
-        overtimeHoursByType: result.overtimeHoursByType as any,
-        totalOvertimeHours: result.totalOvertimeHours,
-
-        // Attendance
-        totalWorkingDays: result.totalWorkingDays,
-        totalPresent: result.totalPresent,
-        totalAbsent: result.totalAbsent,
-        totalLateMinutes: result.totalLateMinutes,
-        earlyDepartures: result.earlyDepartures,
-
-        // Leaves
+        periodId: payrollPeriod.id,
         sickLeaveDays: result.sickLeaveDays,
         businessLeaveDays: result.businessLeaveDays,
         annualLeaveDays: result.annualLeaveDays,
-        unpaidLeaveDays: result.unpaidLeaveDays,
-        holidays: result.holidays,
-
-        // Rates
-        regularHourlyRate: result.regularHourlyRate,
-        overtimeRatesByType: result.overtimeRatesByType as any,
-
-        // Calculations
-        basePay: result.basePay,
-        overtimePayByType: result.overtimePayByType as any,
-        totalOvertimePay: result.totalOvertimePay,
-
-        // Allowances
-        transportationAllowance: result.transportationAllowance,
-        mealAllowance: result.mealAllowance,
-        housingAllowance: result.housingAllowance,
-        totalAllowances: Object.values(result.totalAllowances).reduce(
-          (sum, val) => sum + val,
-          0,
-        ),
-
-        // Deductions
-        socialSecurity: result.socialSecurity,
-        tax: result.tax,
-        unpaidLeaveDeduction: result.unpaidLeaveDeduction,
-        totalDeductions: result.totalDeductions,
-
-        // Commission (if exists)
-        salesAmount: result.salesAmount,
-        commissionRate: result.commissionRate,
-        commissionAmount: result.commissionAmount,
-        quarterlyBonus: result.quarterlyBonus,
-        yearlyBonus: result.yearlyBonus,
-
-        netPayable: result.netPayable,
-        status: 'draft',
-      },
-    });
+      });
+    } else {
+      console.error('Invalid result from calculatePayroll:', result);
+    }
 
     // Get or create processing session
     const sessionId = await createOrGetProcessingSession(

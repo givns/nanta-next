@@ -15,7 +15,7 @@ import {
   OvertimePayByType,
   PayrollStatus,
 } from '@/types/payroll';
-import { differenceInBusinessDays, isSameDay, isWeekend, min } from 'date-fns';
+import { format, isSameDay, isWeekend, min } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService';
 import { HolidayService } from '../HolidayService';
 
@@ -28,6 +28,16 @@ interface TimeEntryWithMetadata extends TimeEntry {
     createdAt: Date;
     updatedAt: Date;
   } | null;
+}
+
+interface LeaveTypeMappings {
+  [key: string]: {
+    field:
+      | 'sickLeaveDays'
+      | 'businessLeaveDays'
+      | 'annualLeaveDays'
+      | 'unpaidLeaveDays';
+  };
 }
 
 export class PayrollCalculationService {
@@ -52,6 +62,16 @@ export class PayrollCalculationService {
     periodEnd: Date,
   ): Promise<PayrollCalculationResult> {
     try {
+      console.log('Starting calculatePayroll with leaves:', {
+        employeeId: employee.employeeId,
+        leaveCount: leaveRequests.length,
+        leaves: leaveRequests.map((l) => ({
+          type: l.leaveType,
+          days: l.fullDayCount,
+          start: l.startDate,
+          end: l.endDate,
+        })),
+      });
       // Basic employee info
       const employeeInfo = {
         id: employee.id,
@@ -93,6 +113,7 @@ export class PayrollCalculationService {
 
       // Leave calculations
       const leaves = this.calculateLeaves(leaveRequests);
+      console.log('Calculated leave totals:', leaves);
 
       // Calculate present days based on time entries
       const totalPresent = Math.ceil(
@@ -408,34 +429,60 @@ export class PayrollCalculationService {
   }
 
   private calculateLeaves(leaveRequests: LeaveRequest[]) {
-    // Mapping of Thai leave types to system leave types
-    const leaveTypeMapping: Record<string, string> = {
-      ลาป่วย: 'sick',
-      ลากิจ: 'business',
-      ลาพักร้อน: 'annual',
-      ลาไม่รับค่าจ้าง: 'unpaid',
+    console.log('PayrollCalculationService - Processing leaves:', {
+      totalRequests: leaveRequests.length,
+      requests: leaveRequests.map((l) => ({
+        type: l.leaveType,
+        start: format(l.startDate, 'yyyy-MM-dd'),
+        end: format(l.endDate, 'yyyy-MM-dd'),
+        count: l.fullDayCount,
+      })),
+    });
+
+    const LEAVE_TYPE_MAPPINGS: Record<string, keyof typeof initialAccumulator> =
+      {
+        ลาป่วย: 'sickLeaveDays',
+        sick: 'sickLeaveDays',
+        ลากิจ: 'businessLeaveDays',
+        business: 'businessLeaveDays',
+        ลาพักร้อน: 'annualLeaveDays',
+        annual: 'annualLeaveDays',
+        ลาไม่รับค่าจ้าง: 'unpaidLeaveDays',
+        unpaid: 'unpaidLeaveDays',
+      };
+
+    const initialAccumulator = {
+      sickLeaveDays: 0,
+      businessLeaveDays: 0,
+      annualLeaveDays: 0,
+      unpaidLeaveDays: 0,
+      holidays: 0,
     };
 
-    return leaveRequests.reduce(
+    const result = leaveRequests.reduce(
       (acc, leave) => {
-        // Get the system leave type from the Thai leave type
-        const systemLeaveType = leaveTypeMapping[leave.leaveType];
+        console.log('Processing leave request:', {
+          type: leave.leaveType,
+          mappedType: LEAVE_TYPE_MAPPINGS[leave.leaveType],
+          days: leave.fullDayCount,
+        });
 
-        if (systemLeaveType) {
-          const field = `${systemLeaveType}LeaveDays` as keyof typeof acc;
-          acc[field] += leave.fullDayCount;
+        const leaveTypeKey = LEAVE_TYPE_MAPPINGS[leave.leaveType];
+        if (leaveTypeKey) {
+          acc[leaveTypeKey] += Number(leave.fullDayCount);
+          console.log(
+            `Added ${leave.fullDayCount} days to ${leaveTypeKey}. New total: ${acc[leaveTypeKey]}`,
+          );
+        } else {
+          console.warn(`Unknown leave type: ${leave.leaveType}`);
         }
-
         return acc;
       },
-      {
-        sickLeaveDays: 0,
-        businessLeaveDays: 0,
-        annualLeaveDays: 0,
-        unpaidLeaveDays: 0,
-        holidays: 0,
-      },
+      { ...initialAccumulator },
     );
+
+    console.log('Final leave calculation results:', result);
+    return result;
   }
 
   private calculateAllowances(employeeType: EmployeeType, workingDays: number) {
