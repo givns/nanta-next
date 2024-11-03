@@ -12,6 +12,7 @@ export const useFaceDetection = (
 ) => {
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
+  const [loadingState, setLoadingState] = useState<string>('initializing');
   const [faceDetected, setFaceDetected] = useState(false);
   const [message, setMessage] = useState<string>('');
   const webcamRef = useRef<Webcam>(null);
@@ -19,29 +20,85 @@ export const useFaceDetection = (
   const [faceDetectionCountState, setFaceDetectionCountState] = useState(0);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Single model initialization useEffect
   useEffect(() => {
-    const loadModel = async () => {
+    const initializeTF = async () => {
       try {
+        setLoadingState('initializing-tensorflow');
+        console.log('Initializing TensorFlow...');
+
+        if (!tf.getBackend()) {
+          await tf.setBackend('webgl');
+        }
         await tf.ready();
-        const loadedModel = await faceDetection.createDetector(
+
+        const backend = tf.getBackend();
+        console.log('TensorFlow initialized successfully. Backend:', backend);
+
+        setLoadingState('loading-model');
+        const modelConfig = {
+          runtime: 'tfjs' as const,
+          modelType: 'short' as const,
+        };
+
+        console.log('Loading face detection model with config:', modelConfig);
+        const detector = await faceDetection.createDetector(
           faceDetection.SupportedModels.MediaPipeFaceDetector,
-          { runtime: 'tfjs', modelType: 'short' },
+          modelConfig,
         );
+
         console.log('Face detection model loaded successfully');
-        setModel(loadedModel);
+        setModel(detector);
         setIsModelLoading(false);
         setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
+
+        // Log successful initialization
+        console.log('Face detection system ready:', {
+          backend: tf.getBackend(),
+          modelLoaded: !!detector,
+          loadingState: 'completed',
+        });
       } catch (error) {
-        console.error('Error loading model:', error);
-        setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
+        console.error('Face detection initialization error:', {
+          state: loadingState,
+          error,
+          tfBackend: tf.getBackend(),
+          tfReady: await tf
+            .ready()
+            .then(() => true)
+            .catch(() => false),
+        });
+
+        let errorMessage = 'ไม่สามารถโหลดระบบตรวจจับใบหน้าได้';
+        if (loadingState === 'initializing-tensorflow') {
+          errorMessage = 'ไม่สามารถเริ่มต้นระบบ TensorFlow ได้';
+        } else if (loadingState === 'loading-model') {
+          errorMessage = 'ไม่สามารถโหลดโมเดลตรวจจับใบหน้าได้';
+        }
+
+        setMessage(errorMessage);
         setIsModelLoading(false);
       }
     };
-    loadModel();
+
+    initializeTF();
+
+    // Cleanup
+    return () => {
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+      }
+    };
   }, []);
 
   const detectFace = useCallback(async () => {
-    if (!webcamRef.current || !model) return;
+    if (!webcamRef.current || !model) {
+      console.log('Skip detection:', {
+        hasWebcam: !!webcamRef.current,
+        hasModel: !!model,
+      });
+      return;
+    }
 
     try {
       const imageSrc = webcamRef.current.getScreenshot();
@@ -55,6 +112,11 @@ export const useFaceDetection = (
 
       const detections = await model.estimateFaces(img, {
         flipHorizontal: false,
+      });
+
+      console.log('Face detection result:', {
+        facesDetected: detections.length,
+        currentCount: faceDetectionCount.current,
       });
 
       if (detections.length > 0) {
@@ -80,11 +142,12 @@ export const useFaceDetection = (
       }
     } catch (error) {
       console.error('Error in face detection:', error);
+      setMessage('เกิดข้อผิดพลาดในการตรวจจับใบหน้า');
     }
   }, [model, captureThreshold, onPhotoCapture]);
 
   const startDetection = useCallback(() => {
-    console.log('Starting face detection');
+    console.log('Starting face detection interval');
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
     }
@@ -100,13 +163,16 @@ export const useFaceDetection = (
   }, [startDetection]);
 
   useEffect(() => {
-    startDetection();
+    if (!isModelLoading && model) {
+      console.log('Model ready, starting detection');
+      startDetection();
+    }
     return () => {
       if (detectionIntervalRef.current) {
         clearInterval(detectionIntervalRef.current);
       }
     };
-  }, [startDetection]);
+  }, [isModelLoading, model, startDetection]);
 
   return {
     webcamRef,
