@@ -272,6 +272,7 @@ export class AttendanceService {
           inPremises,
           address,
           now,
+          latestAttendance, // Add this parameter
         );
       }
 
@@ -360,6 +361,7 @@ export class AttendanceService {
     inPremises: boolean,
     address: string,
     now: Date,
+    latestAttendance?: AttendanceRecord | null,
   ): CheckInOutAllowance {
     if (approvedOvertime) {
       const overtimeStart = parseISO(
@@ -369,24 +371,78 @@ export class AttendanceService {
         `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
       );
 
-      if (now >= overtimeStart && now <= overtimeEnd) {
-        return this.createResponse(
-          true,
-          'คุณกำลังลงเวลาทำงานล่วงเวลาในวันหยุดที่ได้รับอนุมัติ',
-          {
-            isOvertime: true,
-            isDayOffOvertime: approvedOvertime.isDayOffOvertime,
-            isInsideShift: approvedOvertime.isInsideShiftHours,
-            inPremises,
-            address,
-          },
-        );
+      const { earlyCheckInWindow, lateCheckOutWindow } =
+        this.getOvertimeWindows(overtimeStart, overtimeEnd);
+
+      const isCheckingIn = !latestAttendance?.regularCheckInTime;
+
+      if (isCheckingIn) {
+        // Handle check-in with early window allowance
+        if (now >= earlyCheckInWindow && now <= overtimeEnd) {
+          return this.createResponse(
+            true,
+            'คุณกำลังลงเวลาทำงานล่วงเวลาในวันหยุดที่ได้รับอนุมัติ',
+            {
+              isOvertime: true,
+              isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+              isInsideShift: approvedOvertime.isInsideShiftHours,
+              inPremises,
+              address,
+              actualStartTime: now >= overtimeStart ? now : overtimeStart,
+              plannedStartTime: overtimeStart,
+            },
+          );
+        } else {
+          return this.createResponse(
+            false,
+            'คุณมาเร็วหรือช้าเกินไปสำหรับเวลาทำงานล่วงเวลาที่ได้รับอนุมัติ',
+            { inPremises, address },
+          );
+        }
       } else {
-        return this.createResponse(
-          false,
-          'คุณมีการอนุมัติทำงานล่วงเวลาในวันหยุด แต่ไม่อยู่ในช่วงเวลาที่ได้รับอนุมัติ',
-          { inPremises, address },
-        );
+        // Handle check-out with missed check-in scenario
+        const missedOvertimeCheckIn =
+          !latestAttendance?.regularCheckInTime && isAfter(now, overtimeStart);
+
+        if (missedOvertimeCheckIn) {
+          return this.createResponse(
+            true,
+            'ระบบจะทำการลงเวลาเข้างานล่วงเวลาย้อนหลังให้ตามเวลาที่ได้รับอนุมัติ',
+            {
+              isOvertime: true,
+              isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+              isInsideShift: approvedOvertime.isInsideShiftHours,
+              inPremises,
+              address,
+              actualStartTime: overtimeStart,
+              requireConfirmation: true,
+              isAutoCheckIn: true,
+            },
+          );
+        }
+
+        // Handle normal check-out with late window allowance
+        if (now <= lateCheckOutWindow) {
+          return this.createResponse(
+            true,
+            'คุณกำลังลงเวลาออกจากการทำงานล่วงเวลาในวันหยุด',
+            {
+              isOvertime: true,
+              isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+              isInsideShift: approvedOvertime.isInsideShiftHours,
+              inPremises,
+              address,
+              actualEndTime: now <= overtimeEnd ? now : overtimeEnd,
+              plannedEndTime: overtimeEnd,
+            },
+          );
+        } else {
+          return this.createResponse(
+            false,
+            'เลยเวลาที่กำหนดสำหรับการลงเวลาออกจากการทำงานล่วงเวลา',
+            { inPremises, address },
+          );
+        }
       }
     } else if (dayOffOvertimeRequest?.status === 'pending') {
       return this.createResponse(
@@ -400,6 +456,7 @@ export class AttendanceService {
         },
       );
     }
+
     return this.createResponse(
       false,
       'วันหยุด: การลงเวลาจะต้องได้รับการอนุมัติ',
