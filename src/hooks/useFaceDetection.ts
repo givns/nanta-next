@@ -1,4 +1,3 @@
-// useFaceDetection.ts
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
@@ -17,33 +16,51 @@ export const useFaceDetection = (
   const [faceDetectionCount, setFaceDetectionCount] = useState(0);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load model once on mount
+  // Load model with fallback if WebGL fails
   useEffect(() => {
     let mounted = true;
 
     const setupModel = async () => {
-      try {
-        await tf.setBackend('webgl');
-        await tf.ready();
+      setMessage('กำลังเริ่มต้นระบบ...');
+      setIsModelLoading(true);
 
-        const detector = await faceDetection.createDetector(
-          faceDetection.SupportedModels.MediaPipeFaceDetector,
-          {
-            runtime: 'tfjs',
-            modelType: 'short',
-          },
-        );
+      const tryLoadModel = async (backend: 'webgl' | 'cpu') => {
+        try {
+          await tf.setBackend(backend);
+          await tf.ready();
 
-        if (mounted) {
-          setModel(detector);
-          setIsModelLoading(false);
-          setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
+          const detector = await faceDetection.createDetector(
+            faceDetection.SupportedModels.MediaPipeFaceDetector,
+            {
+              runtime: 'tfjs',
+              modelType: 'short',
+            },
+          );
+
+          if (mounted) {
+            setModel(detector);
+            setIsModelLoading(false);
+            setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
+          }
+        } catch (error) {
+          console.error(`Failed to load model with ${backend} backend:`, error);
+          if (backend === 'webgl' && mounted) {
+            setMessage('WebGL failed, retrying with CPU...');
+            await tryLoadModel('cpu');
+          } else {
+            setIsModelLoading(false);
+            setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
+          }
         }
-      } catch {
-        if (mounted) {
-          setIsModelLoading(false);
-          setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
-        }
+      };
+
+      if (tf.ENV.getBool('WEBGL_VERSION')) {
+        // Attempt to load with WebGL first if available
+        await tryLoadModel('webgl');
+      } else {
+        // Fallback to CPU if WebGL is not supported
+        setMessage('WebGL not supported, using CPU...');
+        await tryLoadModel('cpu');
       }
     };
 
@@ -64,8 +81,9 @@ export const useFaceDetection = (
 
       const img = new Image();
       img.src = imageSrc;
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image'));
       });
 
       const faces = await model.estimateFaces(img);
@@ -88,7 +106,8 @@ export const useFaceDetection = (
         setFaceDetectionCount(0);
         setMessage('ไม่พบใบหน้า กรุณาวางใบหน้าให้อยู่ในกรอบ');
       }
-    } catch {
+    } catch (error) {
+      console.error('Error during face detection:', error);
       stopDetection();
       setMessage('เกิดข้อผิดพลาดในการตรวจจับใบหน้า');
     }
