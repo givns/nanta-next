@@ -39,6 +39,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from '@/components/ui/use-toast';
 
 interface OvertimeRequest {
   id: string;
@@ -314,12 +315,19 @@ export default function OvertimeRequests() {
   const fetchOvertimeRequests = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api//overtime/existing-requests', {
-        headers: {
-          'x-line-userid': user?.lineUserId || '',
+      const response = await fetch(
+        `/api/admin/attendance/overtime-requests?status=${statusFilter}`,
+        {
+          headers: {
+            'x-line-userid': user?.lineUserId || '',
+          },
         },
-      });
-      if (!response.ok) throw new Error('Failed to fetch overtime requests');
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch overtime requests');
+      }
+
       const data = await response.json();
       setRequests(data);
     } catch (error) {
@@ -335,7 +343,7 @@ export default function OvertimeRequests() {
 
     try {
       setIsProcessing(true);
-      const response = await fetch('/api/admin/attendance/overtime', {
+      const response = await fetch('/api/admin/attendance/overtime-requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -343,24 +351,74 @@ export default function OvertimeRequests() {
         },
         body: JSON.stringify({
           requestIds,
-          approverId: user?.employeeId,
+          action: 'approve',
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to approve requests');
+      if (!response.ok) {
+        throw new Error('Failed to approve requests');
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Overtime requests approved successfully',
+      });
 
       await fetchOvertimeRequests();
       setSelectedRequests([]);
+      setShowDetailsDialog(false);
     } catch (error) {
       setError('Failed to process approval');
       console.error('Error:', error);
+
+      toast({
+        title: 'Error',
+        description: 'Failed to approve overtime requests',
+        variant: 'destructive',
+      });
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleReject = async (requestId: string) => {
-    // Implement rejection logic
+    try {
+      setIsProcessing(true);
+      const response = await fetch('/api/admin/attendance/overtime-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-line-userid': user?.lineUserId || '',
+        },
+        body: JSON.stringify({
+          requestIds: [requestId],
+          action: 'reject',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reject request');
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Overtime request rejected successfully',
+      });
+
+      await fetchOvertimeRequests();
+      setShowDetailsDialog(false);
+    } catch (error) {
+      setError('Failed to process rejection');
+      console.error('Error:', error);
+
+      toast({
+        title: 'Error',
+        description: 'Failed to reject overtime request',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleSelectAll = (checked: boolean) => {

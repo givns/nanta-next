@@ -32,6 +32,7 @@ import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { CalendarDays, Users, Clock, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/components/ui/use-toast';
 
 interface Department {
   id: string;
@@ -61,6 +62,7 @@ interface ShiftAdjustment {
 
 export default function ShiftAdjustmentDashboard() {
   const { user } = useAdmin();
+  const { toast } = useToast();
   const [showAdjustmentDialog, setShowAdjustmentDialog] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -93,7 +95,7 @@ export default function ShiftAdjustmentDashboard() {
           fetch('/api/departments', {
             headers: { 'x-line-userid': user?.lineUserId || '' },
           }),
-          fetch('/api/admin/shift-adjustments', {
+          fetch('/api/admin/shifts/adjustments', {
             headers: { 'x-line-userid': user?.lineUserId || '' },
           }),
         ]);
@@ -116,24 +118,26 @@ export default function ShiftAdjustmentDashboard() {
   const handleSubmit = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/adjust-shift', {
+      const response = await fetch('/api/admin/shifts/adjustments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-line-userid': user?.lineUserId || '',
         },
         body: JSON.stringify({
-          lineUserId: user?.lineUserId,
-          targetType,
-          adjustments:
-            targetType === 'department'
-              ? selectedDepartments.map((deptId) => ({
-                  department: deptId,
-                  shiftId: selectedShift,
-                }))
-              : [{ employeeId: searchTerm, shiftId: selectedShift }],
-          date: selectedDate,
-          reason,
+          action: 'create',
+          adjustments: {
+            targetType,
+            adjustments:
+              targetType === 'department'
+                ? selectedDepartments.map((deptId) => ({
+                    department: deptId,
+                    shiftId: selectedShift,
+                  }))
+                : [{ employeeId: searchTerm, shiftId: selectedShift }],
+            date: selectedDate.toISOString(),
+            reason,
+          },
         }),
       });
 
@@ -141,12 +145,57 @@ export default function ShiftAdjustmentDashboard() {
         throw new Error('Failed to submit adjustment');
       }
 
+      toast({
+        title: 'Success',
+        description: 'Shift adjustment created successfully',
+      });
+
       await fetchInitialData();
       setShowAdjustmentDialog(false);
       resetForm();
     } catch (error) {
       setError('Failed to submit shift adjustment');
       console.error('Error:', error);
+
+      toast({
+        title: 'Error',
+        description: 'Failed to create shift adjustment',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/admin/shifts/adjustments?id=${id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-line-userid': user?.lineUserId || '',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete adjustment');
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Shift adjustment deleted successfully',
+      });
+
+      await fetchInitialData();
+    } catch (error) {
+      setError('Failed to delete shift adjustment');
+      console.error('Error:', error);
+
+      toast({
+        title: 'Error',
+        description: 'Failed to delete shift adjustment',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
