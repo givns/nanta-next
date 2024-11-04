@@ -523,25 +523,29 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
     return (
       <div className="h-full flex flex-col justify-center items-center relative">
-        <div className="relative w-full max-w-md">
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            className="w-full rounded-lg"
-            videoConstraints={{
-              facingMode: 'user',
-              width: { ideal: 640 },
-              height: { ideal: 480 },
-            }}
-            onUserMedia={() => {
-              console.log('Webcam initialized');
-              resetDetection(); // Start detection when camera is ready
-            }}
-          />
-          {/* Only show face guide and progress if model is loaded */}
-          {!isModelLoading && (
-            <>
+        {isModelLoading ? (
+          <>
+            <SkeletonLoader />
+            <p className="mt-4">กำลังโหลดระบบตรวจจับใบหน้า...</p>
+          </>
+        ) : (
+          <>
+            <div className="relative w-full max-w-md">
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                className="w-full rounded-lg"
+                videoConstraints={{
+                  facingMode: 'user',
+                  width: { ideal: 640 },
+                  height: { ideal: 480 },
+                }}
+                onUserMedia={() => {
+                  console.log('Webcam initialized');
+                  resetDetection();
+                }}
+              />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div
                   className={`border-4 ${
@@ -549,32 +553,24 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                   } rounded-full w-48 h-48`}
                 />
               </div>
-              <div className="absolute inset-x-0 bottom-0 p-4">
-                <p className="text-center mb-2 text-white text-shadow-lg">
-                  {message || 'กรุณาวางใบหน้าให้อยู่ในกรอบ'}
-                </p>
-                {faceDetectionCount > 0 && (
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${(faceDetectionCount / captureThreshold) * 100}%`,
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-        {/* Show loading indicator separate from camera view */}
-        {isModelLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white p-4 rounded-lg">
-              <SkeletonLoader />
-              <p className="mt-2">กำลังโหลดระบบตรวจจับใบหน้า...</p>
             </div>
-          </div>
+            <p className="text-center mb-2 mt-4">{message}</p>
+            {faceDetectionCount > 0 && (
+              <div className="w-full max-w-md px-4">
+                <div className="bg-gray-200 h-2 rounded-full">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${(faceDetectionCount / captureThreshold) * 100}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-center text-sm mt-1">
+                  {faceDetectionCount} / {captureThreshold}
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
     );
