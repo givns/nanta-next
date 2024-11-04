@@ -75,13 +75,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    if (step === 'camera' && !isInitialized) {
-      console.log('Initializing camera step');
-      setIsInitialized(true);
-    }
-  }, [step, isInitialized]);
-
-  useEffect(() => {
     if (checkInOutAllowance !== null) {
       setIsActionButtonReady(true);
     }
@@ -207,18 +200,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     isModelLoading,
     faceDetected,
     faceDetectionCount,
-    photo,
     message,
     resetDetection,
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture);
-
-  useEffect(() => {
-    if (step === 'camera') {
-      // Reset the detection when camera view is shown
-      resetDetection();
-    }
-  }, [step, resetDetection]);
 
   // Add monitoring for critical state changes
   useEffect(() => {
@@ -349,14 +334,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setStep('camera');
   };
 
-  // Let the useEffect handle resetDetection for both check-in and check-out
-  useEffect(() => {
-    if (step === 'camera') {
-      console.log('Camera step entered, resetting detection');
-      resetDetection();
-    }
-  }, [step, resetDetection]);
-
   // Update handleAction to handle both cases consistently
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
@@ -394,6 +371,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     },
     [checkInOutAllowance, handleCheckIn, handleCheckOut],
   );
+
+  useEffect(() => {
+    if (step === 'camera') {
+      console.log('Camera step entered');
+      setIsInitialized(true);
+      resetDetection();
+    }
+    return () => {
+      if (step !== 'camera') {
+        setIsInitialized(false);
+      }
+    };
+  }, [step, resetDetection]);
 
   const validateCheckOutConditions = async (now: Date) => {
     // Calculate shift times
@@ -482,18 +472,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderStep2 = () => {
-    if (!isInitialized) {
-      return (
-        <div className="h-full flex flex-col justify-center items-center">
-          <SkeletonLoader />
-          <p>Initializing camera...</p>
-        </div>
-      );
-    }
+    console.log('Rendering camera step:', {
+      isInitialized,
+      isModelLoading,
+      hasWebcam: !!webcamRef.current,
+      faceDetectionCount,
+      message,
+    });
 
     return (
       <div className="h-full flex flex-col justify-center items-center relative">
-        {isModelLoading ? (
+        {!isInitialized ? (
+          <>
+            <SkeletonLoader />
+            <p className="mt-4">กำลังเริ่มต้นกล้อง...</p>
+          </>
+        ) : isModelLoading ? (
           <>
             <SkeletonLoader />
             <p className="mt-4">กำลังโหลดระบบตรวจจับใบหน้า...</p>
@@ -512,7 +506,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                   height: { ideal: 480 },
                 }}
                 onUserMedia={() => {
-                  console.log('Webcam initialized');
+                  console.log('Webcam stream started');
                   resetDetection();
                 }}
               />
@@ -520,7 +514,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 <div
                   className={`border-4 ${
                     faceDetected ? 'border-green-500' : 'border-blue-500'
-                  } rounded-full w-48 h-48`}
+                  } rounded-full w-48 h-48 transition-colors duration-300`}
                 />
               </div>
             </div>
