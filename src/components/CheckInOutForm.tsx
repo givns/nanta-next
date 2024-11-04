@@ -471,74 +471,50 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [memoizedUserShiftInfo, memoizedActionButton, timeRemaining],
   );
 
-  const renderStep2 = () => {
-    console.log('Rendering camera step:', {
-      isInitialized,
-      isModelLoading,
-      hasWebcam: !!webcamRef.current,
-      faceDetectionCount,
-      message,
-    });
-
-    return (
-      <div className="h-full flex flex-col justify-center items-center relative">
-        {!isInitialized ? (
-          <>
-            <SkeletonLoader />
-            <p className="mt-4">กำลังเริ่มต้นกล้อง...</p>
-          </>
-        ) : isModelLoading ? (
-          <>
-            <SkeletonLoader />
-            <p className="mt-4">กำลังโหลดระบบตรวจจับใบหน้า...</p>
-          </>
-        ) : (
-          <>
-            <div className="relative w-full max-w-md">
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                className="w-full rounded-lg"
-                videoConstraints={{
-                  facingMode: 'user',
-                  width: { ideal: 640 },
-                  height: { ideal: 480 },
-                }}
-                onUserMedia={() => {
-                  console.log('Webcam stream started');
-                  resetDetection();
-                }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+  const renderStep2 = () => (
+    <div className="h-full flex flex-col justify-center items-center relative">
+      {isModelLoading ? (
+        <>
+          <SkeletonLoader />
+          <p>กำลังโหลดระบบตรวจจับใบหน้า...</p>
+        </>
+      ) : (
+        <div className="relative w-full max-w-md">
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            className="w-full rounded-lg"
+            videoConstraints={{
+              facingMode: 'user',
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+            }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div
+              className={`border-4 ${
+                faceDetected ? 'border-green-500' : 'border-blue-500'
+              } rounded-full w-48 h-48`}
+            ></div>
+          </div>
+          <p className="text-center mt-4">{message}</p>
+          {faceDetectionCount > 0 && (
+            <div className="w-full px-4 mt-2">
+              <div className="bg-gray-200 h-2 rounded-full">
                 <div
-                  className={`border-4 ${
-                    faceDetected ? 'border-green-500' : 'border-blue-500'
-                  } rounded-full w-48 h-48 transition-colors duration-300`}
+                  className="bg-blue-500 h-2 rounded-full transition-all"
+                  style={{
+                    width: `${(faceDetectionCount / captureThreshold) * 100}%`,
+                  }}
                 />
               </div>
             </div>
-            <p className="text-center mb-2 mt-4">{message}</p>
-            {faceDetectionCount > 0 && (
-              <div className="w-full max-w-md px-4">
-                <div className="bg-gray-200 h-2 rounded-full">
-                  <div
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                    style={{
-                      width: `${(faceDetectionCount / captureThreshold) * 100}%`,
-                    }}
-                  />
-                </div>
-                <p className="text-center text-sm mt-1">
-                  {faceDetectionCount} / {captureThreshold}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    );
-  };
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   const renderStep3 = useCallback(
     () => (

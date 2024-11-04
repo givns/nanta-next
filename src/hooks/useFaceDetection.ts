@@ -11,63 +11,40 @@ export const useFaceDetection = (
 ) => {
   const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
-  const [modelLoadStarted, setModelLoadStarted] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
-  const [message, setMessage] = useState<string>('กำลังเริ่มต้นระบบ...');
+  const [message, setMessage] = useState<string>('');
   const webcamRef = useRef<Webcam>(null);
-  const faceDetectionCount = useRef(0);
-  const [faceDetectionCountState, setFaceDetectionCountState] = useState(0);
+  const [faceDetectionCount, setFaceDetectionCount] = useState(0);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Single model initialization effect
+  // Load model once on mount
   useEffect(() => {
-    if (!modelLoadStarted) {
-      console.log('Starting model initialization');
-      setModelLoadStarted(true);
+    const setupModel = async () => {
+      try {
+        await tf.setBackend('webgl');
+        await tf.ready();
 
-      const loadModel = async () => {
-        try {
-          console.log('Initializing TensorFlow...');
-          await tf.ready();
-          console.log('TF ready, current backend:', tf.getBackend());
+        const detector = await faceDetection.createDetector(
+          faceDetection.SupportedModels.MediaPipeFaceDetector,
+          {
+            runtime: 'tfjs',
+            modelType: 'short',
+          },
+        );
 
-          const loadedModel = await faceDetection.createDetector(
-            faceDetection.SupportedModels.MediaPipeFaceDetector,
-            {
-              runtime: 'tfjs',
-              modelType: 'short',
-              maxFaces: 1,
-            },
-          );
-
-          console.log('Face detection model loaded successfully');
-          setModel(loadedModel);
-          setIsModelLoading(false);
-          setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
-        } catch (error) {
-          console.error('Model load error:', error);
-          setIsModelLoading(false);
-          setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
-        }
-      };
-
-      loadModel();
-    }
-  }, [modelLoadStarted]);
-
-  const capturePhoto = useCallback(() => {
-    if (!webcamRef.current) return null;
-
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (imageSrc) {
-      onPhotoCapture(imageSrc);
-      if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
+        setModel(detector);
+        setIsModelLoading(false);
+        setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
+      } catch {
+        setIsModelLoading(false);
+        setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
       }
-    }
-    return imageSrc;
-  }, [onPhotoCapture]);
+    };
 
+    setupModel();
+  }, []);
+
+  // Face detection function
   const detectFace = useCallback(async () => {
     if (!webcamRef.current || !model) return;
 
@@ -81,39 +58,41 @@ export const useFaceDetection = (
         img.onload = resolve;
       });
 
-      const detections = await model.estimateFaces(img, {
-        flipHorizontal: false,
-      });
+      const faces = await model.estimateFaces(img);
 
-      if (detections.length > 0) {
+      if (faces.length > 0) {
         setFaceDetected(true);
-        faceDetectionCount.current += 1;
-        setFaceDetectionCountState(faceDetectionCount.current);
-        setMessage('ตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...');
-
-        if (faceDetectionCount.current >= captureThreshold) {
-          capturePhoto();
-          setMessage('บันทึกภาพสำเร็จ');
-        }
+        setFaceDetectionCount((prev) => {
+          const newCount = prev + 1;
+          if (newCount >= captureThreshold) {
+            onPhotoCapture(imageSrc);
+            stopDetection();
+            setMessage('บันทึกภาพสำเร็จ');
+            return captureThreshold;
+          }
+          setMessage('ตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...');
+          return newCount;
+        });
       } else {
         setFaceDetected(false);
-        faceDetectionCount.current = 0;
-        setFaceDetectionCountState(0);
+        setFaceDetectionCount(0);
         setMessage('ไม่พบใบหน้า กรุณาวางใบหน้าให้อยู่ในกรอบ');
       }
-    } catch (error) {
-      console.error('Face detection error:', error);
+    } catch {
+      stopDetection();
+      setMessage('เกิดข้อผิดพลาดในการตรวจจับใบหน้า');
     }
-  }, [model, captureThreshold, capturePhoto]);
+  }, [model, captureThreshold, onPhotoCapture]);
 
+  // Start detection
   const startDetection = useCallback(() => {
-    console.log('Starting face detection');
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
     }
     detectionIntervalRef.current = setInterval(detectFace, 500);
   }, [detectFace]);
 
+  // Stop detection
   const stopDetection = useCallback(() => {
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
@@ -121,16 +100,15 @@ export const useFaceDetection = (
     }
   }, []);
 
+  // Reset detection
   const resetDetection = useCallback(() => {
-    console.log('Resetting detection');
-    faceDetectionCount.current = 0;
-    setFaceDetectionCountState(0);
+    setFaceDetectionCount(0);
     setFaceDetected(false);
     stopDetection();
     startDetection();
   }, [startDetection, stopDetection]);
 
-  // Start/stop detection based on model availability
+  // Start/stop detection when model is ready
   useEffect(() => {
     if (model && !isModelLoading) {
       startDetection();
@@ -142,7 +120,7 @@ export const useFaceDetection = (
     webcamRef,
     isModelLoading,
     faceDetected,
-    faceDetectionCount: faceDetectionCountState,
+    faceDetectionCount,
     message,
     resetDetection,
     captureThreshold,
