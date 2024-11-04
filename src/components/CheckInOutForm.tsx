@@ -476,7 +476,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       {isModelLoading ? (
         <>
           <SkeletonLoader />
-          <p>กำลังโหลดระบบตรวจจับใบหน้า...</p>
+          <p className="mt-4">กำลังโหลดระบบตรวจจับใบหน้า...</p>
         </>
       ) : (
         <div className="relative w-full max-w-md">
@@ -495,22 +495,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             <div
               className={`border-4 ${
                 faceDetected ? 'border-green-500' : 'border-blue-500'
-              } rounded-full w-48 h-48`}
+              } rounded-full w-48 h-48 transition-colors duration-300`}
             ></div>
           </div>
-          <p className="text-center mt-4">{message}</p>
-          {faceDetectionCount > 0 && (
-            <div className="w-full px-4 mt-2">
-              <div className="bg-gray-200 h-2 rounded-full">
+          <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
+            <p className="text-white text-shadow-lg mb-2">{message}</p>
+            {faceDetectionCount > 0 && (
+              <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-blue-500 h-2 rounded-full transition-all"
+                  className="bg-blue-500 h-full rounded-full transition-all duration-300"
                   style={{
                     width: `${(faceDetectionCount / captureThreshold) * 100}%`,
                   }}
                 />
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -535,7 +535,30 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
         )}
         <div className="flex-grow overflow-hidden flex flex-col">
-          {step === 'info' && renderStep1}
+          {step === 'info' && (
+            <div className="flex flex-col h-full">
+              <ErrorBoundary>
+                <UserShiftInfo
+                  userData={userData}
+                  attendanceStatus={liveAttendanceStatus}
+                  effectiveShift={effectiveShift}
+                />
+              </ErrorBoundary>
+              <div className="flex-shrink-0 mt-4">
+                <ActionButton
+                  isLoading={isAttendanceLoading}
+                  isActionButtonReady={isActionButtonReady}
+                  checkInOutAllowance={checkInOutAllowance}
+                  isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
+                  isDayOff={currentAttendanceStatus?.isDayOff ?? false}
+                  onAction={handleAction}
+                />
+                <p className="text-center mt-2">
+                  ท่านมีเวลาในการทำรายการ {timeRemaining} วินาที
+                </p>
+              </div>
+            </div>
+          )}
           {step === 'camera' && renderStep2()}
           {step === 'processing' && renderStep3()}
         </div>
@@ -549,39 +572,20 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <LateReasonModal
           isOpen={isLateModalOpen}
           onClose={() => {
-            console.log('Late reason modal closing');
             setIsLateModalOpen(false);
-            resetStates();
+            setIsSubmitting(false);
+            setCapturedPhoto(null);
           }}
           onSubmit={(lateReason) => {
-            console.log('Submitting with late reason:', {
-              lateReason,
-              hasPhoto: !!capturedPhoto,
-            });
-            setIsLateModalOpen(false);
             if (capturedPhoto) {
               submitCheckInOut(capturedPhoto, lateReason);
-            } else {
-              console.error('No photo available for late reason submission');
-              setError('Photo capture failed. Please try again.');
             }
+            setIsLateModalOpen(false);
           }}
         />
       </div>
     </ErrorBoundary>
   );
-
-  if (error) {
-    return (
-      <div
-        className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
-        role="alert"
-      >
-        <strong className="font-bold">Error:</strong>
-        <span className="block sm:inline"> {error}</span>
-      </div>
-    );
-  }
 
   return content;
 };
