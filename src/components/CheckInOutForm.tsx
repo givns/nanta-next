@@ -176,35 +176,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     async (photo: string) => {
       if (isSubmitting) return;
 
-      // Store the photo first
       setCapturedPhoto(photo);
-
-      // Check if this is a late check-in that needs a reason
       const isLate = checkInOutAllowance?.isLateCheckIn || false;
 
       if (isLate && isCheckingIn) {
-        console.log('Opening late reason modal after photo capture');
         setIsLateModalOpen(true);
-        return; // Don't proceed with submitCheckInOut yet
+        return;
       }
 
-      // If not late or not checking in, proceed with submission
       try {
-        console.log('Proceeding with normal submission');
         await submitCheckInOut(photo);
       } catch (error) {
         console.error('Error processing photo:', error);
         setError('An error occurred. Please try again.');
       }
     },
-    [
-      isSubmitting,
-      submitCheckInOut,
-      checkInOutAllowance,
-      isCheckingIn,
-      step,
-      isLateModalOpen,
-    ],
+    [isSubmitting, submitCheckInOut, checkInOutAllowance, isCheckingIn],
   );
 
   const {
@@ -344,8 +331,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   useEffect(() => {
     if (step === 'camera') {
-      resetDetection(); // Reset detection when entering camera step
+      resetDetection();
     }
+    return () => {
+      // Cleanup camera resources when leaving camera step
+      if (webcamRef.current && webcamRef.current.stream) {
+        const tracks = webcamRef.current.stream.getTracks();
+        tracks.forEach((track) => track.stop());
+      }
+    };
   }, [step, resetDetection]);
 
   // Add useEffect to monitor checkInOutAllowance changes
@@ -520,53 +514,71 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [memoizedUserShiftInfo, memoizedActionButton, timeRemaining],
   );
 
-  const renderStep2 = () => (
-    <div className="h-full flex flex-col justify-center items-center relative">
-      {isModelLoading ? (
-        <>
-          <SkeletonLoader />
-          <p>Loading face detection model...</p>
-        </>
-      ) : (
-        <>
-          <div className="relative w-full max-w-md">
-            <Webcam
-              audio={false}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              className="w-full rounded-lg"
-              videoConstraints={{
-                facingMode: 'user',
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-              }}
-            />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div
-                className={`border-4 ${faceDetected ? 'border-green-500' : 'border-blue-500'} rounded-full w-48 h-48`}
-              ></div>
-            </div>
-          </div>
-          <p className="text-center mb-2 mt-4">{message}</p>
-          {faceDetectionCount > 0 && (
-            <div className="w-full max-w-md px-4">
-              <div className="bg-gray-200 h-2 rounded-full">
+  const renderStep2 = () => {
+    console.log('Camera render state:', {
+      modelLoading: isModelLoading,
+      webcamReady: !!webcamRef.current,
+      detectionCount: faceDetectionCount,
+    });
+
+    return (
+      <div className="h-full flex flex-col justify-center items-center relative">
+        <div className="relative w-full max-w-md">
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            className="w-full rounded-lg"
+            videoConstraints={{
+              facingMode: 'user',
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+            }}
+            onUserMedia={() => {
+              console.log('Webcam initialized');
+              resetDetection(); // Start detection when camera is ready
+            }}
+          />
+          {/* Only show face guide and progress if model is loaded */}
+          {!isModelLoading && (
+            <>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${(faceDetectionCount / captureThreshold) * 100}%`,
-                  }}
+                  className={`border-4 ${
+                    faceDetected ? 'border-green-500' : 'border-blue-500'
+                  } rounded-full w-48 h-48`}
                 />
               </div>
-              <p className="text-center text-sm mt-1">
-                {faceDetectionCount} / {captureThreshold}
-              </p>
-            </div>
+              <div className="absolute inset-x-0 bottom-0 p-4">
+                <p className="text-center mb-2 text-white text-shadow-lg">
+                  {message || 'กรุณาวางใบหน้าให้อยู่ในกรอบ'}
+                </p>
+                {faceDetectionCount > 0 && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${(faceDetectionCount / captureThreshold) * 100}%`,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </>
           )}
-        </>
-      )}
-    </div>
-  );
+        </div>
+        {/* Show loading indicator separate from camera view */}
+        {isModelLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white p-4 rounded-lg">
+              <SkeletonLoader />
+              <p className="mt-2">กำลังโหลดระบบตรวจจับใบหน้า...</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderStep3 = useCallback(
     () => (
