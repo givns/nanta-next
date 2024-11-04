@@ -19,6 +19,8 @@ export const useFaceDetection = (
 
   // Load model once on mount
   useEffect(() => {
+    let mounted = true;
+
     const setupModel = async () => {
       try {
         await tf.setBackend('webgl');
@@ -32,19 +34,27 @@ export const useFaceDetection = (
           },
         );
 
-        setModel(detector);
-        setIsModelLoading(false);
-        setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
+        if (mounted) {
+          setModel(detector);
+          setIsModelLoading(false);
+          setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
+        }
       } catch {
-        setIsModelLoading(false);
-        setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
+        if (mounted) {
+          setIsModelLoading(false);
+          setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
+        }
       }
     };
 
     setupModel();
+
+    return () => {
+      mounted = false;
+      tf.engine().reset();
+    };
   }, []);
 
-  // Face detection function
   const detectFace = useCallback(async () => {
     if (!webcamRef.current || !model) return;
 
@@ -54,8 +64,8 @@ export const useFaceDetection = (
 
       const img = new Image();
       img.src = imageSrc;
-      await new Promise((resolve) => {
-        img.onload = resolve;
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve();
       });
 
       const faces = await model.estimateFaces(img);
@@ -84,15 +94,11 @@ export const useFaceDetection = (
     }
   }, [model, captureThreshold, onPhotoCapture]);
 
-  // Start detection
   const startDetection = useCallback(() => {
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
-    }
+    stopDetection();
     detectionIntervalRef.current = setInterval(detectFace, 500);
   }, [detectFace]);
 
-  // Stop detection
   const stopDetection = useCallback(() => {
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
@@ -100,7 +106,6 @@ export const useFaceDetection = (
     }
   }, []);
 
-  // Reset detection
   const resetDetection = useCallback(() => {
     setFaceDetectionCount(0);
     setFaceDetected(false);
@@ -108,13 +113,23 @@ export const useFaceDetection = (
     startDetection();
   }, [startDetection, stopDetection]);
 
-  // Start/stop detection when model is ready
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopDetection();
+      if (webcamRef.current?.stream) {
+        const tracks = webcamRef.current.stream.getTracks();
+        tracks.forEach((track) => track.stop());
+      }
+    };
+  }, [stopDetection]);
+
+  // Start detection when model is ready
   useEffect(() => {
     if (model && !isModelLoading) {
       startDetection();
     }
-    return () => stopDetection();
-  }, [model, isModelLoading, startDetection, stopDetection]);
+  }, [model, isModelLoading, startDetection]);
 
   return {
     webcamRef,
