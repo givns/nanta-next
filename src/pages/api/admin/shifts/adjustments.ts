@@ -1,19 +1,35 @@
-// pages/api/admin/shifts/adjustments.ts
+// pages/api/admin/attendance/overtime-requests.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { createNotificationService } from '@/services/NotificationService';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
+import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
+import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { HolidayService } from '@/services/HolidayService';
-import { format } from 'date-fns';
-import { th } from 'date-fns/locale';
+import { ShiftManagementService } from '@/services/ShiftManagementService';
+import { TimeEntryService } from '@/services/TimeEntryService';
 
 const prisma = new PrismaClient();
 const notificationService = createNotificationService(prisma);
+const leaveServiceServer = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
 const holidayService = new HolidayService(prisma);
-const shiftManagementService = new ShiftManagementService(
+const shiftService = new ShiftManagementService(prisma, holidayService);
+const timeEntryService = new TimeEntryService(
+  prisma,
+  shiftService,
+  notificationService,
+);
+
+const overtimeService = new OvertimeServiceServer(
   prisma,
   holidayService,
+  leaveServiceServer,
+  shiftService,
+  timeEntryService,
+  notificationService,
 );
 
 export default async function handler(
@@ -36,9 +52,10 @@ export default async function handler(
       return res.status(404).json({ message: 'User not found' });
     }
 
+    let result;
     switch (method) {
-      case 'GET':
-        const adjustments = await prisma.shiftAdjustmentRequest.findMany({
+      case 'GET': {
+        result = await prisma.overtimeRequest.findMany({
           where: {
             status: (req.query.status as string) || undefined,
           },
@@ -48,168 +65,104 @@ export default async function handler(
                 name: true,
                 departmentName: true,
                 employeeId: true,
-                lineUserId: true,
               },
             },
-            requestedShift: true,
           },
           orderBy: {
-            date: 'desc',
+            createdAt: 'desc',
           },
         });
 
-        return res.status(200).json(adjustments);
+        const transformedRequests = result.map((request) => ({
+          id: request.id,
+          employeeId: request.employeeId,
+          name: request.user.name,
+          department: request.user.departmentName,
+          date: request.date,
+          startTime: request.startTime,
+          endTime: request.endTime,
+          duration: calculateDuration(request.startTime, request.endTime),
+          reason: request.reason || '',
+          status: request.status,
+          isDayOffOvertime: request.isDayOffOvertime,
+          approverId: request.approverId,
+        }));
 
-      case 'POST':
-        const { action, adjustments: adjustmentData } = req.body;
+        return res.status(200).json(transformedRequests);
+      }
 
-        if (action === 'create') {
-          const { targetType, adjustments, date, reason } = adjustmentData;
+      case 'POST': {
+        const { requestIds, action } = req.body;
 
-          const results = await prisma.$transaction(async (prisma) => {
-            const created = [];
+        if (action === 'approve') {
+          result = await overtimeService.batchApproveOvertimeRequests(
+            requestIds,
+            user.employeeId,
+          );
+          return res.status(200).json({
+            message: 'Requests approved successfully',
+            results: result,
+          });
+        }
 
-            if (targetType === 'department') {
-              for (const adjustment of adjustments) {
-                const { department, shiftId } = adjustment;
-                const users = await prisma.user.findMany({
-                  where: { departmentId: department },
-                });
-
-                for (const user of users) {
-                  const shiftAdjustment =
-                    await prisma.shiftAdjustmentRequest.create({
-                      data: {
-                        employeeId: user.employeeId,
-                        requestedShiftId: shiftId,
-                        date: new Date(date),
-                        reason,
-                        status: 'approved',
-                      },
-                      include: {
-                        requestedShift: true,
-                        user: true,
-                      },
-                    });
-                  created.push(shiftAdjustment);
-
-                  // Send notification to user
-                  if (user.lineUserId) {
-                    const shift = shiftAdjustment.requestedShift;
-                    const message = `แจ้งเตือน: การเปลี่ยนแปลงเวลาทำงาน
-                      วันที่: ${format(new Date(date), 'dd MMMM yyyy', { locale: th })}
-                      เวลาทำงาน: ${shift.name}
-                      เวลา: ${shift.startTime} - ${shift.endTime}
-                      เหตุผล: ${reason}`;
-
-                    await notificationService.sendNotification(
-                      user.employeeId,
-                      user.lineUserId,
-                      message,
-                      'shift',
-                    );
-                  }
-                }
-              }
-            } else {
-              // Individual adjustment
-              for (const adjustment of adjustments) {
-                const { employeeId, shiftId } = adjustment;
-                const targetUser = await prisma.user.findUnique({
-                  where: { employeeId },
-                });
-
-                if (targetUser) {
-                  const shiftAdjustment =
-                    await prisma.shiftAdjustmentRequest.create({
-                      data: {
-                        employeeId,
-                        requestedShiftId: shiftId,
-                        date: new Date(date),
-                        reason,
-                        status: 'approved',
-                      },
-                      include: {
-                        requestedShift: true,
-                        user: true,
-                      },
-                    });
-                  created.push(shiftAdjustment);
-
-                  // Send notification
-                  if (targetUser.lineUserId) {
-                    const shift = shiftAdjustment.requestedShift;
-                    const message = `แจ้งเตือน: การเปลี่ยนแปลงเวลาทำงาน
-                      วันที่: ${format(new Date(date), 'dd MMMM yyyy', { locale: th })}
-                      เวลาทำงาน: ${shift.name}
-                      เวลา: ${shift.startTime} - ${shift.endTime}
-                      เหตุผล: ${reason}`;
-
-                    await notificationService.sendNotification(
-                      employeeId,
-                      targetUser.lineUserId,
-                      message,
-                      'shift',
-                    );
-                  }
-                }
-              }
-            }
-
-            // Notify admins
-            const admins = await prisma.user.findMany({
-              where: {
-                role: {
-                  in: ['Admin', 'SuperAdmin'],
+        if (action === 'reject') {
+          result = await Promise.all(
+            requestIds.map(async (id: string) => {
+              const request = await prisma.overtimeRequest.update({
+                where: { id },
+                data: {
+                  status: 'rejected',
+                  approverId: user.employeeId,
                 },
-                NOT: {
-                  id: user.id,
+                include: {
+                  user: true,
                 },
-              },
-            });
+              });
 
-            for (const admin of admins) {
-              if (admin.lineUserId) {
-                const message = `แจ้งเตือน: มีการเปลี่ยนแปลงเวลาทำงาน
-                  ผู้ดำเนินการ: ${user.name}
-                  วันที่: ${format(new Date(date), 'dd MMMM yyyy', { locale: th })}
-                  จำนวนผู้ได้รับการปรับเวลาการทำงาน: ${created.length} คน
-                  เหตุผล: ${reason}`;
-
-                await notificationService.sendNotification(
-                  admin.employeeId,
-                  admin.lineUserId,
-                  message,
-                  'shift',
+              if (request.user.lineUserId) {
+                await notificationService.sendOvertimeResponseNotification(
+                  request.employeeId,
+                  request.user.lineUserId,
+                  request,
                 );
               }
-            }
 
-            return created;
+              return request;
+            }),
+          );
+
+          return res.status(200).json({
+            message: 'Requests rejected successfully',
+            results: result,
           });
-
-          return res.status(200).json(results);
         }
 
         return res.status(400).json({ message: 'Invalid action' });
-
-      case 'DELETE':
-        const { id } = req.query;
-
-        const deleted = await prisma.shiftAdjustmentRequest.delete({
-          where: { id: id as string },
-        });
-
-        return res.status(200).json(deleted);
+      }
 
       default:
-        res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+        res.setHeader('Allow', ['GET', 'POST']);
         return res
           .status(405)
           .json({ message: `Method ${method} Not Allowed` });
     }
   } catch (error) {
-    console.error('Error processing shift adjustment:', error);
+    console.error('Error processing overtime request:', error);
     return res.status(500).json({ message: 'Internal server error', error });
   }
+}
+
+function calculateDuration(startTime: string, endTime: string): number {
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+
+  let hours = endHour - startHour;
+  let minutes = endMinute - startMinute;
+
+  if (minutes < 0) {
+    hours -= 1;
+    minutes += 60;
+  }
+
+  return Number((hours + minutes / 60).toFixed(1));
 }

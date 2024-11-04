@@ -52,11 +52,11 @@ export default async function handler(
       return res.status(404).json({ message: 'User not found' });
     }
 
+    let result;
     switch (method) {
-      case 'GET':
-        const requests = await prisma.overtimeRequest.findMany({
+      case 'GET': {
+        result = await prisma.overtimeRequest.findMany({
           where: {
-            // Filter based on query parameters if needed
             status: (req.query.status as string) || undefined,
           },
           include: {
@@ -73,8 +73,7 @@ export default async function handler(
           },
         });
 
-        // Transform the data to match the frontend interface
-        const transformedRequests = requests.map((request) => ({
+        const transformedRequests = result.map((request) => ({
           id: request.id,
           employeeId: request.employeeId,
           name: request.user.name,
@@ -90,23 +89,24 @@ export default async function handler(
         }));
 
         return res.status(200).json(transformedRequests);
+      }
 
-      case 'POST':
+      case 'POST': {
         const { requestIds, action } = req.body;
 
         if (action === 'approve') {
-          const results = await overtimeService.batchApproveOvertimeRequests(
+          result = await overtimeService.batchApproveOvertimeRequests(
             requestIds,
             user.employeeId,
           );
-          return res
-            .status(200)
-            .json({ message: 'Requests approved successfully', results });
+          return res.status(200).json({
+            message: 'Requests approved successfully',
+            results: result,
+          });
         }
 
         if (action === 'reject') {
-          // Handle rejection logic here
-          const results = await Promise.all(
+          result = await Promise.all(
             requestIds.map(async (id: string) => {
               const request = await prisma.overtimeRequest.update({
                 where: { id },
@@ -119,7 +119,6 @@ export default async function handler(
                 },
               });
 
-              // Send notification to employee
               if (request.user.lineUserId) {
                 await notificationService.sendOvertimeResponseNotification(
                   request.employeeId,
@@ -132,12 +131,14 @@ export default async function handler(
             }),
           );
 
-          return res
-            .status(200)
-            .json({ message: 'Requests rejected successfully', results });
+          return res.status(200).json({
+            message: 'Requests rejected successfully',
+            results: result,
+          });
         }
 
         return res.status(400).json({ message: 'Invalid action' });
+      }
 
       default:
         res.setHeader('Allow', ['GET', 'POST']);

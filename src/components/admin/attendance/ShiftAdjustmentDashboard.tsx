@@ -28,9 +28,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { CalendarDays, Users, Clock, AlertCircle } from 'lucide-react';
+import {
+  CalendarDays,
+  Users,
+  Clock,
+  AlertCircle,
+  Search,
+  Loader2,
+} from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -51,11 +58,12 @@ interface Shift {
 interface ShiftAdjustment {
   id: string;
   employeeId: string;
-  employeeName: string;
-  department: string;
-  currentShift: Shift;
+  user: {
+    name: string;
+    departmentName: string;
+  };
   requestedShift: Shift;
-  date: Date;
+  date: string;
   reason: string;
   status: 'approved' | 'pending' | 'rejected';
 }
@@ -209,33 +217,24 @@ export default function ShiftAdjustmentDashboard() {
     setReason('');
   };
 
-  // Mobile card component
   const AdjustmentCard = ({ adjustment }: { adjustment: ShiftAdjustment }) => (
     <Card className="mb-4 md:hidden">
       <CardContent className="p-4">
         <div className="flex justify-between items-start">
           <div>
-            <div className="font-medium">{adjustment.employeeName}</div>
-            <div className="text-sm text-gray-500">{adjustment.department}</div>
+            <div className="font-medium">{adjustment.user.name}</div>
+            <div className="text-sm text-gray-500">
+              {adjustment.user.departmentName}
+            </div>
           </div>
-          <Badge
-            variant={
-              adjustment.status === 'approved'
-                ? 'success'
-                : adjustment.status === 'rejected'
-                  ? 'destructive'
-                  : 'default'
-            }
-          >
-            {adjustment.status}
-          </Badge>
+          <StatusBadge status={adjustment.status} />
         </div>
 
         <div className="mt-4 space-y-2">
           <div className="flex items-center text-sm">
             <CalendarDays className="h-4 w-4 mr-2" />
             <span>
-              {format(adjustment.date, 'dd MMM yyyy', { locale: th })}
+              {format(new Date(adjustment.date), 'dd MMM yyyy', { locale: th })}
             </span>
           </div>
           <div className="flex items-center text-sm">
@@ -251,18 +250,29 @@ export default function ShiftAdjustmentDashboard() {
           <div className="text-sm text-gray-500">Reason:</div>
           <p className="text-sm mt-1">{adjustment.reason}</p>
         </div>
+
+        <div className="mt-4 flex justify-end space-x-2">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => handleDelete(adjustment.id)}
+            disabled={isLoading}
+          >
+            Delete
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
 
-  // Filter section
+  // Filter section component
   const FilterSection = () => (
     <div className="space-y-4 mb-6">
       <div className="flex flex-col md:flex-row gap-4">
         <Select
           value={targetType}
-          onValueChange={(type) =>
-            setTargetType(type as 'department' | 'individual')
+          onValueChange={(value) =>
+            setTargetType(value as 'department' | 'individual')
           }
         >
           <SelectTrigger className="w-full md:w-[200px]">
@@ -274,73 +284,87 @@ export default function ShiftAdjustmentDashboard() {
           </SelectContent>
         </Select>
 
-        <div className="flex-1">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
           <Input
-            placeholder={
-              targetType === 'individual'
-                ? 'Search by Employee ID...'
-                : 'Search...'
-            }
+            placeholder="Search..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
           />
         </div>
       </div>
     </div>
   );
 
-  // Desktop table
+  // Desktop table component
   const DesktopTable = () => (
-    <div className="hidden md:block">
+    <div className="hidden md:block overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Employee/Department</TableHead>
             <TableHead>Date</TableHead>
-            <TableHead>Current Shift</TableHead>
-            <TableHead>New Shift</TableHead>
+            <TableHead>Shift</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Reason</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {adjustments.map((adjustment) => (
-            <TableRow key={adjustment.id}>
-              <TableCell>
-                <div>
-                  <div className="font-medium">{adjustment.employeeName}</div>
-                  <div className="text-sm text-gray-500">
-                    {adjustment.department}
+          {adjustments
+            .filter((adjustment) =>
+              searchTerm
+                ? adjustment.user.name
+                    .toLowerCase()
+                    .includes(searchTerm.toLowerCase()) ||
+                  adjustment.user.departmentName
+                    .toLowerCase()
+                    .includes(searchTerm.toLowerCase())
+                : true,
+            )
+            .map((adjustment) => (
+              <TableRow key={adjustment.id}>
+                <TableCell>
+                  <div>
+                    <div className="font-medium">{adjustment.user.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {adjustment.user.departmentName}
+                    </div>
                   </div>
-                </div>
-              </TableCell>
-              <TableCell>
-                {format(adjustment.date, 'dd MMM yyyy', { locale: th })}
-              </TableCell>
-              <TableCell>
-                {`${adjustment.currentShift.name} (${adjustment.currentShift.startTime} - ${adjustment.currentShift.endTime})`}
-              </TableCell>
-              <TableCell>
-                {`${adjustment.requestedShift.name} (${adjustment.requestedShift.startTime} - ${adjustment.requestedShift.endTime})`}
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant={
-                    adjustment.status === 'approved'
-                      ? 'success'
-                      : adjustment.status === 'rejected'
-                        ? 'destructive'
-                        : 'default'
-                  }
-                >
-                  {adjustment.status}
-                </Badge>
-              </TableCell>
-              <TableCell className="max-w-[200px] truncate">
-                {adjustment.reason}
-              </TableCell>
-            </TableRow>
-          ))}
+                </TableCell>
+                <TableCell>
+                  {format(new Date(adjustment.date), 'dd MMM yyyy', {
+                    locale: th,
+                  })}
+                </TableCell>
+                <TableCell>
+                  <div>
+                    <div>{adjustment.requestedShift.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {adjustment.requestedShift.startTime} -{' '}
+                      {adjustment.requestedShift.endTime}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={adjustment.status} />
+                </TableCell>
+                <TableCell className="max-w-[200px] truncate">
+                  {adjustment.reason}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(adjustment.id)}
+                    disabled={isLoading}
+                  >
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
         </TableBody>
       </Table>
     </div>
@@ -366,15 +390,46 @@ export default function ShiftAdjustmentDashboard() {
 
         <FilterSection />
 
-        {/* Mobile View */}
-        <div className="md:hidden">
-          {adjustments.map((adjustment) => (
-            <AdjustmentCard key={adjustment.id} adjustment={adjustment} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+          </div>
+        ) : (
+          <>
+            {/* Mobile View */}
+            <div className="md:hidden">
+              {adjustments
+                .filter((adjustment) =>
+                  searchTerm
+                    ? adjustment.user.name
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase()) ||
+                      adjustment.user.departmentName
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase())
+                    : true,
+                )
+                .map((adjustment) => (
+                  <AdjustmentCard key={adjustment.id} adjustment={adjustment} />
+                ))}
+            </div>
 
-        {/* Desktop View */}
-        <DesktopTable />
+            {/* Desktop View */}
+            <DesktopTable />
+
+            {adjustments.length === 0 && !isLoading && (
+              <div className="text-center py-8">
+                <Users className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                  No adjustments
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Get started by creating a new shift adjustment
+                </p>
+              </div>
+            )}
+          </>
+        )}
 
         {/* New Adjustment Dialog */}
         <Dialog
@@ -474,6 +529,7 @@ export default function ShiftAdjustmentDashboard() {
               <Button
                 variant="outline"
                 onClick={() => setShowAdjustmentDialog(false)}
+                disabled={isLoading}
               >
                 Cancel
               </Button>
@@ -481,7 +537,14 @@ export default function ShiftAdjustmentDashboard() {
                 onClick={handleSubmit}
                 disabled={isLoading || !selectedShift || !reason}
               >
-                {isLoading ? 'Submitting...' : 'Submit Adjustment'}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Adjustment'
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -490,3 +553,17 @@ export default function ShiftAdjustmentDashboard() {
     </Card>
   );
 }
+
+const StatusBadge = ({ status }: { status: string }) => {
+  const styles = {
+    pending: 'bg-yellow-100 text-yellow-800',
+    approved: 'bg-green-100 text-green-800',
+    rejected: 'bg-red-100 text-red-800',
+  };
+
+  return (
+    <Badge className={styles[status as keyof typeof styles]}>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </Badge>
+  );
+};
