@@ -18,19 +18,31 @@ export const useFaceDetection = (
   const faceDetectionCount = useRef(0);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [faceDetectionCountState, setFaceDetectionCountState] = useState(0);
+  const [modelLoadStarted, setModelLoadStarted] = useState(false);
 
   useEffect(() => {
-    const loadModel = async () => {
-      await tf.ready();
-      const loadedModel = await faceDetection.createDetector(
-        faceDetection.SupportedModels.MediaPipeFaceDetector,
-        { runtime: 'tfjs', modelType: 'short' },
-      );
-      setModel(loadedModel);
-      setIsModelLoading(false);
-    };
-    loadModel();
-  }, []);
+    if (!modelLoadStarted) {
+      setModelLoadStarted(true);
+      const loadModel = async () => {
+        try {
+          console.log('Starting model initialization');
+          await tf.ready();
+          console.log('TF ready, loading detector');
+          const loadedModel = await faceDetection.createDetector(
+            faceDetection.SupportedModels.MediaPipeFaceDetector,
+            { runtime: 'tfjs', modelType: 'short' },
+          );
+          console.log('Detector loaded');
+          setModel(loadedModel);
+          setIsModelLoading(false);
+        } catch (error) {
+          console.error('Model load error:', error);
+          setIsModelLoading(false);
+        }
+      };
+      loadModel();
+    }
+  }, [modelLoadStarted]);
 
   const capturePhoto = useCallback(() => {
     const imageSrc = webcamRef.current?.getScreenshot();

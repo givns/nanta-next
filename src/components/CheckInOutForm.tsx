@@ -72,6 +72,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    if (step === 'camera' && !isInitialized) {
+      console.log('Initializing camera step');
+      setIsInitialized(true);
+    }
+  }, [step, isInitialized]);
 
   useEffect(() => {
     if (checkInOutAllowance !== null) {
@@ -474,11 +482,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderStep2 = () => {
-    console.log('Camera render state:', {
-      modelLoading: isModelLoading,
-      webcamReady: !!webcamRef.current,
-      detectionCount: faceDetectionCount,
-    });
+    if (!isInitialized) {
+      return (
+        <div className="h-full flex flex-col justify-center items-center">
+          <SkeletonLoader />
+          <p>Initializing camera...</p>
+        </div>
+      );
+    }
 
     return (
       <div className="h-full flex flex-col justify-center items-center relative">
