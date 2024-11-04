@@ -83,28 +83,31 @@ export class TimeEntryService {
       include: { overtimeMetadata: true },
     });
 
-    const timeEntryBase = {
-      employeeId: attendance.employeeId,
-      date: attendance.date,
-      startTime: attendance.regularCheckInTime || attendance.date,
-      endTime: attendance.regularCheckOutTime || null,
-      regularHours: workingHours.regularHours,
-      overtimeHours: workingHours.overtimeHours,
-      actualMinutesLate: isCheckIn
-        ? minutesLate
-        : (existingEntry?.actualMinutesLate ?? 0),
-      isHalfDayLate: isCheckIn
-        ? isHalfDayLate
-        : (existingEntry?.isHalfDayLate ?? false),
-      status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
-      attendanceId: attendance.id,
-      overtimeRequestId: approvedOvertimeRequest?.id || null,
-      entryType: workingHours.overtimeHours > 0 ? 'overtime' : 'regular',
-    };
-
     if (existingEntry) {
       const updateData: Prisma.TimeEntryUpdateInput = {
-        ...timeEntryBase,
+        date: attendance.date,
+        startTime: attendance.regularCheckInTime || attendance.date,
+        endTime: attendance.regularCheckOutTime || null,
+        regularHours: workingHours.regularHours,
+        overtimeHours: workingHours.overtimeHours,
+        actualMinutesLate: isCheckIn
+          ? minutesLate
+          : (existingEntry?.actualMinutesLate ?? 0),
+        isHalfDayLate: isCheckIn
+          ? isHalfDayLate
+          : (existingEntry?.isHalfDayLate ?? false),
+        status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
+        attendance: {
+          // Changed from attendanceId
+          connect: { id: attendance.id },
+        },
+        overtimeRequest: approvedOvertimeRequest
+          ? {
+              // Changed from overtimeRequestId
+              connect: { id: approvedOvertimeRequest.id },
+            }
+          : { disconnect: true }, // Disconnect if null
+        entryType: workingHours.overtimeHours > 0 ? 'overtime' : 'regular',
         ...(workingHours.overtimeMetadata
           ? {
               overtimeMetadata: {
@@ -124,7 +127,26 @@ export class TimeEntryService {
       });
     } else {
       const createData: Prisma.TimeEntryCreateInput = {
-        ...timeEntryBase,
+        user: {
+          connect: { employeeId: attendance.employeeId }, // Connect to user using employeeId
+        },
+        date: attendance.date,
+        startTime: attendance.regularCheckInTime || attendance.date,
+        endTime: attendance.regularCheckOutTime || null,
+        regularHours: workingHours.regularHours,
+        overtimeHours: workingHours.overtimeHours,
+        actualMinutesLate: minutesLate,
+        isHalfDayLate: isHalfDayLate,
+        status: isCheckIn ? 'IN_PROGRESS' : 'COMPLETED',
+        attendance: {
+          connect: { id: attendance.id },
+        },
+        overtimeRequest: approvedOvertimeRequest
+          ? {
+              connect: { id: approvedOvertimeRequest.id },
+            }
+          : undefined,
+        entryType: workingHours.overtimeHours > 0 ? 'overtime' : 'regular',
         ...(workingHours.overtimeMetadata
           ? {
               overtimeMetadata: {
@@ -132,11 +154,6 @@ export class TimeEntryService {
               },
             }
           : {}),
-        user: {
-          create: undefined,
-          connectOrCreate: undefined,
-          connect: undefined,
-        },
       };
 
       return this.prisma.timeEntry.create({
