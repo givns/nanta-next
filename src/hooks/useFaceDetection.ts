@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
-import * as faceDetection from '@tensorflow-models/face-detection';
+import * as blazeface from '@tensorflow-models/blazeface';
 import '@tensorflow/tfjs-backend-webgl';
 import Webcam from 'react-webcam';
 
@@ -8,7 +8,7 @@ export const useFaceDetection = (
   captureThreshold: number = 5,
   onPhotoCapture: (photo: string) => void,
 ) => {
-  const [model, setModel] = useState<faceDetection.FaceDetector | null>(null);
+  const [model, setModel] = useState<blazeface.BlazeFaceModel | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [faceDetected, setFaceDetected] = useState(false);
   const [message, setMessage] = useState<string>('');
@@ -16,7 +16,7 @@ export const useFaceDetection = (
   const [faceDetectionCount, setFaceDetectionCount] = useState(0);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load model with fallback if WebGL fails
+  // Load the model from the self-hosted URL on mount
   useEffect(() => {
     let mounted = true;
 
@@ -24,48 +24,36 @@ export const useFaceDetection = (
       setMessage('กำลังเริ่มต้นระบบ...');
       setIsModelLoading(true);
 
-      const tryLoadModel = async (backend: 'webgl' | 'cpu') => {
-        try {
-          await tf.setBackend(backend);
-          await tf.ready();
+      try {
+        // Ensure WebGL backend is ready
+        await tf.setBackend('webgl');
+        await tf.ready();
 
-          const detector = await faceDetection.createDetector(
-            faceDetection.SupportedModels.MediaPipeFaceDetector,
-            {
-              runtime: 'tfjs',
-              modelType: 'short',
-            },
-          );
+        // Self-hosted BlazeFace model URL
+        const modelUrl = '/tf-model/model.json';
 
-          if (mounted) {
-            setModel(detector);
-            setIsModelLoading(false);
-            setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
-          }
-        } catch (error) {
-          console.error(`Failed to load model with ${backend} backend:`, error);
-          if (backend === 'webgl' && mounted) {
-            setMessage('WebGL failed, retrying with CPU...');
-            await tryLoadModel('cpu');
-          } else {
-            setIsModelLoading(false);
-            setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
-          }
+        // Initialize the BlazeFace detector with the local model URL
+        const detector = await blazeface.load({
+          modelUrl: modelUrl,
+        });
+
+        if (mounted) {
+          setModel(detector);
+          setIsModelLoading(false);
+          setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
         }
-      };
-
-      if (tf.ENV.getBool('WEBGL_VERSION')) {
-        // Attempt to load with WebGL first if available
-        await tryLoadModel('webgl');
-      } else {
-        // Fallback to CPU if WebGL is not supported
-        setMessage('WebGL not supported, using CPU...');
-        await tryLoadModel('cpu');
+      } catch (error) {
+        console.error('Model loading error:', error);
+        if (mounted) {
+          setIsModelLoading(false);
+          setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
+        }
       }
     };
 
     setupModel();
 
+    // Cleanup function on unmount
     return () => {
       mounted = false;
       tf.engine().reset();
@@ -81,12 +69,13 @@ export const useFaceDetection = (
 
       const img = new Image();
       img.src = imageSrc;
+
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
         img.onerror = () => reject(new Error('Failed to load image'));
       });
 
-      const faces = await model.estimateFaces(img);
+      const faces = await model.estimateFaces(img, false); // BlazeFace only supports `flipHorizontal`
 
       if (faces.length > 0) {
         setFaceDetected(true);
