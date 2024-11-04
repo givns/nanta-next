@@ -275,97 +275,28 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
   }, [step, onCloseWindow]);
 
-  const handleAction = useCallback(
-    async (action: 'checkIn' | 'checkOut') => {
-      console.log('handleAction details:', {
-        action,
-        checkInOutAllowance: {
-          allowed: checkInOutAllowance?.allowed,
-          reason: checkInOutAllowance?.reason,
-          inPremises: checkInOutAllowance?.inPremises,
-          isLateCheckIn: checkInOutAllowance?.isLateCheckIn,
-        },
-        userData: {
-          employeeId: userData?.employeeId,
-          hasData: !!userData,
-        },
-        currentStep: step,
-        isSubmitting,
-      });
-
-      // Clear any existing timers
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+  const handleEmergencyLeave = async (now: Date) => {
+    try {
+      setIsLoading(true);
+      if (userData?.lineUserId) {
+        await createSickLeaveRequest(userData.lineUserId, now);
+        return true;
       }
-
-      // Validate basic conditions with detailed logging
-      if (!checkInOutAllowance) {
-        console.error('CheckInOutAllowance is missing');
-        setError('Check-in/out allowance data is missing');
-        return;
-      }
-
-      // Validate basic conditions
-      if (!checkInOutAllowance?.allowed) {
-        setError(
-          checkInOutAllowance?.reason ||
-            'Check-in/out is not allowed at this time.',
-        );
-        return;
-      }
-
-      try {
-        if (action === 'checkIn') {
-          await handleCheckIn();
-        } else {
-          await handleCheckOut();
-        }
-      } catch (error) {
-        console.error('Error in handleAction:', error);
-        setError('An unexpected error occurred. Please try again.');
-      }
-    },
-    [checkInOutAllowance, userData, liveAttendanceStatus, effectiveShift],
-  );
-
-  useEffect(() => {
-    if (step === 'camera') {
-      resetDetection();
+      return false;
+    } catch (error) {
+      console.error('Emergency leave request creation failed:', error);
+      setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
+      return false;
+    } finally {
+      setIsLoading(false);
     }
-    return () => {
-      // Cleanup camera resources when leaving camera step
-      if (webcamRef.current && webcamRef.current.stream) {
-        const tracks = webcamRef.current.stream.getTracks();
-        tracks.forEach((track) => track.stop());
-      }
-    };
-  }, [step, resetDetection]);
-
-  // Add useEffect to monitor checkInOutAllowance changes
-  useEffect(() => {
-    if (checkInOutAllowance) {
-      console.log('CheckInOutAllowance updated:', {
-        allowed: checkInOutAllowance.allowed,
-        reason: checkInOutAllowance.reason,
-        inPremises: checkInOutAllowance.inPremises,
-        isLateCheckIn: checkInOutAllowance.isLateCheckIn,
-        isEarlyCheckOut: checkInOutAllowance.isEarlyCheckOut,
-        requireConfirmation: checkInOutAllowance.requireConfirmation,
-      });
-    }
-  }, [checkInOutAllowance]);
-
-  // Helper functions
-  const handleCheckIn = async () => {
-    console.log(
-      'Processing check-in, isLateCheckIn:',
-      checkInOutAllowance?.isLateCheckIn,
-    );
-    setStep('camera');
-    resetDetection();
   };
 
+  const handleCheckIn = () => {
+    setStep('camera');
+  };
+
+  // Simplified handleCheckOut
   const handleCheckOut = async () => {
     if (!effectiveShift) {
       console.error('Effective shift is not available');
@@ -379,11 +310,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     const { approved } = await validateCheckOutConditions(now);
     if (!approved) return;
 
+    // Handle early checkout cases
     if (checkInOutAllowance?.isEarlyCheckOut) {
       // Case 1: Pre-approved half-day leave
       if (checkInOutAllowance.isPlannedHalfDayLeave) {
         setStep('camera');
-        resetDetection();
         return;
       }
 
@@ -395,25 +326,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         if (!confirmed) return;
 
-        try {
-          setIsLoading(true);
-          if (userData?.lineUserId) {
-            // Create leave request asynchronously
-            createSickLeaveRequest(userData.lineUserId, now).catch((error) => {
-              console.error('Emergency leave request creation failed:', error);
-              setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
-            });
-          }
-
-          setStep('camera');
-          resetDetection();
-        } catch (error) {
-          console.error('Error processing emergency leave:', error);
-          setError('เกิดข้อผิดพลาดในการดำเนินการ กรุณาลองใหม่อีกครั้ง');
-        } finally {
-          setIsLoading(false);
-        }
-        return;
+        const leaveCreated = await handleEmergencyLeave(now);
+        if (!leaveCreated) return;
       }
 
       // Case 3: Regular early checkout (after midshift)
@@ -423,10 +337,55 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     }
 
-    // Normal checkout
+    // All validations passed, proceed to camera
     setStep('camera');
-    resetDetection();
   };
+
+  // Let the useEffect handle resetDetection for both check-in and check-out
+  useEffect(() => {
+    if (step === 'camera') {
+      console.log('Camera step entered, resetting detection');
+      resetDetection();
+    }
+  }, [step, resetDetection]);
+
+  // Update handleAction to handle both cases consistently
+  const handleAction = useCallback(
+    async (action: 'checkIn' | 'checkOut') => {
+      console.log('handleAction details:', {
+        action,
+        checkInOutAllowance,
+        currentStep: step,
+      });
+
+      // Clear timers
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+
+      // Validate conditions
+      if (!checkInOutAllowance?.allowed) {
+        setError(
+          checkInOutAllowance?.reason ||
+            'Check-in/out is not allowed at this time.',
+        );
+        return;
+      }
+
+      try {
+        if (action === 'checkIn') {
+          handleCheckIn();
+        } else {
+          await handleCheckOut();
+        }
+      } catch (error) {
+        console.error('Error in handleAction:', error);
+        setError('An unexpected error occurred. Please try again.');
+      }
+    },
+    [checkInOutAllowance, handleCheckIn, handleCheckOut],
+  );
 
   const validateCheckOutConditions = async (now: Date) => {
     // Calculate shift times
