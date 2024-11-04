@@ -176,53 +176,40 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     async (photo: string) => {
       if (isSubmitting) return;
 
-      // Store the photo first
       setCapturedPhoto(photo);
-
-      // Check if this is a late check-in that needs a reason
       const isLate = checkInOutAllowance?.isLateCheckIn || false;
 
-      console.log('Late check assessment:', {
-        isLate,
-        isCheckingIn,
-        checkInOutAllowance,
-        currentStep: step,
-        currentModalState: isLateModalOpen,
-      });
-
       if (isLate && isCheckingIn) {
-        console.log('Opening late reason modal after photo capture');
         setIsLateModalOpen(true);
-        return; // Don't proceed with submitCheckInOut yet
+        return;
       }
 
-      // If not late or not checking in, proceed with submission
       try {
-        console.log('Proceeding with normal submission');
         await submitCheckInOut(photo);
       } catch (error) {
         console.error('Error processing photo:', error);
         setError('An error occurred. Please try again.');
       }
     },
-    [
-      isSubmitting,
-      submitCheckInOut,
-      checkInOutAllowance,
-      isCheckingIn,
-      step,
-      isLateModalOpen,
-    ],
+    [isSubmitting, submitCheckInOut, checkInOutAllowance, isCheckingIn],
   );
 
   const {
     webcamRef,
     isModelLoading,
+    faceDetected,
     faceDetectionCount,
     message,
     resetDetection,
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture);
+
+  useEffect(() => {
+    if (step === 'camera') {
+      // Reset the detection when camera view is shown
+      resetDetection();
+    }
+  }, [step, resetDetection]);
 
   // Add monitoring for critical state changes
   useEffect(() => {
@@ -518,7 +505,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       isModelLoading,
       hasWebcamRef: !!webcamRef.current,
       faceDetectionCount,
-      message,
     });
 
     return (
@@ -526,65 +512,54 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         {isModelLoading ? (
           <>
             <SkeletonLoader />
-            <p className="mt-4">กำลังโหลดระบบตรวจจับใบหน้า...</p>
+            <p>Loading face detection model...</p>
           </>
         ) : (
-          <>
-            <div className="relative w-full max-w-md">
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                className="w-full rounded-lg"
-                videoConstraints={{
-                  facingMode: 'user',
-                  width: { ideal: 640 },
-                  height: { ideal: 480 },
-                }}
-                onUserMedia={() => {
-                  console.log('Webcam stream started');
-                  resetDetection();
-                }}
-              />
-              {webcamRef.current && (
+          <div className="relative w-full max-w-md">
+            {/* Webcam component first */}
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              className="w-full rounded-lg"
+              videoConstraints={{
+                facingMode: 'user',
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+              }}
+              onUserMedia={() => {
+                console.log('Webcam stream ready');
+                resetDetection(); // Start detection once camera is ready
+              }}
+            />
+
+            {/* Only show face guide and progress after webcam is initialized */}
+            {webcamRef.current && (
+              <>
+                {/* Face guide */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <svg
-                    viewBox="0 0 100 100"
-                    className={`w-48 h-48 transition-colors duration-300 ${
-                      faceDetectionCount > 0
-                        ? 'text-green-500'
-                        : 'text-blue-500'
-                    } opacity-50`}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="0.5"
-                  >
-                    <path d="M50 95C75 95 85 80 85 65C85 50 75 35 50 35C25 35 15 50 15 65C15 80 25 95 50 95Z" />
-                    <path d="M50 35C65 35 75 25 75 12.5C75 0 65 -10 50 -10C35 -10 25 0 25 12.5C25 25 35 35 50 35" />
-                    <circle cx="35" cy="60" r="5" />
-                    <circle cx="65" cy="60" r="5" />
-                    <path d="M35 75Q50 85 65 75" fill="none" />
-                  </svg>
+                  <div className="border-4 border-blue-500 rounded-full w-48 h-48"></div>
                 </div>
-              )}
-            </div>
-            <p className="text-center mb-2 mt-4 font-medium">{message}</p>
-            {faceDetectionCount > 0 && (
-              <div className="w-full max-w-md px-4">
-                <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
-                    style={{
-                      width: `${(faceDetectionCount / captureThreshold) * 100}%`,
-                    }}
-                  />
+
+                {/* Message and progress */}
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <p className="text-center mb-2 text-white text-shadow-lg">
+                    {message}
+                  </p>
+                  {faceDetectionCount > 0 && (
+                    <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${(faceDetectionCount / captureThreshold) * 100}%`,
+                        }}
+                      ></div>
+                    </div>
+                  )}
                 </div>
-                <p className="text-center text-sm mt-1">
-                  {faceDetectionCount} / {captureThreshold}
-                </p>
-              </div>
+              </>
             )}
-          </>
+          </div>
         )}
       </div>
     );
