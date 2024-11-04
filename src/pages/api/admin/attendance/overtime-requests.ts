@@ -32,6 +32,13 @@ const overtimeService = new OvertimeServiceServer(
   notificationService,
 );
 
+type OvertimeStatus =
+  | 'pending_response'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'declined_by_employee';
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -55,10 +62,29 @@ export default async function handler(
     let result;
     switch (method) {
       case 'GET': {
+        const requestedStatus = req.query.status as OvertimeStatus;
+
+        // Build where clause based on status
+        const whereClause: any = {
+          employeeResponse: 'approve', // Only show requests that employees have approved
+        };
+
+        // Add status filtering if provided
+        if (requestedStatus) {
+          whereClause.status = requestedStatus;
+        } else {
+          // If no status provided, show pending and pending_response by default
+          whereClause.status = {
+            in: ['pending', 'pending_response'],
+          };
+        }
+
+        // Get current date at start of day
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         result = await prisma.overtimeRequest.findMany({
-          where: {
-            status: (req.query.status as string) || undefined,
-          },
+          where: whereClause,
           include: {
             user: {
               select: {
@@ -68,10 +94,11 @@ export default async function handler(
               },
             },
           },
-          orderBy: {
-            createdAt: 'desc',
-          },
+          orderBy: [{ date: 'asc' }, { createdAt: 'desc' }],
         });
+
+        console.log('Fetched overtime requests with filter:', whereClause);
+        console.log('Found requests:', result.length);
 
         const transformedRequests = result.map((request) => ({
           id: request.id,
