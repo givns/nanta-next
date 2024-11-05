@@ -63,33 +63,26 @@ export default async function handler(
     switch (method) {
       case 'GET': {
         const requestedStatus = req.query.status as OvertimeStatus;
-        let whereClause: any = {
-          employeeResponse: 'approve', // Always require employee approval
+
+        // Build where clause based on status
+        const whereClause: any = {
+          employeeResponse: 'approve',
+          // Only show requests that employees have approved
         };
 
-        if (requestedStatus === 'pending') {
-          whereClause = {
-            AND: [{ employeeResponse: 'approve' }, { status: 'pending' }],
-          };
-        } else if (requestedStatus === 'approved') {
-          whereClause = {
-            AND: [{ employeeResponse: 'approve' }, { status: 'approved' }],
-          };
+        // Add status filtering if provided
+        if (requestedStatus) {
+          whereClause.status = requestedStatus;
         } else {
-          // Default to show both pending and approved
-          whereClause = {
-            AND: [
-              { employeeResponse: 'approve' },
-              {
-                status: {
-                  in: ['pending', 'approved'],
-                },
-              },
-            ],
+          // If no status provided, show pending and pending_response by default
+          whereClause.status = {
+            in: ['pending', 'pending_response'],
           };
         }
 
-        console.log('Query filter:', JSON.stringify(whereClause, null, 2));
+        // Get current date at start of day
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
         result = await prisma.overtimeRequest.findMany({
           where: whereClause,
@@ -105,7 +98,8 @@ export default async function handler(
           orderBy: [{ date: 'asc' }, { createdAt: 'desc' }],
         });
 
-        console.log(`Found ${result.length} requests matching filter`);
+        console.log('Fetched overtime requests with filter:', whereClause);
+        console.log('Found requests:', result.length);
 
         const transformedRequests = result.map((request) => ({
           id: request.id,
