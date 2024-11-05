@@ -1,14 +1,7 @@
 // pages/api/admin/attendance/daily.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Prisma, PrismaClient } from '@prisma/client';
-import { AttendanceService } from '@/services/AttendanceService';
-import { HolidayService } from '@/services/HolidayService';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
-import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { TimeEntryService } from '@/services/TimeEntryService';
-import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
-import { createNotificationService } from '@/services/NotificationService';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
 import { DailyAttendanceResponse } from '@/types/attendance';
 import { getCacheData, setCacheData } from '@/lib/serverCache';
@@ -16,47 +9,16 @@ import { getCacheData, setCacheData } from '@/lib/serverCache';
 const CACHE_TTL = 5 * 60; // 5 minutes cache
 const prisma = new PrismaClient();
 
-// Initialize services
-const holidayService = new HolidayService(prisma);
-const notificationService = createNotificationService(prisma);
-const shiftService = new ShiftManagementService(prisma, holidayService);
-const leaveServiceServer = createLeaveServiceServer(
-  prisma,
-  notificationService,
-);
-const timeEntryService = new TimeEntryService(
-  prisma,
-  shiftService,
-  notificationService,
-);
-const overtimeService = new OvertimeServiceServer(
-  prisma,
-  holidayService,
-  leaveServiceServer,
-  shiftService,
-  timeEntryService,
-  notificationService,
-);
-
-// Initialize AttendanceService
-const attendanceService = new AttendanceService(
-  prisma,
-  shiftService,
-  holidayService,
-  leaveServiceServer,
-  overtimeService,
-  notificationService,
-  timeEntryService,
-);
-
 async function handleGetDailyAttendance(
   req: NextApiRequest,
   res: NextApiResponse,
   user: { role: string; departmentId: string | null; employeeId: string },
 ) {
   try {
-    const { date, department, searchTerm } = req.query;
-    const targetDate = date ? parseISO(date as string) : new Date();
+    const { date: dateQuery, department, searchTerm } = req.query;
+    const targetDate = dateQuery ? parseISO(dateQuery as string) : new Date();
+    const dateStart = startOfDay(targetDate);
+    const dateEnd = endOfDay(targetDate);
 
     // Create cache key
     const cacheKey = `daily-attendance:${format(targetDate, 'yyyy-MM-dd')}:${department || 'all'}:${searchTerm || ''}`;
@@ -67,20 +29,17 @@ async function handleGetDailyAttendance(
       return res.status(200).json(JSON.parse(cachedData));
     }
 
-    // Build base query
-    const baseWhereInput: Prisma.UserWhereInput = {
-      // Department filter based on user role
-      ...(user.role === 'Admin' && user.departmentId
+    // Build base query for department access
+    const departmentFilter: Prisma.UserWhereInput =
+      user.role === 'Admin' && user.departmentId
         ? { departmentId: user.departmentId }
         : department !== 'all'
           ? { departmentId: department as string }
-          : {}),
-    };
+          : {};
 
-    // Add search conditions
-    const whereInput: Prisma.UserWhereInput = searchTerm
+    // Build search filter
+    const searchFilter: Prisma.UserWhereInput = searchTerm
       ? {
-          ...baseWhereInput,
           OR: [
             {
               name: {
@@ -96,22 +55,35 @@ async function handleGetDailyAttendance(
             },
           ],
         }
-      : baseWhereInput;
+      : {};
 
-    // Fetch employees with optimized select
+    // Combine filters
+    const whereCondition: Prisma.UserWhereInput = {
+      AND: [departmentFilter, searchFilter].filter(
+        (filter) => Object.keys(filter).length > 0,
+      ),
+    };
+
+    // Single query to get all required data
     const employees = await prisma.user.findMany({
-      where: whereInput,
+      where: whereCondition,
       select: {
-        id: true,
         employeeId: true,
         name: true,
         departmentName: true,
         shiftCode: true,
+        assignedShift: {
+          select: {
+            name: true,
+            startTime: true,
+            endTime: true,
+          },
+        },
         attendances: {
           where: {
             date: {
-              gte: startOfDay(targetDate),
-              lt: endOfDay(targetDate),
+              gte: dateStart,
+              lt: dateEnd,
             },
           },
           select: {
@@ -132,29 +104,20 @@ async function handleGetDailyAttendance(
       },
     });
 
-    // Process employee data in parallel
-    const attendanceRecords: DailyAttendanceResponse[] = await Promise.all(
-      employees.map(async (employee) => {
-        const [shiftData, attendanceStatus] = await Promise.all([
-          shiftService.getEffectiveShiftAndStatus(
-            employee.employeeId,
-            targetDate,
-          ),
-          attendanceService.getLatestAttendanceStatus(employee.employeeId),
-        ]);
-
+    // Transform the data
+    const attendanceRecords: DailyAttendanceResponse[] = employees.map(
+      (employee) => {
         const attendance = employee.attendances[0];
-
         return {
           employeeId: employee.employeeId,
           employeeName: employee.name,
           departmentName: employee.departmentName,
           date: format(targetDate, 'yyyy-MM-dd'),
-          shift: shiftData?.effectiveShift
+          shift: employee.assignedShift
             ? {
-                startTime: shiftData.effectiveShift.startTime,
-                endTime: shiftData.effectiveShift.endTime,
-                name: shiftData.effectiveShift.name,
+                name: employee.assignedShift.name,
+                startTime: employee.assignedShift.startTime,
+                endTime: employee.assignedShift.endTime,
               }
             : null,
           attendance: attendance
@@ -176,7 +139,7 @@ async function handleGetDailyAttendance(
               }
             : null,
         };
-      }),
+      },
     );
 
     // Cache results
@@ -196,6 +159,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', ['GET']);
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   const lineUserId = req.headers['x-line-userid'] as string;
   if (!lineUserId) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -211,18 +179,14 @@ export default async function handler(
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    switch (req.method) {
-      case 'GET':
-        return handleGetDailyAttendance(req, res, user);
-      default:
-        res.setHeader('Allow', ['GET']);
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
+    return handleGetDailyAttendance(req, res, user);
   } catch (error) {
     console.error('Error in daily attendance API:', error);
     return res.status(500).json({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
+  } finally {
+    await prisma.$disconnect();
   }
 }
