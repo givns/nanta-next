@@ -45,6 +45,8 @@ export class AttendanceApiService {
     entryData: ManualEntryRequest,
   ): Promise<ManualEntryResponse> {
     try {
+      console.log('Sending manual entry request:', entryData);
+
       const response = await fetch(`${this.baseUrl}/manual-entry`, {
         method: 'POST',
         headers: {
@@ -54,15 +56,29 @@ export class AttendanceApiService {
         body: JSON.stringify(entryData),
       });
 
+      const responseData = await response.json();
+      console.log('Manual entry response:', responseData);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create manual entry');
+        throw new Error(
+          responseData.message ||
+            responseData.error ||
+            'Failed to create manual entry',
+        );
       }
 
-      return await response.json();
+      return {
+        success: responseData.success || false,
+        message: responseData.message || 'Attendance updated successfully',
+        attendance: responseData.data || null,
+      };
     } catch (error) {
       console.error('Error creating manual entry:', error);
-      throw error;
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to create manual entry',
+      );
     }
   }
 

@@ -448,6 +448,7 @@ export interface ManualEntryResponse {
   success: boolean;
   attendance: DailyAttendanceRecord;
   message: string;
+  data?: any;
 }
 
 export interface DepartmentInfo {

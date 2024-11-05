@@ -46,6 +46,7 @@ import {
   DailyAttendanceResponse,
   ManualEntryRequest,
 } from '@/types/attendance';
+import { AttendanceApiService } from '@/services/attendanceApiService';
 
 export default function DailyAttendanceView() {
   const { user } = useAdmin();
@@ -53,27 +54,53 @@ export default function DailyAttendanceView() {
   const [selectedRecord, setSelectedRecord] =
     useState<DailyAttendanceResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const {
+    records,
     filteredRecords,
     departments,
     isLoading,
     error,
     filters,
     setFilters,
-    createManualEntry,
-  } = useAttendance({ lineUserId: user?.lineUserId ?? null });
+    refreshData,
+  } = useAttendance({
+    lineUserId: user?.lineUserId || null,
+  });
 
   const handleManualEntry = async (formData: ManualEntryRequest) => {
-    if (!selectedRecord) return;
+    if (!selectedRecord || !user?.lineUserId) return;
 
     try {
       setIsSubmitting(true);
-      await createManualEntry(formData);
-      setShowEditDialog(false);
-      setSelectedRecord(null);
+      setFormError(null);
+
+      const response = await AttendanceApiService.createManualEntry(
+        user.lineUserId,
+        {
+          employeeId: selectedRecord.employeeId,
+          date: format(filters.date, 'yyyy-MM-dd'),
+          checkInTime: formData.checkInTime,
+          checkOutTime: formData.checkOutTime,
+          reason: formData.reason,
+        },
+      );
+
+      if (response.success) {
+        setShowEditDialog(false);
+        setSelectedRecord(null);
+        await refreshData();
+      } else {
+        setFormError(response.message);
+      }
     } catch (error) {
       console.error('Error submitting manual entry:', error);
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to submit manual entry',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -453,3 +480,6 @@ const formatTimeOnly = (isoString: string | null): string => {
   const timeMatch = isoString.match(/\d{2}:\d{2}/);
   return timeMatch ? timeMatch[0] : '-';
 };
+function setError(arg0: null) {
+  throw new Error('Function not implemented.');
+}
