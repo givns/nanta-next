@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -315,62 +316,112 @@ export default function OvertimeRequests() {
 
         {/* Request Details Dialog */}
         <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Overtime Request Details</DialogTitle>
+              <DialogDescription>
+                Detailed information about the overtime request
+              </DialogDescription>
             </DialogHeader>
             {selectedRequest && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-6 py-4">
+                <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="text-sm text-gray-500">Employee</label>
-                    <p className="font-medium">{selectedRequest.name}</p>
+                    <label className="text-sm font-medium text-gray-500">
+                      Employee
+                    </label>
+                    <p className="mt-1">{selectedRequest.name}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-500">Department</label>
-                    <p className="font-medium">{selectedRequest.department}</p>
+                    <label className="text-sm font-medium text-gray-500">
+                      Department
+                    </label>
+                    <p className="mt-1">{selectedRequest.department}</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="text-sm text-gray-500">Date</label>
-                    <p className="font-medium">
-                      {format(new Date(selectedRequest.date), 'dd MMM yyyy', {
+                    <label className="text-sm font-medium text-gray-500">
+                      Date
+                    </label>
+                    <p className="mt-1">
+                      {format(new Date(selectedRequest.date), 'dd MMMM yyyy', {
                         locale: th,
                       })}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-500">Time</label>
-                    <p className="font-medium">
-                      {selectedRequest.startTime} - {selectedRequest.endTime} (
-                      {selectedRequest.duration}h)
+                    <label className="text-sm font-medium text-gray-500">
+                      Time
+                    </label>
+                    <p className="mt-1">
+                      {selectedRequest.startTime} - {selectedRequest.endTime}
+                      <span className="text-sm text-gray-500 ml-2">
+                        ({selectedRequest.duration}h)
+                      </span>
                     </p>
                   </div>
                 </div>
 
-                <div className="flex justify-between">
+                <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="text-sm text-gray-500">Type</label>
-                    <p className="font-medium">
-                      {selectedRequest.isDayOffOvertime
-                        ? 'Day-off Overtime'
-                        : 'Regular Overtime'}
+                    <label className="text-sm font-medium text-gray-500">
+                      Overtime Type
+                    </label>
+                    <p className="mt-1">
+                      <Badge
+                        variant={
+                          selectedRequest.isDayOffOvertime
+                            ? 'destructive'
+                            : 'default'
+                        }
+                      >
+                        {selectedRequest.isDayOffOvertime
+                          ? 'Day-off Overtime'
+                          : 'Regular Overtime'}
+                      </Badge>
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-500">Status</label>
-                    <div className="mt-1">
+                    <label className="text-sm font-medium text-gray-500">
+                      Status
+                    </label>
+                    <p className="mt-1">
                       <StatusBadge status={selectedRequest.status} />
-                    </div>
+                    </p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-sm text-gray-500">Reason</label>
-                  <p className="font-medium mt-1">{selectedRequest.reason}</p>
+                  <label className="text-sm font-medium text-gray-500">
+                    Reason for Overtime
+                  </label>
+                  <p className="mt-1 text-sm text-gray-700">
+                    {selectedRequest.reason}
+                  </p>
                 </div>
+
+                {selectedRequest.employeeResponse && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">
+                      Employee Response
+                    </label>
+                    <p className="mt-1">
+                      <Badge
+                        variant={
+                          selectedRequest.employeeResponse === 'approve'
+                            ? 'success'
+                            : 'destructive'
+                        }
+                      >
+                        {selectedRequest.employeeResponse === 'approve'
+                          ? 'Approved'
+                          : 'Denied'}
+                      </Badge>
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>

@@ -65,7 +65,7 @@ const LeaveRequestPage: React.FC<LeaveRequestPageProps> = ({ lineUserId }) => {
 
         if (resubmit === 'true' && originalId) {
           // Update to use headers for leave request fetch
-          const leaveResponse = await fetch(`/api/leaveRequest/${originalId}`, {
+          const leaveResponse = await fetch(`/api/admin/leaves/${originalId}`, {
             headers: {
               'x-line-userid': lineUserId,
             },

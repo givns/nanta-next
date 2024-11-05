@@ -217,7 +217,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [step, isLateModalOpen, capturedPhoto, checkInOutAllowance, isCheckingIn]);
 
   const createSickLeaveRequest = async (lineUserId: string, date: Date) => {
-    const response = await fetch('/api/leaveRequest/create', {
+    const response = await fetch('/api/admin/leaves/create', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

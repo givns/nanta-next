@@ -86,7 +86,7 @@ const LeaveSummaryPage: React.FC = () => {
       };
 
       console.log('Submitting leaveData:', leaveData);
-      const response = await axios.post('/api/leaveRequest/create', leaveData);
+      const response = await axios.post('/api/admin/leaves/create', leaveData);
 
       if (response.status === 201) {
         console.log('Leave request submitted successfully');
