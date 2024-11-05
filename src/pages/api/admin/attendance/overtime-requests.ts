@@ -63,27 +63,33 @@ export default async function handler(
     switch (method) {
       case 'GET': {
         const requestedStatus = req.query.status as OvertimeStatus;
-
-        // Build where clause based on status
-        const whereClause: any = {
-          employeeResponse: 'approve',
-          status: 'pending',
-          // Only show requests that employees have approved
+        let whereClause: any = {
+          employeeResponse: 'approve', // Always require employee approval
         };
 
-        // Add status filtering if provided
-        if (requestedStatus) {
-          whereClause.status = requestedStatus;
+        if (requestedStatus === 'pending') {
+          whereClause = {
+            AND: [{ employeeResponse: 'approve' }, { status: 'pending' }],
+          };
+        } else if (requestedStatus === 'approved') {
+          whereClause = {
+            AND: [{ employeeResponse: 'approve' }, { status: 'approved' }],
+          };
         } else {
-          // If no status provided, show pending and pending_response by default
-          whereClause.status = {
-            in: ['pending', 'pending_response'],
+          // Default to show both pending and approved
+          whereClause = {
+            AND: [
+              { employeeResponse: 'approve' },
+              {
+                status: {
+                  in: ['pending', 'approved'],
+                },
+              },
+            ],
           };
         }
 
-        // Get current date at start of day
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        console.log('Query filter:', JSON.stringify(whereClause, null, 2));
 
         result = await prisma.overtimeRequest.findMany({
           where: whereClause,
@@ -99,8 +105,7 @@ export default async function handler(
           orderBy: [{ date: 'asc' }, { createdAt: 'desc' }],
         });
 
-        console.log('Fetched overtime requests with filter:', whereClause);
-        console.log('Found requests:', result.length);
+        console.log(`Found ${result.length} requests matching filter`);
 
         const transformedRequests = result.map((request) => ({
           id: request.id,
