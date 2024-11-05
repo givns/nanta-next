@@ -46,7 +46,6 @@ import {
   DailyAttendanceResponse,
   ManualEntryRequest,
 } from '@/types/attendance';
-import { cn } from '@/lib/utils';
 
 export default function DailyAttendanceView() {
   const { user } = useAdmin();
@@ -123,23 +122,13 @@ export default function DailyAttendanceView() {
             <div>
               <div className="text-sm text-gray-500">Check In</div>
               <div className="font-medium">
-                {record.attendance?.regularCheckInTime
-                  ? format(
-                      parseISO(record.attendance.regularCheckInTime),
-                      'HH:mm',
-                    )
-                  : '-'}
+                {formatTimeOnly(record.attendance?.regularCheckInTime ?? null)}
               </div>
             </div>
             <div>
               <div className="text-sm text-gray-500">Check Out</div>
               <div className="font-medium">
-                {record.attendance?.regularCheckOutTime
-                  ? format(
-                      parseISO(record.attendance.regularCheckOutTime),
-                      'HH:mm',
-                    )
-                  : '-'}
+                {formatTimeOnly(record.attendance?.regularCheckOutTime ?? null)}
               </div>
             </div>
           </div>
@@ -273,12 +262,10 @@ export default function DailyAttendanceView() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {record.attendance?.regularCheckInTime
-                            ? format(
-                                parseISO(record.attendance.regularCheckInTime),
-                                'HH:mm',
-                              )
-                            : '-'}
+                          {record.attendance?.regularCheckInTime &&
+                            formatTimeOnly(
+                              record.attendance.regularCheckInTime,
+                            )}
                           {record.attendance?.isLateCheckIn && (
                             <Badge variant="warning" className="h-5">
                               Late
@@ -288,12 +275,10 @@ export default function DailyAttendanceView() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {record.attendance?.regularCheckOutTime
-                            ? format(
-                                parseISO(record.attendance.regularCheckOutTime),
-                                'HH:mm',
-                              )
-                            : '-'}
+                          {record.attendance?.regularCheckOutTime &&
+                            formatTimeOnly(
+                              record.attendance.regularCheckOutTime,
+                            )}
                           {record.attendance?.isLateCheckOut && (
                             <Badge variant="warning" className="h-5">
                               Late
@@ -377,11 +362,8 @@ export default function DailyAttendanceView() {
                       type="time"
                       defaultValue={
                         selectedRecord?.attendance?.regularCheckInTime
-                          ? format(
-                              parseISO(
-                                selectedRecord.attendance.regularCheckInTime,
-                              ),
-                              'HH:mm',
+                          ? formatTimeOnly(
+                              selectedRecord.attendance.regularCheckInTime,
                             )
                           : undefined
                       }
@@ -406,11 +388,8 @@ export default function DailyAttendanceView() {
                       type="time"
                       defaultValue={
                         selectedRecord?.attendance?.regularCheckOutTime
-                          ? format(
-                              parseISO(
-                                selectedRecord.attendance.regularCheckOutTime,
-                              ),
-                              'HH:mm',
+                          ? formatTimeOnly(
+                              selectedRecord.attendance.regularCheckOutTime,
                             )
                           : undefined
                       }
@@ -467,3 +446,10 @@ export default function DailyAttendanceView() {
     </Card>
   );
 }
+// Helper function to format time without timezone conversion
+const formatTimeOnly = (isoString: string | null): string => {
+  if (!isoString) return '-';
+  // Extract only the HH:mm part from the time string
+  const timeMatch = isoString.match(/\d{2}:\d{2}/);
+  return timeMatch ? timeMatch[0] : '-';
+};
