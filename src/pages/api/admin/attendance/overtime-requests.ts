@@ -66,7 +66,9 @@ export default async function handler(
 
         // Build where clause based on status
         const whereClause: any = {
-          employeeResponse: 'approve', // Only show requests that employees have approved
+          employeeResponse: 'approve',
+          status: 'pending',
+          // Only show requests that employees have approved
         };
 
         // Add status filtering if provided
