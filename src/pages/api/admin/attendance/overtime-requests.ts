@@ -32,13 +32,6 @@ const overtimeService = new OvertimeServiceServer(
   notificationService,
 );
 
-type OvertimeStatus =
-  | 'pending_response'
-  | 'pending'
-  | 'approved'
-  | 'rejected'
-  | 'declined_by_employee';
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -59,32 +52,41 @@ export default async function handler(
       return res.status(404).json({ message: 'User not found' });
     }
 
-    let result;
     switch (method) {
       case 'GET': {
-        const requestedStatus = req.query.status as OvertimeStatus;
+        const requestedStatus = req.query.status as string;
+        let whereClause: any = {};
 
-        // Build where clause based on status
-        const whereClause: any = {
-          employeeResponse: 'approve',
-          // Only show requests that employees have approved
-        };
-
-        // Add status filtering if provided
-        if (requestedStatus) {
-          whereClause.status = requestedStatus;
-        } else {
-          // If no status provided, show pending and pending_response by default
-          whereClause.status = {
-            in: ['pending', 'pending_response'],
-          };
+        // Build where clause based on requested status
+        switch (requestedStatus) {
+          case 'pending_response':
+            whereClause.status = 'pending_response';
+            break;
+          case 'approved':
+            whereClause = {
+              AND: [{ status: 'approved' }, { employeeResponse: 'approve' }],
+            };
+            break;
+          case 'rejected':
+            whereClause.status = 'rejected';
+            break;
+          default:
+            // If no status specified, show all
+            whereClause = {
+              OR: [
+                { status: 'pending_response' },
+                {
+                  AND: [
+                    { status: 'approved' },
+                    { employeeResponse: 'approve' },
+                  ],
+                },
+                { status: 'rejected' },
+              ],
+            };
         }
 
-        // Get current date at start of day
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        result = await prisma.overtimeRequest.findMany({
+        const requests = await prisma.overtimeRequest.findMany({
           where: whereClause,
           include: {
             user: {
@@ -98,78 +100,11 @@ export default async function handler(
           orderBy: [{ date: 'asc' }, { createdAt: 'desc' }],
         });
 
-        console.log('Fetched overtime requests with filter:', whereClause);
-        console.log('Found requests:', result.length);
-
-        const transformedRequests = result.map((request) => ({
-          id: request.id,
-          employeeId: request.employeeId,
-          name: request.user.name,
-          department: request.user.departmentName,
-          date: request.date,
-          startTime: request.startTime,
-          endTime: request.endTime,
-          duration: calculateDuration(request.startTime, request.endTime),
-          reason: request.reason || '',
-          status: request.status,
-          isDayOffOvertime: request.isDayOffOvertime,
-          approverId: request.approverId,
-        }));
-
-        return res.status(200).json(transformedRequests);
-      }
-
-      case 'POST': {
-        const { requestIds, action } = req.body;
-
-        if (action === 'approve') {
-          result = await overtimeService.batchApproveOvertimeRequests(
-            requestIds,
-            user.employeeId,
-          );
-          return res.status(200).json({
-            message: 'Requests approved successfully',
-            results: result,
-          });
-        }
-
-        if (action === 'reject') {
-          result = await Promise.all(
-            requestIds.map(async (id: string) => {
-              const request = await prisma.overtimeRequest.update({
-                where: { id },
-                data: {
-                  status: 'rejected',
-                  approverId: user.employeeId,
-                },
-                include: {
-                  user: true,
-                },
-              });
-
-              if (request.user.lineUserId) {
-                await notificationService.sendOvertimeResponseNotification(
-                  request.employeeId,
-                  request.user.lineUserId,
-                  request,
-                );
-              }
-
-              return request;
-            }),
-          );
-
-          return res.status(200).json({
-            message: 'Requests rejected successfully',
-            results: result,
-          });
-        }
-
-        return res.status(400).json({ message: 'Invalid action' });
+        return res.status(200).json(requests);
       }
 
       default:
-        res.setHeader('Allow', ['GET', 'POST']);
+        res.setHeader('Allow', ['GET']);
         return res
           .status(405)
           .json({ message: `Method ${method} Not Allowed` });
@@ -178,19 +113,4 @@ export default async function handler(
     console.error('Error processing overtime request:', error);
     return res.status(500).json({ message: 'Internal server error', error });
   }
-}
-
-function calculateDuration(startTime: string, endTime: string): number {
-  const [startHour, startMinute] = startTime.split(':').map(Number);
-  const [endHour, endMinute] = endTime.split(':').map(Number);
-
-  let hours = endHour - startHour;
-  let minutes = endMinute - startMinute;
-
-  if (minutes < 0) {
-    hours -= 1;
-    minutes += 60;
-  }
-
-  return Number((hours + minutes / 60).toFixed(1));
 }

@@ -1,5 +1,5 @@
 // components/admin/approvals/ApprovalDashboard.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -36,6 +36,8 @@ import {
   Search,
   ClipboardList,
 } from 'lucide-react';
+import { toast, useToast } from '@/components/ui/use-toast';
+import { useAdmin } from '@/contexts/AdminContext';
 
 interface ApprovalRequest {
   id: string;
@@ -58,6 +60,8 @@ interface ApprovalRequest {
 }
 
 export default function ApprovalDashboard() {
+  const { user } = useAdmin(); // Add useAdmin hook
+  const { toast } = useToast();
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('pending');
@@ -65,6 +69,8 @@ export default function ApprovalDashboard() {
   const [selectedRequest, setSelectedRequest] =
     useState<ApprovalRequest | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Mobile card component
   const RequestCard = ({ request }: { request: ApprovalRequest }) => (
@@ -114,7 +120,7 @@ export default function ApprovalDashboard() {
           <Button
             size="sm"
             className="flex-1"
-            onClick={() => handleApprove(request.id)}
+            onClick={() => handleApprove(request.id, request.type)}
           >
             Approve
           </Button>
@@ -122,7 +128,7 @@ export default function ApprovalDashboard() {
             variant="outline"
             size="sm"
             className="flex-1"
-            onClick={() => handleReject(request.id)}
+            onClick={() => handleReject(request.id, request.type)}
           >
             Reject
           </Button>
@@ -209,7 +215,7 @@ export default function ApprovalDashboard() {
                   <Button
                     size="sm"
                     variant="default"
-                    onClick={() => handleApprove(request.id)}
+                    onClick={() => handleApprove(request.id, request.type)}
                   >
                     <CheckCircle2 className="h-4 w-4 mr-1" />
                     Approve
@@ -217,7 +223,7 @@ export default function ApprovalDashboard() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleReject(request.id)}
+                    onClick={() => handleReject(request.id, request.type)}
                   >
                     <XCircle className="h-4 w-4 mr-1" />
                     Reject
@@ -304,13 +310,138 @@ export default function ApprovalDashboard() {
     );
   };
 
-  // Event handlers
-  const handleApprove = async (id: string) => {
-    // Implement approval logic
+  const fetchRequests = async () => {
+    if (!user?.lineUserId) return;
+
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/admin/approvals', {
+        headers: {
+          'x-line-userid': user.lineUserId,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch requests');
+      }
+
+      const data = await response.json();
+
+      // Filter requests based on selected type and status
+      let filteredRequests = data;
+
+      if (selectedType !== 'all') {
+        filteredRequests = filteredRequests.filter(
+          (request: ApprovalRequest) => request.type === selectedType,
+        );
+      }
+
+      if (selectedStatus !== 'all') {
+        filteredRequests = filteredRequests.filter(
+          (request: ApprovalRequest) => request.status === selectedStatus,
+        );
+      }
+
+      if (searchTerm) {
+        filteredRequests = filteredRequests.filter(
+          (request: ApprovalRequest) =>
+            request.employeeName
+              .toLowerCase()
+              .includes(searchTerm.toLowerCase()) ||
+            request.department.toLowerCase().includes(searchTerm.toLowerCase()),
+        );
+      }
+
+      setRequests(filteredRequests);
+      setError(null);
+    } catch (error) {
+      setError('Failed to fetch approval requests');
+      console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleReject = async (id: string) => {
-    // Implement rejection logic
+  const handleApprove = async (id: string, type: 'leave' | 'overtime') => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/admin/approvals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-line-userid': user?.lineUserId || '',
+        },
+        body: JSON.stringify({
+          requestId: id,
+          requestType: type,
+          action: 'approve',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to approve request');
+      }
+
+      // Refresh the requests list
+      await fetchRequests();
+
+      toast({
+        title: 'Success',
+        description: 'Request approved successfully',
+      });
+    } catch (error) {
+      setError('Failed to approve request');
+      console.error('Error:', error);
+
+      toast({
+        title: 'Error',
+        description: 'Failed to approve request',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleReject = async (id: string, type: 'leave' | 'overtime') => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/admin/approvals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-line-userid': user?.lineUserId || '',
+        },
+        body: JSON.stringify({
+          requestId: id,
+          requestType: type,
+          action: 'reject',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reject request');
+      }
+
+      // Refresh the requests list
+      await fetchRequests();
+
+      toast({
+        title: 'Success',
+        description: 'Request rejected successfully',
+      });
+    } catch (error) {
+      setError('Failed to reject request');
+      console.error('Error:', error);
+
+      toast({
+        title: 'Error',
+        description: 'Failed to reject request',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

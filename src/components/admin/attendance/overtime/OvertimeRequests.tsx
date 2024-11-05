@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -19,27 +18,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import {
-  Clock,
-  CalendarDays,
-  Filter,
-  AlertCircle,
-  Users,
-  CheckCircle2,
-  XCircle,
-} from 'lucide-react';
+import { Clock, Search, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { toast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
 
 interface OvertimeRequest {
   id: string;
@@ -51,59 +40,44 @@ interface OvertimeRequest {
   endTime: string;
   duration: number;
   reason: string;
-  status: 'pending_response' | 'pending' | 'approved' | 'rejected';
+  status: 'pending_response' | 'approved' | 'rejected';
   isDayOffOvertime: boolean;
-  approverId: string | null;
+  employeeResponse?: 'approve' | 'deny' | null;
 }
 
 export default function OvertimeRequests() {
   const { user } = useAdmin();
   const [requests, setRequests] = useState<OvertimeRequest[]>([]);
-  const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('pending_response');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedRequest, setSelectedRequest] =
     useState<OvertimeRequest | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Mobile request card component
+  // Mobile card component
   const RequestCard = ({ request }: { request: OvertimeRequest }) => (
     <Card className="mb-4 md:hidden">
       <CardContent className="p-4">
         <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={selectedRequests.includes(request.id)}
-                onCheckedChange={(checked) =>
-                  handleSelectRequest(request.id, checked as boolean)
-                }
-              />
-              <div>
-                <div className="font-medium">{request.name}</div>
-                <div className="text-sm text-gray-500">
-                  {request.department}
-                </div>
-              </div>
-            </div>
+          <div>
+            <div className="font-medium">{request.name}</div>
+            <div className="text-sm text-gray-500">{request.department}</div>
           </div>
-          <StatusBadge status={request.status} />
+          <div className="flex gap-2">
+            <StatusBadge status={request.status} />
+            {request.isDayOffOvertime && (
+              <Badge variant="destructive">Day-off OT</Badge>
+            )}
+          </div>
         </div>
 
         <div className="mt-4 space-y-2">
           <div className="flex items-center text-sm">
-            <CalendarDays className="h-4 w-4 mr-2" />
-            <span>
-              {format(new Date(request.date), 'dd MMM yyyy', { locale: th })}
-            </span>
-          </div>
-          <div className="flex items-center text-sm">
             <Clock className="h-4 w-4 mr-2" />
             <span>
+              {format(new Date(request.date), 'dd MMM yyyy', { locale: th })} |{' '}
               {request.startTime} - {request.endTime} ({request.duration}h)
             </span>
           </div>
@@ -114,30 +88,7 @@ export default function OvertimeRequests() {
           </div>
         </div>
 
-        <div className="mt-4 flex gap-2">
-          {request.status === 'pending_response' && (
-            <>
-              <Button
-                size="sm"
-                className="flex-1"
-                onClick={() => handleBatchApprove([request.id])}
-                disabled={isProcessing}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-1" />
-                Approve
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => handleReject(request.id)}
-                disabled={isProcessing}
-              >
-                <XCircle className="h-4 w-4 mr-1" />
-                Reject
-              </Button>
-            </>
-          )}
+        <div className="mt-4 flex justify-end">
           <Button
             variant="ghost"
             size="sm"
@@ -146,7 +97,7 @@ export default function OvertimeRequests() {
               setShowDetailsDialog(true);
             }}
           >
-            Details
+            View Details
           </Button>
         </div>
       </CardContent>
@@ -162,27 +113,18 @@ export default function OvertimeRequests() {
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="pending_response">Pending Response</SelectItem>
             <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
           </SelectContent>
         </Select>
 
-        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-          <SelectTrigger className="w-full md:w-[200px]">
-            <SelectValue placeholder="Department" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Departments</SelectItem>
-            {/* Add department options */}
-          </SelectContent>
-        </Select>
-
         <div className="flex-1">
           <div className="relative">
-            <Filter className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search employee..."
+              placeholder="Search employee or department..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -190,21 +132,6 @@ export default function OvertimeRequests() {
           </div>
         </div>
       </div>
-
-      {selectedRequests.length > 0 && (
-        <div className="flex justify-between items-center bg-blue-50 p-4 rounded-lg">
-          <div className="flex items-center space-x-2">
-            <Users className="h-5 w-5 text-blue-500" />
-            <span>{selectedRequests.length} requests selected</span>
-          </div>
-          <Button
-            onClick={() => handleBatchApprove(selectedRequests)}
-            disabled={isProcessing}
-          >
-            {isProcessing ? 'Processing...' : 'Approve Selected'}
-          </Button>
-        </div>
-      )}
     </div>
   );
 
@@ -214,78 +141,64 @@ export default function OvertimeRequests() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>
-              <Checkbox
-                checked={selectedRequests.length === requests.length}
-                onCheckedChange={handleSelectAll}
-              />
-            </TableHead>
             <TableHead>Employee</TableHead>
             <TableHead>Date</TableHead>
             <TableHead>Time</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead>Reason</TableHead>
+            <TableHead className="w-[100px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {requests.map((request) => (
-            <TableRow key={request.id}>
-              <TableCell>
-                <Checkbox
-                  checked={selectedRequests.includes(request.id)}
-                  onCheckedChange={(checked) =>
-                    handleSelectRequest(request.id, checked as boolean)
-                  }
-                />
-              </TableCell>
-              <TableCell>
-                <div>
-                  <div className="font-medium">{request.name}</div>
-                  <div className="text-sm text-gray-500">
-                    {request.department}
+          {requests
+            .filter((request) =>
+              searchTerm
+                ? request.name
+                    .toLowerCase()
+                    .includes(searchTerm.toLowerCase()) ||
+                  request.department
+                    .toLowerCase()
+                    .includes(searchTerm.toLowerCase())
+                : true,
+            )
+            .map((request) => (
+              <TableRow key={request.id}>
+                <TableCell>
+                  <div>
+                    <div className="font-medium">{request.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {request.department}
+                    </div>
                   </div>
-                </div>
-              </TableCell>
-              <TableCell>
-                {format(new Date(request.date), 'dd MMM yyyy', { locale: th })}
-              </TableCell>
-              <TableCell>
-                {request.startTime} - {request.endTime}
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant={request.isDayOffOvertime ? 'destructive' : 'default'}
-                >
-                  {request.isDayOffOvertime ? 'Day-off OT' : 'Regular OT'}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <StatusBadge status={request.status} />
-              </TableCell>
-              <TableCell>
-                <div className="flex space-x-2">
-                  {request.status === 'pending_response' && (
-                    <>
-                      <Button
-                        size="sm"
-                        onClick={() => handleBatchApprove([request.id])}
-                        disabled={isProcessing}
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        Approve
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleReject(request.id)}
-                        disabled={isProcessing}
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Reject
-                      </Button>
-                    </>
-                  )}
+                </TableCell>
+                <TableCell>
+                  {format(new Date(request.date), 'dd MMM yyyy', {
+                    locale: th,
+                  })}
+                </TableCell>
+                <TableCell>
+                  {request.startTime} - {request.endTime}
+                  <div className="text-sm text-gray-500">
+                    {request.duration}h
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={
+                      request.isDayOffOvertime ? 'destructive' : 'default'
+                    }
+                  >
+                    {request.isDayOffOvertime ? 'Day-off OT' : 'Regular OT'}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={request.status} />
+                </TableCell>
+                <TableCell className="max-w-[200px] truncate">
+                  {request.reason}
+                </TableCell>
+                <TableCell>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -296,27 +209,25 @@ export default function OvertimeRequests() {
                   >
                     Details
                   </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+                </TableCell>
+              </TableRow>
+            ))}
         </TableBody>
       </Table>
     </div>
   );
 
-  // Event handlers and effects...
   useEffect(() => {
     if (user?.lineUserId) {
-      fetchOvertimeRequests();
+      fetchRequests();
     }
-  }, [user, statusFilter, departmentFilter]);
+  }, [user, statusFilter]);
 
-  const fetchOvertimeRequests = async () => {
+  const fetchRequests = async () => {
     try {
       setIsLoading(true);
       const response = await fetch(
-        `/api/admin/attendance/overtime-requests?status=${statusFilter}`,
+        `/api/admin/attendance/overtime-requests${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`,
         {
           headers: {
             'x-line-userid': user?.lineUserId || '',
@@ -338,109 +249,17 @@ export default function OvertimeRequests() {
     }
   };
 
-  const handleBatchApprove = async (requestIds: string[]) => {
-    if (!requestIds.length) return;
-
-    try {
-      setIsProcessing(true);
-      const response = await fetch('/api/admin/attendance/overtime-requests', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-line-userid': user?.lineUserId || '',
-        },
-        body: JSON.stringify({
-          requestIds,
-          action: 'approve',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to approve requests');
-      }
-
-      toast({
-        title: 'Success',
-        description: 'Overtime requests approved successfully',
-      });
-
-      await fetchOvertimeRequests();
-      setSelectedRequests([]);
-      setShowDetailsDialog(false);
-    } catch (error) {
-      setError('Failed to process approval');
-      console.error('Error:', error);
-
-      toast({
-        title: 'Error',
-        description: 'Failed to approve overtime requests',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleReject = async (requestId: string) => {
-    try {
-      setIsProcessing(true);
-      const response = await fetch('/api/admin/attendance/overtime-requests', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-line-userid': user?.lineUserId || '',
-        },
-        body: JSON.stringify({
-          requestIds: [requestId],
-          action: 'reject',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to reject request');
-      }
-
-      toast({
-        title: 'Success',
-        description: 'Overtime request rejected successfully',
-      });
-
-      await fetchOvertimeRequests();
-      setShowDetailsDialog(false);
-    } catch (error) {
-      setError('Failed to process rejection');
-      console.error('Error:', error);
-
-      toast({
-        title: 'Error',
-        description: 'Failed to reject overtime request',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedRequests(requests.map((req) => req.id));
-    } else {
-      setSelectedRequests([]);
-    }
-  };
-
-  const handleSelectRequest = (requestId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedRequests((prev) => [...prev, requestId]);
-    } else {
-      setSelectedRequests((prev) => prev.filter((id) => id !== requestId));
-    }
-  };
-
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Overtime Requests</CardTitle>
+        <div className="flex justify-between items-center">
+          <CardTitle>Overtime Requests</CardTitle>
+          {requests.length > 0 && (
+            <div className="text-sm text-gray-500">
+              Showing {requests.length} requests
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {error && (
@@ -452,15 +271,47 @@ export default function OvertimeRequests() {
 
         <FilterSection />
 
-        {/* Mobile View */}
-        <div className="md:hidden">
-          {requests.map((request) => (
-            <RequestCard key={request.id} request={request} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-8">
+            <Clock className="h-8 w-8 animate-spin text-gray-400" />
+          </div>
+        ) : (
+          <>
+            {/* Mobile View */}
+            <div className="md:hidden">
+              {requests
+                .filter((request) =>
+                  searchTerm
+                    ? request.name
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase()) ||
+                      request.department
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase())
+                    : true,
+                )
+                .map((request) => (
+                  <RequestCard key={request.id} request={request} />
+                ))}
+            </div>
 
-        {/* Desktop View */}
-        <DesktopTable />
+            {/* Desktop View */}
+            <DesktopTable />
+
+            {/* Empty State */}
+            {!isLoading && requests.length === 0 && (
+              <div className="text-center py-12">
+                <Clock className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                  No overtime requests
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  No requests found for the selected status
+                </p>
+              </div>
+            )}
+          </>
+        )}
 
         {/* Request Details Dialog */}
         <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
@@ -493,65 +344,37 @@ export default function OvertimeRequests() {
                   <div>
                     <label className="text-sm text-gray-500">Time</label>
                     <p className="font-medium">
-                      {selectedRequest.startTime} - {selectedRequest.endTime}
+                      {selectedRequest.startTime} - {selectedRequest.endTime} (
+                      {selectedRequest.duration}h)
                     </p>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-sm text-gray-500">Type</label>
-                  <p className="font-medium">
-                    {selectedRequest.isDayOffOvertime
-                      ? 'Day-off Overtime'
-                      : 'Regular Overtime'}
-                  </p>
+                <div className="flex justify-between">
+                  <div>
+                    <label className="text-sm text-gray-500">Type</label>
+                    <p className="font-medium">
+                      {selectedRequest.isDayOffOvertime
+                        ? 'Day-off Overtime'
+                        : 'Regular Overtime'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500">Status</label>
+                    <div className="mt-1">
+                      <StatusBadge status={selectedRequest.status} />
+                    </div>
+                  </div>
                 </div>
 
                 <div>
                   <label className="text-sm text-gray-500">Reason</label>
                   <p className="font-medium mt-1">{selectedRequest.reason}</p>
                 </div>
-
-                <DialogFooter>
-                  {selectedRequest.status === 'pending_response' && (
-                    <div className="flex gap-2 w-full">
-                      <Button
-                        variant="outline"
-                        onClick={() => handleReject(selectedRequest.id)}
-                        disabled={isProcessing}
-                        className="flex-1"
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Reject
-                      </Button>
-                      <Button
-                        onClick={() => handleBatchApprove([selectedRequest.id])}
-                        disabled={isProcessing}
-                        className="flex-1"
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        Approve
-                      </Button>
-                    </div>
-                  )}
-                </DialogFooter>
               </div>
             )}
           </DialogContent>
         </Dialog>
-
-        {/* Empty State */}
-        {!isLoading && requests.length === 0 && (
-          <div className="text-center py-12">
-            <Clock className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">
-              No overtime requests
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              There are no pending overtime requests to review
-            </p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -562,14 +385,12 @@ const StatusBadge = ({ status }: { status: string }) => {
     pending_response: 'bg-yellow-100 text-yellow-800',
     approved: 'bg-green-100 text-green-800',
     rejected: 'bg-red-100 text-red-800',
-    pending: 'bg-blue-100 text-blue-800',
   };
 
   const labels = {
-    pending_response: 'Pending Response',
+    pending_response: 'Pending Employee Response',
     approved: 'Approved',
     rejected: 'Rejected',
-    pending: 'Pending',
   };
 
   return (
