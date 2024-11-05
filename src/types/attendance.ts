@@ -343,15 +343,6 @@ export interface WorkHoursCalculation {
   hasUnapprovedEarlyDeparture: boolean;
 }
 
-// Manual Entry Data Interface
-export interface ManualEntryData {
-  employeeId: string;
-  date: string;
-  checkInTime: string;
-  checkOutTime: string;
-  reason: string;
-}
-
 // Check In/Out Allowance Interface
 export interface CheckInOutAllowance {
   allowed: boolean;
@@ -413,4 +404,59 @@ export interface HalfDayLeaveContext {
   checkInTime: Date | null;
   isMorningLeaveConfirmed: boolean;
   isAfternoonLeaveConfirmed: boolean;
+}
+
+export interface DailyAttendanceShift {
+  startTime: string;
+  endTime: string;
+  name: string;
+}
+
+export interface DailyAttendanceRecord {
+  id: string;
+  regularCheckInTime: string | null;
+  regularCheckOutTime: string | null;
+  isLateCheckIn: boolean;
+  isLateCheckOut: boolean;
+  isEarlyCheckIn: boolean;
+  isVeryLateCheckOut: boolean;
+  lateCheckOutMinutes: number;
+  status: string;
+  checkInAddress: string | null;
+  checkOutAddress: string | null;
+  isDayOff: boolean;
+}
+
+export interface DailyAttendanceResponse {
+  employeeId: string;
+  employeeName: string;
+  departmentName: string;
+  date: string;
+  shift: DailyAttendanceShift | null;
+  attendance: DailyAttendanceRecord | null;
+}
+
+export interface ManualEntryRequest {
+  employeeId: string;
+  date: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  reason: string;
+}
+
+export interface ManualEntryResponse {
+  success: boolean;
+  attendance: DailyAttendanceRecord;
+  message: string;
+}
+
+export interface DepartmentInfo {
+  id: string;
+  name: string;
+}
+
+export interface AttendanceFilters {
+  date: Date;
+  department: string;
+  searchTerm: string;
 }
