@@ -1,50 +1,21 @@
 // pages/api/admin/attendance/manual-entry.ts
-import { NextApiRequest, NextApiResponse } from 'next';
+
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { AttendanceService } from '@/services/AttendanceService';
-import { getCurrentTime } from '@/utils/dateUtils';
-import { endOfDay, format, parseISO, startOfDay } from 'date-fns';
-import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
+import { parseISO, startOfDay, endOfDay, format } from 'date-fns';
+import { NotificationService } from '@/services/NotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
-import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
-import { createNotificationService } from '@/services/NotificationService';
 import { HolidayService } from '@/services/HolidayService';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
-export const notificationService = createNotificationService(prisma);
-export const leaveServiceServer = createLeaveServiceServer(
-  prisma,
-  notificationService,
-);
 const shiftService = new ShiftManagementService(prisma, holidayService);
-
+const notificationService = new NotificationService(prisma);
 const timeEntryService = new TimeEntryService(
   prisma,
   shiftService,
   notificationService,
-);
-
-const overtimeService = new OvertimeServiceServer(
-  prisma,
-  holidayService,
-  leaveServiceServer,
-  shiftService,
-  timeEntryService,
-  notificationService,
-);
-
-shiftService.setOvertimeService(overtimeService);
-
-const attendanceService = new AttendanceService(
-  prisma,
-  shiftService,
-  holidayService,
-  leaveServiceServer,
-  overtimeService,
-  notificationService,
-  timeEntryService,
 );
 
 export default async function handler(
@@ -57,157 +28,206 @@ export default async function handler(
 
   const lineUserId = req.headers['x-line-userid'] as string;
   if (!lineUserId) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ message: 'Unauthorized' });
   }
 
   try {
-    const actionUser = await prisma.user.findUnique({
-      where: { lineUserId },
-      select: { role: true, departmentId: true, employeeId: true },
-    });
-
-    if (!actionUser || !['Admin', 'SuperAdmin'].includes(actionUser.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
-    }
-
     const { employeeId, date, checkInTime, checkOutTime, reason } = req.body;
 
-    // 1. Validate target employee
-    const targetEmployee = await prisma.user.findUnique({
-      where: { employeeId },
-      include: {
-        assignedShift: true,
-      },
+    console.log('Manual entry request:', {
+      employeeId,
+      date,
+      checkInTime,
+      checkOutTime,
+      reason,
     });
 
-    if (!targetEmployee) {
-      return res.status(404).json({ error: 'Employee not found' });
+    // Get employee and admin data
+    const [targetEmployee, actionUser] = await Promise.all([
+      prisma.user.findUnique({
+        where: { employeeId },
+        include: {
+          assignedShift: true,
+        },
+      }),
+      prisma.user.findUnique({
+        where: { lineUserId },
+        select: { role: true, departmentId: true, employeeId: true },
+      }),
+    ]);
+
+    if (!targetEmployee || !actionUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Employee or admin user not found',
+      });
     }
 
-    // 2. Check department access for Admin role
+    // Check permissions
     if (
       actionUser.role === 'Admin' &&
       actionUser.departmentId &&
       targetEmployee.departmentId !== actionUser.departmentId
     ) {
-      return res
-        .status(403)
-        .json({ error: "Unauthorized to modify this employee's attendance" });
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized to modify this employee's attendance",
+      });
     }
 
     const targetDate = startOfDay(parseISO(date));
 
-    // 3. Get or create base attendance record
-    let existingAttendance = await prisma.attendance.findFirst({
+    // Get effective shift for the date
+    const shiftData = await shiftService.getEffectiveShiftAndStatus(
+      employeeId,
+      targetDate,
+    );
+
+    if (!shiftData?.effectiveShift) {
+      return res.status(400).json({
+        success: false,
+        message: 'No shift found for this date',
+      });
+    }
+
+    // Parse shift times
+    const shiftStart = parseISO(
+      `${date}T${shiftData.effectiveShift.startTime}`,
+    );
+    const shiftEnd = parseISO(`${date}T${shiftData.effectiveShift.endTime}`);
+
+    // Find existing attendance
+    const existingAttendance = await prisma.attendance.findFirst({
       where: {
         employeeId,
         date: {
-          gte: startOfDay(targetDate),
+          gte: targetDate,
           lt: endOfDay(targetDate),
         },
       },
     });
 
-    // 4. Process check-in if provided
-    if (checkInTime) {
-      const checkInDateTime = `${date}T${checkInTime}`;
+    let updatedAttendance;
 
-      const attendanceData = {
-        employeeId,
-        lineUserId: targetEmployee.lineUserId,
-        isCheckIn: true,
-        checkTime: checkInDateTime,
-        reason,
+    if (existingAttendance) {
+      // Update existing record
+      const updateData: any = {
         isManualEntry: true,
-        location: targetEmployee.departmentName || '',
-        checkInAddress: targetEmployee.departmentName || '',
+        shiftStartTime: shiftStart,
+        shiftEndTime: shiftEnd,
+        isDayOff: !shiftData.effectiveShift.workDays.includes(
+          targetDate.getDay(),
+        ),
       };
 
-      await attendanceService.processAttendance(attendanceData);
+      if (checkInTime) {
+        const checkInDateTime = parseISO(`${date}T${checkInTime}`);
+        updateData.regularCheckInTime = checkInDateTime;
+        updateData.isLateCheckIn = checkInDateTime > shiftStart;
+        updateData.isEarlyCheckIn = checkInDateTime < shiftStart;
+        updateData.checkInReason = reason;
+      }
+
+      if (checkOutTime) {
+        const checkOutDateTime = parseISO(`${date}T${checkOutTime}`);
+        updateData.regularCheckOutTime = checkOutDateTime;
+        updateData.isLateCheckOut = checkOutDateTime > shiftEnd;
+        updateData.status = 'present';
+      }
+
+      updatedAttendance = await prisma.attendance.update({
+        where: { id: existingAttendance.id },
+        data: updateData,
+      });
+    } else {
+      // Create new record
+      const checkInDateTime = checkInTime
+        ? parseISO(`${date}T${checkInTime}`)
+        : null;
+      const checkOutDateTime = checkOutTime
+        ? parseISO(`${date}T${checkOutTime}`)
+        : null;
+
+      updatedAttendance = await prisma.attendance.create({
+        data: {
+          employeeId,
+          date: targetDate,
+          shiftStartTime: shiftStart,
+          shiftEndTime: shiftEnd,
+          regularCheckInTime: checkInDateTime,
+          regularCheckOutTime: checkOutDateTime,
+          isLateCheckIn: checkInDateTime ? checkInDateTime > shiftStart : false,
+          isEarlyCheckIn: checkInDateTime
+            ? checkInDateTime < shiftStart
+            : false,
+          isLateCheckOut: checkOutDateTime
+            ? checkOutDateTime > shiftEnd
+            : false,
+          status: checkOutDateTime ? 'present' : 'incomplete',
+          isManualEntry: true,
+          checkInReason: reason,
+          version: 0,
+          isDayOff: !shiftData.effectiveShift.workDays.includes(
+            targetDate.getDay(),
+          ),
+        },
+      });
     }
 
-    // 5. Process check-out if provided
-    if (checkOutTime) {
-      const checkOutDateTime = `${date}T${checkOutTime}`;
-
-      const attendanceData = {
-        employeeId,
-        lineUserId: targetEmployee.lineUserId,
-        isCheckIn: false,
-        checkTime: checkOutDateTime,
-        reason,
-        isManualEntry: true,
-        location: targetEmployee.departmentName || '',
-        checkOutAddress: targetEmployee.departmentName || '',
-      };
-
-      await attendanceService.processAttendance(attendanceData);
-    }
-
-    // 6. Notify relevant parties
-    const notificationMessage = {
-      type: 'text',
-      text: `Manual attendance update by ${actionUser.employeeId}:
-Employee: ${targetEmployee.name}
-Date: ${format(targetDate, 'dd/MM/yyyy')}
-${checkInTime ? `Check-in: ${checkInTime}` : ''}
-${checkOutTime ? `Check-out: ${checkOutTime}` : ''}
-Reason: ${reason}`,
-    };
-
-    // Notify managers and admins
-    await notifyManagersAndAdmins(notificationMessage, actionUser.employeeId);
-
-    // Notify employee
-    if (targetEmployee.lineUserId) {
-      await notificationService.sendNotification(
-        targetEmployee.employeeId,
-        targetEmployee.lineUserId,
-        JSON.stringify(notificationMessage),
-        'attendance',
-      );
-    }
-
-    // 7. Update associated time entries
+    // Create/update time entry
     await timeEntryService.createOrUpdateTimeEntry(
-      existingAttendance!,
+      updatedAttendance,
       false,
       null,
     );
 
-    // 8. Return updated attendance status
-    const updatedStatus =
-      await attendanceService.getLatestAttendanceStatus(employeeId);
-    return res.status(200).json(updatedStatus);
+    // Send notifications
+    try {
+      if (targetEmployee.lineUserId) {
+        await notificationService.sendNotification(
+          targetEmployee.employeeId,
+          targetEmployee.lineUserId,
+          `Your attendance record for ${format(targetDate, 'dd/MM/yyyy')} has been updated by admin.\nReason: ${reason}`,
+          'attendance',
+        );
+      }
+
+      // Notify managers
+      const managers = await prisma.user.findMany({
+        where: {
+          role: { in: ['Manager', 'Admin', 'SuperAdmin'] },
+          NOT: { employeeId: actionUser.employeeId },
+        },
+        select: { employeeId: true, lineUserId: true },
+      });
+
+      for (const manager of managers) {
+        if (manager.lineUserId) {
+          await notificationService.sendNotification(
+            manager.employeeId,
+            manager.lineUserId,
+            `Attendance manual entry by ${actionUser.employeeId}:\nEmployee: ${targetEmployee.name}\nDate: ${format(targetDate, 'dd/MM/yyyy')}\nReason: ${reason}`,
+            'attendance',
+          );
+        }
+      }
+    } catch (notifyError) {
+      console.error('Failed to send notifications:', notifyError);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance record updated successfully',
+      data: updatedAttendance,
+    });
   } catch (error) {
     console.error('Error in manual entry:', error);
     return res.status(500).json({
-      error: 'Failed to process manual entry',
-      details: error instanceof Error ? error.message : 'Unknown error',
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Failed to process manual entry',
     });
-  }
-}
-
-async function notifyManagersAndAdmins(
-  message: any,
-  excludeEmployeeId?: string,
-) {
-  const managers = await prisma.user.findMany({
-    where: {
-      role: { in: ['Manager', 'Admin', 'SuperAdmin'] },
-      NOT: { employeeId: excludeEmployeeId },
-    },
-    select: { employeeId: true, lineUserId: true },
-  });
-
-  for (const manager of managers) {
-    if (manager.lineUserId) {
-      await notificationService.sendNotification(
-        manager.employeeId,
-        manager.lineUserId,
-        JSON.stringify(message),
-        'attendance',
-      );
-    }
   }
 }
