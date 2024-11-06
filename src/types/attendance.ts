@@ -302,6 +302,8 @@ export interface LeaveRequestData {
   employeeId: string;
   startDate: string;
   endDate: string;
+  leaveType: string;
+  leaveFormat: string;
   reason: string;
 }
 
@@ -481,12 +483,6 @@ export interface LeaveInfo {
   status: string;
 }
 
-export interface LeaveRequestData {
-  employeeId: string;
-  leaveType: string;
-  status: string;
-}
-
 // Complete daily attendance response
 export interface DailyAttendanceResponse {
   employeeId: string;
@@ -519,12 +515,6 @@ export interface TimeEntryWithDate {
     isDayOffOvertime: boolean;
     isInsideShiftHours: boolean;
   };
-}
-
-export interface AttendanceFilters {
-  date: Date;
-  department: string;
-  searchTerm: string;
 }
 
 export interface UseAttendanceProps {
