@@ -43,17 +43,27 @@ function safeGet<T>(
   }
 }
 
-// Convert settings document to PayrollSettingsData
-function convertSettings(settingsDoc: MongoSettingsDoc): PayrollSettingsData {
-  const defaultRates = {
-    workdayOutsideShift: 1.5,
-    weekendInsideShiftFulltime: 1.0,
-    weekendInsideShiftParttime: 2.0,
-    weekendOutsideShift: 3.0,
-  };
+function convertSettings(
+  settingsDoc: MongoSettingsDoc | null,
+): PayrollSettingsData {
+  if (!settingsDoc) {
+    console.error('Settings document is null');
+    throw new Error('Payroll settings not found');
+  }
 
-  return {
-    overtimeRates: {
+  try {
+    console.log('Raw settings document:', settingsDoc);
+
+    // Default rates if settings are missing
+    const defaultRates = {
+      workdayOutsideShift: 1.5,
+      weekendInsideShiftFulltime: 1.0,
+      weekendInsideShiftParttime: 2.0,
+      weekendOutsideShift: 3.0,
+    };
+
+    // Validate overtime rates
+    const overtimeRates = {
       [EmployeeType.Fulltime]: safeGet(
         settingsDoc.overtimeRates,
         ['Fulltime'],
@@ -69,60 +79,75 @@ function convertSettings(settingsDoc: MongoSettingsDoc): PayrollSettingsData {
         ['Probation'],
         defaultRates,
       ),
-    },
-    allowances: {
-      transportation: safeGet(settingsDoc.allowances, ['transportation'], 0),
-      meal: {
-        [EmployeeType.Fulltime]: safeGet(
-          settingsDoc.allowances,
-          ['meal', 'Fulltime'],
-          0,
+    };
+
+    console.log('Parsed overtime rates:', overtimeRates);
+
+    const settings: PayrollSettingsData = {
+      overtimeRates,
+      allowances: {
+        transportation: safeGet(settingsDoc.allowances, ['transportation'], 0),
+        meal: {
+          [EmployeeType.Fulltime]: safeGet(
+            settingsDoc.allowances,
+            ['meal', 'Fulltime'],
+            0,
+          ),
+          [EmployeeType.Parttime]: safeGet(
+            settingsDoc.allowances,
+            ['meal', 'Parttime'],
+            30,
+          ),
+          [EmployeeType.Probation]: safeGet(
+            settingsDoc.allowances,
+            ['meal', 'Probation'],
+            0,
+          ),
+        },
+        housing: safeGet(settingsDoc.allowances, ['housing'], 0),
+      },
+      deductions: {
+        socialSecurityRate: safeGet(
+          settingsDoc.deductions,
+          ['socialSecurityRate'],
+          0.05,
         ),
-        [EmployeeType.Parttime]: safeGet(
-          settingsDoc.allowances,
-          ['meal', 'Parttime'],
-          30,
+        socialSecurityMinBase: safeGet(
+          settingsDoc.deductions,
+          ['socialSecurityMinBase'],
+          1650,
         ),
-        [EmployeeType.Probation]: safeGet(
-          settingsDoc.allowances,
-          ['meal', 'Probation'],
-          0,
+        socialSecurityMaxBase: safeGet(
+          settingsDoc.deductions,
+          ['socialSecurityMaxBase'],
+          15000,
         ),
       },
-      housing: safeGet(settingsDoc.allowances, ['housing'], 0),
-    },
-    deductions: {
-      socialSecurityRate: safeGet(
-        settingsDoc.deductions,
-        ['socialSecurityRate'],
-        0.05,
-      ),
-      socialSecurityMinBase: safeGet(
-        settingsDoc.deductions,
-        ['socialSecurityMinBase'],
-        1650,
-      ),
-      socialSecurityMaxBase: safeGet(
-        settingsDoc.deductions,
-        ['socialSecurityMaxBase'],
-        15000,
-      ),
-    },
-    rules: {
-      payrollPeriodStart: safeGet(
-        settingsDoc.rules,
-        ['payrollPeriodStart'],
-        26,
-      ),
-      payrollPeriodEnd: safeGet(settingsDoc.rules, ['payrollPeriodEnd'], 25),
-      overtimeMinimumMinutes: safeGet(
-        settingsDoc.rules,
-        ['overtimeMinimumMinutes'],
-        30,
-      ),
-      roundOvertimeTo: safeGet(settingsDoc.rules, ['roundOvertimeTo'], 30),
-    },
-  };
+      rules: {
+        payrollPeriodStart: safeGet(
+          settingsDoc.rules,
+          ['payrollPeriodStart'],
+          26,
+        ),
+        payrollPeriodEnd: safeGet(settingsDoc.rules, ['payrollPeriodEnd'], 25),
+        overtimeMinimumMinutes: safeGet(
+          settingsDoc.rules,
+          ['overtimeMinimumMinutes'],
+          30,
+        ),
+        roundOvertimeTo: safeGet(settingsDoc.rules, ['roundOvertimeTo'], 30),
+      },
+    };
+
+    console.log('Final parsed settings:', settings);
+    return settings;
+  } catch (error) {
+    console.error('Error parsing settings:', error);
+    console.error('Settings document that failed:', settingsDoc);
+    throw new Error(
+      `Failed to parse payroll settings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
 }
 
 // Move this function up with other helper functions, before the handler

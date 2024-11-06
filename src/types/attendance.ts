@@ -516,6 +516,34 @@ export interface TimeEntryWithDate {
     isInsideShiftHours: boolean;
   };
 }
+export interface DetailedTimeEntry {
+  date: string;
+  regularCheckInTime: string | null;
+  regularCheckOutTime: string | null;
+  isLateCheckIn: boolean;
+  isLateCheckOut: boolean;
+  status: string;
+  isManualEntry: boolean;
+  regularHours: number;
+  overtimeHours: number;
+  leave: {
+    type: string;
+    status: string;
+  } | null;
+  overtimeDetails: Array<{
+    startTime: string | null;
+    endTime: string | null;
+    status: string;
+  }>;
+  canEditManually: boolean;
+}
+
+export interface TimeEntriesResponse {
+  employeeId: string;
+  periodStart: string;
+  periodEnd: string;
+  records: DetailedTimeEntry[];
+}
 
 export interface UseAttendanceProps {
   lineUserId: string | null;

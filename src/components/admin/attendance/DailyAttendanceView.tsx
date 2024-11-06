@@ -27,6 +27,7 @@ import {
   DailyAttendanceRecord,
   AttendanceFilters,
   DailyAttendanceResponse,
+  ManualEntryRequest,
 } from '@/types/attendance';
 import { useAttendance } from '@/hooks/useAttendance';
 import {
@@ -50,11 +51,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AttendanceApiService } from '@/services/attendanceApiService';
 
 export default function DailyAttendanceView() {
   const { user } = useAdmin();
   const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [selectedRecord, setSelectedRecord] =
+    useState<DailyAttendanceResponse | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const {
     records,
@@ -71,6 +78,43 @@ export default function DailyAttendanceView() {
   });
 
   const debouncedSearch = useDebounce(filters.searchTerm, 300);
+
+  const handleManualEntry = async (formData: ManualEntryRequest) => {
+    if (!selectedRecord || !user?.lineUserId) return;
+
+    try {
+      setIsSubmitting(true);
+      setFormError(null);
+
+      const response = await AttendanceApiService.createManualEntry(
+        user.lineUserId,
+        {
+          employeeId: selectedRecord.employeeId,
+          date: format(filters.date, 'yyyy-MM-dd'),
+          checkInTime: formData.checkInTime,
+          checkOutTime: formData.checkOutTime,
+          reason: formData.reason,
+        },
+      );
+
+      if (response.success) {
+        setShowEditDialog(false);
+        setSelectedRecord(null);
+        await refreshData();
+      } else {
+        setFormError(response.message);
+      }
+    } catch (error) {
+      console.error('Error submitting manual entry:', error);
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to submit manual entry',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Handle filters
   const handleDateChange = (date: Date | undefined) => {
@@ -344,6 +388,17 @@ export default function DailyAttendanceView() {
                         }}
                       >
                         View Details
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-4"
+                        onClick={() => {
+                          setSelectedRecord(record);
+                          setShowEditDialog(true);
+                        }}
+                      >
+                        Edit Record
                       </Button>
                     </TableCell>
                   </TableRow>
