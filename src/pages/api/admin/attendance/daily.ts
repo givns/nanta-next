@@ -1,13 +1,21 @@
 // pages/api/admin/attendance/daily.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, LeaveRequest } from '@prisma/client';
 import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
 import { DailyAttendanceResponse } from '@/types/attendance';
 import { getCacheData, setCacheData } from '@/lib/serverCache';
+import { ShiftManagementService } from '@/services/ShiftManagementService';
+import { HolidayService } from '@/services/HolidayService';
+import { LeaveServiceServer } from '@/services/LeaveServiceServer';
+import { NotificationService } from '@/services/NotificationService';
 
 const CACHE_TTL = 5 * 60; // 5 minutes cache
 const prisma = new PrismaClient();
+const notificationService = new NotificationService(prisma);
+const holidayService = new HolidayService(prisma);
+const shiftService = new ShiftManagementService(prisma, holidayService);
+const leaveService = new LeaveServiceServer(prisma, notificationService);
 
 async function handleGetDailyAttendance(
   req: NextApiRequest,
@@ -64,7 +72,6 @@ async function handleGetDailyAttendance(
       ),
     };
 
-    // Single query to get all required data
     const employees = await prisma.user.findMany({
       where: whereCondition,
       select: {
@@ -96,22 +103,36 @@ async function handleGetDailyAttendance(
             isVeryLateCheckOut: true,
             lateCheckOutMinutes: true,
             status: true,
-            checkInAddress: true,
-            checkOutAddress: true,
             isDayOff: true,
           },
         },
       },
     });
 
-    // Transform the data
-    const attendanceRecords: DailyAttendanceResponse[] = employees.map(
-      (employee) => {
+    // Get all required data
+    const [holidays, leaveRequests] = await Promise.all([
+      holidayService.getHolidays(dateStart, dateEnd),
+      leaveService.getUserLeaveRequests(targetDate),
+    ]);
+
+    const attendanceRecords: DailyAttendanceResponse[] = await Promise.all(
+      employees.map(async (employee) => {
         const attendance = employee.attendances[0];
+        const isHoliday = await holidayService.isHoliday(
+          targetDate,
+          holidays,
+          employee.shiftCode === 'SHIFT104',
+        );
+
+        // Type the leave request parameter
+        const leaveRequest = leaveRequests.find(
+          (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
+        );
+
         return {
           employeeId: employee.employeeId,
           employeeName: employee.name,
-          departmentName: employee.departmentName,
+          departmentName: employee.departmentName || '',
           date: format(targetDate, 'yyyy-MM-dd'),
           shift: employee.assignedShift
             ? {
@@ -127,19 +148,23 @@ async function handleGetDailyAttendance(
                   attendance.regularCheckInTime?.toISOString() || null,
                 regularCheckOutTime:
                   attendance.regularCheckOutTime?.toISOString() || null,
-                isLateCheckIn: attendance.isLateCheckIn ?? false,
-                isLateCheckOut: attendance.isLateCheckOut ?? false,
-                isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
-                isVeryLateCheckOut: attendance.isVeryLateCheckOut,
-                lateCheckOutMinutes: attendance.lateCheckOutMinutes,
+                isLateCheckIn: Boolean(attendance.isLateCheckIn),
+                isLateCheckOut: Boolean(attendance.isLateCheckOut),
+                isEarlyCheckIn: Boolean(attendance.isEarlyCheckIn),
+                isVeryLateCheckOut: Boolean(attendance.isVeryLateCheckOut),
+                lateCheckOutMinutes: attendance.lateCheckOutMinutes || 0,
                 status: attendance.status,
-                checkInAddress: attendance.checkInAddress || null,
-                checkOutAddress: attendance.checkOutAddress || null,
-                isDayOff: attendance.isDayOff,
+              }
+            : null,
+          isDayOff: isHoliday || attendance?.isDayOff || false,
+          leaveInfo: leaveRequest
+            ? {
+                type: leaveRequest.leaveType,
+                status: leaveRequest.status,
               }
             : null,
         };
-      },
+      }),
     );
 
     // Cache results

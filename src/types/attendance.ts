@@ -5,6 +5,7 @@ import {
   ShiftAdjustmentRequest,
   OvertimeEntry,
   TimeEntry,
+  Prisma,
 } from '@prisma/client';
 import { UserData } from './user';
 
@@ -413,6 +414,57 @@ export interface DailyAttendanceShift {
 }
 
 export interface DailyAttendanceRecord {
+  employeeId: string;
+  name: string;
+  departmentName: string;
+  shift: {
+    name: string;
+    startTime: string;
+    endTime: string;
+  } | null;
+  status: string;
+  attendance: {
+    regularCheckInTime: string | null;
+    regularCheckOutTime: string | null;
+    isLateCheckIn: boolean;
+    isLateCheckOut: boolean;
+  } | null;
+  leaveInfo?: {
+    type: string;
+    status: string;
+  } | null;
+  isDayOff: boolean;
+}
+
+// Add this interface for raw attendance data
+export interface RawAttendanceData {
+  id: string;
+  regularCheckInTime: Date | null;
+  regularCheckOutTime: Date | null;
+  isLateCheckIn: boolean | null;
+  isLateCheckOut: boolean | null;
+  isEarlyCheckIn: boolean | null;
+  isVeryLateCheckOut: boolean | null;
+  lateCheckOutMinutes: number | null;
+  status: string;
+  isDayOff: boolean;
+}
+
+// Update the Prisma query types
+export type AttendanceSelect = Prisma.AttendanceSelect & {
+  id: true;
+  regularCheckInTime: true;
+  regularCheckOutTime: true;
+  isLateCheckIn: true;
+  isLateCheckOut: true;
+  isEarlyCheckIn: true;
+  isVeryLateCheckOut: true;
+  lateCheckOutMinutes: true;
+  status: true;
+  isDayOff: true;
+};
+
+export interface AttendanceDetails {
   id: string;
   regularCheckInTime: string | null;
   regularCheckOutTime: string | null;
@@ -422,18 +474,64 @@ export interface DailyAttendanceRecord {
   isVeryLateCheckOut: boolean;
   lateCheckOutMinutes: number;
   status: string;
-  checkInAddress: string | null;
-  checkOutAddress: string | null;
-  isDayOff: boolean;
 }
 
+export interface LeaveInfo {
+  type: string;
+  status: string;
+}
+
+export interface LeaveRequestData {
+  employeeId: string;
+  leaveType: string;
+  status: string;
+}
+
+// Complete daily attendance response
 export interface DailyAttendanceResponse {
   employeeId: string;
   employeeName: string;
   departmentName: string;
   date: string;
   shift: DailyAttendanceShift | null;
-  attendance: DailyAttendanceRecord | null;
+  attendance: AttendanceDetails | null;
+  leaveInfo?: LeaveInfo | null;
+  isDayOff: boolean;
+}
+
+// Extended TimeEntry interface
+
+export interface TimeEntryWithDate {
+  id: string;
+  employeeId: string;
+  date: Date;
+  startTime: Date | null;
+  endTime: Date | null;
+  regularHours: number;
+  overtimeHours: number;
+  status: 'in_progress' | 'completed';
+  attendanceId: string | null;
+  overtimeRequestId: string | null;
+  entryType: 'regular' | 'overtime';
+  isLate: boolean;
+  isDayOff: boolean;
+  overtimeMetadata?: {
+    isDayOffOvertime: boolean;
+    isInsideShiftHours: boolean;
+  };
+}
+
+export interface AttendanceFilters {
+  date: Date;
+  department: string;
+  searchTerm: string;
+}
+
+export interface UseAttendanceProps {
+  lineUserId: string | null;
+  date?: Date;
+  department?: string;
+  searchTerm?: string;
 }
 
 export interface ManualEntryRequest {

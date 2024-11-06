@@ -1,28 +1,19 @@
 // components/admin/attendance/DailyAttendanceView.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAdmin } from '@/contexts/AdminContext';
-import { useAttendance } from '@/hooks/useAttendance';
+import { useDebounce } from '@/hooks/useDebounce';
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -32,29 +23,38 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
+import {
+  DailyAttendanceRecord,
+  AttendanceFilters,
+  DailyAttendanceResponse,
+} from '@/types/attendance';
+import { useAttendance } from '@/hooks/useAttendance';
+import {
+  Search,
+  Calendar as CalendarIcon,
+  Users,
+  UserCheck,
+  UserX,
+  Loader2,
+  AlertCircle,
+  CalendarDays,
+} from 'lucide-react';
+import { StatCard } from './StatCard';
+import { AttendanceCard } from './AttendanceCard';
+import { EmployeeDetailDialog } from './EmployeeDetailDialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  User,
-  Clock,
-  Calendar as CalendarIcon,
-  AlertCircle,
-  Search,
-  Loader2,
-} from 'lucide-react';
-import {
-  DailyAttendanceResponse,
-  ManualEntryRequest,
-} from '@/types/attendance';
-import { AttendanceApiService } from '@/services/attendanceApiService';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function DailyAttendanceView() {
   const { user } = useAdmin();
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [selectedRecord, setSelectedRecord] =
-    useState<DailyAttendanceResponse | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
 
   const {
     records,
@@ -64,163 +64,123 @@ export default function DailyAttendanceView() {
     error,
     filters,
     setFilters,
+    createManualEntry,
     refreshData,
   } = useAttendance({
     lineUserId: user?.lineUserId || null,
   });
 
-  const handleManualEntry = async (formData: ManualEntryRequest) => {
-    if (!selectedRecord || !user?.lineUserId) return;
+  const debouncedSearch = useDebounce(filters.searchTerm, 300);
 
-    try {
-      setIsSubmitting(true);
-      setFormError(null);
-
-      const response = await AttendanceApiService.createManualEntry(
-        user.lineUserId,
-        {
-          employeeId: selectedRecord.employeeId,
-          date: format(filters.date, 'yyyy-MM-dd'),
-          checkInTime: formData.checkInTime,
-          checkOutTime: formData.checkOutTime,
-          reason: formData.reason,
-        },
-      );
-
-      if (response.success) {
-        setShowEditDialog(false);
-        setSelectedRecord(null);
-        await refreshData();
-      } else {
-        setFormError(response.message);
-      }
-    } catch (error) {
-      console.error('Error submitting manual entry:', error);
-      setFormError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to submit manual entry',
-      );
-    } finally {
-      setIsSubmitting(false);
+  // Handle filters
+  const handleDateChange = (date: Date | undefined) => {
+    if (date) {
+      setFilters({ date });
     }
   };
 
-  const getStatusBadge = (status: string | undefined) => {
-    const styles = {
-      present: 'bg-green-100 text-green-800',
-      absent: 'bg-red-100 text-red-800',
-      incomplete: 'bg-yellow-100 text-yellow-800',
-      holiday: 'bg-purple-100 text-purple-800',
-      off: 'bg-gray-100 text-gray-800',
-      overtime: 'bg-blue-100 text-blue-800',
-    };
-
-    return (
-      <Badge className={styles[status as keyof typeof styles] || styles.absent}>
-        {status || 'Absent'}
-      </Badge>
-    );
+  const handleDepartmentChange = (department: string) => {
+    setFilters({ department });
   };
 
-  // Mobile view card component
-  const AttendanceCard = ({ record }: { record: DailyAttendanceResponse }) => (
-    <Card className="mb-4 md:hidden">
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="font-medium">{record.employeeName}</div>
-            <div className="text-sm text-gray-500">{record.departmentName}</div>
-          </div>
-          {getStatusBadge(record.attendance?.status)}
-        </div>
+  const handleSearch = (searchTerm: string) => {
+    setFilters({ searchTerm });
+  };
 
-        <div className="mt-4 space-y-2">
-          {record.shift && (
-            <div className="flex items-center text-sm">
-              <Clock className="h-4 w-4 mr-2" />
-              <span>
-                {record.shift.startTime} - {record.shift.endTime}
-              </span>
-            </div>
-          )}
+  // Memoized filtered and sorted records
+  const processedRecords = useMemo(() => {
+    return records.sort((a, b) => {
+      // Sort by status priority
+      const getStatusPriority = (record: DailyAttendanceResponse) => {
+        if (record.leaveInfo) return 1;
+        if (record.isDayOff) return 2;
+        if (!record.attendance?.regularCheckInTime) return 0;
+        return 3;
+      };
 
-          <div className="grid grid-cols-2 gap-4 mt-2">
-            <div>
-              <div className="text-sm text-gray-500">Check In</div>
-              <div className="font-medium">
-                {formatTimeOnly(record.attendance?.regularCheckInTime ?? null)}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500">Check Out</div>
-              <div className="font-medium">
-                {formatTimeOnly(record.attendance?.regularCheckOutTime ?? null)}
-              </div>
-            </div>
-          </div>
+      const priorityA = getStatusPriority(a);
+      const priorityB = getStatusPriority(b);
 
-          {record.attendance?.isLateCheckIn && (
-            <div className="text-sm text-yellow-600 flex items-center">
-              <AlertCircle className="h-4 w-4 mr-1" />
-              Late Check-in
-            </div>
-          )}
-        </div>
+      if (priorityA !== priorityB) return priorityA - priorityB;
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full mt-4"
-          onClick={() => {
-            setSelectedRecord(record);
-            setShowEditDialog(true);
-          }}
-        >
-          Edit Record
-        </Button>
-      </CardContent>
-    </Card>
+      // Then by department
+      return a.departmentName.localeCompare(b.departmentName);
+    });
+  }, [records]);
+
+  // Calculate summary statistics
+  const summary = useMemo(
+    () => ({
+      total: records.length,
+      present: records.filter((r) => r.attendance?.regularCheckInTime).length,
+      absent: records.filter(
+        (r) => !r.attendance?.regularCheckInTime && !r.leaveInfo && !r.isDayOff,
+      ).length,
+      onLeave: records.filter((r) => r.leaveInfo).length,
+      dayOff: records.filter((r) => r.isDayOff).length,
+    }),
+    [records],
   );
 
+  const getStatusBadge = (record: DailyAttendanceResponse) => {
+    if (record.leaveInfo) {
+      return <Badge variant="secondary">{`On ${record.leaveInfo.type}`}</Badge>;
+    }
+    if (record.isDayOff) {
+      return <Badge variant="outline">Day Off</Badge>;
+    }
+    if (!record.attendance?.regularCheckInTime) {
+      return <Badge variant="destructive">Absent</Badge>;
+    }
+    if (!record.attendance.regularCheckOutTime) {
+      return <Badge variant="warning">Incomplete</Badge>;
+    }
+    if (record.attendance.isLateCheckIn || record.attendance.isLateCheckOut) {
+      return <Badge variant="warning">Late</Badge>;
+    }
+    return <Badge variant="success">Present</Badge>;
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <CardTitle>Daily Attendance</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2">
-              <CalendarIcon className="h-4 w-4" />
-              {format(filters.date, 'EEEE, d MMMM yyyy', { locale: th })}
-            </Button>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle>Daily Attendance</CardTitle>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <CalendarIcon className="h-4 w-4" />
+                  {format(filters.date, 'EEEE, d MMMM yyyy', { locale: th })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={filters.date}
+                  onSelect={handleDateChange}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
-        </div>
-      </CardHeader>
+        </CardHeader>
 
-      <CardContent>
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        <div className="space-y-4">
-          {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-4">
+        <CardContent>
+          {/* Search and filters */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search employee..."
-                value={filters.searchTerm}
-                onChange={(e) => setFilters({ searchTerm: e.target.value })}
                 className="pl-10"
+                value={filters.searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
               />
             </div>
-
             <Select
               value={filters.department}
-              onValueChange={(value) => setFilters({ department: value })}
+              onValueChange={handleDepartmentChange}
             >
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Department" />
@@ -234,252 +194,200 @@ export default function DailyAttendanceView() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
 
-            <Calendar
-              mode="single"
-              selected={filters.date}
-              onSelect={(date) => date && setFilters({ date })}
-              className="rounded-md border"
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <StatCard
+              title="Total Employees"
+              value={filteredRecords.length}
+              icon={Users}
+            />
+            <StatCard
+              title="Present"
+              value={
+                filteredRecords.filter((r) => r.attendance?.regularCheckInTime)
+                  .length
+              }
+              icon={UserCheck}
+              className="bg-green-50"
+            />
+            <StatCard
+              title="Absent"
+              value={
+                filteredRecords.filter(
+                  (r) =>
+                    !r.attendance?.regularCheckInTime &&
+                    !r.leaveInfo &&
+                    !r.isDayOff,
+                ).length
+              }
+              icon={UserX}
+              className="bg-red-50"
+            />
+            <StatCard
+              title="On Leave"
+              value={filteredRecords.filter((r) => r.leaveInfo).length}
+              icon={CalendarDays}
+              className="bg-blue-50"
+            />
+            <StatCard
+              title="Day Off"
+              value={filteredRecords.filter((r) => r.isDayOff).length}
+              icon={CalendarDays}
+              className="bg-gray-50"
             />
           </div>
 
-          {/* Loading state */}
+          {/* Loading State */}
           {isLoading && (
             <div className="flex justify-center items-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
             </div>
           )}
 
+          {/* Error State */}
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Shift</TableHead>
+                  <TableHead>Check In</TableHead>
+                  <TableHead>Check Out</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {processedRecords.map((record) => (
+                  <TableRow
+                    key={record.employeeId}
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => {
+                      setSelectedEmployee(record.employeeId);
+                      setShowEmployeeDetail(true);
+                    }}
+                  >
+                    <TableCell>
+                      <div className="font-medium">{record.employeeName}</div>
+                      <div className="text-sm text-gray-500">
+                        {record.employeeId}
+                      </div>
+                    </TableCell>
+                    <TableCell>{record.departmentName}</TableCell>
+                    <TableCell>
+                      {record.shift ? (
+                        <div>
+                          <div className="font-medium">{record.shift.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {record.shift.startTime} - {record.shift.endTime}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">No shift assigned</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {record.attendance?.regularCheckInTime ? (
+                        <div className="flex items-center gap-2">
+                          {format(
+                            parseISO(record.attendance.regularCheckInTime),
+                            'HH:mm',
+                          )}
+                          {record.attendance.isLateCheckIn && (
+                            <Badge variant="warning" className="h-5">
+                              Late
+                            </Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {record.attendance?.regularCheckOutTime ? (
+                        <div className="flex items-center gap-2">
+                          {format(
+                            parseISO(record.attendance.regularCheckOutTime),
+                            'HH:mm',
+                          )}
+                          {record.attendance.isLateCheckOut && (
+                            <Badge variant="warning" className="h-5">
+                              Late
+                            </Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(record)}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedEmployee(record.employeeId);
+                          setShowEmployeeDetail(true);
+                        }}
+                      >
+                        View Details
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            {/* Empty State */}
+            {!isLoading && processedRecords.length === 0 && (
+              <div className="text-center py-12">
+                <Users className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                  No Records Found
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  No attendance records found for the selected filters.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Mobile View */}
-          <div className="md:hidden">
-            {filteredRecords.map((record) => (
-              <AttendanceCard key={record.employeeId} record={record} />
+          <div className="md:hidden space-y-4">
+            {processedRecords.map((record) => (
+              <AttendanceCard
+                key={record.employeeId}
+                record={record}
+                onView={() => {
+                  setSelectedEmployee(record.employeeId);
+                  setShowEmployeeDetail(true);
+                }}
+              />
             ))}
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Desktop View */}
-          <div className="hidden md:block">
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Shift</TableHead>
-                    <TableHead>Check In</TableHead>
-                    <TableHead>Check Out</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRecords.map((record) => (
-                    <TableRow key={record.employeeId}>
-                      <TableCell>
-                        <div className="font-medium">{record.employeeName}</div>
-                        <div className="text-sm text-gray-500">
-                          {record.employeeId}
-                        </div>
-                      </TableCell>
-                      <TableCell>{record.departmentName}</TableCell>
-                      <TableCell>
-                        {record.shift
-                          ? `${record.shift.startTime} - ${record.shift.endTime}`
-                          : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {record.attendance?.regularCheckInTime &&
-                            formatTimeOnly(
-                              record.attendance.regularCheckInTime,
-                            )}
-                          {record.attendance?.isLateCheckIn && (
-                            <Badge variant="warning" className="h-5">
-                              Late
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {record.attendance?.regularCheckOutTime &&
-                            formatTimeOnly(
-                              record.attendance.regularCheckOutTime,
-                            )}
-                          {record.attendance?.isLateCheckOut && (
-                            <Badge variant="warning" className="h-5">
-                              Late
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(record.attendance?.status)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedRecord(record);
-                            setShowEditDialog(true);
-                          }}
-                        >
-                          Edit
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          {/* Empty State */}
-          {!isLoading && filteredRecords.length === 0 && (
-            <div className="text-center py-12">
-              <User className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">
-                No attendance records
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                No attendance records found for the selected filters
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Manual Entry Dialog */}
-        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Manual Attendance Entry</DialogTitle>
-              {selectedRecord && (
-                <div className="text-sm text-gray-500">
-                  {selectedRecord.employeeName} -{' '}
-                  {format(filters.date, 'dd MMM yyyy', { locale: th })}
-                </div>
-              )}
-            </DialogHeader>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                handleManualEntry({
-                  employeeId: selectedRecord!.employeeId,
-                  date: format(filters.date, 'yyyy-MM-dd'),
-                  checkInTime:
-                    (formData.get('checkInTime') as string) || undefined,
-                  checkOutTime:
-                    (formData.get('checkOutTime') as string) || undefined,
-                  reason: formData.get('reason') as string,
-                });
-              }}
-            >
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="checkInTime" className="text-right">
-                    Check In
-                  </Label>
-                  <div className="col-span-3">
-                    <Input
-                      id="checkInTime"
-                      name="checkInTime"
-                      type="time"
-                      defaultValue={
-                        selectedRecord?.attendance?.regularCheckInTime
-                          ? formatTimeOnly(
-                              selectedRecord.attendance.regularCheckInTime,
-                            )
-                          : undefined
-                      }
-                      disabled={isSubmitting}
-                    />
-                    {selectedRecord?.attendance?.isLateCheckIn && (
-                      <p className="text-yellow-600 text-sm mt-1">
-                        Original check-in was late
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="checkOutTime" className="text-right">
-                    Check Out
-                  </Label>
-                  <div className="col-span-3">
-                    <Input
-                      id="checkOutTime"
-                      name="checkOutTime"
-                      type="time"
-                      defaultValue={
-                        selectedRecord?.attendance?.regularCheckOutTime
-                          ? formatTimeOnly(
-                              selectedRecord.attendance.regularCheckOutTime,
-                            )
-                          : undefined
-                      }
-                      disabled={isSubmitting}
-                    />
-                    {selectedRecord?.attendance?.isLateCheckOut && (
-                      <p className="text-yellow-600 text-sm mt-1">
-                        Original check-out was late
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="reason" className="text-right">
-                    Reason
-                  </Label>
-                  <div className="col-span-3">
-                    <Input
-                      id="reason"
-                      name="reason"
-                      placeholder="Enter reason for manual entry"
-                      required
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowEditDialog(false)}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+      {/* Employee Detail Dialog */}
+      <EmployeeDetailDialog
+        open={showEmployeeDetail}
+        onOpenChange={setShowEmployeeDetail}
+        employeeId={selectedEmployee}
+        date={filters.date}
+      />
+    </div>
   );
-}
-// Helper function to format time without timezone conversion
-const formatTimeOnly = (isoString: string | null): string => {
-  if (!isoString) return '-';
-  // Extract only the HH:mm part from the time string
-  const timeMatch = isoString.match(/\d{2}:\d{2}/);
-  return timeMatch ? timeMatch[0] : '-';
-};
-function setError(arg0: null) {
-  throw new Error('Function not implemented.');
 }

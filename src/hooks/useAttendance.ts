@@ -8,11 +8,8 @@ import {
   DepartmentInfo,
   ManualEntryRequest,
   AttendanceFilters,
+  UseAttendanceProps,
 } from '@/types/attendance';
-
-interface UseAttendanceProps {
-  lineUserId: string | null;
-}
 
 interface UseAttendanceReturn {
   records: DailyAttendanceResponse[];
@@ -53,7 +50,7 @@ export function useAttendance({
     if (lineUserId) {
       fetchAttendanceRecords();
     }
-  }, [lineUserId, filters.date, filters.department, debouncedSearch]);
+  }, [lineUserId, filters, filters.date, filters.department, debouncedSearch]);
 
   async function fetchDepartments() {
     try {

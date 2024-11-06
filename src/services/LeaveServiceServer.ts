@@ -260,6 +260,16 @@ export class LeaveServiceServer
     return leaveRequest;
   }
 
+  async getUserLeaveRequests(date: Date): Promise<LeaveRequest[]> {
+    return this.prisma.leaveRequest.findMany({
+      where: {
+        startDate: { lte: date },
+        endDate: { gte: date },
+        status: { in: ['Approved', 'Pending'] },
+      },
+    });
+  }
+
   async hasPendingLeaveRequest(
     employeeId: string,
     date: Date,

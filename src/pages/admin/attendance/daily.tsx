@@ -18,7 +18,6 @@ export default function DailyAttendancePage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline">Export Report</Button>
-          <Button>Manual Entry</Button>
         </div>
       </div>
 
