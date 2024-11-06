@@ -144,15 +144,17 @@ async function handleGetDailyAttendance(
           attendance: attendance
             ? {
                 id: attendance.id,
-                regularCheckInTime:
-                  attendance.regularCheckInTime?.toISOString() || null,
-                regularCheckOutTime:
-                  attendance.regularCheckOutTime?.toISOString() || null,
-                isLateCheckIn: Boolean(attendance.isLateCheckIn),
-                isLateCheckOut: Boolean(attendance.isLateCheckOut),
-                isEarlyCheckIn: Boolean(attendance.isEarlyCheckIn),
-                isVeryLateCheckOut: Boolean(attendance.isVeryLateCheckOut),
-                lateCheckOutMinutes: attendance.lateCheckOutMinutes || 0,
+                regularCheckInTime: attendance.regularCheckInTime
+                  ? format(attendance.regularCheckInTime, 'HH:mm')
+                  : null,
+                regularCheckOutTime: attendance.regularCheckOutTime
+                  ? format(attendance.regularCheckOutTime, 'HH:mm')
+                  : null,
+                isLateCheckIn: attendance.isLateCheckIn ?? false,
+                isLateCheckOut: attendance.isLateCheckOut ?? false,
+                isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
+                isVeryLateCheckOut: attendance.isVeryLateCheckOut ?? false,
+                lateCheckOutMinutes: attendance.lateCheckOutMinutes ?? 0,
                 status: attendance.status,
               }
             : null,

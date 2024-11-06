@@ -85,7 +85,6 @@ export default async function handler(
 
     // Transform to DetailedTimeEntry
     const records = attendanceRecords.map((attendance) => {
-      const bangkokDate = toZonedTime(attendance.date, 'Asia/Bangkok');
       const timeEntry = timeEntries.find(
         (te) => te.attendanceId === attendance.id,
       );
@@ -95,18 +94,12 @@ export default async function handler(
       );
 
       return {
-        date: format(bangkokDate, 'yyyy-MM-dd'),
+        date: format(attendance.date, 'yyyy-MM-dd'),
         regularCheckInTime: attendance.regularCheckInTime
-          ? format(
-              toZonedTime(attendance.regularCheckInTime, 'Asia/Bangkok'),
-              'HH:mm',
-            )
+          ? format(attendance.regularCheckInTime, 'HH:mm')
           : null,
         regularCheckOutTime: attendance.regularCheckOutTime
-          ? format(
-              toZonedTime(attendance.regularCheckOutTime, 'Asia/Bangkok'),
-              'HH:mm',
-            )
+          ? format(attendance.regularCheckOutTime, 'HH:mm')
           : null,
         isLateCheckIn: attendance.isLateCheckIn || false,
         isLateCheckOut: attendance.isLateCheckOut || false,
@@ -122,11 +115,9 @@ export default async function handler(
           : null,
         overtimeDetails: attendance.overtimeEntries.map((oe) => ({
           startTime: oe.actualStartTime
-            ? format(toZonedTime(oe.actualStartTime, 'Asia/Bangkok'), 'HH:mm')
+            ? format(oe.actualStartTime, 'HH:mm')
             : null,
-          endTime: oe.actualEndTime
-            ? format(toZonedTime(oe.actualEndTime, 'Asia/Bangkok'), 'HH:mm')
-            : null,
+          endTime: oe.actualEndTime ? format(oe.actualEndTime, 'HH:mm') : null,
           status: oe.overtimeRequest?.status || 'pending',
         })),
         canEditManually: true,

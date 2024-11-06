@@ -79,43 +79,6 @@ export default function DailyAttendanceView() {
 
   const debouncedSearch = useDebounce(filters.searchTerm, 300);
 
-  const handleManualEntry = async (formData: ManualEntryRequest) => {
-    if (!selectedRecord || !user?.lineUserId) return;
-
-    try {
-      setIsSubmitting(true);
-      setFormError(null);
-
-      const response = await AttendanceApiService.createManualEntry(
-        user.lineUserId,
-        {
-          employeeId: selectedRecord.employeeId,
-          date: format(filters.date, 'yyyy-MM-dd'),
-          checkInTime: formData.checkInTime,
-          checkOutTime: formData.checkOutTime,
-          reason: formData.reason,
-        },
-      );
-
-      if (response.success) {
-        setShowEditDialog(false);
-        setSelectedRecord(null);
-        await refreshData();
-      } else {
-        setFormError(response.message);
-      }
-    } catch (error) {
-      console.error('Error submitting manual entry:', error);
-      setFormError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to submit manual entry',
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   // Handle filters
   const handleDateChange = (date: Date | undefined) => {
     if (date) {
@@ -344,11 +307,8 @@ export default function DailyAttendanceView() {
                     <TableCell>
                       {record.attendance?.regularCheckInTime ? (
                         <div className="flex items-center gap-2">
-                          {format(
-                            parseISO(record.attendance.regularCheckInTime),
-                            'HH:mm',
-                          )}
-                          {record.attendance.isLateCheckIn && (
+                          {record.attendance?.regularCheckInTime || '-'}
+                          {record.attendance?.isLateCheckIn && (
                             <Badge variant="warning" className="h-5">
                               Late
                             </Badge>
@@ -361,11 +321,8 @@ export default function DailyAttendanceView() {
                     <TableCell>
                       {record.attendance?.regularCheckOutTime ? (
                         <div className="flex items-center gap-2">
-                          {format(
-                            parseISO(record.attendance.regularCheckOutTime),
-                            'HH:mm',
-                          )}
-                          {record.attendance.isLateCheckOut && (
+                          {record.attendance?.regularCheckOutTime || '-'}
+                          {record.attendance?.isLateCheckOut && (
                             <Badge variant="warning" className="h-5">
                               Late
                             </Badge>
