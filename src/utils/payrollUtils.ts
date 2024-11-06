@@ -69,6 +69,14 @@ export class PayrollUtils {
     };
   }
 
+  static getPeriodDates(periodValue: string): PeriodRange {
+    const periodRange = this.parsePeriodValue(periodValue);
+    if (!periodRange) {
+      throw new Error('Invalid period value');
+    }
+    return periodRange;
+  }
+
   // Generate list of payroll periods
   static generatePayrollPeriods(
     monthsBack = 12,

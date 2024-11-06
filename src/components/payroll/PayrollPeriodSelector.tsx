@@ -1,3 +1,4 @@
+//component/admin/payroll/PayrollPeriodSelector.tsx
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';

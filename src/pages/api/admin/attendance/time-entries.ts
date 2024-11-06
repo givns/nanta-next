@@ -51,7 +51,7 @@ export default async function handler(
             lte: periodEnd,
           },
         },
-        orderBy: { date: 'asc' },
+        orderBy: { date: 'desc' }, // Latest first
         include: {
           timeEntries: true,
           overtimeEntries: {
