@@ -829,7 +829,7 @@ export class AttendanceService {
           address,
           isEarlyCheckOut: true,
           isAfterMidshift: true,
-          requireConfirmation: false, // Changed to false since we're not allowing it
+          requireConfirmation: false,
         },
       );
     }

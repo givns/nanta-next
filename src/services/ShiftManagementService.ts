@@ -159,12 +159,13 @@ export class ShiftManagementService {
     );
     // Use consistent thresholds with AttendanceService
     const LATE_CHECK_IN_THRESHOLD = 5; // 5 minutes after shift start
-    const OVERTIME_THRESHOLD = 30; // 30 minutes after shift end
+    const OVERTIME_THRESHOLD = 29; // 30 minutes after shift end
 
     const lateThreshold = addMinutes(shiftStart, LATE_CHECK_IN_THRESHOLD);
     const overtimeThreshold = addMinutes(shiftEnd, OVERTIME_THRESHOLD);
 
-    const isOutsideShift = isBefore(now, shiftStart) || isAfter(now, shiftEnd);
+    const isOutsideShift =
+      isBefore(now, shiftStart) || isAfter(now, overtimeThreshold);
     const isLate = isAfter(now, lateThreshold);
     const isDayOff = !effectiveShift.workDays.includes(date.getDay());
 
