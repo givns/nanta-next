@@ -50,7 +50,9 @@ export function EmployeeDetailDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showManualEntryDialog, setShowManualEntryDialog] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<DetailedTimeEntry | null>(
+    null,
+  );
   const [currentPeriod, setCurrentPeriod] = useState(() => {
     const periods = PayrollUtils.generatePayrollPeriods();
     return periods.find((p) => p.isCurrentPeriod)?.value || periods[0].value;
@@ -119,7 +121,7 @@ export function EmployeeDetailDialog({
 
       await fetchTimeEntries();
       setShowManualEntryDialog(false);
-      setSelectedDate(null);
+      setSelectedEntry(null);
     } catch (error) {
       setError(
         error instanceof Error
@@ -129,25 +131,6 @@ export function EmployeeDetailDialog({
       throw error;
     }
   };
-
-  // Get all dates in the current period
-  const periodDates = currentPeriod
-    ? (() => {
-        const range = PayrollUtils.parsePeriodValue(currentPeriod);
-        return range
-          ? eachDayOfInterval({
-              start: range.startDate,
-              end: range.endDate,
-            })
-          : [];
-      })()
-    : [];
-
-  // Find missing dates (dates without entries)
-  const missingDates = periodDates.filter(
-    (date) =>
-      !timeEntries.some((entry) => isSameDay(parseISO(entry.date), date)),
-  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -172,7 +155,7 @@ export function EmployeeDetailDialog({
         <div className="mb-4">
           <Button
             onClick={() => {
-              setSelectedDate(new Date());
+              setSelectedEntry(null);
               setShowManualEntryDialog(true);
             }}
             className="w-full"
@@ -198,7 +181,7 @@ export function EmployeeDetailDialog({
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setSelectedDate(parseISO(entry.date));
+                        setSelectedEntry(entry);
                         setShowManualEntryDialog(true);
                       }}
                     >
@@ -278,17 +261,18 @@ export function EmployeeDetailDialog({
           )}
         </div>
 
-        {/* Manual Entry Dialog */}
-        {showManualEntryDialog && selectedDate && (
+        {/* Manual Entry Dialog - Conditionally rendered with different props */}
+        {showManualEntryDialog && (
           <ManualEntryDialog
             entry={
-              timeEntries.find((entry) =>
-                isSameDay(parseISO(entry.date), selectedDate),
-              ) || { date: format(selectedDate, 'yyyy-MM-dd') }
+              selectedEntry
+                ? selectedEntry
+                : { date: format(new Date(), 'yyyy-MM-dd') }
             }
+            isNewEntry={!selectedEntry}
             onClose={() => {
               setShowManualEntryDialog(false);
-              setSelectedDate(null);
+              setSelectedEntry(null);
             }}
             onSave={handleManualEntry}
           />
