@@ -6,7 +6,7 @@ import {
   ManualEntryResponse,
   DepartmentInfo,
 } from '@/types/attendance';
-import { format } from 'date-fns';
+import { format, isValid, startOfDay } from 'date-fns';
 
 export class AttendanceApiService {
   private static baseUrl = '/api/admin/attendance';
@@ -18,7 +18,12 @@ export class AttendanceApiService {
     searchTerm: string = '',
   ): Promise<DailyAttendanceResponse[]> {
     try {
-      const formattedDate = format(date, 'yyyy-MM-dd');
+      // Ensure date is valid
+      if (!isValid(date)) {
+        throw new Error('Invalid date provided');
+      }
+
+      const formattedDate = format(startOfDay(date), 'yyyy-MM-dd');
       const params = new URLSearchParams({
         date: formattedDate,
         department,
@@ -32,13 +37,17 @@ export class AttendanceApiService {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch attendance records');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch attendance records');
       }
 
-      return await response.json();
+      const data = await response.json();
+      return data;
     } catch (error) {
-      console.error('Error fetching daily attendance:', error);
-      throw error;
+      console.error('Error in getDailyAttendance:', error);
+      throw error instanceof Error
+        ? error
+        : new Error('Failed to fetch attendance records');
     }
   }
 

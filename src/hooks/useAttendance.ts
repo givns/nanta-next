@@ -1,5 +1,3 @@
-// hooks/useAttendance.ts
-
 import { useState, useEffect, useMemo } from 'react';
 import { useDebounce } from './useDebounce';
 import { AttendanceApiService } from '@/services/attendanceApiService';
@@ -10,6 +8,7 @@ import {
   AttendanceFilters,
   UseAttendanceProps,
 } from '@/types/attendance';
+import { startOfDay, isValid } from 'date-fns';
 
 interface UseAttendanceReturn {
   records: DailyAttendanceResponse[];
@@ -25,79 +24,82 @@ interface UseAttendanceReturn {
 
 export function useAttendance({
   lineUserId,
+  initialDate = new Date(),
+  initialDepartment = 'all',
+  initialSearchTerm = '',
 }: UseAttendanceProps): UseAttendanceReturn {
   const [records, setRecords] = useState<DailyAttendanceResponse[]>([]);
   const [departments, setDepartments] = useState<DepartmentInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<AttendanceFilters>({
-    date: new Date(),
-    department: 'all',
-    searchTerm: '',
+    date: startOfDay(isValid(initialDate) ? initialDate : new Date()),
+    department: initialDepartment,
+    searchTerm: initialSearchTerm,
   });
 
   const debouncedSearch = useDebounce(filters.searchTerm, 300);
 
-  // Fetch departments on mount
-  useEffect(() => {
-    if (lineUserId) {
-      fetchDepartments();
-    }
-  }, [lineUserId]);
+  // Fetch attendance data
+  const fetchAttendanceRecords = async () => {
+    if (!lineUserId) return;
 
-  // Fetch attendance data when filters change
-  useEffect(() => {
-    if (lineUserId) {
-      fetchAttendanceRecords();
-    }
-  }, [lineUserId, filters, filters.date, filters.department, debouncedSearch]);
-
-  async function fetchDepartments() {
-    try {
-      const data = await AttendanceApiService.getDepartments(lineUserId!);
-      setDepartments(data);
-    } catch (error) {
-      setError('Failed to load departments');
-      console.error('Error:', error);
-    }
-  }
-
-  async function fetchAttendanceRecords() {
     try {
       setIsLoading(true);
       setError(null);
       const data = await AttendanceApiService.getDailyAttendance(
-        lineUserId!,
+        lineUserId,
         filters.date,
         filters.department,
         debouncedSearch,
       );
       setRecords(data);
     } catch (error) {
-      setError('Failed to load attendance records');
-      console.error('Error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function createManualEntry(entryData: ManualEntryRequest) {
-    try {
-      setIsLoading(true);
-      setError(null);
-      await AttendanceApiService.createManualEntry(lineUserId!, entryData);
-      await fetchAttendanceRecords();
-    } catch (error) {
+      console.error('Error fetching attendance:', error);
       setError(
         error instanceof Error
           ? error.message
-          : 'Failed to create manual entry',
+          : 'Failed to load attendance records',
       );
-      throw error;
     } finally {
       setIsLoading(false);
     }
-  }
+  };
+
+  // Handle filter updates
+  const updateFilters = (newFilters: Partial<AttendanceFilters>) => {
+    setFilters((prev) => {
+      const updated = { ...prev, ...newFilters };
+
+      // Ensure date is always valid
+      if ('date' in newFilters) {
+        updated.date = startOfDay(
+          isValid(newFilters.date) ? newFilters.date! : new Date(),
+        );
+      }
+
+      return updated;
+    });
+  };
+
+  // Fetch departments on mount
+  useEffect(() => {
+    if (lineUserId) {
+      AttendanceApiService.getDepartments(lineUserId)
+        .then(setDepartments)
+        .catch((error) => {
+          console.error('Error fetching departments:', error);
+          setError('Failed to load departments');
+        });
+    }
+  }, [lineUserId]);
+
+  // Fetch attendance when filters change
+  useEffect(() => {
+    if (lineUserId) {
+      fetchAttendanceRecords();
+    }
+  }, [lineUserId, filters.date, filters.department, debouncedSearch]);
 
   // Memoized filtered records
   const filteredRecords = useMemo(() => {
@@ -117,8 +119,24 @@ export function useAttendance({
     });
   }, [records, debouncedSearch, filters.department]);
 
-  const updateFilters = (newFilters: Partial<AttendanceFilters>) => {
-    setFilters((prev) => ({ ...prev, ...newFilters }));
+  const createManualEntry = async (entryData: ManualEntryRequest) => {
+    if (!lineUserId) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      await AttendanceApiService.createManualEntry(lineUserId, entryData);
+      await fetchAttendanceRecords();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to create manual entry',
+      );
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return {

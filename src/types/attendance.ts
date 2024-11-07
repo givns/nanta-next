@@ -549,9 +549,9 @@ export interface TimeEntriesResponse {
 
 export interface UseAttendanceProps {
   lineUserId: string | null;
-  date?: Date;
-  department?: string;
-  searchTerm?: string;
+  initialDate?: Date;
+  initialDepartment?: string;
+  initialSearchTerm?: string;
 }
 
 export interface ManualEntryRequest {
