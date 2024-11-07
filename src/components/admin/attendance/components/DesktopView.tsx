@@ -84,13 +84,13 @@ export function DesktopView({
               </TableCell>
               <TableCell>
                 <AttendanceTime
-                  time={record.attendance?.regularCheckInTime}
+                  time={record.attendance?.regularCheckInTime ?? null}
                   isLate={record.attendance?.isLateCheckIn}
                 />
               </TableCell>
               <TableCell>
                 <AttendanceTime
-                  time={record.attendance?.regularCheckOutTime}
+                  time={record.attendance?.regularCheckOutTime ?? null}
                   isLate={record.attendance?.isLateCheckOut}
                 />
               </TableCell>
