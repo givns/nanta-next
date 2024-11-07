@@ -464,15 +464,54 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     ],
   );
 
+  // CheckInOutForm.tsx
   const renderStep1 = useMemo(
     () => (
-      <div className="flex flex-col h-full">
-        <ErrorBoundary>{memoizedUserShiftInfo}</ErrorBoundary>
-        <div className="flex-shrink-0 mt-4">
-          {memoizedActionButton}
-          <p className="text-center mt-2">
-            ท่านมีเวลาในการทำรายการ {timeRemaining} วินาที
-          </p>
+      <div className="h-full flex flex-col">
+        {/* Scrollable content area */}
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain"
+          style={{
+            height: 'calc(100vh - var(--header-height) - var(--footer-height))',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          <div className="px-4 py-2">
+            <ErrorBoundary>
+              <UserShiftInfo
+                userData={userData}
+                attendanceStatus={liveAttendanceStatus}
+                effectiveShift={effectiveShift}
+              />
+            </ErrorBoundary>
+          </div>
+        </div>
+
+        {/* Fixed footer with action button */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+          <div className="px-4 pt-3">
+            {/* Status alerts */}
+            {checkInOutAllowance?.reason && !checkInOutAllowance.allowed && (
+              <div className="mb-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+                {checkInOutAllowance.reason}
+              </div>
+            )}
+
+            {/* Action button */}
+            <ActionButton
+              isLoading={isAttendanceLoading}
+              isActionButtonReady={isActionButtonReady}
+              checkInOutAllowance={checkInOutAllowance}
+              isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
+              isDayOff={currentAttendanceStatus?.isDayOff ?? false}
+              onAction={handleAction}
+            />
+
+            {/* Countdown - always visible above safe area */}
+            <div className="mt-2 pb-safe text-center text-sm text-gray-600">
+              ท่านมีเวลาในการทำรายการ {timeRemaining} วินาที
+            </div>
+          </div>
         </div>
       </div>
     ),
@@ -510,68 +549,35 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [],
   );
 
+  // Main content structure
   const content = (
     <ErrorBoundary>
-      <div className="h-screen flex flex-col relative">
+      <div className="min-h-screen flex flex-col">
+        {/* Loading overlay */}
         {isSubmitting && (
-          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
             <div className="text-black text-lg">กำลังบันทึกข้อมูล...</div>
           </div>
         )}
-        {/* Main content - takes remaining space */}
-        <div className="flex-1 relative">
-          {step === 'info' && (
-            <div className="h-full flex flex-col p-4">
-              <ErrorBoundary>
-                <div className="flex-1">
-                  <UserShiftInfo
-                    userData={userData}
-                    attendanceStatus={liveAttendanceStatus}
-                    effectiveShift={effectiveShift}
-                  />
-                </div>
-                <div className="flex-none mt-4">
-                  <ActionButton
-                    isLoading={isAttendanceLoading}
-                    isActionButtonReady={isActionButtonReady}
-                    checkInOutAllowance={checkInOutAllowance}
-                    isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
-                    isDayOff={currentAttendanceStatus?.isDayOff ?? false}
-                    onAction={handleAction}
-                  />
-                  <p className="text-center mt-2">
-                    ท่านมีเวลาในการทำรายการ {timeRemaining} วินาที
-                  </p>
-                </div>
-              </ErrorBoundary>
-            </div>
-          )}
 
+        {/* Main content */}
+        <div className="flex-1 relative">
+          {step === 'info' && renderStep1}
           {step === 'camera' && (
-            <div className="absolute inset-0">
-              <CameraFrame
-                webcamRef={webcamRef}
-                faceDetected={faceDetected}
-                faceDetectionCount={faceDetectionCount}
-                message={message}
-                captureThreshold={captureThreshold}
-              />
-            </div>
+            <div className="absolute inset-0">{renderStep2()}</div>
           )}
-          {step === 'processing' && (
-            <div className="h-full flex items-center justify-center">
-              {renderStep3()}
-            </div>
-          )}
+          {step === 'processing' && renderStep3()}
         </div>
 
+        {/* Errors */}
         {error && (
-          <div className="mt-4">
-            <p className="text-red-500" role="alert">
+          <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-red-50 border-t border-red-100 z-20">
+            <p className="text-red-500 text-center" role="alert">
               {error}
             </p>
           </div>
         )}
+
         <LateReasonModal
           isOpen={isLateModalOpen}
           onClose={() => {

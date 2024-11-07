@@ -9,6 +9,12 @@
     --foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
+    --header-height: 104px; /* Adjust based on your header height */
+    --footer-height: 140px; /* Adjust based on your footer content */
+    --safe-bottom: env(safe-area-inset-bottom, 16px);
+  }
+  .pb-safe {
+    padding-bottom: calc(var(--safe-bottom) + 16px);
   }
 
   .dark {

@@ -337,8 +337,12 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
     const { message, color } = getStatusMessage;
 
     return (
-      <div className="space-y-6">
-        <div className="bg-white p-6 rounded-lg shadow-md text-center">
+      <div className="pb-24">
+        {' '}
+        {/* Add bottom padding for fixed footer */}
+        {/* User info card - always visible */}
+        <div className="bg-white p-6 rounded-lg shadow-md text-center mb-4">
+          {/* ... user info content ... */}
           <p className="text-2xl font-bold">{userData.name}</p>
           <p className="text-xl text-gray-600">
             รหัสพนักงาน: {userData.employeeId}
@@ -360,8 +364,12 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
             </span>
           </div>
         </div>
-        {renderTodayInfo}
-        {renderFutureInfo}
+        {/* Today's info */}
+        <div className="mb-4">{renderTodayInfo}</div>
+        {/* Future info - if exists */}
+        {renderFutureInfo && (
+          <div className="space-y-4">{renderFutureInfo}</div>
+        )}
       </div>
     );
   },
