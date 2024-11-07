@@ -41,11 +41,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       >
         {buttonText}
       </button>
-      {checkInOutAllowance?.reason && (
-        <p className="text-center text-sm mt-2 text-gray-600">
-          {checkInOutAllowance.reason}
-        </p>
-      )}
     </div>
   );
 };

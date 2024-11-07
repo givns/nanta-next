@@ -492,7 +492,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           <div className="px-4 pt-3">
             {/* Status alerts */}
             {checkInOutAllowance?.reason && !checkInOutAllowance.allowed && (
-              <div className="mb-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">
+              <div className="mb-2 text-sm text-center text-red-600 bg-red-50 px-3 py-2 rounded-md">
                 {checkInOutAllowance.reason}
               </div>
             )}
@@ -569,6 +569,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           <div className="flex-1 relative">
             {step === 'info' && renderStep1}
             {step === 'processing' && renderStep3()}
+          </div>
+        )}
+
+        {/* Errors */}
+        {error && (
+          <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-red-50 border-t border-red-100 z-20">
+            <p className="text-red-500 text-center" role="alert">
+              {error}
+            </p>
           </div>
         )}
 
