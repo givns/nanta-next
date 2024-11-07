@@ -109,21 +109,22 @@ async function handleGetDailyAttendance(
       },
     });
 
-    // Get holiday for this specific date
-    const isHolidayToday = await holidayService.isHoliday(targetDate);
+    // Get all required data
+    const [holidays, leaveRequests] = await Promise.all([
+      holidayService.getHolidays(dateStart, dateEnd),
+      leaveService.getUserLeaveRequests(targetDate),
+    ]);
 
-    // Get leave requests
-    const leaveRequests = await leaveService.getUserLeaveRequests(targetDate);
-
-    const attendanceRecords: DailyAttendanceResponse[] = employees.map(
-      (employee) => {
+    const attendanceRecords: DailyAttendanceResponse[] = await Promise.all(
+      employees.map(async (employee) => {
         const attendance = employee.attendances[0];
-        // For SHIFT104, we check holidays differently
-        const isEmployeeHoliday =
-          employee.shiftCode === 'SHIFT104'
-            ? attendance?.isDayOff || false
-            : isHolidayToday || attendance?.isDayOff || false;
+        const isHoliday = await holidayService.isHoliday(
+          targetDate,
+          holidays,
+          employee.shiftCode === 'SHIFT104',
+        );
 
+        // Type the leave request parameter
         const leaveRequest = leaveRequests.find(
           (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
         );
@@ -157,7 +158,7 @@ async function handleGetDailyAttendance(
                 status: attendance.status,
               }
             : null,
-          isDayOff: isEmployeeHoliday,
+          isDayOff: isHoliday || attendance?.isDayOff || false,
           leaveInfo: leaveRequest
             ? {
                 type: leaveRequest.leaveType,
@@ -165,7 +166,7 @@ async function handleGetDailyAttendance(
               }
             : null,
         };
-      },
+      }),
     );
 
     // Cache results
