@@ -155,24 +155,25 @@ function convertSettings(
   }
 }
 
-// Move this function up with other helper functions, before the handler
-// Update the createOrGetProcessingSession function to accept TransactionClient
+// Modify the createOrGetProcessingSession to accept transaction client
 async function createOrGetProcessingSession(
-  prisma: PrismaClient | TransactionClient,
+  tx: Prisma.TransactionClient,
   periodStart: Date,
   employeeId: string,
 ): Promise<string> {
   const periodYearMonth = format(periodStart, 'yyyy-MM');
 
-  let session = await prisma.payrollProcessingSession.findFirst({
+  // Try to find existing session for this period
+  let session = await tx.payrollProcessingSession.findFirst({
     where: {
       periodYearMonth,
       status: 'processing',
     },
   });
 
+  // If no session exists, create one
   if (!session) {
-    session = await prisma.payrollProcessingSession.create({
+    session = await tx.payrollProcessingSession.create({
       data: {
         periodYearMonth,
         status: 'processing',
@@ -196,18 +197,22 @@ export default async function handler(
     });
   }
 
-  let payrollPeriod;
-  let calculationResult;
-
   try {
     const { employeeId, periodStart, periodEnd } = req.body;
     const lineUserId = req.headers['x-line-userid'];
 
-    // Validate input and authorization
-    if (!employeeId || !periodStart || !periodEnd || !lineUserId) {
+    // Validate input
+    if (!employeeId || !periodStart || !periodEnd) {
       return res.status(400).json({
         success: false,
-        error: !lineUserId ? 'Unauthorized' : 'Missing required parameters',
+        error: 'Missing required parameters',
+      });
+    }
+
+    if (!lineUserId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
       });
     }
 
@@ -222,9 +227,9 @@ export default async function handler(
       });
     }
 
-    // Begin transaction to ensure data consistency
+    // Wrap all database operations in a single transaction
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Fetch all required data
+      // Fetch all required data using transaction client
       const [employee, timeEntries, leaveRequests, rawSettings] =
         await Promise.all([
           tx.user.findUnique({
@@ -291,43 +296,18 @@ export default async function handler(
         );
       }
 
-      // 2. Convert settings and validate
+      // Convert settings
       const settings = convertSettings(rawSettings as MongoSettingsDoc);
-      if (!settings.overtimeRates[employee.employeeType]) {
-        throw new Error(
-          `Missing overtime rates for employee type: ${employee.employeeType}`,
-        );
-      }
 
-      // 4. Create/Update payroll period first
-      payrollPeriod = await tx.payrollPeriod.upsert({
-        where: {
-          period_range: {
-            startDate,
-            endDate,
-          },
-        },
-        update: {
-          status: 'processing',
-        },
-        create: {
-          startDate,
-          endDate,
-          status: 'processing',
-        },
-      });
-
-      // 5. Initialize services with transaction client
+      // Initialize services with transaction client
       const holidayService = new HolidayService(tx);
-
-      // Create PayrollCalculationService with the transaction
       const payrollService = new PayrollCalculationService(
         settings,
         tx,
         holidayService,
       );
 
-      // Map leave requests before calculation
+      // Map leave requests
       const mappedLeaveRequests = leaveRequests.map((leave) => ({
         ...leave,
         startDate: new Date(leave.startDate),
@@ -341,7 +321,8 @@ export default async function handler(
         originalRequestId: null,
       })) as LeaveRequest[];
 
-      calculationResult = await payrollService.calculatePayroll(
+      // Calculate payroll
+      const calculationResult = await payrollService.calculatePayroll(
         {
           id: employee.id,
           employeeId: employee.employeeId,
@@ -375,100 +356,122 @@ export default async function handler(
         endDate,
       );
 
-      // 5. Create/Update payroll record
-      const payroll = await tx.payroll.upsert({
+      // Create or update payroll period using transaction client
+      const payrollPeriod = await tx.payrollPeriod.upsert({
         where: {
-          employee_period: {
-            employeeId,
-            payrollPeriodId: payrollPeriod.id,
+          period_range: {
+            startDate,
+            endDate,
           },
         },
-        create: {
-          employeeId,
-          payrollPeriodId: payrollPeriod.id,
-          regularHours: calculationResult.regularHours || 0,
-          overtimeHoursByType: calculationResult.overtimeHoursByType as any,
-          totalOvertimeHours: calculationResult.totalOvertimeHours || 0,
-          totalWorkingDays: calculationResult.totalWorkingDays || 0,
-          totalPresent: calculationResult.totalPresent || 0,
-          totalAbsent: calculationResult.totalAbsent || 0,
-          totalLateMinutes: calculationResult.totalLateMinutes || 0,
-          earlyDepartures: calculationResult.earlyDepartures || 0,
-          sickLeaveDays: calculationResult.sickLeaveDays || 0,
-          businessLeaveDays: calculationResult.businessLeaveDays || 0,
-          annualLeaveDays: calculationResult.annualLeaveDays || 0,
-          unpaidLeaveDays: calculationResult.unpaidLeaveDays || 0,
-          holidays: calculationResult.holidays || 0,
-          regularHourlyRate: calculationResult.regularHourlyRate || 0,
-          overtimeRatesByType: calculationResult.overtimeRatesByType as any,
-          basePay: calculationResult.basePay || 0,
-          overtimePayByType: calculationResult.overtimePayByType as any,
-          totalOvertimePay: calculationResult.totalOvertimePay || 0,
-          transportationAllowance:
-            calculationResult.transportationAllowance || 0,
-          mealAllowance: calculationResult.mealAllowance || 0,
-          housingAllowance: calculationResult.housingAllowance || 0,
-          totalAllowances: Object.values(
-            calculationResult.totalAllowances || {},
-          ).reduce((sum, val) => sum + (val || 0), 0),
-          socialSecurity: calculationResult.socialSecurity || 0,
-          tax: calculationResult.tax || 0,
-          unpaidLeaveDeduction: calculationResult.unpaidLeaveDeduction || 0,
-          totalDeductions: calculationResult.totalDeductions || 0,
-          salesAmount: calculationResult.salesAmount || 0,
-          commissionRate: calculationResult.commissionRate || 0,
-          commissionAmount: calculationResult.commissionAmount || 0,
-          quarterlyBonus: calculationResult.quarterlyBonus || 0,
-          yearlyBonus: calculationResult.yearlyBonus || 0,
-          netPayable: calculationResult.netPayable || 0,
-          status: 'draft',
-        },
         update: {
-          regularHours: calculationResult.regularHours || 0,
-          overtimeHoursByType: calculationResult.overtimeHoursByType as any,
-          totalOvertimeHours: calculationResult.totalOvertimeHours || 0,
-          totalWorkingDays: calculationResult.totalWorkingDays || 0,
-          totalPresent: calculationResult.totalPresent || 0,
-          totalAbsent: calculationResult.totalAbsent || 0,
-          totalLateMinutes: calculationResult.totalLateMinutes || 0,
-          earlyDepartures: calculationResult.earlyDepartures || 0,
-          sickLeaveDays: calculationResult.sickLeaveDays || 0,
-          businessLeaveDays: calculationResult.businessLeaveDays || 0,
-          annualLeaveDays: calculationResult.annualLeaveDays || 0,
-          unpaidLeaveDays: calculationResult.unpaidLeaveDays || 0,
-          holidays: calculationResult.holidays || 0,
-          regularHourlyRate: calculationResult.regularHourlyRate || 0,
-          overtimeRatesByType: calculationResult.overtimeRatesByType as any,
-          basePay: calculationResult.basePay || 0,
-          overtimePayByType: calculationResult.overtimePayByType as any,
-          totalOvertimePay: calculationResult.totalOvertimePay || 0,
-          transportationAllowance:
-            calculationResult.transportationAllowance || 0,
-          mealAllowance: calculationResult.mealAllowance || 0,
-          housingAllowance: calculationResult.housingAllowance || 0,
-          totalAllowances: Object.values(
-            calculationResult.totalAllowances || {},
-          ).reduce((sum, val) => sum + (val || 0), 0),
-          socialSecurity: calculationResult.socialSecurity || 0,
-          tax: calculationResult.tax || 0,
-          unpaidLeaveDeduction: calculationResult.unpaidLeaveDeduction || 0,
-          totalDeductions: calculationResult.totalDeductions || 0,
-          salesAmount: calculationResult.salesAmount || 0,
-          commissionRate: calculationResult.commissionRate || 0,
-          commissionAmount: calculationResult.commissionAmount || 0,
-          quarterlyBonus: calculationResult.quarterlyBonus || 0,
-          yearlyBonus: calculationResult.yearlyBonus || 0,
-          netPayable: calculationResult.netPayable || 0,
-          status: 'draft',
+          status: 'processing',
+        },
+        create: {
+          startDate,
+          endDate,
+          status: 'processing',
         },
       });
 
-      // 6. Create processing session and result
+      // Create or update payroll record using transaction client
+      if (calculationResult && calculationResult.netPayable !== undefined) {
+        await tx.payroll.upsert({
+          where: {
+            employee_period: {
+              employeeId,
+              payrollPeriodId: payrollPeriod.id,
+            },
+          },
+          update: {
+            regularHours: calculationResult.regularHours || 0,
+            overtimeHoursByType: calculationResult.overtimeHoursByType as any,
+            totalOvertimeHours: calculationResult.totalOvertimeHours || 0,
+            totalWorkingDays: calculationResult.totalWorkingDays || 0,
+            totalPresent: calculationResult.totalPresent || 0,
+            totalAbsent: calculationResult.totalAbsent || 0,
+            totalLateMinutes: calculationResult.totalLateMinutes || 0,
+            earlyDepartures: calculationResult.earlyDepartures || 0,
+            sickLeaveDays: calculationResult.sickLeaveDays || 0,
+            businessLeaveDays: calculationResult.businessLeaveDays || 0,
+            annualLeaveDays: calculationResult.annualLeaveDays || 0,
+            unpaidLeaveDays: calculationResult.unpaidLeaveDays || 0,
+            holidays: calculationResult.holidays || 0,
+            regularHourlyRate: calculationResult.regularHourlyRate || 0,
+            overtimeRatesByType: calculationResult.overtimeRatesByType as any,
+            basePay: calculationResult.basePay || 0,
+            overtimePayByType: calculationResult.overtimePayByType as any,
+            totalOvertimePay: calculationResult.totalOvertimePay || 0,
+            transportationAllowance:
+              calculationResult.transportationAllowance || 0,
+            mealAllowance: calculationResult.mealAllowance || 0,
+            housingAllowance: calculationResult.housingAllowance || 0,
+            totalAllowances: Object.values(
+              calculationResult.totalAllowances || {},
+            ).reduce((sum, val) => sum + (val || 0), 0),
+            socialSecurity: calculationResult.socialSecurity || 0,
+            tax: calculationResult.tax || 0,
+            unpaidLeaveDeduction: calculationResult.unpaidLeaveDeduction || 0,
+            totalDeductions: calculationResult.totalDeductions || 0,
+            salesAmount: calculationResult.salesAmount || 0,
+            commissionRate: calculationResult.commissionRate || 0,
+            commissionAmount: calculationResult.commissionAmount || 0,
+            quarterlyBonus: calculationResult.quarterlyBonus || 0,
+            yearlyBonus: calculationResult.yearlyBonus || 0,
+            netPayable: calculationResult.netPayable || 0,
+            status: 'draft',
+          },
+          create: {
+            employeeId,
+            payrollPeriodId: payrollPeriod.id,
+            regularHours: calculationResult.regularHours || 0,
+            overtimeHoursByType: calculationResult.overtimeHoursByType as any,
+            totalOvertimeHours: calculationResult.totalOvertimeHours || 0,
+            totalWorkingDays: calculationResult.totalWorkingDays || 0,
+            totalPresent: calculationResult.totalPresent || 0,
+            totalAbsent: calculationResult.totalAbsent || 0,
+            totalLateMinutes: calculationResult.totalLateMinutes || 0,
+            earlyDepartures: calculationResult.earlyDepartures || 0,
+            sickLeaveDays: calculationResult.sickLeaveDays || 0,
+            businessLeaveDays: calculationResult.businessLeaveDays || 0,
+            annualLeaveDays: calculationResult.annualLeaveDays || 0,
+            unpaidLeaveDays: calculationResult.unpaidLeaveDays || 0,
+            holidays: calculationResult.holidays || 0,
+            regularHourlyRate: calculationResult.regularHourlyRate || 0,
+            overtimeRatesByType: calculationResult.overtimeRatesByType as any,
+            basePay: calculationResult.basePay || 0,
+            overtimePayByType: calculationResult.overtimePayByType as any,
+            totalOvertimePay: calculationResult.totalOvertimePay || 0,
+            transportationAllowance:
+              calculationResult.transportationAllowance || 0,
+            mealAllowance: calculationResult.mealAllowance || 0,
+            housingAllowance: calculationResult.housingAllowance || 0,
+            totalAllowances: Object.values(
+              calculationResult.totalAllowances || {},
+            ).reduce((sum, val) => sum + (val || 0), 0),
+            socialSecurity: calculationResult.socialSecurity || 0,
+            tax: calculationResult.tax || 0,
+            unpaidLeaveDeduction: calculationResult.unpaidLeaveDeduction || 0,
+            totalDeductions: calculationResult.totalDeductions || 0,
+            salesAmount: calculationResult.salesAmount || 0,
+            commissionRate: calculationResult.commissionRate || 0,
+            commissionAmount: calculationResult.commissionAmount || 0,
+            quarterlyBonus: calculationResult.quarterlyBonus || 0,
+            yearlyBonus: calculationResult.yearlyBonus || 0,
+            netPayable: calculationResult.netPayable || 0,
+            status: 'draft',
+          },
+        });
+      }
+
+      // Create or get processing session using transaction client
       const sessionId = await createOrGetProcessingSession(
         tx,
         startDate,
         employeeId,
       );
+
+      // Store processing result using transaction client
       await tx.payrollProcessingResult.create({
         data: {
           employeeId,
@@ -480,6 +483,7 @@ export default async function handler(
         },
       });
 
+      // Update session processed count using transaction client
       await tx.payrollProcessingSession.update({
         where: { id: sessionId },
         data: {
@@ -489,12 +493,12 @@ export default async function handler(
         },
       });
 
-      return { payroll, calculationResult };
+      return calculationResult;
     });
 
     return res.status(200).json({
       success: true,
-      data: result.calculationResult,
+      data: result,
     });
   } catch (error) {
     console.error('Error calculating payroll:', error);
