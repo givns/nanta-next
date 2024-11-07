@@ -144,8 +144,12 @@ async function handleGetDailyAttendance(
           attendance: attendance
             ? {
                 id: attendance.id,
-                regularCheckInTime: formatAttendanceTime(attendance.regularCheckInTime),
-          regularCheckOutTime: formatAttendanceTime(attendance.regularCheckOutTime),
+                regularCheckInTime: formatAttendanceTime(
+                  attendance.regularCheckInTime,
+                ),
+                regularCheckOutTime: formatAttendanceTime(
+                  attendance.regularCheckOutTime,
+                ),
                 isLateCheckIn: attendance.isLateCheckIn ?? false,
                 isLateCheckOut: attendance.isLateCheckOut ?? false,
                 isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
