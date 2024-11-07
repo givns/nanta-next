@@ -11,7 +11,7 @@ import { MobileView } from './components/MobileView';
 import { LoadingState } from './components/LoadingState';
 import { ErrorAlert } from './components/ErrorAlert';
 import { EmployeeDetailDialog } from './EmployeeDetailDialog';
-import { format, startOfDay } from 'date-fns';
+import { format, isValid, startOfDay } from 'date-fns';
 
 export default function DailyAttendanceView() {
   const { user } = useAdmin();
@@ -74,7 +74,7 @@ export default function DailyAttendanceView() {
   );
 
   const handleDateChange = (date: Date | undefined) => {
-    if (date) {
+    if (date && isValid(date)) {
       const normalizedDate = startOfDay(date);
       setFilters({ date: normalizedDate });
     }
@@ -100,7 +100,10 @@ export default function DailyAttendanceView() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Daily Attendance</CardTitle>
-            <DateSelector date={filters.date} onChange={handleDateChange} />
+            <DateSelector
+              date={filters.date}
+              onChange={handleDateChange}
+            />{' '}
           </div>
         </CardHeader>
 
