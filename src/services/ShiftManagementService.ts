@@ -34,6 +34,7 @@ import {
   invalidateCachePattern,
 } from '../lib/serverCache';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
+import { PrismaClientOrTransaction } from '@/types/prisma';
 
 interface Premise {
   lat: number;
@@ -53,16 +54,11 @@ const PREMISES: Premise[] = [
   },
 ];
 
-type TransactionClient = Omit<
-  PrismaClient,
-  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
->;
-
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
 
   constructor(
-    private prisma: PrismaClient | TransactionClient,
+    private prisma: PrismaClientOrTransaction,
     private holidayService: HolidayService,
   ) {}
 

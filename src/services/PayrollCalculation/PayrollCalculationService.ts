@@ -18,6 +18,7 @@ import {
 import { format, isSameDay, isWeekend, min } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService';
 import { HolidayService } from '../HolidayService';
+import { PrismaClientOrTransaction } from '@/types/prisma';
 
 interface TimeEntryWithMetadata extends TimeEntry {
   overtimeMetadata?: {
@@ -40,17 +41,12 @@ interface LeaveTypeMappings {
   };
 }
 
-type TransactionClient = Omit<
-  PrismaClient,
-  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
->;
-
 export class PayrollCalculationService {
   private shiftManagementService: ShiftManagementService;
 
   constructor(
     private settings: PayrollSettingsData,
-    private prisma: PrismaClient | TransactionClient,
+    private prisma: PrismaClientOrTransaction,
     private holidayService: HolidayService,
   ) {
     this.shiftManagementService = new ShiftManagementService(

@@ -1,11 +1,7 @@
 import axios from 'axios';
 import { isSameDay, subDays, addDays, startOfDay, endOfDay } from 'date-fns';
-import type { PrismaClient, Prisma, Holiday } from '@prisma/client';
-
-type TransactionClient = Omit<
-  PrismaClient,
-  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
->;
+import type { PrismaClient, Holiday } from '@prisma/client';
+import { PrismaClientOrTransaction, TransactionClient } from '@/types/prisma';
 
 interface HolidayInput {
   date: string | Date;
@@ -59,11 +55,9 @@ const fallbackHolidays2024 = [
 export class HolidayService {
   private syncInProgress: { [key: number]: boolean } = {};
   private holidayCache: { [key: number]: Holiday[] } = {};
-  private prisma: PrismaClient | TransactionClient;
 
-  constructor(prisma: PrismaClient | TransactionClient) {
-    this.prisma = prisma;
-  }
+  constructor(private prisma: PrismaClientOrTransaction) {}
+
   async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
     try {
       const normalizedStartDate = startOfDay(startDate);
