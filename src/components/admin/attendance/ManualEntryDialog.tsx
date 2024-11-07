@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -80,20 +80,21 @@ export function ManualEntryDialog({
     },
   });
 
+  // Use useEffect to update form when selectedDate changes
+  useEffect(() => {
+    form.setValue('date', format(selectedDate, 'yyyy-MM-dd'));
+  }, [selectedDate, form]);
+
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
 
     // Clear any previous errors
     setDateError(null);
 
-    // Validate the selected date
+    // Check if date is in the future
     if (isBefore(date, new Date()) || isToday(date)) {
+      console.log('Date selected:', format(date, 'yyyy-MM-dd')); // Debug log
       setSelectedDate(date);
-      form.setValue('date', format(date, 'yyyy-MM-dd'));
-
-      // Reset time fields when date changes
-      form.setValue('checkInTime', '');
-      form.setValue('checkOutTime', '');
     } else {
       setDateError('Cannot select future dates');
     }
@@ -152,37 +153,34 @@ export function ManualEntryDialog({
                 <FormItem className="flex flex-col">
                   <FormLabel>Date</FormLabel>
                   {isNewEntry ? (
-                    <div className="border rounded-md p-0">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={handleDateSelect}
-                        disabled={(date) =>
-                          isBefore(date, new Date()) === false
-                        }
-                        classNames={{
-                          root: 'w-full',
-                          months:
-                            'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',
-                          head_cell: 'w-9 font-normal text-muted-foreground',
-                          cell: cn(
-                            'h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
-                          ),
-                          day: cn(
-                            'h-9 w-9 p-0 font-normal',
-                            'hover:bg-accent hover:text-accent-foreground',
-                          ),
-                          day_range_end: 'day-range-end',
-                          day_selected:
-                            'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground',
-                          day_today: 'bg-accent text-accent-foreground',
-                          day_outside:
-                            'day-outside text-muted-foreground opacity-50',
-                          nav_button:
-                            'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100',
-                        }}
-                      />
-                    </div>
+                    <>
+                      {/* Display selected date */}
+                      <div className="p-2 mb-2 border rounded-md bg-muted">
+                        {format(selectedDate, 'EEEE, d MMMM yyyy', {
+                          locale: th,
+                        })}
+                      </div>
+                      {/* Calendar */}
+                      <div className="border rounded-md p-0">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={handleDateSelect}
+                          disabled={(date) => date > new Date()}
+                          className="w-full"
+                          initialFocus
+                          modifiers={{
+                            selected: selectedDate,
+                          }}
+                          modifiersStyles={{
+                            selected: {
+                              backgroundColor: 'var(--primary)',
+                              color: 'white',
+                            },
+                          }}
+                        />
+                      </div>
+                    </>
                   ) : (
                     <div className="p-2 border rounded-md bg-muted">
                       {format(selectedDate, 'EEEE, d MMMM yyyy', {
@@ -191,7 +189,9 @@ export function ManualEntryDialog({
                     </div>
                   )}
                   {dateError && (
-                    <p className="text-sm text-destructive">{dateError}</p>
+                    <p className="text-sm font-medium text-destructive mt-2">
+                      {dateError}
+                    </p>
                   )}
                   <FormMessage />
                 </FormItem>
