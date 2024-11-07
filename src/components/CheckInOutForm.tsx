@@ -481,31 +481,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [memoizedUserShiftInfo, memoizedActionButton, timeRemaining],
   );
 
-  // Additional helper component for better user guidance
-  const GuideOverlay: React.FC<{ show: boolean }> = ({ show }) => {
-    if (!show) return null;
-
-    return (
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="px-6 py-4 bg-black/75 rounded-lg text-white text-center max-w-xs">
-          <p>กรุณาวางใบหน้าของคุณให้อยู่ภายในกรอบวงรี</p>
-          <p className="text-sm mt-2 text-gray-300">
-            ระบบจะถ่ายภาพอัตโนมัติเมื่อตรวจพบใบหน้า
-          </p>
-        </div>
-      </div>
-    );
-  };
-
   const renderStep2 = () => (
-    <div className="h-full flex flex-col items-center space-y-4 max-h-[calc(100vh-16rem)]">
+    <div className="flex-grow flex flex-col">
       {isModelLoading ? (
-        <div className="flex flex-col items-center justify-center h-full">
+        <div className="flex-grow flex flex-col items-center justify-center">
           <SkeletonLoader />
-          <p className="mt-4">กำลังโหลดระบบตรวจจับใบหน้า...</p>
+          <p className="mt-4 text-lg">กำลังโหลดระบบตรวจจับใบหน้า...</p>
         </div>
       ) : (
-        <div className="relative w-full">
+        <div className="flex-grow relative">
           <CameraFrame
             webcamRef={webcamRef}
             faceDetected={faceDetected}
@@ -513,7 +497,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             message={message}
             captureThreshold={captureThreshold}
           />
-          <GuideOverlay show={showGuide} />
         </div>
       )}
     </div>

@@ -17,19 +17,19 @@ const CameraFrame: React.FC<CameraFrameProps> = ({
   message,
   captureThreshold,
 }) => {
-  // Calculate dimensions for the oval
+  // Calculate dimensions for the oval - larger for mobile screens
   const overlayStyles = useMemo(
     () => ({
-      width: '180px',
-      height: '220px', // Taller than width for oval shape
-      transform: 'translateY(-10px)', // Slight upward adjustment
+      width: '280px', // Increased from 180px
+      height: '340px', // Increased from 220px, maintaining proportion
+      transform: 'translateY(-15px)', // Adjusted for new size
     }),
     [],
   );
 
   return (
-    <div className="relative w-full max-w-sm mx-auto">
-      <div className="relative aspect-[4/3] w-full bg-black rounded-lg overflow-hidden">
+    <div className="relative w-full h-full">
+      <div className="relative w-full h-full min-h-[75vh] bg-black">
         <Webcam
           audio={false}
           ref={webcamRef}
@@ -37,14 +37,14 @@ const CameraFrame: React.FC<CameraFrameProps> = ({
           className="absolute inset-0 w-full h-full object-cover"
           videoConstraints={{
             facingMode: 'user',
-            width: { ideal: 640 },
-            height: { ideal: 580 },
+            width: { ideal: 1280 }, // Increased for better quality
+            height: { ideal: 720 },
           }}
         />
 
         {/* Semi-transparent overlay with oval cutout */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" /> {/* Dark overlay */}
+          <div className="absolute inset-0 bg-black/40" />
           <div
             className="relative flex items-center justify-center"
             style={overlayStyles}
@@ -54,12 +54,12 @@ const CameraFrame: React.FC<CameraFrameProps> = ({
               style={{
                 ...overlayStyles,
                 position: 'absolute',
-                border: `3px solid ${faceDetected ? '#22c55e' : '#3b82f6'}`,
+                border: `4px solid ${faceDetected ? '#22c55e' : '#3b82f6'}`,
                 borderRadius: '50%',
                 transition: 'all 0.3s ease',
                 boxShadow: faceDetected
-                  ? '0 0 10px rgba(34, 197, 94, 0.5)'
-                  : '0 0 10px rgba(59, 130, 246, 0.5)',
+                  ? '0 0 20px rgba(34, 197, 94, 0.5)'
+                  : '0 0 20px rgba(59, 130, 246, 0.5)',
               }}
             />
             {/* Oval mask */}
@@ -77,13 +77,13 @@ const CameraFrame: React.FC<CameraFrameProps> = ({
         </div>
 
         {/* Status and progress */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
-          <p className="text-white text-center text-lg font-medium mb-2 drop-shadow">
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+          <p className="text-white text-center text-xl font-medium mb-3 drop-shadow">
             {message}
           </p>
           {faceDetectionCount > 0 && (
-            <div className="w-full max-w-[80%] mx-auto">
-              <div className="h-2 bg-gray-200/30 rounded-full overflow-hidden">
+            <div className="w-full max-w-[90%] mx-auto">
+              <div className="h-3 bg-gray-200/30 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-300 ${
                     faceDetected ? 'bg-green-500' : 'bg-blue-500'
