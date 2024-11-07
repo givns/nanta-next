@@ -24,6 +24,13 @@ import { getCurrentTime, formatDate } from '../utils/dateUtils';
 import { isSameDay, parseISO, subMinutes } from 'date-fns';
 import CameraFrame from './CameraFrame';
 
+// Add this type for better error handling
+interface ApiError {
+  error: string;
+  message?: string;
+  details?: string;
+}
+
 interface CheckInOutFormProps {
   userData: UserData;
   cachedAttendanceStatus: AttendanceStatusInfo | null;
@@ -148,35 +155,46 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setIsSubmitting(true);
         setStep('processing');
 
-        await onStatusChange(
-          currentAttendanceStatus?.isCheckingIn ?? true,
-          photo,
-          lateReason || '',
-          isLate,
-          checkInOutAllowance?.isOvertime || false,
-          isEarlyCheckOut,
-          earlyCheckoutType,
-        );
-
-        await onCloseWindow();
-      } catch (error: any) {
-        console.error('Error in submitCheckInOut:', error);
-
-        // Handle API response errors
-        if (error.response?.data) {
-          const apiError = error.response.data;
-          setError(
-            `Error: ${apiError.message || apiError.error || 'Failed to process request'}`,
+        try {
+          await onStatusChange(
+            currentAttendanceStatus?.isCheckingIn ?? true,
+            photo,
+            lateReason || '',
+            isLate,
+            checkInOutAllowance?.isOvertime || false,
+            isEarlyCheckOut,
+            earlyCheckoutType,
           );
-          return;
-        }
 
-        // Handle other errors
+          await onCloseWindow();
+        } catch (error: any) {
+          console.error('Status change error:', error);
+
+          // Handle API error responses
+          if (error.response?.data) {
+            const apiError = error.response.data as ApiError;
+            throw new Error(
+              apiError.message || apiError.error || 'Failed to update status',
+            );
+          }
+
+          // Handle other errors
+          throw new Error(error.message || 'Failed to process check-in/out');
+        }
+      } catch (error: any) {
+        console.error('Error in submitCheckInOut:', {
+          error,
+          message: error.message,
+          stack: error.stack,
+        });
+
         setError(
-          `Error: ${error.message || 'An unexpected error occurred'}. Please try again.`,
+          error.message || 'An unexpected error occurred. Please try again.',
         );
-      } finally {
+
+        // Reset states on error
         setIsSubmitting(false);
+        setStep('info');
       }
     },
     [
@@ -358,6 +376,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         currentStep: step,
       });
 
+      // Clear any existing errors
+      setError(null);
+
       // Clear timers
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -379,9 +400,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         } else {
           await handleCheckOut();
         }
-      } catch (error) {
-        console.error('Error in handleAction:', error);
-        setError('An unexpected error occurred. Please try again.');
+      } catch (error: any) {
+        console.error('Error in handleAction:', {
+          error,
+          message: error.message,
+          stack: error.stack,
+        });
+
+        setError(
+          error.message || 'An unexpected error occurred. Please try again.',
+        );
+
+        // Reset to initial state on error
+        setStep('info');
       }
     },
     [checkInOutAllowance, handleCheckIn, handleCheckOut],

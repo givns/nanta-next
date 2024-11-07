@@ -73,6 +73,18 @@ interface ErrorResponse {
   timestamp: string;
 }
 
+interface AttendanceNotificationData {
+  regularCheckInTime?: Date | null;
+  regularCheckOutTime?: Date | null;
+  status: string;
+  overtimeMetadata?: {
+    isDayOffOvertime?: boolean;
+    isInsideShiftHours?: boolean;
+    startTime?: string;
+    endTime?: string;
+  };
+}
+
 const attendanceSchema = Yup.object()
   .shape({
     employeeId: Yup.string(),
@@ -108,13 +120,6 @@ const attendanceSchema = Yup.object()
 interface QueueTask extends AttendanceData {
   inPremises: boolean;
   address: string;
-}
-
-function validateUpdatedStatus(status: any): boolean {
-  if (!status || typeof status !== 'object') return false;
-  if (!status.latestAttendance || typeof status.latestAttendance !== 'object')
-    return false;
-  return true;
 }
 
 const checkInOutQueue = new BetterQueue(
@@ -189,7 +194,7 @@ async function processCheckInOut(
       isManualEntry: validatedData.isManualEntry || false,
     };
 
-    // For early check-out, first verify if leave request exists
+    // For early check-out, verify leave request
     if (!validatedData.isCheckIn && validatedData.reason === 'early-checkout') {
       const leaveRequest = await leaveServiceServer.checkUserOnLeave(
         user.employeeId,
@@ -229,10 +234,65 @@ async function processCheckInOut(
       );
     }
 
-    // Start notification in background - only here, not in main handler
-    sendNotificationAsync(attendanceData, updatedStatus).catch((error) =>
-      console.error('Notification error:', error),
-    );
+    // Fire and forget notifications
+    if (user.lineUserId && processedAttendance) {
+      try {
+        // Cast processedAttendance to the temporary interface for notification purposes
+        const notificationData = {
+          regularCheckInTime: (processedAttendance as any).regularCheckInTime,
+          regularCheckOutTime: (processedAttendance as any).regularCheckOutTime,
+          status: processedAttendance.status,
+          overtimeMetadata: (processedAttendance as any).overtimeMetadata,
+        } as AttendanceNotificationData;
+
+        if (
+          notificationData.regularCheckInTime &&
+          !notificationData.regularCheckOutTime
+        ) {
+          // Check-in notification
+          notificationService
+            .sendCheckInOutNotification(user.employeeId, user.lineUserId, {
+              type: 'check-in',
+              time: notificationData.regularCheckInTime,
+              status: notificationData.status,
+            })
+            .catch((error) => {
+              console.error('Failed to send check-in notification:', error);
+            });
+        } else if (notificationData.regularCheckOutTime) {
+          // Check-out notification
+          notificationService
+            .sendCheckInOutNotification(user.employeeId, user.lineUserId, {
+              type: 'check-out',
+              time: notificationData.regularCheckOutTime,
+              status: notificationData.status,
+              overtimeInfo:
+                notificationData.status === 'overtime' &&
+                notificationData.overtimeMetadata
+                  ? {
+                      isDayOffOvertime:
+                        notificationData.overtimeMetadata.isDayOffOvertime ??
+                        false,
+                      isInsideShiftHours:
+                        notificationData.overtimeMetadata.isInsideShiftHours ??
+                        false,
+                      startTime:
+                        notificationData.overtimeMetadata.startTime ?? '',
+                      endTime: notificationData.overtimeMetadata.endTime ?? '',
+                    }
+                  : undefined,
+            })
+            .catch((error) => {
+              console.error('Failed to send check-out notification:', error);
+            });
+        }
+      } catch (error) {
+        console.error('Error sending notification:', error);
+        // Don't throw - let the main process continue
+      }
+    } else {
+      console.warn(`No LINE User ID found for employee ${user.employeeId}`);
+    }
 
     return updatedStatus;
   } catch (error: any) {
@@ -453,101 +513,4 @@ export default async function handler(
 
     return res.status(500).json(errorResponse);
   }
-}
-// Update sendNotificationAsync to use a notification queue
-interface NotificationQueueTask {
-  attendanceData: AttendanceData;
-  statusInfo: AttendanceStatusInfo;
-  retryCount?: number;
-}
-
-const notificationQueue = new BetterQueue<NotificationQueueTask>(
-  async (task, cb) => {
-    try {
-      const { attendanceData, statusInfo, retryCount = 0 } = task;
-
-      if (!attendanceData.lineUserId) {
-        console.log('Line user ID is null, skipping notification');
-        return cb(null);
-      }
-
-      let success = false;
-
-      try {
-        if (attendanceData.isCheckIn) {
-          await notificationService.sendCheckInConfirmation(
-            attendanceData.employeeId,
-            attendanceData.lineUserId,
-            new Date(attendanceData.checkTime),
-          );
-        } else {
-          await notificationService.sendCheckOutConfirmation(
-            attendanceData.employeeId,
-            attendanceData.lineUserId,
-            new Date(attendanceData.checkTime),
-          );
-        }
-        success = true;
-      } catch (error) {
-        console.error(
-          `Error sending ${attendanceData.isCheckIn ? 'check-in' : 'check-out'} confirmation:`,
-          error,
-        );
-
-        // Try fallback if first attempt failed
-        if (!success) {
-          const formattedDateTime = format(
-            new Date(attendanceData.checkTime),
-            'dd MMMM yyyy เวลา HH:mm น.',
-            { locale: th },
-          );
-          const message = attendanceData.isCheckIn
-            ? `${attendanceData.employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`
-            : `${attendanceData.employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
-
-          success = await notificationService.sendNotification(
-            attendanceData.employeeId,
-            attendanceData.lineUserId,
-            message,
-            attendanceData.isCheckIn ? 'check-in' : 'check-out',
-          );
-        }
-      }
-
-      if (success) {
-        console.log(
-          `${attendanceData.isCheckIn ? 'Check-in' : 'Check-out'} notification sent for employee ${attendanceData.employeeId}`,
-        );
-        cb(null);
-      } else if (retryCount < 3) {
-        // Retry with incremented count
-        cb(null, { ...task, retryCount: retryCount + 1 });
-      } else {
-        cb(new Error('Failed to send notification after retries'));
-      }
-    } catch (error) {
-      cb(error);
-    }
-  },
-  {
-    concurrent: 3,
-    maxRetries: 3,
-    retryDelay: 2000,
-  },
-);
-
-async function sendNotificationAsync(
-  attendanceData: AttendanceData,
-  statusInfo: AttendanceStatusInfo,
-) {
-  return new Promise<void>((resolve, reject) => {
-    notificationQueue.push({ attendanceData, statusInfo }, (error) => {
-      if (error) {
-        console.error('Failed to process notification:', error);
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
-  });
 }
