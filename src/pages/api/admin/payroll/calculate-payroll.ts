@@ -299,7 +299,7 @@ export default async function handler(
         );
       }
 
-      // 3. Create/Update payroll period
+      // 4. Create/Update payroll period first
       payrollPeriod = await tx.payrollPeriod.upsert({
         where: {
           period_range: {
@@ -317,14 +317,17 @@ export default async function handler(
         },
       });
 
-      // 4. Calculate payroll
+      // 5. Initialize services with transaction client
       const holidayService = new HolidayService(tx);
+
+      // Create PayrollCalculationService with the transaction
       const payrollService = new PayrollCalculationService(
         settings,
         tx,
         holidayService,
       );
 
+      // Map leave requests before calculation
       const mappedLeaveRequests = leaveRequests.map((leave) => ({
         ...leave,
         startDate: new Date(leave.startDate),
