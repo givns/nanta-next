@@ -62,6 +62,8 @@ const attendanceService = new AttendanceService(
   timeEntryService,
 );
 
+const PROCESS_TIMEOUT = 25000; // 25 seconds timeout
+
 const attendanceSchema = Yup.object()
   .shape({
     employeeId: Yup.string(),
@@ -109,7 +111,13 @@ function validateUpdatedStatus(status: any): boolean {
 const checkInOutQueue = new BetterQueue(
   async (task, cb) => {
     try {
+      // Set a timeout for the individual task processing
+      const taskTimeout = setTimeout(() => {
+        cb(new Error('Task processing timeout'));
+      }, 20000); // 20 second timeout per task
+
       const result = await processCheckInOut(task);
+      clearTimeout(taskTimeout);
       cb(null, result);
     } catch (error) {
       cb(error);
@@ -118,6 +126,11 @@ const checkInOutQueue = new BetterQueue(
   {
     concurrent: 5,
     store: new MemoryStore(),
+    precondition: async (_cb) => true, // Always allow new tasks
+    failTaskOnProcessException: true,
+    maxTimeout: 22000, // Slightly longer than individual task timeout
+    retryDelay: 1000,
+    maxRetries: 2,
   },
 );
 
@@ -209,6 +222,15 @@ async function processCheckInOut(
   }
 }
 
+function isAttendanceStatusInfo(value: any): value is AttendanceStatusInfo {
+  return (
+    value &&
+    typeof value === 'object' &&
+    'latestAttendance' in value &&
+    typeof value.latestAttendance === 'object'
+  );
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -217,6 +239,9 @@ export default async function handler(
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
+  // Set longer timeout
+  res.setTimeout(PROCESS_TIMEOUT);
+
   try {
     const now = getCurrentTime();
     console.log(
@@ -224,19 +249,33 @@ export default async function handler(
     );
     console.log('Received data:', JSON.stringify(req.body));
 
-    // Wrap the queue push in a promise to handle asynchronous errors
-    const queueResult = await new Promise((resolve, reject) => {
-      checkInOutQueue.push(req.body, (err: Error | null, result: any) => {
-        if (err) {
-          console.error('Error in queue processing:', err);
-          console.error('Error stack:', err.stack);
-          reject(err);
-        } else {
-          console.log('Queue processing completed successfully');
-          resolve(result);
-        }
-      });
+    // Create a promise that rejects after timeout
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Processing timeout'));
+      }, PROCESS_TIMEOUT - 1000); // Leave 1 second buffer
     });
+
+    // Create the processing promise
+    const processPromise = new Promise<AttendanceStatusInfo>(
+      (resolve, reject) => {
+        checkInOutQueue.push(req.body, (err: Error | null, result: any) => {
+          if (err) {
+            console.error('Error in queue processing:', err);
+            reject(err);
+          } else if (!isAttendanceStatusInfo(result)) {
+            reject(new Error('Invalid attendance status format'));
+          } else {
+            resolve(result);
+          }
+        });
+      },
+    );
+
+    const queueResult = (await Promise.race([
+      processPromise,
+      timeoutPromise,
+    ])) as AttendanceStatusInfo;
 
     if (!validateUpdatedStatus(queueResult)) {
       throw new Error(
@@ -244,17 +283,45 @@ export default async function handler(
       );
     }
 
+    // Process notification asynchronously
+    const attendanceData: AttendanceData = {
+      employeeId: req.body.employeeId,
+      lineUserId: req.body.lineUserId,
+      isCheckIn: req.body.isCheckIn,
+      checkTime: req.body.checkTime,
+      location: req.body.location || '',
+      reason: req.body.reason || '',
+      isOvertime: req.body.isOvertime || false,
+      isLate: req.body.isLate || false,
+      isEarlyCheckOut: req.body.isEarlyCheckOut || false,
+      isManualEntry: req.body.isManualEntry || false,
+      ...(req.body.isCheckIn
+        ? { checkInAddress: req.body.checkInAddress }
+        : { checkOutAddress: req.body.checkOutAddress }),
+    };
+
+    // Start notification process but don't await it
+    sendNotificationAsync(attendanceData, queueResult).catch((error) => {
+      console.error('Async notification error:', error);
+    });
+
     console.log(
       'Check-in/out processed successfully:',
       JSON.stringify(queueResult),
     );
-    res.status(200).json(queueResult);
+    return res.status(200).json(queueResult);
   } catch (error: any) {
     console.error('Detailed error in check-in-out:', error);
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({
+
+    if (error.message === 'Processing timeout') {
+      return res.status(504).json({
+        error: 'Gateway Timeout',
+        message:
+          'Processing took too long, but the operation may have completed successfully. Please check status.',
+      });
+    }
+
+    return res.status(500).json({
       error: 'Internal server error',
       details: error.message,
       code:
@@ -264,80 +331,101 @@ export default async function handler(
     });
   }
 }
+
+// Update sendNotificationAsync to use a notification queue
+interface NotificationQueueTask {
+  attendanceData: AttendanceData;
+  statusInfo: AttendanceStatusInfo;
+  retryCount?: number;
+}
+
+const notificationQueue = new BetterQueue<NotificationQueueTask>(
+  async (task, cb) => {
+    try {
+      const { attendanceData, statusInfo, retryCount = 0 } = task;
+
+      if (!attendanceData.lineUserId) {
+        console.log('Line user ID is null, skipping notification');
+        return cb(null);
+      }
+
+      let success = false;
+
+      try {
+        if (attendanceData.isCheckIn) {
+          await notificationService.sendCheckInConfirmation(
+            attendanceData.employeeId,
+            attendanceData.lineUserId,
+            new Date(attendanceData.checkTime),
+          );
+        } else {
+          await notificationService.sendCheckOutConfirmation(
+            attendanceData.employeeId,
+            attendanceData.lineUserId,
+            new Date(attendanceData.checkTime),
+          );
+        }
+        success = true;
+      } catch (error) {
+        console.error(
+          `Error sending ${attendanceData.isCheckIn ? 'check-in' : 'check-out'} confirmation:`,
+          error,
+        );
+
+        // Try fallback if first attempt failed
+        if (!success) {
+          const formattedDateTime = format(
+            new Date(attendanceData.checkTime),
+            'dd MMMM yyyy เวลา HH:mm น.',
+            { locale: th },
+          );
+          const message = attendanceData.isCheckIn
+            ? `${attendanceData.employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`
+            : `${attendanceData.employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
+
+          success = await notificationService.sendNotification(
+            attendanceData.employeeId,
+            attendanceData.lineUserId,
+            message,
+            attendanceData.isCheckIn ? 'check-in' : 'check-out',
+          );
+        }
+      }
+
+      if (success) {
+        console.log(
+          `${attendanceData.isCheckIn ? 'Check-in' : 'Check-out'} notification sent for employee ${attendanceData.employeeId}`,
+        );
+        cb(null);
+      } else if (retryCount < 3) {
+        // Retry with incremented count
+        cb(null, { ...task, retryCount: retryCount + 1 });
+      } else {
+        cb(new Error('Failed to send notification after retries'));
+      }
+    } catch (error) {
+      cb(error);
+    }
+  },
+  {
+    concurrent: 3,
+    maxRetries: 3,
+    retryDelay: 2000,
+  },
+);
+
 async function sendNotificationAsync(
   attendanceData: AttendanceData,
-  updatedStatus: AttendanceStatusInfo,
+  statusInfo: AttendanceStatusInfo,
 ) {
-  try {
-    const currentTime = getCurrentTime();
-    console.log(
-      `Attempting to send notification for employee ${attendanceData.employeeId}`,
-    );
-    console.log(`Notification data:`, JSON.stringify(attendanceData));
-
-    if (!attendanceData.lineUserId) {
-      console.log('Line user ID is null, skipping notification');
-      return;
-    }
-
-    let success = false;
-
-    if (attendanceData.isCheckIn) {
-      try {
-        await notificationService.sendCheckInConfirmation(
-          attendanceData.employeeId,
-          attendanceData.lineUserId,
-          new Date(attendanceData.checkTime),
-        );
-        success = true;
-      } catch (error) {
-        console.error('Error sending check-in confirmation:', error);
+  return new Promise<void>((resolve, reject) => {
+    notificationQueue.push({ attendanceData, statusInfo }, (error) => {
+      if (error) {
+        console.error('Failed to process notification:', error);
+        reject(error);
+      } else {
+        resolve();
       }
-    } else {
-      try {
-        await notificationService.sendCheckOutConfirmation(
-          attendanceData.employeeId,
-          attendanceData.lineUserId,
-          new Date(attendanceData.checkTime),
-        );
-        success = true;
-      } catch (error) {
-        console.error('Error sending check-out confirmation:', error);
-      }
-    }
-
-    if (!success) {
-      // Fallback to direct sendNotification call
-      const formattedDateTime = format(
-        new Date(attendanceData.checkTime),
-        'dd MMMM yyyy เวลา HH:mm น.',
-        { locale: th },
-      );
-      const message = attendanceData.isCheckIn
-        ? `${attendanceData.employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`
-        : `${attendanceData.employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
-
-      const type = attendanceData.isCheckIn ? 'check-in' : 'check-out';
-
-      success = await notificationService.sendNotification(
-        attendanceData.employeeId,
-        attendanceData.lineUserId,
-        message,
-        type,
-      );
-    }
-
-    if (success) {
-      console.log(
-        `${attendanceData.isCheckIn ? 'Check-in' : 'Check-out'} notification sent for employee ${attendanceData.employeeId}`,
-      );
-    } else {
-      console.log(
-        `Failed to send ${attendanceData.isCheckIn ? 'check-in' : 'check-out'} notification for employee ${attendanceData.employeeId}`,
-      );
-    }
-  } catch (error: any) {
-    console.error('Failed to send notification:', error);
-    console.error('Error stack:', error.stack);
-  }
+    });
+  });
 }
