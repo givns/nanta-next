@@ -109,86 +109,63 @@ async function handleGetDailyAttendance(
       },
     });
 
-    // Get all required data with proper error handling
-    const [holidays, leaveRequests] = await Promise.all([
-      holidayService.getHolidays(dateStart, dateEnd).catch((error) => {
-        console.error('Error fetching holidays:', error);
-        return []; // Return empty array on error instead of failing
-      }),
-      leaveService.getUserLeaveRequests(targetDate).catch((error) => {
-        console.error('Error fetching leave requests:', error);
-        return []; // Return empty array on error instead of failing
-      }),
-    ]);
+    // Get holiday for this specific date
+    const isHolidayToday = await holidayService.isHoliday(targetDate);
 
-    const attendanceRecords: DailyAttendanceResponse[] = await Promise.all(
-      employees.map(async (employee) => {
-        try {
-          const attendance = employee.attendances[0];
-          // Wrap holiday check in try-catch
-          const isHoliday = await holidayService
-            .isHoliday(targetDate, holidays, employee.shiftCode === 'SHIFT104')
-            .catch(() => false); // Default to false if check fails
+    // Get leave requests
+    const leaveRequests = await leaveService.getUserLeaveRequests(targetDate);
 
-          const leaveRequest = leaveRequests.find(
-            (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
-          );
+    const attendanceRecords: DailyAttendanceResponse[] = employees.map(
+      (employee) => {
+        const attendance = employee.attendances[0];
+        // For SHIFT104, we check holidays differently
+        const isEmployeeHoliday =
+          employee.shiftCode === 'SHIFT104'
+            ? attendance?.isDayOff || false
+            : isHolidayToday || attendance?.isDayOff || false;
 
-          return {
-            employeeId: employee.employeeId,
-            employeeName: employee.name,
-            departmentName: employee.departmentName || '',
-            date: format(targetDate, 'yyyy-MM-dd'),
-            shift: employee.assignedShift
-              ? {
-                  name: employee.assignedShift.name,
-                  startTime: employee.assignedShift.startTime,
-                  endTime: employee.assignedShift.endTime,
-                }
-              : null,
-            attendance: attendance
-              ? {
-                  id: attendance.id,
-                  regularCheckInTime: formatAttendanceTime(
-                    attendance.regularCheckInTime,
-                  ),
-                  regularCheckOutTime: formatAttendanceTime(
-                    attendance.regularCheckOutTime,
-                  ),
-                  isLateCheckIn: attendance.isLateCheckIn ?? false,
-                  isLateCheckOut: attendance.isLateCheckOut ?? false,
-                  isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
-                  isVeryLateCheckOut: attendance.isVeryLateCheckOut ?? false,
-                  lateCheckOutMinutes: attendance.lateCheckOutMinutes ?? 0,
-                  status: attendance.status,
-                }
-              : null,
-            isDayOff: isHoliday || attendance?.isDayOff || false,
-            leaveInfo: leaveRequest
-              ? {
-                  type: leaveRequest.leaveType,
-                  status: leaveRequest.status,
-                }
-              : null,
-          };
-        } catch (error) {
-          console.error(
-            `Error processing employee ${employee.employeeId}:`,
-            error,
-          );
-          // Return a safe default record if processing fails
-          return {
-            employeeId: employee.employeeId,
-            employeeName: employee.name || '',
-            departmentName: employee.departmentName || '',
-            date: format(targetDate, 'yyyy-MM-dd'),
-            shift: null,
-            attendance: null,
-            isDayOff: false,
-            leaveInfo: null,
-          };
-        }
-      }),
+        const leaveRequest = leaveRequests.find(
+          (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
+        );
+
+        return {
+          employeeId: employee.employeeId,
+          employeeName: employee.name,
+          departmentName: employee.departmentName || '',
+          date: format(targetDate, 'yyyy-MM-dd'),
+          shift: employee.assignedShift
+            ? {
+                name: employee.assignedShift.name,
+                startTime: employee.assignedShift.startTime,
+                endTime: employee.assignedShift.endTime,
+              }
+            : null,
+          attendance: attendance
+            ? {
+                id: attendance.id,
+                regularCheckInTime: formatAttendanceTime(
+                  attendance.regularCheckInTime,
+                ),
+                regularCheckOutTime: formatAttendanceTime(
+                  attendance.regularCheckOutTime,
+                ),
+                isLateCheckIn: attendance.isLateCheckIn ?? false,
+                isLateCheckOut: attendance.isLateCheckOut ?? false,
+                isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
+                isVeryLateCheckOut: attendance.isVeryLateCheckOut ?? false,
+                lateCheckOutMinutes: attendance.lateCheckOutMinutes ?? 0,
+                status: attendance.status,
+              }
+            : null,
+          isDayOff: isEmployeeHoliday,
+          leaveInfo: leaveRequest
+            ? {
+                type: leaveRequest.leaveType,
+                status: leaveRequest.status,
+              }
+            : null,
+        };
+      },
     );
 
     // Cache results
