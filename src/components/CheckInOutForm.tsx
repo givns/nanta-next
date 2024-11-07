@@ -77,6 +77,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [showGuide, setShowGuide] = useState(true);
   const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
     useState(false);
+  const submitTimeout = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     if (checkInOutAllowance !== null) {
@@ -110,14 +111,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   useEffect(() => {
     if (isSubmitting) {
-      submitTimeoutRef.current = setTimeout(() => {
-        console.log('Submission timeout - resetting states');
-        resetStates();
-      }, 30000);
+      submitTimeout.current = setTimeout(() => {
+        setError('Request took too long. Please check your attendance status.');
+        setIsSubmitting(false);
+      }, 32000); // Slightly longer than API timeout
     }
+
     return () => {
-      if (submitTimeoutRef.current) {
-        clearTimeout(submitTimeoutRef.current);
+      if (submitTimeout.current) {
+        clearTimeout(submitTimeout.current);
       }
     };
   }, [isSubmitting, resetStates]);

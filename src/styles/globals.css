@@ -12,6 +12,7 @@
     --header-height: 104px; /* Adjust based on your header height */
     --footer-height: 140px; /* Adjust based on your footer content */
     --safe-bottom: env(safe-area-inset-bottom, 16px);
+    --api-timeout: 30000ms;
   }
   .pb-safe {
     padding-bottom: calc(var(--safe-bottom) + 16px);
