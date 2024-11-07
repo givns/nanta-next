@@ -572,15 +572,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
         )}
 
-        {/* Errors */}
-        {error && (
-          <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-red-50 border-t border-red-100 z-20">
-            <p className="text-red-500 text-center" role="alert">
-              {error}
-            </p>
-          </div>
-        )}
-
         <LateReasonModal
           isOpen={isLateModalOpen}
           onClose={() => {
