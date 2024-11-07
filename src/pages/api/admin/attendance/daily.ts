@@ -24,9 +24,20 @@ async function handleGetDailyAttendance(
 ) {
   try {
     const { date: dateQuery, department, searchTerm } = req.query;
-    const targetDate = normalizeDate(dateQuery as string | undefined);
+
+    // Ensure proper date handling
+    const targetDate = dateQuery
+      ? startOfDay(parseISO(dateQuery as string))
+      : startOfDay(new Date());
+
     const dateStart = startOfDay(targetDate);
     const dateEnd = endOfDay(targetDate);
+
+    // Log the date range for debugging
+    console.log('Processing attendance for date range:', {
+      start: dateStart.toISOString(),
+      end: dateEnd.toISOString(),
+    });
 
     // Create cache key
     const cacheKey = `daily-attendance:${format(targetDate, 'yyyy-MM-dd')}:${department || 'all'}:${searchTerm || ''}`;
@@ -118,69 +129,72 @@ async function handleGetDailyAttendance(
     const attendanceRecords: DailyAttendanceResponse[] = await Promise.all(
       employees.map(async (employee) => {
         const attendance = employee.attendances[0];
-        const isHoliday = await holidayService.isHoliday(
-          targetDate,
-          holidays,
-          employee.shiftCode === 'SHIFT104',
-        );
 
-        // Type the leave request parameter
-        const leaveRequest = leaveRequests.find(
-          (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
-        );
+        try {
+          const isHoliday = await holidayService.isHoliday(
+            targetDate,
+            holidays,
+            employee.shiftCode === 'SHIFT104',
+          );
 
-        // Ensure all dates are valid before processing
-        const normalizedAttendance = attendance
-          ? {
-              ...attendance,
-              regularCheckInTime: attendance.regularCheckInTime
-                ? new Date(attendance.regularCheckInTime)
-                : null,
-              regularCheckOutTime: attendance.regularCheckOutTime
-                ? new Date(attendance.regularCheckOutTime)
-                : null,
-            }
-          : null;
+          const leaveRequest = leaveRequests.find(
+            (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
+          );
 
-        return {
-          employeeId: employee.employeeId,
-          employeeName: employee.name || '',
-          departmentName: employee.departmentName || '',
-          date: format(targetDate, 'yyyy-MM-dd'),
-          shift: employee.assignedShift
-            ? {
-                name: employee.assignedShift.name,
-                startTime: employee.assignedShift.startTime,
-                endTime: employee.assignedShift.endTime,
-              }
-            : null,
-          attendance: normalizedAttendance
-            ? {
-                id: normalizedAttendance.id,
-                regularCheckInTime: formatAttendanceTime(
-                  normalizedAttendance.regularCheckInTime,
-                ),
-                regularCheckOutTime: formatAttendanceTime(
-                  normalizedAttendance.regularCheckOutTime,
-                ),
-                isLateCheckIn: normalizedAttendance.isLateCheckIn ?? false,
-                isLateCheckOut: normalizedAttendance.isLateCheckOut ?? false,
-                isEarlyCheckIn: normalizedAttendance.isEarlyCheckIn ?? false,
-                isVeryLateCheckOut:
-                  normalizedAttendance.isVeryLateCheckOut ?? false,
-                lateCheckOutMinutes:
-                  normalizedAttendance.lateCheckOutMinutes ?? 0,
-                status: normalizedAttendance.status,
-              }
-            : null,
-          isDayOff: isHoliday || attendance?.isDayOff || false,
-          leaveInfo: leaveRequest
-            ? {
-                type: leaveRequest.leaveType,
-                status: leaveRequest.status,
-              }
-            : null,
-        };
+          return {
+            employeeId: employee.employeeId,
+            employeeName: employee.name || '',
+            departmentName: employee.departmentName || '',
+            date: format(targetDate, 'yyyy-MM-dd'),
+            shift: employee.assignedShift
+              ? {
+                  name: employee.assignedShift.name,
+                  startTime: employee.assignedShift.startTime,
+                  endTime: employee.assignedShift.endTime,
+                }
+              : null,
+            attendance: attendance
+              ? {
+                  id: attendance.id,
+                  regularCheckInTime: attendance.regularCheckInTime
+                    ? format(new Date(attendance.regularCheckInTime), 'HH:mm')
+                    : null,
+                  regularCheckOutTime: attendance.regularCheckOutTime
+                    ? format(new Date(attendance.regularCheckOutTime), 'HH:mm')
+                    : null,
+                  isLateCheckIn: attendance.isLateCheckIn || false,
+                  isLateCheckOut: attendance.isLateCheckOut || false,
+                  isEarlyCheckIn: attendance.isEarlyCheckIn || false,
+                  isVeryLateCheckOut: attendance.isVeryLateCheckOut || false,
+                  lateCheckOutMinutes: attendance.lateCheckOutMinutes || 0,
+                  status: attendance.status,
+                }
+              : null,
+            isDayOff: isHoliday || attendance?.isDayOff || false,
+            leaveInfo: leaveRequest
+              ? {
+                  type: leaveRequest.leaveType,
+                  status: leaveRequest.status,
+                }
+              : null,
+          };
+        } catch (error) {
+          console.error(
+            `Error processing employee ${employee.employeeId}:`,
+            error,
+          );
+          // Return a safe default record
+          return {
+            employeeId: employee.employeeId,
+            employeeName: employee.name || '',
+            departmentName: employee.departmentName || '',
+            date: format(targetDate, 'yyyy-MM-dd'),
+            shift: null,
+            attendance: null,
+            isDayOff: false,
+            leaveInfo: null,
+          };
+        }
       }),
     );
 
@@ -194,32 +208,6 @@ async function handleGetDailyAttendance(
       error: 'Failed to fetch attendance records',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
-  }
-}
-
-// Helper function to safely parse and normalize dates
-function normalizeDate(dateString: string | undefined): Date {
-  try {
-    if (!dateString) return startOfDay(new Date());
-    const parsedDate = parseISO(dateString);
-    return startOfDay(parsedDate);
-  } catch (error) {
-    console.error('Error parsing date:', error);
-    return startOfDay(new Date());
-  }
-}
-
-// Helper function to safely format attendance time
-function formatAttendanceTime(date: Date | null | undefined): string | null {
-  if (!date) return null;
-  try {
-    // Ensure the date is valid
-    const validDate = new Date(date);
-    if (isNaN(validDate.getTime())) return null;
-    return format(validDate, 'HH:mm');
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return null;
   }
 }
 

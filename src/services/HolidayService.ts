@@ -1,10 +1,18 @@
 import axios from 'axios';
 import { isSameDay, subDays, addDays, startOfDay, endOfDay } from 'date-fns';
 import type { PrismaClient, Prisma, Holiday } from '@prisma/client';
+
 type TransactionClient = Omit<
   PrismaClient,
   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
 >;
+
+interface HolidayInput {
+  date: string | Date;
+  name: string;
+  localName: string;
+  types?: string[];
+}
 
 const fallbackHolidays2024 = [
   { date: '2024-01-01', name: "New Year's Day", localName: 'วันขึ้นปีใหม่' },
@@ -56,7 +64,83 @@ export class HolidayService {
   constructor(prisma: PrismaClient | TransactionClient) {
     this.prisma = prisma;
   }
-  async syncHolidays(year: number): Promise<void> {
+  async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
+    try {
+      console.log(`Fetching holidays between ${startDate} and ${endDate}`);
+
+      // Ensure dates are normalized
+      const normalizedStartDate = startOfDay(startDate);
+      const normalizedEndDate = endOfDay(endDate);
+
+      // Fetch holidays from database
+      const holidays = await this.prisma.holiday.findMany({
+        where: {
+          date: {
+            gte: normalizedStartDate,
+            lte: normalizedEndDate,
+          },
+        },
+      });
+
+      // If no holidays found, try to sync
+      if (holidays.length === 0) {
+        const year = startDate.getFullYear();
+        await this.syncHolidays(year);
+
+        // Try fetching again after sync
+        const syncedHolidays = await this.prisma.holiday.findMany({
+          where: {
+            date: {
+              gte: normalizedStartDate,
+              lte: normalizedEndDate,
+            },
+          },
+        });
+
+        console.log(`Fetched ${syncedHolidays.length} holidays after sync`);
+        return syncedHolidays;
+      }
+
+      console.log(
+        `Fetched ${holidays.length} holidays between ${startDate} and ${endDate}`,
+      );
+      return holidays;
+    } catch (error) {
+      console.error('Error fetching holidays:', error);
+      return [];
+    }
+  }
+
+  async isHoliday(
+    date: Date,
+    holidays?: Holiday[],
+    is104?: boolean,
+  ): Promise<boolean> {
+    try {
+      const normalizedDate = startOfDay(date);
+
+      // Use provided holidays or fetch them
+      const holidayList =
+        holidays || (await this.getHolidays(normalizedDate, normalizedDate));
+
+      // For SHIFT104, weekends are not holidays
+      if (is104) {
+        return holidayList.some((holiday) =>
+          isSameDay(holiday.date, normalizedDate),
+        );
+      }
+
+      // Check if the date exists in holidays
+      return holidayList.some((holiday) =>
+        isSameDay(holiday.date, normalizedDate),
+      );
+    } catch (error) {
+      console.error('Error checking holiday:', error);
+      return false;
+    }
+  }
+
+  private async syncHolidays(year: number): Promise<void> {
     if (this.syncInProgress[year]) {
       console.log(`Sync already in progress for year ${year}`);
       return;
@@ -65,6 +149,7 @@ export class HolidayService {
     this.syncInProgress[year] = true;
 
     try {
+      // Check existing holidays first
       const existingHolidays = await this.prisma.holiday.findMany({
         where: {
           date: {
@@ -75,59 +160,120 @@ export class HolidayService {
       });
 
       if (existingHolidays.length > 0) {
-        console.log(`Holidays already exist for year ${year}. Skipping sync.`);
+        console.log(
+          `Found ${existingHolidays.length} existing holidays for ${year}`,
+        );
         this.holidayCache[year] = existingHolidays;
         return;
       }
 
+      // Try to get holidays from API
       console.log(`Fetching holidays for year ${year}`);
-      const response = await axios.get(
-        `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`,
-      );
-      console.log('Raw API response:', JSON.stringify(response.data));
+      try {
+        const response = await axios.get(
+          `https://date.nager.at/api/v3/PublicHolidays/${year}/TH`,
+        );
 
-      let holidays;
-      if (Array.isArray(response.data) && response.data.length > 0) {
-        holidays = response.data;
-      } else {
-        console.log('Using fallback holidays');
-        holidays = year === 2024 ? fallbackHolidays2024 : [];
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          await this.saveHolidays(response.data, year);
+          return;
+        }
+      } catch (error) {
+        console.error('Error fetching from API, using fallback:', error);
       }
 
-      console.log(`Processing ${holidays.length} holidays`);
-
-      if (holidays.length > 0) {
-        console.log(`Creating ${holidays.length} new holidays`);
-        const createdHolidays = await this.prisma.holiday.createMany({
-          data: holidays.map((holiday) => ({
-            date: new Date(holiday.date),
-            name: holiday.name,
-            localName: holiday.localName,
-            types: holiday.types || [],
-          })),
-        });
-        console.log(`Created ${createdHolidays.count} holidays`);
-        this.holidayCache[year] = await this.prisma.holiday.findMany({
-          where: {
-            date: {
-              gte: new Date(`${year}-01-01`),
-              lte: new Date(`${year}-12-31`),
-            },
-          },
-        });
+      // Use fallback holidays if API fails or returns no data
+      if (year === 2024) {
+        console.log('Using 2024 fallback holidays');
+        await this.saveHolidays(fallbackHolidays2024, year);
       } else {
-        console.log('No holidays to create');
+        console.log(`No fallback holidays available for ${year}`);
       }
-
-      console.log(`Synced holidays for year ${year}`);
     } catch (error) {
-      console.error('Error syncing holidays:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Axios error details:', error.response?.data);
-      }
+      console.error(`Error syncing holidays for ${year}:`, error);
     } finally {
       this.syncInProgress[year] = false;
     }
+  }
+
+  private async saveHolidays(holidays: HolidayInput[], year: number) {
+    try {
+      console.log(`Attempting to save ${holidays.length} holidays for ${year}`);
+
+      const formattedHolidays = holidays.map((holiday) => ({
+        date: new Date(holiday.date),
+        name: holiday.name,
+        localName: holiday.localName,
+        types: holiday.types || ['Public'],
+      }));
+
+      // Handle both regular PrismaClient and transaction client
+      if ('$transaction' in this.prisma) {
+        // Using regular PrismaClient
+        return await this.prisma.$transaction(async (tx: TransactionClient) => {
+          return this.createHolidaysInTransaction(tx, formattedHolidays, year);
+        });
+      } else {
+        // Already in a transaction
+        return await this.createHolidaysInTransaction(
+          this.prisma,
+          formattedHolidays,
+          year,
+        );
+      }
+    } catch (error) {
+      console.error('Error saving holidays:', error);
+      throw error;
+    }
+  }
+
+  private async createHolidaysInTransaction(
+    client: PrismaClient | TransactionClient,
+    holidays: Array<{
+      date: Date;
+      name: string;
+      localName: string;
+      types: string[];
+    }>,
+    year: number,
+  ) {
+    const created = [];
+
+    for (const holiday of holidays) {
+      try {
+        // Check if holiday already exists
+        const existing = await client.holiday.findFirst({
+          where: {
+            date: holiday.date,
+          },
+        });
+
+        if (!existing) {
+          const created_holiday = await client.holiday.create({
+            data: holiday,
+          });
+          created.push(created_holiday);
+        }
+      } catch (err) {
+        console.warn(`Skipping duplicate holiday for date ${holiday.date}`);
+      }
+    }
+
+    console.log(`Successfully created ${created.length} holidays for ${year}`);
+
+    // Update cache only after successful creation
+    if (created.length > 0) {
+      this.holidayCache[year] = await client.holiday.findMany({
+        where: {
+          date: {
+            gte: new Date(`${year}-01-01`),
+            lte: new Date(`${year}-12-31`),
+          },
+        },
+      });
+    }
+
+    return created;
   }
 
   async createHoliday(data: {
@@ -136,94 +282,65 @@ export class HolidayService {
     localName: string;
   }): Promise<Holiday> {
     console.log('Creating new holiday:', data);
-    return this.prisma.holiday.create({
-      data: {
-        date: data.date,
-        name: data.name,
-        localName: data.localName,
-        types: [], // Default empty array for types
-      },
-    });
+
+    if ('$transaction' in this.prisma) {
+      return await this.prisma.$transaction(async (tx: TransactionClient) => {
+        // Check for existing holiday first
+        const existing = await tx.holiday.findFirst({
+          where: {
+            date: data.date,
+          },
+        });
+
+        if (existing) {
+          throw new Error(`Holiday already exists for date ${data.date}`);
+        }
+
+        return tx.holiday.create({
+          data: {
+            date: data.date,
+            name: data.name,
+            localName: data.localName,
+            types: ['Public'],
+          },
+        });
+      });
+    } else {
+      // Already in a transaction
+      const existing = await this.prisma.holiday.findFirst({
+        where: {
+          date: data.date,
+        },
+      });
+
+      if (existing) {
+        throw new Error(`Holiday already exists for date ${data.date}`);
+      }
+
+      return this.prisma.holiday.create({
+        data: {
+          date: data.date,
+          name: data.name,
+          localName: data.localName,
+          types: ['Public'],
+        },
+      });
+    }
   }
 
-  async updateHoliday(id: string, data: Partial<Holiday>): Promise<Holiday> {
+  async updateHoliday(
+    id: string,
+    data: Partial<{
+      date: Date;
+      name: string;
+      localName: string;
+      types: string[];
+    }>,
+  ): Promise<Holiday> {
     return this.prisma.holiday.update({
       where: { id },
       data,
     });
-  }
-
-  async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
-    const startYear = startDate.getFullYear();
-    const endYear = endDate.getFullYear();
-
-    for (let year = startYear; year <= endYear; year++) {
-      if (!this.holidayCache[year]) {
-        await this.syncHolidays(year);
-      }
-    }
-
-    const holidays = Object.values(this.holidayCache)
-      .flat()
-      .filter(
-        (holiday) => holiday.date >= startDate && holiday.date <= endDate,
-      );
-
-    console.log(
-      `Fetched ${holidays.length} holidays between ${startDate} and ${endDate}`,
-    );
-    return holidays;
-  }
-
-  async getHolidaysForYear(
-    year: number,
-    shiftType: 'regular' | 'shift104',
-  ): Promise<Holiday[]> {
-    if (!this.holidayCache[year]) {
-      await this.syncHolidays(year);
-    }
-
-    let holidays = this.holidayCache[year] || [];
-
-    if (shiftType === 'shift104') {
-      holidays = holidays.map((holiday) => ({
-        ...holiday,
-        date: subDays(holiday.date, 1),
-        name: `Shift 104 - ${holiday.name}`,
-      }));
-    }
-
-    console.log(
-      `Retrieved ${holidays.length} holidays${shiftType === 'shift104' ? ' (adjusted for Shift 104)' : ''}`,
-    );
-    return holidays;
-  }
-
-  public async isHoliday(
-    date: Date,
-    holidays: Holiday[],
-    isShift104: boolean,
-  ): Promise<boolean> {
-    // If no holidays provided, fetch them first
-    if (!holidays || holidays.length === 0) {
-      const startOfToday = startOfDay(date);
-      const endOfToday = endOfDay(date);
-      holidays = await this.getHolidays(startOfToday, endOfToday);
-    }
-
-    // Make sure we have today's holiday data from fallback
-    const year = date.getFullYear();
-    if (
-      year === 2024 &&
-      (!this.holidayCache[year] || this.holidayCache[year].length === 0)
-    ) {
-      await this.syncHolidays(year);
-    }
-
-    const checkDate = isShift104 ? addDays(date, 1) : date;
-    return holidays.some((holiday) =>
-      isSameDay(new Date(holiday.date), checkDate),
-    );
   }
 
   async isWorkingDay(userId: string, date: Date): Promise<boolean> {
