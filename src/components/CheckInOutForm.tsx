@@ -519,14 +519,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderStep2 = () => (
-    <div className="flex-grow flex flex-col">
-      {isModelLoading ? (
-        <div className="flex-grow flex flex-col items-center justify-center">
-          <SkeletonLoader />
-          <p className="mt-4 text-lg">กำลังโหลดระบบตรวจจับใบหน้า...</p>
-        </div>
-      ) : (
-        <div className="flex-grow relative">
+    // Take full height of the main content area, accounting for header
+    <div className="absolute inset-0" style={{ top: 'var(--header-height)' }}>
+      <div className="h-full relative">
+        {isModelLoading ? (
+          <div className="flex-grow flex flex-col items-center justify-center h-full">
+            <SkeletonLoader />
+            <p className="mt-4 text-lg">กำลังโหลดระบบตรวจจับใบหน้า...</p>
+          </div>
+        ) : (
           <CameraFrame
             webcamRef={webcamRef}
             faceDetected={faceDetected}
@@ -534,8 +535,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             message={message}
             captureThreshold={captureThreshold}
           />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 
@@ -552,8 +553,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   // Main content structure
   const content = (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col">
-        {/* Loading overlay */}
+      <div className="min-h-screen flex flex-col relative">
         {isSubmitting && (
           <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
             <div className="text-black text-lg">กำลังบันทึกข้อมูล...</div>
@@ -561,13 +561,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         )}
 
         {/* Main content */}
-        <div className="flex-1 relative">
-          {step === 'info' && renderStep1}
-          {step === 'camera' && (
-            <div className="absolute inset-0">{renderStep2()}</div>
-          )}
-          {step === 'processing' && renderStep3()}
-        </div>
+        <div className="flex-1 relative">{step === 'info' && renderStep1}</div>
+
+        {/* Different layout for camera step */}
+        {step === 'camera' ? (
+          // Camera takes full viewport minus header
+          <div className="flex-1 relative">{renderStep2()}</div>
+        ) : (
+          // Normal layout for other steps
+          <div className="flex-1 relative">
+            {step === 'info' && renderStep1}
+            {step === 'processing' && renderStep3()}
+          </div>
+        )}
 
         {/* Errors */}
         {error && (
