@@ -550,7 +550,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [],
   );
 
-  // Main content structure
+  // Update main content structure
   const content = (
     <ErrorBoundary>
       <div className="min-h-screen flex flex-col relative">
@@ -559,9 +559,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             <div className="text-black text-lg">กำลังบันทึกข้อมูล...</div>
           </div>
         )}
-
-        {/* Main content */}
-        <div className="flex-1 relative">{step === 'info' && renderStep1}</div>
 
         {/* Different layout for camera step */}
         {step === 'camera' ? (
@@ -572,6 +569,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           <div className="flex-1 relative">
             {step === 'info' && renderStep1}
             {step === 'processing' && renderStep3()}
+          </div>
+        )}
+
+        {/* Errors */}
+        {error && (
+          <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-red-50 border-t border-red-100 z-20">
+            <p className="text-red-500 text-center" role="alert">
+              {error}
+            </p>
           </div>
         )}
 
