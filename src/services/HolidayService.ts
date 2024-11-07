@@ -140,7 +140,7 @@ export class HolidayService {
     }
   }
 
-  private async syncHolidays(year: number): Promise<void> {
+  public async syncHolidays(year: number): Promise<void> {
     if (this.syncInProgress[year]) {
       console.log(`Sync already in progress for year ${year}`);
       return;
@@ -368,5 +368,29 @@ export class HolidayService {
       isRegularWorkday &&
       !this.isHoliday(checkDate, this.holidayCache[year], isShift104)
     );
+  }
+
+  async getHolidaysForYear(
+    year: number,
+    shiftType: 'regular' | 'shift104',
+  ): Promise<Holiday[]> {
+    if (!this.holidayCache[year]) {
+      await this.syncHolidays(year);
+    }
+
+    let holidays = this.holidayCache[year] || [];
+
+    if (shiftType === 'shift104') {
+      holidays = holidays.map((holiday) => ({
+        ...holiday,
+        date: subDays(holiday.date, 1),
+        name: `Shift 104 - ${holiday.name}`,
+      }));
+    }
+
+    console.log(
+      `Retrieved ${holidays.length} holidays${shiftType === 'shift104' ? ' (adjusted for Shift 104)' : ''}`,
+    );
+    return holidays;
   }
 }
