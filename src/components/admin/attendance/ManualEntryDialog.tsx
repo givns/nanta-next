@@ -106,15 +106,15 @@ export function ManualEntryDialog({
 
   return (
     <Dialog open onOpenChange={() => !isLoading && onClose()}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] w-[calc(100%-2rem)] p-6">
         <DialogHeader>
           <DialogTitle>
-            {isNewEntry ? 'Add Attendance Record' : 'Edit Attendance Record'}
+            {isNewEntry ? 'Add Missing Attendance' : 'Edit Attendance Record'}
           </DialogTitle>
           <DialogDescription>
-            {selectedRecord
-              ? 'Modify the existing attendance record for this employee.'
-              : 'Create a new attendance record for this employee.'}
+            {isNewEntry
+              ? 'Add a new attendance record for a missing date'
+              : 'Modify the existing attendance record'}
           </DialogDescription>
         </DialogHeader>
 
@@ -128,40 +128,22 @@ export function ManualEntryDialog({
                 <FormItem className="flex flex-col">
                   <FormLabel>Date</FormLabel>
                   {isNewEntry ? (
-                    // Calendar picker for new entries
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {format(selectedDate, 'EEEE, d MMMM yyyy', {
-                              locale: th,
-                            })}
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-auto p-0"
-                        align="start"
-                        side="bottom"
-                        sideOffset={4}
-                      >
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date) => {
-                            if (date) {
-                              setSelectedDate(date);
-                              form.setValue('date', format(date, 'yyyy-MM-dd'));
-                            }
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    // Calendar for new entries with improved responsiveness
+                    <div className="border rounded-md p-0 w-full">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            setSelectedDate(date);
+                            form.setValue('date', format(date, 'yyyy-MM-dd'));
+                          }
+                        }}
+                        initialFocus
+                        disabled={(date) => date > new Date()} // Prevent future dates
+                        className="w-full"
+                      />
+                    </div>
                   ) : (
                     // Static date display for editing
                     <div className="p-2 border rounded-md bg-muted">
