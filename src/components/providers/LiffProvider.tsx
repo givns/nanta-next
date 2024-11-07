@@ -1,97 +1,146 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useLiff } from '@/hooks/useLiff';
+import liff from '@line/liff';
+import { useRouter } from 'next/router';
 import LoadingBar from '@/components/LoadingBar';
 
 interface LiffContextType {
   lineUserId: string | null;
   isInitialized: boolean;
   error: string | null;
+  profile: any | null;
 }
 
 const LiffContext = createContext<LiffContextType>({
   lineUserId: null,
   isInitialized: false,
   error: null,
+  profile: null,
 });
 
 export const useLiffContext = () => useContext(LiffContext);
 
 interface LiffProviderProps {
   children: React.ReactNode;
-  fallback?: React.ReactNode;
 }
 
-export function LiffProvider({
-  children,
-  fallback = <LoadingBar />,
-}: LiffProviderProps) {
-  const { isLiffInitialized, lineUserId, error: liffError } = useLiff();
-  const [isLoading, setIsLoading] = useState(true);
-  const [initError, setInitError] = useState<string | null>(null);
+export function LiffProvider({ children }: LiffProviderProps) {
+  const [state, setState] = useState<LiffContextType>({
+    lineUserId: null,
+    isInitialized: false,
+    error: null,
+    profile: null,
+  });
+  const router = useRouter();
+  const isAdminRoute = router.pathname.startsWith('/admin');
 
   useEffect(() => {
     let mounted = true;
 
-    if (isLiffInitialized && lineUserId) {
+    async function initializeLiff() {
       try {
-        // Store lineUserId in localStorage
-        localStorage.setItem('lineUserId', lineUserId);
+        // Check for cached lineUserId first
+        const cachedUserId = localStorage.getItem('lineUserId');
+        if (cachedUserId && mounted) {
+          setState((prev) => ({
+            ...prev,
+            lineUserId: cachedUserId,
+            isInitialized: true,
+          }));
+          return;
+        }
 
-        // Add interceptor for fetch calls
-        const originalFetch = window.fetch;
-        window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
-          init = init || {};
-          init.headers = {
-            ...init.headers,
-            'x-line-userid': lineUserId,
-          };
-          return originalFetch(input, init);
-        };
+        // Initialize LIFF
+        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
 
-        // Delay to ensure smooth transition
-        setTimeout(() => {
-          if (mounted) {
-            setIsLoading(false);
+        if (!mounted) return;
+
+        // Handle login state
+        if (!liff.isLoggedIn()) {
+          if (!isAdminRoute) {
+            liff.login();
+            return;
           }
-        }, 1000);
+        }
+
+        // Get user profile if logged in
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          localStorage.setItem('lineUserId', profile.userId);
+
+          if (mounted) {
+            setState({
+              lineUserId: profile.userId,
+              isInitialized: true,
+              error: null,
+              profile,
+            });
+
+            // Set up fetch interceptor
+            const originalFetch = window.fetch;
+            window.fetch = function (
+              input: RequestInfo | URL,
+              init?: RequestInit,
+            ) {
+              init = init || {};
+              init.headers = {
+                ...init.headers,
+                'x-line-userid': profile.userId,
+              };
+              return originalFetch(input, init);
+            };
+          }
+        } else {
+          setState((prev) => ({
+            ...prev,
+            isInitialized: true,
+          }));
+        }
       } catch (error) {
-        console.error('Error initializing LIFF provider:', error);
-        setInitError(error instanceof Error ? error.message : 'Unknown error');
+        console.error('LIFF initialization error:', error);
+        if (mounted) {
+          setState({
+            lineUserId: null,
+            isInitialized: true,
+            error:
+              error instanceof Error
+                ? error.message
+                : 'LIFF initialization failed',
+            profile: null,
+          });
+        }
       }
-    } else if (!isLiffInitialized && !isLoading) {
-      // Reset loading state if LIFF becomes uninitialized
-      setIsLoading(true);
     }
+
+    initializeLiff();
 
     return () => {
       mounted = false;
     };
-  }, [isLiffInitialized, lineUserId]);
+  }, [isAdminRoute]);
 
   // Show loading state while initializing
-  if (isLoading || !isLiffInitialized) {
-    return fallback;
+  if (!state.isInitialized) {
+    return <LoadingBar />;
   }
 
-  // Show error if initialization failed
-  if (liffError || initError) {
+  // Handle initialization errors
+  if (state.error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <div className="text-red-500">เกิดข้อผิดพลาดในการเชื่อมต่อ LIFF</div>
-        <div className="text-red-500">{liffError || initError}</div>
+        <div className="text-red-500">{state.error}</div>
       </div>
     );
   }
 
-  return (
-    <LiffContext.Provider
-      value={{
-        lineUserId,
-        isInitialized: isLiffInitialized,
-        error: liffError || initError,
-      }}
-    >
-      {children}
-    </LiffContext.Provider>
-  );
+  // Handle non-admin routes that require LINE login
+  if (!isAdminRoute && !state.lineUserId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="text-red-500">กรุณาเข้าสู่ระบบผ่าน LINE</div>
+      </div>
+    );
+  }
+
+  return <LiffContext.Provider value={state}>{children}</LiffContext.Provider>;
 }
