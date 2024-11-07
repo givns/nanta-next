@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +36,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { CalendarIcon, Clock } from 'lucide-react';
-import { DetailedTimeEntry } from '@/types/attendance';
+import { DailyAttendanceResponse, DetailedTimeEntry } from '@/types/attendance';
 
 // Form validation schema
 const formSchema = z.object({
@@ -70,6 +71,8 @@ export function ManualEntryDialog({
 }: ManualEntryDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(parseISO(entry.date));
+  const [selectedRecord, setSelectedRecord] =
+    useState<DailyAttendanceResponse | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -108,6 +111,11 @@ export function ManualEntryDialog({
           <DialogTitle>
             {isNewEntry ? 'Add Attendance Record' : 'Edit Attendance Record'}
           </DialogTitle>
+          <DialogDescription>
+            {selectedRecord
+              ? 'Modify the existing attendance record for this employee.'
+              : 'Create a new attendance record for this employee.'}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
