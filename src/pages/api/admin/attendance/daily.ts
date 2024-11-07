@@ -24,7 +24,7 @@ async function handleGetDailyAttendance(
 ) {
   try {
     const { date: dateQuery, department, searchTerm } = req.query;
-    const targetDate = dateQuery ? parseISO(dateQuery as string) : new Date();
+    const targetDate = normalizeDate(dateQuery as string | undefined);
     const dateStart = startOfDay(targetDate);
     const dateEnd = endOfDay(targetDate);
 
@@ -129,9 +129,22 @@ async function handleGetDailyAttendance(
           (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
         );
 
+        // Ensure all dates are valid before processing
+        const normalizedAttendance = attendance
+          ? {
+              ...attendance,
+              regularCheckInTime: attendance.regularCheckInTime
+                ? new Date(attendance.regularCheckInTime)
+                : null,
+              regularCheckOutTime: attendance.regularCheckOutTime
+                ? new Date(attendance.regularCheckOutTime)
+                : null,
+            }
+          : null;
+
         return {
           employeeId: employee.employeeId,
-          employeeName: employee.name,
+          employeeName: employee.name || '',
           departmentName: employee.departmentName || '',
           date: format(targetDate, 'yyyy-MM-dd'),
           shift: employee.assignedShift
@@ -141,21 +154,23 @@ async function handleGetDailyAttendance(
                 endTime: employee.assignedShift.endTime,
               }
             : null,
-          attendance: attendance
+          attendance: normalizedAttendance
             ? {
-                id: attendance.id,
+                id: normalizedAttendance.id,
                 regularCheckInTime: formatAttendanceTime(
-                  attendance.regularCheckInTime,
+                  normalizedAttendance.regularCheckInTime,
                 ),
                 regularCheckOutTime: formatAttendanceTime(
-                  attendance.regularCheckOutTime,
+                  normalizedAttendance.regularCheckOutTime,
                 ),
-                isLateCheckIn: attendance.isLateCheckIn ?? false,
-                isLateCheckOut: attendance.isLateCheckOut ?? false,
-                isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
-                isVeryLateCheckOut: attendance.isVeryLateCheckOut ?? false,
-                lateCheckOutMinutes: attendance.lateCheckOutMinutes ?? 0,
-                status: attendance.status,
+                isLateCheckIn: normalizedAttendance.isLateCheckIn ?? false,
+                isLateCheckOut: normalizedAttendance.isLateCheckOut ?? false,
+                isEarlyCheckIn: normalizedAttendance.isEarlyCheckIn ?? false,
+                isVeryLateCheckOut:
+                  normalizedAttendance.isVeryLateCheckOut ?? false,
+                lateCheckOutMinutes:
+                  normalizedAttendance.lateCheckOutMinutes ?? 0,
+                status: normalizedAttendance.status,
               }
             : null,
           isDayOff: isHoliday || attendance?.isDayOff || false,
@@ -182,15 +197,31 @@ async function handleGetDailyAttendance(
   }
 }
 
-const formatAttendanceTime = (date: Date | null): string | null => {
+// Helper function to safely parse and normalize dates
+function normalizeDate(dateString: string | undefined): Date {
+  try {
+    if (!dateString) return startOfDay(new Date());
+    const parsedDate = parseISO(dateString);
+    return startOfDay(parsedDate);
+  } catch (error) {
+    console.error('Error parsing date:', error);
+    return startOfDay(new Date());
+  }
+}
+
+// Helper function to safely format attendance time
+function formatAttendanceTime(date: Date | null | undefined): string | null {
   if (!date) return null;
   try {
-    return format(date, 'HH:mm');
+    // Ensure the date is valid
+    const validDate = new Date(date);
+    if (isNaN(validDate.getTime())) return null;
+    return format(validDate, 'HH:mm');
   } catch (error) {
     console.error('Error formatting date:', error);
     return null;
   }
-};
+}
 
 export default async function handler(
   req: NextApiRequest,
