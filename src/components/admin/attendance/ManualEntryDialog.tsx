@@ -28,17 +28,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isBefore, isToday } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { CalendarIcon, Clock } from 'lucide-react';
-import { DailyAttendanceResponse, DetailedTimeEntry } from '@/types/attendance';
+import { DetailedTimeEntry } from '@/types/attendance';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
-// Form validation schema
 const formSchema = z.object({
   date: z.string(),
   checkInTime: z.string().optional(),
@@ -71,8 +67,7 @@ export function ManualEntryDialog({
 }: ManualEntryDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(parseISO(entry.date));
-  const [selectedRecord, setSelectedRecord] =
-    useState<DailyAttendanceResponse | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -85,8 +80,34 @@ export function ManualEntryDialog({
     },
   });
 
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+
+    // Clear any previous errors
+    setDateError(null);
+
+    // Validate the selected date
+    if (isBefore(date, new Date()) || isToday(date)) {
+      setSelectedDate(date);
+      form.setValue('date', format(date, 'yyyy-MM-dd'));
+
+      // Reset time fields when date changes
+      form.setValue('checkInTime', '');
+      form.setValue('checkOutTime', '');
+    } else {
+      setDateError('Cannot select future dates');
+    }
+  };
+
   const onSubmit = async (data: FormData) => {
     try {
+      if (!data.checkInTime && !data.checkOutTime) {
+        form.setError('checkInTime', {
+          message: 'At least one time must be entered',
+        });
+        return;
+      }
+
       setIsLoading(true);
       await onSave({
         ...data,
@@ -97,7 +118,10 @@ export function ManualEntryDialog({
       console.error('Error saving manual entry:', error);
       form.setError('root', {
         type: 'manual',
-        message: 'Failed to save attendance record',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to save attendance record',
       });
     } finally {
       setIsLoading(false);
@@ -113,14 +137,14 @@ export function ManualEntryDialog({
           </DialogTitle>
           <DialogDescription>
             {isNewEntry
-              ? 'Add a new attendance record for a missing date'
+              ? 'Select a date and enter attendance details'
               : 'Modify the existing attendance record'}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Date Field - Different display for edit vs new */}
+            {/* Date Field */}
             <FormField
               control={form.control}
               name="date"
@@ -128,29 +152,46 @@ export function ManualEntryDialog({
                 <FormItem className="flex flex-col">
                   <FormLabel>Date</FormLabel>
                   {isNewEntry ? (
-                    // Calendar for new entries with improved responsiveness
-                    <div className="border rounded-md p-0 w-full">
+                    <div className="border rounded-md p-0">
                       <Calendar
                         mode="single"
                         selected={selectedDate}
-                        onSelect={(date) => {
-                          if (date) {
-                            setSelectedDate(date);
-                            form.setValue('date', format(date, 'yyyy-MM-dd'));
-                          }
+                        onSelect={handleDateSelect}
+                        disabled={(date) =>
+                          isBefore(date, new Date()) === false
+                        }
+                        classNames={{
+                          root: 'w-full',
+                          months:
+                            'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',
+                          head_cell: 'w-9 font-normal text-muted-foreground',
+                          cell: cn(
+                            'h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
+                          ),
+                          day: cn(
+                            'h-9 w-9 p-0 font-normal',
+                            'hover:bg-accent hover:text-accent-foreground',
+                          ),
+                          day_range_end: 'day-range-end',
+                          day_selected:
+                            'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground',
+                          day_today: 'bg-accent text-accent-foreground',
+                          day_outside:
+                            'day-outside text-muted-foreground opacity-50',
+                          nav_button:
+                            'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100',
                         }}
-                        initialFocus
-                        disabled={(date) => date > new Date()} // Prevent future dates
-                        className="w-full"
                       />
                     </div>
                   ) : (
-                    // Static date display for editing
                     <div className="p-2 border rounded-md bg-muted">
                       {format(selectedDate, 'EEEE, d MMMM yyyy', {
                         locale: th,
                       })}
                     </div>
+                  )}
+                  {dateError && (
+                    <p className="text-sm text-destructive">{dateError}</p>
                   )}
                   <FormMessage />
                 </FormItem>
@@ -243,9 +284,11 @@ export function ManualEntryDialog({
 
             {/* Form Error */}
             {form.formState.errors.root && (
-              <p className="text-sm font-medium text-destructive">
-                {form.formState.errors.root.message}
-              </p>
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {form.formState.errors.root.message}
+                </AlertDescription>
+              </Alert>
             )}
 
             <DialogFooter>
@@ -257,14 +300,7 @@ export function ManualEntryDialog({
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={
-                  isLoading ||
-                  (!form.getValues('checkInTime') &&
-                    !form.getValues('checkOutTime'))
-                }
-              >
+              <Button type="submit" disabled={isLoading}>
                 {isLoading ? 'Saving...' : 'Save'}
               </Button>
             </DialogFooter>

@@ -57,6 +57,7 @@ export function EmployeeDetailDialog({
     const periods = PayrollUtils.generatePayrollPeriods();
     return periods.find((p) => p.isCurrentPeriod)?.value || periods[0].value;
   });
+  const [newEntryDate, setNewEntryDate] = useState<Date>(new Date());
 
   useEffect(() => {
     if (open && employeeId) {
