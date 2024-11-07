@@ -144,12 +144,8 @@ async function handleGetDailyAttendance(
           attendance: attendance
             ? {
                 id: attendance.id,
-                regularCheckInTime: attendance.regularCheckInTime
-                  ? format(attendance.regularCheckInTime, 'HH:mm')
-                  : null,
-                regularCheckOutTime: attendance.regularCheckOutTime
-                  ? format(attendance.regularCheckOutTime, 'HH:mm')
-                  : null,
+                regularCheckInTime: formatAttendanceTime(attendance.regularCheckInTime),
+          regularCheckOutTime: formatAttendanceTime(attendance.regularCheckOutTime),
                 isLateCheckIn: attendance.isLateCheckIn ?? false,
                 isLateCheckOut: attendance.isLateCheckOut ?? false,
                 isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
@@ -181,6 +177,16 @@ async function handleGetDailyAttendance(
     });
   }
 }
+
+const formatAttendanceTime = (date: Date | null): string | null => {
+  if (!date) return null;
+  try {
+    return format(date, 'HH:mm');
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return null;
+  }
+};
 
 export default async function handler(
   req: NextApiRequest,

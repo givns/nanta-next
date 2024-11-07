@@ -489,13 +489,15 @@ export interface DailyAttendanceResponse {
   employeeName: string;
   departmentName: string;
   date: string;
-  shift: DailyAttendanceShift | null;
+  shift: {
+    name: string;
+    startTime: string; // HH:mm format
+    endTime: string; // HH:mm format
+  } | null;
   attendance: AttendanceDetails | null;
   leaveInfo?: LeaveInfo | null;
   isDayOff: boolean;
 }
-
-// Extended TimeEntry interface
 
 export interface TimeEntryWithDate {
   id: string;
