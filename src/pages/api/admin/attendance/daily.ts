@@ -207,7 +207,12 @@ async function handleGetDailyAttendance(
 const formatAttendanceTime = (date: Date | null): string | null => {
   if (!date) return null;
   try {
-    return format(date, 'HH:mm');
+    // Ensure we're working with a valid date
+    const validDate = new Date(date);
+    if (isNaN(validDate.getTime())) {
+      return null;
+    }
+    return format(validDate, 'HH:mm');
   } catch (error) {
     console.error('Error formatting date:', error);
     return null;

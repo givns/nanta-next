@@ -26,16 +26,6 @@ export default function DailyAttendanceView() {
   const [selectedRecord, setSelectedRecord] =
     useState<DailyAttendanceResponse | null>(null);
 
-  // Initialize with properly normalized default date
-  const defaultDate = useMemo(() => {
-    try {
-      return startOfDay(new Date());
-    } catch (error) {
-      console.error('Error creating default date:', error);
-      // Fallback to current date string if Date creation fails
-      return new Date(format(new Date(), 'yyyy-MM-dd'));
-    }
-  }, []);
   const {
     records,
     filteredRecords,
