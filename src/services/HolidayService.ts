@@ -66,13 +66,10 @@ export class HolidayService {
   }
   async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
     try {
-      console.log(`Fetching holidays between ${startDate} and ${endDate}`);
-
-      // Ensure dates are normalized
       const normalizedStartDate = startOfDay(startDate);
       const normalizedEndDate = endOfDay(endDate);
 
-      // Fetch holidays from database
+      // Use the provided transaction/prisma client
       const holidays = await this.prisma.holiday.findMany({
         where: {
           date: {
@@ -82,28 +79,8 @@ export class HolidayService {
         },
       });
 
-      // If no holidays found, try to sync
-      if (holidays.length === 0) {
-        const year = startDate.getFullYear();
-        await this.syncHolidays(year);
-
-        // Try fetching again after sync
-        const syncedHolidays = await this.prisma.holiday.findMany({
-          where: {
-            date: {
-              gte: normalizedStartDate,
-              lte: normalizedEndDate,
-            },
-          },
-        });
-
-        console.log(`Fetched ${syncedHolidays.length} holidays after sync`);
-        return syncedHolidays;
-      }
-
-      console.log(
-        `Fetched ${holidays.length} holidays between ${startDate} and ${endDate}`,
-      );
+      // Don't try to create holidays in a possibly closed transaction
+      // Instead, return what we have
       return holidays;
     } catch (error) {
       console.error('Error fetching holidays:', error);
@@ -119,18 +96,16 @@ export class HolidayService {
     try {
       const normalizedDate = startOfDay(date);
 
-      // Use provided holidays or fetch them
+      // Use provided holidays if available to avoid additional queries
       const holidayList =
         holidays || (await this.getHolidays(normalizedDate, normalizedDate));
 
-      // For SHIFT104, weekends are not holidays
       if (is104) {
         return holidayList.some((holiday) =>
           isSameDay(holiday.date, normalizedDate),
         );
       }
 
-      // Check if the date exists in holidays
       return holidayList.some((holiday) =>
         isSameDay(holiday.date, normalizedDate),
       );
