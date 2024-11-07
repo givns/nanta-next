@@ -1,37 +1,25 @@
-// components/admin/attendance/EmployeeDetailDialog.tsx
-
 import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  isToday,
-  isSameMonth,
-  parseISO,
-} from 'date-fns';
+import { format, parseISO, eachDayOfInterval, isSameDay } from 'date-fns';
 import { th } from 'date-fns/locale';
-import {
-  DetailedTimeEntry,
-  TimeEntry,
-  TimeEntryWithDate,
-} from '@/types/attendance';
+import { DetailedTimeEntry } from '@/types/attendance';
 import {
   Clock,
   Calendar as CalendarIcon,
   AlertCircle,
   Loader2,
+  Plus,
 } from 'lucide-react';
-import { ManualEntryDialog } from '@/components/admin/attendance/ManualEntryDialog';
+import { ManualEntryDialog } from './ManualEntryDialog';
 import { PayrollUtils } from '@/utils/payrollUtils';
 import { PayrollPeriodSelector } from '@/components/payroll/PayrollPeriodSelector';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -61,10 +49,8 @@ export function EmployeeDetailDialog({
   const [timeEntries, setTimeEntries] = useState<DetailedTimeEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedEntry, setSelectedEntry] = useState<DetailedTimeEntry | null>(
-    null,
-  );
   const [showManualEntryDialog, setShowManualEntryDialog] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [currentPeriod, setCurrentPeriod] = useState(() => {
     const periods = PayrollUtils.generatePayrollPeriods();
     return periods.find((p) => p.isCurrentPeriod)?.value || periods[0].value;
@@ -133,6 +119,7 @@ export function EmployeeDetailDialog({
 
       await fetchTimeEntries();
       setShowManualEntryDialog(false);
+      setSelectedDate(null);
     } catch (error) {
       setError(
         error instanceof Error
@@ -143,11 +130,33 @@ export function EmployeeDetailDialog({
     }
   };
 
+  // Get all dates in the current period
+  const periodDates = currentPeriod
+    ? (() => {
+        const range = PayrollUtils.parsePeriodValue(currentPeriod);
+        return range
+          ? eachDayOfInterval({
+              start: range.startDate,
+              end: range.endDate,
+            })
+          : [];
+      })()
+    : [];
+
+  // Find missing dates (dates without entries)
+  const missingDates = periodDates.filter(
+    (date) =>
+      !timeEntries.some((entry) => isSameDay(parseISO(entry.date), date)),
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Attendance Details</DialogTitle>
+          <DialogDescription>
+            View and manage attendance records for the selected period
+          </DialogDescription>
           <div className="mt-2">
             <PayrollPeriodSelector
               currentValue={currentPeriod}
@@ -158,6 +167,20 @@ export function EmployeeDetailDialog({
             />
           </div>
         </DialogHeader>
+
+        {/* Add New Entry Button */}
+        <div className="mb-4">
+          <Button
+            onClick={() => {
+              setSelectedDate(new Date());
+              setShowManualEntryDialog(true);
+            }}
+            className="w-full"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Missing Attendance
+          </Button>
+        </div>
 
         {/* Attendance Cards List */}
         <div className="space-y-4 max-h-[60vh] overflow-y-auto">
@@ -175,7 +198,7 @@ export function EmployeeDetailDialog({
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setSelectedEntry(entry);
+                        setSelectedDate(parseISO(entry.date));
                         setShowManualEntryDialog(true);
                       }}
                     >
@@ -239,7 +262,7 @@ export function EmployeeDetailDialog({
 
                 {entry.leave && (
                   <div className="mt-3 flex items-center text-sm">
-                    <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+                    <CalendarIcon className="h-4 w-4 mr-2 text-gray-400" />
                     <span>{entry.leave.type}</span>
                     <Badge className="ml-2">{entry.leave.status}</Badge>
                   </div>
@@ -247,16 +270,27 @@ export function EmployeeDetailDialog({
               </CardContent>
             </Card>
           ))}
+
+          {timeEntries.length === 0 && !isLoading && (
+            <div className="text-center py-8 text-gray-500">
+              No attendance records found for this period
+            </div>
+          )}
         </div>
 
         {/* Manual Entry Dialog */}
-        {showManualEntryDialog && selectedEntry && (
+        {showManualEntryDialog && selectedDate && (
           <ManualEntryDialog
-            entry={selectedEntry}
-            onClose={() => setShowManualEntryDialog(false)}
-            onSave={async (data) => {
-              await handleManualEntry(data);
+            entry={
+              timeEntries.find((entry) =>
+                isSameDay(parseISO(entry.date), selectedDate),
+              ) || { date: format(selectedDate, 'yyyy-MM-dd') }
+            }
+            onClose={() => {
+              setShowManualEntryDialog(false);
+              setSelectedDate(null);
             }}
+            onSave={handleManualEntry}
           />
         )}
 

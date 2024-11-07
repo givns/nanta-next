@@ -1,5 +1,3 @@
-// components/admin/attendance/ManualEntryDialog.tsx
-
 import { useState } from 'react';
 import {
   Dialog,
@@ -8,9 +6,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -18,17 +15,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
+import { CalendarIcon, Clock } from 'lucide-react';
 import { DetailedTimeEntry } from '@/types/attendance';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Loader2 } from 'lucide-react';
-
-interface ManualEntryDialogProps {
-  entry: DetailedTimeEntry;
-  onClose: () => void;
-  onSave: (data: ManualEntryData) => Promise<void>;
-}
+import { cn } from '@/lib/utils';
 
 interface ManualEntryData {
   date: string;
@@ -38,163 +43,191 @@ interface ManualEntryData {
   reasonType: 'correction' | 'missing' | 'system_error' | 'other';
 }
 
-const REASON_TYPES = [
-  { value: 'correction', label: 'Time Correction' },
-  { value: 'missing', label: 'Missing Check-in/out' },
-  { value: 'system_error', label: 'System Error' },
-  { value: 'other', label: 'Other' },
-] as const;
+interface ManualEntryDialogProps {
+  entry: Partial<DetailedTimeEntry> & { date: string };
+  onClose: () => void;
+  onSave: (data: ManualEntryData) => Promise<void>;
+}
 
 export function ManualEntryDialog({
   entry,
   onClose,
   onSave,
 }: ManualEntryDialogProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [reasonType, setReasonType] =
-    useState<(typeof REASON_TYPES)[number]['value']>('correction');
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(parseISO(entry.date));
+  const [formData, setFormData] = useState<ManualEntryData>({
+    date: entry.date,
+    checkInTime: entry.regularCheckInTime || '',
+    checkOutTime: entry.regularCheckOutTime || '',
+    reason: '',
+    reasonType: 'missing',
+  });
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
+  const reasonTypes = [
+    { value: 'missing', label: 'Missing Entry' },
+    { value: 'correction', label: 'Time Correction' },
+    { value: 'system_error', label: 'System Error' },
+    { value: 'other', label: 'Other' },
+  ];
 
+  const handleSubmit = async () => {
     try {
-      const formData = new FormData(e.currentTarget);
-      const checkInTime = formData.get('checkInTime') as string;
-      const checkOutTime = formData.get('checkOutTime') as string;
-      const reason = formData.get('reason') as string;
-
-      // Validation
-      if (!checkInTime && !checkOutTime) {
-        throw new Error('Please provide at least one time entry');
-      }
-      if (!reason.trim()) {
-        throw new Error('Please provide a reason for the manual entry');
-      }
-
-      // If only one time is provided, don't change the other
-      const data: ManualEntryData = {
-        date: entry.date,
-        reason: reason.trim(),
-        reasonType,
-      };
-
-      if (checkInTime !== entry.regularCheckInTime) {
-        data.checkInTime = checkInTime || undefined;
-      }
-      if (checkOutTime !== entry.regularCheckOutTime) {
-        data.checkOutTime = checkOutTime || undefined;
-      }
-
-      await onSave(data);
+      setIsLoading(true);
+      await onSave({
+        ...formData,
+        date: format(selectedDate, 'yyyy-MM-dd'),
+      });
+      onClose();
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : 'Failed to save manual entry',
-      );
+      console.error('Error saving manual entry:', error);
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
+  const isExistingEntry = entry.regularCheckInTime || entry.regularCheckOutTime;
+
   return (
-    <Dialog open onOpenChange={() => !isSubmitting && onClose()}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open onOpenChange={() => !isLoading && onClose()}>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Manual Time Entry</DialogTitle>
-          <div className="text-sm text-muted-foreground">
-            {format(parseISO(entry.date), 'EEEE, d MMMM yyyy', { locale: th })}
-          </div>
+          <DialogTitle>
+            {isExistingEntry
+              ? 'Edit Attendance Record'
+              : 'Add Attendance Record'}
+          </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="checkInTime">Check-in Time</Label>
-                <Input
-                  id="checkInTime"
-                  name="checkInTime"
-                  type="time"
-                  defaultValue={entry.regularCheckInTime || undefined}
-                  disabled={isSubmitting}
+        <div className="grid gap-4 py-4">
+          {/* Date Selector */}
+          <div className="grid gap-2">
+            <FormLabel>Date</FormLabel>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    'justify-start text-left font-normal',
+                    !selectedDate && 'text-muted-foreground',
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? (
+                    format(selectedDate, 'EEEE, d MMMM yyyy', { locale: th })
+                  ) : (
+                    <span>Pick a date</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    if (date) {
+                      setSelectedDate(date);
+                      setFormData((prev) => ({
+                        ...prev,
+                        date: format(date, 'yyyy-MM-dd'),
+                      }));
+                    }
+                  }}
+                  initialFocus
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="checkOutTime">Check-out Time</Label>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Time Inputs */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <FormLabel>Check In Time</FormLabel>
+              <div className="relative">
+                <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
-                  id="checkOutTime"
-                  name="checkOutTime"
                   type="time"
-                  defaultValue={entry.regularCheckOutTime || undefined}
-                  disabled={isSubmitting}
+                  className="pl-9"
+                  value={formData.checkInTime}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      checkInTime: e.target.value,
+                    }))
+                  }
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Reason Type</Label>
-              <Select
-                value={reasonType}
-                onValueChange={(value) =>
-                  setReasonType(value as typeof reasonType)
-                }
-                disabled={isSubmitting}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {REASON_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reason">Detailed Reason</Label>
-              <Input
-                id="reason"
-                name="reason"
-                placeholder="Enter detailed reason for the manual entry"
-                required
-                disabled={isSubmitting}
-              />
+            <div className="grid gap-2">
+              <FormLabel>Check Out Time</FormLabel>
+              <div className="relative">
+                <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  type="time"
+                  className="pl-9"
+                  value={formData.checkOutTime}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      checkOutTime: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isSubmitting}
+          {/* Reason Type */}
+          <div className="grid gap-2">
+            <FormLabel>Reason Type</FormLabel>
+            <Select
+              value={formData.reasonType}
+              onValueChange={(
+                value: 'correction' | 'missing' | 'system_error' | 'other',
+              ) => setFormData((prev) => ({ ...prev, reasonType: value }))}
             >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+              <SelectTrigger>
+                <SelectValue placeholder="Select reason type" />
+              </SelectTrigger>
+              <SelectContent>
+                {reasonTypes.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Reason */}
+          <div className="grid gap-2">
+            <FormLabel>Reason</FormLabel>
+            <Input
+              placeholder="Enter reason for manual entry"
+              value={formData.reason}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, reason: e.target.value }))
+              }
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              isLoading ||
+              !formData.reason ||
+              (!formData.checkInTime && !formData.checkOutTime)
+            }
+          >
+            {isLoading ? 'Saving...' : 'Save'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
