@@ -29,7 +29,7 @@ const CameraFrame: React.FC<CameraFrameProps> = ({
 
   return (
     <div className="relative w-full h-full">
-      <div className="relative w-full h-full min-h-[75vh] bg-black">
+      <div className="relative w-full h-full bg-white">
         <Webcam
           audio={false}
           ref={webcamRef}

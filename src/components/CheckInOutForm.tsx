@@ -75,6 +75,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
+  const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
+    useState(false);
 
   useEffect(() => {
     if (checkInOutAllowance !== null) {
@@ -291,7 +293,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setStep('camera');
   };
 
-  // Simplified handleCheckOut
   const handleCheckOut = async () => {
     if (!effectiveShift) {
       console.error('Effective shift is not available');
@@ -300,9 +301,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
 
     const now = getCurrentTime();
-
-    // Validate if user should be allowed to check out
-    const { approved } = await validateCheckOutConditions(now);
+    const { approved, hasApprovedLeave } =
+      await validateCheckOutConditions(now);
     if (!approved) return;
 
     // Handle early checkout cases
@@ -314,12 +314,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
 
       // Case 2: Emergency leave (before midshift)
-      if (checkInOutAllowance.isEmergencyLeave) {
-        const confirmed = window.confirm(
-          'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
-        );
-
-        if (!confirmed) return;
+      if (checkInOutAllowance.isEmergencyLeave && !hasApprovedLeave) {
+        // Single confirmation point for emergency leave
+        if (!isConfirmedEarlyCheckout) {
+          const confirmed = window.confirm(
+            'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
+          );
+          if (!confirmed) return;
+          setIsConfirmedEarlyCheckout(true);
+        }
 
         const leaveCreated = await handleEmergencyLeave(now);
         if (!leaveCreated) return;
@@ -332,7 +335,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     }
 
-    // All validations passed, proceed to camera
     setStep('camera');
   };
 
@@ -407,15 +409,11 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         isSameDay(parseISO(leave.startDate), now),
     );
 
-    // If early checkout without approved leave
-    if (checkInOutAllowance?.requireConfirmation && !approvedHalfDayLeave) {
-      const confirmed = window.confirm(checkInOutAllowance.reason);
-      if (!confirmed) {
-        return { shiftTimes, approved: false };
-      }
-    }
-
-    return { shiftTimes, approved: true };
+    return {
+      shiftTimes,
+      approved: true,
+      hasApprovedLeave: !!approvedHalfDayLeave,
+    };
   };
 
   const calculateShiftTimes = (now: Date) => {
@@ -520,34 +518,53 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             <div className="text-black text-lg">กำลังบันทึกข้อมูล...</div>
           </div>
         )}
-        <div className="flex-grow overflow-hidden flex flex-col">
+        {/* Main content - takes remaining space */}
+        <div className="flex-1 relative">
           {step === 'info' && (
-            <div className="flex flex-col h-full">
+            <div className="h-full flex flex-col p-4">
               <ErrorBoundary>
-                <UserShiftInfo
-                  userData={userData}
-                  attendanceStatus={liveAttendanceStatus}
-                  effectiveShift={effectiveShift}
-                />
+                <div className="flex-1">
+                  <UserShiftInfo
+                    userData={userData}
+                    attendanceStatus={liveAttendanceStatus}
+                    effectiveShift={effectiveShift}
+                  />
+                </div>
+                <div className="flex-none mt-4">
+                  <ActionButton
+                    isLoading={isAttendanceLoading}
+                    isActionButtonReady={isActionButtonReady}
+                    checkInOutAllowance={checkInOutAllowance}
+                    isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
+                    isDayOff={currentAttendanceStatus?.isDayOff ?? false}
+                    onAction={handleAction}
+                  />
+                  <p className="text-center mt-2">
+                    ท่านมีเวลาในการทำรายการ {timeRemaining} วินาที
+                  </p>
+                </div>
               </ErrorBoundary>
-              <div className="flex-shrink-0 mt-4">
-                <ActionButton
-                  isLoading={isAttendanceLoading}
-                  isActionButtonReady={isActionButtonReady}
-                  checkInOutAllowance={checkInOutAllowance}
-                  isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
-                  isDayOff={currentAttendanceStatus?.isDayOff ?? false}
-                  onAction={handleAction}
-                />
-                <p className="text-center mt-2">
-                  ท่านมีเวลาในการทำรายการ {timeRemaining} วินาที
-                </p>
-              </div>
             </div>
           )}
-          {step === 'camera' && renderStep2()}
-          {step === 'processing' && renderStep3()}
+
+          {step === 'camera' && (
+            <div className="absolute inset-0">
+              <CameraFrame
+                webcamRef={webcamRef}
+                faceDetected={faceDetected}
+                faceDetectionCount={faceDetectionCount}
+                message={message}
+                captureThreshold={captureThreshold}
+              />
+            </div>
+          )}
+          {step === 'processing' && (
+            <div className="h-full flex items-center justify-center">
+              {renderStep3()}
+            </div>
+          )}
         </div>
+
         {error && (
           <div className="mt-4">
             <p className="text-red-500" role="alert">
