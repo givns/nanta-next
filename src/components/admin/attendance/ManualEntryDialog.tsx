@@ -36,7 +36,6 @@ import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { CalendarIcon, Clock } from 'lucide-react';
 import { DetailedTimeEntry } from '@/types/attendance';
-import { cn } from '@/lib/utils';
 
 // Form validation schema
 const formSchema = z.object({
@@ -51,6 +50,7 @@ type FormData = z.infer<typeof formSchema>;
 
 interface ManualEntryDialogProps {
   entry: Partial<DetailedTimeEntry> & { date: string };
+  isNewEntry?: boolean;
   onClose: () => void;
   onSave: (data: FormData) => Promise<void>;
 }
@@ -64,6 +64,7 @@ const reasonTypes = [
 
 export function ManualEntryDialog({
   entry,
+  isNewEntry = false,
   onClose,
   onSave,
 }: ManualEntryDialogProps) {
@@ -100,63 +101,67 @@ export function ManualEntryDialog({
     }
   };
 
-  const isExistingEntry = entry.regularCheckInTime || entry.regularCheckOutTime;
-
   return (
     <Dialog open onOpenChange={() => !isLoading && onClose()}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {isExistingEntry
-              ? 'Edit Attendance Record'
-              : 'Add Attendance Record'}
+            {isNewEntry ? 'Add Attendance Record' : 'Edit Attendance Record'}
           </DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Date Selector */}
+            {/* Date Field - Different display for edit vs new */}
             <FormField
               control={form.control}
               name="date"
               render={() => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            'w-full justify-start text-left font-normal',
-                            !selectedDate && 'text-muted-foreground',
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {selectedDate ? (
-                            format(selectedDate, 'EEEE, d MMMM yyyy', {
+                  {isNewEntry ? (
+                    // Calendar picker for new entries
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {format(selectedDate, 'EEEE, d MMMM yyyy', {
                               locale: th,
-                            })
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={(date) => {
-                          if (date) {
-                            setSelectedDate(date);
-                            form.setValue('date', format(date, 'yyyy-MM-dd'));
-                          }
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                            })}
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-auto p-0"
+                        align="start"
+                        side="bottom"
+                        sideOffset={4}
+                      >
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              setSelectedDate(date);
+                              form.setValue('date', format(date, 'yyyy-MM-dd'));
+                            }
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    // Static date display for editing
+                    <div className="p-2 border rounded-md bg-muted">
+                      {format(selectedDate, 'EEEE, d MMMM yyyy', {
+                        locale: th,
+                      })}
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
