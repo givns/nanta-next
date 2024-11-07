@@ -22,6 +22,7 @@ import ErrorBoundary from './ErrorBoundary';
 import ActionButton from './ActionButton';
 import { getCurrentTime, formatDate } from '../utils/dateUtils';
 import { isSameDay, parseISO, subMinutes } from 'date-fns';
+import CameraFrame from './CameraFrame';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -472,46 +473,20 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderStep2 = () => (
-    <div className="h-full flex flex-col justify-center items-center relative">
+    <div className="h-full flex flex-col items-center space-y-4 max-h-[calc(100vh-16rem)]">
       {isModelLoading ? (
-        <>
+        <div className="flex flex-col items-center justify-center h-full">
           <SkeletonLoader />
           <p className="mt-4">กำลังโหลดระบบตรวจจับใบหน้า...</p>
-        </>
-      ) : (
-        <div className="relative w-full max-w-md">
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            className="w-full rounded-lg"
-            videoConstraints={{
-              facingMode: 'user',
-              width: { ideal: 640 },
-              height: { ideal: 480 },
-            }}
-          />
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div
-              className={`border-4 ${
-                faceDetected ? 'border-green-500' : 'border-blue-500'
-              } rounded-full w-48 h-48 transition-colors duration-300`}
-            ></div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
-            <p className="text-white text-shadow-lg mb-2">{message}</p>
-            {faceDetectionCount > 0 && (
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-500 h-full rounded-full transition-all duration-300"
-                  style={{
-                    width: `${(faceDetectionCount / captureThreshold) * 100}%`,
-                  }}
-                />
-              </div>
-            )}
-          </div>
         </div>
+      ) : (
+        <CameraFrame
+          webcamRef={webcamRef}
+          faceDetected={faceDetected}
+          faceDetectionCount={faceDetectionCount}
+          message={message}
+          captureThreshold={captureThreshold}
+        />
       )}
     </div>
   );
