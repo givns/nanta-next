@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import {
   Dialog,
   DialogContent,
@@ -9,13 +12,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Form,
   FormControl,
   FormField,
@@ -23,6 +19,13 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
@@ -35,19 +38,29 @@ import { CalendarIcon, Clock } from 'lucide-react';
 import { DetailedTimeEntry } from '@/types/attendance';
 import { cn } from '@/lib/utils';
 
-interface ManualEntryData {
-  date: string;
-  checkInTime?: string;
-  checkOutTime?: string;
-  reason: string;
-  reasonType: 'correction' | 'missing' | 'system_error' | 'other';
-}
+// Form validation schema
+const formSchema = z.object({
+  date: z.string(),
+  checkInTime: z.string().optional(),
+  checkOutTime: z.string().optional(),
+  reasonType: z.enum(['correction', 'missing', 'system_error', 'other']),
+  reason: z.string().min(1, 'Reason is required'),
+});
+
+type FormData = z.infer<typeof formSchema>;
 
 interface ManualEntryDialogProps {
   entry: Partial<DetailedTimeEntry> & { date: string };
   onClose: () => void;
-  onSave: (data: ManualEntryData) => Promise<void>;
+  onSave: (data: FormData) => Promise<void>;
 }
+
+const reasonTypes = [
+  { value: 'missing', label: 'Missing Entry' },
+  { value: 'correction', label: 'Time Correction' },
+  { value: 'system_error', label: 'System Error' },
+  { value: 'other', label: 'Other' },
+];
 
 export function ManualEntryDialog({
   entry,
@@ -56,31 +69,32 @@ export function ManualEntryDialog({
 }: ManualEntryDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(parseISO(entry.date));
-  const [formData, setFormData] = useState<ManualEntryData>({
-    date: entry.date,
-    checkInTime: entry.regularCheckInTime || '',
-    checkOutTime: entry.regularCheckOutTime || '',
-    reason: '',
-    reasonType: 'missing',
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      date: entry.date,
+      checkInTime: entry.regularCheckInTime || '',
+      checkOutTime: entry.regularCheckOutTime || '',
+      reasonType: 'missing',
+      reason: '',
+    },
   });
 
-  const reasonTypes = [
-    { value: 'missing', label: 'Missing Entry' },
-    { value: 'correction', label: 'Time Correction' },
-    { value: 'system_error', label: 'System Error' },
-    { value: 'other', label: 'Other' },
-  ];
-
-  const handleSubmit = async () => {
+  const onSubmit = async (data: FormData) => {
     try {
       setIsLoading(true);
       await onSave({
-        ...formData,
+        ...data,
         date: format(selectedDate, 'yyyy-MM-dd'),
       });
       onClose();
     } catch (error) {
       console.error('Error saving manual entry:', error);
+      form.setError('root', {
+        type: 'manual',
+        message: 'Failed to save attendance record',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -99,135 +113,168 @@ export function ManualEntryDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          {/* Date Selector */}
-          <div className="grid gap-2">
-            <FormLabel>Date</FormLabel>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    'justify-start text-left font-normal',
-                    !selectedDate && 'text-muted-foreground',
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? (
-                    format(selectedDate, 'EEEE, d MMMM yyyy', { locale: th })
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => {
-                    if (date) {
-                      setSelectedDate(date);
-                      setFormData((prev) => ({
-                        ...prev,
-                        date: format(date, 'yyyy-MM-dd'),
-                      }));
-                    }
-                  }}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Time Inputs */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <FormLabel>Check In Time</FormLabel>
-              <div className="relative">
-                <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  type="time"
-                  className="pl-9"
-                  value={formData.checkInTime}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      checkInTime: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <FormLabel>Check Out Time</FormLabel>
-              <div className="relative">
-                <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  type="time"
-                  className="pl-9"
-                  value={formData.checkOutTime}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      checkOutTime: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Reason Type */}
-          <div className="grid gap-2">
-            <FormLabel>Reason Type</FormLabel>
-            <Select
-              value={formData.reasonType}
-              onValueChange={(
-                value: 'correction' | 'missing' | 'system_error' | 'other',
-              ) => setFormData((prev) => ({ ...prev, reasonType: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select reason type" />
-              </SelectTrigger>
-              <SelectContent>
-                {reasonTypes.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Reason */}
-          <div className="grid gap-2">
-            <FormLabel>Reason</FormLabel>
-            <Input
-              placeholder="Enter reason for manual entry"
-              value={formData.reason}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, reason: e.target.value }))
-              }
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Date Selector */}
+            <FormField
+              control={form.control}
+              name="date"
+              render={() => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            'w-full justify-start text-left font-normal',
+                            !selectedDate && 'text-muted-foreground',
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedDate ? (
+                            format(selectedDate, 'EEEE, d MMMM yyyy', {
+                              locale: th,
+                            })
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            setSelectedDate(date);
+                            form.setValue('date', format(date, 'yyyy-MM-dd'));
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={
-              isLoading ||
-              !formData.reason ||
-              (!formData.checkInTime && !formData.checkOutTime)
-            }
-          >
-            {isLoading ? 'Saving...' : 'Save'}
-          </Button>
-        </DialogFooter>
+            {/* Time Inputs */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="checkInTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Check In Time</FormLabel>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <FormControl>
+                        <Input type="time" className="pl-9" {...field} />
+                      </FormControl>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="checkOutTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Check Out Time</FormLabel>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <FormControl>
+                        <Input type="time" className="pl-9" {...field} />
+                      </FormControl>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Reason Type */}
+            <FormField
+              control={form.control}
+              name="reasonType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Reason Type</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select reason type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {reasonTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Reason */}
+            <FormField
+              control={form.control}
+              name="reason"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Reason</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter reason for manual entry"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Form Error */}
+            {form.formState.errors.root && (
+              <p className="text-sm font-medium text-destructive">
+                {form.formState.errors.root.message}
+              </p>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  isLoading ||
+                  (!form.getValues('checkInTime') &&
+                    !form.getValues('checkOutTime'))
+                }
+              >
+                {isLoading ? 'Saving...' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
