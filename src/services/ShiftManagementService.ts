@@ -34,7 +34,6 @@ import {
   invalidateCachePattern,
 } from '../lib/serverCache';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
-import { PrismaClientOrTransaction } from '@/types/prisma';
 
 interface Premise {
   lat: number;
@@ -58,7 +57,7 @@ export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
 
   constructor(
-    private prisma: PrismaClientOrTransaction,
+    private prisma: PrismaClient,
     private holidayService: HolidayService,
   ) {}
 

@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { isSameDay, subDays, addDays, startOfDay, endOfDay } from 'date-fns';
-import type { PrismaClient, Holiday } from '@prisma/client';
-import { PrismaClientOrTransaction, TransactionClient } from '@/types/prisma';
+import type { PrismaClient, Prisma, Holiday } from '@prisma/client';
 
 interface HolidayInput {
   date: string | Date;
@@ -55,16 +54,18 @@ const fallbackHolidays2024 = [
 export class HolidayService {
   private syncInProgress: { [key: number]: boolean } = {};
   private holidayCache: { [key: number]: Holiday[] } = {};
+  private prisma: PrismaClient;
 
-  constructor(private prisma: PrismaClientOrTransaction) {}
+  constructor(prisma: PrismaClient) {
+    this.prisma = prisma;
+  }
 
   async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
     try {
       const normalizedStartDate = startOfDay(startDate);
       const normalizedEndDate = endOfDay(endDate);
 
-      // Use the provided transaction/prisma client
-      const holidays = await this.prisma.holiday.findMany({
+      return await this.prisma.holiday.findMany({
         where: {
           date: {
             gte: normalizedStartDate,
@@ -72,10 +73,6 @@ export class HolidayService {
           },
         },
       });
-
-      // Don't try to create holidays in a possibly closed transaction
-      // Instead, return what we have
-      return holidays;
     } catch (error) {
       console.error('Error fetching holidays:', error);
       return [];
@@ -176,73 +173,49 @@ export class HolidayService {
         types: holiday.types || ['Public'],
       }));
 
-      // Handle both regular PrismaClient and transaction client
-      if ('$transaction' in this.prisma) {
-        // Using regular PrismaClient
-        return await this.prisma.$transaction(async (tx: TransactionClient) => {
-          return this.createHolidaysInTransaction(tx, formattedHolidays, year);
-        });
-      } else {
-        // Already in a transaction
-        return await this.createHolidaysInTransaction(
-          this.prisma,
-          formattedHolidays,
-          year,
+      return await this.prisma.$transaction(async (tx) => {
+        const created = [];
+        for (const holiday of formattedHolidays) {
+          try {
+            const existing = await tx.holiday.findFirst({
+              where: {
+                date: holiday.date,
+              },
+            });
+
+            if (!existing) {
+              const created_holiday = await tx.holiday.create({
+                data: holiday,
+              });
+              created.push(created_holiday);
+            }
+          } catch (err) {
+            console.warn(`Skipping duplicate holiday for date ${holiday.date}`);
+          }
+        }
+
+        console.log(
+          `Successfully created ${created.length} holidays for ${year}`,
         );
-      }
+
+        // Update cache only after successful creation
+        if (created.length > 0) {
+          this.holidayCache[year] = await tx.holiday.findMany({
+            where: {
+              date: {
+                gte: new Date(`${year}-01-01`),
+                lte: new Date(`${year}-12-31`),
+              },
+            },
+          });
+        }
+
+        return created;
+      });
     } catch (error) {
       console.error('Error saving holidays:', error);
       throw error;
     }
-  }
-
-  private async createHolidaysInTransaction(
-    client: PrismaClient | TransactionClient,
-    holidays: Array<{
-      date: Date;
-      name: string;
-      localName: string;
-      types: string[];
-    }>,
-    year: number,
-  ) {
-    const created = [];
-
-    for (const holiday of holidays) {
-      try {
-        // Check if holiday already exists
-        const existing = await client.holiday.findFirst({
-          where: {
-            date: holiday.date,
-          },
-        });
-
-        if (!existing) {
-          const created_holiday = await client.holiday.create({
-            data: holiday,
-          });
-          created.push(created_holiday);
-        }
-      } catch (err) {
-        console.warn(`Skipping duplicate holiday for date ${holiday.date}`);
-      }
-    }
-
-    console.log(`Successfully created ${created.length} holidays for ${year}`);
-
-    // Update cache only after successful creation
-    if (created.length > 0) {
-      this.holidayCache[year] = await client.holiday.findMany({
-        where: {
-          date: {
-            gte: new Date(`${year}-01-01`),
-            lte: new Date(`${year}-12-31`),
-          },
-        },
-      });
-    }
-
-    return created;
   }
 
   async createHoliday(data: {
@@ -252,31 +225,9 @@ export class HolidayService {
   }): Promise<Holiday> {
     console.log('Creating new holiday:', data);
 
-    if ('$transaction' in this.prisma) {
-      return await this.prisma.$transaction(async (tx: TransactionClient) => {
-        // Check for existing holiday first
-        const existing = await tx.holiday.findFirst({
-          where: {
-            date: data.date,
-          },
-        });
-
-        if (existing) {
-          throw new Error(`Holiday already exists for date ${data.date}`);
-        }
-
-        return tx.holiday.create({
-          data: {
-            date: data.date,
-            name: data.name,
-            localName: data.localName,
-            types: ['Public'],
-          },
-        });
-      });
-    } else {
-      // Already in a transaction
-      const existing = await this.prisma.holiday.findFirst({
+    return await this.prisma.$transaction(async (tx) => {
+      // Check for existing holiday first
+      const existing = await tx.holiday.findFirst({
         where: {
           date: data.date,
         },
@@ -286,7 +237,7 @@ export class HolidayService {
         throw new Error(`Holiday already exists for date ${data.date}`);
       }
 
-      return this.prisma.holiday.create({
+      return tx.holiday.create({
         data: {
           date: data.date,
           name: data.name,
@@ -294,7 +245,7 @@ export class HolidayService {
           types: ['Public'],
         },
       });
-    }
+    });
   }
 
   async updateHoliday(
