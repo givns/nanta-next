@@ -16,7 +16,7 @@ import { DesktopView } from './components/DesktopView';
 import { MobileView } from './components/MobileView';
 import { LoadingState } from './components/LoadingState';
 import { ErrorAlert } from './components/ErrorAlert';
-import { startOfDay } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 
 export default function DailyAttendanceView() {
   const { user } = useAdmin();
@@ -26,8 +26,16 @@ export default function DailyAttendanceView() {
   const [selectedRecord, setSelectedRecord] =
     useState<DailyAttendanceResponse | null>(null);
 
-  const date = startOfDay(new Date());
-
+  // Initialize with properly normalized default date
+  const defaultDate = useMemo(() => {
+    try {
+      return startOfDay(new Date());
+    } catch (error) {
+      console.error('Error creating default date:', error);
+      // Fallback to current date string if Date creation fails
+      return new Date(format(new Date(), 'yyyy-MM-dd'));
+    }
+  }, []);
   const {
     records,
     filteredRecords,
@@ -39,48 +47,47 @@ export default function DailyAttendanceView() {
     refreshData,
   } = useAttendance({
     lineUserId: user?.lineUserId || null,
-    date,
+    date: startOfDay(new Date()),
+    department: 'all',
+    searchTerm: '',
   });
 
-  // Memoized Calculations with null checks
+  // Memoized calculations for UI optimizations
   const processedRecords = useMemo(() => {
-    return records
-      .filter((record) => record && record.departmentName) // Add null checks
-      .sort((a, b) => {
-        const getStatusPriority = (record: DailyAttendanceResponse) => {
-          if (!record) return -1;
-          if (record.leaveInfo) return 1;
-          if (record.isDayOff) return 2;
-          if (!record.attendance?.regularCheckInTime) return 0;
-          return 3;
-        };
+    if (!records?.length) return [];
 
-        const priorityA = getStatusPriority(a);
-        const priorityB = getStatusPriority(b);
+    return [...records].sort((a, b) => {
+      const getStatusPriority = (record: DailyAttendanceResponse): number => {
+        if (!record) return -1;
+        if (record.leaveInfo) return 1;
+        if (record.isDayOff) return 2;
+        if (!record.attendance?.regularCheckInTime) return 0;
+        return 3;
+      };
 
-        if (priorityA !== priorityB) return priorityA - priorityB;
-        return (a.departmentName || '').localeCompare(b.departmentName || '');
-      });
+      const priorityA = getStatusPriority(a);
+      const priorityB = getStatusPriority(b);
+
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      return (a.departmentName || '').localeCompare(b.departmentName || '');
+    });
   }, [records]);
 
-  // Enhanced summary calculation with null checks
   const summary = useMemo(
     () => ({
       total: filteredRecords.length,
-      present: filteredRecords.filter(
-        (r) => r && r.attendance?.regularCheckInTime,
-      ).length,
+      present: filteredRecords.filter((r) => r?.attendance?.regularCheckInTime)
+        .length,
       absent: filteredRecords.filter(
         (r) =>
-          r && !r.attendance?.regularCheckInTime && !r.leaveInfo && !r.isDayOff,
+          !r?.attendance?.regularCheckInTime && !r?.leaveInfo && !r?.isDayOff,
       ).length,
-      onLeave: filteredRecords.filter((r) => r && r.leaveInfo).length,
-      dayOff: filteredRecords.filter((r) => r && r.isDayOff).length,
+      onLeave: filteredRecords.filter((r) => r?.leaveInfo).length,
+      dayOff: filteredRecords.filter((r) => r?.isDayOff).length,
     }),
     [filteredRecords],
   );
 
-  // Event Handlers with date normalization
   const handleDateChange = (date: Date | undefined) => {
     if (date) {
       const normalizedDate = startOfDay(date);
@@ -89,7 +96,6 @@ export default function DailyAttendanceView() {
   };
 
   const handleRecordSelect = (record: DailyAttendanceResponse) => {
-    if (!record) return;
     setSelectedEmployee(record.employeeId);
     setShowEmployeeDetail(true);
   };
@@ -98,7 +104,6 @@ export default function DailyAttendanceView() {
     e: React.MouseEvent,
     record: DailyAttendanceResponse,
   ) => {
-    if (!record) return;
     e.stopPropagation();
     setSelectedRecord(record);
     setShowEditDialog(true);
@@ -110,10 +115,7 @@ export default function DailyAttendanceView() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Daily Attendance</CardTitle>
-            <DateSelector
-              date={filters.date || date}
-              onChange={handleDateChange}
-            />
+            <DateSelector date={filters.date} onChange={handleDateChange} />
           </div>
         </CardHeader>
 
@@ -155,7 +157,7 @@ export default function DailyAttendanceView() {
           open={showEmployeeDetail}
           onOpenChange={setShowEmployeeDetail}
           employeeId={selectedEmployee}
-          date={filters.date || date}
+          date={filters.date}
         />
       )}
     </div>

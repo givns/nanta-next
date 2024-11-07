@@ -6,6 +6,7 @@ import {
   ManualEntryResponse,
   DepartmentInfo,
 } from '@/types/attendance';
+import { format } from 'date-fns';
 
 export class AttendanceApiService {
   private static baseUrl = '/api/admin/attendance';
@@ -13,17 +14,18 @@ export class AttendanceApiService {
   static async getDailyAttendance(
     lineUserId: string,
     date: Date,
-    department?: string,
-    searchTerm?: string,
+    department: string = 'all',
+    searchTerm: string = '',
   ): Promise<DailyAttendanceResponse[]> {
     try {
-      const queryParams = new URLSearchParams({
-        date: date.toISOString(),
-        ...(department && department !== 'all' && { department }),
-        ...(searchTerm && { searchTerm }),
+      const formattedDate = format(date, 'yyyy-MM-dd');
+      const params = new URLSearchParams({
+        date: formattedDate,
+        department,
+        ...(searchTerm ? { searchTerm } : {}),
       });
 
-      const response = await fetch(`${this.baseUrl}/daily?${queryParams}`, {
+      const response = await fetch(`${this.baseUrl}/daily?${params}`, {
         headers: {
           'x-line-userid': lineUserId,
         },
