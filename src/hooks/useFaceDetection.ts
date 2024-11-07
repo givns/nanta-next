@@ -114,6 +114,16 @@ export const useFaceDetection = (
     }
   }, []);
 
+  // In your useFaceDetection hook
+  useEffect(() => {
+    if (faceDetected) {
+      console.log('Face detected, status:', {
+        faceDetected,
+        faceDetectionCount,
+      });
+    }
+  }, [faceDetected, faceDetectionCount]);
+
   const resetDetection = useCallback(() => {
     setFaceDetectionCount(0);
     setFaceDetected(false);

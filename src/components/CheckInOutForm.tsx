@@ -74,6 +74,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showGuide, setShowGuide] = useState(true);
 
   useEffect(() => {
     if (checkInOutAllowance !== null) {
@@ -386,6 +387,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     };
   }, [step, resetDetection]);
 
+  useEffect(() => {
+    if (step === 'camera') {
+      // Hide guide after 5 seconds
+      const timer = setTimeout(() => setShowGuide(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [step]);
+
   const validateCheckOutConditions = async (now: Date) => {
     // Calculate shift times
     const shiftTimes = calculateShiftTimes(now);
@@ -472,6 +481,22 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [memoizedUserShiftInfo, memoizedActionButton, timeRemaining],
   );
 
+  // Additional helper component for better user guidance
+  const GuideOverlay: React.FC<{ show: boolean }> = ({ show }) => {
+    if (!show) return null;
+
+    return (
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="px-6 py-4 bg-black/75 rounded-lg text-white text-center max-w-xs">
+          <p>กรุณาวางใบหน้าของคุณให้อยู่ภายในกรอบวงรี</p>
+          <p className="text-sm mt-2 text-gray-300">
+            ระบบจะถ่ายภาพอัตโนมัติเมื่อตรวจพบใบหน้า
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   const renderStep2 = () => (
     <div className="h-full flex flex-col items-center space-y-4 max-h-[calc(100vh-16rem)]">
       {isModelLoading ? (
@@ -480,13 +505,16 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           <p className="mt-4">กำลังโหลดระบบตรวจจับใบหน้า...</p>
         </div>
       ) : (
-        <CameraFrame
-          webcamRef={webcamRef}
-          faceDetected={faceDetected}
-          faceDetectionCount={faceDetectionCount}
-          message={message}
-          captureThreshold={captureThreshold}
-        />
+        <div className="relative w-full">
+          <CameraFrame
+            webcamRef={webcamRef}
+            faceDetected={faceDetected}
+            faceDetectionCount={faceDetectionCount}
+            message={message}
+            captureThreshold={captureThreshold}
+          />
+          <GuideOverlay show={showGuide} />
+        </div>
       )}
     </div>
   );
