@@ -136,7 +136,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             earlyCheckoutType = 'emergency';
           }
         }
-        // Double-check late status (defensive programming)
+
         if (isLate && isCheckingIn && !lateReason) {
           console.log('Late reason required but missing');
           setIsLateModalOpen(true);
@@ -159,11 +159,20 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         await onCloseWindow();
       } catch (error: any) {
         console.error('Error in submitCheckInOut:', error);
-        const errorMessage =
-          error.response?.data?.details ||
-          error.message ||
-          'Failed to submit check-in/out';
-        setError(`Error: ${errorMessage}. Please try again.`);
+
+        // Handle API response errors
+        if (error.response?.data) {
+          const apiError = error.response.data;
+          setError(
+            `Error: ${apiError.message || apiError.error || 'Failed to process request'}`,
+          );
+          return;
+        }
+
+        // Handle other errors
+        setError(
+          `Error: ${error.message || 'An unexpected error occurred'}. Please try again.`,
+        );
       } finally {
         setIsSubmitting(false);
       }

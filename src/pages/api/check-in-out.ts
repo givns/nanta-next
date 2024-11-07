@@ -64,6 +64,13 @@ const attendanceService = new AttendanceService(
 
 const PROCESS_TIMEOUT = 25000; // 25 seconds timeout
 
+interface ErrorResponse {
+  error: string;
+  message?: string;
+  details?: string;
+  code?: string;
+}
+
 const attendanceSchema = Yup.object()
   .shape({
     employeeId: Yup.string(),
@@ -313,22 +320,45 @@ export default async function handler(
   } catch (error: any) {
     console.error('Detailed error in check-in-out:', error);
 
+    let errorResponse: ErrorResponse;
+
     if (error.message === 'Processing timeout') {
-      return res.status(504).json({
+      errorResponse = {
         error: 'Gateway Timeout',
         message:
           'Processing took too long, but the operation may have completed successfully. Please check status.',
-      });
+      };
+      return res.status(504).json(errorResponse);
     }
 
-    return res.status(500).json({
+    // Handle Prisma errors
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      errorResponse = {
+        error: 'Database Error',
+        message: 'Failed to process request',
+        details: error.message,
+        code: error.code,
+      };
+      return res.status(500).json(errorResponse);
+    }
+
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      errorResponse = {
+        error: 'Validation Error',
+        message: error.message,
+      };
+      return res.status(400).json(errorResponse);
+    }
+
+    // Handle any other errors
+    errorResponse = {
       error: 'Internal server error',
-      details: error.message,
-      code:
-        error instanceof Prisma.PrismaClientKnownRequestError
-          ? error.code
-          : undefined,
-    });
+      message: error.message || 'An unexpected error occurred',
+      details: error.stack,
+    };
+
+    return res.status(500).json(errorResponse);
   }
 }
 
