@@ -40,12 +40,17 @@ interface LeaveTypeMappings {
   };
 }
 
+type TransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
 export class PayrollCalculationService {
   private shiftManagementService: ShiftManagementService;
 
   constructor(
     private settings: PayrollSettingsData,
-    private prisma: PrismaClient,
+    private prisma: PrismaClient | TransactionClient,
     private holidayService: HolidayService,
   ) {
     this.shiftManagementService = new ShiftManagementService(

@@ -223,29 +223,7 @@ export default function PayrollAdminDashboard() {
       const period = PayrollUtils.parsePeriodValue(state.selectedPeriod);
       if (!period) throw new Error('Invalid period');
 
-      // First try to get existing payroll
-      const existingResponse = await fetch(
-        `/api/admin/payroll/payroll?employeeId=${state.selectedEmployee}&periodStart=${PayrollUtils.formatDateForAPI(period.startDate)}&periodEnd=${PayrollUtils.formatDateForAPI(period.endDate)}`,
-        {
-          headers: {
-            'x-line-userid': user?.lineUserId || '',
-          },
-        },
-      );
-
-      const existingResult: PayrollApiResponse<PayrollCalculationResult> =
-        await existingResponse.json();
-
-      if (existingResult.success) {
-        setState((prev) => ({
-          ...prev,
-          payrollData: existingResult.data,
-          isLoading: false,
-        }));
-        return;
-      }
-
-      // If no existing payroll, calculate new one
+      // Calculate new payroll data regardless of existing record
       const calculateResponse = await fetch(
         '/api/admin/payroll/calculate-payroll',
         {
@@ -262,16 +240,35 @@ export default function PayrollAdminDashboard() {
         },
       );
 
-      const calculatedResult: PayrollApiResponse<PayrollCalculationResult> =
-        await calculateResponse.json();
-
-      if (!calculatedResult.success) {
-        throw new Error(calculatedResult.error);
+      if (!calculateResponse.ok) {
+        const errorData = await calculateResponse.json();
+        throw new Error(errorData.error || 'Failed to calculate payroll');
       }
 
-      // Save the calculated payroll
+      const calculatedResult = await calculateResponse.json();
+      if (!calculatedResult.success) {
+        throw new Error(
+          calculatedResult.error || 'Failed to calculate payroll',
+        );
+      }
+
+      // Check for existing record to determine whether to POST or PUT
+      const existingResponse = await fetch(
+        `/api/admin/payroll/payroll?employeeId=${state.selectedEmployee}&periodStart=${PayrollUtils.formatDateForAPI(period.startDate)}&periodEnd=${PayrollUtils.formatDateForAPI(period.endDate)}`,
+        {
+          headers: {
+            'x-line-userid': user?.lineUserId || '',
+          },
+        },
+      );
+
+      const existingResult = await existingResponse.json();
+      const method =
+        existingResult.success && existingResult.data ? 'PUT' : 'POST';
+
+      // Save/update the calculated payroll
       const saveResponse = await fetch('/api/admin/payroll/payroll', {
-        method: 'POST',
+        method: method,
         headers: {
           'Content-Type': 'application/json',
           'x-line-userid': user?.lineUserId || '',
@@ -280,15 +277,21 @@ export default function PayrollAdminDashboard() {
           employeeId: state.selectedEmployee,
           periodStart: PayrollUtils.formatDateForAPI(period.startDate),
           periodEnd: PayrollUtils.formatDateForAPI(period.endDate),
-          payrollData: calculatedResult.data,
+          payrollData: {
+            ...calculatedResult.data,
+            status: 'draft',
+          },
         }),
       });
 
-      const savedResult: PayrollApiResponse<PayrollCalculationResult> =
-        await saveResponse.json();
+      if (!saveResponse.ok) {
+        const errorData = await saveResponse.json();
+        throw new Error(errorData.error || 'Failed to save payroll');
+      }
 
+      const savedResult = await saveResponse.json();
       if (!savedResult.success) {
-        throw new Error(savedResult.error);
+        throw new Error(savedResult.error || 'Failed to save payroll');
       }
 
       setState((prev) => ({

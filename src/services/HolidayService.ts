@@ -1,8 +1,10 @@
-import { PrismaClient, Holiday } from '@prisma/client';
 import axios from 'axios';
 import { isSameDay, subDays, addDays, startOfDay, endOfDay } from 'date-fns';
-
-const prisma = new PrismaClient();
+import type { PrismaClient, Prisma, Holiday } from '@prisma/client';
+type TransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
 
 const fallbackHolidays2024 = [
   { date: '2024-01-01', name: "New Year's Day", localName: 'วันขึ้นปีใหม่' },
@@ -49,9 +51,11 @@ const fallbackHolidays2024 = [
 export class HolidayService {
   private syncInProgress: { [key: number]: boolean } = {};
   private holidayCache: { [key: number]: Holiday[] } = {};
+  private prisma: PrismaClient | TransactionClient;
 
-  constructor(private prisma: PrismaClient) {}
-
+  constructor(prisma: PrismaClient | TransactionClient) {
+    this.prisma = prisma;
+  }
   async syncHolidays(year: number): Promise<void> {
     if (this.syncInProgress[year]) {
       console.log(`Sync already in progress for year ${year}`);

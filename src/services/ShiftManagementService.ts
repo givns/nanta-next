@@ -53,11 +53,16 @@ const PREMISES: Premise[] = [
   },
 ];
 
+type TransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
 
   constructor(
-    private prisma: PrismaClient,
+    private prisma: PrismaClient | TransactionClient,
     private holidayService: HolidayService,
   ) {}
 
