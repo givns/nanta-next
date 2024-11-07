@@ -24,20 +24,9 @@ async function handleGetDailyAttendance(
 ) {
   try {
     const { date: dateQuery, department, searchTerm } = req.query;
-
-    // Ensure proper date handling
-    const targetDate = dateQuery
-      ? startOfDay(parseISO(dateQuery as string))
-      : startOfDay(new Date());
-
+    const targetDate = dateQuery ? parseISO(dateQuery as string) : new Date();
     const dateStart = startOfDay(targetDate);
     const dateEnd = endOfDay(targetDate);
-
-    // Log the date range for debugging
-    console.log('Processing attendance for date range:', {
-      start: dateStart.toISOString(),
-      end: dateEnd.toISOString(),
-    });
 
     // Create cache key
     const cacheKey = `daily-attendance:${format(targetDate, 'yyyy-MM-dd')}:${department || 'all'}:${searchTerm || ''}`;
@@ -129,72 +118,54 @@ async function handleGetDailyAttendance(
     const attendanceRecords: DailyAttendanceResponse[] = await Promise.all(
       employees.map(async (employee) => {
         const attendance = employee.attendances[0];
+        const isHoliday = await holidayService.isHoliday(
+          targetDate,
+          holidays,
+          employee.shiftCode === 'SHIFT104',
+        );
 
-        try {
-          const isHoliday = await holidayService.isHoliday(
-            targetDate,
-            holidays,
-            employee.shiftCode === 'SHIFT104',
-          );
+        // Type the leave request parameter
+        const leaveRequest = leaveRequests.find(
+          (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
+        );
 
-          const leaveRequest = leaveRequests.find(
-            (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
-          );
-
-          return {
-            employeeId: employee.employeeId,
-            employeeName: employee.name || '',
-            departmentName: employee.departmentName || '',
-            date: format(targetDate, 'yyyy-MM-dd'),
-            shift: employee.assignedShift
-              ? {
-                  name: employee.assignedShift.name,
-                  startTime: employee.assignedShift.startTime,
-                  endTime: employee.assignedShift.endTime,
-                }
-              : null,
-            attendance: attendance
-              ? {
-                  id: attendance.id,
-                  regularCheckInTime: attendance.regularCheckInTime
-                    ? format(new Date(attendance.regularCheckInTime), 'HH:mm')
-                    : null,
-                  regularCheckOutTime: attendance.regularCheckOutTime
-                    ? format(new Date(attendance.regularCheckOutTime), 'HH:mm')
-                    : null,
-                  isLateCheckIn: attendance.isLateCheckIn || false,
-                  isLateCheckOut: attendance.isLateCheckOut || false,
-                  isEarlyCheckIn: attendance.isEarlyCheckIn || false,
-                  isVeryLateCheckOut: attendance.isVeryLateCheckOut || false,
-                  lateCheckOutMinutes: attendance.lateCheckOutMinutes || 0,
-                  status: attendance.status,
-                }
-              : null,
-            isDayOff: isHoliday || attendance?.isDayOff || false,
-            leaveInfo: leaveRequest
-              ? {
-                  type: leaveRequest.leaveType,
-                  status: leaveRequest.status,
-                }
-              : null,
-          };
-        } catch (error) {
-          console.error(
-            `Error processing employee ${employee.employeeId}:`,
-            error,
-          );
-          // Return a safe default record
-          return {
-            employeeId: employee.employeeId,
-            employeeName: employee.name || '',
-            departmentName: employee.departmentName || '',
-            date: format(targetDate, 'yyyy-MM-dd'),
-            shift: null,
-            attendance: null,
-            isDayOff: false,
-            leaveInfo: null,
-          };
-        }
+        return {
+          employeeId: employee.employeeId,
+          employeeName: employee.name,
+          departmentName: employee.departmentName || '',
+          date: format(targetDate, 'yyyy-MM-dd'),
+          shift: employee.assignedShift
+            ? {
+                name: employee.assignedShift.name,
+                startTime: employee.assignedShift.startTime,
+                endTime: employee.assignedShift.endTime,
+              }
+            : null,
+          attendance: attendance
+            ? {
+                id: attendance.id,
+                regularCheckInTime: formatAttendanceTime(
+                  attendance.regularCheckInTime,
+                ),
+                regularCheckOutTime: formatAttendanceTime(
+                  attendance.regularCheckOutTime,
+                ),
+                isLateCheckIn: attendance.isLateCheckIn ?? false,
+                isLateCheckOut: attendance.isLateCheckOut ?? false,
+                isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
+                isVeryLateCheckOut: attendance.isVeryLateCheckOut ?? false,
+                lateCheckOutMinutes: attendance.lateCheckOutMinutes ?? 0,
+                status: attendance.status,
+              }
+            : null,
+          isDayOff: isHoliday || attendance?.isDayOff || false,
+          leaveInfo: leaveRequest
+            ? {
+                type: leaveRequest.leaveType,
+                status: leaveRequest.status,
+              }
+            : null,
+        };
       }),
     );
 
@@ -210,6 +181,16 @@ async function handleGetDailyAttendance(
     });
   }
 }
+
+const formatAttendanceTime = (date: Date | null): string | null => {
+  if (!date) return null;
+  try {
+    return format(date, 'HH:mm');
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return null;
+  }
+};
 
 export default async function handler(
   req: NextApiRequest,
