@@ -1,64 +1,23 @@
-// pages/_app.tsx
 import '../styles/globals.css';
-import { useEffect, useState } from 'react';
-import AdminLayout from '@/components/layouts/AdminLayout';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
-import { useLiff } from '../hooks/useLiff';
-import LoadingBar from '../components/LoadingBar';
 import { useRouter } from 'next/router';
 import { AdminProvider } from '@/contexts/AdminContext';
+import AdminLayout from '@/components/layouts/AdminLayout';
+import {
+  LiffProvider,
+  useLiffContext,
+} from '@/components/providers/LiffProvider';
+import LoadingBar from '@/components/LoadingBar';
 
-function MyApp({ Component, pageProps }: AppProps) {
-  const { isLiffInitialized, lineUserId, error: liffError } = useLiff();
-  const [isLoading, setIsLoading] = useState(true);
+function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
+  const { lineUserId } = useLiffContext();
   const isAdminRoute = router.pathname.startsWith('/admin');
-
-  useEffect(() => {
-    if (isLiffInitialized && lineUserId) {
-      // Store lineUserId in localStorage
-      localStorage.setItem('lineUserId', lineUserId);
-
-      // Add a small delay to ensure the progress bar reaches 100%
-      setTimeout(() => setIsLoading(false), 1000);
-    }
-  }, [isLiffInitialized, lineUserId]);
-
-  // Intercept fetch calls to add lineUserId header
-  useEffect(() => {
-    if (typeof window !== 'undefined' && lineUserId) {
-      const originalFetch = window.fetch;
-      window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
-        init = init || {};
-        init.headers = {
-          ...init.headers,
-          'x-line-userid': lineUserId,
-        };
-        return originalFetch(input, init);
-      };
-    }
-  }, [lineUserId]);
-
-  // Show loading state while LIFF is initializing
-  if (isLoading || !isLiffInitialized) {
-    return <LoadingBar />;
-  }
-
-  // Show error if LIFF failed to initialize
-  if (liffError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="text-red-500">เกิดข้อผิดพลาดในการเชื่อมต่อ LIFF</div>
-        <div className="text-red-500">{liffError}</div>
-      </div>
-    );
-  }
 
   // Handle admin routes
   if (isAdminRoute) {
-    // Make sure we have lineUserId before rendering admin routes
     if (!lineUserId) {
       router.replace('/login');
       return <LoadingBar />;
@@ -86,6 +45,14 @@ function MyApp({ Component, pageProps }: AppProps) {
     <Provider store={store}>
       <Component {...pageProps} lineUserId={lineUserId} />
     </Provider>
+  );
+}
+
+function MyApp(props: AppProps) {
+  return (
+    <LiffProvider>
+      <AppContent {...props} />
+    </LiffProvider>
   );
 }
 
