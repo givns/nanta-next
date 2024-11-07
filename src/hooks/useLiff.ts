@@ -8,29 +8,49 @@ export function useLiff() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initializeLiff = async () => {
+    let mounted = true;
+
+    // Check if already initialized
+    if (isLiffInitialized && lineUserId) {
+      return;
+    }
+
+    // Try to get cached lineUserId first
+    const cachedLineUserId = localStorage.getItem('lineUserId');
+    if (cachedLineUserId && mounted) {
+      setLineUserId(cachedLineUserId);
+      setIsLiffInitialized(true);
+      return;
+    }
+
+    async function initializeLiff() {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
 
-        if (!liff.isLoggedIn()) {
-          // Redirect to LINE login if not logged in
-          liff.login();
-          return;
+        if (!mounted) return;
+
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          setLineUserId(profile.userId);
+          localStorage.setItem('lineUserId', profile.userId);
         }
 
-        const profile = await liff.getProfile();
-        setLineUserId(profile.userId);
         setIsLiffInitialized(true);
       } catch (err) {
-        console.error('LIFF initialization failed:', err);
+        if (!mounted) return;
+        console.error('LIFF initialization error:', err);
         setError(
           err instanceof Error ? err.message : 'Failed to initialize LIFF',
         );
       }
-    };
+    }
 
     initializeLiff();
-  }, []);
+
+    return () => {
+      mounted = false;
+    };
+  }, []); // Empty dependency array - only run once
 
   return { isLiffInitialized, lineUserId, error };
 }

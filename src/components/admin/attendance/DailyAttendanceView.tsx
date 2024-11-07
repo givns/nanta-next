@@ -1,14 +1,8 @@
-// components/admin/attendance/DailyAttendanceView.tsx
-
 import React, { useState, useMemo } from 'react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { DailyAttendanceResponse } from '@/types/attendance';
 import { useAttendance } from '@/hooks/useAttendance';
-
-// UI Components
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { EmployeeDetailDialog } from './EmployeeDetailDialog';
-
 import { DateSelector } from './components/DateSelector';
 import { SearchFilters } from './components/SearchFilters';
 import { SummaryStats } from './components/SummaryStats';
@@ -16,6 +10,7 @@ import { DesktopView } from './components/DesktopView';
 import { MobileView } from './components/MobileView';
 import { LoadingState } from './components/LoadingState';
 import { ErrorAlert } from './components/ErrorAlert';
+import { EmployeeDetailDialog } from './EmployeeDetailDialog';
 import { format, startOfDay } from 'date-fns';
 
 export default function DailyAttendanceView() {
@@ -119,10 +114,11 @@ export default function DailyAttendanceView() {
 
           <SummaryStats summary={summary} />
 
-          {isLoading && <LoadingState />}
-          {error && <ErrorAlert error={error} />}
-
-          {!isLoading && !error && (
+          {isLoading ? (
+            <LoadingState />
+          ) : error ? (
+            <ErrorAlert error={error} onRetry={refreshData} />
+          ) : (
             <>
               <div className="hidden md:block">
                 <DesktopView
