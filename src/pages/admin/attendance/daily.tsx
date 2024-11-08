@@ -4,7 +4,6 @@ import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import DailyAttendanceView from '@/components/admin/attendance/DailyAttendanceView';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 
 export default function DailyAttendancePage() {
   return (
