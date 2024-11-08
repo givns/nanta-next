@@ -9,11 +9,12 @@
     --foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --header-height: 104px; /* Adjust based on your header height */
-    --footer-height: 140px; /* Adjust based on your footer content */
+    --header-height: 4rem; /* Standardize to 64px */
+    --footer-height: 140px;
     --safe-bottom: env(safe-area-inset-bottom, 16px);
     --api-timeout: 30000ms;
   }
+
   .pb-safe {
     padding-bottom: calc(var(--safe-bottom) + 16px);
   }
@@ -23,6 +24,101 @@
     --foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
+  }
+}
+
+/* Layout classes */
+.admin-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: rgb(243 244 246);
+}
+
+.admin-nav {
+  height: var(--header-height);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background-color: white;
+  border-bottom: 1px solid rgb(229 231 235);
+}
+
+.admin-content {
+  flex: 1;
+  margin-top: var(--header-height);
+  padding: 1rem;
+  background-color: rgb(243 244 246);
+  min-height: calc(100vh - var(--header-height));
+  overflow-y: auto;
+}
+
+/* LIFF Layout */
+.liff-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: rgb(243 244 246);
+}
+
+.liff-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--header-height);
+  background-color: white;
+  z-index: 50;
+  border-bottom: 1px solid rgb(229 231 235);
+}
+
+.liff-content {
+  flex: 1;
+  margin-top: var(--header-height);
+  padding: 1rem;
+  min-height: calc(100vh - var(--header-height));
+  overflow-y: auto;
+}
+
+/* Loading States */
+.loading-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+}
+
+.skeleton-container {
+  padding-top: var(--header-height);
+  min-height: calc(100vh - var(--header-height));
+  background-color: rgb(243 244 246);
+  overflow-y: auto;
+}
+
+/* Mobile Navigation */
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-nav {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background-color: white;
+    height: var(--header-height);
+    border-bottom: 1px solid rgb(229 231 235);
+  }
+
+  .admin-content,
+  .liff-content {
+    padding: 0.5rem;
   }
 }
 

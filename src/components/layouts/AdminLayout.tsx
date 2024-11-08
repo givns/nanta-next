@@ -75,20 +75,30 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [openSubMenu, setOpenSubMenu] = useState<string | null>(null); // Track open dropdown
+  const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
   const currentPath = router.pathname;
 
   if (isLoading) {
-    return <DashboardSkeleton />;
+    return (
+      <div className="flex flex-col min-h-screen">
+        <nav className="bg-white shadow-sm h-16">
+          <div className="max-w-7xl mx-auto px-4 h-full flex items-center">
+            <div className="animate-pulse h-8 w-48 bg-gray-200 rounded" />
+          </div>
+        </nav>
+        <DashboardSkeleton />
+      </div>
+    );
   }
 
   if (error || !user) {
-    return null; // Will be redirected by AdminProvider
+    return null;
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
+    <div className="flex flex-col min-h-screen bg-gray-100">
+      {/* Desktop Navigation */}
+      <nav className="bg-white shadow-sm fixed top-0 left-0 right-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
@@ -155,7 +165,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       </nav>
 
       {/* Mobile Navigation */}
-      <nav className="md:hidden bg-white shadow-sm">
+      <nav className="md:hidden bg-white shadow-sm fixed top-0 left-0 right-0 z-10">
         <div className="px-4 h-16 flex items-center justify-between">
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
@@ -205,8 +215,11 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {children}
+      {/* Main Content */}
+      <main className="flex-1 mt-16 bg-gray-100">
+        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          {children}
+        </div>
       </main>
     </div>
   );

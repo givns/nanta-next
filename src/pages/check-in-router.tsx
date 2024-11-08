@@ -206,60 +206,55 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
 
   const isDataReady = userData && checkInOutAllowance && !isAttendanceLoading;
 
-  if (error || attendanceError) {
+  if (isLoading) {
+    return (
+      <div className="loading-container">
+        <LoadingBar />
+      </div>
+    );
+  }
+
+  if (error) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen">
         <h1 className="text-1xl mb-6 text-gray-800">เกิดข้อผิดพลาด</h1>
-        <p className="text-red-500">{error || attendanceError}</p>
+        <p className="text-red-500">{error}</p>
       </div>
     );
   }
 
   return (
-    <ErrorBoundary>
-      {/* Remove padding from main container to allow full-width camera */}
-      <div className="main-container flex flex-col min-h-screen bg-gray-100">
-        {/* Fixed header section */}
-        <div className="flex-none bg-white shadow-md z-10 px-4 py-3">
-          <h1 className="text-2xl font-bold text-center text-gray-800">
-            {attendanceStatus?.isCheckingIn
-              ? 'ระบบบันทึกเวลาเข้างาน'
-              : 'ระบบบันทึกเวลาออกงาน'}
-          </h1>
-          <Clock />
-        </div>
+    <div className="liff-layout">
+      {/* Fixed header section */}
+      <div className="sticky top-0 bg-white shadow-md z-10 px-4 py-3">
+        <h1 className="text-2xl font-bold text-center text-gray-800">
+          {attendanceStatus?.isCheckingIn
+            ? 'ระบบบันทึกเวลาเข้างาน'
+            : 'ระบบบันทึกเวลาออกงาน'}
+        </h1>
+        <Clock />
+      </div>
 
-        {/* Flexible content area */}
-        <div className="flex-1 relative">
-          {formError && (
-            <div
-              className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 m-4 rounded"
-              role="alert"
-            >
-              <strong className="font-bold">Error in CheckInOutForm:</strong>
-              <span className="block sm:inline"> {formError}</span>
+      {/* Flexible content area */}
+      <div className="flex-1">
+        {formError && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 m-4 rounded">
+            <strong className="font-bold">Error:</strong>
+            <span className="block sm:inline"> {formError}</span>
+          </div>
+        )}
+
+        <div className="h-full">
+          {isDataReady ? (
+            userData && memoizedCheckInOutForm
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <LoadingBar />
             </div>
           )}
-
-          <ErrorBoundary
-            onError={(error: Error) => {
-              console.error('Error in CheckInOutForm:', error);
-              setFormError(error.message);
-            }}
-          >
-            <div className="h-full">
-              {isDataReady ? (
-                userData && memoizedCheckInOutForm
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <LoadingBar />
-                </div>
-              )}
-            </div>
-          </ErrorBoundary>
         </div>
       </div>
-    </ErrorBoundary>
+    </div>
   );
 };
 
