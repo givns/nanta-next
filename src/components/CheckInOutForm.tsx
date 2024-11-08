@@ -430,31 +430,35 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   useEffect(() => {
-    if (step === 'camera') {
-      console.log('Camera step entered');
-      setIsInitialized(true);
-      resetDetection();
-    } else if (step === 'processing') {
-      // Cleanup camera when moving to processing
+    // Cleanup function for webcam
+    const cleanupWebcam = () => {
       if (webcamRef.current?.stream) {
         const tracks = webcamRef.current.stream.getTracks();
         tracks.forEach((track) => track.stop());
       }
-    }
-    return () => {
-      if (step !== 'camera') {
-        setIsInitialized(false);
-      }
     };
-  }, [step, resetDetection]);
 
+    // If we're moving away from camera step, cleanup
+    if (step !== 'camera') {
+      cleanupWebcam();
+    }
+
+    // Cleanup on component unmount
+    return () => {
+      cleanupWebcam();
+    };
+  }, [step]);
+
+  // Update step change effect
   useEffect(() => {
     if (step === 'camera') {
-      // Hide guide after 5 seconds
-      const timer = setTimeout(() => setShowGuide(false), 5000);
-      return () => clearTimeout(timer);
+      console.log('Camera step entered');
+      setIsInitialized(true);
+      resetDetection();
+    } else {
+      setIsInitialized(false);
     }
-  }, [step]);
+  }, [step, resetDetection]);
 
   const validateCheckOutConditions = async (now: Date) => {
     // Calculate shift times
@@ -577,44 +581,26 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [memoizedUserShiftInfo, memoizedActionButton, timeRemaining],
   );
 
-  const renderStep2 = useCallback(() => {
-    useEffect(() => {
-      return () => {
-        // Cleanup webcam on unmount
-        if (webcamRef.current?.stream) {
-          const tracks = webcamRef.current.stream.getTracks();
-          tracks.forEach((track) => track.stop());
-        }
-      };
-    }, []);
-
-    return (
-      <div className="fixed inset-0 z-50 bg-black">
-        {isModelLoading ? (
-          <div className="flex-grow flex flex-col items-center justify-center h-full">
-            <SkeletonLoader />
-            <p className="mt-4 text-lg text-white">
-              กำลังโหลดระบบตรวจจับใบหน้า...
-            </p>
-          </div>
-        ) : (
-          <CameraFrame
-            webcamRef={webcamRef}
-            faceDetected={faceDetected}
-            faceDetectionCount={faceDetectionCount}
-            message={message}
-            captureThreshold={captureThreshold}
-          />
-        )}
-      </div>
-    );
-  }, [
-    isModelLoading,
-    faceDetected,
-    faceDetectionCount,
-    message,
-    captureThreshold,
-  ]);
+  const renderStep2 = () => (
+    <div className="fixed inset-0 z-50 bg-black">
+      {isModelLoading ? (
+        <div className="flex-grow flex flex-col items-center justify-center h-full">
+          <SkeletonLoader />
+          <p className="mt-4 text-lg text-white">
+            กำลังโหลดระบบตรวจจับใบหน้า...
+          </p>
+        </div>
+      ) : (
+        <CameraFrame
+          webcamRef={webcamRef}
+          faceDetected={faceDetected}
+          faceDetectionCount={faceDetectionCount}
+          message={message}
+          captureThreshold={captureThreshold}
+        />
+      )}
+    </div>
+  );
 
   const renderStep3 = useCallback(
     () => (
