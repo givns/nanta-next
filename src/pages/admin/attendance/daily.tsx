@@ -3,14 +3,21 @@ import React from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
-import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import dynamic from 'next/dynamic';
 
 const DailyAttendanceView = dynamic(
   () => import('@/components/admin/attendance/DailyAttendanceView'),
   {
-    ssr: false,
-    loading: () => <DashboardSkeleton />,
+    loading: () => (
+      <div className="animate-pulse">
+        <div className="h-32 bg-gray-200 rounded-lg mb-4"></div>
+        <div className="space-y-3">
+          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+          <div className="h-4 bg-gray-200 rounded"></div>
+          <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+        </div>
+      </div>
+    ),
   },
 );
 

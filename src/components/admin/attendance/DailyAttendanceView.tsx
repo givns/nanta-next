@@ -20,6 +20,9 @@ export default function DailyAttendanceView() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedRecord, setSelectedRecord] =
     useState<DailyAttendanceResponse | null>(null);
+  const [selectedDate, setSelectedDate] = useState(() =>
+    startOfDay(new Date()),
+  );
 
   const {
     records,
@@ -81,10 +84,8 @@ export default function DailyAttendanceView() {
 
     try {
       const normalizedDate = startOfDay(newDate);
-      setFilters({
-        ...filters,
-        date: normalizedDate,
-      });
+      setSelectedDate(normalizedDate);
+      setFilters({ ...filters, date: normalizedDate });
     } catch (error) {
       console.error('Error handling date change:', error);
       // Optionally show an error message to the user
