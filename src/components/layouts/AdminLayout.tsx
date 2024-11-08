@@ -105,12 +105,14 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   if (isLoading) {
     return (
       <div className="admin-layout">
+        {/* Only show nav skeleton */}
         <div className="admin-nav">
           <div className="nav-content">
             <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
           </div>
         </div>
-        <DashboardSkeleton />
+        {/* Main content area without skeleton */}
+        <main className="admin-content" />
       </div>
     );
   }

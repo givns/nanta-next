@@ -208,6 +208,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const handlePhotoCapture = useCallback(
     async (photo: string) => {
+      console.log('Photo captured, proceeding with submission');
       if (isSubmitting) return;
 
       setCapturedPhoto(photo);
@@ -223,6 +224,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       } catch (error) {
         console.error('Error processing photo:', error);
         setError('An error occurred. Please try again.');
+        setStep('info'); // Reset to info step on error
       }
     },
     [isSubmitting, submitCheckInOut, checkInOutAllowance, isCheckingIn],

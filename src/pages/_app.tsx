@@ -88,6 +88,7 @@ const ClientContent = dynamic(
           return <LoadingBar />;
         }
 
+        // Wrap component with AdminLayout but let the component handle its own loading state
         return (
           <AdminProvider>
             <AdminLayout>

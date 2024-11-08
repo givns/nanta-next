@@ -227,13 +227,15 @@ const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
     <div className="liff-layout">
       {/* Fixed header section - only show in step 1 */}
       {(!isDataReady || attendanceStatus?.isCheckingIn) && (
-        <div className="liff-header">
-          <h1 className="text-2xl font-bold text-center text-gray-800">
-            {attendanceStatus?.isCheckingIn
-              ? 'ระบบบันทึกเวลาเข้างาน'
-              : 'ระบบบันทึกเวลาออกงาน'}
-          </h1>
-          <Clock />
+        <div className="liff-header bg-white shadow-sm">
+          <div className="px-4 py-3">
+            <h1 className="text-2xl font-bold text-center text-gray-800">
+              {attendanceStatus?.isCheckingIn
+                ? 'ระบบบันทึกเวลาเข้างาน'
+                : 'ระบบบันทึกเวลาออกงาน'}
+            </h1>
+            <Clock />
+          </div>
         </div>
       )}
 
