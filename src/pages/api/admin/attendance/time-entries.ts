@@ -3,7 +3,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { startOfMonth, endOfMonth, parseISO, format } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
 import { TimeEntriesResponse } from '@/types/attendance';
 
 const prisma = new PrismaClient();
