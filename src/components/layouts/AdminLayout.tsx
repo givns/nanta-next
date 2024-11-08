@@ -75,84 +75,32 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
 
-  // Updated route matching logic
+  // Check if route is active - including sub-items
   const isRouteActive = (href: string) => {
-    if (href === '/admin') {
-      return router.pathname === '/admin';
-    }
-
-    // If it's a direct match
-    if (router.pathname === href) {
-      return true;
-    }
-
-    // For parent routes with sub-items
-    if (href !== '/admin' && router.pathname.startsWith(href)) {
-      // Make sure we're not matching partial paths
-      const nextChar = router.pathname.charAt(href.length);
-      // Only consider it active if the next character is '/' or nothing
-      return nextChar === '/' || nextChar === '';
-    }
-
+    // Exact match
+    if (router.pathname === href) return true;
+    // Check if it's a parent of current route
+    if (href !== '/admin' && router.pathname.startsWith(href)) return true;
     return false;
   };
 
-  // Updated page title logic
+  // Get current page title
   const getCurrentPageTitle = () => {
-    // First check for exact matches
     for (const item of navItems) {
-      // Check sub-items first for more specific matches
+      if (isRouteActive(item.href)) {
+        return item.label;
+      }
       if (item.subItems) {
-        const activeSubItem = item.subItems.find(
-          (sub) => sub.href === router.pathname,
+        const activeSubItem = item.subItems.find((sub) =>
+          isRouteActive(sub.href),
         );
         if (activeSubItem) {
           return `${item.label} - ${activeSubItem.label}`;
         }
       }
-
-      // Then check main item
-      if (router.pathname === item.href) {
-        return item.label;
-      }
     }
-
-    // Then check for parent routes
-    for (const item of navItems) {
-      if (
-        item.href !== '/admin' &&
-        router.pathname.startsWith(item.href) &&
-        router.pathname.charAt(item.href.length) === '/'
-      ) {
-        if (item.subItems) {
-          const activeSubItem = item.subItems.find((sub) =>
-            router.pathname.startsWith(sub.href),
-          );
-          if (activeSubItem) {
-            return `${item.label} - ${activeSubItem.label}`;
-          }
-        }
-        return item.label;
-      }
-    }
-
     return 'Admin Dashboard';
   };
-
-  if (isLoading) {
-    return (
-      <div className="admin-layout">
-        {/* Only show nav skeleton */}
-        <div className="admin-nav">
-          <div className="nav-content">
-            <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
-          </div>
-        </div>
-        {/* Main content area without skeleton */}
-        <main className="admin-content" />
-      </div>
-    );
-  }
 
   if (error || !user) return null;
 
