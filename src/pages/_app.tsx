@@ -5,18 +5,21 @@ import store from '../store';
 import { useRouter } from 'next/router';
 import { AdminProvider } from '@/contexts/AdminContext';
 import AdminLayout from '@/components/layouts/AdminLayout';
-import {
-  LiffProvider,
-  useLiffContext,
-} from '@/components/providers/LiffProvider';
 import LoadingBar from '@/components/LoadingBar';
 import { useEffect, useState } from 'react';
+import { useLiff } from '@/hooks/useLiff';
+
+// Define LIFF pages
+const LIFF_PAGES = ['/check-in', '/overtime-request', '/leave-request'];
 
 function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  const { lineUserId, isInitialized, isLiffPage } = useLiffContext();
   const [isRouteLoading, setIsRouteLoading] = useState(false);
+  const { isLiffInitialized, lineUserId, error: liffError } = useLiff();
   const isAdminRoute = router.pathname.startsWith('/admin');
+  const isLiffPage = LIFF_PAGES.some((path) =>
+    router.pathname.startsWith(path),
+  );
   const isBrowser = typeof window !== 'undefined';
 
   // Handle route change loading states
@@ -37,8 +40,42 @@ function AppContent({ Component, pageProps }: AppProps) {
     };
   }, [router, isBrowser]);
 
+  // Handle LIFF pages
+  if (isLiffPage) {
+    // Show loading while LIFF initializes
+    if (!isLiffInitialized) {
+      return <LoadingBar />;
+    }
+
+    // Show error if LIFF fails to initialize
+    if (liffError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <div className="text-red-500">เกิดข้อผิดพลาดในการเชื่อมต่อ LIFF</div>
+          <div className="text-red-500">{liffError}</div>
+        </div>
+      );
+    }
+
+    // Show login prompt if no LINE user ID
+    if (!lineUserId) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <div className="text-red-500">กรุณาเข้าสู่ระบบผ่าน LINE</div>
+        </div>
+      );
+    }
+
+    // Render LIFF page with lineUserId
+    return (
+      <Provider store={store}>
+        <Component {...pageProps} lineUserId={lineUserId} />
+      </Provider>
+    );
+  }
+
   // Show loading during route changes
-  if (isRouteLoading && isBrowser) {
+  if (isRouteLoading) {
     return <LoadingBar />;
   }
 
@@ -46,7 +83,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   if (isAdminRoute) {
     const cachedUserId = isBrowser ? localStorage.getItem('lineUserId') : null;
 
-    if (!lineUserId && !cachedUserId && isBrowser) {
+    if (!lineUserId && !cachedUserId) {
       router.replace('/login');
       return <LoadingBar />;
     }
@@ -60,22 +97,7 @@ function AppContent({ Component, pageProps }: AppProps) {
     );
   }
 
-  // For LIFF pages
-  if (isLiffPage && isBrowser) {
-    if (!isInitialized) {
-      return <LoadingBar />;
-    }
-
-    if (!lineUserId) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-screen">
-          <div className="text-red-500">กรุณาเข้าสู่ระบบผ่าน LINE</div>
-        </div>
-      );
-    }
-  }
-
-  // Default route
+  // For other routes
   return (
     <Provider store={store}>
       <Component {...pageProps} lineUserId={lineUserId} />
@@ -83,12 +105,9 @@ function AppContent({ Component, pageProps }: AppProps) {
   );
 }
 
+// Wrap with error boundary if needed
 function MyApp(props: AppProps) {
-  return (
-    <LiffProvider>
-      <AppContent {...props} />
-    </LiffProvider>
-  );
+  return <AppContent {...props} />;
 }
 
 export default MyApp;
