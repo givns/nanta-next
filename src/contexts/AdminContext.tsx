@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
 import type { UserData } from '@/types/user';
+import { useRouter } from 'next/router';
 
 interface AdminContextType {
   user: UserData | null;
@@ -27,7 +27,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         throw new Error('No lineUserId found');
       }
 
-      // First fetch user data
       const response = await fetch('/api/user-data', {
         headers: {
           'x-line-userid': lineUserId,
@@ -40,27 +39,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
       const data = await response.json();
 
-      // Check if user has admin privileges
       if (!['Admin', 'SuperAdmin'].includes(data.user.role)) {
         throw new Error('Unauthorized - Insufficient privileges');
       }
 
-      // Store user data
       setUser(data.user);
 
-      // Check admin authorization
       const authResponse = await fetch('/api/admin/auth-check', {
         headers: {
           'x-line-userid': lineUserId,
         },
       });
 
-      if (!authResponse.ok) {
-        throw new Error('Failed admin authorization check');
-      }
-
-      const authData = await authResponse.json();
-      if (!authData.isAuthorized) {
+      if (!authResponse.ok || !(await authResponse.json()).isAuthorized) {
         throw new Error('Unauthorized access');
       }
 
@@ -69,31 +60,26 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       console.error('Error in authorization flow:', error);
       setError(error instanceof Error ? error.message : 'Authorization failed');
       if (isBrowser) {
-        router.replace('/unauthorized');
+        window.location.href = '/unauthorized';
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Initialize the context
   useEffect(() => {
-    if (!isBrowser) return;
-
-    const initializeContext = async () => {
+    if (isBrowser) {
       const lineUserId = localStorage.getItem('lineUserId');
       if (!lineUserId) {
         setError('No user ID found');
-        router.replace('/login');
+        window.location.href = '/login';
         return;
       }
-      await fetchUserData();
-    };
+      fetchUserData();
+    }
+  }, []);
 
-    initializeContext();
-  }, [router, isBrowser]);
-
-  // Provide SSR-safe fallback
+  // SSR fallback value
   if (!isBrowser) {
     return (
       <AdminContext.Provider
@@ -125,9 +111,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
 export function useAdmin() {
   const context = useContext(AdminContext);
-
-  // Handle SSR gracefully
-  if (context === undefined && typeof window === 'undefined') {
+  if (typeof window === 'undefined') {
     return {
       user: null,
       isLoading: true,
@@ -135,10 +119,8 @@ export function useAdmin() {
       refreshUser: async () => {},
     };
   }
-
   if (context === undefined) {
     throw new Error('useAdmin must be used within an AdminProvider');
   }
-
   return context;
 }

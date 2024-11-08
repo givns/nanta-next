@@ -38,3 +38,8 @@ export default function ShiftsPage() {
     </div>
   );
 }
+export const getServerSideProps = async () => {
+  return {
+    props: {},
+  };
+};
