@@ -117,101 +117,43 @@ export class NotificationService {
     }
   }
 
-  async sendCheckInOutNotification(
-    employeeId: string,
-    lineUserId: string,
-    timeEntry: {
-      type: 'check-in' | 'check-out';
-      time: Date;
-      status?: string;
-      overtimeInfo?: {
-        isDayOffOvertime: boolean;
-        isInsideShiftHours: boolean;
-        startTime: string;
-        endTime: string;
-      };
-    },
-  ): Promise<void> {
-    try {
-      const formattedDateTime = format(
-        timeEntry.time,
-        'dd MMMM yyyy เวลา HH:mm น.',
-        { locale: th },
-      );
-
-      let messageText = '';
-
-      if (timeEntry.type === 'check-in') {
-        messageText = `${employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`;
-      } else {
-        // For check-out
-        messageText = `${employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
-
-        // Add overtime information if present
-        if (timeEntry.status === 'overtime' && timeEntry.overtimeInfo) {
-          const otInfo = `\nทำงานล่วงเวลา: ${timeEntry.overtimeInfo.startTime} - ${timeEntry.overtimeInfo.endTime}`;
-          const otType = timeEntry.overtimeInfo.isDayOffOvertime
-            ? 'วันหยุด'
-            : 'วันทำงานปกติ';
-          messageText += `${otInfo}\nประเภท: ${otType}`;
-        }
-      }
-
-      const message: Message = {
-        type: 'text',
-        text: messageText,
-      };
-
-      console.log('Sending notification:', {
-        employeeId,
-        type: timeEntry.type,
-        message: messageText,
-      });
-
-      await this.sendNotification(
-        employeeId,
-        lineUserId,
-        message,
-        timeEntry.type === 'check-in' ? 'check-in' : 'check-out',
-      );
-
-      console.log(
-        `Successfully sent ${timeEntry.type} notification for employee ${employeeId}`,
-      );
-    } catch (error) {
-      console.error(`Error sending ${timeEntry.type} notification:`, error);
-      throw error;
-    }
-  }
-
-  // We can still keep these methods but have them use the new unified method
   async sendCheckInConfirmation(
     employeeId: string,
     lineUserId: string,
     checkInTime: Date,
   ): Promise<void> {
-    await this.sendCheckInOutNotification(employeeId, lineUserId, {
-      type: 'check-in',
-      time: checkInTime,
-    });
+    const formattedDateTime = format(
+      checkInTime,
+      'dd MMMM yyyy เวลา HH:mm น.',
+      { locale: th },
+    );
+    const messageText = `${employeeId} ลงเวลาเข้างานเมื่อ ${formattedDateTime}`;
+    const message: Message = {
+      type: 'text',
+      text: messageText,
+    };
+    console.log('Constructed message:', message);
+    await this.sendNotification(employeeId, lineUserId, message, 'check-in');
   }
 
   async sendCheckOutConfirmation(
     employeeId: string,
     lineUserId: string,
     checkOutTime: Date,
-    overtimeInfo?: {
-      isDayOffOvertime: boolean;
-      isInsideShiftHours: boolean;
-      startTime: string;
-      endTime: string;
-    },
   ): Promise<void> {
-    await this.sendCheckInOutNotification(employeeId, lineUserId, {
-      type: 'check-out',
-      time: checkOutTime,
-      overtimeInfo,
-    });
+    const formattedDateTime = format(
+      checkOutTime,
+      'dd MMMM yyyy เวลา HH:mm น.',
+      { locale: th },
+    );
+    const messageText = `${employeeId} ลงเวลาออกงานเมื่อ ${formattedDateTime}`;
+
+    const message: Message = {
+      type: 'text',
+      text: messageText,
+    };
+    console.log('Constructed message:', message);
+    await this.sendNotification(employeeId, lineUserId, message, 'check-in');
   }
 
   async sendMissingCheckInNotification(
