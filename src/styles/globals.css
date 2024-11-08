@@ -55,15 +55,35 @@
   overflow-y: auto;
 }
 
-/* Camera view styles */
 .camera-active {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: black;
-  z-index: 40;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 9999 !important;
+  background: black !important;
+}
+
+.webcam-container {
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+.webcam-video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* Ensure proper stacking for overlays */
+.face-detection-overlay {
+  z-index: 10000;
+}
+
+.progress-overlay {
+  z-index: 10001;
 }
 
 /* Ensure webcam takes full screen */

@@ -29,8 +29,15 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       ? `เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
       : 'ไม่สามารถลงเวลาได้ในขณะนี้';
 
+  const statusText = checkInOutAllowance?.reason ? (
+    <div className="text-sm text-center mb-2 text-yellow-600">
+      {checkInOutAllowance.reason}
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-2">
+      {statusText}
       <button
         onClick={() => onAction(isCheckingIn ? 'checkIn' : 'checkOut')}
         disabled={
