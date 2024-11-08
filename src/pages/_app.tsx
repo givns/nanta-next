@@ -6,27 +6,45 @@ import { AdminProvider } from '@/contexts/AdminContext';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import LoadingBar from '@/components/LoadingBar';
 import { useEffect, useState } from 'react';
-import { useLiff } from '@/hooks/useLiff';
+import { LiffProvider } from '@/contexts/LiffContext';
 import dynamic from 'next/dynamic';
+import React from 'react';
 
-// Define LIFF pages
-const LIFF_PAGES = ['/check-in', '/overtime-request', '/leave-request'];
+// Define route patterns
+const LIFF_PAGES = [
+  '/check-in-router', // Main check-in route
+  '/overtime-request',
+  '/leave-request',
+];
 
-// Create a client-side only content component
+// Admin routes are handled separately - no need to include in AUTH_REQUIRED_PAGES
+const AUTH_REQUIRED_PAGES = ['/profile', '/settings', '/dashboard'];
+
+// Admin routes pattern - used for route checking
+const ADMIN_ROUTES = '/admin';
+
+// Create a type-safe ClientContent component
+interface ClientContentProps extends AppProps {
+  router: AppProps['router'];
+}
+
 const ClientContent = dynamic(
   () =>
     Promise.resolve(function ClientContent({
       Component,
       pageProps,
       router,
-    }: AppProps & { router: any }) {
+    }: ClientContentProps) {
       const [isRouteLoading, setIsRouteLoading] = useState(false);
-      const { isLiffInitialized, lineUserId, error: liffError } = useLiff();
-      const isAdminRoute = router.pathname.startsWith('/admin');
+      const isAdminRoute = router.pathname.startsWith(ADMIN_ROUTES);
       const isLiffPage = LIFF_PAGES.some((path) =>
         router.pathname.startsWith(path),
       );
+      const isAuthRequired = AUTH_REQUIRED_PAGES.some((path) =>
+        router.pathname.startsWith(path),
+      );
 
+      // Handle route change loading states
       useEffect(() => {
         const handleStart = () => setIsRouteLoading(true);
         const handleComplete = () => setIsRouteLoading(false);
@@ -42,80 +60,144 @@ const ClientContent = dynamic(
         };
       }, [router]);
 
-      // Handle LIFF pages
-      if (isLiffPage) {
-        if (!isLiffInitialized) {
-          return <LoadingBar />;
-        }
+      // Check authentication on protected routes
+      useEffect(() => {
+        const checkAuth = async () => {
+          if (isAdminRoute || isAuthRequired) {
+            const lineUserId = localStorage.getItem('lineUserId');
+            if (!lineUserId) {
+              router.replace('/login');
+            }
+          }
+        };
 
-        if (liffError) {
-          return (
-            <div className="flex flex-col items-center justify-center min-h-screen">
-              <div className="text-red-500">
-                เกิดข้อผิดพลาดในการเชื่อมต่อ LIFF
-              </div>
-              <div className="text-red-500">{liffError}</div>
-            </div>
-          );
-        }
+        checkAuth();
+      }, [isAuthRequired, isAdminRoute, router]);
 
-        if (!lineUserId) {
-          return (
-            <div className="flex flex-col items-center justify-center min-h-screen">
-              <div className="text-red-500">กรุณาเข้าสู่ระบบผ่าน LINE</div>
-            </div>
-          );
-        }
-
-        return (
-          <Provider store={store}>
-            <Component {...pageProps} lineUserId={lineUserId} />
-          </Provider>
-        );
-      }
-
-      // Show loading during route changes
+      // Show loading state during route changes
       if (isRouteLoading) {
         return <LoadingBar />;
       }
 
-      // Handle admin routes
-      if (isAdminRoute) {
-        const cachedUserId = localStorage.getItem('lineUserId');
+      // LIFF page wrapper
+      if (isLiffPage) {
+        return (
+          <ErrorBoundary>
+            <LiffProvider>
+              <Provider store={store}>
+                <Component {...pageProps} />
+              </Provider>
+            </LiffProvider>
+          </ErrorBoundary>
+        );
+      }
 
-        if (!lineUserId && !cachedUserId) {
+      // Admin route wrapper - includes all /admin/* routes
+      if (isAdminRoute) {
+        const lineUserId = localStorage.getItem('lineUserId');
+        if (!lineUserId) {
           router.replace('/login');
           return <LoadingBar />;
         }
 
-        // Wrap component with AdminLayout but let the component handle its own loading state
         return (
-          <AdminProvider>
-            <AdminLayout>
-              <Component {...pageProps} />
-            </AdminLayout>
-          </AdminProvider>
+          <ErrorBoundary>
+            <AdminProvider>
+              <AdminLayout>
+                <Component {...pageProps} />
+              </AdminLayout>
+            </AdminProvider>
+          </ErrorBoundary>
         );
       }
 
-      // For other routes
+      // Auth required route wrapper
+      if (isAuthRequired) {
+        const lineUserId = localStorage.getItem('lineUserId');
+        if (!lineUserId) {
+          router.replace('/login');
+          return <LoadingBar />;
+        }
+
+        return (
+          <ErrorBoundary>
+            <Provider store={store}>
+              <Component {...pageProps} />
+            </Provider>
+          </ErrorBoundary>
+        );
+      }
+
+      // Default wrapper for public routes
       return (
-        <Provider store={store}>
-          <Component {...pageProps} lineUserId={lineUserId} />
-        </Provider>
+        <ErrorBoundary>
+          <Provider store={store}>
+            <Component {...pageProps} />
+          </Provider>
+        </ErrorBoundary>
       );
     }),
   { ssr: false },
 );
 
+// Error boundary component
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Application error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <h1 className="text-xl font-semibold text-gray-900">
+              Something went wrong
+            </h1>
+            <p className="mt-2 text-gray-600">
+              Please try refreshing the page or contact support if the problem
+              persists.
+            </p>
+            <button
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              onClick={() => window.location.reload()}
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function MyApp(props: AppProps) {
-  // Server-side rendering fallback
+  // Handle server-side rendering
   if (typeof window === 'undefined') {
     return <props.Component {...props.pageProps} />;
   }
 
-  // Client-side rendering
+  // Client-side rendering with error boundary
   return <ClientContent {...props} />;
+}
+
+// Enable production debugging if needed
+if (process.env.NODE_ENV === 'production') {
+  // Add any production-specific error reporting here
 }
 
 export default MyApp;
