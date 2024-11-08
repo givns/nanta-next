@@ -109,24 +109,6 @@ export default function DailyAttendanceView() {
   const { isLoading: isAdminLoading } = useAdmin();
   if (isAdminLoading) return null;
 
-  // Return loading state only if attendance data is loading
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-pulse">
-              <div className="h-8 w-48 bg-gray-200 rounded" />
-              <div className="h-10 w-32 bg-gray-200 rounded" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <LoadingState />
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
   return (
     <div className="space-y-6">
       <Card>
