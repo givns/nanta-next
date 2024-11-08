@@ -676,22 +676,6 @@ export class AttendanceService {
       });
     }
 
-    // Too late check
-    const minutesLate = differenceInMinutes(now, shiftStart);
-    if (minutesLate > 240 && !leaveContext.hasHalfDayLeave) {
-      return this.createResponse(
-        false,
-        'ไม่สามารถลงเวลาได้เนื่องจากสายเกิน 4 ชั่วโมง กรุณาติดต่อฝ่ายบุคคล',
-        {
-          inPremises,
-          address,
-          isLate: true,
-          requireConfirmation: true,
-          isAfternoonShift: false,
-        },
-      );
-    }
-
     // Check for too early
     if (now < earlyCheckInWindow) {
       const minutesUntilAllowed = Math.ceil(
