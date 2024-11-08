@@ -55,31 +55,56 @@
   overflow-y: auto;
 }
 
-/* LIFF Layout */
+/* Camera view styles */
+.camera-active {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: black;
+  z-index: 40;
+}
+
+/* Ensure webcam takes full screen */
+.camera-active .Webcam {
+  width: 100vw !important;
+  height: 100vh !important;
+  object-fit: cover;
+}
+
+.camera-active .webcam-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Add to your existing liff-layout styles */
 .liff-layout {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   background-color: rgb(243 244 246);
+  position: relative;
 }
 
 .liff-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
   height: var(--header-height);
+  padding: 1rem;
   background-color: white;
-  z-index: 50;
-  border-bottom: 1px solid rgb(229 231 235);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  z-index: 30;
 }
 
 .liff-content {
   flex: 1;
-  margin-top: var(--header-height);
-  padding: 1rem;
-  min-height: calc(100vh - var(--header-height));
-  overflow-y: auto;
+  position: relative;
+  z-index: 20;
 }
 
 /* Loading States */

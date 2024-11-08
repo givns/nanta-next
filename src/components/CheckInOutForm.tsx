@@ -561,24 +561,23 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderStep2 = () => (
-    // Take full height of the main content area, accounting for header
-    <div className="absolute inset-0" style={{ top: 'var(--header-height)' }}>
-      <div className="h-full relative">
-        {isModelLoading ? (
-          <div className="flex-grow flex flex-col items-center justify-center h-full">
-            <SkeletonLoader />
-            <p className="mt-4 text-lg">กำลังโหลดระบบตรวจจับใบหน้า...</p>
-          </div>
-        ) : (
-          <CameraFrame
-            webcamRef={webcamRef}
-            faceDetected={faceDetected}
-            faceDetectionCount={faceDetectionCount}
-            message={message}
-            captureThreshold={captureThreshold}
-          />
-        )}
-      </div>
+    <div className="fixed inset-0 z-50 bg-black">
+      {isModelLoading ? (
+        <div className="flex-grow flex flex-col items-center justify-center h-full">
+          <SkeletonLoader />
+          <p className="mt-4 text-lg text-white">
+            กำลังโหลดระบบตรวจจับใบหน้า...
+          </p>
+        </div>
+      ) : (
+        <CameraFrame
+          webcamRef={webcamRef}
+          faceDetected={faceDetected}
+          faceDetectionCount={faceDetectionCount}
+          message={message}
+          captureThreshold={captureThreshold}
+        />
+      )}
     </div>
   );
 
@@ -595,19 +594,21 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   // Update main content structure
   const content = (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col relative">
+      <div
+        className={`min-h-screen flex flex-col relative ${
+          step === 'camera' ? 'camera-active' : ''
+        }`}
+      >
         {isSubmitting && (
-          <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-[60]">
             <div className="text-black text-lg">กำลังบันทึกข้อมูล...</div>
           </div>
         )}
 
         {/* Different layout for camera step */}
         {step === 'camera' ? (
-          // Camera takes full viewport minus header
-          <div className="flex-1 relative">{renderStep2()}</div>
+          renderStep2()
         ) : (
-          // Normal layout for other steps
           <div className="flex-1 relative">
             {step === 'info' && renderStep1}
             {step === 'processing' && renderStep3()}
@@ -616,7 +617,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         {/* Errors */}
         {error && (
-          <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-red-50 border-t border-red-100 z-20">
+          <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-red-50 border-t border-red-100 z-[60]">
             <p className="text-red-500 text-center" role="alert">
               {error}
             </p>
