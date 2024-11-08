@@ -12,7 +12,7 @@ import dynamic from 'next/dynamic';
 // Define LIFF pages
 const LIFF_PAGES = ['/check-in', '/overtime-request', '/leave-request'];
 
-// Client-side only content component
+// Create a client-side only content component
 const ClientContent = dynamic(
   () =>
     Promise.resolve(function ClientContent({
@@ -28,7 +28,6 @@ const ClientContent = dynamic(
       );
 
       useEffect(() => {
-        // Update loading state on route changes
         const handleStart = () => setIsRouteLoading(true);
         const handleComplete = () => setIsRouteLoading(false);
 
@@ -43,18 +42,7 @@ const ClientContent = dynamic(
         };
       }, [router]);
 
-      // Check and update `lineUserId` from localStorage if available
-      useEffect(() => {
-        if (!lineUserId) {
-          const cachedUserId = localStorage.getItem('lineUserId');
-          if (cachedUserId) {
-            // Update lineUserId if stored in localStorage (mock update if necessary)
-            // Dispatch or set it accordingly if you have state management for `lineUserId`
-          }
-        }
-      }, [lineUserId]);
-
-      // LIFF Page Handling
+      // Handle LIFF pages
       if (isLiffPage) {
         if (!isLiffInitialized) {
           return <LoadingBar />;
@@ -86,29 +74,31 @@ const ClientContent = dynamic(
         );
       }
 
-      // Show LoadingBar only if the route is loading
+      // Show loading during route changes
       if (isRouteLoading) {
         return <LoadingBar />;
       }
 
-      // Admin Route Handling with conditional Layout
+      // Handle admin routes
       if (isAdminRoute) {
-        if (!lineUserId) {
+        const cachedUserId = localStorage.getItem('lineUserId');
+
+        if (!lineUserId && !cachedUserId) {
           router.replace('/login');
           return <LoadingBar />;
         }
 
-        // Render the admin component with AdminLayout
+        // Wrap component with AdminLayout but let the component handle its own loading state
         return (
           <AdminProvider>
             <AdminLayout>
-              <Component {...pageProps} lineUserId={lineUserId} />
+              <Component {...pageProps} />
             </AdminLayout>
           </AdminProvider>
         );
       }
 
-      // Default Route Handling (Non-admin, Non-LIFF)
+      // For other routes
       return (
         <Provider store={store}>
           <Component {...pageProps} lineUserId={lineUserId} />
