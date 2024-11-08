@@ -11,6 +11,8 @@ export default async function handler(
   try {
     // Fetch all leave requests from the database
     const leaveRequests = await prisma.leaveRequest.findMany();
+
+    console.log('Fetched leave requests:', leaveRequests);
     res.status(200).json(leaveRequests);
   } catch (error) {
     console.error('Error fetching leave requests:', error);

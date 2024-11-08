@@ -40,7 +40,7 @@ interface LeaveRequest {
   leaveType: 'sick' | 'business' | 'annual' | 'unpaid';
   startDate: Date;
   endDate: Date;
-  duration: number;
+  fullDayCount: number;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   attachments?: string[];
@@ -189,7 +189,7 @@ export default function LeaveRequests() {
               {format(request.startDate, 'dd MMM')} -{' '}
               {format(request.endDate, 'dd MMM')}
               <span className="text-gray-500 ml-1">
-                ({request.duration} days)
+                ({request.fullDayCount} days)
               </span>
             </span>
           </div>
@@ -290,18 +290,18 @@ export default function LeaveRequests() {
               </TableCell>
               <TableCell>
                 <div>
-                  <div className="font-medium">{request.employeeName}</div>
+                  <div className="font-medium">{request.employeeId}</div>
                   <div className="text-sm text-gray-500">
                     {request.department}
                   </div>
                 </div>
               </TableCell>
               <TableCell>
-                <Badge>{request.leaveType} leave</Badge>
+                <Badge>{request.leaveType}</Badge>
               </TableCell>
               <TableCell>
                 <div>
-                  <div>{request.duration} days</div>
+                  <div>{request.fullDayCount} days</div>
                   <div className="text-sm text-gray-500">
                     {format(request.startDate, 'dd MMM')} -{' '}
                     {format(request.endDate, 'dd MMM')}
@@ -502,7 +502,9 @@ export default function LeaveRequests() {
 
                 <div>
                   <label className="text-sm text-gray-500">Duration</label>
-                  <p className="font-medium">{selectedRequest.duration} days</p>
+                  <p className="font-medium">
+                    {selectedRequest.fullDayCount} days
+                  </p>
                 </div>
 
                 <div>
