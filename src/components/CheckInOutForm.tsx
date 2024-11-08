@@ -547,13 +547,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         {/* Fixed footer with action button */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
           <div className="px-4 pt-3">
-            {/* Status alerts */}
-            {checkInOutAllowance?.reason && !checkInOutAllowance.allowed && (
-              <div className="mb-2 text-sm text-center text-red-600 bg-red-50 px-3 py-2 rounded-md">
-                {checkInOutAllowance.reason}
-              </div>
-            )}
-
             {/* Action button */}
             <ActionButton
               isLoading={isAttendanceLoading}

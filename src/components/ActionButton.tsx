@@ -30,7 +30,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       : 'ไม่สามารถลงเวลาได้ในขณะนี้';
 
   const statusText = checkInOutAllowance?.reason ? (
-    <div className="text-sm text-center mb-2 text-yellow-600">
+    <div className="text-sm text-center mb-2 text-red-600">
       {checkInOutAllowance.reason}
     </div>
   ) : null;
