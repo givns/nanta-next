@@ -75,30 +75,67 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
 
-  // Check if route is active - including sub-items
+  // Updated route matching logic
   const isRouteActive = (href: string) => {
-    // Exact match
-    if (router.pathname === href) return true;
-    // Check if it's a parent of current route
-    if (href !== '/admin' && router.pathname.startsWith(href)) return true;
+    if (href === '/admin') {
+      return router.pathname === '/admin';
+    }
+
+    // If it's a direct match
+    if (router.pathname === href) {
+      return true;
+    }
+
+    // For parent routes with sub-items
+    if (href !== '/admin' && router.pathname.startsWith(href)) {
+      // Make sure we're not matching partial paths
+      const nextChar = router.pathname.charAt(href.length);
+      // Only consider it active if the next character is '/' or nothing
+      return nextChar === '/' || nextChar === '';
+    }
+
     return false;
   };
 
-  // Get current page title
+  // Updated page title logic
   const getCurrentPageTitle = () => {
+    // First check for exact matches
     for (const item of navItems) {
-      if (isRouteActive(item.href)) {
-        return item.label;
-      }
+      // Check sub-items first for more specific matches
       if (item.subItems) {
-        const activeSubItem = item.subItems.find((sub) =>
-          isRouteActive(sub.href),
+        const activeSubItem = item.subItems.find(
+          (sub) => sub.href === router.pathname,
         );
         if (activeSubItem) {
           return `${item.label} - ${activeSubItem.label}`;
         }
       }
+
+      // Then check main item
+      if (router.pathname === item.href) {
+        return item.label;
+      }
     }
+
+    // Then check for parent routes
+    for (const item of navItems) {
+      if (
+        item.href !== '/admin' &&
+        router.pathname.startsWith(item.href) &&
+        router.pathname.charAt(item.href.length) === '/'
+      ) {
+        if (item.subItems) {
+          const activeSubItem = item.subItems.find((sub) =>
+            router.pathname.startsWith(sub.href),
+          );
+          if (activeSubItem) {
+            return `${item.label} - ${activeSubItem.label}`;
+          }
+        }
+        return item.label;
+      }
+    }
+
     return 'Admin Dashboard';
   };
 
