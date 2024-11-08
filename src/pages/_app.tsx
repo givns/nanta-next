@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react';
 
 function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  const { lineUserId, isInitialized } = useLiffContext();
+  const { lineUserId, isInitialized, isLiffPage } = useLiffContext();
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const isAdminRoute = router.pathname.startsWith('/admin');
 
@@ -34,24 +34,13 @@ function AppContent({ Component, pageProps }: AppProps) {
     };
   }, [router]);
 
-  // Check for cached lineUserId if LIFF isn't initialized
-  useEffect(() => {
-    if (!isInitialized && !lineUserId) {
-      const cachedUserId = localStorage.getItem('lineUserId');
-      if (!cachedUserId && isAdminRoute) {
-        router.replace('/login');
-      }
-    }
-  }, [isInitialized, lineUserId, isAdminRoute]);
-
-  // Show loading only during route changes
+  // Show loading during route changes
   if (isRouteLoading) {
     return <LoadingBar />;
   }
 
   // Handle admin routes
   if (isAdminRoute) {
-    // Use cached lineUserId as fallback
     const cachedUserId = localStorage.getItem('lineUserId');
 
     if (!lineUserId && !cachedUserId) {
@@ -68,15 +57,22 @@ function AppContent({ Component, pageProps }: AppProps) {
     );
   }
 
-  // For non-admin routes
-  if (!lineUserId && !localStorage.getItem('lineUserId')) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="text-red-500">กรุณาเข้าสู่ระบบผ่าน LINE</div>
-      </div>
-    );
+  // For LIFF pages (check-in, overtime, leave)
+  if (isLiffPage) {
+    if (!isInitialized) {
+      return <LoadingBar />;
+    }
+
+    if (!lineUserId) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <div className="text-red-500">กรุณาเข้าสู่ระบบผ่าน LINE</div>
+        </div>
+      );
+    }
   }
 
+  // All other routes
   return (
     <Provider store={store}>
       <Component {...pageProps} lineUserId={lineUserId} />
