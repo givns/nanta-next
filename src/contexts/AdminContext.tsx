@@ -1,4 +1,3 @@
-// contexts/AdminContext.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import type { UserData } from '@/types/user';
@@ -17,10 +16,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const isBrowser = typeof window !== 'undefined';
 
   const fetchUserData = async () => {
+    if (!isBrowser) return;
+
     try {
-      // Get lineUserId from localStorage
       const lineUserId = localStorage.getItem('lineUserId');
       if (!lineUserId) {
         throw new Error('No lineUserId found');
@@ -67,7 +68,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error in authorization flow:', error);
       setError(error instanceof Error ? error.message : 'Authorization failed');
-      router.replace('/unauthorized');
+      if (isBrowser) {
+        router.replace('/unauthorized');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -75,20 +78,36 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize the context
   useEffect(() => {
+    if (!isBrowser) return;
+
     const initializeContext = async () => {
-      if (typeof window !== 'undefined') {
-        const lineUserId = localStorage.getItem('lineUserId');
-        if (!lineUserId) {
-          setError('No user ID found');
-          router.replace('/login');
-          return;
-        }
-        await fetchUserData();
+      const lineUserId = localStorage.getItem('lineUserId');
+      if (!lineUserId) {
+        setError('No user ID found');
+        router.replace('/login');
+        return;
       }
+      await fetchUserData();
     };
 
     initializeContext();
-  }, [router]);
+  }, [router, isBrowser]);
+
+  // Provide SSR-safe fallback
+  if (!isBrowser) {
+    return (
+      <AdminContext.Provider
+        value={{
+          user: null,
+          isLoading: true,
+          error: null,
+          refreshUser: async () => {},
+        }}
+      >
+        {children}
+      </AdminContext.Provider>
+    );
+  }
 
   return (
     <AdminContext.Provider
@@ -106,8 +125,20 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
 export function useAdmin() {
   const context = useContext(AdminContext);
+
+  // Handle SSR gracefully
+  if (context === undefined && typeof window === 'undefined') {
+    return {
+      user: null,
+      isLoading: true,
+      error: null,
+      refreshUser: async () => {},
+    };
+  }
+
   if (context === undefined) {
     throw new Error('useAdmin must be used within an AdminProvider');
   }
+
   return context;
 }

@@ -1,5 +1,3 @@
-// pages/admin/employees/index.tsx
-
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
@@ -16,7 +14,8 @@ const EmployeeManagementDashboard = dynamic(
 export default function AdminEmployeesPage() {
   const { user, isLoading } = useAdmin();
 
-  if (isLoading || !user) {
+  // Handle SSR and loading states
+  if (typeof window === 'undefined' || isLoading || !user) {
     return <DashboardSkeleton />;
   }
 
@@ -28,4 +27,11 @@ export default function AdminEmployeesPage() {
       <EmployeeManagementDashboard />
     </>
   );
+}
+
+// Add getServerSideProps to ensure server-side rendering
+export async function getServerSideProps() {
+  return {
+    props: {},
+  };
 }

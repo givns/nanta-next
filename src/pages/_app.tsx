@@ -17,9 +17,12 @@ function AppContent({ Component, pageProps }: AppProps) {
   const { lineUserId, isInitialized, isLiffPage } = useLiffContext();
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const isAdminRoute = router.pathname.startsWith('/admin');
+  const isBrowser = typeof window !== 'undefined';
 
   // Handle route change loading states
   useEffect(() => {
+    if (!isBrowser) return;
+
     const handleStart = () => setIsRouteLoading(true);
     const handleComplete = () => setIsRouteLoading(false);
 
@@ -32,18 +35,18 @@ function AppContent({ Component, pageProps }: AppProps) {
       router.events.off('routeChangeComplete', handleComplete);
       router.events.off('routeChangeError', handleComplete);
     };
-  }, [router]);
+  }, [router, isBrowser]);
 
   // Show loading during route changes
-  if (isRouteLoading) {
+  if (isRouteLoading && isBrowser) {
     return <LoadingBar />;
   }
 
   // Handle admin routes
   if (isAdminRoute) {
-    const cachedUserId = localStorage.getItem('lineUserId');
+    const cachedUserId = isBrowser ? localStorage.getItem('lineUserId') : null;
 
-    if (!lineUserId && !cachedUserId) {
+    if (!lineUserId && !cachedUserId && isBrowser) {
       router.replace('/login');
       return <LoadingBar />;
     }
@@ -57,8 +60,8 @@ function AppContent({ Component, pageProps }: AppProps) {
     );
   }
 
-  // For LIFF pages (check-in, overtime, leave)
-  if (isLiffPage) {
+  // For LIFF pages
+  if (isLiffPage && isBrowser) {
     if (!isInitialized) {
       return <LoadingBar />;
     }
@@ -72,7 +75,7 @@ function AppContent({ Component, pageProps }: AppProps) {
     }
   }
 
-  // All other routes
+  // Default route
   return (
     <Provider store={store}>
       <Component {...pageProps} lineUserId={lineUserId} />
