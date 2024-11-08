@@ -209,17 +209,26 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const handlePhotoCapture = useCallback(
     async (photo: string) => {
       console.log('Photo captured, proceeding with submission');
-      if (isSubmitting) return;
+      if (isSubmitting) {
+        console.log('Already submitting, skipping');
+        return;
+      }
 
+      // Stop camera/detection immediately
+      setStep('processing');
       setCapturedPhoto(photo);
+
       const isLate = checkInOutAllowance?.isLateCheckIn || false;
 
+      // Handle late check-in case
       if (isLate && isCheckingIn) {
+        console.log('Late check-in detected, showing modal');
         setIsLateModalOpen(true);
         return;
       }
 
       try {
+        console.log('Processing regular check-in/out');
         await submitCheckInOut(photo);
       } catch (error) {
         console.error('Error processing photo:', error);

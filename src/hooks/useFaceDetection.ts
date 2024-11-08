@@ -60,6 +60,14 @@ export const useFaceDetection = (
     };
   }, []);
 
+  const stopDetection = useCallback(() => {
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
+      detectionIntervalRef.current = null;
+    }
+  }, []);
+
+  // in useFaceDetection.ts
   const detectFace = useCallback(async () => {
     if (!webcamRef.current || !model) return;
 
@@ -75,18 +83,34 @@ export const useFaceDetection = (
         img.onerror = () => reject(new Error('Failed to load image'));
       });
 
-      const faces = await model.estimateFaces(img, false); // BlazeFace only supports `flipHorizontal`
+      const faces = await model.estimateFaces(img, false);
 
       if (faces.length > 0) {
         setFaceDetected(true);
         setFaceDetectionCount((prev) => {
           const newCount = prev + 1;
+          console.log(
+            'Face detection count:',
+            newCount,
+            'threshold:',
+            captureThreshold,
+          );
+
           if (newCount >= captureThreshold) {
-            onPhotoCapture(imageSrc);
+            console.log('Threshold reached, capturing photo');
+            // Stop detection immediately
             stopDetection();
+            // Stop webcam
+            if (webcamRef.current?.stream) {
+              const tracks = webcamRef.current.stream.getTracks();
+              tracks.forEach((track) => track.stop());
+            }
+            // Call capture callback
+            onPhotoCapture(imageSrc);
             setMessage('บันทึกภาพสำเร็จ');
             return captureThreshold;
           }
+
           setMessage('ตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...');
           return newCount;
         });
@@ -100,19 +124,12 @@ export const useFaceDetection = (
       stopDetection();
       setMessage('เกิดข้อผิดพลาดในการตรวจจับใบหน้า');
     }
-  }, [model, captureThreshold, onPhotoCapture]);
+  }, [model, captureThreshold, onPhotoCapture, stopDetection]);
 
   const startDetection = useCallback(() => {
     stopDetection();
     detectionIntervalRef.current = setInterval(detectFace, 500);
   }, [detectFace]);
-
-  const stopDetection = useCallback(() => {
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
-      detectionIntervalRef.current = null;
-    }
-  }, []);
 
   // In your useFaceDetection hook
   useEffect(() => {
