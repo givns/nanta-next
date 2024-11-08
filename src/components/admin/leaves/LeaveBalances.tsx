@@ -219,7 +219,7 @@ export default function LeaveBalances() {
                   <TableCell>
                     <div className="text-center">
                       <div className="font-medium">
-                        {balance.sickLeave.remaining}/{balance.sickLeave.total}
+                        {balance.sickLeave.remaining}/{30}
                       </div>
                       <div className="text-sm text-gray-500">
                         Used: {balance.sickLeave.used}
@@ -240,8 +240,7 @@ export default function LeaveBalances() {
                   <TableCell>
                     <div className="text-center">
                       <div className="font-medium">
-                        {balance.businessLeave.remaining}/
-                        {balance.businessLeave.total}
+                        {balance.businessLeave.remaining}/{3}
                       </div>
                       <div className="text-sm text-gray-500">
                         Used: {balance.businessLeave.used}
