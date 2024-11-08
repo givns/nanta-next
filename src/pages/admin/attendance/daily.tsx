@@ -7,7 +7,7 @@ import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import dynamic from 'next/dynamic';
 
 const DailyAttendanceView = dynamic(
-  () => import('@/components/admin/payroll/PayrollAdminDashboard'),
+  () => import('@/components/admin/attendance/DailyAttendanceView'),
   {
     ssr: false,
     loading: () => <DashboardSkeleton />,
