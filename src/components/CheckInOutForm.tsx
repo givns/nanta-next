@@ -367,12 +367,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         const leaveCreated = await handleEmergencyLeave(now);
         if (!leaveCreated) return;
       }
-
-      // Case 3: Regular early checkout (after midshift)
-      if (checkInOutAllowance.isAfterMidshift) {
-        setError('ไม่สามารถลงเวลาออกก่อนเวลาเลิกงานได้ กรุณาติดต่อฝ่ายบุคคล');
-        return;
-      }
     }
 
     setStep('camera');
