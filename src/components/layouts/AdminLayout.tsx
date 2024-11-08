@@ -75,84 +75,25 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
+  const [openSubMenu, setOpenSubMenu] = useState<string | null>(null); // Track open dropdown
   const currentPath = router.pathname;
 
-  // Updated route matching logic
-  const isRouteActive = (href: string) => {
-    if (href === '/admin') {
-      return router.pathname === '/admin';
-    }
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
-    // If it's a direct match
-    if (router.pathname === href) {
-      return true;
-    }
-
-    // For parent routes with sub-items
-    if (href !== '/admin' && router.pathname.startsWith(href)) {
-      // Make sure we're not matching partial paths
-      const nextChar = router.pathname.charAt(href.length);
-      // Only consider it active if the next character is '/' or nothing
-      return nextChar === '/' || nextChar === '';
-    }
-
-    return false;
-  };
-
-  // Updated page title logic
-  const getCurrentPageTitle = () => {
-    // First check for exact matches
-    for (const item of navItems) {
-      // Check sub-items first for more specific matches
-      if (item.subItems) {
-        const activeSubItem = item.subItems.find(
-          (sub) => sub.href === router.pathname,
-        );
-        if (activeSubItem) {
-          return `${item.label} - ${activeSubItem.label}`;
-        }
-      }
-
-      // Then check main item
-      if (router.pathname === item.href) {
-        return item.label;
-      }
-    }
-
-    // Then check for parent routes
-    for (const item of navItems) {
-      if (
-        item.href !== '/admin' &&
-        router.pathname.startsWith(item.href) &&
-        router.pathname.charAt(item.href.length) === '/'
-      ) {
-        if (item.subItems) {
-          const activeSubItem = item.subItems.find((sub) =>
-            router.pathname.startsWith(sub.href),
-          );
-          if (activeSubItem) {
-            return `${item.label} - ${activeSubItem.label}`;
-          }
-        }
-        return item.label;
-      }
-    }
-
-    return 'Admin Dashboard';
-  };
+  if (error || !user) {
+    return null; // Will be redirected by AdminProvider
+  }
 
   return (
-    <div className="min-h-screen">
-      {/* Fixed Navigation */}
-      <nav className="fixed top-0 left-0 right-0 bg-white shadow-sm h-16 z-50">
+    <div className="min-h-screen bg-gray-100">
+      <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <span className="text-xl font-bold">
-                  {getCurrentPageTitle()}
-                </span>
+                <span className="text-xl font-bold">Admin Dashboard</span>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 {navItems.map((item) => (
@@ -166,26 +107,27 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
                   >
                     <Link
                       href={item.href}
-                      className={`inline-flex items-center px-3 py-2 text-sm font-medium ${
-                        isRouteActive(item.href)
-                          ? 'text-indigo-600 border-b-2 border-indigo-500'
-                          : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                        currentPath === item.href
+                          ? 'border-indigo-500 text-gray-900'
+                          : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                       }`}
+                      onClick={() =>
+                        setOpenSubMenu(
+                          openSubMenu === item.label ? null : item.label,
+                        )
+                      }
                     >
                       {item.icon}
                       <span className="ml-2">{item.label}</span>
                     </Link>
                     {item.subItems && openSubMenu === item.label && (
-                      <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                      <div className="absolute left-0 top-full mt-1 w-48 bg-white shadow-lg rounded-md z-10">
                         {item.subItems.map((subItem) => (
                           <Link
                             key={subItem.href}
                             href={subItem.href}
-                            className={`block px-4 py-2 text-sm ${
-                              isRouteActive(subItem.href)
-                                ? 'bg-gray-100 text-gray-900'
-                                : 'text-gray-700 hover:bg-gray-50'
-                            }`}
+                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                           >
                             {subItem.label}
                           </Link>
@@ -213,7 +155,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       </nav>
 
       {/* Mobile Navigation */}
-      <nav className="md:hidden bg-white shadow-sm fixed top-0 left-0 right-0 z-10">
+      <nav className="md:hidden bg-white shadow-sm">
         <div className="px-4 h-16 flex items-center justify-between">
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
@@ -263,11 +205,8 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
         </div>
       </nav>
 
-      {/* Main Content */}
-      <main className="flex-1 mt-16 bg-gray-100">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          {children}
-        </div>
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {children}
       </main>
     </div>
   );
