@@ -70,8 +70,17 @@ const navItems = [
   },
 ];
 
-// Define tab configurations for specific routes
-const routeTabs = {
+interface RouteTab {
+  value: string;
+  label: string;
+  href: string;
+}
+
+interface RouteTabs {
+  [key: string]: RouteTab[];
+}
+
+const routeTabs: RouteTabs = {
   '/admin/attendance': [
     { value: 'daily', label: 'Daily Records', href: '/admin/attendance/daily' },
     {
@@ -104,45 +113,43 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [isLiffBrowser, setIsLiffBrowser] = useState(true);
-  const currentPath = router.pathname;
+  const [displayState, setDisplayState] = useState({
+    isDesktop: false,
+    isLiffBrowser: true,
+  });
 
-  // Detect if we're in a desktop browser or LIFF
+  // Use a single effect for environment detection
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const checkEnvironment = () => {
-        setIsDesktop(window.innerWidth >= 1024);
-        setIsLiffBrowser(
+    function handleResize() {
+      setDisplayState({
+        isDesktop: window.innerWidth >= 1024,
+        isLiffBrowser:
           window.location.href.includes('liff.line.me') ||
-            /Line/i.test(window.navigator.userAgent),
-        );
-      };
-
-      checkEnvironment();
-      window.addEventListener('resize', checkEnvironment);
-      return () => window.removeEventListener('resize', checkEnvironment);
+          /Line/i.test(window.navigator.userAgent),
+      });
     }
+
+    // Initial check
+    handleResize();
+
+    // Add resize listener
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Get current base route for tabs
+  // Memoize path-related values
+  const currentPath = router.pathname;
   const baseRoute = `/${currentPath.split('/').slice(1, 3).join('/')}`;
-  const currentTabs = routeTabs[baseRoute as keyof typeof routeTabs];
-
-  // Get current tab value
-  const getCurrentTabValue = () => {
-    const pathParts = currentPath.split('/');
-    return pathParts[pathParts.length - 1];
-  };
+  const currentTabs = routeTabs[baseRoute];
+  const currentTabValue = currentPath.split('/').pop() || '';
 
   // Helper function for determining current path
   const isCurrentPath = (path: string) => {
     if (path === '/admin') return currentPath === path;
     return currentPath.startsWith(path);
   };
-
-  // Determine if we should show full navigation
-  const showFullNavigation = isDesktop && !isLiffBrowser;
 
   if (isLoading) {
     return <LoadingProgress isLiffInitialized={true} isDataLoaded={false} />;
@@ -175,10 +182,11 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
     );
   }
 
+  const showNavigation = displayState.isDesktop && !displayState.isLiffBrowser;
+
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Show full navigation only on desktop browser */}
-      {showFullNavigation && (
+      {showNavigation && (
         <nav className="bg-white shadow-sm sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16">
@@ -246,13 +254,11 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
         </nav>
       )}
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {/* Sub-navigation tabs - shown on both desktop and mobile */}
         {currentTabs && (
           <div className="mb-6">
             <Tabs
-              value={getCurrentTabValue()}
+              value={currentTabValue}
               className="w-full"
               onValueChange={(value) => {
                 const tab = currentTabs.find((t) => t.value === value);
