@@ -86,11 +86,18 @@ export function EmployeeDetailDialog({
 
       const response = await fetch(
         `/api/admin/attendance/time-entries?${params}`,
+        {
+          headers: {
+            'x-line-userid': user.lineUserId, // Add this header
+          },
+        },
       );
+
       if (!response.ok) throw new Error('Failed to fetch time entries');
       const data = await response.json();
       setTimeEntries(data.records);
     } catch (error) {
+      console.error('Error fetching time entries:', error);
       setError('Failed to load attendance records');
     } finally {
       setIsLoading(false);

@@ -8,7 +8,7 @@ import {
   AttendanceFilters,
   UseAttendanceProps,
 } from '@/types/attendance';
-import { startOfDay, isValid, parseISO } from 'date-fns';
+import { startOfDay, isValid, parseISO, format } from 'date-fns';
 
 interface UseAttendanceReturn {
   records: DailyAttendanceResponse[];
@@ -22,23 +22,6 @@ interface UseAttendanceReturn {
   refreshData: () => Promise<void>;
 }
 
-const getValidDate = (dateInput: Date | string): Date => {
-  try {
-    if (dateInput instanceof Date) {
-      return isValid(dateInput)
-        ? startOfDay(dateInput)
-        : startOfDay(new Date());
-    }
-    const parsedDate = parseISO(dateInput);
-    return isValid(parsedDate)
-      ? startOfDay(parsedDate)
-      : startOfDay(new Date());
-  } catch (error) {
-    console.warn('Invalid date input:', dateInput);
-    return startOfDay(new Date());
-  }
-};
-
 export function useAttendance({
   lineUserId,
   initialDate = new Date(),
@@ -49,6 +32,18 @@ export function useAttendance({
   const [departments, setDepartments] = useState<DepartmentInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const getValidDate = (date: Date | string): Date => {
+    try {
+      const parsedDate = date instanceof Date ? date : new Date(date);
+      return isValid(parsedDate)
+        ? startOfDay(parsedDate)
+        : startOfDay(new Date());
+    } catch {
+      return startOfDay(new Date());
+    }
+  };
+
   const [filters, setFilters] = useState<AttendanceFilters>({
     date: getValidDate(initialDate),
     department: initialDepartment,
@@ -57,16 +52,38 @@ export function useAttendance({
 
   const debouncedSearch = useDebounce(filters.searchTerm, 300);
 
-  // Fetch attendance data
+  const updateFilters = (newFilters: Partial<AttendanceFilters>) => {
+    setFilters((prev) => {
+      const updated = { ...prev };
+
+      if ('date' in newFilters) {
+        updated.date = getValidDate(newFilters.date!);
+      }
+      if ('department' in newFilters) {
+        updated.department = newFilters.department!;
+      }
+      if ('searchTerm' in newFilters) {
+        updated.searchTerm = newFilters.searchTerm!;
+      }
+
+      return updated;
+    });
+  };
+
   const fetchAttendanceRecords = async () => {
     if (!lineUserId) return;
 
     try {
       setIsLoading(true);
       setError(null);
+
+      // Format date safely for API
+      const dateStr = format(getValidDate(filters.date), 'yyyy-MM-dd');
+      const dateObj = new Date(dateStr); // Convert dateStr to a Date object
+
       const data = await AttendanceApiService.getDailyAttendance(
         lineUserId,
-        new Date(filters.date), // Convert filters.date to a Date object
+        dateObj, // Pass the dateObj instead of dateStr
         filters.department,
         debouncedSearch,
       );
@@ -81,20 +98,6 @@ export function useAttendance({
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Handle filter updates
-  const updateFilters = (newFilters: Partial<AttendanceFilters>) => {
-    setFilters((prev) => {
-      const updated = { ...prev, ...newFilters };
-
-      // Ensure date is always valid
-      if ('date' in newFilters) {
-        updated.date = getValidDate(newFilters.date!);
-      }
-
-      return updated;
-    });
   };
 
   // Fetch departments on mount
