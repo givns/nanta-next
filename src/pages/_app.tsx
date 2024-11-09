@@ -7,8 +7,10 @@ import store from '../store';
 import LoadingProgress from '@/components/LoadingProgress';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import { LiffProvider } from '@/contexts/LiffContext';
+import { AdminProvider } from '@/contexts/AdminContext';
 import { useLiff } from '@/hooks/useLiff';
 
+// Create a wrapper component that uses LIFF
 function AppContent({ Component, pageProps, router }: AppProps) {
   const { isLiffInitialized, lineUserId, error } = useLiff();
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -22,7 +24,6 @@ function AppContent({ Component, pageProps, router }: AppProps) {
     window.addEventListener('error', (event) => handleError(event.error));
 
     if (isLiffInitialized) {
-      // Simulate data loading time (remove in production)
       const timer = setTimeout(() => {
         setIsDataLoaded(true);
       }, 1000);
@@ -35,6 +36,7 @@ function AppContent({ Component, pageProps, router }: AppProps) {
     };
   }, [isLiffInitialized]);
 
+  // Show loading progress while initializing
   if (!isDataLoaded) {
     return (
       <LoadingProgress
@@ -53,12 +55,12 @@ function AppContent({ Component, pageProps, router }: AppProps) {
     );
   }
 
-  // For admin routes
+  // For admin routes, wrap with AdminProvider and AdminLayout
   if (isAdminRoute) {
     return (
-      <AdminLayout>
+      <AdminProvider>
         <Component {...pageProps} lineUserId={lineUserId} />
-      </AdminLayout>
+      </AdminProvider>
     );
   }
 

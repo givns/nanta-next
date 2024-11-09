@@ -5,10 +5,11 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  ReactNode,
 } from 'react';
 import type { UserData } from '@/types/user';
 import { useRouter } from 'next/router';
-import LoadingBar from '@/components/LoadingBar';
+import { useLiff } from '@/hooks/useLiff';
 
 interface AdminContextType {
   user: UserData | null;
@@ -19,23 +20,16 @@ interface AdminContextType {
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
-export function AdminProvider({ children }: { children: React.ReactNode }) {
+export function AdminProvider({ children }: { children: ReactNode }) {
+  const { lineUserId } = useLiff();
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  const isBrowser = typeof window !== 'undefined';
 
-  // Use useCallback to memoize the fetchUserData function
-  const fetchUserData = useCallback(async () => {
-    if (!isBrowser) return;
+  const fetchAdminData = useCallback(async () => {
+    if (!lineUserId) return;
 
     try {
-      const lineUserId = localStorage.getItem('lineUserId');
-      if (!lineUserId) {
-        throw new Error('No lineUserId found');
-      }
-
       const response = await fetch('/api/user-data', {
         headers: {
           'x-line-userid': lineUserId,
@@ -48,60 +42,34 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
       const data = await response.json();
 
-      // Check if user has admin access
+      // Verify admin status
       if (!['Admin', 'SuperAdmin'].includes(data.user.role)) {
-        throw new Error('Unauthorized - Insufficient privileges');
+        throw new Error('Unauthorized access');
       }
 
       setUser(data.user);
       setError(null);
     } catch (error) {
-      console.error('Error in authorization flow:', error);
+      console.error('Admin authorization failed:', error);
       setError(error instanceof Error ? error.message : 'Authorization failed');
-
-      // Redirect to home or show unauthorized message
-      router.replace('/unauthorized');
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
-  }, [isBrowser, router]); // Include dependencies
+  }, [lineUserId]);
 
   useEffect(() => {
-    if (isBrowser) {
-      fetchUserData();
-    }
-  }, [isBrowser, fetchUserData]); // Include all dependencies
+    fetchAdminData();
+  }, [fetchAdminData]);
 
-  // Show loading state during initial check
-  if (isLoading) {
-    return <LoadingBar />;
-  }
-
-  // Show error state if not authorized
-  if (error || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold text-gray-900">
-            Unauthorized Access
-          </h1>
-          <p className="mt-2 text-gray-600">
-            You don&apos;t have permission to access this area.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Implement refreshUser function
+  const refreshUser = useCallback(async () => {
+    setIsLoading(true);
+    await fetchAdminData();
+  }, [fetchAdminData]);
 
   return (
-    <AdminContext.Provider
-      value={{
-        user,
-        isLoading,
-        error,
-        refreshUser: fetchUserData,
-      }}
-    >
+    <AdminContext.Provider value={{ user, isLoading, error, refreshUser }}>
       {children}
     </AdminContext.Provider>
   );
