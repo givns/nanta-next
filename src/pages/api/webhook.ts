@@ -49,6 +49,16 @@ if (!channelSecret || !channelAccessToken) {
   );
 }
 
+// Rich Menu IDs for direct linking
+const RICH_MENU_IDS = {
+  REGISTER: 'richmenu-c876a2cb27d6c2e847adafc5aecdf167',
+  GENERAL: 'richmenu-0c49940d4c951665c95813b58b8c0204',
+  ADMIN_1: 'richmenu-53f23f26a3bae17b122930d4498f0e71',
+  ADMIN_2: 'richmenu-bc9338a7922f1c704276b56575cf0f89',
+  MANAGER: 'richmenu-6e25c0a34328fe96a8aa1c240801b040',
+  DRIVER: 'richmenu-24796735f0e361ef584437e37e8d09bc',
+};
+
 // LINE bot client configuration
 const clientConfig: ClientConfig = {
   channelAccessToken,
@@ -82,41 +92,70 @@ const handler = async (event: WebhookEvent) => {
 };
 
 async function handleFollow(event: WebhookEvent) {
+  if (event.type !== 'follow') return;
+
   const userId = event.source.userId;
-  console.log('Follow event for user ID:', userId);
+  if (!userId) return;
 
-  if (userId) {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { lineUserId: userId },
-      });
-      console.log('User lookup result:', user);
+  try {
+    const user = await prisma.user.findUnique({
+      where: { lineUserId: userId },
+      include: {
+        department: true,
+      },
+    });
 
-      if (!user) {
-        const registerRichMenuId = 'richmenu-7f6cc44cf3643bec7374eaeb449c6c71';
-        await client.linkRichMenuToUser(userId, registerRichMenuId);
-        console.log('Register Rich menu linked to user:', userId);
-      } else {
-        const richMenuId = await createAndAssignRichMenu(
-          user.departmentId || undefined,
+    if (!user) {
+      // New user - assign register menu
+      await client.linkRichMenuToUser(userId, RICH_MENU_IDS.REGISTER);
+      console.log(`Assigned register menu to new user ${userId}`);
+    } else {
+      // Existing user - create and assign menu based on role and department
+      try {
+        await createAndAssignRichMenu(
+          user.department?.name || 'General',
           userId,
           user.role as UserRole,
         );
-        if (richMenuId) {
-          console.log(`Rich menu linked to user ${userId}: ${richMenuId}`);
-        } else {
-          console.error(`Failed to link rich menu to user ${userId}`);
-        }
+      } catch (error) {
+        console.error('Error in createAndAssignRichMenu:', error);
+        // Fallback to direct linking if createAndAssign fails
+        await fallbackRichMenuAssignment(userId, user.role as UserRole);
       }
-    } catch (error: any) {
-      console.error(
-        'Error processing follow event:',
-        error.message,
-        error.stack,
-      );
     }
-  } else {
-    console.error('User ID not found in event:', event);
+  } catch (error) {
+    console.error('Error in handleFollow:', error);
+  }
+}
+
+async function fallbackRichMenuAssignment(userId: string, role: UserRole) {
+  let richMenuId;
+
+  switch (role) {
+    case UserRole.GENERAL:
+    case UserRole.SALES:
+      richMenuId = RICH_MENU_IDS.GENERAL;
+      break;
+    case UserRole.ADMIN:
+    case UserRole.SUPERADMIN:
+      richMenuId = RICH_MENU_IDS.ADMIN_1;
+      break;
+    case UserRole.MANAGER:
+      richMenuId = RICH_MENU_IDS.MANAGER;
+      break;
+    case UserRole.DRIVER:
+      richMenuId = RICH_MENU_IDS.DRIVER;
+      break;
+    default:
+      richMenuId = RICH_MENU_IDS.REGISTER;
+  }
+
+  try {
+    await client.linkRichMenuToUser(userId, richMenuId);
+    console.log(`Fallback: Linked rich menu ${richMenuId} to user ${userId}`);
+  } catch (error) {
+    console.error(`Error in fallback rich menu assignment: ${error}`);
+    throw error;
   }
 }
 
@@ -125,8 +164,35 @@ async function handlePostback(event: WebhookEvent) {
 
   const data = event.postback.data;
   const lineUserId = event.source.userId;
+  if (!lineUserId) return;
 
   console.log('Processing postback data:', data);
+
+  // Handle rich menu switching for admin menus
+  if (data.startsWith('richmenu-alias-change:')) {
+    const targetMenu = data.split(':')[1];
+    let richMenuId;
+
+    switch (targetMenu) {
+      case 'admin-menu-1':
+        richMenuId = RICH_MENU_IDS.ADMIN_1;
+        break;
+      case 'admin-menu-2':
+        richMenuId = RICH_MENU_IDS.ADMIN_2;
+        break;
+      default:
+        console.error(`Unknown menu alias: ${targetMenu}`);
+        return;
+    }
+
+    try {
+      await client.linkRichMenuToUser(lineUserId, richMenuId);
+      console.log(`Switched user ${lineUserId} to rich menu ${richMenuId}`);
+    } catch (error) {
+      console.error('Error switching rich menu:', error);
+    }
+    return;
+  }
 
   const params = new URLSearchParams(data);
   const action = params.get('action');

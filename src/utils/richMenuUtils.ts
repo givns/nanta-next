@@ -7,38 +7,47 @@ const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
+const RICH_MENU_IDS = {
+  REGISTER: 'richmenu-c876a2cb27d6c2e847adafc5aecdf167',
+  GENERAL: 'richmenu-0c49940d4c951665c95813b58b8c0204',
+  ADMIN_1: 'richmenu-53f23f26a3bae17b122930d4498f0e71',
+  ADMIN_2: 'richmenu-bc9338a7922f1c704276b56575cf0f89',
+  MANAGER: 'richmenu-6e25c0a34328fe96a8aa1c240801b040',
+  DRIVER: 'richmenu-24796735f0e361ef584437e37e8d09bc',
+};
+
 export const createAndAssignRichMenu = async (
   departmentId: string | undefined,
-  userId: string,
+  lineUserId: string,
   role: string,
 ): Promise<string | undefined> => {
   let richMenuId: string;
 
   switch (role) {
-    case 'SuperAdmin':
-      richMenuId = 'richmenu-5e2677dc4e68d4fde747ff413a88264f'; // Super Admin Rich Menu
+    case UserRole.GENERAL:
+    case UserRole.SALES:
+      richMenuId = RICH_MENU_IDS.GENERAL;
       break;
-    case 'Admin':
-      richMenuId = 'richmenu-deec36bf2265338a9f48acd024ce1cde'; // Admin Rich Menu
+    case UserRole.ADMIN:
+    case UserRole.SUPERADMIN:
+      richMenuId = RICH_MENU_IDS.ADMIN_1;
       break;
-    case 'Driver':
-      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // Placeholder for Route Rich Menu
+    case UserRole.MANAGER:
+      richMenuId = RICH_MENU_IDS.MANAGER;
       break;
-    case 'Operation':
-      richMenuId = 'richmenu-834c002dbe1ccfbedb54a76b6c78bdde'; // Special User Rich Menu
+    case UserRole.DRIVER:
+      richMenuId = RICH_MENU_IDS.DRIVER;
       break;
-    case 'Employee':
-    case 'Manager':
     default:
-      richMenuId = 'richmenu-02c1de10ff52ab687e083fc9cf28e2ce'; // General User Rich Menu
+      richMenuId = RICH_MENU_IDS.REGISTER;
   }
 
   try {
-    await client.linkRichMenuToUser(userId, richMenuId);
-    console.log(`Rich menu ${richMenuId} linked to user ${userId}`);
+    await client.linkRichMenuToUser(lineUserId, richMenuId);
+    console.log(`Rich menu ${richMenuId} linked to user ${lineUserId}`);
     return richMenuId;
   } catch (error) {
-    console.error(`Error linking rich menu to user ${userId}:`, error);
+    console.error(`Error linking rich menu to user ${lineUserId}:`, error);
     return undefined;
   }
 };
