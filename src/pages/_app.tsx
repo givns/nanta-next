@@ -59,7 +59,9 @@ function AppContent({ Component, pageProps, router }: AppProps) {
   if (isAdminRoute) {
     return (
       <AdminProvider>
-        <Component {...pageProps} lineUserId={lineUserId} />
+        <AdminLayout>
+          <Component {...pageProps} lineUserId={lineUserId} />
+        </AdminLayout>
       </AdminProvider>
     );
   }
