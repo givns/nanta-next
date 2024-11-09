@@ -10,6 +10,10 @@ interface LiffContextType {
   error: string | null;
   userData: UserData | null;
   isLoading: boolean;
+  liffState: {
+    isInClient: boolean;
+    isLoggedIn: boolean;
+  } | null;
 }
 
 const LiffContext = createContext<LiffContextType | null>(null);
@@ -20,11 +24,18 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [liffState, setLiffState] =
+    useState<LiffContextType['liffState']>(null);
 
   useEffect(() => {
     const initLiff = async () => {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
+
+        setLiffState({
+          isInClient: liff.isInClient(),
+          isLoggedIn: liff.isLoggedIn(),
+        });
 
         if (!liff.isLoggedIn()) {
           liff.login();
@@ -83,6 +94,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
         error,
         userData,
         isLoading,
+        liffState,
       }}
     >
       {children}
