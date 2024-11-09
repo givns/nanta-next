@@ -7,13 +7,14 @@ const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
+// Rich Menu IDs from the creation script
 const RICH_MENU_IDS = {
-  REGISTER: 'richmenu-c876a2cb27d6c2e847adafc5aecdf167',
-  GENERAL: 'richmenu-0c49940d4c951665c95813b58b8c0204',
-  ADMIN_1: 'richmenu-53f23f26a3bae17b122930d4498f0e71',
-  ADMIN_2: 'richmenu-bc9338a7922f1c704276b56575cf0f89',
-  MANAGER: 'richmenu-6e25c0a34328fe96a8aa1c240801b040',
-  DRIVER: 'richmenu-24796735f0e361ef584437e37e8d09bc',
+  REGISTER: 'richmenu-b655539a9b6ce28f4b31ebea69d2d97d',
+  GENERAL: 'richmenu-6f94c49ba3e1c5546b539ff0b22dd688',
+  ADMIN_1: 'richmenu-edfb57723ea8309509bc8f7051fba0cc',
+  ADMIN_2: 'richmenu-19cf97a8af92339b7f8e0640eab86648',
+  MANAGER: 'richmenu-abca6847aa6dd7b7a7da31f112d45056',
+  DRIVER: 'richmenu-2ac420dea0850acded18ed14844621db'
 };
 
 export const createAndAssignRichMenu = async (

@@ -70,32 +70,32 @@ const registerRichMenu: RichMenu = {
 const generalRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 843,
+    height: 1686,
   },
   selected: true,
   name: 'General User Menu',
   chatBarText: 'Menu',
   areas: [
     {
-      bounds: { x: 0, y: 0, width: 833, height: 843 },
+      bounds: { x: 0, y: 0, width: 1250, height: 1686 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/check-in-router`,
-      } as URIAction, // Slot A
+      } as URIAction, // วันนี้มา (Whole left side)
     },
     {
-      bounds: { x: 833, y: 0, width: 834, height: 843 },
+      bounds: { x: 1250, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/leave-request`,
-      } as URIAction, // Slot B
+      } as URIAction, // วันนี้ลา (Top right)
     },
     {
-      bounds: { x: 1667, y: 0, width: 833, height: 843 },
+      bounds: { x: 1250, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/user-dashboard`,
-      } as URIAction, // Slot C
+      } as URIAction, // ตรวจสอบข้อมูล (Bottom right)
     },
   ],
 };
@@ -111,32 +111,32 @@ const adminRichMenu1: RichMenu = {
   chatBarText: 'Admin Menu 1',
   areas: [
     {
-      bounds: { x: 0, y: 0, width: 833, height: 843 },
+      bounds: { x: 0, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/check-in-router`,
-      } as URIAction,
+      } as URIAction, // วันนี้มา (Attendance)
     },
     {
-      bounds: { x: 833, y: 0, width: 834, height: 843 },
+      bounds: { x: 1250, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/user-dashboard`,
-      } as URIAction,
+      } as URIAction, // ตรวจสอบข้อมูล (Check Information)
     },
     {
-      bounds: { x: 1667, y: 0, width: 833, height: 843 },
+      bounds: { x: 0, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/leave-request`,
-      } as URIAction,
+      } as URIAction, // วันนี้ลา (Leave Request)
     },
     {
-      bounds: { x: 0, y: 843, width: 2500, height: 843 },
+      bounds: { x: 1250, y: 843, width: 1250, height: 843 },
       action: {
         type: 'postback',
         data: 'richmenu-alias-change:admin-menu-2',
-      } as PostbackAction,
+      } as PostbackAction, // ถัดไป (Next)
     },
   ],
 };
@@ -207,28 +207,28 @@ const managerRichMenu: RichMenu = {
   chatBarText: 'Manager Menu',
   areas: [
     {
-      bounds: { x: 0, y: 0, width: 833, height: 843 },
+      bounds: { x: 0, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/check-in-router`,
       } as URIAction,
     },
     {
-      bounds: { x: 833, y: 0, width: 834, height: 843 },
+      bounds: { x: 1250, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/overtime-request`,
       } as URIAction,
     },
     {
-      bounds: { x: 1667, y: 0, width: 833, height: 843 },
+      bounds: { x: 0, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/leave-request`,
       } as URIAction,
     },
     {
-      bounds: { x: 0, y: 843, width: 2500, height: 843 },
+      bounds: { x: 1250, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/user-dashboard`,
@@ -241,35 +241,35 @@ const managerRichMenu: RichMenu = {
 const driverRichMenu: RichMenu = {
   size: {
     width: 2500,
-    height: 843,
+    height: 1686,
   },
   selected: true,
   name: 'Driver Menu',
   chatBarText: 'Driver Menu',
   areas: [
     {
-      bounds: { x: 0, y: 0, width: 833, height: 843 },
+      bounds: { x: 0, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/check-in-router`,
       } as URIAction,
     },
     {
-      bounds: { x: 833, y: 0, width: 834, height: 843 },
+      bounds: { x: 1250, y: 0, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/checkpoint`,
       } as URIAction,
     },
     {
-      bounds: { x: 1667, y: 0, width: 833, height: 843 },
+      bounds: { x: 0, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/leave-request`,
       } as URIAction,
     },
     {
-      bounds: { x: 0, y: 843, width: 2500, height: 843 },
+      bounds: { x: 1250, y: 843, width: 1250, height: 843 },
       action: {
         type: 'uri',
         uri: `${LIFF_URL}?path=/user-dashboard`,
@@ -280,51 +280,118 @@ const driverRichMenu: RichMenu = {
 
 const main = async () => {
   try {
-    // Create all rich menus
-    const registerRichMenuId = await createRichMenu(
+    // Store all menu IDs
+    const richMenuIds = {
+      register: '',
+      general: '',
+      admin1: '',
+      admin2: '',
+      manager: '',
+      driver: '',
+    };
+
+    // Create rich menus with error handling
+    console.log('Creating register rich menu...');
+    richMenuIds.register = await createRichMenu(
       registerRichMenu,
       path.resolve(__dirname, '../public/images/richmenus/Register.jpeg'),
     );
 
-    const generalRichMenuId = await createRichMenu(
+    console.log('Creating general rich menu...');
+    richMenuIds.general = await createRichMenu(
       generalRichMenu,
       path.resolve(__dirname, '../public/images/richmenus/General.jpeg'),
     );
 
-    const adminRichMenu1Id = await createRichMenu(
+    console.log('Creating admin menu 1...');
+    richMenuIds.admin1 = await createRichMenu(
       adminRichMenu1,
       path.resolve(__dirname, '../public/images/richmenus/Admin1.jpeg'),
     );
 
-    const adminRichMenu2Id = await createRichMenu(
+    console.log('Creating admin menu 2...');
+    richMenuIds.admin2 = await createRichMenu(
       adminRichMenu2,
       path.resolve(__dirname, '../public/images/richmenus/Admin2.jpeg'),
     );
 
-    const managerRichMenuId = await createRichMenu(
+    console.log('Creating manager rich menu...');
+    richMenuIds.manager = await createRichMenu(
       managerRichMenu,
       path.resolve(__dirname, '../public/images/richmenus/Manager.jpeg'),
     );
 
-    const driverRichMenuId = await createRichMenu(
+    console.log('Creating driver rich menu...');
+    richMenuIds.driver = await createRichMenu(
       driverRichMenu,
       path.resolve(__dirname, '../public/images/richmenus/Driver.jpeg'),
     );
 
-    // Create rich menu alias for admin menu switching
-    await client.createRichMenuAlias(adminRichMenu1Id, 'admin-menu-1');
-    await client.createRichMenuAlias(adminRichMenu2Id, 'admin-menu-2');
+    // Create aliases for admin menus with error handling
+    try {
+      console.log('Creating alias for admin menu 1...');
+      await client
+        .createRichMenuAlias(richMenuIds.admin1, 'admin-menu-1')
+        .catch(async (error) => {
+          if (error.response?.status === 400) {
+            // If alias exists, try to delete and recreate
+            console.log('Alias admin-menu-1 might exist, trying to delete...');
+            await client.deleteRichMenuAlias('admin-menu-1').catch(() => {});
+            await client.createRichMenuAlias(
+              richMenuIds.admin1,
+              'admin-menu-1',
+            );
+          } else {
+            throw error;
+          }
+        });
 
-    console.log('Rich menu IDs:', {
-      registerRichMenuId,
-      generalRichMenuId,
-      adminRichMenu1Id,
-      adminRichMenu2Id,
-      managerRichMenuId,
-      driverRichMenuId,
+      console.log('Creating alias for admin menu 2...');
+      await client
+        .createRichMenuAlias(richMenuIds.admin2, 'admin-menu-2')
+        .catch(async (error) => {
+          if (error.response?.status === 400) {
+            // If alias exists, try to delete and recreate
+            console.log('Alias admin-menu-2 might exist, trying to delete...');
+            await client.deleteRichMenuAlias('admin-menu-2').catch(() => {});
+            await client.createRichMenuAlias(
+              richMenuIds.admin2,
+              'admin-menu-2',
+            );
+          } else {
+            throw error;
+          }
+        });
+    } catch (aliasError: any) {
+      console.error('Error creating aliases:', aliasError.message);
+      console.error('Continuing with rich menu IDs...');
+    }
+
+    // Log all created rich menu IDs
+    console.log('Successfully created rich menus. IDs:', {
+      registerRichMenuId: richMenuIds.register,
+      generalRichMenuId: richMenuIds.general,
+      adminRichMenu1Id: richMenuIds.admin1,
+      adminRichMenu2Id: richMenuIds.admin2,
+      managerRichMenuId: richMenuIds.manager,
+      driverRichMenuId: richMenuIds.driver,
     });
+
+    // Save IDs to a file for reference
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const idsFilePath = path.resolve(
+      __dirname,
+      `../richmenu-ids-${timestamp}.json`,
+    );
+    fs.writeFileSync(idsFilePath, JSON.stringify(richMenuIds, null, 2));
+    console.log(`Rich menu IDs saved to ${idsFilePath}`);
   } catch (error: any) {
     console.error('Error in main function:', error.message);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+    }
+    process.exit(1);
   }
 };
 
