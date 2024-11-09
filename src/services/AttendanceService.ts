@@ -1093,42 +1093,13 @@ export class AttendanceService {
         isLateCheckOut,
       );
 
-      // Create or update time entry
-      const timeEntry = await this.timeEntryService.createOrUpdateTimeEntry(
+      // Process time entry with proper formatting
+      const processedAttendance = await this.processTimeEntry(
         attendanceRecord,
         isCheckIn,
-        isOvertime ? approvedOvertimeRequest : null,
+        approvedOvertimeRequest,
         leaveRequest ? [leaveRequest] : [],
       );
-
-      // Generate detailed status
-      const detailedStatus = this.generateDetailedStatus(
-        status,
-        isCheckIn,
-        isEarlyCheckIn,
-        isLateCheckIn,
-        isLateCheckOut,
-        isOvertime,
-        isOvernightShift,
-        existingAttendance,
-      );
-
-      // Prepare and return processed attendance result
-      const processedAttendance: ProcessedAttendance = {
-        id: attendanceRecord.id,
-        employeeId: attendanceData.employeeId,
-        date: attendanceDate,
-        status,
-        regularHours: timeEntry.regularHours,
-        overtimeHours: timeEntry.overtimeHours,
-        ...(overtimeInfo && { overtimeInfo }),
-        detailedStatus,
-        attendanceStatusType: this.mapStatusToAttendanceStatusType(
-          status,
-          isCheckIn,
-          isOvertime,
-        ),
-      };
 
       // Invalidate caches
       await Promise.all([
@@ -1146,6 +1117,54 @@ export class AttendanceService {
         `Error processing attendance: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
+  }
+
+  private async processTimeEntry(
+    attendanceRecord: AttendanceRecord,
+    isCheckIn: boolean,
+    approvedOvertimeRequest: ApprovedOvertime | null,
+    leaveRequests: LeaveRequest[] = [],
+  ): Promise<ProcessedAttendance> {
+    // Create or update time entry
+    const timeEntry = await this.timeEntryService.createOrUpdateTimeEntry(
+      attendanceRecord,
+      isCheckIn,
+      approvedOvertimeRequest,
+      leaveRequests,
+    );
+
+    // Format time entry data for response
+    const formattedTimeEntry = {
+      regularHours: Number(timeEntry.regularHours) || 0,
+      overtimeHours: Number(timeEntry.overtimeHours) || 0,
+      status: timeEntry.status,
+      entryType: timeEntry.entryType,
+    };
+
+    // Prepare processed attendance with formatted time entry
+    return {
+      id: attendanceRecord.id,
+      employeeId: attendanceRecord.employeeId,
+      date: attendanceRecord.date,
+      status: attendanceRecord.status as AttendanceStatusValue,
+      regularHours: formattedTimeEntry.regularHours,
+      overtimeHours: formattedTimeEntry.overtimeHours,
+      detailedStatus: this.generateDetailedStatus(
+        attendanceRecord.status as AttendanceStatusValue, // Cast the status to AttendanceStatusValue
+        isCheckIn,
+        attendanceRecord.isEarlyCheckIn || false,
+        attendanceRecord.isLateCheckIn || false,
+        attendanceRecord.isLateCheckOut || false,
+        Boolean(approvedOvertimeRequest),
+        false, // isOvernightShift
+        attendanceRecord,
+      ),
+      attendanceStatusType: this.mapStatusToAttendanceStatusType(
+        attendanceRecord.status as AttendanceStatusValue, // Cast the status to AttendanceStatusValue
+        isCheckIn,
+        Boolean(approvedOvertimeRequest),
+      ),
+    };
   }
 
   async processCheckInOut(

@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
-import { useLiff } from '@/hooks/useLiff';
 import LoadingBar from '@/components/LoadingBar';
 import AdminLayout from '@/components/layouts/AdminLayout';
+import { LiffProvider } from '@/contexts/LiffContext';
+import { useLiff } from '@/hooks/useLiff';
 
-function MyApp({ Component, pageProps, router }: AppProps) {
-  const { isLiffInitialized, lineUserId } = useLiff();
+// Create a wrapper component that uses LIFF
+function AppContent({ Component, pageProps, router }: AppProps) {
+  const { isLiffInitialized, lineUserId, error } = useLiff();
   const [isLoading, setIsLoading] = useState(true);
   const isAdminRoute = router.pathname.startsWith('/admin');
 
@@ -34,22 +36,41 @@ function MyApp({ Component, pageProps, router }: AppProps) {
     return <LoadingBar />;
   }
 
+  // Error handling for LIFF
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-red-500">Error: {error}</div>
+      </div>
+    );
+  }
+
   // For admin routes
   if (isAdminRoute) {
     return (
-      <Provider store={store}>
-        <AdminLayout>
-          <Component {...pageProps} lineUserId={lineUserId} />
-        </AdminLayout>
-      </Provider>
+      <AdminLayout>
+        <Component {...pageProps} lineUserId={lineUserId} />
+      </AdminLayout>
     );
   }
 
   // For all other routes
+  return <Component {...pageProps} lineUserId={lineUserId} />;
+}
+
+function MyApp(props: AppProps) {
+  // Handle server-side rendering
+  if (typeof window === 'undefined') {
+    return <props.Component {...props.pageProps} />;
+  }
+
+  // Client-side rendering with all providers
   return (
-    <Provider store={store}>
-      <Component {...pageProps} lineUserId={lineUserId} />
-    </Provider>
+    <LiffProvider>
+      <Provider store={store}>
+        <AppContent {...props} />
+      </Provider>
+    </LiffProvider>
   );
 }
 

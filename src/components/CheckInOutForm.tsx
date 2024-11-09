@@ -21,8 +21,9 @@ import LateReasonModal from './LateReasonModal';
 import ErrorBoundary from './ErrorBoundary';
 import ActionButton from './ActionButton';
 import { getCurrentTime, formatDate } from '../utils/dateUtils';
-import { isSameDay, parseISO, subMinutes } from 'date-fns';
+import { format, isSameDay, parseISO, subMinutes } from 'date-fns';
 import CameraFrame from './CameraFrame';
+import { th } from 'date-fns/locale/th';
 
 // Add this type for better error handling
 interface ApiError {
@@ -146,6 +147,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           }
         }
 
+        // Late check-in handling is now moved to handlePhotoCapture
         if (isLate && isCheckingIn && !lateReason) {
           console.log('Late reason required but missing');
           setIsLateModalOpen(true);
@@ -156,6 +158,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setStep('processing');
 
         try {
+          // Attempt status change
           await onStatusChange(
             currentAttendanceStatus?.isCheckingIn ?? true,
             photo,
@@ -166,20 +169,32 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             earlyCheckoutType,
           );
 
+          // Only proceed to close if status change was successful
           await onCloseWindow();
         } catch (error: any) {
-          console.error('Status change error:', error);
+          console.error('Status change error:', {
+            error,
+            message: error.message,
+            response: error.response?.data,
+          });
 
           // Handle API error responses
           if (error.response?.data) {
             const apiError = error.response.data as ApiError;
+
+            // Handle TimeEntry specific errors
+            if (apiError.error === 'TimeEntry Error') {
+              throw new Error(
+                'Failed to process time entry. Please try again or contact support.',
+              );
+            }
+
             throw new Error(
               apiError.message || apiError.error || 'Failed to update status',
             );
           }
 
-          // Handle other errors
-          throw new Error(error.message || 'Failed to process check-in/out');
+          throw error;
         }
       } catch (error: any) {
         console.error('Error in submitCheckInOut:', {
@@ -248,6 +263,78 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     resetDetection,
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture);
+
+  // TimeEntry display component
+  const TimeEntryInfo: React.FC<{
+    checkTime: string | null;
+    isCheckingIn: boolean;
+    isLate?: boolean;
+  }> = ({ checkTime, isCheckingIn, isLate }) => {
+    if (!checkTime) return null;
+
+    return (
+      <div className="text-center space-y-2">
+        <div className="text-lg font-medium">
+          {isCheckingIn ? 'ลงเวลาเข้างานเรียบร้อย' : 'ลงเวลาออกงานเรียบร้อย'}
+        </div>
+        <div className="text-base">
+          เวลา:{' '}
+          {format(new Date(`2000-01-01T${checkTime}`), 'HH:mm น.', {
+            locale: th,
+          })}
+        </div>
+        {isLate && <div className="text-red-500 text-sm">มาสาย</div>}
+      </div>
+    );
+  };
+
+  // Update renderStep3 to show check-in/out confirmation
+  const renderStep3 = useCallback(() => {
+    const checkTime =
+      currentAttendanceStatus?.latestAttendance?.checkInTime ||
+      currentAttendanceStatus?.latestAttendance?.checkOutTime;
+    const isLate = currentAttendanceStatus?.isLateCheckIn;
+
+    return (
+      <div className="h-full flex flex-col justify-center items-center p-4">
+        {isSubmitting ? (
+          <>
+            <p className="text-lg font-semibold mb-4">ระบบกำลังลงเวลา...</p>
+            <SkeletonLoader />
+          </>
+        ) : (
+          <div className="text-center space-y-4">
+            <TimeEntryInfo
+              checkTime={checkTime || null}
+              isCheckingIn={isCheckingIn}
+              isLate={isLate}
+            />
+            <p className="text-sm text-gray-600">
+              ระบบจะปิดอัตโนมัติใน {timeRemaining} วินาที
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }, [currentAttendanceStatus, isCheckingIn, isSubmitting, timeRemaining]);
+
+  // Update renderStatus to only show current status
+  const renderStatus = useMemo(() => {
+    if (!liveAttendanceStatus || !effectiveShift) return null;
+
+    return (
+      <div className="px-4 py-2 bg-white shadow-sm rounded-md">
+        <div className="text-sm font-medium text-gray-900">
+          {isCheckingIn ? 'สถานะการลงเวลาเข้างาน' : 'สถานะการลงเวลาออกงาน'}
+        </div>
+        <div className="mt-1 text-sm text-gray-500">
+          {liveAttendanceStatus.detailedStatus === 'late-check-in' && (
+            <div className="text-red-600">คุณมาสาย</div>
+          )}
+        </div>
+      </div>
+    );
+  }, [liveAttendanceStatus, effectiveShift, isCheckingIn]);
 
   // Add monitoring for critical state changes
   useEffect(() => {
@@ -587,16 +674,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         />
       )}
     </div>
-  );
-
-  const renderStep3 = useCallback(
-    () => (
-      <div className="h-full flex flex-col justify-center items-center">
-        <p className="text-lg font-semibold mb-4">ระบบกำลังลงเวลา...</p>
-        <SkeletonLoader />
-      </div>
-    ),
-    [],
   );
 
   // Update main content structure

@@ -192,16 +192,6 @@ async function processCheckInOut(
       isManualEntry: validatedData.isManualEntry || false,
     };
 
-    // Verify leave request for early check-out
-    if (!validatedData.isCheckIn && validatedData.reason === 'early-checkout') {
-      const leaveRequest = await leaveServiceServer.checkUserOnLeave(
-        user.employeeId,
-        now,
-      );
-      if (!leaveRequest)
-        throw new Error('No leave request found for early checkout');
-    }
-
     // Process attendance
     const processedAttendance =
       await attendanceService.processAttendance(attendanceData);
@@ -211,6 +201,48 @@ async function processCheckInOut(
     const updatedStatus = await attendanceService.getLatestAttendanceStatus(
       attendanceData.employeeId,
     );
+
+    // Fire and forget notifications
+    if (user.lineUserId) {
+      try {
+        // Extract check time from processed attendance
+        const checkTime = validatedData.isCheckIn
+          ? processedAttendance.date // Use the processed date for check-in
+          : new Date(validatedData.checkTime || now); // Use provided time for check-out
+
+        console.log('Sending notification with check time:', {
+          isCheckIn: validatedData.isCheckIn,
+          checkTime: checkTime.toISOString(),
+          employeeId: user.employeeId,
+          lineUserId: user.lineUserId,
+        });
+
+        if (validatedData.isCheckIn) {
+          await notificationService.sendCheckInConfirmation(
+            user.employeeId,
+            user.lineUserId,
+            checkTime,
+          );
+          console.log('Check-in notification sent to user:', user.employeeId);
+        } else {
+          await notificationService.sendCheckOutConfirmation(
+            user.employeeId,
+            user.lineUserId,
+            checkTime,
+          );
+          console.log('Check-out notification sent to user:', user.employeeId);
+        }
+      } catch (notificationError) {
+        console.error('Error sending notification:', {
+          employeeId: user.employeeId,
+          error: notificationError,
+          stack:
+            notificationError instanceof Error
+              ? notificationError.stack
+              : undefined,
+        });
+      }
+    }
 
     // Format times for response
     if (updatedStatus.latestAttendance) {
@@ -226,57 +258,6 @@ async function processCheckInOut(
       }
       updatedStatus.latestAttendance.date = formatDate(
         new Date(updatedStatus.latestAttendance.date),
-      );
-    }
-
-    // Fire and forget notifications
-    if (user.lineUserId && processedAttendance) {
-      try {
-        const notificationData = {
-          regularCheckInTime: (processedAttendance as any).regularCheckInTime,
-          regularCheckOutTime: (processedAttendance as any).regularCheckOutTime,
-          status: processedAttendance.status,
-          overtimeMetadata: (processedAttendance as any).overtimeMetadata,
-        } as AttendanceNotificationData;
-
-        console.log('Sending notification for user:', {
-          employeeId: user.employeeId,
-          lineUserId: user.lineUserId,
-          checkInTime: notificationData.regularCheckInTime,
-          checkOutTime: notificationData.regularCheckOutTime,
-        });
-
-        if (notificationData.regularCheckInTime) {
-          await notificationService.sendCheckInConfirmation(
-            user.employeeId,
-            user.lineUserId,
-            new Date(notificationData.regularCheckInTime),
-          );
-          console.log(
-            'Check-in notification sent successfully to user:',
-            user.employeeId,
-          );
-        } else if (notificationData.regularCheckOutTime) {
-          await notificationService.sendCheckOutConfirmation(
-            user.employeeId,
-            user.lineUserId,
-            new Date(notificationData.regularCheckOutTime),
-          );
-          console.log(
-            'Check-out notification sent successfully to user:',
-            user.employeeId,
-          );
-        }
-      } catch (notificationError) {
-        console.error('Error sending notification to user:', {
-          employeeId: user.employeeId,
-          error: notificationError,
-        });
-        // Do not rethrow to allow main process continuation
-      }
-    } else {
-      console.warn(
-        `No LINE User ID found for employee ${user.employeeId} or no processed attendance`,
       );
     }
 
