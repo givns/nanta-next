@@ -27,7 +27,9 @@ export default function DailyAttendancePage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Daily Attendance</h1>
-          <p className="text-gray-500"></p>
+          <p className="text-gray-500">
+            {format(new Date(), 'EEEE, d MMMM yyyy', { locale: th })}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline">Export Report</Button>

@@ -2,7 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient, Prisma, LeaveRequest } from '@prisma/client';
-import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
+import { startOfDay, endOfDay, parseISO, format, isValid } from 'date-fns';
 import { DailyAttendanceResponse } from '@/types/attendance';
 import { getCacheData, setCacheData } from '@/lib/serverCache';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
@@ -17,6 +17,18 @@ const holidayService = new HolidayService(prisma);
 const shiftService = new ShiftManagementService(prisma, holidayService);
 const leaveService = new LeaveServiceServer(prisma, notificationService);
 
+const parseDateSafely = (dateString: string | undefined): Date => {
+  if (!dateString) return new Date();
+
+  try {
+    const parsed = parseISO(dateString);
+    return isValid(parsed) ? parsed : new Date();
+  } catch (error) {
+    console.error('Error parsing date:', error);
+    return new Date();
+  }
+};
+
 async function handleGetDailyAttendance(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -24,7 +36,7 @@ async function handleGetDailyAttendance(
 ) {
   try {
     const { date: dateQuery, department, searchTerm } = req.query;
-    const targetDate = dateQuery ? parseISO(dateQuery as string) : new Date();
+    const targetDate = parseDateSafely(dateQuery as string);
     const dateStart = startOfDay(targetDate);
     const dateEnd = endOfDay(targetDate);
 

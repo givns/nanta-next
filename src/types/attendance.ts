@@ -549,7 +549,7 @@ export interface TimeEntriesResponse {
 
 export interface UseAttendanceProps {
   lineUserId: string | null;
-  initialDate?: Date;
+  initialDate?: Date | string;
   initialDepartment?: string;
   initialSearchTerm?: string;
 }
@@ -575,7 +575,7 @@ export interface DepartmentInfo {
 }
 
 export interface AttendanceFilters {
-  date: Date;
+  date: Date | string;
   department: string;
   searchTerm: string;
 }

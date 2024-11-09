@@ -6,10 +6,23 @@ import {
   ManualEntryResponse,
   DepartmentInfo,
 } from '@/types/attendance';
-import { format, isValid, startOfDay } from 'date-fns';
+import { format, isValid, parseISO, startOfDay } from 'date-fns';
 
 export class AttendanceApiService {
   private static baseUrl = '/api/admin/attendance';
+
+  private static formatDateForApi(date: Date | string): string {
+    try {
+      const validDate = date instanceof Date ? date : parseISO(date);
+      if (!isValid(validDate)) {
+        return format(new Date(), 'yyyy-MM-dd');
+      }
+      return format(startOfDay(validDate), 'yyyy-MM-dd');
+    } catch (error) {
+      console.warn('Error formatting date for API:', error);
+      return format(new Date(), 'yyyy-MM-dd');
+    }
+  }
 
   static async getDailyAttendance(
     lineUserId: string,
@@ -18,19 +31,13 @@ export class AttendanceApiService {
     searchTerm: string = '',
   ): Promise<DailyAttendanceResponse[]> {
     try {
-      // Ensure date is valid
-      if (!isValid(date)) {
-        throw new Error('Invalid date provided');
-      }
-
-      const formattedDate = format(startOfDay(date), 'yyyy-MM-dd');
-      const params = new URLSearchParams({
-        date: formattedDate,
+      const queryParams = new URLSearchParams({
+        date: this.formatDateForApi(date),
         department,
-        ...(searchTerm ? { searchTerm } : {}),
+        ...(searchTerm && { searchTerm }),
       });
 
-      const response = await fetch(`${this.baseUrl}/daily?${params}`, {
+      const response = await fetch(`${this.baseUrl}/daily?${queryParams}`, {
         headers: {
           'x-line-userid': lineUserId,
         },
@@ -41,7 +48,7 @@ export class AttendanceApiService {
         throw new Error(error.message || 'Failed to fetch attendance records');
       }
 
-      const data = await response.json();
+      const data: DailyAttendanceResponse[] = await response.json();
       return data;
     } catch (error) {
       console.error('Error in getDailyAttendance:', error);

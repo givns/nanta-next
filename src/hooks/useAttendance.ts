@@ -8,7 +8,7 @@ import {
   AttendanceFilters,
   UseAttendanceProps,
 } from '@/types/attendance';
-import { startOfDay, isValid } from 'date-fns';
+import { startOfDay, isValid, parseISO } from 'date-fns';
 
 interface UseAttendanceReturn {
   records: DailyAttendanceResponse[];
@@ -22,6 +22,23 @@ interface UseAttendanceReturn {
   refreshData: () => Promise<void>;
 }
 
+const getValidDate = (dateInput: Date | string): Date => {
+  try {
+    if (dateInput instanceof Date) {
+      return isValid(dateInput)
+        ? startOfDay(dateInput)
+        : startOfDay(new Date());
+    }
+    const parsedDate = parseISO(dateInput);
+    return isValid(parsedDate)
+      ? startOfDay(parsedDate)
+      : startOfDay(new Date());
+  } catch (error) {
+    console.warn('Invalid date input:', dateInput);
+    return startOfDay(new Date());
+  }
+};
+
 export function useAttendance({
   lineUserId,
   initialDate = new Date(),
@@ -33,7 +50,7 @@ export function useAttendance({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<AttendanceFilters>({
-    date: startOfDay(isValid(initialDate) ? initialDate : new Date()),
+    date: getValidDate(initialDate),
     department: initialDepartment,
     searchTerm: initialSearchTerm,
   });
@@ -49,7 +66,7 @@ export function useAttendance({
       setError(null);
       const data = await AttendanceApiService.getDailyAttendance(
         lineUserId,
-        filters.date,
+        new Date(filters.date), // Convert filters.date to a Date object
         filters.department,
         debouncedSearch,
       );
@@ -73,9 +90,7 @@ export function useAttendance({
 
       // Ensure date is always valid
       if ('date' in newFilters) {
-        updated.date = startOfDay(
-          isValid(newFilters.date) ? newFilters.date! : new Date(),
-        );
+        updated.date = getValidDate(newFilters.date!);
       }
 
       return updated;

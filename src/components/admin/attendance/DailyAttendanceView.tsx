@@ -35,7 +35,7 @@ export default function DailyAttendanceView() {
     refreshData,
   } = useAttendance({
     lineUserId: user?.lineUserId || null,
-    initialDate: startOfDay(new Date()),
+    initialDate: new Date(), // This will be handled by getValidDate
     initialDepartment: 'all',
     initialSearchTerm: '',
   });
@@ -77,18 +77,8 @@ export default function DailyAttendanceView() {
   );
 
   const handleDateChange = (newDate: Date | undefined) => {
-    if (!newDate || !isValid(newDate)) {
-      console.warn('Invalid date selected:', newDate);
-      return;
-    }
-
-    try {
-      const normalizedDate = startOfDay(newDate);
-      setSelectedDate(normalizedDate);
-      setFilters({ ...filters, date: normalizedDate });
-    } catch (error) {
-      console.error('Error handling date change:', error);
-      // Optionally show an error message to the user
+    if (newDate) {
+      setFilters({ date: newDate });
     }
   };
 
@@ -116,9 +106,7 @@ export default function DailyAttendanceView() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Daily Attendance</CardTitle>
-            {isValid(filters.date) && (
-              <DateSelector date={filters.date} onChange={handleDateChange} />
-            )}
+            <DateSelector date={filters.date} onChange={handleDateChange} />
           </div>
         </CardHeader>
 
@@ -161,7 +149,7 @@ export default function DailyAttendanceView() {
           open={showEmployeeDetail}
           onOpenChange={setShowEmployeeDetail}
           employeeId={selectedEmployee}
-          date={filters.date}
+          date={new Date(filters.date)} // Convert filters.date to a Date object
         />
       )}
     </div>
