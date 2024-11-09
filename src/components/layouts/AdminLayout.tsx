@@ -1,6 +1,6 @@
 // components/layouts/AdminLayout.tsx
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { AdminProvider, useAdmin } from '@/contexts/AdminContext';
@@ -74,11 +74,40 @@ const navItems = [
 ];
 
 function AdminLayoutContent({ children }: AdminLayoutProps) {
-  const { userData, isLoading } = useLiff();
+  const { lineUserId } = useLiff();
+  const [userData, setUserData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
   const currentPath = router.pathname;
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!lineUserId) return;
+
+      try {
+        const response = await fetch('/api/user-data', {
+          headers: {
+            'x-line-userid': lineUserId,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch user data');
+        }
+
+        const data = await response.json();
+        setUserData(data.user);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [lineUserId]);
 
   if (isLoading) {
     return <LoadingBar />;
@@ -167,17 +196,6 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
                 <span className="text-sm text-gray-500 mr-4">
                   {userData.name}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 hover:text-gray-700"
-                  onClick={() => {
-                    // Handle logout
-                  }}
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </Button>
               </div>
             </div>
 
