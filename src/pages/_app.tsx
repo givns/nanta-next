@@ -4,15 +4,14 @@ import { useEffect, useState } from 'react';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
-import LoadingBar from '@/components/LoadingBar';
+import LoadingProgress from '@/components/LoadingProgress';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import { LiffProvider } from '@/contexts/LiffContext';
 import { useLiff } from '@/hooks/useLiff';
 
-// Create a wrapper component that uses LIFF
 function AppContent({ Component, pageProps, router }: AppProps) {
   const { isLiffInitialized, lineUserId, error } = useLiff();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const isAdminRoute = router.pathname.startsWith('/admin');
 
   useEffect(() => {
@@ -23,8 +22,12 @@ function AppContent({ Component, pageProps, router }: AppProps) {
     window.addEventListener('error', (event) => handleError(event.error));
 
     if (isLiffInitialized) {
-      // Add a small delay to ensure the progress bar reaches 100%
-      setTimeout(() => setIsLoading(false), 1000);
+      // Simulate data loading time (remove in production)
+      const timer = setTimeout(() => {
+        setIsDataLoaded(true);
+      }, 1000);
+
+      return () => clearTimeout(timer);
     }
 
     return () => {
@@ -32,8 +35,13 @@ function AppContent({ Component, pageProps, router }: AppProps) {
     };
   }, [isLiffInitialized]);
 
-  if (isLoading) {
-    return <LoadingBar />;
+  if (!isDataLoaded) {
+    return (
+      <LoadingProgress
+        isLiffInitialized={isLiffInitialized}
+        isDataLoaded={isDataLoaded}
+      />
+    );
   }
 
   // Error handling for LIFF
