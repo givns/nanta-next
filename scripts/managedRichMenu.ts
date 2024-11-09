@@ -11,10 +11,20 @@ if (!LINE_CHANNEL_ACCESS_TOKEN) {
   process.exit(1);
 }
 
+interface RichMenu {
+  richMenuId: string;
+  name: string;
+  size: {
+    width: number;
+    height: number;
+  };
+  chatBarText: string;
+}
+
 // Your existing code to list and delete rich menus
-async function listRichMenus() {
+async function listRichMenus(): Promise<RichMenu[]> {
   try {
-    const response = await axios.get(
+    const response = await axios.get<{ richmenus: RichMenu[] }>(
       'https://api.line.me/v2/bot/richmenu/list',
       {
         headers: {
@@ -22,10 +32,22 @@ async function listRichMenus() {
         },
       },
     );
+
+    // Access the richmenus array from the response
     const richMenus = response.data.richmenus;
-    console.log('Existing rich menus:', richMenus);
+    console.log(
+      'Found rich menus:',
+      richMenus.map((menu) => ({
+        id: menu.richMenuId,
+        name: menu.name,
+      })),
+    );
     return richMenus;
   } catch (error: any) {
+    if (error.response?.status === 404) {
+      console.log('No rich menus found');
+      return [];
+    }
     console.error(
       'Error listing rich menus:',
       error.response?.data || error.message,
@@ -43,6 +65,10 @@ async function deleteRichMenu(richMenuId: string) {
     });
     console.log(`Rich menu with ID ${richMenuId} deleted successfully.`);
   } catch (error: any) {
+    if (error.response?.status === 404) {
+      console.log(`Rich menu with ID ${richMenuId} not found.`);
+      return;
+    }
     console.error(
       `Error deleting rich menu with ID ${richMenuId}:`,
       error.response?.data || error.message,
@@ -54,6 +80,13 @@ async function deleteRichMenu(richMenuId: string) {
 async function deleteAllRichMenus() {
   try {
     const richMenus = await listRichMenus();
+    if (richMenus.length === 0) {
+      console.log('No rich menus to delete.');
+      return;
+    }
+
+    console.log(`Found ${richMenus.length} rich menu(s) to delete.`);
+
     for (const richMenu of richMenus) {
       await deleteRichMenu(richMenu.richMenuId);
     }
@@ -63,4 +96,5 @@ async function deleteAllRichMenus() {
   }
 }
 
+// Run the deletion
 deleteAllRichMenus();

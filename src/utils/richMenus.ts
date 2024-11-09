@@ -246,7 +246,7 @@ const createAndAssignRichMenu = async (
     imagePath = 'public/images/richmenus/Admin.jpeg';
   } else if (department === 'Super Admin') {
     richMenu = superAdminRichMenu;
-    imagePath = 'public/images/richmenus/SuperAdmin.jpeg';
+    imagePath = 'public/images/richmenus/Admin.jpeg';
   } else {
     richMenu = generalUserRichMenu;
     imagePath = 'public/images/richmenus/General.jpeg';
