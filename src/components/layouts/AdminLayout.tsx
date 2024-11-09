@@ -3,23 +3,18 @@
 import { ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { AdminProvider, useAdmin } from '@/contexts/AdminContext';
-import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
+import { useAdmin } from '@/contexts/AdminContext';
 import {
   Users,
   Calendar,
   Settings,
   DollarSign,
   Clock,
-  LogOut,
-  Menu,
   ClipboardCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useLiff } from '@/contexts/LiffContext';
-import LoadingBar from '../LoadingBar';
-import LoadingProgress from '../LoadingProgress';
+import LoadingProgress from '@/components/LoadingProgress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface AdminLayoutProps {
@@ -108,8 +103,6 @@ const routeTabs = {
 function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
-  const { lineUserId } = useLiff();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [isLiffBrowser, setIsLiffBrowser] = useState(true);
@@ -120,7 +113,6 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
     if (typeof window !== 'undefined') {
       const checkEnvironment = () => {
         setIsDesktop(window.innerWidth >= 1024);
-        // Check if we're in LINE's in-app browser
         setIsLiffBrowser(
           window.location.href.includes('liff.line.me') ||
             /Line/i.test(window.navigator.userAgent),
@@ -141,6 +133,12 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const getCurrentTabValue = () => {
     const pathParts = currentPath.split('/');
     return pathParts[pathParts.length - 1];
+  };
+
+  // Helper function for determining current path
+  const isCurrentPath = (path: string) => {
+    if (path === '/admin') return currentPath === path;
+    return currentPath.startsWith(path);
   };
 
   // Determine if we should show full navigation
@@ -182,10 +180,8 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       {/* Show full navigation only on desktop browser */}
       {showFullNavigation && (
         <nav className="bg-white shadow-sm sticky top-0 z-50">
-          {/* Your existing navigation code */}
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16">
-              {/* Logo and Desktop Menu */}
               <div className="flex">
                 <div className="flex-shrink-0 flex items-center">
                   <span className="text-xl font-bold">Admin Dashboard</span>
@@ -238,7 +234,6 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
                 </div>
               </div>
 
-              {/* Desktop User Menu */}
               <div className="hidden lg:ml-4 lg:flex lg:items-center">
                 <div className="flex items-center">
                   <span className="text-sm text-gray-500 mr-4">
@@ -281,13 +276,6 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       </main>
     </div>
   );
-}
-
-function isCurrentPath(path: string) {
-  const router = useRouter();
-  const currentPath = router.pathname;
-  if (path === '/admin') return currentPath === path;
-  return currentPath.startsWith(path);
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
