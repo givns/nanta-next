@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { UserData } from '@/types/user';
 import { useRouter } from 'next/router';
+import LoadingBar from '@/components/LoadingBar';
 
 interface AdminContextType {
   user: UserData | null;
@@ -11,6 +12,7 @@ interface AdminContextType {
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
+// contexts/AdminContext.tsx
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,29 +41,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
       const data = await response.json();
 
+      // Check if user has admin access
       if (!['Admin', 'SuperAdmin'].includes(data.user.role)) {
         throw new Error('Unauthorized - Insufficient privileges');
       }
 
       setUser(data.user);
-
-      const authResponse = await fetch('/api/admin/auth-check', {
-        headers: {
-          'x-line-userid': lineUserId,
-        },
-      });
-
-      if (!authResponse.ok || !(await authResponse.json()).isAuthorized) {
-        throw new Error('Unauthorized access');
-      }
-
       setError(null);
     } catch (error) {
       console.error('Error in authorization flow:', error);
       setError(error instanceof Error ? error.message : 'Authorization failed');
-      if (isBrowser) {
-        window.location.href = '/unauthorized';
-      }
+
+      // Redirect to home or show unauthorized message
+      router.replace('/unauthorized');
     } finally {
       setIsLoading(false);
     }
@@ -69,29 +61,28 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isBrowser) {
-      const lineUserId = localStorage.getItem('lineUserId');
-      if (!lineUserId) {
-        setError('No user ID found');
-        window.location.href = '/login';
-        return;
-      }
       fetchUserData();
     }
   }, []);
 
-  // SSR fallback value
-  if (!isBrowser) {
+  // Show loading state during initial check
+  if (isLoading) {
+    return <LoadingBar />;
+  }
+
+  // Show error state if not authorized
+  if (error || !user) {
     return (
-      <AdminContext.Provider
-        value={{
-          user: null,
-          isLoading: true,
-          error: null,
-          refreshUser: async () => {},
-        }}
-      >
-        {children}
-      </AdminContext.Provider>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h1 className="text-xl font-semibold text-gray-900">
+            Unauthorized Access
+          </h1>
+          <p className="mt-2 text-gray-600">
+            You don't have permission to access this area.
+          </p>
+        </div>
+      </div>
     );
   }
 

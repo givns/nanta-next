@@ -28,6 +28,7 @@ interface ClientContentProps extends AppProps {
   router: AppProps['router'];
 }
 
+// _app.tsx
 const ClientContent = dynamic(
   () =>
     Promise.resolve(function ClientContent({
@@ -36,15 +37,12 @@ const ClientContent = dynamic(
       router,
     }: ClientContentProps) {
       const [isRouteLoading, setIsRouteLoading] = useState(false);
-      const isAdminRoute = router.pathname.startsWith(ADMIN_ROUTES);
+      const isAdminRoute = router.pathname.startsWith('/admin');
       const isLiffPage = LIFF_PAGES.some((path) =>
         router.pathname.startsWith(path),
       );
-      const isAuthRequired = AUTH_REQUIRED_PAGES.some((path) =>
-        router.pathname.startsWith(path),
-      );
 
-      // Handle route change loading states
+      // Route change loading states
       useEffect(() => {
         const handleStart = () => setIsRouteLoading(true);
         const handleComplete = () => setIsRouteLoading(false);
@@ -60,79 +58,55 @@ const ClientContent = dynamic(
         };
       }, [router]);
 
-      // Check authentication on protected routes
-      useEffect(() => {
-        const checkAuth = async () => {
-          if (isAdminRoute || isAuthRequired) {
-            const lineUserId = localStorage.getItem('lineUserId');
-            if (!lineUserId) {
-              router.replace('/login');
-            }
-          }
-        };
-
-        checkAuth();
-      }, [isAuthRequired, isAdminRoute, router]);
-
-      // Show loading state during route changes
-      if (isRouteLoading) {
-        return <LoadingBar />;
-      }
-
-      // LIFF page wrapper
-      if (isLiffPage) {
-        return (
-          <ErrorBoundary>
-            <LiffProvider>
-              <Provider store={store}>
-                <Component {...pageProps} />
-              </Provider>
-            </LiffProvider>
-          </ErrorBoundary>
-        );
-      }
-
-      // Admin route wrapper - includes all /admin/* routes
+      // For admin routes
       if (isAdminRoute) {
-        const lineUserId = localStorage.getItem('lineUserId');
-        if (!lineUserId) {
-          router.replace('/login');
-          return <LoadingBar />;
-        }
-
         return (
           <ErrorBoundary>
             <AdminProvider>
               <AdminLayout>
-                <Component {...pageProps} />
+                {isRouteLoading ? (
+                  <div className="p-4">
+                    <LoadingBar />
+                  </div>
+                ) : (
+                  <Component {...pageProps} />
+                )}
               </AdminLayout>
             </AdminProvider>
           </ErrorBoundary>
         );
       }
 
-      // Auth required route wrapper
-      if (isAuthRequired) {
-        const lineUserId = localStorage.getItem('lineUserId');
-        if (!lineUserId) {
-          router.replace('/login');
-          return <LoadingBar />;
-        }
-
+      // For LIFF pages - where LINE login happens
+      if (isLiffPage) {
         return (
           <ErrorBoundary>
-            <Provider store={store}>
-              <Component {...pageProps} />
-            </Provider>
+            <LiffProvider>
+              <Provider store={store}>
+                {isRouteLoading ? (
+                  <div className="p-4">
+                    <LoadingBar />
+                  </div>
+                ) : (
+                  <Component {...pageProps} />
+                )}
+              </Provider>
+            </LiffProvider>
           </ErrorBoundary>
         );
       }
 
-      // Default wrapper for public routes
+      // For other routes
       return (
         <ErrorBoundary>
           <Provider store={store}>
-            <Component {...pageProps} />
+            {isRouteLoading ? (
+              <div className="p-4">
+                <LoadingBar />
+              </div>
+            ) : (
+              <Component {...pageProps} />
+            )}
           </Provider>
         </ErrorBoundary>
       );

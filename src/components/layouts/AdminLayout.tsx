@@ -78,9 +78,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null); // Track open dropdown
   const currentPath = router.pathname;
 
-  if (error || !user) {
-    return null; // Will be redirected by AdminProvider
-  }
+  if (isLoading) return null;
 
   return (
     <div className="min-h-screen bg-gray-100">
