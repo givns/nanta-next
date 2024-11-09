@@ -1,9 +1,8 @@
+// _app.tsx
 import '../styles/globals.css';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
-import { AdminProvider } from '@/contexts/AdminContext';
-import AdminLayout from '@/components/layouts/AdminLayout';
 import LoadingBar from '@/components/LoadingBar';
 import { useEffect, useState } from 'react';
 import { LiffProvider } from '@/contexts/LiffContext';
@@ -12,23 +11,16 @@ import React from 'react';
 
 // Define route patterns
 const LIFF_PAGES = [
-  '/check-in-router', // Main check-in route
+  '/check-in-router',
   '/overtime-request',
   '/leave-request',
+  '/admin', // Include admin routes here since they'll use the same LIFF auth
 ];
 
-// Admin routes are handled separately - no need to include in AUTH_REQUIRED_PAGES
-const AUTH_REQUIRED_PAGES = ['/profile', '/settings', '/dashboard'];
-
-// Admin routes pattern - used for route checking
-const ADMIN_ROUTES = '/admin';
-
-// Create a type-safe ClientContent component
 interface ClientContentProps extends AppProps {
   router: AppProps['router'];
 }
 
-// _app.tsx
 const ClientContent = dynamic(
   () =>
     Promise.resolve(function ClientContent({
@@ -37,47 +29,27 @@ const ClientContent = dynamic(
       router,
     }: ClientContentProps) {
       const [isRouteLoading, setIsRouteLoading] = useState(false);
-      const isAdminRoute = router.pathname.startsWith('/admin');
       const isLiffPage = LIFF_PAGES.some((path) =>
         router.pathname.startsWith(path),
       );
 
-      // Route change loading states
       useEffect(() => {
         const handleStart = () => setIsRouteLoading(true);
-        const handleComplete = () => setIsRouteLoading(false);
+        const handleComplete = () => setIsRouteLoading(false); // Fixed here
+        const handleError = () => setIsRouteLoading(false); // Fix
 
         router.events.on('routeChangeStart', handleStart);
         router.events.on('routeChangeComplete', handleComplete);
-        router.events.on('routeChangeError', handleComplete);
+        router.events.on('routeChangeError', handleError);
 
         return () => {
           router.events.off('routeChangeStart', handleStart);
           router.events.off('routeChangeComplete', handleComplete);
-          router.events.off('routeChangeError', handleComplete);
+          router.events.off('routeChangeError', handleError);
         };
       }, [router]);
 
-      // For admin routes
-      if (isAdminRoute) {
-        return (
-          <ErrorBoundary>
-            <AdminProvider>
-              <AdminLayout>
-                {isRouteLoading ? (
-                  <div className="p-4">
-                    <LoadingBar />
-                  </div>
-                ) : (
-                  <Component {...pageProps} />
-                )}
-              </AdminLayout>
-            </AdminProvider>
-          </ErrorBoundary>
-        );
-      }
-
-      // For LIFF pages - where LINE login happens
+      // All LIFF pages (including admin) use LiffProvider
       if (isLiffPage) {
         return (
           <ErrorBoundary>
@@ -96,7 +68,7 @@ const ClientContent = dynamic(
         );
       }
 
-      // For other routes
+      // For other public routes
       return (
         <ErrorBoundary>
           <Provider store={store}>
@@ -160,18 +132,10 @@ class ErrorBoundary extends React.Component<
 }
 
 function MyApp(props: AppProps) {
-  // Handle server-side rendering
   if (typeof window === 'undefined') {
     return <props.Component {...props.pageProps} />;
   }
-
-  // Client-side rendering with error boundary
   return <ClientContent {...props} />;
-}
-
-// Enable production debugging if needed
-if (process.env.NODE_ENV === 'production') {
-  // Add any production-specific error reporting here
 }
 
 export default MyApp;
