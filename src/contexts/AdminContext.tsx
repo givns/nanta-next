@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+// contexts/AdminContext.tsx
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react';
 import type { UserData } from '@/types/user';
 import { useRouter } from 'next/router';
 import LoadingBar from '@/components/LoadingBar';
@@ -12,7 +19,6 @@ interface AdminContextType {
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
-// contexts/AdminContext.tsx
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,7 +26,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isBrowser = typeof window !== 'undefined';
 
-  const fetchUserData = async () => {
+  // Use useCallback to memoize the fetchUserData function
+  const fetchUserData = useCallback(async () => {
     if (!isBrowser) return;
 
     try {
@@ -57,13 +64,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isBrowser, router]); // Include dependencies
 
   useEffect(() => {
     if (isBrowser) {
       fetchUserData();
     }
-  }, []);
+  }, [isBrowser, fetchUserData]); // Include all dependencies
 
   // Show loading state during initial check
   if (isLoading) {
@@ -79,7 +86,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             Unauthorized Access
           </h1>
           <p className="mt-2 text-gray-600">
-            You don't have permission to access this area.
+            You don&apos;t have permission to access this area.
           </p>
         </div>
       </div>
