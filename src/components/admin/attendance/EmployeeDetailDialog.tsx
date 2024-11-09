@@ -23,6 +23,7 @@ import { ManualEntryDialog } from './ManualEntryDialog';
 import { PayrollUtils } from '@/utils/payrollUtils';
 import { PayrollPeriodSelector } from '@/components/payroll/PayrollPeriodSelector';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAdmin } from '@/contexts/AdminContext';
 
 interface ManualEntryData {
   employeeId: string;
@@ -46,6 +47,7 @@ export function EmployeeDetailDialog({
   employeeId,
   date,
 }: EmployeeDetailDialogProps) {
+  const { user } = useAdmin();
   const [timeEntries, setTimeEntries] = useState<DetailedTimeEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +59,6 @@ export function EmployeeDetailDialog({
     const periods = PayrollUtils.generatePayrollPeriods();
     return periods.find((p) => p.isCurrentPeriod)?.value || periods[0].value;
   });
-  const [newEntryDate, setNewEntryDate] = useState<Date>(new Date());
 
   useEffect(() => {
     if (open && employeeId) {
@@ -66,7 +67,7 @@ export function EmployeeDetailDialog({
   }, [open, employeeId, currentPeriod]);
 
   const fetchTimeEntries = async () => {
-    if (!employeeId) return;
+    if (!open || !employeeId || !user?.lineUserId) return;
 
     try {
       setIsLoading(true);
