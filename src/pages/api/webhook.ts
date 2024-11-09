@@ -51,12 +51,12 @@ if (!channelSecret || !channelAccessToken) {
 
 // Rich Menu IDs from the creation script
 const RICH_MENU_IDS = {
-  REGISTER: 'richmenu-b655539a9b6ce28f4b31ebea69d2d97d',
-  GENERAL: 'richmenu-6f94c49ba3e1c5546b539ff0b22dd688',
-  ADMIN_1: 'richmenu-edfb57723ea8309509bc8f7051fba0cc',
-  ADMIN_2: 'richmenu-19cf97a8af92339b7f8e0640eab86648',
-  MANAGER: 'richmenu-abca6847aa6dd7b7a7da31f112d45056',
-  DRIVER: 'richmenu-2ac420dea0850acded18ed14844621db',
+  REGISTER: 'richmenu-fc12223f4021030d17f15e5538b53fbe',
+  GENERAL: 'richmenu-70ea7b2b2962aa373f853fe8dd7ee089',
+  ADMIN_1: 'richmenu-efc423abb330477551252d737db592b8',
+  ADMIN_2: 'richmenu-064fa9593a85563e491ca5c0982107be',
+  MANAGER: 'richmenu-15e254f3f5068fb8768a7b8345735ddd',
+  DRIVER: 'richmenu-ec0c4c8ea88848e9f8bf9bc6be54989d',
 };
 
 // LINE bot client configuration

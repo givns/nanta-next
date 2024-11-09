@@ -108,7 +108,7 @@ const adminRichMenu1: RichMenu = {
   },
   selected: true,
   name: 'Admin Menu 1',
-  chatBarText: 'Admin Menu 1',
+  chatBarText: 'Admin',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
@@ -149,7 +149,7 @@ const adminRichMenu2: RichMenu = {
   },
   selected: false,
   name: 'Admin Menu 2',
-  chatBarText: 'Admin Menu 2',
+  chatBarText: 'Admin',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 833, height: 843 },
@@ -204,7 +204,7 @@ const managerRichMenu: RichMenu = {
   },
   selected: true,
   name: 'Manager Menu',
-  chatBarText: 'Manager Menu',
+  chatBarText: 'Manager',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
@@ -245,7 +245,7 @@ const driverRichMenu: RichMenu = {
   },
   selected: true,
   name: 'Driver Menu',
-  chatBarText: 'Driver Menu',
+  chatBarText: 'Driver',
   areas: [
     {
       bounds: { x: 0, y: 0, width: 1250, height: 843 },
@@ -280,111 +280,100 @@ const driverRichMenu: RichMenu = {
 
 const main = async () => {
   try {
-    // Store all menu IDs
-    const richMenuIds = {
-      register: '',
-      general: '',
-      admin1: '',
-      admin2: '',
-      manager: '',
-      driver: '',
-    };
-
-    // Create rich menus with error handling
+    // Create rich menus first (your existing code for creating menus)
     console.log('Creating register rich menu...');
-    richMenuIds.register = await createRichMenu(
+    const registerRichMenuId = await createRichMenu(
       registerRichMenu,
       path.resolve(__dirname, '../public/images/richmenus/Register.jpeg'),
     );
 
     console.log('Creating general rich menu...');
-    richMenuIds.general = await createRichMenu(
+    const generalRichMenuId = await createRichMenu(
       generalRichMenu,
       path.resolve(__dirname, '../public/images/richmenus/General.jpeg'),
     );
 
     console.log('Creating admin menu 1...');
-    richMenuIds.admin1 = await createRichMenu(
+    const adminRichMenu1Id = await createRichMenu(
       adminRichMenu1,
       path.resolve(__dirname, '../public/images/richmenus/Admin1.jpeg'),
     );
 
     console.log('Creating admin menu 2...');
-    richMenuIds.admin2 = await createRichMenu(
+    const adminRichMenu2Id = await createRichMenu(
       adminRichMenu2,
       path.resolve(__dirname, '../public/images/richmenus/Admin2.jpeg'),
     );
 
     console.log('Creating manager rich menu...');
-    richMenuIds.manager = await createRichMenu(
+    const managerRichMenuId = await createRichMenu(
       managerRichMenu,
       path.resolve(__dirname, '../public/images/richmenus/Manager.jpeg'),
     );
 
     console.log('Creating driver rich menu...');
-    richMenuIds.driver = await createRichMenu(
+    const driverRichMenuId = await createRichMenu(
       driverRichMenu,
       path.resolve(__dirname, '../public/images/richmenus/Driver.jpeg'),
     );
 
-    // Create aliases for admin menus with error handling
-    try {
-      console.log('Creating alias for admin menu 1...');
-      await client
-        .createRichMenuAlias(richMenuIds.admin1, 'admin-menu-1')
-        .catch(async (error) => {
-          if (error.response?.status === 400) {
-            // If alias exists, try to delete and recreate
-            console.log('Alias admin-menu-1 might exist, trying to delete...');
-            await client.deleteRichMenuAlias('admin-menu-1').catch(() => {});
-            await client.createRichMenuAlias(
-              richMenuIds.admin1,
-              'admin-menu-1',
-            );
-          } else {
-            throw error;
-          }
-        });
+    // Handle alias creation with better error handling
+    console.log('Setting up rich menu aliases...');
 
-      console.log('Creating alias for admin menu 2...');
-      await client
-        .createRichMenuAlias(richMenuIds.admin2, 'admin-menu-2')
-        .catch(async (error) => {
-          if (error.response?.status === 400) {
-            // If alias exists, try to delete and recreate
-            console.log('Alias admin-menu-2 might exist, trying to delete...');
-            await client.deleteRichMenuAlias('admin-menu-2').catch(() => {});
-            await client.createRichMenuAlias(
-              richMenuIds.admin2,
-              'admin-menu-2',
-            );
-          } else {
-            throw error;
-          }
-        });
-    } catch (aliasError: any) {
-      console.error('Error creating aliases:', aliasError.message);
-      console.error('Continuing with rich menu IDs...');
+    // Function to handle alias creation/update
+    const setupAlias = async (richMenuId: string, aliasId: string) => {
+      try {
+        // First try to delete existing alias if it exists
+        try {
+          console.log(`Checking for existing alias: ${aliasId}`);
+          await client.deleteRichMenuAlias(aliasId);
+          console.log(`Deleted existing alias: ${aliasId}`);
+        } catch (deleteError) {
+          // Ignore delete errors - alias might not exist
+          console.log(`No existing alias found for: ${aliasId}`);
+        }
+
+        // Create new alias
+        console.log(`Creating new alias: ${aliasId} for menu: ${richMenuId}`);
+        await client.createRichMenuAlias(richMenuId, aliasId);
+        console.log(`Successfully created alias: ${aliasId}`);
+      } catch (error: any) {
+        console.error(
+          `Error handling alias ${aliasId}:`,
+          error.response?.data || error.message,
+        );
+        throw error;
+      }
+    };
+
+    // Set up aliases with delay between requests
+    try {
+      await setupAlias(adminRichMenu1Id, 'admin-menu-1');
+      // Add small delay between requests
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await setupAlias(adminRichMenu2Id, 'admin-menu-2');
+    } catch (aliasError) {
+      console.error('Error in alias setup:', aliasError);
+      console.log('Continuing without aliases...');
     }
 
-    // Log all created rich menu IDs
+    // Log success
     console.log('Successfully created rich menus. IDs:', {
-      registerRichMenuId: richMenuIds.register,
-      generalRichMenuId: richMenuIds.general,
-      adminRichMenu1Id: richMenuIds.admin1,
-      adminRichMenu2Id: richMenuIds.admin2,
-      managerRichMenuId: richMenuIds.manager,
-      driverRichMenuId: richMenuIds.driver,
+      registerRichMenuId,
+      generalRichMenuId,
+      adminRichMenu1Id,
+      adminRichMenu2Id,
+      managerRichMenuId,
+      driverRichMenuId,
     });
 
-    // Save IDs to a file for reference
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const idsFilePath = path.resolve(
-      __dirname,
-      `../richmenu-ids-${timestamp}.json`,
-    );
-    fs.writeFileSync(idsFilePath, JSON.stringify(richMenuIds, null, 2));
-    console.log(`Rich menu IDs saved to ${idsFilePath}`);
+    // Try to get and display current aliases
+    try {
+      const aliases = await client.getRichMenuAliasList();
+      console.log('Current rich menu aliases:', aliases);
+    } catch (error: any) {
+      console.log('Could not fetch current aliases:', error.message);
+    }
   } catch (error: any) {
     console.error('Error in main function:', error.message);
     if (error.response) {
