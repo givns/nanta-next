@@ -11,7 +11,6 @@ const ContentSecurityPolicy = `
   connect-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.line-scdn.net https://*.line.me https://tfhub.dev https://www.kaggle.com https://nanta-next.vercel.app https://api.line.me;
   frame-src 'self' https://www.google.com;
   object-src 'none';
-  prefetch-src 'self';
 `;
 
 const securityHeaders = [

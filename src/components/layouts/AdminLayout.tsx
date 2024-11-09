@@ -80,6 +80,12 @@ interface RouteTabs {
   [key: string]: RouteTab[];
 }
 
+interface Environment {
+  isDesktop: boolean;
+  isLiffBrowser: boolean;
+  isMounted: boolean;
+}
+
 const routeTabs: RouteTabs = {
   '/admin/attendance': [
     { value: 'daily', label: 'Daily Records', href: '/admin/attendance/daily' },
@@ -109,37 +115,51 @@ const routeTabs: RouteTabs = {
   ],
 };
 
+function useEnvironment() {
+  const [environment, setEnvironment] = useState({
+    isDesktop: false,
+    isLiffBrowser: true,
+    isMounted: false,
+  });
+
+  useEffect(() => {
+    function checkEnvironment() {
+      const isLiff =
+        window.location.href.includes('liff.line.me') ||
+        /Line/i.test(window.navigator.userAgent) ||
+        Boolean((window as any).liff?.isInClient?.());
+
+      const isDesktop = window.innerWidth >= 1024;
+
+      setEnvironment({
+        isDesktop,
+        isLiffBrowser: isLiff,
+        isMounted: true,
+      });
+
+      console.log('Environment Check:', {
+        isDesktop,
+        isLiff,
+        width: window.innerWidth,
+        url: window.location.href,
+        userAgent: window.navigator.userAgent,
+      });
+    }
+
+    checkEnvironment();
+    window.addEventListener('resize', checkEnvironment);
+    return () => window.removeEventListener('resize', checkEnvironment);
+  }, []);
+
+  return environment;
+}
+
 function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
-  const [displayState, setDisplayState] = useState({
-    isDesktop: false,
-    isLiffBrowser: true,
-  });
+  const env = useEnvironment();
 
-  // Use a single effect for environment detection
-  useEffect(() => {
-    function handleResize() {
-      setDisplayState({
-        isDesktop: window.innerWidth >= 1024,
-        isLiffBrowser:
-          window.location.href.includes('liff.line.me') ||
-          /Line/i.test(window.navigator.userAgent),
-      });
-    }
-
-    // Initial check
-    handleResize();
-
-    // Add resize listener
-    window.addEventListener('resize', handleResize);
-
-    // Cleanup
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Memoize path-related values
   const currentPath = router.pathname;
   const baseRoute = `/${currentPath.split('/').slice(1, 3).join('/')}`;
   const currentTabs = routeTabs[baseRoute];
@@ -182,12 +202,25 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
     );
   }
 
-  const showNavigation = displayState.isDesktop && !displayState.isLiffBrowser;
+  // Show navigation on desktop non-LIFF browsers
+  const showNavigation = env.isMounted && env.isDesktop && !env.isLiffBrowser;
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Debug overlay in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-0 right-0 bg-black/75 text-white p-2 z-50 text-xs">
+          Mounted: {String(env.isMounted)}
+          <br />
+          Desktop: {String(env.isDesktop)}
+          <br />
+          LIFF: {String(env.isLiffBrowser)}
+          <br />
+          Show Nav: {String(showNavigation)}
+        </div>
+      )}
       {showNavigation && (
-        <nav className="bg-white shadow-sm sticky top-0 z-50">
+        <nav className="bg-white shadow-sm sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16">
               <div className="flex">
@@ -254,7 +287,10 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
         </nav>
       )}
 
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <main
+        className={`max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 ${showNavigation ? 'mt-16' : ''}`}
+      >
+        {/* Sub-navigation tabs - shown on both desktop and mobile */}
         {currentTabs && (
           <div className="mb-6">
             <Tabs
