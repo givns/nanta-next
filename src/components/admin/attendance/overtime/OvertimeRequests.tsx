@@ -39,7 +39,7 @@ interface OvertimeRequest {
   date: Date;
   startTime: string;
   endTime: string;
-  duration: number;
+  durationMinutes: number;
   reason: string;
   status: 'pending_response' | 'approved' | 'rejected';
   isDayOffOvertime: boolean;
@@ -79,7 +79,8 @@ export default function OvertimeRequests() {
             <Clock className="h-4 w-4 mr-2" />
             <span>
               {format(new Date(request.date), 'dd MMM yyyy', { locale: th })} |{' '}
-              {request.startTime} - {request.endTime} ({request.duration}h)
+              {request.startTime} - {request.endTime} ({request.durationMinutes}
+              h)
             </span>
           </div>
 
@@ -181,7 +182,7 @@ export default function OvertimeRequests() {
                 <TableCell>
                   {request.startTime} - {request.endTime}
                   <div className="text-sm text-gray-500">
-                    {request.duration}h
+                    {request.durationMinutes}h
                   </div>
                 </TableCell>
                 <TableCell>
@@ -358,7 +359,7 @@ export default function OvertimeRequests() {
                     <p className="mt-1">
                       {selectedRequest.startTime} - {selectedRequest.endTime}
                       <span className="text-sm text-gray-500 ml-2">
-                        ({selectedRequest.duration}h)
+                        ({selectedRequest.durationMinutes}h)
                       </span>
                     </p>
                   </div>

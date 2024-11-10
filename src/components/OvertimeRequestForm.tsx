@@ -101,6 +101,10 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
           details: values.reasonDetails[index]?.reason || '',
         }),
       );
+      const durationMinutes = calculateDuration(
+        values.startTime,
+        values.endTime,
+      );
 
       const requestData = {
         lineUserId,
@@ -111,6 +115,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
         date: values.date,
         startTime: values.startTime,
         endTime: values.endTime,
+        durationMinutes,
         reasons: formattedReasons,
       };
 
@@ -154,6 +159,27 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
     return `${date.getDate()} ${thaiMonths[date.getMonth()]} ${thaiYear}`;
   };
 
+  // Helper function to calculate duration in minutes
+  const calculateDuration = (startTime: string, endTime: string): number => {
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+
+    let durationMinutes =
+      endHour * 60 + endMinute - (startHour * 60 + startMinute);
+    if (durationMinutes < 0) {
+      durationMinutes += 24 * 60; // Add 24 hours if end time is next day
+    }
+
+    return durationMinutes;
+  };
+
+  // Helper function to format duration
+  const formatDuration = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours} ชั่วโมง ${remainingMinutes} นาที`;
+  };
+
   const renderSummary = (values: any) => {
     const selectedEmployees = employees.filter((emp) =>
       values.employeeIds.includes(emp.employeeId),
@@ -167,6 +193,10 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       ...emp,
       isDayOff: isDayOff(emp, overtimeDate),
     }));
+
+    // Calculate duration
+    const durationMinutes = calculateDuration(values.startTime, values.endTime);
+    const durationFormatted = formatDuration(durationMinutes);
 
     return (
       <div className="bg-gray-50 p-4 rounded-lg">
@@ -189,7 +219,8 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
             <strong>วันที่:</strong> {formatThaiDate(values.date)}
           </p>
           <p>
-            <strong>เวลา:</strong> {values.startTime} - {values.endTime}
+            <strong>เวลา:</strong> {values.startTime} - {values.endTime} (
+            {durationFormatted})
           </p>
           <div>
             <strong>เหตุผล:</strong>

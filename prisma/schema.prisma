@@ -182,6 +182,7 @@ model OvertimeRequest {
   date               DateTime
   startTime          String          // Store as HH:mm
   endTime            String          // Store as HH:mm
+  durationMinutes    Int             @default(0)  
   status             String          // 'pending_response', 'pending', 'approved', 'rejected', 'declined_by_employee'
   employeeResponse   String?         // 'accepted', 'declined', or null
   reason             String?

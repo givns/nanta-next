@@ -57,6 +57,7 @@ export interface ApprovedOvertime {
   date: Date;
   startTime: string;
   endTime: string;
+  durationMinutes: number;
   status: OvertimeRequestStatus;
   employeeResponse: string | null;
   reason: string | null;

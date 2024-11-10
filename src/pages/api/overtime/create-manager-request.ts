@@ -13,6 +13,17 @@ const shiftManagementService = new ShiftManagementService(
   holidayService,
 );
 
+interface OvertimeRequestData {
+  lineUserId: string;
+  employeeIds: string[];
+  departmentNames: string[];
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  reasons: { reason: string; details: string }[];
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -28,8 +39,9 @@ export default async function handler(
     date,
     startTime,
     endTime,
+    durationMinutes,
     reasons,
-  } = req.body;
+  } = req.body as OvertimeRequestData;
 
   try {
     const manager = await prisma.user.findUnique({ where: { lineUserId } });
@@ -96,6 +108,7 @@ export default async function handler(
               date: overtimeDate,
               startTime,
               endTime,
+              durationMinutes,
               reason: formattedReason,
               status: 'pending_response',
               approverId: manager.id,
