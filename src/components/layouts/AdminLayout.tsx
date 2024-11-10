@@ -268,7 +268,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
                           ${
                             isCurrentPath(item.href)
                               ? 'bg-gray-100 text-gray-900'
-                              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                              : 'text-gray-500 hover:bg-gray-50 hover:text-indigo-900'
                           }`}
                       >
                         {item.icon}
@@ -285,7 +285,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
                                 className={`block px-4 py-2 text-sm ${
                                   isCurrentPath(subItem.href)
                                     ? 'bg-gray-100 text-gray-900'
-                                    : 'text-gray-700 hover:bg-red-300 hover:text-red-800'
+                                    : 'text-gray-700 hover:bg-grey-50 hover:text-indigo-900'
                                 }`}
                                 role="menuitem"
                               >
