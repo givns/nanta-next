@@ -17,6 +17,10 @@ import { CheckCircle2, XCircle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useEffect, useRef } from 'react';
 
+interface CheckboxRef extends HTMLButtonElement {
+  indeterminate?: boolean;
+}
+
 interface ApprovalRequest {
   id: string;
   type: 'leave' | 'overtime';
@@ -246,11 +250,10 @@ export const OvertimeGroupCard = ({
   const someSelected = groupedRequests.requests.some((r) =>
     selectedRequests.includes(r.id),
   );
-  const checkboxRef = useRef<HTMLButtonElement>(null);
+  const checkboxRef = useRef<CheckboxRef>(null);
 
   useEffect(() => {
     if (checkboxRef.current) {
-      // @ts-ignore - indeterminate exists but TypeScript doesn't know about it
       checkboxRef.current.indeterminate = someSelected && !allSelected;
     }
   }, [someSelected, allSelected]);
@@ -258,10 +261,10 @@ export const OvertimeGroupCard = ({
   return (
     <Card className="mb-4">
       <CardContent className="p-4">
-        {/* ... rest of the card content ... */}
+        {/* Header Info */}
         <div className="flex items-center gap-3">
           <Checkbox
-            ref={checkboxRef}
+            ref={checkboxRef as React.Ref<HTMLButtonElement>}
             checked={allSelected}
             onCheckedChange={(checked) => {
               onSelectRequest(
