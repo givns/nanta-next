@@ -1,5 +1,4 @@
 // components/admin/attendance/components/DesktopView.tsx
-
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -46,69 +45,73 @@ export function DesktopView({
 }: DesktopViewProps) {
   return (
     <div className="hidden md:block">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Employee</TableHead>
-            <TableHead>Department</TableHead>
-            <TableHead>Shift</TableHead>
-            <TableHead>Check In</TableHead>
-            <TableHead>Check Out</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {records.map((record) => (
-            <TableRow
-              key={record.employeeId}
-              className="cursor-pointer hover:bg-gray-50"
-              onClick={() => onRecordSelect(record)}
-            >
-              <TableCell>
-                <div className="font-medium">{record.employeeName}</div>
-                <div className="text-sm text-gray-500">{record.employeeId}</div>
-              </TableCell>
-              <TableCell>{record.departmentName}</TableCell>
-              <TableCell>
-                {record.shift ? (
-                  <div>
-                    <div className="font-medium">{record.shift.name}</div>
-                    <div className="text-sm text-gray-500">
-                      {record.shift.startTime} - {record.shift.endTime}
-                    </div>
-                  </div>
-                ) : (
-                  <span className="text-gray-400">No shift assigned</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <AttendanceTime
-                  time={record.attendance?.regularCheckInTime ?? null}
-                  isLate={record.attendance?.isLateCheckIn}
-                />
-              </TableCell>
-              <TableCell>
-                <AttendanceTime
-                  time={record.attendance?.regularCheckOutTime ?? null}
-                  isLate={record.attendance?.isLateCheckOut}
-                />
-              </TableCell>
-              <TableCell>{getStatusBadge(record)}</TableCell>
-              <TableCell>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="opacity-0 group-hover:opacity-100"
-                  onClick={(e) => onEditRecord(e, record)}
-                >
-                  Edit
-                </Button>
-              </TableCell>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Employee</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead>Shift</TableHead>
+              <TableHead>Check In</TableHead>
+              <TableHead>Check Out</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead></TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {records.map((record) => (
+              <TableRow
+                key={record.employeeId}
+                className="cursor-pointer hover:bg-gray-50 group"
+                onClick={() => onRecordSelect(record)}
+              >
+                <TableCell>
+                  <div className="font-medium">{record.employeeName}</div>
+                  <div className="text-sm text-gray-500">
+                    {record.employeeId}
+                  </div>
+                </TableCell>
+                <TableCell>{record.departmentName}</TableCell>
+                <TableCell>
+                  {record.shift ? (
+                    <div>
+                      <div className="font-medium">{record.shift.name}</div>
+                      <div className="text-sm text-gray-500">
+                        {record.shift.startTime} - {record.shift.endTime}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">No shift assigned</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <AttendanceTime
+                    time={record.attendance?.regularCheckInTime}
+                    isLate={record.attendance?.isLateCheckIn}
+                  />
+                </TableCell>
+                <TableCell>
+                  <AttendanceTime
+                    time={record.attendance?.regularCheckOutTime}
+                    isLate={record.attendance?.isLateCheckOut}
+                  />
+                </TableCell>
+                <TableCell>{getStatusBadge(record)}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => onEditRecord(e, record)}
+                  >
+                    Edit
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
       {records.length === 0 && <EmptyState />}
     </div>
