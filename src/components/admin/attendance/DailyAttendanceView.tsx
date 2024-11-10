@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { DailyAttendanceResponse } from '@/types/attendance';
 import { useAttendance } from '@/hooks/useAttendance';
@@ -25,6 +25,11 @@ export default function DailyAttendanceView() {
     startOfDay(new Date()),
   );
 
+  // Initialize filters after mount
+  useEffect(() => {
+    setSelectedDate(startOfDay(new Date()));
+  }, []);
+
   const {
     records,
     filteredRecords,
@@ -36,7 +41,7 @@ export default function DailyAttendanceView() {
     refreshData,
   } = useAttendance({
     lineUserId: user?.lineUserId || null,
-    initialDate: new Date(), // This will be handled by getValidDate
+    initialDate: selectedDate || new Date(), // Use selectedDate with fallback
     initialDepartment: 'all',
     initialSearchTerm: '',
   });
