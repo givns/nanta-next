@@ -12,6 +12,7 @@ import { LoadingState } from './components/LoadingState';
 import { ErrorAlert } from './components/ErrorAlert';
 import { EmployeeDetailDialog } from './EmployeeDetailDialog';
 import { format, isValid, startOfDay } from 'date-fns';
+import { th } from 'date-fns/locale/th';
 
 export default function DailyAttendanceView() {
   const { user } = useAdmin();
@@ -101,46 +102,63 @@ export default function DailyAttendanceView() {
   if (isAdminLoading) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Mobile Summary */}
+      <div className="md:hidden">
+        <SummaryStats summary={summary} />
+      </div>
+
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-0">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <CardTitle>Daily Attendance</CardTitle>
-            <DateSelector date={filters.date} onChange={handleDateChange} />
+            <div className="flex-1 min-w-0">
+              <CardTitle>Daily Attendance</CardTitle>
+              <p className="text-sm text-gray-500 mt-1">
+                {format(filters.date, 'EEEE, d MMMM yyyy', { locale: th })}
+              </p>
+            </div>
+            <div className="w-full sm:w-auto">
+              <DateSelector date={filters.date} onChange={handleDateChange} />
+            </div>
           </div>
         </CardHeader>
 
         <CardContent>
-          <SearchFilters
-            filters={filters}
-            departments={departments}
-            onSearchChange={(term) => setFilters({ searchTerm: term })}
-            onDepartmentChange={(dept) => setFilters({ department: dept })}
-          />
+          <div className="space-y-6">
+            {/* Desktop Summary */}
+            <div className="hidden md:block">
+              <SummaryStats summary={summary} />
+            </div>
 
-          <SummaryStats summary={summary} />
+            <SearchFilters
+              filters={filters}
+              departments={departments}
+              onSearchChange={(term) => setFilters({ searchTerm: term })}
+              onDepartmentChange={(dept) => setFilters({ department: dept })}
+            />
 
-          {isLoading ? (
-            <LoadingState />
-          ) : error ? (
-            <ErrorAlert error={error} onRetry={refreshData} />
-          ) : (
-            <>
-              <div className="hidden md:block">
-                <DesktopView
-                  records={processedRecords}
-                  onRecordSelect={handleRecordSelect}
-                  onEditRecord={handleEditRecord}
-                />
-              </div>
-              <div className="md:hidden">
-                <MobileView
-                  records={processedRecords}
-                  onRecordSelect={handleRecordSelect}
-                />
-              </div>
-            </>
-          )}
+            {isLoading ? (
+              <LoadingState />
+            ) : error ? (
+              <ErrorAlert error={error} onRetry={refreshData} />
+            ) : (
+              <>
+                <div className="hidden md:block">
+                  <DesktopView
+                    records={processedRecords}
+                    onRecordSelect={handleRecordSelect}
+                    onEditRecord={handleEditRecord}
+                  />
+                </div>
+                <div className="md:hidden">
+                  <MobileView
+                    records={processedRecords}
+                    onRecordSelect={handleRecordSelect}
+                  />
+                </div>
+              </>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -149,7 +167,7 @@ export default function DailyAttendanceView() {
           open={showEmployeeDetail}
           onOpenChange={setShowEmployeeDetail}
           employeeId={selectedEmployee}
-          date={new Date(filters.date)} // Convert filters.date to a Date object
+          date={new Date(filters.date)}
         />
       )}
     </div>

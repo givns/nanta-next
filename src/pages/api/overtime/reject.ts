@@ -12,8 +12,15 @@ const prisma = new PrismaClient();
 const notificationService = createNotificationService(prisma);
 const holidayService = new HolidayService(prisma);
 const shiftService = new ShiftManagementService(prisma, holidayService);
-const leaveServiceServer = createLeaveServiceServer(prisma, notificationService);
-const timeEntryService = new TimeEntryService(prisma, shiftService, notificationService);
+const leaveServiceServer = createLeaveServiceServer(
+  prisma,
+  notificationService,
+);
+const timeEntryService = new TimeEntryService(
+  prisma,
+  shiftService,
+  notificationService,
+);
 
 const overtimeService = new OvertimeServiceServer(
   prisma,
@@ -21,10 +28,13 @@ const overtimeService = new OvertimeServiceServer(
   leaveServiceServer,
   shiftService,
   timeEntryService,
-  notificationService
+  notificationService,
 );
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -37,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const user = await prisma.user.findUnique({
-      where: { lineUserId }
+      where: { lineUserId },
     });
 
     if (!user) {
@@ -48,13 +58,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await overtimeService.rejectOvertimeRequest(requestId, rejectedBy);
 
     return res.status(200).json({
-      message: 'Overtime request rejected successfully'
+      message: 'Overtime request rejected successfully',
     });
   } catch (error) {
     console.error('Error rejecting overtime request:', error);
     return res.status(500).json({
       message: 'Failed to reject overtime request',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 }
