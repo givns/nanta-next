@@ -129,7 +129,14 @@ function useEnvironment() {
         /Line/i.test(window.navigator.userAgent) ||
         Boolean((window as any).liff?.isInClient?.());
 
-      const isDesktop = window.innerWidth >= 1024;
+      // Improved desktop detection
+      const isMobileUserAgent =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          window.navigator.userAgent,
+        );
+
+      // Consider desktop if not a mobile device, regardless of window size
+      const isDesktop = !isMobileUserAgent;
 
       setEnvironment({
         isDesktop,
@@ -140,6 +147,7 @@ function useEnvironment() {
       console.log('Environment Check:', {
         isDesktop,
         isLiff,
+        isMobileDevice: isMobileUserAgent,
         width: window.innerWidth,
         url: window.location.href,
         userAgent: window.navigator.userAgent,
@@ -202,23 +210,40 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
     );
   }
 
-  // Show navigation on desktop non-LIFF browsers
+  // Show navigation on desktop browsers (not in LIFF)
   const showNavigation = env.isMounted && env.isDesktop && !env.isLiffBrowser;
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Debug overlay in development */}
+      {/* Enhanced debug overlay */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-0 right-0 bg-black/75 text-white p-2 z-50 text-xs">
           Mounted: {String(env.isMounted)}
           <br />
-          Desktop: {String(env.isDesktop)}
+          Desktop Browser: {String(env.isDesktop)}
           <br />
-          LIFF: {String(env.isLiffBrowser)}
+          LIFF Environment: {String(env.isLiffBrowser)}
           <br />
-          Show Nav: {String(showNavigation)}
+          Show Navigation: {String(showNavigation)}
+          <br />
+          Window Width:{' '}
+          {typeof window !== 'undefined' ? window.innerWidth : 'SSR'}
+          <br />
+          {typeof window !== 'undefined' && (
+            <>
+              Mobile Device:{' '}
+              {String(
+                /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+                  window.navigator.userAgent,
+                ),
+              )}
+              <br />
+              User Agent: {window.navigator.userAgent.slice(0, 50)}...
+            </>
+          )}
         </div>
       )}
+
       {showNavigation && (
         <nav className="bg-white shadow-sm sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -260,7 +285,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
                                 className={`block px-4 py-2 text-sm ${
                                   isCurrentPath(subItem.href)
                                     ? 'bg-gray-100 text-gray-900'
-                                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                                    : 'text-gray-700 hover:bg-red-300 hover:text-red-800'
                                 }`}
                                 role="menuitem"
                               >
