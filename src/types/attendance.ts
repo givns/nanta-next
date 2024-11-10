@@ -6,10 +6,11 @@ import {
   OvertimeEntry,
   TimeEntry,
   Prisma,
+  OvertimeRequest,
 } from '@prisma/client';
 import { UserData } from './user';
 
-export type { Attendance, ShiftAdjustmentRequest, OvertimeEntry, TimeEntry };
+export type { Attendance, ShiftAdjustmentRequest, OvertimeEntry, TimeEntry, OvertimeRequest };
 
 // Location Interface
 export interface Location {

@@ -718,6 +718,58 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     }
   }
 
+async rejectOvertimeRequest(
+  requestId: string,
+  rejectedBy: string,
+): Promise<OvertimeRequest> {
+  const request = await this.prisma.overtimeRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          employeeId: true,
+          lineUserId: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!request) {
+    throw new Error('Overtime request not found');
+  }
+
+  const rejectedRequest = await this.prisma.overtimeRequest.update({
+    where: { id: requestId },
+    data: {
+      status: 'rejected',
+      approverId: rejectedBy,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          employeeId: true,
+          lineUserId: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  // Send notification to employee
+  if (request.user.lineUserId) {
+    await this.notificationService.sendOvertimeResponseNotification(
+      request.user.employeeId,
+      request.user.lineUserId,
+      rejectedRequest
+    );
+  }
+
+  return rejectedRequest;
+}
+
   async calculateOvertimeHours(
     startTime: string,
     endTime: string,

@@ -19,14 +19,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import {
@@ -39,6 +32,14 @@ import {
 } from 'lucide-react';
 import { toast, useToast } from '@/components/ui/use-toast';
 import PendingSummary from './PendingSummary';
+import {
+  LeaveRequestCard,
+  LeaveRequestTable,
+} from './tables/LeaveRequestTable';
+import {
+  OvertimeGroupCard,
+  OvertimeRequestTable,
+} from './tables/OvertimeRequestTable';
 
 interface ApprovalRequest {
   id: string;
@@ -66,78 +67,6 @@ function formatDuration(minutes: number): string {
   const remainingMinutes = minutes % 60;
   return `${hours}h${remainingMinutes > 0 ? ` ${remainingMinutes}m` : ''}`;
 }
-
-// RequestCard component for mobile view
-const RequestCard = ({
-  request,
-  onApprove,
-  onReject,
-  onSelect,
-}: {
-  request: ApprovalRequest;
-  onApprove: () => void;
-  onReject: () => void;
-  onSelect: () => void;
-}) => (
-  <Card className="mb-4 md:hidden">
-    <CardContent className="p-4">
-      <div className="flex justify-between items-start">
-        <div>
-          <div className="font-medium">{request.employeeName}</div>
-          <div className="text-sm text-gray-500">{request.department}</div>
-        </div>
-        <Badge variant={request.type === 'leave' ? 'default' : 'secondary'}>
-          {request.type === 'leave' ? 'Leave' : 'Overtime'}
-        </Badge>
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {request.type === 'overtime' ? (
-          <div className="flex items-center text-sm">
-            <Clock className="h-4 w-4 mr-2" />
-            <span>
-              {request.details.startTime} - {request.details.endTime}
-              {request.details.durationMinutes && (
-                <span className="text-gray-500 ml-2">
-                  ({formatDuration(request.details.durationMinutes)})
-                </span>
-              )}
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-center text-sm">
-            <Calendar className="h-4 w-4 mr-2" />
-            <span>
-              {format(new Date(request.details.startDate!), 'dd MMM yyyy')} -{' '}
-              {format(new Date(request.details.endDate!), 'dd MMM yyyy')}
-            </span>
-          </div>
-        )}
-
-        <div className="text-sm text-gray-600 mt-2">
-          <p className="font-medium">Reason:</p>
-          <p>{request.details.reason}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <Button size="sm" className="flex-1" onClick={onApprove}>
-          <CheckCircle2 className="h-4 w-4 mr-1" />
-          Approve
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          onClick={onReject}
-        >
-          <XCircle className="h-4 w-4 mr-1" />
-          Reject
-        </Button>
-      </div>
-    </CardContent>
-  </Card>
-);
 
 export default function ApprovalDashboard() {
   const { user } = useAdmin();
@@ -179,16 +108,51 @@ export default function ApprovalDashboard() {
     }
   };
 
+  // Filter requests based on type and search term
+  const filteredRequests = requests.filter((request) => {
+    const matchesType = filterType === 'all' || request.type === filterType;
+    const matchesSearch =
+      searchTerm === '' ||
+      request.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.department.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesType && matchesSearch;
+  });
+
+  const groupOvertimeRequests = (requests: ApprovalRequest[]) => {
+    return requests.reduce(
+      (groups, request) => {
+        const key = `${request.requestDate}_${request.details.startTime}_${request.details.endTime}`;
+        if (!groups[key]) {
+          groups[key] = {
+            date: request.requestDate,
+            startTime: request.details.startTime,
+            endTime: request.details.endTime,
+            durationMinutes: request.details.durationMinutes,
+            reason: request.details.reason,
+            isDayOffOvertime: request.isUrgent,
+            requests: [],
+          };
+        }
+        groups[key].requests.push(request);
+        return groups;
+      },
+      {} as Record<string, any>,
+    );
+  };
+
   const handleApprove = async (
-    requestIds: string[],
+    requestIds: string | string[],
     type: 'leave' | 'overtime',
   ) => {
     try {
       setIsProcessing(true);
+      // Convert single requestId to array if needed
+      const ids = Array.isArray(requestIds) ? requestIds : [requestIds];
+
       const endpoint =
         type === 'overtime'
-          ? '/api/admin/attendance/overtime/approve'
-          : '/api/admin/leaves/approve';
+          ? '/api//overtime/batch-approve'
+          : '/api/leaves/approve';
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -197,7 +161,7 @@ export default function ApprovalDashboard() {
           'x-line-userid': user?.lineUserId || '',
         },
         body: JSON.stringify({
-          requestIds,
+          requestIds: ids,
           approvedBy: user?.employeeId,
           lineUserId: user?.lineUserId,
         }),
@@ -208,10 +172,10 @@ export default function ApprovalDashboard() {
       }
 
       await fetchRequests();
-      setSelectedRequests([]);
+      setSelectedRequests([]); // Clear selections if any
       toast({
         title: 'Success',
-        description: `${requestIds.length} ${type} request(s) approved successfully`,
+        description: `${ids.length > 1 ? `${ids.length} requests` : 'Request'} approved successfully`,
       });
     } catch (error) {
       toast({
@@ -232,9 +196,7 @@ export default function ApprovalDashboard() {
     try {
       setIsProcessing(true);
       const endpoint =
-        type === 'overtime'
-          ? '/api/admin/attendance/overtime/reject'
-          : '/api/admin/leaves/reject';
+        type === 'overtime' ? '/api/overtime/reject' : '/api/leaves/reject';
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -253,7 +215,7 @@ export default function ApprovalDashboard() {
         throw new Error(`Failed to reject ${type} request`);
       }
 
-      await fetchRequests();
+      await fetchRequests(); // Refresh the list
       toast({
         title: 'Success',
         description: `${type} request rejected successfully`,
@@ -269,16 +231,6 @@ export default function ApprovalDashboard() {
       setIsProcessing(false);
     }
   };
-
-  // Filter requests based on type and search term
-  const filteredRequests = requests.filter((request) => {
-    const matchesType = filterType === 'all' || request.type === filterType;
-    const matchesSearch =
-      searchTerm === '' ||
-      request.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.department.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesType && matchesSearch;
-  });
 
   const RequestDetailsDialog = () => {
     if (!selectedRequest) return null;
@@ -415,109 +367,6 @@ export default function ApprovalDashboard() {
     );
   };
 
-  // Desktop table view with formatted duration
-  const RequestsTable = () => (
-    <div className="hidden md:block overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Employee</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Request</TableHead>
-            <TableHead>Date/Time</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredRequests.map((request) => (
-            <TableRow key={request.id}>
-              <TableCell>
-                <div>
-                  <div className="font-medium">{request.employeeName}</div>
-                  <div className="text-sm text-gray-500">
-                    {request.department}
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant={request.type === 'leave' ? 'default' : 'secondary'}
-                >
-                  {request.type === 'leave'
-                    ? 'Leave Request'
-                    : 'Overtime Request'}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {request.type === 'leave' ? (
-                  <div>
-                    <span className="font-medium">
-                      {request.details.leaveType}
-                    </span>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {request.details.reason}
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <span className="font-medium">
-                      {request.details.durationMinutes &&
-                        formatDuration(request.details.durationMinutes)}
-                    </span>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {request.details.reason}
-                    </p>
-                  </div>
-                )}
-              </TableCell>
-              <TableCell>
-                {request.type === 'leave' ? (
-                  <span>
-                    {format(new Date(request.details.startDate!), 'dd MMM')} -{' '}
-                    {format(new Date(request.details.endDate!), 'dd MMM')}
-                  </span>
-                ) : (
-                  <span>
-                    {request.details.startTime} - {request.details.endTime}
-                  </span>
-                )}
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => handleApprove([request.id], request.type)}
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-1" />
-                    Approve
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleReject(request.id, request.type)}
-                  >
-                    <XCircle className="h-4 w-4 mr-1" />
-                    Reject
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedRequest(request);
-                      setShowDetailsDialog(true);
-                    }}
-                  >
-                    Details
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Integrated Summary */}
@@ -578,22 +427,88 @@ export default function ApprovalDashboard() {
 
           {/* Mobile View */}
           <div className="md:hidden">
-            {filteredRequests.map((request) => (
-              <RequestCard
-                key={request.id}
-                request={request}
-                onApprove={() => handleApprove([request.id], request.type)}
-                onReject={() => handleReject(request.id, request.type)}
-                onSelect={() => {
-                  setSelectedRequest(request);
-                  setShowDetailsDialog(true);
-                }}
-              />
-            ))}
+            {filterType !== 'overtime' &&
+              filteredRequests
+                .filter((r) => r.type === 'leave')
+                .map((request) => (
+                  <LeaveRequestCard
+                    key={request.id}
+                    request={request}
+                    onApprove={() => handleApprove([request.id], 'leave')}
+                    onReject={() => handleReject(request.id, 'leave')}
+                    isSelected={selectedRequests.includes(request.id)}
+                    onSelect={(selected) => {
+                      if (selected) {
+                        setSelectedRequests((prev) => [...prev, request.id]);
+                      } else {
+                        setSelectedRequests((prev) =>
+                          prev.filter((id) => id !== request.id),
+                        );
+                      }
+                    }}
+                    isProcessing={isProcessing}
+                  />
+                ))}
+
+            {filterType !== 'leave' &&
+              Object.entries(
+                groupOvertimeRequests(
+                  filteredRequests.filter((r) => r.type === 'overtime'),
+                ),
+              ).map(([key, group]) => (
+                <OvertimeGroupCard
+                  key={key}
+                  groupedRequests={group}
+                  onApprove={(ids) => handleApprove(ids, 'overtime')}
+                  onReject={(id) => handleReject(id, 'overtime')}
+                  selectedRequests={selectedRequests}
+                  onSelectRequest={(ids, selected) => {
+                    if (selected) {
+                      setSelectedRequests((prev) => [...prev, ...ids]);
+                    } else {
+                      setSelectedRequests((prev) =>
+                        prev.filter((id) => !ids.includes(id)),
+                      );
+                    }
+                  }}
+                  isProcessing={isProcessing}
+                />
+              ))}
           </div>
 
-          {/* Desktop View */}
-          <RequestsTable />
+          <LeaveRequestTable
+            requests={filteredRequests.filter((r) => r.type === 'leave')}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            isProcessing={isProcessing}
+            selectedRequests={selectedRequests}
+            onSelectRequest={(ids, selected) => {
+              if (selected) {
+                setSelectedRequests((prev) => [...prev, ...ids]);
+              } else {
+                setSelectedRequests((prev) =>
+                  prev.filter((id) => !ids.includes(id)),
+                );
+              }
+            }}
+          />
+
+          <OvertimeRequestTable
+            requests={filteredRequests.filter((r) => r.type === 'overtime')}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            isProcessing={isProcessing}
+            selectedRequests={selectedRequests}
+            onSelectRequest={(ids, selected) => {
+              if (selected) {
+                setSelectedRequests((prev) => [...prev, ...ids]);
+              } else {
+                setSelectedRequests((prev) =>
+                  prev.filter((id) => !ids.includes(id)),
+                );
+              }
+            }}
+          />
 
           {/* Empty State */}
           {filteredRequests.length === 0 && (
