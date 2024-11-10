@@ -1,42 +1,113 @@
 // pages/admin/attendance/daily.tsx
-import React from 'react';
-import { format } from 'date-fns';
+import React, { useState, useEffect } from 'react';
+import { format, startOfDay } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Loading placeholder component
+const LoadingPlaceholder = () => (
+  <Card className="p-6">
+    <div className="space-y-6">
+      {/* Summary Stats Loading */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="bg-gray-100 rounded-lg p-4">
+            <Skeleton className="h-4 w-20 mb-2" />
+            <Skeleton className="h-8 w-16" />
+          </div>
+        ))}
+      </div>
+
+      {/* Filters Loading */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <Skeleton className="h-10 w-[200px]" />
+        <Skeleton className="h-10 flex-1" />
+      </div>
+
+      {/* Table Loading */}
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-full" />
+        {[...Array(5)].map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full" />
+        ))}
+      </div>
+    </div>
+  </Card>
+);
 
 const DailyAttendanceView = dynamic(
   () => import('@/components/admin/attendance/DailyAttendanceView'),
   {
-    loading: () => (
-      <div className="animate-pulse">
-        <div className="h-32 bg-gray-200 rounded-lg mb-4"></div>
-        <div className="space-y-3">
-          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-          <div className="h-4 bg-gray-200 rounded"></div>
-          <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-        </div>
-      </div>
-    ),
+    loading: () => <LoadingPlaceholder />,
+    ssr: false, // Disable SSR to avoid hydration issues
   },
 );
 
 export default function DailyAttendancePage() {
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+
+  // Initialize date after mount to avoid hydration mismatch
+  useEffect(() => {
+    setCurrentDate(startOfDay(new Date()));
+  }, []);
+
+  // Handle export functionality
+  const handleExport = async () => {
+    try {
+      const response = await fetch('/api/admin/attendance/export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          date: currentDate,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance-${format(currentDate || new Date(), 'yyyy-MM-dd')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  if (!currentDate) {
+    return <LoadingPlaceholder />;
+  }
+
   return (
     <div className="space-y-6 p-4 md:p-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Daily Attendance</h1>
           <p className="text-gray-500">
-            {format(new Date(), 'EEEE, d MMMM yyyy', { locale: th })}
+            {format(currentDate, 'EEEE, d MMMM yyyy', { locale: th })}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline">Export Report</Button>
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            className="w-full md:w-auto"
+          >
+            Export Report
+          </Button>
         </div>
       </div>
 
-      <DailyAttendanceView />
+      <DailyAttendanceView key={currentDate.toISOString()} />
     </div>
   );
 }
