@@ -498,7 +498,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       date: overtime.date,
       startTime: overtime.startTime,
       endTime: overtime.endTime,
-      status: status, // Use the properly typed status
+      durationMinutes: overtime.durationMinutes,
+      status: status,
       employeeResponse: overtime.employeeResponse,
       reason: overtime.reason,
       approverId: overtime.approverId,
@@ -617,6 +618,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         date: overtime.date,
         startTime: overtime.startTime,
         endTime: overtime.endTime,
+        durationMinutes: overtime.durationMinutes,
         status: overtime.status as OvertimeRequestStatus,
         employeeResponse: overtime.employeeResponse,
         reason: overtime.reason,
