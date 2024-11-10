@@ -1,33 +1,10 @@
 // pages/api/admin/approvals/index.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { createNotificationService } from '@/services/NotificationService';
-import { format } from 'date-fns';
-import { th } from 'date-fns/locale';
 
 const prisma = new PrismaClient();
 const notificationService = createNotificationService(prisma);
-
-interface ApprovalRequest {
-  id: string;
-  type: 'leave' | 'overtime';
-  employeeId: string;
-  employeeName: string;
-  department: string;
-  requestDate: Date;
-  details: {
-    startDate?: Date;
-    endDate?: Date;
-    startTime?: string;
-    endTime?: string;
-    reason: string;
-    leaveType?: string;
-    duration?: number;
-  };
-  status: 'pending' | 'approved' | 'rejected';
-  isUrgent: boolean;
-}
 
 export default async function handler(
   req: NextApiRequest,
@@ -51,7 +28,7 @@ export default async function handler(
 
     switch (method) {
       case 'GET': {
-        // Get pending leave requests
+        // Get leave requests with status 'pending'
         const leaveRequests = await prisma.leaveRequest.findMany({
           where: {
             status: 'pending',
@@ -66,11 +43,11 @@ export default async function handler(
           },
         });
 
-        // Get overtime requests that are pending admin approval
+        // Get overtime requests where employee has approved (status: pending)
         const overtimeRequests = await prisma.overtimeRequest.findMany({
           where: {
             status: 'pending',
-            employeeResponse: 'approve',
+            employeeResponse: 'approve', // Only get requests approved by employees
           },
           include: {
             user: {
@@ -83,7 +60,7 @@ export default async function handler(
         });
 
         // Transform the requests into a unified format
-        const formattedRequests: ApprovalRequest[] = [
+        const formattedRequests = [
           ...leaveRequests.map((leave) => ({
             id: leave.id,
             type: 'leave' as const,
@@ -97,7 +74,7 @@ export default async function handler(
               reason: leave.reason,
               leaveType: leave.leaveType,
             },
-            status: 'pending' as const, // Update the type of status property
+            status: leave.status,
             isUrgent: leave.resubmitted || false,
           })),
           ...overtimeRequests.map((ot) => ({
@@ -111,9 +88,9 @@ export default async function handler(
               startTime: ot.startTime,
               endTime: ot.endTime,
               reason: ot.reason || '',
-              duration: calculateOvertimeDuration(ot.startTime, ot.endTime),
+              durationMinutes: ot.durationMinutes,
             },
-            status: 'pending' as const, // Update the type of status property
+            status: ot.status,
             isUrgent: ot.isDayOffOvertime,
           })),
         ];
@@ -125,19 +102,4 @@ export default async function handler(
     console.error('Error processing approval request:', error);
     return res.status(500).json({ message: 'Internal server error', error });
   }
-}
-
-function calculateOvertimeDuration(startTime: string, endTime: string): number {
-  const [startHour, startMinute] = startTime.split(':').map(Number);
-  const [endHour, endMinute] = endTime.split(':').map(Number);
-
-  let hours = endHour - startHour;
-  let minutes = endMinute - startMinute;
-
-  if (minutes < 0) {
-    hours -= 1;
-    minutes += 60;
-  }
-
-  return Number((hours + minutes / 60).toFixed(1));
 }
