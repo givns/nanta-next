@@ -31,7 +31,7 @@ export default async function handler(
         // Get leave requests with status 'pending'
         const leaveRequests = await prisma.leaveRequest.findMany({
           where: {
-            status: 'pending',
+            status: 'Pending',
           },
           include: {
             user: {

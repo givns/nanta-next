@@ -30,7 +30,7 @@ export default async function handler(
     // Get pending leave requests
     const pendingLeaves = await prisma.leaveRequest.count({
       where: {
-        status: 'pending',
+        status: 'Pending',
       },
     });
 
@@ -47,7 +47,7 @@ export default async function handler(
       .$transaction([
         prisma.leaveRequest.count({
           where: {
-            status: 'pending',
+            status: 'Pending',
             resubmitted: true,
           },
         }),

@@ -1,7 +1,6 @@
 // pages/admin/approvals/index.tsx
 import React from 'react';
 import ApprovalDashboard from '@/components/admin/approvals/ApprovalDashboard';
-import PendingSummary from '@/components/admin/approvals/PendingSummary';
 
 export default function ApprovalsPage() {
   return (
@@ -12,7 +11,6 @@ export default function ApprovalsPage() {
           Manage all pending approvals and requests
         </p>
       </div>
-      <PendingSummary />
       <ApprovalDashboard />
     </div>
   );

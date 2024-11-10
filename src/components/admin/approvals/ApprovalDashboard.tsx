@@ -38,6 +38,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { toast, useToast } from '@/components/ui/use-toast';
+import PendingSummary from './PendingSummary';
 
 interface ApprovalRequest {
   id: string;
@@ -518,93 +519,99 @@ export default function ApprovalDashboard() {
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <CardTitle>Pending Approvals</CardTitle>
-          {selectedRequests.length > 0 && (
-            <Button
-              onClick={() => {
-                const type = requests.find(
-                  (r) => r.id === selectedRequests[0],
-                )?.type;
-                if (type) {
-                  handleApprove(selectedRequests, type);
-                }
-              }}
-              disabled={isProcessing}
-            >
-              {isProcessing
-                ? 'Processing...'
-                : `Approve Selected (${selectedRequests.length})`}
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        {/* Filters */}
-        <div className="space-y-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder="Request Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Requests</SelectItem>
-                <SelectItem value="leave">Leave Requests</SelectItem>
-                <SelectItem value="overtime">Overtime Requests</SelectItem>
-              </SelectContent>
-            </Select>
+    <div className="space-y-4 md:space-y-6">
+      {/* Integrated Summary */}
+      <PendingSummary />
 
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search employee or department..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+      {/* Main Approval Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle>Pending Approvals</CardTitle>
+            {selectedRequests.length > 0 && (
+              <Button
+                onClick={() => {
+                  const type = requests.find(
+                    (r) => r.id === selectedRequests[0],
+                  )?.type;
+                  if (type) {
+                    handleApprove(selectedRequests, type);
+                  }
+                }}
+                disabled={isProcessing}
+              >
+                {isProcessing
+                  ? 'Processing...'
+                  : `Approve Selected (${selectedRequests.length})`}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Filters */}
+          <div className="space-y-4 mb-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue placeholder="Request Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Requests</SelectItem>
+                  <SelectItem value="leave">Leave Requests</SelectItem>
+                  <SelectItem value="overtime">Overtime Requests</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search employee or department..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Mobile View */}
-        <div className="md:hidden">
-          {filteredRequests.map((request) => (
-            <RequestCard
-              key={request.id}
-              request={request}
-              onApprove={() => handleApprove([request.id], request.type)}
-              onReject={() => handleReject(request.id, request.type)}
-              onSelect={() => {
-                setSelectedRequest(request);
-                setShowDetailsDialog(true);
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Desktop View */}
-        <RequestsTable />
-
-        {/* Details Dialog */}
-        <RequestDetailsDialog />
-
-        {/* Empty State */}
-        {filteredRequests.length === 0 && (
-          <div className="text-center py-12">
-            <ClipboardList className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">
-              No pending requests
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              All requests have been processed
-            </p>
+          {/* Mobile View */}
+          <div className="md:hidden">
+            {filteredRequests.map((request) => (
+              <RequestCard
+                key={request.id}
+                request={request}
+                onApprove={() => handleApprove([request.id], request.type)}
+                onReject={() => handleReject(request.id, request.type)}
+                onSelect={() => {
+                  setSelectedRequest(request);
+                  setShowDetailsDialog(true);
+                }}
+              />
+            ))}
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          {/* Desktop View */}
+          <RequestsTable />
+
+          {/* Empty State */}
+          {filteredRequests.length === 0 && (
+            <div className="text-center py-12">
+              <ClipboardList className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">
+                No pending requests
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                All requests have been processed
+              </p>
+            </div>
+          )}
+
+          {/* Details Dialog */}
+          <RequestDetailsDialog />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
