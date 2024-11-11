@@ -62,8 +62,8 @@ const attendanceService = new AttendanceService(
   timeEntryService,
 );
 
-const PROCESS_TIMEOUT = 30000; // 30 seconds total
-const QUEUE_TIMEOUT = 25000; // 25 seconds for queue processing
+const PROCESS_TIMEOUT = 20000; // 30 seconds total
+const QUEUE_TIMEOUT = 15000; // 25 seconds for queue processing
 
 interface ErrorResponse {
   error: string;
@@ -159,113 +159,111 @@ const checkInOutQueue = new BetterQueue(
 async function processCheckInOut(
   data: QueueTask,
 ): Promise<AttendanceStatusInfo> {
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Processing timeout')), QUEUE_TIMEOUT);
+  });
+
   try {
-    const validatedData = await attendanceSchema.validate(data);
+    // Race between processing and timeout
+    const result = await Promise.race([
+      (async () => {
+        const validatedData = await attendanceSchema.validate(data);
+        const user = validatedData.employeeId
+          ? await prisma.user.findUnique({
+              where: { employeeId: validatedData.employeeId },
+            })
+          : await prisma.user.findUnique({
+              where: { lineUserId: validatedData.lineUserId },
+            });
 
-    const user = validatedData.employeeId
-      ? await prisma.user.findUnique({
-          where: { employeeId: validatedData.employeeId },
-        })
-      : await prisma.user.findUnique({
-          where: { lineUserId: validatedData.lineUserId },
-        });
+        if (!user) throw new Error('User not found');
 
-    if (!user) throw new Error('User not found');
+        const now = getCurrentTime();
+        const checkTime = validatedData.checkTime
+          ? new Date(validatedData.checkTime)
+          : now;
 
-    const now = getCurrentTime();
-    const checkTime = validatedData.checkTime
-      ? new Date(validatedData.checkTime)
-      : now;
-
-    const attendanceData: AttendanceData = {
-      employeeId: user.employeeId,
-      lineUserId: user.lineUserId,
-      isCheckIn: validatedData.isCheckIn,
-      checkTime: checkTime.toISOString(), // Use parsed checkTime
-      location: validatedData.location || '',
-      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
-        validatedData.isCheckIn
-          ? validatedData.checkInAddress || user.departmentName || ''
-          : validatedData.checkOutAddress || user.departmentName || '',
-      reason: validatedData.reason || '',
-      isOvertime: validatedData.isOvertime || false,
-      isLate: validatedData.isLate || false,
-      isEarlyCheckOut: validatedData.isEarlyCheckOut || false,
-      earlyCheckoutType:
-        (validatedData.earlyCheckoutType as EarlyCheckoutType) || undefined,
-      isManualEntry: validatedData.isManualEntry || false,
-    };
-
-    // Process attendance
-    const processedAttendance =
-      await attendanceService.processAttendance(attendanceData);
-    if (!processedAttendance) throw new Error('Failed to process attendance');
-
-    // Get updated status
-    const updatedStatus = await attendanceService.getLatestAttendanceStatus(
-      attendanceData.employeeId,
-    );
-
-    // Fire and forget notifications
-    if (user.lineUserId) {
-      try {
-        // Get the actual check time from the processed attendance record
-        const checkTime = validatedData.isCheckIn
-          ? processedAttendance.regularCheckInTime || now
-          : processedAttendance.regularCheckOutTime || now;
-
-        console.log('Sending notification with check time:', {
-          isCheckIn: validatedData.isCheckIn,
-          checkTime: checkTime.toISOString(),
+        const attendanceData: AttendanceData = {
           employeeId: user.employeeId,
           lineUserId: user.lineUserId,
-        });
+          isCheckIn: validatedData.isCheckIn,
+          checkTime: checkTime.toISOString(), // Use parsed checkTime
+          location: validatedData.location || '',
+          [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
+            validatedData.isCheckIn
+              ? validatedData.checkInAddress || user.departmentName || ''
+              : validatedData.checkOutAddress || user.departmentName || '',
+          reason: validatedData.reason || '',
+          isOvertime: validatedData.isOvertime || false,
+          isLate: validatedData.isLate || false,
+          isEarlyCheckOut: validatedData.isEarlyCheckOut || false,
+          earlyCheckoutType:
+            (validatedData.earlyCheckoutType as EarlyCheckoutType) || undefined,
+          isManualEntry: validatedData.isManualEntry || false,
+        };
 
-        if (validatedData.isCheckIn) {
-          await notificationService.sendCheckInConfirmation(
-            user.employeeId,
-            user.lineUserId,
-            checkTime instanceof Date ? checkTime : new Date(checkTime),
-          );
-          console.log('Check-in notification sent to user:', user.employeeId);
-        } else {
-          await notificationService.sendCheckOutConfirmation(
-            user.employeeId,
-            user.lineUserId,
-            checkTime instanceof Date ? checkTime : new Date(checkTime),
-          );
-          console.log('Check-out notification sent to user:', user.employeeId);
+        // Process attendance
+        const processedAttendance =
+          await attendanceService.processAttendance(attendanceData);
+        if (!processedAttendance)
+          throw new Error('Failed to process attendance');
+
+        // Get updated status
+        const updatedStatus = await attendanceService.getLatestAttendanceStatus(
+          attendanceData.employeeId,
+        );
+
+        // Handle notifications asynchronously
+        if (user.lineUserId) {
+          Promise.resolve().then(async () => {
+            try {
+              // Get the actual check time from the processed attendance record
+              const notificationTime = validatedData.isCheckIn
+                ? processedAttendance.regularCheckInTime
+                : processedAttendance.regularCheckOutTime;
+
+              console.log('Sending notification with check time:', {
+                isCheckIn: validatedData.isCheckIn,
+                checkTime: checkTime.toISOString(),
+                employeeId: user.employeeId,
+                lineUserId: user.lineUserId,
+              });
+
+              if (user.lineUserId) {
+                if (validatedData.isCheckIn) {
+                  await notificationService.sendCheckInConfirmation(
+                    user.employeeId,
+                    user.lineUserId,
+                    notificationTime || now,
+                  );
+                  console.log(
+                    'Check-in notification sent to user:',
+                    user.employeeId,
+                  );
+                } else {
+                  await notificationService.sendCheckOutConfirmation(
+                    user.employeeId,
+                    user.lineUserId,
+                    notificationTime || now,
+                  );
+                  console.log(
+                    'Check-out notification sent to user:',
+                    user.employeeId,
+                  );
+                }
+              }
+            } catch (error) {
+              console.error('Notification error:', error);
+            }
+          });
         }
-      } catch (notificationError) {
-        console.error('Error sending notification:', {
-          employeeId: user.employeeId,
-          error: notificationError,
-          stack:
-            notificationError instanceof Error
-              ? notificationError.stack
-              : undefined,
-        });
-      }
-    }
 
-    // Format times for response
-    if (updatedStatus.latestAttendance) {
-      if (updatedStatus.latestAttendance.checkInTime) {
-        updatedStatus.latestAttendance.checkInTime = formatTime(
-          new Date(updatedStatus.latestAttendance.checkInTime),
-        );
-      }
-      if (updatedStatus.latestAttendance.checkOutTime) {
-        updatedStatus.latestAttendance.checkOutTime = formatTime(
-          new Date(updatedStatus.latestAttendance.checkOutTime),
-        );
-      }
-      updatedStatus.latestAttendance.date = formatDate(
-        new Date(updatedStatus.latestAttendance.date),
-      );
-    }
+        return updatedStatus;
+      })(),
+      timeoutPromise,
+    ]);
 
-    return updatedStatus;
+    return result as AttendanceStatusInfo;
   } catch (error) {
     console.error('Error in processCheckInOut:', error);
     throw error;
@@ -360,128 +358,36 @@ export default async function handler(
     });
   }
 
-  // Set longer timeout
+  // Set a shorter timeout
   res.setTimeout(PROCESS_TIMEOUT);
 
-  const now = getCurrentTime();
-  console.log(
-    `Processing check-in/out at: ${formatDateTime(now, 'yyyy-MM-dd HH:mm:ss')}`,
-  );
-  console.log('Received data:', JSON.stringify(req.body));
-
-  // Validate incoming request data
   try {
-    await attendanceSchema.validate(req.body);
-  } catch (error: any) {
-    console.error('Request validation failed:', error);
-    return res.status(400).json({
-      error: 'Validation Error',
-      message: error.message,
-      details: error.errors,
-    });
-  }
-
-  // Single timeout promise for the entire process
-  const processPromise = new Promise<AttendanceStatusInfo>(
-    (resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error('API timeout'));
-      }, PROCESS_TIMEOUT - 1000);
-
-      checkInOutQueue.push(req.body, (err: Error | null, result: any) => {
-        clearTimeout(timeoutId);
-
-        if (err) {
-          console.error('Queue error:', err);
-          reject(err);
-        } else if (!isAttendanceStatusInfo(result)) {
-          console.error(
-            'Invalid result format:',
-            JSON.stringify(result, null, 2),
-          );
-          reject(new Error('Invalid result format'));
-        } else {
-          resolve(result);
-        }
-      });
-    },
-  );
-
-  try {
-    const result = await processPromise;
-
-    if (!isAttendanceStatusInfo(result)) {
-      const error = new Error('Invalid attendance status format');
-      error.name = 'ValidationError';
-      (error as any).data = result;
-      throw error;
-    }
-
-    // Log success before sending response
-    console.log(
-      'Check-in/out processed successfully for:',
-      req.body.employeeId,
-    );
+    const result = await processCheckInOut(req.body);
 
     return res.status(200).json({
       success: true,
       data: result,
-      timestamp: now.toISOString(),
+      timestamp: getCurrentTime().toISOString(),
     });
   } catch (error: any) {
-    console.error('Detailed error in check-in-out:', {
-      error: error.message,
-      stack: error.stack,
-      data: error.data,
-      name: error.name,
-    });
-
-    let errorResponse: ErrorResponse;
+    console.error('Handler error:', error);
 
     if (
-      error.message === 'API timeout' ||
+      error.message === 'Processing timeout' ||
       error.message === 'Task processing timeout'
     ) {
-      errorResponse = {
+      return res.status(504).json({
         error: 'Gateway Timeout',
         message:
           'Processing took too long. Please check your attendance status.',
-        timestamp: now.toISOString(),
-      };
-      return res.status(504).json(errorResponse);
+        timestamp: getCurrentTime().toISOString(),
+      });
     }
 
-    if (error.name === 'ValidationError') {
-      errorResponse = {
-        error: 'Invalid Response Format',
-        message: 'The server returned an invalid response format',
-        details: error.data ? JSON.stringify(error.data, null, 2) : undefined,
-        timestamp: now.toISOString(),
-      };
-      return res.status(500).json(errorResponse);
-    }
-
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      errorResponse = {
-        error: 'Database Error',
-        message: 'Failed to process request',
-        details: error.message,
-        code: error.code,
-        timestamp: now.toISOString(),
-      };
-      return res.status(500).json(errorResponse);
-    }
-
-    errorResponse = {
+    return res.status(500).json({
       error: 'Internal Server Error',
       message: error.message || 'An unexpected error occurred',
-      details:
-        typeof error === 'object'
-          ? JSON.stringify(error, null, 2)
-          : String(error),
-      timestamp: now.toISOString(),
-    };
-
-    return res.status(500).json(errorResponse);
+      timestamp: getCurrentTime().toISOString(),
+    });
   }
 }

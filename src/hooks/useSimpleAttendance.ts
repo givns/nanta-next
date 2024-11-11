@@ -174,17 +174,58 @@ export const useSimpleAttendance = (
     async (checkInOutData: AttendanceData) => {
       try {
         console.log('Sending check-in/out data:', checkInOutData);
-        const response = await axios.post('/api/check-in-out', {
-          ...checkInOutData,
-          inPremises,
-          address,
-        });
+
+        // Set timeout for the request
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+
+        const response = await axios.post(
+          '/api/check-in-out',
+          {
+            ...checkInOutData,
+            inPremises,
+            address,
+          },
+          {
+            signal: controller.signal,
+            timeout: 25000,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+
+        clearTimeout(timeoutId);
+
         console.log('Check-in/out response:', response.data);
+
+        if (response.data.error) {
+          throw new Error(response.data.message || 'Failed to update status');
+        }
+
         await mutate();
         return response.data;
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error during check-in/out:', error);
-        throw error;
+
+        // Handle specific error cases
+        if (error.code === 'ECONNABORTED' || error.name === 'AbortError') {
+          throw new Error('Request timed out. Please try again.');
+        }
+
+        if (axios.isAxiosError(error)) {
+          if (error.response?.status === 504) {
+            throw new Error(
+              'Request took too long. Please check your attendance status and try again if needed.',
+            );
+          }
+          throw new Error(
+            error.response?.data?.message ||
+              'Failed to update status. Please try again.',
+          );
+        }
+
+        throw new Error(error.message || 'An unexpected error occurred');
       }
     },
     [mutate, inPremises, address],
