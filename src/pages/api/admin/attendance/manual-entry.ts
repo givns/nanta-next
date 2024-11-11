@@ -65,9 +65,10 @@ export default async function handler(
 
     // Check permissions
     if (
-      actionUser.role === 'Admin' &&
-      actionUser.departmentId &&
-      targetEmployee.departmentId !== actionUser.departmentId
+      !['SuperAdmin', 'Admin'].includes(actionUser.role) ||
+      (actionUser.role === 'Admin' &&
+        actionUser.departmentId &&
+        targetEmployee.departmentId !== actionUser.departmentId)
     ) {
       return res.status(403).json({
         success: false,

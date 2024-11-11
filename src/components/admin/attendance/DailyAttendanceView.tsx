@@ -26,6 +26,24 @@ export default function DailyAttendanceView() {
   const [selectedRecord, setSelectedRecord] =
     useState<DailyAttendanceResponse | null>(null);
 
+  // Calculate memoized values first
+  const processedData = useMemo(() => {
+    if (!selectedDate || isAdminLoading || !user?.lineUserId) {
+      return {
+        shouldInitialize: false,
+        date: new Date(),
+      };
+    }
+    return {
+      shouldInitialize:
+        !isAdminLoading &&
+        isInitialized &&
+        !!user?.lineUserId &&
+        !!selectedDate,
+      date: selectedDate,
+    };
+  }, [isAdminLoading, isInitialized, user?.lineUserId, selectedDate]);
+
   // Initialize date from query params or current date
   useEffect(() => {
     if (router.isReady) {
@@ -48,13 +66,6 @@ export default function DailyAttendanceView() {
     }
   }, [router.isReady, router.query]);
 
-  // Only initialize after we have both user and date
-  const shouldInitialize = useMemo(() => {
-    return (
-      !isAdminLoading && isInitialized && !!user?.lineUserId && !!selectedDate
-    );
-  }, [isAdminLoading, isInitialized, user?.lineUserId, selectedDate]);
-
   const {
     records,
     filteredRecords,
@@ -66,7 +77,7 @@ export default function DailyAttendanceView() {
     refreshData,
   } = useAttendance({
     lineUserId: user?.lineUserId || null,
-    initialDate: selectedDate || new Date(),
+    initialDate: processedData.date,
     initialDepartment: 'all',
     initialSearchTerm: '',
   });
@@ -134,6 +145,7 @@ export default function DailyAttendanceView() {
     return <LoadingState />;
   }
 
+  // Calculate summary stats
   const summary = useMemo(
     () => ({
       total: filteredRecords.length,
@@ -151,7 +163,6 @@ export default function DailyAttendanceView() {
 
   return (
     <div className="space-y-4">
-      {/* Mobile Summary */}
       <div className="md:hidden">
         <SummaryStats summary={summary} />
       </div>
@@ -173,25 +184,7 @@ export default function DailyAttendanceView() {
               onDepartmentChange={(dept) => setFilters({ department: dept })}
             />
 
-            <SummaryStats
-              summary={useMemo(
-                () => ({
-                  total: filteredRecords.length,
-                  present: filteredRecords.filter(
-                    (r) => r?.attendance?.regularCheckInTime,
-                  ).length,
-                  absent: filteredRecords.filter(
-                    (r) =>
-                      !r?.attendance?.regularCheckInTime &&
-                      !r?.leaveInfo &&
-                      !r?.isDayOff,
-                  ).length,
-                  onLeave: filteredRecords.filter((r) => r?.leaveInfo).length,
-                  dayOff: filteredRecords.filter((r) => r?.isDayOff).length,
-                }),
-                [filteredRecords],
-              )}
-            />
+            <SummaryStats summary={summary} />
 
             {isDataLoading ? (
               <LoadingState />

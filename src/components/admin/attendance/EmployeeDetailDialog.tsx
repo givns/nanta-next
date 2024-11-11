@@ -88,7 +88,7 @@ export function EmployeeDetailDialog({
         `/api/admin/attendance/time-entries?${params}`,
         {
           headers: {
-            'x-line-userid': user.lineUserId, // Add this header
+            'x-line-userid': user.lineUserId,
           },
         },
       );
@@ -108,7 +108,7 @@ export function EmployeeDetailDialog({
     data: Omit<ManualEntryData, 'employeeId'>,
   ) => {
     try {
-      if (!employeeId) return;
+      if (!employeeId || !user?.lineUserId) return;
 
       const entryData: ManualEntryData = {
         ...data,
@@ -119,6 +119,7 @@ export function EmployeeDetailDialog({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-line-userid': user.lineUserId, // Add this header
         },
         body: JSON.stringify(entryData),
       });
