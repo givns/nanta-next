@@ -345,7 +345,7 @@ export class PayrollCalculationService {
   } {
     const baseHourlyRate = employee.baseSalary
       ? employee.salaryType === 'monthly'
-        ? employee.baseSalary / 176 // Standard monthly hours
+        ? employee.baseSalary / 240 // Standard monthly hours
         : employee.baseSalary
       : 0;
 
