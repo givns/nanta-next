@@ -218,6 +218,8 @@ export interface ProcessedAttendance {
   overtimeInfo?: OvertimeInfo;
   detailedStatus: string;
   attendanceStatusType: AttendanceStatusType;
+  regularCheckInTime?: Date | null;
+  regularCheckOutTime?: Date | null;
 }
 
 // Time Entry Data Interface

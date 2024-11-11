@@ -173,11 +173,15 @@ async function processCheckInOut(
     if (!user) throw new Error('User not found');
 
     const now = getCurrentTime();
+    const checkTime = validatedData.checkTime
+      ? new Date(validatedData.checkTime)
+      : now;
+
     const attendanceData: AttendanceData = {
       employeeId: user.employeeId,
       lineUserId: user.lineUserId,
       isCheckIn: validatedData.isCheckIn,
-      checkTime: (validatedData.checkTime || now).toISOString(),
+      checkTime: checkTime.toISOString(), // Use parsed checkTime
       location: validatedData.location || '',
       [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
         validatedData.isCheckIn
@@ -205,10 +209,10 @@ async function processCheckInOut(
     // Fire and forget notifications
     if (user.lineUserId) {
       try {
-        // Extract check time from processed attendance
+        // Get the actual check time from the processed attendance record
         const checkTime = validatedData.isCheckIn
-          ? processedAttendance.date // Use the processed date for check-in
-          : new Date(validatedData.checkTime || now); // Use provided time for check-out
+          ? processedAttendance.regularCheckInTime || now
+          : processedAttendance.regularCheckOutTime || now;
 
         console.log('Sending notification with check time:', {
           isCheckIn: validatedData.isCheckIn,
@@ -221,14 +225,14 @@ async function processCheckInOut(
           await notificationService.sendCheckInConfirmation(
             user.employeeId,
             user.lineUserId,
-            checkTime,
+            checkTime instanceof Date ? checkTime : new Date(checkTime),
           );
           console.log('Check-in notification sent to user:', user.employeeId);
         } else {
           await notificationService.sendCheckOutConfirmation(
             user.employeeId,
             user.lineUserId,
-            checkTime,
+            checkTime instanceof Date ? checkTime : new Date(checkTime),
           );
           console.log('Check-out notification sent to user:', user.employeeId);
         }
@@ -248,12 +252,12 @@ async function processCheckInOut(
     if (updatedStatus.latestAttendance) {
       if (updatedStatus.latestAttendance.checkInTime) {
         updatedStatus.latestAttendance.checkInTime = formatTime(
-          updatedStatus.latestAttendance.checkInTime,
+          new Date(updatedStatus.latestAttendance.checkInTime),
         );
       }
       if (updatedStatus.latestAttendance.checkOutTime) {
         updatedStatus.latestAttendance.checkOutTime = formatTime(
-          updatedStatus.latestAttendance.checkOutTime,
+          new Date(updatedStatus.latestAttendance.checkOutTime),
         );
       }
       updatedStatus.latestAttendance.date = formatDate(
@@ -262,7 +266,7 @@ async function processCheckInOut(
     }
 
     return updatedStatus;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in processCheckInOut:', error);
     throw error;
   }
