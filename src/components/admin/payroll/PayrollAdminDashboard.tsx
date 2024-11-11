@@ -76,7 +76,7 @@ export default function PayrollAdminDashboard() {
         setState((prev) => ({ ...prev, isLoading: true }));
 
         // lineUserId here is for verifying the admin's identity
-        const response = await fetch('/api/admin/employees/all', {
+        const response = await fetch('/api/admin/employees', {
           headers: {
             'x-line-userid': lineUserId,
           },
