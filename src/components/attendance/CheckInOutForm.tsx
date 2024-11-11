@@ -18,7 +18,7 @@ import SkeletonLoader from '../SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from '../LateReasonModal';
 import ErrorBoundary from '../ErrorBoundary';
-import ActionButton from '../ActionButton';
+import ActionButton from './ActionButton';
 import { getCurrentTime, formatDate } from '../../utils/dateUtils';
 import { format, isSameDay, parseISO, subMinutes } from 'date-fns';
 import CameraFrame from '../CameraFrame';
@@ -80,12 +80,20 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingState, setLoadingState] = useState<{
+    status: 'idle' | 'loading' | 'submitting' | 'error';
+    message: string;
+  }>({
+    status: 'idle',
+    message: '',
+  });
+
   const [isInitialized, setIsInitialized] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
     useState(false);
   const submitTimeout = useRef<NodeJS.Timeout>();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (checkInOutAllowance !== null) {
@@ -137,6 +145,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       if (isSubmitting) return;
 
       try {
+        // Show success state briefly before closing
+        setLoadingState({
+          status: 'idle',
+          message: 'ลงเวลาสำเร็จ',
+        });
+
         const isLate = checkInOutAllowance?.isLateCheckIn || false;
         const isEarlyCheckOut = checkInOutAllowance?.isEarlyCheckOut || false;
         let earlyCheckoutType: EarlyCheckoutType | undefined;
@@ -183,6 +197,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         if (submitTimeoutRef.current) {
           clearTimeout(submitTimeoutRef.current);
         }
+
+        // Show success state briefly before closing
+        setLoadingState({
+          status: 'idle',
+          message: 'ลงเวลาสำเร็จ',
+        });
 
         // Show success state briefly before closing
         setTimeout(() => {
@@ -307,16 +327,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       </div>
     );
   };
-
-  const renderStep3 = useCallback(
-    () => (
-      <div className="flex flex-col items-center justify-center p-4">
-        <SkeletonLoader />
-        <p className="text-lg font-semibold mt-4">ระบบกำลังลงเวลา...</p>
-      </div>
-    ),
-    [],
-  );
 
   // Add monitoring for critical state changes
   useEffect(() => {
@@ -565,6 +575,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         userData={userData}
         attendanceStatus={liveAttendanceStatus}
         effectiveShift={effectiveShift}
+        isLoading={loadingState.status === 'loading'}
       />
     ),
     [userData, liveAttendanceStatus, effectiveShift],
@@ -574,6 +585,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     () => (
       <ActionButton
         isLoading={isAttendanceLoading}
+        loadingMessage={loadingState.message}
         isActionButtonReady={isActionButtonReady}
         checkInOutAllowance={checkInOutAllowance}
         isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
@@ -590,113 +602,104 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     ],
   );
 
-  // CheckInOutForm.tsx
-  const renderStep1 = useMemo(
-    () => (
-      <div className="h-full flex flex-col">
-        {/* Scrollable content area */}
-        <div
-          className="flex-1 overflow-y-auto overscroll-contain"
-          style={{
-            height: 'calc(100vh - var(--header-height) - var(--footer-height))',
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
-          <div className="px-4 py-2">
-            <ErrorBoundary>
+  useEffect(() => {
+    if (isAttendanceLoading) {
+      setLoadingState({
+        status: 'loading',
+        message: 'กำลังตรวจสอบข้อมูลการลงเวลา...',
+      });
+    } else {
+      setLoadingState({
+        status: 'idle',
+        message: '',
+      });
+    }
+  }, [isAttendanceLoading]);
+
+  const renderContent = () => {
+    switch (step) {
+      case 'info':
+        return (
+          <div className="h-full flex flex-col">
+            <div className="flex-1 overflow-y-auto">
               <UserShiftInfo
                 userData={userData}
                 attendanceStatus={liveAttendanceStatus}
                 effectiveShift={effectiveShift}
+                isLoading={loadingState.status === 'loading'}
               />
-            </ErrorBoundary>
-          </div>
-        </div>
-
-        {/* Fixed footer with action button */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
-          <div className="px-4 pt-3">
-            {/* Action button */}
-            <ActionButton
-              isLoading={isAttendanceLoading}
-              isActionButtonReady={isActionButtonReady}
-              checkInOutAllowance={checkInOutAllowance}
-              isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
-              isDayOff={currentAttendanceStatus?.isDayOff ?? false}
-              onAction={handleAction}
-            />
-
-            {/* Countdown - always visible above safe area */}
-            <div className="mt-2 pb-safe text-center text-sm text-gray-600">
-              ท่านมีเวลาในการทำรายการ {timeRemaining} วินาที
+            </div>
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+              <div className="px-4 pt-3">
+                <ActionButton
+                  isLoading={loadingState.status !== 'idle'}
+                  loadingMessage={loadingState.message}
+                  isActionButtonReady={isActionButtonReady}
+                  checkInOutAllowance={checkInOutAllowance}
+                  isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
+                  isDayOff={currentAttendanceStatus?.isDayOff ?? false}
+                  onAction={handleAction}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    ),
-    [memoizedUserShiftInfo, memoizedActionButton, timeRemaining],
-  );
+        );
 
-  const renderStep2 = () => (
-    <div className="fixed inset-0 z-50 bg-black">
-      {isModelLoading ? (
-        <div className="flex-grow flex flex-col items-center justify-center h-full">
-          <SkeletonLoader />
-          <p className="mt-4 text-lg text-white">
-            กำลังโหลดระบบตรวจจับใบหน้า...
-          </p>
-        </div>
-      ) : (
-        <CameraFrame
-          webcamRef={webcamRef}
-          faceDetected={faceDetected}
-          faceDetectionCount={faceDetectionCount}
-          message={message}
-          captureThreshold={captureThreshold}
-        />
-      )}
-    </div>
-  );
+      case 'camera':
+        return (
+          <div className="fixed inset-0 z-50 bg-black">
+            {isModelLoading ? (
+              <div className="flex-grow flex flex-col items-center justify-center h-full">
+                <SkeletonLoader />
+                <p className="mt-4 text-lg text-white">
+                  กำลังโหลดระบบตรวจจับใบหน้า...
+                </p>
+              </div>
+            ) : (
+              <CameraFrame
+                webcamRef={webcamRef}
+                faceDetected={faceDetected}
+                faceDetectionCount={faceDetectionCount}
+                message={message}
+                captureThreshold={captureThreshold}
+              />
+            )}
+          </div>
+        );
+      case 'processing':
+        return (
+          <div className="flex flex-col items-center justify-center p-4">
+            <SkeletonLoader />
+            <p className="text-lg font-semibold mt-4">
+              {loadingState.message || 'กำลังประมวลผล...'}
+            </p>
+            {loadingState.status === 'error' && (
+              <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-md text-center">
+                <p>{loadingState.message}</p>
+                <button
+                  onClick={() => setStep('info')}
+                  className="mt-2 text-sm text-red-500 hover:text-red-700"
+                >
+                  ลองใหม่อีกครั้ง
+                </button>
+              </div>
+            )}
+          </div>
+        );
+    }
+  };
 
-  // Update main content structure
-  const content = (
+  return (
     <ErrorBoundary>
       <div
-        className={`min-h-screen flex flex-col relative ${
-          step === 'camera' ? 'camera-active' : ''
-        }`}
+        className={`min-h-screen flex flex-col relative ${step === 'camera' ? 'camera-active' : ''}`}
       >
-        {isSubmitting && (
-          <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-[60]">
-            <div className="text-black text-lg">กำลังบันทึกข้อมูล...</div>
-          </div>
-        )}
-
-        {/* Different layout for camera step */}
-        {step === 'camera' ? (
-          renderStep2()
-        ) : (
-          <div className="flex-1 relative">
-            {step === 'info' && renderStep1}
-            {step === 'processing' && renderStep3()}
-          </div>
-        )}
-
-        {/* Errors */}
-        {error && (
-          <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-red-50 border-t border-red-100 z-[60]">
-            <p className="text-red-500 text-center" role="alert">
-              {error}
-            </p>
-          </div>
-        )}
-
+        {renderContent()}
         <LateReasonModal
           isOpen={isLateModalOpen}
           onClose={() => {
             setIsLateModalOpen(false);
-            setIsSubmitting(false);
-            setCapturedPhoto(null);
+            setLoadingState({ status: 'idle', message: '' });
           }}
           onSubmit={(lateReason) => {
             if (capturedPhoto) {
@@ -708,8 +711,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       </div>
     </ErrorBoundary>
   );
-
-  return content;
 };
 
 export default React.memo(CheckInOutForm);

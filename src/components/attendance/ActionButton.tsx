@@ -1,8 +1,9 @@
 import React from 'react';
-import { CheckInOutAllowance } from '../types/attendance';
+import { CheckInOutAllowance } from '../../types/attendance';
 
 interface ActionButtonProps {
   isLoading: boolean;
+  loadingMessage: string;
   isActionButtonReady: boolean;
   checkInOutAllowance: CheckInOutAllowance | null;
   isCheckingIn: boolean;
@@ -12,6 +13,7 @@ interface ActionButtonProps {
 
 const ActionButton: React.FC<ActionButtonProps> = ({
   isLoading,
+  loadingMessage,
   isActionButtonReady,
   checkInOutAllowance,
   isCheckingIn,

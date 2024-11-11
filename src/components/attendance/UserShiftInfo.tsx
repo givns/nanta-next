@@ -22,10 +22,11 @@ interface UserShiftInfoProps {
   userData: UserData;
   attendanceStatus: AttendanceStatusInfo | null;
   effectiveShift: ShiftData | null;
+  isLoading: boolean;
 }
 
 const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
-  ({ userData, attendanceStatus, effectiveShift }) => {
+  ({ userData, attendanceStatus, effectiveShift, isLoading }) => {
     const latestAttendance = attendanceStatus?.latestAttendance;
 
     // Move overtime calculation to its own useMemo
@@ -106,6 +107,24 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
       const overtimeDate = parseISO(overtime.date.toString());
       return isValid(overtimeDate) && isToday(overtimeDate);
     }, []);
+
+    const renderLoadingState = () => (
+      <div className="animate-pulse space-y-4">
+        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+        <div className="space-y-3">
+          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+        </div>
+      </div>
+    );
+
+    if (isLoading) {
+      return (
+        <div className="p-4 bg-white rounded-lg shadow">
+          {renderLoadingState()}
+        </div>
+      );
+    }
 
     const renderTodayInfo = useMemo(() => {
       const today = new Date();
