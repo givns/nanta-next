@@ -44,28 +44,6 @@ export default function DailyAttendanceView() {
     };
   }, [isAdminLoading, isInitialized, user?.lineUserId, selectedDate]);
 
-  // Initialize date from query params or current date
-  useEffect(() => {
-    if (router.isReady) {
-      const { date } = router.query;
-      let initialDate: Date;
-
-      if (date && typeof date === 'string') {
-        try {
-          initialDate = parse(date, 'yyyy-MM-dd', new Date());
-          if (!isValid(initialDate)) throw new Error('Invalid date');
-        } catch {
-          initialDate = startOfDay(new Date());
-        }
-      } else {
-        initialDate = startOfDay(new Date());
-      }
-
-      setSelectedDate(initialDate);
-      setIsInitialized(true);
-    }
-  }, [router.isReady, router.query]);
-
   const {
     records,
     filteredRecords,
@@ -82,7 +60,7 @@ export default function DailyAttendanceView() {
     initialSearchTerm: '',
   });
 
-  // Processed records with proper error handling
+  // Process records (moved before early return)
   const processedRecords = useMemo(() => {
     if (!records?.length) return [];
 
@@ -107,6 +85,44 @@ export default function DailyAttendanceView() {
       return [];
     }
   }, [records]);
+
+  // Calculate summary stats (moved before early return)
+  const summary = useMemo(
+    () => ({
+      total: filteredRecords.length,
+      present: filteredRecords.filter((r) => r?.attendance?.regularCheckInTime)
+        .length,
+      absent: filteredRecords.filter(
+        (r) =>
+          !r?.attendance?.regularCheckInTime && !r?.leaveInfo && !r?.isDayOff,
+      ).length,
+      onLeave: filteredRecords.filter((r) => r?.leaveInfo).length,
+      dayOff: filteredRecords.filter((r) => r?.isDayOff).length,
+    }),
+    [filteredRecords],
+  );
+
+  // Initialize date from query params or current date
+  useEffect(() => {
+    if (router.isReady) {
+      const { date } = router.query;
+      let initialDate: Date;
+
+      if (date && typeof date === 'string') {
+        try {
+          initialDate = parse(date, 'yyyy-MM-dd', new Date());
+          if (!isValid(initialDate)) throw new Error('Invalid date');
+        } catch {
+          initialDate = startOfDay(new Date());
+        }
+      } else {
+        initialDate = startOfDay(new Date());
+      }
+
+      setSelectedDate(initialDate);
+      setIsInitialized(true);
+    }
+  }, [router.isReady, router.query]);
 
   // Handle date changes with URL sync
   const handleDateChange = (newDate: Date | undefined) => {
@@ -144,22 +160,6 @@ export default function DailyAttendanceView() {
   if (isAdminLoading || !isInitialized || !selectedDate) {
     return <LoadingState />;
   }
-
-  // Calculate summary stats
-  const summary = useMemo(
-    () => ({
-      total: filteredRecords.length,
-      present: filteredRecords.filter((r) => r?.attendance?.regularCheckInTime)
-        .length,
-      absent: filteredRecords.filter(
-        (r) =>
-          !r?.attendance?.regularCheckInTime && !r?.leaveInfo && !r?.isDayOff,
-      ).length,
-      onLeave: filteredRecords.filter((r) => r?.leaveInfo).length,
-      dayOff: filteredRecords.filter((r) => r?.isDayOff).length,
-    }),
-    [filteredRecords],
-  );
 
   return (
     <div className="space-y-4">
