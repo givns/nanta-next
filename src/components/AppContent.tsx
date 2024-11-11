@@ -4,7 +4,7 @@ import store from '../store';
 import { AdminProvider } from '@/contexts/AdminContext';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import LoadingBar from '@/components/LoadingBar';
-import { useLiff } from '@/contexts/LiffContext'; // Updated import
+import { useLiff } from '@/contexts/LiffContext';
 import { useRouter } from 'next/router';
 
 interface AppContentProps {
@@ -45,7 +45,7 @@ export default function AppContent({
   }
 
   // Handle LIFF pages
-  if (isLiffPage) {
+  if (isLiffPage && !isAdminRoute) {
     if (!isInitialized) {
       return <LoadingBar />;
     }
@@ -68,12 +68,7 @@ export default function AppContent({
       );
     }
 
-    // For other LIFF pages, check if user is registered
-    if (!userData && !isRegisterPage) {
-      router.push('/register');
-      return <LoadingBar />;
-    }
-
+    // For other LIFF pages
     return (
       <Provider store={store}>
         <Component {...pageProps} lineUserId={lineUserId} />
@@ -83,26 +78,25 @@ export default function AppContent({
 
   // Handle admin routes
   if (isAdminRoute) {
-    // Check for both lineUserId and userData to ensure user is registered
-    if (!lineUserId || !userData) {
-      if (!isRegisterPage) {
-        router.replace('/register');
-      }
+    // Check if we have the required user info
+    if (!isInitialized) {
       return <LoadingBar />;
     }
 
-    // Verify admin role
-    if (!['Admin', 'SuperAdmin'].includes(userData.role)) {
-      router.replace('/');
+    if (!lineUserId) {
+      router.replace('/register');
       return <LoadingBar />;
     }
 
+    // Wrap admin routes with both providers
     return (
-      <AdminProvider>
-        <AdminLayout>
-          <Component {...pageProps} />
-        </AdminLayout>
-      </AdminProvider>
+      <Provider store={store}>
+        <AdminProvider>
+          <AdminLayout>
+            <Component {...pageProps} />
+          </AdminLayout>
+        </AdminProvider>
+      </Provider>
     );
   }
 

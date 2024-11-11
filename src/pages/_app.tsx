@@ -43,15 +43,4 @@ function MyApp({ Component, pageProps, router }: AppProps) {
   );
 }
 
-// Add getInitialProps to handle initial data loading if needed
-MyApp.getInitialProps = async ({ Component, ctx }: any) => {
-  let pageProps = {};
-
-  if (Component.getInitialProps) {
-    pageProps = await Component.getInitialProps(ctx);
-  }
-
-  return { pageProps };
-};
-
 export default MyApp;
