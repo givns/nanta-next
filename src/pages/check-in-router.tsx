@@ -12,9 +12,12 @@ import {
 } from '../services/userService';
 import LoadingBar from '../components/LoadingBar';
 
-const CheckInOutForm = dynamic(() => import('../components/CheckInOutForm'), {
-  ssr: false,
-});
+const CheckInOutForm = dynamic(
+  () => import('../components/attendance/CheckInOutForm'),
+  {
+    ssr: false,
+  },
+);
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 

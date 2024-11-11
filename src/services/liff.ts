@@ -1,3 +1,4 @@
+//src/services/liff.ts
 import liff from '@line/liff';
 
 type Profile = {
