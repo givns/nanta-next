@@ -10,34 +10,47 @@ import { LiffProvider } from '@/contexts/LiffContext';
 import { AdminProvider } from '@/contexts/AdminContext';
 import { useLiff } from '@/hooks/useLiff';
 
-// Create a wrapper component that uses LIFF
+// Create a stable wrapper for admin routes
+function AdminWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <AdminProvider>
+      <AdminLayout>{children}</AdminLayout>
+    </AdminProvider>
+  );
+}
+
+// Main app content wrapper
 function AppContent({ Component, pageProps, router }: AppProps) {
   const { isLiffInitialized, lineUserId, error } = useLiff();
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const isAdminRoute = router.pathname.startsWith('/admin');
 
+  // Handle mounting and data loading
   useEffect(() => {
-    const handleError = (error: Error) => {
-      console.error('Caught an error:', error);
-    };
+    setMounted(true);
 
-    window.addEventListener('error', (event) => handleError(event.error));
-
-    if (isLiffInitialized) {
+    // Only start data loading timer after LIFF is initialized
+    if (isLiffInitialized && lineUserId) {
       const timer = setTimeout(() => {
         setIsDataLoaded(true);
       }, 1000);
 
       return () => clearTimeout(timer);
     }
+  }, [isLiffInitialized, lineUserId]);
 
-    return () => {
-      window.removeEventListener('error', (event) => handleError(event.error));
-    };
-  }, [isLiffInitialized]);
+  // Error handling for LIFF
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-red-500">LIFF Error: {error}</div>
+      </div>
+    );
+  }
 
-  // Show loading progress while initializing
-  if (!isDataLoaded) {
+  // Always show LoadingProgress until data is fully loaded
+  if (!mounted || !isDataLoaded) {
     return (
       <LoadingProgress
         isLiffInitialized={isLiffInitialized}
@@ -46,43 +59,36 @@ function AppContent({ Component, pageProps, router }: AppProps) {
     );
   }
 
-  // Error handling for LIFF
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-red-500">Error: {error}</div>
-      </div>
-    );
-  }
-
-  // For admin routes, wrap with AdminProvider and AdminLayout
+  // For admin routes, wrap with AdminLayout
   if (isAdminRoute) {
     return (
-      <AdminProvider>
-        <AdminLayout>
-          <Component {...pageProps} lineUserId={lineUserId} />
-        </AdminLayout>
-      </AdminProvider>
+      <AdminWrapper>
+        <Component {...pageProps} lineUserId={lineUserId} />
+      </AdminWrapper>
     );
   }
 
-  // For all other routes
+  // For regular routes
   return <Component {...pageProps} lineUserId={lineUserId} />;
 }
 
 function MyApp(props: AppProps) {
-  // Handle server-side rendering
+  // For server-side rendering
   if (typeof window === 'undefined') {
-    return <props.Component {...props.pageProps} />;
+    return (
+      <Provider store={store}>
+        <LoadingProgress isLiffInitialized={false} isDataLoaded={false} />
+      </Provider>
+    );
   }
 
   // Client-side rendering with all providers
   return (
-    <LiffProvider>
-      <Provider store={store}>
+    <Provider store={store}>
+      <LiffProvider>
         <AppContent {...props} />
-      </Provider>
-    </LiffProvider>
+      </LiffProvider>
+    </Provider>
   );
 }
 

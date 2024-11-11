@@ -123,7 +123,7 @@ function useEnvironment() {
   });
 
   useEffect(() => {
-    function checkEnvironment() {
+    const checkEnvironment = () => {
       const isLiff =
         window.location.href.includes('liff.line.me') ||
         /Line/i.test(window.navigator.userAgent) ||
@@ -152,7 +152,7 @@ function useEnvironment() {
         url: window.location.href,
         userAgent: window.navigator.userAgent,
       });
-    }
+    };
 
     checkEnvironment();
     window.addEventListener('resize', checkEnvironment);
@@ -165,6 +165,7 @@ function useEnvironment() {
 function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
   const env = useEnvironment();
 
@@ -172,6 +173,20 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const baseRoute = `/${currentPath.split('/').slice(1, 3).join('/')}`;
   const currentTabs = routeTabs[baseRoute];
   const currentTabValue = currentPath.split('/').pop() || '';
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Don't render anything on server
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  // Don't render until mounted
+  if (!mounted) {
+    return null;
+  }
 
   // Helper function for determining current path
   const isCurrentPath = (path: string) => {

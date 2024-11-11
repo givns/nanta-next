@@ -26,8 +26,15 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [liffState, setLiffState] =
     useState<LiffContextType['liffState']>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     const initLiff = async () => {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
@@ -72,9 +79,14 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     };
 
     initLiff();
-  }, []);
+  }, [mounted]);
 
-  if (isLoading) {
+  // Don't show loading on server
+  if (typeof window === 'undefined') {
+    return children;
+  }
+
+  if (!mounted || isLoading) {
     return <LoadingBar />;
   }
 
@@ -86,26 +98,38 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const contextValue: LiffContextType = {
+    lineUserId,
+    isInitialized,
+    error,
+    userData,
+    isLoading,
+    liffState,
+  };
+
   return (
-    <LiffContext.Provider
-      value={{
-        lineUserId,
-        isInitialized,
-        error,
-        userData,
-        isLoading,
-        liffState,
-      }}
-    >
-      {children}
-    </LiffContext.Provider>
+    <LiffContext.Provider value={contextValue}>{children}</LiffContext.Provider>
   );
 }
 
 export function useLiff() {
   const context = useContext(LiffContext);
+
+  // Handle SSR case
+  if (typeof window === 'undefined') {
+    return {
+      lineUserId: null,
+      isInitialized: false,
+      error: null,
+      userData: null,
+      isLoading: true,
+      liffState: null,
+    };
+  }
+
   if (!context) {
     throw new Error('useLiff must be used within LiffProvider');
   }
+
   return context;
 }

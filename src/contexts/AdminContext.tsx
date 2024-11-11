@@ -25,6 +25,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const fetchAdminData = useCallback(async () => {
     if (!lineUserId) return;
@@ -59,17 +60,32 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, [lineUserId]);
 
   useEffect(() => {
-    fetchAdminData();
-  }, [fetchAdminData]);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && lineUserId) {
+      fetchAdminData();
+    }
+  }, [fetchAdminData, mounted, lineUserId]);
 
   // Implement refreshUser function
   const refreshUser = useCallback(async () => {
+    if (!mounted) return;
     setIsLoading(true);
     await fetchAdminData();
-  }, [fetchAdminData]);
+  }, [fetchAdminData, mounted]);
+
+  // SSR safe value
+  const contextValue = {
+    user,
+    isLoading: !mounted || isLoading,
+    error,
+    refreshUser,
+  };
 
   return (
-    <AdminContext.Provider value={{ user, isLoading, error, refreshUser }}>
+    <AdminContext.Provider value={contextValue}>
       {children}
     </AdminContext.Provider>
   );
@@ -77,6 +93,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
 export function useAdmin() {
   const context = useContext(AdminContext);
+
+  // Handle SSR case
   if (typeof window === 'undefined') {
     return {
       user: null,
@@ -85,8 +103,10 @@ export function useAdmin() {
       refreshUser: async () => {},
     };
   }
+
   if (context === undefined) {
     throw new Error('useAdmin must be used within an AdminProvider');
   }
+
   return context;
 }

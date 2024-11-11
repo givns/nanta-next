@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Loading placeholder component
+// Keep your existing LoadingPlaceholder component
 const LoadingPlaceholder = () => (
   <Card className="p-6">
     <div className="space-y-6">
@@ -38,20 +38,22 @@ const LoadingPlaceholder = () => (
   </Card>
 );
 
+// Keep your dynamic import of DailyAttendanceView
 const DailyAttendanceView = dynamic(
   () => import('@/components/admin/attendance/DailyAttendanceView'),
   {
     loading: () => <LoadingPlaceholder />,
-    ssr: false, // Disable SSR to avoid hydration issues
+    ssr: false, // Keep this to avoid hydration issues
   },
 );
 
 export default function DailyAttendancePage() {
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [currentDate, setCurrentDate] = useState(() => startOfDay(new Date()));
 
-  // Initialize date after mount to avoid hydration mismatch
+  // Wait for client-side hydration to complete
   useEffect(() => {
-    setCurrentDate(startOfDay(new Date()));
+    setMounted(true);
   }, []);
 
   // Handle export functionality
@@ -63,7 +65,7 @@ export default function DailyAttendancePage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          date: currentDate,
+          date: currentDate.toISOString(),
         }),
       });
 
@@ -73,7 +75,7 @@ export default function DailyAttendancePage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `attendance-${format(currentDate || new Date(), 'yyyy-MM-dd')}.xlsx`;
+      a.download = `attendance-${format(currentDate, 'yyyy-MM-dd')}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -83,7 +85,8 @@ export default function DailyAttendancePage() {
     }
   };
 
-  if (!currentDate) {
+  // Show loading placeholder until mounted
+  if (!mounted) {
     return <LoadingPlaceholder />;
   }
 
