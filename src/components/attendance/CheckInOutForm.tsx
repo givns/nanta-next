@@ -621,26 +621,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       case 'info':
         return (
           <div className="h-full flex flex-col">
-            <div className="flex-1 overflow-y-auto">
-              <UserShiftInfo
-                userData={userData}
-                attendanceStatus={liveAttendanceStatus}
-                effectiveShift={effectiveShift}
-                isLoading={loadingState.status === 'loading'}
-              />
-            </div>
+            <>{memoizedUserShiftInfo}</>
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
-              <div className="px-4 pt-3">
-                <ActionButton
-                  isLoading={loadingState.status !== 'idle'}
-                  loadingMessage={loadingState.message}
-                  isActionButtonReady={isActionButtonReady}
-                  checkInOutAllowance={checkInOutAllowance}
-                  isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
-                  isDayOff={currentAttendanceStatus?.isDayOff ?? false}
-                  onAction={handleAction}
-                />
-              </div>
+              <div className="px-4 pt-3">{memoizedActionButton}</div>
             </div>
           </div>
         );

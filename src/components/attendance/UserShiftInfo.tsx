@@ -25,8 +25,13 @@ interface UserShiftInfoProps {
   isLoading: boolean;
 }
 
-const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
-  ({ userData, attendanceStatus, effectiveShift, isLoading }) => {
+const UserShiftInfo = React.memo(
+  ({
+    userData,
+    attendanceStatus,
+    effectiveShift,
+    isLoading,
+  }: UserShiftInfoProps) => {
     const latestAttendance = attendanceStatus?.latestAttendance;
 
     // Move overtime calculation to its own useMemo
@@ -48,10 +53,6 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
         `${format(currentTime, 'yyyy-MM-dd')}T${overtime.endTime}`,
       );
 
-      // Show overtime if:
-      // 1. It hasn't started yet
-      // 2. It's currently ongoing
-      // 3. It just ended (within the last hour for display purposes)
       if (
         isBefore(currentTime, overtimeEnd) ||
         (isBefore(currentTime, addHours(overtimeEnd, 1)) &&
@@ -64,14 +65,18 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
     }, [attendanceStatus?.approvedOvertime]);
 
     const getStatusMessage = useMemo(() => {
-      if (attendanceStatus?.isDayOff) {
-        // Distinguish between holiday and regular day off
+      if (!attendanceStatus) {
+        return { message: 'ไม่พบข้อมูล', color: 'gray' };
+      }
+
+      if (attendanceStatus.isDayOff) {
         if (attendanceStatus.holidayInfo) {
           return { message: 'วันหยุดนักขัตฤกษ์', color: 'blue' };
         }
         return { message: 'วันหยุดประจำสัปดาห์', color: 'blue' };
       }
-      if (attendanceStatus?.pendingLeaveRequest) {
+
+      if (attendanceStatus.pendingLeaveRequest) {
         return { message: 'รออนุมัติการลา', color: 'orange' };
       }
 
@@ -94,39 +99,39 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
       }
 
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
-    }, [
-      attendanceStatus?.isDayOff,
-      attendanceStatus?.isHoliday,
-      attendanceStatus?.holidayInfo,
-      attendanceStatus?.pendingLeaveRequest,
-      latestAttendance,
-    ]);
+    }, [attendanceStatus, latestAttendance]);
 
-    const isOvertimeForToday = useCallback((overtime: ApprovedOvertime) => {
-      if (!overtime.date) return false;
-      const overtimeDate = parseISO(overtime.date.toString());
-      return isValid(overtimeDate) && isToday(overtimeDate);
-    }, []);
-
-    const renderLoadingState = () => (
-      <div className="animate-pulse space-y-4">
-        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-        <div className="space-y-3">
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+    const renderUserInfo = useMemo(
+      () => (
+        <div className="bg-white p-6 rounded-lg shadow-md text-center mb-4">
+          <p className="text-2xl font-bold">{userData.name}</p>
+          <p className="text-xl text-gray-600">
+            รหัสพนักงาน: {userData.employeeId}
+          </p>
+          <p className="text-gray-600">แผนก: {userData.departmentName}</p>
+          <div
+            className="mt-4 inline-flex items-center px-3 py-1 rounded-full text-sm"
+            style={{
+              backgroundColor: `rgba(${getStatusMessage.color === 'red' ? '239, 68, 68' : getStatusMessage.color === 'green' ? '34, 197, 94' : '59, 130, 246'}, 0.1)`,
+            }}
+          >
+            <div
+              className={`w-2 h-2 rounded-full bg-${getStatusMessage.color === 'red' ? 'red-500' : getStatusMessage.color === 'green' ? 'green-500' : 'blue-500'} mr-2`}
+            ></div>
+            <span
+              className={`text-${getStatusMessage.color === 'red' ? 'red-700' : getStatusMessage.color === 'green' ? 'green-700' : 'blue-700'}`}
+            >
+              {getStatusMessage.message}
+            </span>
+          </div>
         </div>
-      </div>
+      ),
+      [userData, getStatusMessage],
     );
 
-    if (isLoading) {
-      return (
-        <div className="p-4 bg-white rounded-lg shadow">
-          {renderLoadingState()}
-        </div>
-      );
-    }
-
     const renderTodayInfo = useMemo(() => {
+      if (!attendanceStatus || !effectiveShift) return null;
+
       const today = new Date();
 
       return (
@@ -354,6 +359,27 @@ const UserShiftInfo: React.FC<UserShiftInfoProps> = React.memo(
     }, [attendanceStatus?.futureShifts, attendanceStatus?.futureOvertimes]);
 
     const { message, color } = getStatusMessage;
+
+    if (isLoading) {
+      return (
+        <div className="p-4 bg-white rounded-lg shadow animate-pulse space-y-4">
+          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+          <div className="space-y-3">
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!userData || !effectiveShift) {
+      return (
+        <div className="text-center p-4">
+          <p className="text-red-600">ไม่สามารถโหลดข้อมูลได้</p>
+          <p className="text-sm text-gray-500 mt-2">กรุณาลองใหม่อีกครั้ง</p>
+        </div>
+      );
+    }
 
     return (
       <div className="pb-24">
