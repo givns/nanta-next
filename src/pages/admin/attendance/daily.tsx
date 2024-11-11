@@ -1,13 +1,17 @@
 // pages/admin/attendance/daily.tsx
 import React, { useState, useEffect } from 'react';
 import { format, startOfDay } from 'date-fns';
-import { th } from 'date-fns/locale';
+import { th } from 'date-fns/locale/th';
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FileSpreadsheet, Download } from 'lucide-react';
+import Head from 'next/head';
+import { useToast } from '@/components/ui/use-toast';
+import { useAdmin } from '@/contexts/AdminContext';
 
-// Keep your existing LoadingPlaceholder component
+// Loading placeholder for better UX during dynamic import
 const LoadingPlaceholder = () => (
   <Card className="p-6">
     <div className="space-y-6">
@@ -38,7 +42,7 @@ const LoadingPlaceholder = () => (
   </Card>
 );
 
-// Keep your dynamic import of DailyAttendanceView
+// Dynamically import the DailyAttendanceView component
 const DailyAttendanceView = dynamic(
   () => import('@/components/admin/attendance/DailyAttendanceView'),
   {
@@ -48,8 +52,10 @@ const DailyAttendanceView = dynamic(
 );
 
 export default function DailyAttendancePage() {
+  const { toast } = useToast();
+  const { user, isLoading: isAdminLoading } = useAdmin();
   const [mounted, setMounted] = useState(false);
-  const [currentDate, setCurrentDate] = useState(() => startOfDay(new Date()));
+  const [isExporting, setIsExporting] = useState(false);
 
   // Wait for client-side hydration to complete
   useEffect(() => {
@@ -59,58 +65,100 @@ export default function DailyAttendancePage() {
   // Handle export functionality
   const handleExport = async () => {
     try {
+      setIsExporting(true);
+      const currentDate = format(new Date(), 'yyyy-MM-dd');
+
       const response = await fetch('/api/admin/attendance/export', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-line-userid': user?.lineUserId || '',
         },
         body: JSON.stringify({
-          date: currentDate.toISOString(),
+          date: currentDate,
         }),
       });
 
-      if (!response.ok) throw new Error('Export failed');
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `attendance-${format(currentDate, 'yyyy-MM-dd')}.xlsx`;
+      a.download = `attendance-${currentDate}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+
+      toast({
+        title: 'Export Successful',
+        description: 'Attendance report has been downloaded',
+      });
     } catch (error) {
       console.error('Export failed:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Export Failed',
+        description: 'There was an error exporting the attendance report',
+      });
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  // Show loading placeholder until mounted
-  if (!mounted) {
+  // Show loading placeholder until mounted and admin data is loaded
+  if (!mounted || isAdminLoading) {
     return <LoadingPlaceholder />;
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Daily Attendance</h1>
-          <p className="text-gray-500">
-            {format(currentDate, 'EEEE, d MMMM yyyy', { locale: th })}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
-          <Button
-            variant="outline"
-            onClick={handleExport}
-            className="w-full md:w-auto"
-          >
-            Export Report
-          </Button>
-        </div>
-      </div>
+    <>
+      <Head>
+        <title>Daily Attendance - Admin Dashboard</title>
+      </Head>
 
-      <DailyAttendanceView key={currentDate.toISOString()} />
-    </div>
+      <div className="space-y-6 p-4 md:p-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Daily Attendance</h1>
+            <p className="text-gray-500">
+              {format(new Date(), 'EEEE, d MMMM yyyy', { locale: th })}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={isExporting}
+              className="w-full md:w-auto"
+            >
+              {isExporting ? (
+                <>
+                  <Download className="mr-2 h-4 w-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Export Report
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <DailyAttendanceView key={mounted.toString()} />
+      </div>
+    </>
   );
+}
+
+// Add getServerSideProps to ensure server-side rendering
+export async function getServerSideProps() {
+  return {
+    props: {},
+  };
 }
