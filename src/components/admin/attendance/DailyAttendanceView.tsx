@@ -1,6 +1,5 @@
 // components/admin/attendance/DailyAttendanceView.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { DailyAttendanceResponse } from '@/types/attendance';
 import { useAttendance } from '@/hooks/useAttendance';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,20 +13,33 @@ import { ErrorAlert } from './components/ErrorAlert';
 import { EmployeeDetailDialog } from './EmployeeDetailDialog';
 import { format, isValid, startOfDay, parse } from 'date-fns';
 import { useRouter } from 'next/router';
+import { useAuth } from '@/hooks/useAuth';
+import { useLiff } from '@/contexts/LiffContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function DailyAttendanceView() {
   const router = useRouter();
-  const { user, isLoading: isAdminLoading } = useAdmin();
-  const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+  const { lineUserId } = useLiff();
+
+  // State declarations
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const [selectedRecord, setSelectedRecord] =
     useState<DailyAttendanceResponse | null>(null);
 
   // Calculate memoized values first
   const processedData = useMemo(() => {
-    if (!selectedDate || isAdminLoading || !user?.lineUserId) {
+    if (!selectedDate || authLoading || !lineUserId) {
       return {
         shouldInitialize: false,
         date: new Date(),
@@ -35,14 +47,12 @@ export default function DailyAttendanceView() {
     }
     return {
       shouldInitialize:
-        !isAdminLoading &&
-        isInitialized &&
-        !!user?.lineUserId &&
-        !!selectedDate,
+        !authLoading && isInitialized && !!lineUserId && !!selectedDate,
       date: selectedDate,
     };
-  }, [isAdminLoading, isInitialized, user?.lineUserId, selectedDate]);
+  }, [authLoading, isInitialized, lineUserId, selectedDate]);
 
+  // Use lineUserId directly for API authentication
   const {
     records,
     filteredRecords,
@@ -53,7 +63,7 @@ export default function DailyAttendanceView() {
     setFilters,
     refreshData,
   } = useAttendance({
-    lineUserId: user?.lineUserId || null,
+    lineUserId, // Pass lineUserId directly
     initialDate: processedData.date,
     initialDepartment: 'all',
     initialSearchTerm: '',
@@ -166,9 +176,21 @@ export default function DailyAttendanceView() {
     [],
   );
 
-  // Show loading state if any critical dependency is loading
-  if (isAdminLoading || !isInitialized || !selectedDate) {
+  if (authLoading || !isInitialized) {
     return <LoadingState />;
+  }
+
+  if (!isAuthorized || !lineUserId) {
+    return (
+      <div className="p-4">
+        <Alert variant="destructive">
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>
+            You don't have permission to view attendance records.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   return (
@@ -182,7 +204,7 @@ export default function DailyAttendanceView() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Daily Attendance</CardTitle>
             <DateSelector
-              date={selectedDate}
+              date={selectedDate || new Date()} // Ensure selectedDate is never null
               onChange={handleDateChange}
               {...dateSelectorConfig}
             />{' '}

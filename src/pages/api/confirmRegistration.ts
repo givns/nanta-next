@@ -1,14 +1,8 @@
 // pages/api/confirmRegistration.ts
-
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { Client } from '@line/bot-sdk';
-import { processRegistration } from '../../lib/processRegistration';
 
 const prisma = new PrismaClient();
-const lineClient = new Client({
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN!,
-});
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,40 +14,25 @@ export default async function handler(
 
   const { employeeId, lineUserId, profilePictureUrl } = req.body;
 
-  if (!employeeId || !lineUserId) {
-    return res
-      .status(400)
-      .json({ success: false, error: 'Missing required fields' });
-  }
-
   try {
-    const result = await processRegistration(
-      employeeId,
-      lineUserId,
-      profilePictureUrl,
-      prisma,
-      lineClient,
-    );
+    const updatedUser = await prisma.user.update({
+      where: { employeeId },
+      data: {
+        lineUserId,
+        profilePictureUrl,
+        isRegistrationComplete: 'Yes',
+      },
+    });
 
     res.status(200).json({
       success: true,
-      message: 'Registration completed successfully',
-      ...result,
+      user: updatedUser,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error confirming registration:', error);
-    if (error instanceof Error) {
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        message: error.message,
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        message: 'An unknown error occurred',
-      });
-    }
+    res.status(500).json({
+      success: false,
+      error: 'Failed to confirm registration',
+    });
   }
 }

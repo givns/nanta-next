@@ -11,13 +11,13 @@ export interface UserData {
   name: string;
   lineUserId: string | null;
   nickname: string | null;
-  departmentId: string | null;
   departmentName: string;
+  shiftCode: string | null;
+  employeeType: string;
+  isGovernmentRegistered: boolean;
   role: UserRole;
   profilePictureUrl: string | null;
   shiftId: string | null;
-  shiftCode: string | null;
-  overtimeHours: number;
   sickLeaveBalance: number;
   businessLeaveBalance: number;
   annualLeaveBalance: number;

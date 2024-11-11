@@ -21,13 +21,14 @@ export default async function handler(
   }
 
   try {
-    const user = await prisma.user.findUnique({
+    // First verify the requesting user is an admin
+    const adminUser = await prisma.user.findUnique({
       where: { lineUserId },
-      include: { department: true },
+      select: { role: true },
     });
 
-    if (!user || !['Admin', 'SuperAdmin'].includes(user.role)) {
-      return res.status(403).json({ message: 'Unauthorized' });
+    if (!adminUser || !['Admin', 'SuperAdmin'].includes(adminUser.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     switch (req.method) {
@@ -51,6 +52,12 @@ export default async function handler(
             sickLeaveBalance: true,
             businessLeaveBalance: true,
             annualLeaveBalance: true,
+          },
+          where: {
+            isRegistrationComplete: 'Yes',
+          },
+          orderBy: {
+            employeeId: 'asc',
           },
         });
 

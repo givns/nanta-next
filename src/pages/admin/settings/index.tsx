@@ -1,14 +1,17 @@
 // pages/admin/settings/index.tsx
 import { useState } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PayrollSettings from '@/components/admin/settings/PayrollSettings';
 import AttendanceSettings from '@/components/admin/settings/AttendanceSettings';
 import LeaveSettings from '@/components/admin/settings/LeaveSettings';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function AdminSettingsPage() {
-  const { user } = useAdmin();
   const [activeTab, setActiveTab] = useState('payroll');
+  const { user, isLoading } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
 
   return (
     <div className="max-w-7xl mx-auto p-6">

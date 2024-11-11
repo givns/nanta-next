@@ -1,10 +1,9 @@
 // pages/admin/payroll/index.tsx
-import { useAdmin } from '@/contexts/AdminContext';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { NextPage } from 'next';
-import { withAdminAuth } from '@/utils/withAdminAuth';
+import { useAuth } from '@/hooks/useAuth';
 
 const PayrollAdminDashboard = dynamic(
   () => import('@/components/admin/payroll/PayrollAdminDashboard'),
@@ -15,7 +14,10 @@ const PayrollAdminDashboard = dynamic(
 );
 
 const AdminPayrollPage: NextPage = () => {
-  const { user, isLoading } = useAdmin();
+  const { user, isLoading } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
 
   if (isLoading || !user) {
     return <DashboardSkeleton />;

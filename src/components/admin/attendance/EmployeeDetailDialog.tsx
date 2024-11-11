@@ -23,7 +23,9 @@ import { ManualEntryDialog } from './ManualEntryDialog';
 import { PayrollUtils } from '@/utils/payrollUtils';
 import { PayrollPeriodSelector } from '@/components/payroll/PayrollPeriodSelector';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAdmin } from '@/contexts/AdminContext';
+import { useAuth } from '@/hooks/useAuth';
+import { useLiff } from '@/contexts/LiffContext';
+import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 
 interface ManualEntryData {
   employeeId: string;
@@ -47,7 +49,16 @@ export function EmployeeDetailDialog({
   employeeId,
   date,
 }: EmployeeDetailDialogProps) {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+
+  const { lineUserId } = useLiff();
   const [timeEntries, setTimeEntries] = useState<DetailedTimeEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +78,7 @@ export function EmployeeDetailDialog({
   }, [open, employeeId, currentPeriod]);
 
   const fetchTimeEntries = async () => {
-    if (!open || !employeeId || !user?.lineUserId) return;
+    if (!open || !employeeId || !lineUserId) return;
 
     try {
       setIsLoading(true);
@@ -88,7 +99,7 @@ export function EmployeeDetailDialog({
         `/api/admin/attendance/time-entries?${params}`,
         {
           headers: {
-            'x-line-userid': user.lineUserId,
+            'x-line-userid': lineUserId,
           },
         },
       );
@@ -108,7 +119,7 @@ export function EmployeeDetailDialog({
     data: Omit<ManualEntryData, 'employeeId'>,
   ) => {
     try {
-      if (!employeeId || !user?.lineUserId) return;
+      if (!employeeId || !lineUserId) return;
 
       const entryData: ManualEntryData = {
         ...data,
@@ -119,7 +130,7 @@ export function EmployeeDetailDialog({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': user.lineUserId, // Add this header
+          'x-line-userid': lineUserId, // Add this header
         },
         body: JSON.stringify(entryData),
       });
@@ -141,6 +152,24 @@ export function EmployeeDetailDialog({
       throw error;
     }
   };
+
+  if (authLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  // Handle unauthorized access
+  if (!isAuthorized || !user) {
+    return (
+      <div className="p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You don't have permission to access the payroll system.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

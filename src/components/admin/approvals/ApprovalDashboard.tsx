@@ -1,6 +1,5 @@
 // components/admin/approvals/ApprovalDashboard.tsx
 import React, { useState, useEffect } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -40,6 +39,10 @@ import {
   OvertimeGroupCard,
   OvertimeRequestTable,
 } from './tables/OvertimeRequestTable';
+import { useLiff } from '@/contexts/LiffContext';
+import { useRouter } from 'next/router';
+import { useAuth } from '@/hooks/useAuth';
+import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 
 interface ApprovalRequest {
   id: string;
@@ -69,7 +72,15 @@ function formatDuration(minutes: number): string {
 }
 
 export default function ApprovalDashboard() {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+  const { lineUserId } = useLiff();
   const { toast } = useToast();
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
@@ -81,7 +92,7 @@ export default function ApprovalDashboard() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    if (user?.lineUserId) {
+    if (lineUserId) {
       fetchRequests();
     }
   }, [user]);
@@ -89,7 +100,7 @@ export default function ApprovalDashboard() {
   const fetchRequests = async () => {
     try {
       const response = await fetch('/api/admin/approvals', {
-        headers: { 'x-line-userid': user?.lineUserId || '' },
+        headers: { 'x-line-userid': lineUserId || '' },
       });
 
       if (!response.ok) {
@@ -234,6 +245,14 @@ export default function ApprovalDashboard() {
 
   const RequestDetailsDialog = () => {
     if (!selectedRequest) return null;
+
+    if (authLoading) {
+      return <DashboardSkeleton />;
+    }
+
+    if (isAuthorized) {
+      return <DashboardSkeleton />;
+    }
 
     return (
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>

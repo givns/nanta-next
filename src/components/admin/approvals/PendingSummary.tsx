@@ -3,7 +3,6 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClipboardList, Clock, Calendar, AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import {
   Sheet,
   SheetContent,
@@ -11,6 +10,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { useLiff } from '@/contexts/LiffContext';
+import { useAuth } from '@/hooks/useAuth';
+import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface SummaryData {
   leaves: number;
@@ -20,7 +23,15 @@ interface SummaryData {
 }
 
 export default function PendingSummary() {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+  const { lineUserId } = useLiff();
   const [isLoading, setIsLoading] = useState(true);
   const [summaryData, setSummaryData] = useState<SummaryData>({
     leaves: 0,
@@ -30,7 +41,7 @@ export default function PendingSummary() {
   });
 
   useEffect(() => {
-    if (user?.lineUserId) {
+    if (lineUserId) {
       fetchSummaryData();
     }
   }, [user]);
@@ -40,7 +51,7 @@ export default function PendingSummary() {
       setIsLoading(true);
       const response = await fetch('/api/admin/approvals/summary', {
         headers: {
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
       });
 
@@ -56,6 +67,25 @@ export default function PendingSummary() {
       setIsLoading(false);
     }
   };
+
+  // Handle loading state
+  if (authLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  // Handle unauthorized access
+  if (!isAuthorized || !user) {
+    return (
+      <div className="p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You don't have permission to access the payroll system.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   const SummaryCard = ({
     title,

@@ -8,9 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { FileSpreadsheet, Download } from 'lucide-react';
 import Head from 'next/head';
 import { useToast } from '@/components/ui/use-toast';
-import { useAdmin } from '@/contexts/AdminContext';
-import { withAdminAuth } from '@/utils/withAdminAuth';
 import type { NextPage } from 'next';
+import { useAuth } from '@/hooks/useAuth';
 
 // Loading placeholder for better UX during dynamic import
 const LoadingPlaceholder = () => (
@@ -54,8 +53,11 @@ const DailyAttendanceView = dynamic(
 
 const DailyAttendancePage: NextPage = () => {
   const { toast } = useToast();
-  const { user, isLoading: isAdminLoading } = useAdmin();
   const [isExporting, setIsExporting] = useState(false);
+  const { user, isLoading } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
 
   // Handle export functionality
   const handleExport = async () => {
@@ -107,7 +109,7 @@ const DailyAttendancePage: NextPage = () => {
   };
 
   // Show loading placeholder if admin data is still loading
-  if (isAdminLoading) {
+  if (isLoading) {
     return <LoadingPlaceholder />;
   }
 

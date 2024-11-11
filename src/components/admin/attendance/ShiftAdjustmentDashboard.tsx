@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -40,6 +39,8 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
+import { useLiff } from '@/contexts/LiffContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Department {
   id: string;
@@ -69,7 +70,16 @@ interface ShiftAdjustment {
 }
 
 export default function ShiftAdjustmentDashboard() {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+
+  const { lineUserId } = useLiff();
   const { toast } = useToast();
   const [showAdjustmentDialog, setShowAdjustmentDialog] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -98,13 +108,13 @@ export default function ShiftAdjustmentDashboard() {
       const [shiftsResponse, departmentsResponse, adjustmentsResponse] =
         await Promise.all([
           fetch('/api/shifts/shifts', {
-            headers: { 'x-line-userid': user?.lineUserId || '' },
+            headers: { 'x-line-userid': lineUserId || '' },
           }),
           fetch('/api/departments', {
-            headers: { 'x-line-userid': user?.lineUserId || '' },
+            headers: { 'x-line-userid': lineUserId || '' },
           }),
           fetch('/api/admin/shifts/adjustments', {
-            headers: { 'x-line-userid': user?.lineUserId || '' },
+            headers: { 'x-line-userid': lineUserId || '' },
           }),
         ]);
 
@@ -130,7 +140,7 @@ export default function ShiftAdjustmentDashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
         body: JSON.stringify({
           action: 'create',
@@ -181,7 +191,7 @@ export default function ShiftAdjustmentDashboard() {
       const response = await fetch(`/api/admin/shifts/adjustments?id=${id}`, {
         method: 'DELETE',
         headers: {
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
       });
 

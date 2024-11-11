@@ -1,6 +1,5 @@
 // components/admin/EmployeeManagementDashboard.tsx
 import React, { useState, useEffect } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -50,7 +49,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { withAdminAuth } from '@/utils/withAdminAuth';
+import { useAuth } from '@/hooks/useAuth';
+import { useLiff } from '@/contexts/LiffContext';
 
 interface BulkActionsProps {
   selectedEmployees: Employee[];
@@ -73,7 +73,15 @@ interface Shift {
 }
 
 export default function EmployeeManagement() {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+  const { lineUserId } = useLiff();
   const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]); // Add this
@@ -97,13 +105,13 @@ export default function EmployeeManagement() {
       const [employeesResponse, shiftsResponse, departmentsResponse] =
         await Promise.all([
           fetch('/api/admin/employees', {
-            headers: { 'x-line-userid': user?.lineUserId || '' },
+            headers: { 'x-line-userid': lineUserId || '' },
           }),
           fetch('/api/shifts/shifts', {
-            headers: { 'x-line-userid': user?.lineUserId || '' },
+            headers: { 'x-line-userid': lineUserId || '' },
           }),
           fetch('/api/departments', {
-            headers: { 'x-line-userid': user?.lineUserId || '' },
+            headers: { 'x-line-userid': lineUserId || '' },
           }),
         ]);
 
@@ -134,7 +142,7 @@ export default function EmployeeManagement() {
 
   // Update the useEffect to use fetchInitialData
   useEffect(() => {
-    if (user?.lineUserId) {
+    if (lineUserId) {
       fetchInitialData();
     }
   }, [user]);
@@ -149,7 +157,7 @@ export default function EmployeeManagement() {
         method: selectedEmployee ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
         body: JSON.stringify(data),
       });
@@ -186,7 +194,7 @@ export default function EmployeeManagement() {
       const response = await fetch(`/api/admin/employees/${employeeId}`, {
         method: 'DELETE',
         headers: {
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
       });
 
@@ -215,7 +223,7 @@ export default function EmployeeManagement() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
         body: JSON.stringify({
           employeeIds: selectedEmployees,

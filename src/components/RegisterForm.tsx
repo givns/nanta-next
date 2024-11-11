@@ -4,104 +4,111 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import liff from '@line/liff';
 import Image from 'next/image';
-import { tr } from 'date-fns/locale';
+import { useAuth } from '@/hooks/useAuth';
+import { useLiff } from '@/contexts/LiffContext';
+import { User } from '@/types/user';
+import { ShiftData } from '@/types/attendance';
+import { useRouter } from 'next/router';
 
 const ExistingEmployeeSchema = Yup.object().shape({
-  employeeId: Yup.string().required('Required'),
+  employeeId: Yup.string().required('กรุณากรอกรหัสพนักงาน'),
 });
 
 const RegisterForm: React.FC = () => {
-  const [lineUserId, setLineUserId] = useState('');
+  const router = useRouter();
+  const { lineUserId } = useLiff();
+  const { registrationStatus } = useAuth({ allowRegistration: true });
+
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
-  const [userInfo, setUserInfo] = useState<any>(null);
-  const [shiftDetails, setShiftDetails] = useState<any>(null);
+  const [userInfo, setUserInfo] = useState<User | null>(null);
+  const [shiftDetails, setShiftDetails] = useState<ShiftData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Check if user already has ongoing registration
   useEffect(() => {
-    const initializeLiff = async () => {
-      try {
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
-        if (liff.isLoggedIn()) {
-          const profile = await liff.getProfile();
-          setLineUserId(profile.userId);
-          setProfilePictureUrl(profile.pictureUrl || '');
-        } else {
-          liff.login();
-        }
-      } catch (error) {
-        console.error('LIFF initialization failed', error);
-      }
-    };
-
-    initializeLiff();
-  }, []);
+    if (registrationStatus?.employeeId) {
+      fetchUserAndShiftDetails(registrationStatus.employeeId);
+    }
+  }, [registrationStatus]);
 
   const fetchUserAndShiftDetails = async (employeeId: string) => {
     setIsLoading(true);
     setError(null);
+
     try {
-      console.log('Fetching user information for employeeId:', employeeId);
-      const userResponse = await axios.post('/api/checkExistingEmployee', {
-        employeeId,
+      // Fetch user data
+      const userResponse = await fetch('/api/checkExistingEmployee', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-line-userid': lineUserId || '',
+        },
+        body: JSON.stringify({ employeeId }),
       });
-      console.log('User response:', userResponse.data);
 
-      if (userResponse.data.success) {
-        const user = userResponse.data.user;
-        setUserInfo(user);
-        console.log('User info set:', user);
+      const userData = await userResponse.json();
 
-        if (user.shiftCode) {
-          console.log('Fetching shift details for shiftCode:', user.shiftCode);
-          const shiftResponse = await axios.get(
-            `/api/getShiftDetails?shiftCode=${user.shiftCode}`,
-          );
-          console.log('Shift response:', shiftResponse.data);
-          setShiftDetails(shiftResponse.data);
-        } else {
-          console.log('No shiftCode found for user');
-        }
-      } else {
-        throw new Error(
-          userResponse.data.error || 'Failed to fetch user information',
-        );
+      if (!userResponse.ok) {
+        throw new Error(userData.error || 'Failed to fetch user information');
       }
-    } catch (error: any) {
-      console.error('Error fetching user or shift details:', error);
-      setError(error.message || 'An error occurred while fetching data');
+
+      setUserInfo(userData.user);
+
+      // Fetch shift details if available
+      if (userData.user.shiftCode) {
+        const shiftResponse = await fetch(
+          `/api/getShiftDetails?shiftCode=${userData.user.shiftCode}`,
+        );
+        const shiftData = await shiftResponse.json();
+
+        if (shiftResponse.ok) {
+          setShiftDetails(shiftData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching details:', error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'An error occurred while fetching data',
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleExistingEmployeeSubmit = async (
-    values: { employeeId: string },
-    { setSubmitting }: any,
-  ) => {
-    await fetchUserAndShiftDetails(values.employeeId);
-    setSubmitting(false);
-  };
-
   const handleConfirmRegistration = async () => {
+    if (!userInfo || !lineUserId) return;
+
     try {
-      const response = await axios.post('/api/confirmRegistration', {
-        employeeId: userInfo.employeeId,
-        lineUserId,
-        profilePictureUrl,
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-line-userid': lineUserId,
+        },
+        body: JSON.stringify({
+          employeeId: userInfo.employeeId,
+          profilePictureUrl,
+        }),
       });
 
-      if (response.data.success) {
-        alert(
-          'Registration successful! Please check your LINE app for further instructions.',
-        );
-        liff.closeWindow();
-      } else {
-        throw new Error(response.data.error);
+      if (!response.ok) {
+        throw new Error('Registration failed');
       }
-    } catch (error: any) {
-      console.error('Error confirming registration:', error);
-      alert('Error occurred during registration confirmation');
+
+      const result = await response.json();
+
+      // Redirect based on role
+      if (['Admin', 'SuperAdmin'].includes(result.user.role)) {
+        router.push('/admin');
+      } else {
+        router.push('/');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError('การลงทะเบียนล้มเหลว กรุณาลองใหม่อีกครั้ง');
     }
   };
 
@@ -145,6 +152,32 @@ const RegisterForm: React.FC = () => {
     };
     return translations[employeeType] || employeeType;
   };
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
+        <div className="text-red-500 text-center">
+          <p>{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            ลองใหม่อีกครั้ง
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
+        <div className="text-center">กำลังโหลด...</div>
+      </div>
+    );
+  }
 
   if (userInfo) {
     console.log('Rendering user info. ShiftDetails:', shiftDetails);
@@ -237,7 +270,7 @@ const RegisterForm: React.FC = () => {
       </div>
     );
   } else {
-    // When userInfo is not available
+    // Show initial registration form
     return (
       <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
         <h2 className="text-2xl font-bold mb-6 text-center">
@@ -246,7 +279,10 @@ const RegisterForm: React.FC = () => {
         <Formik
           initialValues={{ employeeId: '' }}
           validationSchema={ExistingEmployeeSchema}
-          onSubmit={handleExistingEmployeeSubmit}
+          onSubmit={async (values, { setSubmitting }) => {
+            await fetchUserAndShiftDetails(values.employeeId);
+            setSubmitting(false);
+          }}
         >
           {({ isSubmitting }) => (
             <Form className="space-y-4">
@@ -254,7 +290,7 @@ const RegisterForm: React.FC = () => {
                 <Field
                   name="employeeId"
                   type="text"
-                  placeholder="Employee ID"
+                  placeholder="รหัสพนักงาน"
                   className="w-full p-2 border rounded"
                 />
                 <ErrorMessage
@@ -277,5 +313,4 @@ const RegisterForm: React.FC = () => {
     );
   }
 };
-
 export default RegisterForm;

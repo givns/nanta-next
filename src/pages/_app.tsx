@@ -1,74 +1,63 @@
+// pages/_app.tsx
 import '../styles/globals.css';
 import { useEffect, useState } from 'react';
 import type { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
 import { LiffProvider } from '@/contexts/LiffContext';
-import { AdminProvider } from '@/contexts/AdminContext';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import LoadingProgress from '@/components/LoadingProgress';
 import { useRouter } from 'next/router';
+import { useAuth } from '@/hooks/useAuth';
 
-function AdminRoute({
-  Component,
-  pageProps,
-}: {
-  Component: AppProps['Component'];
-  pageProps: AppProps['pageProps'];
-}) {
-  return (
-    <AdminProvider>
-      <AdminLayout>
-        <Component {...pageProps} />
-      </AdminLayout>
-    </AdminProvider>
-  );
-}
-
-function AppWrapper({ Component, pageProps, router }: AppProps) {
-  const [mounted, setMounted] = useState(false);
+function AppContent({ Component, pageProps }: AppProps) {
+  const router = useRouter();
   const isAdminRoute = router.pathname.startsWith('/admin');
-  const isRegisterPage = router.pathname === '/register';
+  const { isLoading, isAuthorized, registrationStatus } = useAuth({
+    required: isAdminRoute,
+    requiredRoles: isAdminRoute ? ['Admin', 'SuperAdmin'] : undefined,
+  });
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Handle SSR and mounting
-  if (typeof window === 'undefined' || !mounted) {
+  // Handle SSR
+  if (!mounted) {
     return <LoadingProgress isLiffInitialized={false} isDataLoaded={false} />;
   }
 
-  // For register page
-  if (isRegisterPage) {
-    return <Component {...pageProps} />;
-  }
-
-  // For admin routes
+  // For admin routes, check authorization
   if (isAdminRoute) {
-    return <AdminRoute Component={Component} pageProps={pageProps} />;
+    if (!isAuthorized) {
+      router.replace('/');
+      return null;
+    }
+
+    return (
+      <AdminLayout>
+        <Component {...pageProps} />
+      </AdminLayout>
+    );
   }
 
-  // For other routes
-  return <Component {...pageProps} />;
-}
+  // For regular routes, just check registration status
+  if (registrationStatus && !registrationStatus.isComplete) {
+    router.replace('/register');
+    return null;
+  }
 
-function SafeHydrate({ children }: { children: React.ReactNode }) {
-  return (
-    <div suppressHydrationWarning>
-      {typeof window === 'undefined' ? null : children}
-    </div>
-  );
+  // For regular routes
+  return <Component {...pageProps} />;
 }
 
 export default function App(props: AppProps) {
   return (
-    <SafeHydrate>
-      <Provider store={store}>
-        <LiffProvider>
-          <AppWrapper {...props} />
-        </LiffProvider>
-      </Provider>
-    </SafeHydrate>
+    <Provider store={store}>
+      <LiffProvider>
+        <AppContent {...props} />
+      </LiffProvider>
+    </Provider>
   );
 }

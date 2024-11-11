@@ -1,5 +1,4 @@
 // pages/api/checkExistingEmployee.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 
@@ -14,24 +13,48 @@ export default async function handler(
   }
 
   const { employeeId } = req.body;
+  const lineUserId = req.headers['x-line-userid'] as string;
+
+  if (!lineUserId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
-    console.log('Checking employee with ID:', employeeId);
+    // Check if employeeId is already registered with a LINE account
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        employeeId,
+        lineUserId: { not: null },
+        isRegistrationComplete: 'Yes',
+      },
+    });
 
-    const user = await prisma.user.findUnique({
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: 'Employee is already registered with a LINE account',
+      });
+    }
+
+    // Find or update user
+    const user = await prisma.user.upsert({
       where: { employeeId },
+      update: {
+        lineUserId,
+        isRegistrationComplete: 'No',
+      },
+      create: {
+        employeeId,
+        lineUserId,
+        name: '',
+        departmentName: '',
+        role: 'General',
+        isRegistrationComplete: 'No',
+      },
       include: { department: true },
     });
 
-    console.log('User found:', user);
-
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, error: 'Employee not found' });
-    }
-
-    // Return user info including shiftCode
+    // Return user info
     const userInfo = {
       employeeId: user.employeeId,
       name: user.name,
@@ -41,7 +64,7 @@ export default async function handler(
       company: user.company,
       employeeType: user.employeeType,
       isGovernmentRegistered: user.isGovernmentRegistered,
-      shiftCode: user.shiftCode, // Include shiftCode here
+      shiftCode: user.shiftCode,
       sickLeaveBalance: user.sickLeaveBalance,
       businessLeaveBalance: user.businessLeaveBalance,
       annualLeaveBalance: user.annualLeaveBalance,

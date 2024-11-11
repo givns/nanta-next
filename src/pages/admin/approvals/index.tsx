@@ -2,9 +2,9 @@
 import React from 'react';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { NextPage } from 'next';
-import { withAdminAuth } from '@/utils/withAdminAuth';
 import dynamic from 'next/dynamic';
-import { useAdmin } from '@/contexts/AdminContext';
+import { useAuth } from '@/hooks/useAuth';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const ApprovalAdminDashboard = dynamic(
   () => import('@/components/admin/approvals/ApprovalDashboard'),
@@ -15,10 +15,26 @@ const ApprovalAdminDashboard = dynamic(
 );
 
 const ApprovalDashboard: NextPage = () => {
-  const { user, isLoading } = useAdmin();
+  const { user, isLoading, isAuthorized } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
 
   if (isLoading || !user) {
     return <DashboardSkeleton />;
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="p-4">
+        <Alert variant="destructive">
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>
+            You don't have permission to access the payroll system.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   return (

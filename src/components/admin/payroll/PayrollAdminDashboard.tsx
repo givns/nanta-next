@@ -1,20 +1,33 @@
 // components/admin/PayrollAdminDashboard.tsx
 import { useState, useEffect } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle } from 'lucide-react';
 import { PayrollUtils } from '@/utils/payrollUtils';
-import { PayrollCalculationResult, PayrollApiResponse } from '@/types/payroll';
+import { PayrollCalculationResult } from '@/types/payroll';
 import { MobileControls, DesktopControls } from './controls';
 import PayrollTabs from './PayrollTabs';
 import { Button } from '@/components/ui/button';
 import { PayrollProcessing } from '@/components/payroll/PayrollProcessing';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { isValid, parseISO } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth';
+import { useRouter } from 'next/router';
+import { useLiff } from '@/contexts/LiffContext';
+import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 
 export default function PayrollAdminDashboard() {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+
+  const { lineUserId } = useLiff();
+
   const [state, setState] = useState({
     selectedEmployee: '',
     selectedPeriod: '', // Initialize as empty string
@@ -57,21 +70,29 @@ export default function PayrollAdminDashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    if (user?.lineUserId) {
-      fetchEmployees();
-    }
-  }, [user]);
-
   const fetchEmployees = async () => {
+    if (!lineUserId || !isAuthorized) {
+      setState((prev) => ({
+        ...prev,
+        error: 'Unauthorized access',
+      }));
+      return;
+    }
+
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
-      const response = await fetch('/api/admin/employees', {
+
+      // lineUserId here is for verifying the admin's identity
+      const response = await fetch('/api/admin/employees/all', {
         headers: {
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId,
         },
       });
-      if (!response.ok) throw new Error('Failed to fetch employees');
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch employees');
+      }
+
       const data = await response.json();
       setEmployees(data);
     } catch (error) {
@@ -84,9 +105,9 @@ export default function PayrollAdminDashboard() {
     }
   };
 
-  // Modify the handleCalculate function
+  // Update handleCalculate to use lineUserId from context
   const handleCalculate = async () => {
-    if (!state.selectedEmployee || !state.selectedPeriod || !user?.lineUserId) {
+    if (!state.selectedEmployee || !state.selectedPeriod || !lineUserId) {
       setState((prev) => ({
         ...prev,
         error: 'Please select both employee and period',
@@ -97,9 +118,7 @@ export default function PayrollAdminDashboard() {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // Parse period properly using PayrollUtils
       const periodRange = PayrollUtils.parsePeriodValue(state.selectedPeriod);
-
       if (!periodRange) {
         throw new Error('Invalid period selected');
       }
@@ -111,17 +130,16 @@ export default function PayrollAdminDashboard() {
         periodRange.endDate,
       );
 
-      // First check if payroll exists
+      // Check existing payroll
       const payrollResponse = await fetch(
-        `/api/admin/payroll/payroll?` +
-          new URLSearchParams({
-            employeeId: state.selectedEmployee,
-            periodStart: formattedStartDate,
-            periodEnd: formattedEndDate,
-          }).toString(),
+        `/api/admin/payroll/payroll?${new URLSearchParams({
+          employeeId: state.selectedEmployee,
+          periodStart: formattedStartDate,
+          periodEnd: formattedEndDate,
+        })}`,
         {
           headers: {
-            'x-line-userid': user.lineUserId,
+            'x-line-userid': lineUserId,
           },
         },
       );
@@ -145,7 +163,7 @@ export default function PayrollAdminDashboard() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-line-userid': user.lineUserId,
+            'x-line-userid': lineUserId,
           },
           body: JSON.stringify({
             employeeId: state.selectedEmployee,
@@ -161,7 +179,6 @@ export default function PayrollAdminDashboard() {
       }
 
       const calculatedPayroll = await calculateResponse.json();
-
       setState((prev) => ({
         ...prev,
         payrollData: calculatedPayroll.calculation,
@@ -177,6 +194,19 @@ export default function PayrollAdminDashboard() {
       }));
     }
   };
+
+  // Update useEffects to use lineUserId
+  useEffect(() => {
+    if (lineUserId) {
+      fetchEmployees();
+    }
+  }, [lineUserId]);
+
+  useEffect(() => {
+    if (state.selectedEmployee && state.selectedPeriod && lineUserId) {
+      fetchPayrollData();
+    }
+  }, [state.selectedEmployee, state.selectedPeriod, lineUserId]);
 
   // Update handlePeriodChange to include validation
   const handlePeriodChange = (value: string) => {
@@ -230,7 +260,7 @@ export default function PayrollAdminDashboard() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-line-userid': user?.lineUserId || '',
+            'x-line-userid': lineUserId || '',
           },
           body: JSON.stringify({
             employeeId: state.selectedEmployee,
@@ -257,7 +287,7 @@ export default function PayrollAdminDashboard() {
         `/api/admin/payroll/payroll?employeeId=${state.selectedEmployee}&periodStart=${PayrollUtils.formatDateForAPI(period.startDate)}&periodEnd=${PayrollUtils.formatDateForAPI(period.endDate)}`,
         {
           headers: {
-            'x-line-userid': user?.lineUserId || '',
+            'x-line-userid': lineUserId || '',
           },
         },
       );
@@ -271,7 +301,7 @@ export default function PayrollAdminDashboard() {
         method: method,
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
         body: JSON.stringify({
           employeeId: state.selectedEmployee,
@@ -322,6 +352,25 @@ export default function PayrollAdminDashboard() {
   const handleEmployeeChange = (value: string) => {
     setState((prev) => ({ ...prev, selectedEmployee: value }));
   };
+
+  // Handle loading state
+  if (authLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  // Handle unauthorized access
+  if (!isAuthorized || !user) {
+    return (
+      <div className="p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You don't have permission to access the payroll system.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">

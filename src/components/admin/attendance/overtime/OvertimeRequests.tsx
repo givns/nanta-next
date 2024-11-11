@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -30,6 +29,9 @@ import { th } from 'date-fns/locale';
 import { Clock, Search, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
+import { useAuth } from '@/hooks/useAuth';
+import { useLiff } from '@/contexts/LiffContext';
 
 interface OvertimeRequest {
   id: string;
@@ -47,7 +49,16 @@ interface OvertimeRequest {
 }
 
 export default function OvertimeRequests() {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+
+  const { lineUserId } = useLiff();
   const [requests, setRequests] = useState<OvertimeRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +67,24 @@ export default function OvertimeRequests() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedRequest, setSelectedRequest] =
     useState<OvertimeRequest | null>(null);
+
+  if (authLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  // Handle unauthorized access
+  if (!isAuthorized || !user) {
+    return (
+      <div className="p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You don't have permission to access the payroll system.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   // Mobile card component
   const RequestCard = ({ request }: { request: OvertimeRequest }) => (

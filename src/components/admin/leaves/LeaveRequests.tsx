@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -31,6 +30,9 @@ import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Calendar, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/hooks/useAuth';
+import { useLiff } from '@/contexts/LiffContext';
+import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 
 interface LeaveRequest {
   id: string;
@@ -47,7 +49,16 @@ interface LeaveRequest {
 }
 
 export default function LeaveRequests() {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+
+  const { lineUserId } = useLiff();
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -154,6 +165,25 @@ export default function LeaveRequests() {
       setIsProcessing(false);
     }
   };
+
+  // Handle loading state
+  if (authLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  // Handle unauthorized access
+  if (!isAuthorized || !user) {
+    return (
+      <div className="p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You don't have permission to access the payroll system.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   // Mobile request card component
   const LeaveRequestCard = ({ request }: { request: LeaveRequest }) => (

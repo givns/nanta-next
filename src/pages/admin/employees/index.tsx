@@ -1,8 +1,8 @@
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
-import { useAdmin } from '@/contexts/AdminContext';
 import { NextPage } from 'next';
+import { useAuth } from '@/hooks/useAuth';
 
 const EmployeeManagementDashboard = dynamic(
   () => import('@/components/admin/employees/EmployeeManagementDashboard'),
@@ -13,7 +13,10 @@ const EmployeeManagementDashboard = dynamic(
 );
 
 const AdminEmployeesPage: NextPage = () => {
-  const { user, isLoading } = useAdmin();
+  const { user, isLoading } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
 
   if (isLoading || !user) {
     return <DashboardSkeleton />;
