@@ -22,7 +22,6 @@ export default function DailyAttendanceView() {
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedRecord, setSelectedRecord] =
     useState<DailyAttendanceResponse | null>(null);
 
@@ -60,7 +59,7 @@ export default function DailyAttendanceView() {
     initialSearchTerm: '',
   });
 
-  // Process records (moved before early return)
+  // Process records with proper sorting
   const processedRecords = useMemo(() => {
     if (!records?.length) return [];
 
@@ -86,7 +85,7 @@ export default function DailyAttendanceView() {
     }
   }, [records]);
 
-  // Calculate summary stats (moved before early return)
+  // Calculate summary statistics
   const summary = useMemo(
     () => ({
       total: filteredRecords.length,
@@ -153,8 +152,19 @@ export default function DailyAttendanceView() {
   ) => {
     e.stopPropagation();
     setSelectedRecord(record);
-    setShowEditDialog(true);
+    setShowEmployeeDetail(true);
   };
+
+  // Date selector configuration
+  const dateSelectorConfig = useMemo(
+    () => ({
+      fromYear: 2024,
+      toYear: new Date().getFullYear(),
+      disableFutureDates: true,
+      className: 'w-[260px]',
+    }),
+    [],
+  );
 
   // Show loading state if any critical dependency is loading
   if (isAdminLoading || !isInitialized || !selectedDate) {
@@ -171,7 +181,11 @@ export default function DailyAttendanceView() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Daily Attendance</CardTitle>
-            <DateSelector date={selectedDate} onChange={handleDateChange} />
+            <DateSelector
+              date={selectedDate}
+              onChange={handleDateChange}
+              {...dateSelectorConfig}
+            />{' '}
           </div>
         </CardHeader>
 
@@ -184,7 +198,9 @@ export default function DailyAttendanceView() {
               onDepartmentChange={(dept) => setFilters({ department: dept })}
             />
 
-            <SummaryStats summary={summary} />
+            <div className="hidden md:block">
+              <SummaryStats summary={summary} />
+            </div>
 
             {isDataLoading ? (
               <LoadingState />
