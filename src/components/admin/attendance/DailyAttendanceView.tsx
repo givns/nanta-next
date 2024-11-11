@@ -186,7 +186,7 @@ export default function DailyAttendanceView() {
         <Alert variant="destructive">
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
-            You don't have permission to view attendance records.
+            คุณไม่มีสิทธิ์ในการเข้าถึงส่วนนี้ กรุณาติดต่อผู้ดูแลระบบ
           </AlertDescription>
         </Alert>
       </div>
