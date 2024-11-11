@@ -30,7 +30,7 @@ const ApprovalDashboard: NextPage = () => {
         <Alert variant="destructive">
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
-            You don't have permission to access the payroll system.
+            คุณไม่มีสิทธิ์ในการเข้าถึงส่วนนี้ กรุณาติดต่อผู้ดูแลระบบ
           </AlertDescription>
         </Alert>
       </div>

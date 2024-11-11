@@ -68,6 +68,38 @@ export default function OvertimeRequests() {
   const [selectedRequest, setSelectedRequest] =
     useState<OvertimeRequest | null>(null);
 
+  useEffect(() => {
+    if (lineUserId) {
+      fetchRequests();
+    }
+  }, [lineUserId, statusFilter]);
+
+  const fetchRequests = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(
+        `/api/admin/attendance/overtime-requests${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`,
+        {
+          headers: {
+            'x-line-userid': lineUserId || '',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch overtime requests');
+      }
+
+      const data = await response.json();
+      setRequests(data);
+    } catch (error) {
+      setError('Failed to load overtime requests');
+      console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (authLoading) {
     return <DashboardSkeleton />;
   }
@@ -79,7 +111,7 @@ export default function OvertimeRequests() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            You don't have permission to access the payroll system.
+            คุณไม่มีสิทธิ์ในการเข้าถึงส่วนนี้ กรุณาติดต่อผู้ดูแลระบบ
           </AlertDescription>
         </Alert>
       </div>
@@ -248,37 +280,23 @@ export default function OvertimeRequests() {
     </div>
   );
 
-  useEffect(() => {
-    if (user?.lineUserId) {
-      fetchRequests();
-    }
-  }, [user, statusFilter]);
+  // Now handle loading and unauthorized states
+  if (authLoading) {
+    return <DashboardSkeleton />;
+  }
 
-  const fetchRequests = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(
-        `/api/admin/attendance/overtime-requests${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`,
-        {
-          headers: {
-            'x-line-userid': user?.lineUserId || '',
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch overtime requests');
-      }
-
-      const data = await response.json();
-      setRequests(data);
-    } catch (error) {
-      setError('Failed to load overtime requests');
-      console.error('Error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  if (!isAuthorized) {
+    return (
+      <div className="p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You don&apos;t have permission to access this page.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <Card>
@@ -461,6 +479,7 @@ export default function OvertimeRequests() {
   );
 }
 
+// Separate the StatusBadge component
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
     pending_response: 'bg-yellow-100 text-yellow-800',

@@ -364,7 +364,7 @@ export default function PayrollAdminDashboard() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            You don't have permission to access the payroll system.
+            คุณไม่มีสิทธิ์ในการเข้าถึงส่วนนี้ กรุณาติดต่อผู้ดูแลระบบ
           </AlertDescription>
         </Alert>
       </div>

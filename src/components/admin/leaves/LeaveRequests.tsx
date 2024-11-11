@@ -166,6 +166,22 @@ export default function LeaveRequests() {
     }
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedRequests(requests.map((req) => req.id));
+    } else {
+      setSelectedRequests([]);
+    }
+  };
+
+  const handleSelectRequest = (requestId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedRequests((prev) => [...prev, requestId]);
+    } else {
+      setSelectedRequests((prev) => prev.filter((id) => id !== requestId));
+    }
+  };
+
   // Handle loading state
   if (authLoading) {
     return <DashboardSkeleton />;
@@ -178,7 +194,7 @@ export default function LeaveRequests() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            You don't have permission to access the payroll system.
+            คุณไม่มีสิทธิ์ในการเข้าถึงส่วนนี้ กรุณาติดต่อผู้ดูแลระบบ
           </AlertDescription>
         </Alert>
       </div>
@@ -382,22 +398,6 @@ export default function LeaveRequests() {
       </Table>
     </div>
   );
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedRequests(requests.map((req) => req.id));
-    } else {
-      setSelectedRequests([]);
-    }
-  };
-
-  const handleSelectRequest = (requestId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedRequests((prev) => [...prev, requestId]);
-    } else {
-      setSelectedRequests((prev) => prev.filter((id) => id !== requestId));
-    }
-  };
 
   return (
     <Card>
