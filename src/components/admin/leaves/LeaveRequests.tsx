@@ -74,7 +74,7 @@ export default function LeaveRequests() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    if (user?.lineUserId) {
+    if (lineUserId) {
       fetchLeaveRequests();
     }
   }, [user, statusFilter, departmentFilter, leaveTypeFilter]);
@@ -84,7 +84,7 @@ export default function LeaveRequests() {
       setIsLoading(true);
       const response = await fetch('/api/admin/leaves/leave-requests', {
         headers: {
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
       });
       if (!response.ok) throw new Error('Failed to fetch leave requests');
@@ -107,12 +107,12 @@ export default function LeaveRequests() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
         body: JSON.stringify({
           leaveRequestIds: requestIds, // Changed from requestIds to leaveRequestIds to match API
           approvedBy: user?.employeeId, // Changed from approverId to approvedBy to match API
-          lineUserId: user?.lineUserId, // Added lineUserId as required by API
+          lineUserId: lineUserId, // Added lineUserId as required by API
         }),
       });
 
@@ -141,12 +141,12 @@ export default function LeaveRequests() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
         body: JSON.stringify({
           leaveRequestIds: requestIds,
           deniedBy: user?.employeeId,
-          lineUserId: user?.lineUserId,
+          lineUserId: lineUserId,
         }),
       });
 

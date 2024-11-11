@@ -315,6 +315,8 @@ const parseUserData = (userData: any): UserData => {
   return {
     ...validated,
     updatedAt: validated.updatedAt ? new Date(validated.updatedAt) : undefined,
+    employeeType: validated.employeeType || '', // Provide a default value for employeeType
+    isGovernmentRegistered: validated.isGovernmentRegistered === 'true', // Convert string to boolean
   };
 };
 

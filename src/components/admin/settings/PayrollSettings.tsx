@@ -1,6 +1,5 @@
 // components/admin/settings/PayrollSettings.tsx
 import { useState, useEffect } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
+import { useLiff } from '@/contexts/LiffContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface OvertimeRates {
   workdayOutsideShift: number; // For isInsideShift: false, isDayOffOvertime: false
@@ -89,7 +90,16 @@ const DEFAULT_SETTINGS: PayrollSettingsData = {
 };
 
 export default function PayrollSettings() {
-  const { user, isLoading: isUserLoading } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+
+  const { lineUserId } = useLiff();
   const [settings, setSettings] =
     useState<PayrollSettingsData>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,7 +107,7 @@ export default function PayrollSettings() {
   const [activeTab, setActiveTab] = useState('overtime');
 
   useEffect(() => {
-    if (user?.lineUserId) {
+    if (lineUserId) {
       fetchSettings();
     }
   }, [user]);
@@ -173,7 +183,7 @@ export default function PayrollSettings() {
     }
   };
 
-  if (isUserLoading || isLoading) {
+  if (isLoading || isLoading) {
     return <DashboardSkeleton />;
   }
 

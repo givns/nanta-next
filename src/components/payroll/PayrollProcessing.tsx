@@ -4,8 +4,9 @@ import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { PayrollPeriodSelector } from './PayrollPeriodSelector';
-import { useAdmin } from '@/contexts/AdminContext';
 import { AlertCircle } from 'lucide-react';
+import { useLiff } from '@/contexts/LiffContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PayrollProcessingProps {
   onComplete: () => void;
@@ -14,7 +15,16 @@ interface PayrollProcessingProps {
 export const PayrollProcessing: React.FC<PayrollProcessingProps> = ({
   onComplete,
 }) => {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+
+  const { lineUserId } = useLiff();
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [progress, setProgress] = useState({ processed: 0, total: 0 });
   const [status, setStatus] = useState<'idle' | 'processing' | 'completed'>(
@@ -23,7 +33,7 @@ export const PayrollProcessing: React.FC<PayrollProcessingProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const startProcessing = async () => {
-    if (!selectedPeriod || !user?.lineUserId) return;
+    if (!selectedPeriod || !lineUserId) return;
     setStatus('processing');
     setError(null);
 
@@ -32,7 +42,7 @@ export const PayrollProcessing: React.FC<PayrollProcessingProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': user.lineUserId,
+          'x-line-userid': lineUserId,
         },
         body: JSON.stringify({ periodYearMonth: selectedPeriod }),
       });

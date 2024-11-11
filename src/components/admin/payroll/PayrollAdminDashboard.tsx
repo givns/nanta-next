@@ -12,7 +12,6 @@ import { PayrollProcessing } from '@/components/payroll/PayrollProcessing';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { isValid, parseISO } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/router';
 import { useLiff } from '@/contexts/LiffContext';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 

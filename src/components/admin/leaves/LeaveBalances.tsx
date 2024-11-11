@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAdmin } from '@/contexts/AdminContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -27,6 +26,8 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Download, FileSpreadsheet } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useLiff } from '@/contexts/LiffContext';
 
 interface LeaveBalance {
   employeeId: string;
@@ -50,7 +51,17 @@ interface LeaveBalance {
 }
 
 export default function LeaveBalances() {
-  const { user } = useAdmin();
+  const {
+    user,
+    isLoading: authLoading,
+    isAuthorized,
+  } = useAuth({
+    required: true,
+    requiredRoles: ['Admin', 'SuperAdmin'],
+  });
+
+  const { lineUserId } = useLiff();
+
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +83,7 @@ export default function LeaveBalances() {
       setIsLoading(true);
       const response = await fetch('/api/admin/leaves/leave-balances', {
         headers: {
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': lineUserId || '',
         },
       });
       if (!response.ok) throw new Error('Failed to fetch leave balances');
