@@ -4,7 +4,7 @@ import store from '../store';
 import { AdminProvider } from '@/contexts/AdminContext';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import LoadingBar from '@/components/LoadingBar';
-import { useLiff } from '@/hooks/useLiff';
+import { useLiff } from '@/contexts/LiffContext'; // Updated import
 import { useRouter } from 'next/router';
 
 interface AppContentProps {
@@ -21,8 +21,9 @@ export default function AppContent({
   isLiffPage,
 }: AppContentProps) {
   const router = useRouter();
-  const { isLiffInitialized, lineUserId, error: liffError } = useLiff();
+  const { isInitialized, lineUserId, error: liffError, userData } = useLiff();
   const [isRouteLoading, setIsRouteLoading] = useState(false);
+  const isRegisterPage = router.pathname === '/register';
 
   useEffect(() => {
     const handleStart = () => setIsRouteLoading(true);
@@ -45,7 +46,7 @@ export default function AppContent({
 
   // Handle LIFF pages
   if (isLiffPage) {
-    if (!isLiffInitialized) {
+    if (!isInitialized) {
       return <LoadingBar />;
     }
 
@@ -58,6 +59,21 @@ export default function AppContent({
       );
     }
 
+    // Special handling for register page
+    if (isRegisterPage) {
+      return (
+        <Provider store={store}>
+          <Component {...pageProps} lineUserId={lineUserId} />
+        </Provider>
+      );
+    }
+
+    // For other LIFF pages, check if user is registered
+    if (!userData && !isRegisterPage) {
+      router.push('/register');
+      return <LoadingBar />;
+    }
+
     return (
       <Provider store={store}>
         <Component {...pageProps} lineUserId={lineUserId} />
@@ -67,10 +83,17 @@ export default function AppContent({
 
   // Handle admin routes
   if (isAdminRoute) {
-    const cachedUserId = localStorage.getItem('lineUserId');
+    // Check for both lineUserId and userData to ensure user is registered
+    if (!lineUserId || !userData) {
+      if (!isRegisterPage) {
+        router.replace('/register');
+      }
+      return <LoadingBar />;
+    }
 
-    if (!lineUserId && !cachedUserId) {
-      router.replace('/login');
+    // Verify admin role
+    if (!['Admin', 'SuperAdmin'].includes(userData.role)) {
+      router.replace('/');
       return <LoadingBar />;
     }
 
@@ -83,6 +106,7 @@ export default function AppContent({
     );
   }
 
+  // For regular routes
   return (
     <Provider store={store}>
       <Component {...pageProps} lineUserId={lineUserId} />
