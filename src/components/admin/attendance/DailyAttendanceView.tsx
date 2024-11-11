@@ -15,7 +15,7 @@ import { EmployeeDetailDialog } from './EmployeeDetailDialog';
 import { format, isValid, startOfDay, parse } from 'date-fns';
 import { useRouter } from 'next/router';
 
-export default function DailyAttendanceView() {
+function DailyAttendanceViewContent() {
   const router = useRouter();
   const { user, isLoading: isAdminLoading } = useAdmin();
   const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
@@ -237,4 +237,7 @@ export default function DailyAttendanceView() {
       )}
     </div>
   );
+}
+export default function DailyAttendanceView() {
+  return <DailyAttendanceViewContent />;
 }

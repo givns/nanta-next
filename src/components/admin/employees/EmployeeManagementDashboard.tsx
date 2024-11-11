@@ -50,6 +50,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { withAdminAuth } from '@/utils/withAdminAuth';
 
 interface BulkActionsProps {
   selectedEmployees: Employee[];
@@ -71,7 +72,7 @@ interface Shift {
   workDays: number[];
 }
 
-export default function EmployeeManagementDashboard() {
+function EmployeeManagement() {
   const { user } = useAdmin();
   const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -559,6 +560,10 @@ export default function EmployeeManagementDashboard() {
       </Dialog>
     </div>
   );
+}
+
+export default function EmployeeManagementDashboard() {
+  return <EmployeeManagement />;
 }
 
 // Helper Components

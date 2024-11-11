@@ -6,6 +6,8 @@ import { useLiff } from '@/contexts/LiffContext';
 import { useRouter } from 'next/router';
 import type { NextPage } from 'next';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
+import { AdminProvider } from '@/contexts/AdminContext';
+import AdminLayout from './layouts/AdminLayout';
 
 interface AppContentProps {
   Component: NextPage;
@@ -91,7 +93,11 @@ export default function AppContent({
 
     return (
       <Provider store={store}>
-        <Component {...pageProps} lineUserId={lineUserId} />
+        <AdminProvider>
+          <AdminLayout>
+            <Component {...pageProps} lineUserId={lineUserId} />
+          </AdminLayout>
+        </AdminProvider>
       </Provider>
     );
   }
