@@ -14,13 +14,11 @@ const UserDataSchema = z.object({
   name: z.string(),
   lineUserId: z.string().nullable(),
   nickname: z.string().nullable(),
-  departmentId: z.string().nullable(),
   departmentName: z.string(),
   role: z.nativeEnum(UserRole),
   profilePictureUrl: z.string().nullable(),
   shiftId: z.string().nullable(),
   shiftCode: z.string().nullable(),
-  overtimeHours: z.number(),
   sickLeaveBalance: z.number(),
   businessLeaveBalance: z.number(),
   annualLeaveBalance: z.number(),
@@ -42,13 +40,11 @@ const cleanUserData = (userData: any): z.infer<typeof UserDataSchema> => {
     name: userData.name,
     lineUserId: userData.lineUserId,
     nickname: userData.nickname,
-    departmentId: userData.departmentId,
     departmentName: userData.departmentName || '',
     role: userData.role,
     profilePictureUrl: userData.profilePictureUrl,
     shiftId: userData.shiftId,
     shiftCode: userData.shiftCode,
-    overtimeHours: userData.overtimeHours || 0,
     sickLeaveBalance: userData.sickLeaveBalance || 0,
     businessLeaveBalance: userData.businessLeaveBalance || 0,
     annualLeaveBalance: userData.annualLeaveBalance || 0,
@@ -316,7 +312,6 @@ const parseUserData = (userData: any): UserData => {
     ...validated,
     updatedAt: validated.updatedAt ? new Date(validated.updatedAt) : undefined,
     employeeType: validated.employeeType || '', // Provide a default value for employeeType
-    isGovernmentRegistered: validated.isGovernmentRegistered === 'true', // Convert string to boolean
   };
 };
 

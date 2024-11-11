@@ -6,14 +6,14 @@ import axios from 'axios';
 import { UserData } from '@/types/user';
 import { UserRole } from '@/types/enum';
 import LoadingBar from '@/components/LoadingBar';
+import { useLiff } from '@/contexts/LiffContext';
+import { useAuth } from '@/hooks/useAuth';
 
-interface OvertimeRequestPageProps {
-  lineUserId: string | null;
-}
-
-const OvertimeRequestPage: React.FC<OvertimeRequestPageProps> = ({
-  lineUserId,
-}) => {
+const OvertimeRequestPage: React.FC = () => {
+  const { lineUserId, isInitialized, error: liffError } = useLiff();
+  const { isLoading: authLoading } = useAuth({
+    requiredRoles: ['Admin', 'SuperAdmin', 'Manager'],
+  });
   const [userData, setUserData] = useState<UserData | null>(null);
   const [message, setMessage] = useState('');
   const [employees, setEmployees] = useState<any[]>([]);

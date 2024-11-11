@@ -14,7 +14,6 @@ export interface UserData {
   departmentName: string;
   shiftCode: string | null;
   employeeType: string;
-  isGovernmentRegistered: boolean;
   role: UserRole;
   profilePictureUrl: string | null;
   shiftId: string | null;

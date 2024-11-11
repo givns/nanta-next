@@ -1638,7 +1638,6 @@ export class AttendanceService {
       departmentName: user.departmentName || '',
       employeeType: user.employeeType,
       role: user.role as UserRole,
-      isGovernmentRegistered: Boolean(user.isGovernmentRegistered),
       profilePictureUrl: user.profilePictureUrl,
       shiftId: effectiveShift.id,
       shiftCode: effectiveShift.shiftCode,

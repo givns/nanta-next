@@ -5,10 +5,8 @@ import axios from 'axios';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
 import LoadingBar from '@/components/LoadingBar';
-
-interface LeaveRequestPageProps {
-  lineUserId: string | null;
-}
+import { useLiff } from '@/contexts/LiffContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface UserCheckInStatusResponse {
   user: UserData & {
@@ -18,8 +16,12 @@ interface UserCheckInStatusResponse {
   };
 }
 
-const LeaveRequestPage: React.FC<LeaveRequestPageProps> = ({ lineUserId }) => {
+const LeaveRequestPage: React.FC = () => {
   const router = useRouter();
+  const { lineUserId, isInitialized, error: liffError } = useLiff();
+  const { isLoading: authLoading } = useAuth({
+    required: true, // Require auth but no specific roles
+  });
   const { resubmit, originalId } = router.query;
   const [originalLeaveData, setOriginalLeaveData] = useState<FormValues | null>(
     null,
