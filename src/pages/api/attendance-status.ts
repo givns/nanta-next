@@ -11,6 +11,7 @@ import { createNotificationService } from '@/services/NotificationService';
 import { cacheService } from '@/services/CacheService';
 import { ResponseDataSchema } from '../../schemas/attendance';
 import { ZodError, z } from 'zod';
+import { AttendanceStatusInfo } from '@/types/attendance';
 
 const prisma = new PrismaClient();
 
@@ -100,40 +101,90 @@ export default async function handler(
   });
 
   try {
-    // Fetch user data
+    // Fetch user data with better error handling
     let user;
-    if (lineUserId && typeof lineUserId === 'string') {
-      const cacheKey = `user:${lineUserId}`;
-      if (cacheService) {
-        const cachedUser = await cacheService.get(cacheKey);
-        if (cachedUser) {
-          user = JSON.parse(cachedUser);
+    try {
+      if (lineUserId && typeof lineUserId === 'string') {
+        const cacheKey = `user:${lineUserId}`;
+        if (cacheService) {
+          const cachedUser = await cacheService.get(cacheKey);
+          if (cachedUser) {
+            user = JSON.parse(cachedUser);
+          }
         }
-      }
-      if (!user) {
+        if (!user) {
+          user = await prisma.user.findUnique({
+            where: { lineUserId },
+            include: { department: true },
+          });
+          if (user && cacheService) {
+            await cacheService.set(cacheKey, JSON.stringify(user), 3600);
+          }
+        }
+      } else if (employeeId && typeof employeeId === 'string') {
         user = await prisma.user.findUnique({
-          where: { lineUserId },
+          where: { employeeId },
           include: { department: true },
         });
-        if (user && cacheService) {
-          await cacheService.set(cacheKey, JSON.stringify(user), 3600);
-        }
       }
-    } else if (employeeId && typeof employeeId === 'string') {
-      user = await prisma.user.findUnique({
-        where: { employeeId },
-        include: { department: true },
-      });
-    }
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      if (!user) {
+        return res.status(404).json({
+          error: 'User not found',
+          message: 'Please complete your registration first.',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      return res.status(500).json({
+        error: 'Failed to fetch user data',
+        message: 'Unable to retrieve user information. Please try again.',
+      });
     }
 
     // Prepare user data with all required fields
     const preparedUser = prepareUserData(user);
 
-    // Fetch attendance data with cache
+    // Create default/initial attendance status for new users
+    const createInitialAttendanceStatus = async (
+      userId: string,
+    ): Promise<AttendanceStatusInfo> => {
+      const now = new Date();
+      const currentShift = await shiftService.getEffectiveShiftAndStatus(
+        userId,
+        now,
+      );
+
+      return {
+        isDayOff: !currentShift?.effectiveShift?.workDays.includes(
+          now.getDay(),
+        ),
+        isHoliday: false,
+        holidayInfo: null,
+        dayOffType: 'none',
+        status: 'absent',
+        isCheckingIn: true,
+        isOvertime: false,
+        overtimeDuration: 0,
+        overtimeEntries: [],
+        detailedStatus: 'first-time',
+        isEarlyCheckIn: false,
+        isLateCheckIn: false,
+        isLateCheckOut: false,
+        user: {
+          ...preparedUser,
+          updatedAt: preparedUser.updatedAt ?? undefined,
+        },
+        latestAttendance: null,
+        shiftAdjustment: null,
+        approvedOvertime: null,
+        futureShifts: [],
+        futureOvertimes: [],
+        pendingLeaveRequest: false,
+      };
+    };
+
+    // Fetch attendance data with cache and fallback
     const cacheKey = `attendance-status:${user.lineUserId || user.employeeId}`;
     let responseData;
 
@@ -144,58 +195,69 @@ export default async function handler(
           cacheKey,
           async () => {
             console.log('Cache miss, fetching fresh data');
-            const [
-              shiftData,
-              attendanceStatus,
-              approvedOvertime,
-              leaveRequests,
-            ] = await Promise.all([
-              shiftService.getEffectiveShiftAndStatus(
-                preparedUser.employeeId,
-                new Date(),
-              ),
-              attendanceService.getLatestAttendanceStatus(
-                preparedUser.employeeId,
-              ),
-              overtimeService.getApprovedOvertimeRequest(
-                preparedUser.employeeId,
-                new Date(),
-              ),
-              leaveServiceServer.getLeaveRequests(preparedUser.employeeId),
-            ]);
+            try {
+              const [
+                shiftData,
+                attendanceStatus,
+                approvedOvertime,
+                leaveRequests,
+              ] = await Promise.all([
+                shiftService.getEffectiveShiftAndStatus(
+                  preparedUser.employeeId,
+                  new Date(),
+                ),
+                attendanceService
+                  .getLatestAttendanceStatus(preparedUser.employeeId)
+                  .catch(async (error) => {
+                    console.log(
+                      'No existing attendance found, creating initial status',
+                    );
+                    return createInitialAttendanceStatus(
+                      preparedUser.employeeId,
+                    );
+                  }),
+                overtimeService
+                  .getApprovedOvertimeRequest(
+                    preparedUser.employeeId,
+                    new Date(),
+                  )
+                  .catch(() => null),
+                leaveServiceServer
+                  .getLeaveRequests(preparedUser.employeeId)
+                  .catch(() => []),
+              ]);
 
-            console.log('Fetched Data:', {
-              shiftData: {
-                hasShift: !!shiftData,
-                effectiveShift: shiftData?.effectiveShift,
-                shiftStatus: shiftData?.shiftstatus,
-              },
-              attendanceStatus: {
-                isCheckingIn: attendanceStatus?.isCheckingIn,
-                isDayOff: attendanceStatus?.isDayOff,
-                status: attendanceStatus?.status,
-                latestAttendance: attendanceStatus?.latestAttendance,
-              },
-              overtimeData: {
+              console.log('Data fetched successfully:', {
+                hasShiftData: !!shiftData,
+                hasAttendanceStatus: !!attendanceStatus,
                 hasOvertime: !!approvedOvertime,
-                overtimeDetails: approvedOvertime
-                  ? {
-                      startTime: approvedOvertime.startTime,
-                      endTime: approvedOvertime.endTime,
-                      isDayOffOvertime: approvedOvertime.isDayOffOvertime,
-                      isInsideShiftHours: approvedOvertime.isInsideShiftHours,
-                    }
-                  : null,
-              },
-              leaveRequestsCount: leaveRequests?.length,
-            });
+                leaveRequestCount: leaveRequests.length,
+              });
 
-            return {
-              shiftData,
-              attendanceStatus,
-              approvedOvertime,
-              leaveRequests,
-            };
+              return {
+                shiftData,
+                attendanceStatus,
+                approvedOvertime,
+                leaveRequests,
+              };
+            } catch (error) {
+              console.error('Error fetching attendance data:', error);
+              // Return minimal data structure for new users
+              const defaultShiftData =
+                await shiftService.getEffectiveShiftAndStatus(
+                  preparedUser.employeeId,
+                  new Date(),
+                );
+
+              return {
+                shiftData: defaultShiftData,
+                attendanceStatus: await createInitialAttendanceStatus(
+                  preparedUser.employeeId,
+                ),
+                approvedOvertime: null,
+                leaveRequests: [],
+              };
+            }
           },
           300,
         );
@@ -228,32 +290,43 @@ export default async function handler(
         };
       }
     } catch (error) {
-      console.error('Error fetching attendance data:', error);
-      return res.status(500).json({
-        error: 'Failed to fetch attendance data',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      });
+      console.error('Error in data fetching:', error);
+      // Return minimal valid response
+      responseData = {
+        shiftData: await shiftService.getEffectiveShiftAndStatus(
+          preparedUser.employeeId,
+          new Date(),
+        ),
+        attendanceStatus: await createInitialAttendanceStatus(
+          preparedUser.employeeId,
+        ),
+        approvedOvertime: null,
+        leaveRequests: [],
+      };
     }
 
     // Fetch check-in/out allowance
-    const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
-      preparedUser.employeeId,
-      req.query.inPremises === 'true',
-      req.query.address as string,
-    );
-
-    console.log('Check-in/out Allowance:', {
-      allowed: checkInOutAllowance.allowed,
-      reason: checkInOutAllowance.reason,
-      isOvertime: checkInOutAllowance.isOvertime,
-      isDayOffOvertime: checkInOutAllowance.isDayOffOvertime,
-      isInsideShift: checkInOutAllowance.isInsideShift,
-      isAutoCheckIn: checkInOutAllowance.isAutoCheckIn,
-      requireConfirmation: checkInOutAllowance.requireConfirmation,
-      currentTime: new Date().toISOString(),
-    });
+    const checkInOutAllowance = await attendanceService
+      .isCheckInOutAllowed(
+        preparedUser.employeeId,
+        req.query.inPremises === 'true',
+        req.query.address as string,
+      )
+      .catch(() => ({
+        allowed: false,
+        reason: 'Unable to determine check-in/out permissions',
+        inPremises: false,
+        address: '',
+        isAfternoonShift: false,
+        isLateCheckIn: false,
+        isLate: false,
+        isOvertime: false,
+        isEarlyCheckOut: false,
+        requireConfirmation: false,
+      }));
 
     // Prepare final response
+    // Prepare final response with fallbacks
     const finalResponseData = {
       user: preparedUser,
       attendanceStatus: responseData.attendanceStatus,
