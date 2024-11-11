@@ -15,7 +15,7 @@ import {
 import { UserData } from '../../types/user';
 import { useFaceDetection } from '../../hooks/useFaceDetection';
 import SkeletonLoader from '../SkeletonLoader';
-import UserShiftInfo from '../UserShiftInfo';
+import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from '../LateReasonModal';
 import ErrorBoundary from '../ErrorBoundary';
 import ActionButton from '../ActionButton';

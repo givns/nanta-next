@@ -8,6 +8,22 @@ import { AdminProvider } from '@/contexts/AdminContext';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import LoadingProgress from '@/components/LoadingProgress';
 
+function AdminRoute({
+  Component,
+  pageProps,
+}: {
+  Component: AppProps['Component'];
+  pageProps: AppProps['pageProps'];
+}) {
+  return (
+    <AdminProvider>
+      <AdminLayout>
+        <Component {...pageProps} />
+      </AdminLayout>
+    </AdminProvider>
+  );
+}
+
 function AppWrapper({ Component, pageProps, router }: AppProps) {
   const [mounted, setMounted] = useState(false);
   const isAdminRoute = router.pathname.startsWith('/admin');
@@ -27,13 +43,12 @@ function AppWrapper({ Component, pageProps, router }: AppProps) {
 
   // For admin routes
   if (isAdminRoute) {
-    return (
-      <AdminProvider>
-        <AdminLayout>
-          <Component {...pageProps} />
-        </AdminLayout>
-      </AdminProvider>
-    );
+    return <AdminRoute Component={Component} pageProps={pageProps} />;
+  }
+
+  // For register page or LIFF pages
+  if (isLiffPage) {
+    return <Component {...pageProps} />;
   }
 
   // For other routes

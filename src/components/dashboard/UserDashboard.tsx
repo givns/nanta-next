@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Calendar, Clock, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AttendanceTable from '../AttendanceTable';
-import UserShiftInfo from '../UserShiftInfo';
+import UserShiftInfo from '../attendance/UserShiftInfo';
 import { DashboardData } from '@/types/dashboard';
 
 interface UserDashboardProps {

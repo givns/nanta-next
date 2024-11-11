@@ -4,8 +4,8 @@ import {
   ShiftData,
   ApprovedOvertime,
   OvertimeRequestStatus,
-} from '../types/attendance';
-import { UserData } from '../types/user';
+} from '../../types/attendance';
+import { UserData } from '../../types/user';
 import {
   addHours,
   format,
