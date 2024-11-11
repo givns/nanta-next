@@ -71,38 +71,31 @@ export default function PayrollAdminDashboard() {
   }, []);
 
   const fetchEmployees = async () => {
-    if (!lineUserId || !isAuthorized) {
-      setState((prev) => ({
-        ...prev,
-        error: 'Unauthorized access',
-      }));
-      return;
-    }
+    if (lineUserId)
+      try {
+        setState((prev) => ({ ...prev, isLoading: true }));
 
-    try {
-      setState((prev) => ({ ...prev, isLoading: true }));
+        // lineUserId here is for verifying the admin's identity
+        const response = await fetch('/api/admin/employees/all', {
+          headers: {
+            'x-line-userid': lineUserId,
+          },
+        });
 
-      // lineUserId here is for verifying the admin's identity
-      const response = await fetch('/api/admin/employees/all', {
-        headers: {
-          'x-line-userid': lineUserId,
-        },
-      });
+        if (!response.ok) {
+          throw new Error('Failed to fetch employees');
+        }
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch employees');
+        const data = await response.json();
+        setEmployees(data);
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          error: 'Failed to load employees',
+        }));
+      } finally {
+        setState((prev) => ({ ...prev, isLoading: false }));
       }
-
-      const data = await response.json();
-      setEmployees(data);
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        error: 'Failed to load employees',
-      }));
-    } finally {
-      setState((prev) => ({ ...prev, isLoading: false }));
-    }
   };
 
   // Update handleCalculate to use lineUserId from context
