@@ -18,6 +18,7 @@ import LoadingProgress from '@/components/LoadingProgress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AdminTabs } from './AdminTabs';
 import { useEnvironment } from '../../hooks/useEnvironment';
+import DashboardSkeleton from '../dashboard/DashboardSkeleton';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -123,25 +124,20 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const currentTabs = routeTabs[baseRoute];
   const currentTabValue = currentPath.split('/').pop() || '';
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Don't render anything on server
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  // Don't render until mounted
-  if (!mounted) {
-    return null;
-  }
-
   // Show navigation on desktop browsers (not in LIFF)
   const showNavigation = env.isMounted && env.isDesktop && !env.isLiffBrowser;
   // Show tabs only on mobile/LIFF
   const showTabs =
     env.isMounted && (!env.isDesktop || env.isLiffBrowser) && currentTabs;
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  if (!user) {
+    router.replace('/');
+    return <DashboardSkeleton />;
+  }
 
   const isCurrentPath = (path: string) => {
     if (path === '/admin') return currentPath === path;

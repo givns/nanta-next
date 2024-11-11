@@ -2,6 +2,8 @@ import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { useAdmin } from '@/contexts/AdminContext';
+import { NextPage } from 'next';
+import { withAdminAuth } from '@/utils/withAdminAuth';
 
 const EmployeeManagementDashboard = dynamic(
   () => import('@/components/admin/employees/EmployeeManagementDashboard'),
@@ -11,11 +13,10 @@ const EmployeeManagementDashboard = dynamic(
   },
 );
 
-export default function AdminEmployeesPage() {
+const AdminEmployeesPage: NextPage = () => {
   const { user, isLoading } = useAdmin();
 
-  // Handle SSR and loading states
-  if (typeof window === 'undefined' || isLoading || !user) {
+  if (isLoading || !user) {
     return <DashboardSkeleton />;
   }
 
@@ -27,9 +28,10 @@ export default function AdminEmployeesPage() {
       <EmployeeManagementDashboard />
     </>
   );
-}
+};
 
-// Add getServerSideProps to ensure server-side rendering
+export default withAdminAuth(AdminEmployeesPage);
+
 export async function getServerSideProps() {
   return {
     props: {},

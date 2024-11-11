@@ -3,6 +3,8 @@ import { useAdmin } from '@/contexts/AdminContext';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
+import { NextPage } from 'next';
+import { withAdminAuth } from '@/utils/withAdminAuth';
 
 const PayrollAdminDashboard = dynamic(
   () => import('@/components/admin/payroll/PayrollAdminDashboard'),
@@ -12,7 +14,7 @@ const PayrollAdminDashboard = dynamic(
   },
 );
 
-export default function AdminPayrollPage() {
+const AdminPayrollPage: NextPage = () => {
   const { user, isLoading } = useAdmin();
 
   if (isLoading || !user) {
@@ -27,4 +29,6 @@ export default function AdminPayrollPage() {
       <PayrollAdminDashboard />
     </>
   );
-}
+};
+
+export default withAdminAuth(AdminPayrollPage);

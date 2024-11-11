@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Provider } from 'react-redux';
 import store from '../store';
-import { AdminProvider } from '@/contexts/AdminContext';
-import AdminLayout from '@/components/layouts/AdminLayout';
 import LoadingBar from '@/components/LoadingBar';
 import { useLiff } from '@/contexts/LiffContext';
 import { useRouter } from 'next/router';
+import type { NextPage } from 'next';
+import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 
 interface AppContentProps {
-  Component: React.ComponentType<any>;
+  Component: NextPage;
   pageProps: any;
   isAdminRoute: boolean;
   isLiffPage: boolean;
@@ -21,9 +21,10 @@ export default function AppContent({
   isLiffPage,
 }: AppContentProps) {
   const router = useRouter();
-  const { isInitialized, lineUserId, error: liffError } = useLiff();
+  const { isInitialized, lineUserId, error: liffError, userData } = useLiff();
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const isRegisterPage = router.pathname === '/register';
 
   useEffect(() => {
     setMounted(true);
@@ -32,39 +33,60 @@ export default function AppContent({
   useEffect(() => {
     const handleStart = () => setIsRouteLoading(true);
     const handleComplete = () => setIsRouteLoading(false);
+    const handleError = () => setIsRouteLoading(false);
 
     router.events.on('routeChangeStart', handleStart);
     router.events.on('routeChangeComplete', handleComplete);
-    router.events.on('routeChangeError', handleComplete);
+    router.events.on('routeChangeError', handleError);
 
     return () => {
       router.events.off('routeChangeStart', handleStart);
       router.events.off('routeChangeComplete', handleComplete);
-      router.events.off('routeChangeError', handleComplete);
+      router.events.off('routeChangeError', handleError);
     };
   }, [router]);
 
-  if (!mounted) {
-    return <LoadingBar />;
+  // Handle SSR and initial mounting
+  if (typeof window === 'undefined' || !mounted) {
+    return <DashboardSkeleton />;
   }
 
+  // Show loading state during route changes
   if (isRouteLoading) {
     return <LoadingBar />;
   }
 
-  // Handle LIFF pages that are not admin routes
-  if (isLiffPage && !isAdminRoute) {
-    if (!isInitialized) {
-      return <LoadingBar />;
-    }
+  // Handle LIFF initialization
+  if (isLiffPage && !isInitialized) {
+    return <LoadingBar />;
+  }
 
-    if (liffError) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-screen">
-          <div className="text-red-500">เกิดข้อผิดพลาดในการเชื่อมต่อ LIFF</div>
-          <div className="text-red-500">{liffError}</div>
-        </div>
-      );
+  // Handle LIFF errors
+  if (isLiffPage && liffError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="text-red-500">เกิดข้อผิดพลาดในการเชื่อมต่อ LIFF</div>
+        <div className="text-red-500">{liffError}</div>
+      </div>
+    );
+  }
+
+  // Special handling for register page
+  if (isRegisterPage) {
+    return (
+      <Provider store={store}>
+        <Component {...pageProps} lineUserId={lineUserId} />
+      </Provider>
+    );
+  }
+
+  // Handle admin routes - AdminProvider is handled by withAdminAuth HOC
+  if (isAdminRoute) {
+    if (!lineUserId) {
+      if (!isRegisterPage) {
+        router.replace('/register');
+      }
+      return <LoadingBar />;
     }
 
     return (
@@ -74,16 +96,16 @@ export default function AppContent({
     );
   }
 
-  // Handle admin routes
-  if (isAdminRoute) {
-    // Important: Wrap the entire admin section with AdminProvider
+  // Handle LIFF pages that are not admin routes or register page
+  if (isLiffPage) {
+    if (!userData && !isRegisterPage) {
+      router.push('/register');
+      return <LoadingBar />;
+    }
+
     return (
       <Provider store={store}>
-        <AdminProvider>
-          <AdminLayout>
-            <Component {...pageProps} />
-          </AdminLayout>
-        </AdminProvider>
+        <Component {...pageProps} lineUserId={lineUserId} />
       </Provider>
     );
   }

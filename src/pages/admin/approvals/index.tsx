@@ -1,8 +1,26 @@
 // pages/admin/approvals/index.tsx
 import React from 'react';
-import ApprovalDashboard from '@/components/admin/approvals/ApprovalDashboard';
+import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
+import { NextPage } from 'next';
+import { withAdminAuth } from '@/utils/withAdminAuth';
+import dynamic from 'next/dynamic';
+import { useAdmin } from '@/contexts/AdminContext';
 
-export default function ApprovalsPage() {
+const ApprovalAdminDashboard = dynamic(
+  () => import('@/components/admin/approvals/ApprovalDashboard'),
+  {
+    ssr: false,
+    loading: () => <DashboardSkeleton />,
+  },
+);
+
+const ApprovalDashboard: NextPage = () => {
+  const { user, isLoading } = useAdmin();
+
+  if (isLoading || !user) {
+    return <DashboardSkeleton />;
+  }
+
   return (
     <div className="space-y-6 p-4 md:p-8">
       <div>
@@ -11,7 +29,8 @@ export default function ApprovalsPage() {
           Manage all pending approvals and requests
         </p>
       </div>
-      <ApprovalDashboard />
+      <ApprovalAdminDashboard />
     </div>
   );
-}
+};
+export default withAdminAuth(ApprovalDashboard);

@@ -1,6 +1,5 @@
-// pages/admin/attendance/daily.tsx
-import React, { useState, useEffect } from 'react';
-import { format, startOfDay } from 'date-fns';
+import React, { useState } from 'react';
+import { format } from 'date-fns';
 import { th } from 'date-fns/locale/th';
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
@@ -10,6 +9,8 @@ import { FileSpreadsheet, Download } from 'lucide-react';
 import Head from 'next/head';
 import { useToast } from '@/components/ui/use-toast';
 import { useAdmin } from '@/contexts/AdminContext';
+import { withAdminAuth } from '@/utils/withAdminAuth';
+import type { NextPage } from 'next';
 
 // Loading placeholder for better UX during dynamic import
 const LoadingPlaceholder = () => (
@@ -47,23 +48,19 @@ const DailyAttendanceView = dynamic(
   () => import('@/components/admin/attendance/DailyAttendanceView'),
   {
     loading: () => <LoadingPlaceholder />,
-    ssr: false, // Keep this to avoid hydration issues
+    ssr: false,
   },
 );
 
-export default function DailyAttendancePage() {
+const DailyAttendancePage: NextPage = () => {
   const { toast } = useToast();
   const { user, isLoading: isAdminLoading } = useAdmin();
-  const [mounted, setMounted] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-
-  // Wait for client-side hydration to complete
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Handle export functionality
   const handleExport = async () => {
+    if (!user?.lineUserId) return;
+
     try {
       setIsExporting(true);
       const currentDate = format(new Date(), 'yyyy-MM-dd');
@@ -72,7 +69,7 @@ export default function DailyAttendancePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': user?.lineUserId || '',
+          'x-line-userid': user.lineUserId,
         },
         body: JSON.stringify({
           date: currentDate,
@@ -109,8 +106,8 @@ export default function DailyAttendancePage() {
     }
   };
 
-  // Show loading placeholder until mounted and admin data is loaded
-  if (!mounted || isAdminLoading) {
+  // Show loading placeholder if admin data is still loading
+  if (isAdminLoading) {
     return <LoadingPlaceholder />;
   }
 
@@ -150,15 +147,18 @@ export default function DailyAttendancePage() {
           </div>
         </div>
 
-        <DailyAttendanceView key={mounted.toString()} />
+        <DailyAttendanceView />
       </div>
     </>
   );
-}
+};
 
-// Add getServerSideProps to ensure server-side rendering
-export async function getServerSideProps() {
+// Wrap with withAdminAuth HOC
+export default withAdminAuth(DailyAttendancePage);
+
+// Keep getServerSideProps for SSR
+export const getServerSideProps = async () => {
   return {
     props: {},
   };
-}
+};
