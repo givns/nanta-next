@@ -39,6 +39,88 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     mounted: false,
   });
 
+  const initializeLiff = useCallback(async () => {
+    if (!process.env.NEXT_PUBLIC_LIFF_ID) {
+      console.error('LIFF ID not configured');
+      setState((prev) => ({
+        ...prev,
+        error: 'LIFF configuration missing',
+        isLoading: false,
+      }));
+      return;
+    }
+
+    try {
+      await liff.init({
+        liffId: process.env.NEXT_PUBLIC_LIFF_ID,
+        // Add this to prevent auto-login
+      });
+
+      const isInClient = liff.isInClient();
+      const isLoggedIn = liff.isLoggedIn();
+
+      // If not in LINE app and not logged in, don't auto-redirect
+      if (!isInClient && !isLoggedIn) {
+        setState((prev) => ({
+          ...prev,
+          isInitialized: true,
+          isLoading: false,
+          liffState: { isInClient, isLoggedIn },
+        }));
+        return;
+      }
+
+      // Only try to get profile if logged in
+      if (isLoggedIn) {
+        const profile = await liff.getProfile();
+        localStorage.setItem('lineUserId', profile.userId);
+
+        // Only fetch user data if not on register page
+        if (!router.pathname.includes('/register')) {
+          try {
+            const userData = await fetchUserData(profile.userId);
+            setState((prev) => ({
+              ...prev,
+              lineUserId: profile.userId,
+              userData,
+              isInitialized: true,
+              liffState: { isInClient, isLoggedIn },
+              error: null,
+              isLoading: false,
+            }));
+          } catch (error) {
+            if (error instanceof Error && error.message === 'User not found') {
+              router.push('/register');
+            } else {
+              throw error;
+            }
+          }
+        } else {
+          setState((prev) => ({
+            ...prev,
+            lineUserId: profile.userId,
+            isInitialized: true,
+            liffState: { isInClient, isLoggedIn },
+            isLoading: false,
+          }));
+        }
+      } else {
+        // Handle case where login is required
+        if (isInClient) {
+          liff.login();
+        }
+      }
+    } catch (error) {
+      console.error('LIFF initialization failed:', error);
+      setState((prev) => ({
+        ...prev,
+        error:
+          error instanceof Error ? error.message : 'LIFF initialization failed',
+        isLoading: false,
+      }));
+    }
+  }, [router]);
+
   const isExcludedPath = EXCLUDED_PATHS.includes(router.pathname);
 
   const fetchUserData = useCallback(
@@ -67,52 +149,6 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     },
     [router, isExcludedPath],
   );
-
-  const initializeLiff = useCallback(async () => {
-    try {
-      await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
-
-      const liffState = {
-        isInClient: liff.isInClient(),
-        isLoggedIn: liff.isLoggedIn(),
-      };
-
-      if (!liffState.isLoggedIn) {
-        liff.login();
-        return;
-      }
-
-      const profile = await liff.getProfile();
-      localStorage.setItem('lineUserId', profile.userId);
-
-      let userData = null;
-      try {
-        userData = await fetchUserData(profile.userId);
-      } catch (error) {
-        if (!isExcludedPath) {
-          throw error;
-        }
-      }
-
-      setState((prev) => ({
-        ...prev,
-        lineUserId: profile.userId,
-        userData,
-        liffState,
-        isInitialized: true,
-        error: null,
-        isLoading: false,
-      }));
-    } catch (error) {
-      console.error('LIFF initialization failed:', error);
-      setState((prev) => ({
-        ...prev,
-        error:
-          error instanceof Error ? error.message : 'LIFF initialization failed',
-        isLoading: false,
-      }));
-    }
-  }, [fetchUserData, isExcludedPath]);
 
   const refreshUserData = useCallback(async () => {
     if (!state.lineUserId || !state.isInitialized) return;
