@@ -28,17 +28,14 @@ function AppContent({ Component, pageProps }: AppProps) {
     return <LoadingProgress isLiffInitialized={false} isDataLoaded={false} />;
   }
 
-  // For admin routes, check authorization
+  // For admin routes
   if (isAdminRoute) {
-    if (!isAuthorized) {
-      router.replace('/');
-      return null;
-    }
-
     return (
-      <AdminLayout>
-        <Component {...pageProps} />
-      </AdminLayout>
+      <Provider store={store}>
+        <AdminLayout>
+          <Component {...pageProps} />
+        </AdminLayout>
+      </Provider>
     );
   }
 
@@ -48,7 +45,7 @@ function AppContent({ Component, pageProps }: AppProps) {
     return null;
   }
 
-  // For regular routes
+  // For all other routes, render normally
   return <Component {...pageProps} />;
 }
 

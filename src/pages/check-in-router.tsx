@@ -11,6 +11,7 @@ import {
   getCachedAttendanceStatus,
 } from '../services/userService';
 import LoadingBar from '../components/LoadingBar';
+import { useLiff } from '@/contexts/LiffContext';
 
 const CheckInOutForm = dynamic(
   () => import('../components/attendance/CheckInOutForm'),
@@ -21,11 +22,8 @@ const CheckInOutForm = dynamic(
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
-interface CheckInRouterProps {
-  lineUserId: string | null;
-}
-
-const CheckInRouter: React.FC<CheckInRouterProps> = ({ lineUserId }) => {
+const CheckInRouter: React.FC = () => {
+  const { lineUserId } = useLiff();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
