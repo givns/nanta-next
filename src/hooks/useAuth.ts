@@ -131,9 +131,6 @@ export function useAuth(options: UseAuthOptions = {}) {
         }
       } catch (error) {
         console.error('Auth check failed:', error);
-        if (options.required && !options.allowRegistration) {
-          router.replace('/login');
-        }
       } finally {
         setIsLoading(false);
       }

@@ -14,6 +14,7 @@ import { isValid, parseISO } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
+import { LoadingState } from '../attendance/components/LoadingState';
 
 export default function PayrollAdminDashboard() {
   const {
@@ -354,7 +355,7 @@ export default function PayrollAdminDashboard() {
 
   // Handle loading state
   if (authLoading) {
-    return <DashboardSkeleton />;
+    return <LoadingState />;
   }
 
   // Handle unauthorized access
