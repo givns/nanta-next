@@ -156,6 +156,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             userData={user}
             attendanceStatus={data.attendanceStatus}
             effectiveShift={data.effectiveShift} // Use top-level effectiveShift
+            isLoading={isRefreshing}
           />
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">
