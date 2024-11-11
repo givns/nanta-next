@@ -154,7 +154,7 @@ const DailyAttendancePage: NextPage = () => {
 };
 
 // Wrap with withAdminAuth HOC
-export default withAdminAuth(DailyAttendancePage);
+export default DailyAttendancePage;
 
 // Keep getServerSideProps for SSR
 export const getServerSideProps = async () => {

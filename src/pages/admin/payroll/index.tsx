@@ -31,4 +31,4 @@ const AdminPayrollPage: NextPage = () => {
   );
 };
 
-export default withAdminAuth(AdminPayrollPage);
+export default AdminPayrollPage;

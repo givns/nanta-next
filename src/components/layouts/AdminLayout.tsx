@@ -112,10 +112,9 @@ const routeTabs: RouteTabs = {
   ],
 };
 
-function AdminLayoutContent({ children }: AdminLayoutProps) {
+export default function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
   const env = useEnvironment();
 
@@ -301,7 +300,4 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       </main>
     </div>
   );
-}
-export default function AdminLayout({ children }: AdminLayoutProps) {
-  return <AdminLayoutContent>{children}</AdminLayoutContent>;
 }

@@ -13,7 +13,7 @@ import { PayrollProcessing } from '@/components/payroll/PayrollProcessing';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { isValid, parseISO } from 'date-fns';
 
-function PayrollDashboardContent() {
+export default function PayrollAdminDashboard() {
   const { user } = useAdmin();
   const [state, setState] = useState({
     selectedEmployee: '',
@@ -431,7 +431,4 @@ function PayrollDashboardContent() {
       )}
     </div>
   );
-}
-export default function PayrollAdminDashboard() {
-  return <PayrollDashboardContent />;
 }

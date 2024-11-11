@@ -72,7 +72,7 @@ interface Shift {
   workDays: number[];
 }
 
-function EmployeeManagement() {
+export default function EmployeeManagement() {
   const { user } = useAdmin();
   const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -560,10 +560,6 @@ function EmployeeManagement() {
       </Dialog>
     </div>
   );
-}
-
-export default function EmployeeManagementDashboard() {
-  return <EmployeeManagement />;
 }
 
 // Helper Components

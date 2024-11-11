@@ -3,7 +3,6 @@ import dynamic from 'next/dynamic';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { useAdmin } from '@/contexts/AdminContext';
 import { NextPage } from 'next';
-import { withAdminAuth } from '@/utils/withAdminAuth';
 
 const EmployeeManagementDashboard = dynamic(
   () => import('@/components/admin/employees/EmployeeManagementDashboard'),
@@ -30,7 +29,7 @@ const AdminEmployeesPage: NextPage = () => {
   );
 };
 
-export default withAdminAuth(AdminEmployeesPage);
+export default AdminEmployeesPage;
 
 export async function getServerSideProps() {
   return {

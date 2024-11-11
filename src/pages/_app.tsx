@@ -1,14 +1,14 @@
-//_app.tsx
 import '../styles/globals.css';
 import { useEffect, useState } from 'react';
 import { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
-import LoadingProgress from '@/components/LoadingProgress';
 import { LiffProvider } from '@/contexts/LiffContext';
-import AppContent from '@/components/AppContent';
+import { AdminProvider } from '@/contexts/AdminContext';
+import AdminLayout from '@/components/layouts/AdminLayout';
+import LoadingProgress from '@/components/LoadingProgress';
 
-function MyApp({ Component, pageProps, router }: AppProps) {
+function AppWrapper({ Component, pageProps, router }: AppProps) {
   const [mounted, setMounted] = useState(false);
   const isAdminRoute = router.pathname.startsWith('/admin');
   const isLiffPage =
@@ -20,28 +20,32 @@ function MyApp({ Component, pageProps, router }: AppProps) {
     setMounted(true);
   }, []);
 
-  // Handle SSR
+  // Handle SSR and mounting
   if (typeof window === 'undefined' || !mounted) {
+    return <LoadingProgress isLiffInitialized={false} isDataLoaded={false} />;
+  }
+
+  // For admin routes
+  if (isAdminRoute) {
     return (
-      <Provider store={store}>
-        <LoadingProgress isLiffInitialized={false} isDataLoaded={false} />
-      </Provider>
+      <AdminProvider>
+        <AdminLayout>
+          <Component {...pageProps} />
+        </AdminLayout>
+      </AdminProvider>
     );
   }
 
-  // Client-side rendering with all providers
+  // For other routes
+  return <Component {...pageProps} />;
+}
+
+export default function App(props: AppProps) {
   return (
     <Provider store={store}>
       <LiffProvider>
-        <AppContent
-          Component={Component}
-          pageProps={pageProps}
-          isAdminRoute={isAdminRoute}
-          isLiffPage={isLiffPage}
-        />
+        <AppWrapper {...props} />
       </LiffProvider>
     </Provider>
   );
 }
-
-export default MyApp;

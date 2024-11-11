@@ -33,4 +33,4 @@ const ApprovalDashboard: NextPage = () => {
     </div>
   );
 };
-export default withAdminAuth(ApprovalDashboard);
+export default ApprovalDashboard;
