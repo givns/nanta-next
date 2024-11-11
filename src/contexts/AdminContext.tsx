@@ -1,4 +1,3 @@
-// contexts/AdminContext.tsx
 import React, {
   createContext,
   useContext,
@@ -9,7 +8,7 @@ import React, {
 } from 'react';
 import type { UserData } from '@/types/user';
 import { useRouter } from 'next/router';
-import { useLiff } from '@/hooks/useLiff';
+import { useLiff } from '@/contexts/LiffContext'; // Updated import
 
 interface AdminContextType {
   user: UserData | null;
@@ -21,7 +20,8 @@ interface AdminContextType {
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const { lineUserId } = useLiff();
+  const { lineUserId, isInitialized } = useLiff(); // Use LiffContext
+  const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,13 +38,25 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
+        // Handle different error cases
+        if (response.status === 404) {
+          router.push('/register');
+          return;
+        }
         throw new Error('Failed to fetch user data');
       }
 
       const data = await response.json();
 
+      // Handle unregistered users
+      if (!data.registered) {
+        router.push('/register');
+        return;
+      }
+
       // Verify admin status
       if (!['Admin', 'SuperAdmin'].includes(data.user.role)) {
+        router.push('/'); // Redirect non-admin users to home
         throw new Error('Unauthorized access');
       }
 
@@ -57,26 +69,30 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [lineUserId]);
+  }, [lineUserId, router]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (mounted && lineUserId) {
+    // Only fetch admin data if LIFF is initialized and we're mounted
+    if (mounted && isInitialized && lineUserId) {
       fetchAdminData();
     }
-  }, [fetchAdminData, mounted, lineUserId]);
+  }, [fetchAdminData, mounted, isInitialized, lineUserId]);
 
-  // Implement refreshUser function
   const refreshUser = useCallback(async () => {
-    if (!mounted) return;
+    if (!mounted || !isInitialized) return;
     setIsLoading(true);
     await fetchAdminData();
-  }, [fetchAdminData, mounted]);
+  }, [fetchAdminData, mounted, isInitialized]);
 
-  // SSR safe value
+  // Handle loading states
+  if (!mounted || !isInitialized) {
+    return children;
+  }
+
   const contextValue = {
     user,
     isLoading: !mounted || isLoading,

@@ -1,4 +1,3 @@
-// _app.tsx
 import '../styles/globals.css';
 import { useEffect, useState } from 'react';
 import { AppProps } from 'next/app';
@@ -6,9 +5,8 @@ import { Provider } from 'react-redux';
 import store from '../store';
 import LoadingProgress from '@/components/LoadingProgress';
 import AdminLayout from '@/components/layouts/AdminLayout';
-import { LiffProvider } from '@/contexts/LiffContext';
+import { LiffProvider, useLiff } from '@/contexts/LiffContext'; // Import useLiff from LiffContext
 import { AdminProvider } from '@/contexts/AdminContext';
-import { useLiff } from '@/hooks/useLiff';
 
 // Create a stable wrapper for admin routes
 function AdminWrapper({ children }: { children: React.ReactNode }) {
@@ -21,7 +19,7 @@ function AdminWrapper({ children }: { children: React.ReactNode }) {
 
 // Main app content wrapper
 function AppContent({ Component, pageProps, router }: AppProps) {
-  const { isLiffInitialized, lineUserId, error } = useLiff();
+  const { isInitialized, lineUserId, error } = useLiff(); // Use context version
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [mounted, setMounted] = useState(false);
   const isAdminRoute = router.pathname.startsWith('/admin');
@@ -31,14 +29,15 @@ function AppContent({ Component, pageProps, router }: AppProps) {
     setMounted(true);
 
     // Only start data loading timer after LIFF is initialized
-    if (isLiffInitialized && lineUserId) {
+    if (isInitialized && lineUserId) {
+      // Updated to use isInitialized
       const timer = setTimeout(() => {
         setIsDataLoaded(true);
       }, 1000);
 
       return () => clearTimeout(timer);
     }
-  }, [isLiffInitialized, lineUserId]);
+  }, [isInitialized, lineUserId]); // Updated dependency array
 
   // Error handling for LIFF
   if (error) {
@@ -53,7 +52,7 @@ function AppContent({ Component, pageProps, router }: AppProps) {
   if (!mounted || !isDataLoaded) {
     return (
       <LoadingProgress
-        isLiffInitialized={isLiffInitialized}
+        isLiffInitialized={isInitialized} // Updated to use isInitialized
         isDataLoaded={isDataLoaded}
       />
     );

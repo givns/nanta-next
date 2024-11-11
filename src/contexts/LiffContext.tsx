@@ -1,6 +1,6 @@
-// contexts/LiffContext.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import liff from '@line/liff';
+import { useRouter } from 'next/router';
 import LoadingBar from '@/components/LoadingBar';
 import type { UserData } from '@/types/user';
 
@@ -19,6 +19,7 @@ interface LiffContextType {
 const LiffContext = createContext<LiffContextType | null>(null);
 
 export function LiffProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +28,8 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
   const [liffState, setLiffState] =
     useState<LiffContextType['liffState']>(null);
   const [mounted, setMounted] = useState(false);
+
+  const isRegisterPage = router.pathname === '/register';
 
   useEffect(() => {
     setMounted(true);
@@ -53,19 +56,32 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
         setLineUserId(profile.userId);
         localStorage.setItem('lineUserId', profile.userId);
 
-        // Fetch user data including role
-        const response = await fetch('/api/user-data', {
-          headers: {
-            'x-line-userid': profile.userId,
-          },
-        });
+        // Skip user data fetch for registration page
+        if (!isRegisterPage) {
+          try {
+            const response = await fetch('/api/user-data', {
+              headers: {
+                'x-line-userid': profile.userId,
+              },
+            });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch user data');
+            if (response.ok) {
+              const { user } = await response.json();
+              setUserData(user);
+            } else if (response.status === 404) {
+              // Redirect to register if user not found
+              router.push('/register');
+              return;
+            }
+          } catch (error) {
+            console.error('Failed to fetch user data:', error);
+            // Don't set error for registration page
+            if (!isRegisterPage) {
+              setError('Failed to fetch user data');
+            }
+          }
         }
 
-        const { user } = await response.json();
-        setUserData(user);
         setIsInitialized(true);
         setError(null);
       } catch (error) {
@@ -79,7 +95,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     };
 
     initLiff();
-  }, [mounted]);
+  }, [mounted, isRegisterPage, router]);
 
   // Don't show loading on server
   if (typeof window === 'undefined') {
@@ -90,7 +106,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     return <LoadingBar />;
   }
 
-  if (error) {
+  if (error && !isRegisterPage) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-red-500">Error: {error}</div>
