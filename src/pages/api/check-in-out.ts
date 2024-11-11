@@ -65,26 +65,6 @@ const attendanceService = new AttendanceService(
 const PROCESS_TIMEOUT = 20000; // 30 seconds total
 const QUEUE_TIMEOUT = 15000; // 25 seconds for queue processing
 
-interface ErrorResponse {
-  error: string;
-  message?: string;
-  details?: string;
-  code?: string;
-  timestamp: string;
-}
-
-interface AttendanceNotificationData {
-  regularCheckInTime?: Date | null;
-  regularCheckOutTime?: Date | null;
-  status: string;
-  overtimeMetadata?: {
-    isDayOffOvertime?: boolean;
-    isInsideShiftHours?: boolean;
-    startTime?: string;
-    endTime?: string;
-  };
-}
-
 const attendanceSchema = Yup.object()
   .shape({
     employeeId: Yup.string(),

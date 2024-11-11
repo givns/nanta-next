@@ -134,6 +134,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const submitCheckInOut = useCallback(
     async (photo: string, lateReason?: string) => {
+      if (isSubmitting) return;
+
       try {
         const isLate = checkInOutAllowance?.isLateCheckIn || false;
         const isEarlyCheckOut = checkInOutAllowance?.isEarlyCheckOut || false;
@@ -147,19 +149,25 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           }
         }
 
-        // Late check-in handling is now moved to handlePhotoCapture
         if (isLate && isCheckingIn && !lateReason) {
-          console.log('Late reason required but missing');
           setIsLateModalOpen(true);
           return;
         }
 
         setIsSubmitting(true);
         setStep('processing');
+        setError(null);
 
-        try {
-          // Attempt status change
-          await onStatusChange(
+        // Set a client-side timeout for the entire operation
+        const timeoutPromise = new Promise((_, reject) => {
+          submitTimeoutRef.current = setTimeout(() => {
+            reject(new Error('Request took too long. Please try again.'));
+          }, 20000); // 20 second timeout
+        });
+
+        // Race between the actual submission and timeout
+        const result = await Promise.race([
+          onStatusChange(
             currentAttendanceStatus?.isCheckingIn ?? true,
             photo,
             lateReason || '',
@@ -167,32 +175,60 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             checkInOutAllowance?.isOvertime || false,
             isEarlyCheckOut,
             earlyCheckoutType,
-          );
+          ),
+          timeoutPromise,
+        ]);
 
-          // Reset submission timeout
-          if (submitTimeoutRef.current) {
-            clearTimeout(submitTimeoutRef.current);
-          }
-
-          // Close window after successful submission
-          setTimeout(() => {
-            closeWindow();
-          }, 2000);
-        } catch (error: any) {
-          console.error('Status change error:', error);
-          throw new Error(
-            error.response?.data?.message ||
-              error.message ||
-              'Failed to update status',
-          );
+        // Clear timeout if successful
+        if (submitTimeoutRef.current) {
+          clearTimeout(submitTimeoutRef.current);
         }
+
+        // Show success state briefly before closing
+        setTimeout(() => {
+          closeWindow();
+        }, 2000);
       } catch (error: any) {
-        console.error('Error in submitCheckInOut:', error);
-        setError(
-          error.message || 'An unexpected error occurred. Please try again.',
-        );
-        setIsSubmitting(false);
+        console.error('Status change error:', error);
+
+        // Clear any existing timeout
+        if (submitTimeoutRef.current) {
+          clearTimeout(submitTimeoutRef.current);
+        }
+
+        // Handle different types of errors
+        let errorMessage = 'Failed to update status. Please try again.';
+
+        if (
+          error.message.includes('timeout') ||
+          error.message.includes('too long')
+        ) {
+          errorMessage =
+            'Request took too long. Please check your attendance status and try again if needed.';
+
+          // After timeout error, try to refresh status
+          try {
+            await refreshAttendanceStatus(true);
+          } catch (refreshError) {
+            console.error(
+              'Error refreshing status after timeout:',
+              refreshError,
+            );
+          }
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        setError(errorMessage);
         setStep('info');
+        setIsSubmitting(false);
+
+        // Show error state for a moment before retrying
+        setTimeout(() => {
+          setError(null);
+        }, 5000);
       }
     },
     [
@@ -200,6 +236,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       isCheckingIn,
       currentAttendanceStatus,
       onStatusChange,
+      isSubmitting,
+      refreshAttendanceStatus,
     ],
   );
 

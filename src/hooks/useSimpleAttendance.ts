@@ -171,13 +171,18 @@ export const useSimpleAttendance = (
   }, [data?.checkInOutAllowance]);
 
   const checkInOut = useCallback(
-    async (checkInOutData: AttendanceData) => {
-      try {
-        console.log('Sending check-in/out data:', checkInOutData);
+    async (checkInOutData: AttendanceData, retryCount = 0) => {
+      const MAX_RETRIES = 2;
+      const BASE_TIMEOUT = 20000; // 20 seconds
 
-        // Set timeout for the request
+      try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), BASE_TIMEOUT);
+
+        console.log('Attempting check-in/out:', {
+          attempt: retryCount + 1,
+          timestamp: new Date().toISOString(),
+        });
 
         const response = await axios.post(
           '/api/check-in-out',
@@ -188,16 +193,11 @@ export const useSimpleAttendance = (
           },
           {
             signal: controller.signal,
-            timeout: 25000,
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            timeout: BASE_TIMEOUT,
           },
         );
 
         clearTimeout(timeoutId);
-
-        console.log('Check-in/out response:', response.data);
 
         if (response.data.error) {
           throw new Error(response.data.message || 'Failed to update status');
@@ -206,26 +206,39 @@ export const useSimpleAttendance = (
         await mutate();
         return response.data;
       } catch (error: any) {
-        console.error('Error during check-in/out:', error);
+        console.error('Check-in/out error:', error);
 
-        // Handle specific error cases
-        if (error.code === 'ECONNABORTED' || error.name === 'AbortError') {
-          throw new Error('Request timed out. Please try again.');
+        // Handle timeout cases
+        if (
+          error.code === 'ECONNABORTED' ||
+          error.name === 'AbortError' ||
+          error.response?.status === 504
+        ) {
+          if (retryCount < MAX_RETRIES) {
+            console.log(
+              `Retrying check-in/out (attempt ${retryCount + 2}/${MAX_RETRIES + 1})`,
+            );
+
+            // Wait before retrying
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            return checkInOut(checkInOutData, retryCount + 1);
+          }
+
+          throw new Error(
+            'Request took too long. Please check your attendance status and try again if needed.',
+          );
         }
 
+        // Handle other errors
         if (axios.isAxiosError(error)) {
-          if (error.response?.status === 504) {
-            throw new Error(
-              'Request took too long. Please check your attendance status and try again if needed.',
-            );
-          }
           throw new Error(
             error.response?.data?.message ||
               'Failed to update status. Please try again.',
           );
         }
 
-        throw new Error(error.message || 'An unexpected error occurred');
+        throw error;
       }
     },
     [mutate, inPremises, address],
