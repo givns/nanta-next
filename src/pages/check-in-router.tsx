@@ -12,6 +12,9 @@ import {
 } from '../services/userService';
 import LoadingBar from '../components/LoadingBar';
 import { useLiff } from '@/contexts/LiffContext';
+import { useAuth } from '@/hooks/useAuth';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const CheckInOutForm = dynamic(
   () => import('../components/attendance/CheckInOutForm'),
@@ -23,7 +26,10 @@ const CheckInOutForm = dynamic(
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
 const CheckInRouter: React.FC = () => {
-  const { lineUserId } = useLiff();
+  const { lineUserId, isInitialized, error: liffError } = useLiff();
+  const { isLoading: authLoading } = useAuth({
+    required: true, // Require auth but no specific roles
+  });
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -207,10 +213,19 @@ const CheckInRouter: React.FC = () => {
 
   const isDataReady = userData && checkInOutAllowance && !isAttendanceLoading;
 
-  if (isLoading) {
+  if (authLoading || !isInitialized) {
+    return <LoadingBar />;
+  }
+
+  if (liffError || !lineUserId) {
     return (
-      <div className="loading-container">
-        <LoadingBar />
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {liffError || 'LINE User ID not available'}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
