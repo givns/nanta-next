@@ -1,3 +1,4 @@
+//_app.tsx
 import '../styles/globals.css';
 import { useEffect, useState } from 'react';
 import { AppProps } from 'next/app';

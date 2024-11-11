@@ -21,9 +21,13 @@ export default function AppContent({
   isLiffPage,
 }: AppContentProps) {
   const router = useRouter();
-  const { isInitialized, lineUserId, error: liffError, userData } = useLiff();
+  const { isInitialized, lineUserId, error: liffError } = useLiff();
   const [isRouteLoading, setIsRouteLoading] = useState(false);
-  const isRegisterPage = router.pathname === '/register';
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleStart = () => setIsRouteLoading(true);
@@ -40,11 +44,15 @@ export default function AppContent({
     };
   }, [router]);
 
+  if (!mounted) {
+    return <LoadingBar />;
+  }
+
   if (isRouteLoading) {
     return <LoadingBar />;
   }
 
-  // Handle LIFF pages
+  // Handle LIFF pages that are not admin routes
   if (isLiffPage && !isAdminRoute) {
     if (!isInitialized) {
       return <LoadingBar />;
@@ -59,16 +67,6 @@ export default function AppContent({
       );
     }
 
-    // Special handling for register page
-    if (isRegisterPage) {
-      return (
-        <Provider store={store}>
-          <Component {...pageProps} lineUserId={lineUserId} />
-        </Provider>
-      );
-    }
-
-    // For other LIFF pages
     return (
       <Provider store={store}>
         <Component {...pageProps} lineUserId={lineUserId} />
@@ -78,17 +76,7 @@ export default function AppContent({
 
   // Handle admin routes
   if (isAdminRoute) {
-    // Check if we have the required user info
-    if (!isInitialized) {
-      return <LoadingBar />;
-    }
-
-    if (!lineUserId) {
-      router.replace('/register');
-      return <LoadingBar />;
-    }
-
-    // Wrap admin routes with both providers
+    // Important: Wrap the entire admin section with AdminProvider
     return (
       <Provider store={store}>
         <AdminProvider>

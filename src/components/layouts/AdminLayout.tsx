@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { useLiff } from '@/contexts/LiffContext';
 import LoadingProgress from '@/components/LoadingProgress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AdminTabs } from './AdminTabs';
+import { useEnvironment } from '../../hooks/useEnvironment';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -80,12 +82,6 @@ interface RouteTabs {
   [key: string]: RouteTab[];
 }
 
-interface Environment {
-  isDesktop: boolean;
-  isLiffBrowser: boolean;
-  isMounted: boolean;
-}
-
 const routeTabs: RouteTabs = {
   '/admin/attendance': [
     { value: 'daily', label: 'Daily Records', href: '/admin/attendance/daily' },
@@ -115,53 +111,6 @@ const routeTabs: RouteTabs = {
   ],
 };
 
-function useEnvironment() {
-  const [environment, setEnvironment] = useState({
-    isDesktop: false,
-    isLiffBrowser: true,
-    isMounted: false,
-  });
-
-  useEffect(() => {
-    const checkEnvironment = () => {
-      const isLiff =
-        window.location.href.includes('liff.line.me') ||
-        /Line/i.test(window.navigator.userAgent) ||
-        Boolean((window as any).liff?.isInClient?.());
-
-      // Improved desktop detection
-      const isMobileUserAgent =
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          window.navigator.userAgent,
-        );
-
-      // Consider desktop if not a mobile device, regardless of window size
-      const isDesktop = !isMobileUserAgent;
-
-      setEnvironment({
-        isDesktop,
-        isLiffBrowser: isLiff,
-        isMounted: true,
-      });
-
-      console.log('Environment Check:', {
-        isDesktop,
-        isLiff,
-        isMobileDevice: isMobileUserAgent,
-        width: window.innerWidth,
-        url: window.location.href,
-        userAgent: window.navigator.userAgent,
-      });
-    };
-
-    checkEnvironment();
-    window.addEventListener('resize', checkEnvironment);
-    return () => window.removeEventListener('resize', checkEnvironment);
-  }, []);
-
-  return environment;
-}
-
 function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { user, isLoading, error } = useAdmin();
   const router = useRouter();
@@ -188,15 +137,16 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
     return null;
   }
 
-  // Helper function for determining current path
+  // Show navigation on desktop browsers (not in LIFF)
+  const showNavigation = env.isMounted && env.isDesktop && !env.isLiffBrowser;
+  // Show tabs only on mobile/LIFF
+  const showTabs =
+    env.isMounted && (!env.isDesktop || env.isLiffBrowser) && currentTabs;
+
   const isCurrentPath = (path: string) => {
     if (path === '/admin') return currentPath === path;
     return currentPath.startsWith(path);
   };
-
-  if (isLoading) {
-    return <LoadingProgress isLiffInitialized={true} isDataLoaded={false} />;
-  }
 
   if (error || !user || !['Admin', 'SuperAdmin'].includes(user.role)) {
     return (
@@ -224,9 +174,6 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       </div>
     );
   }
-
-  // Show navigation on desktop browsers (not in LIFF)
-  const showNavigation = env.isMounted && env.isDesktop && !env.isLiffBrowser;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -258,7 +205,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
           )}
         </div>
       )}
-
+      {/* Desktop Navigation */}
       {showNavigation && (
         <nav className="bg-white shadow-sm sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -330,9 +277,9 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       <main
         className={`max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 ${showNavigation ? 'mt-16' : ''}`}
       >
-        {/* Sub-navigation tabs - shown on both desktop and mobile */}
-        {currentTabs && (
-          <div className="mb-6">
+        {/* Mobile-only tabs */}
+        {showTabs && (
+          <div className="mb-6 md:hidden">
             <Tabs
               value={currentTabValue}
               className="w-full"
@@ -359,7 +306,6 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
     </div>
   );
 }
-
 export default function AdminLayout({ children }: AdminLayoutProps) {
   return <AdminLayoutContent>{children}</AdminLayoutContent>;
 }
