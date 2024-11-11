@@ -18,6 +18,8 @@ interface LiffContextType {
 
 const LiffContext = createContext<LiffContextType | null>(null);
 
+// ... other imports ...
+
 export function LiffProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [lineUserId, setLineUserId] = useState<string | null>(null);
@@ -27,17 +29,10 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [liffState, setLiffState] =
     useState<LiffContextType['liffState']>(null);
-  const [mounted, setMounted] = useState(false);
 
   const isRegisterPage = router.pathname === '/register';
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-
     const initLiff = async () => {
       try {
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID as string });
@@ -65,17 +60,15 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
               },
             });
 
+            const data = await response.json();
             if (response.ok) {
-              const { user } = await response.json();
-              setUserData(user);
-            } else if (response.status === 404) {
-              // Redirect to register if user not found
+              setUserData(data.user);
+            } else if (response.status === 404 && !isRegisterPage) {
               router.push('/register');
               return;
             }
           } catch (error) {
             console.error('Failed to fetch user data:', error);
-            // Don't set error for registration page
             if (!isRegisterPage) {
               setError('Failed to fetch user data');
             }
@@ -95,17 +88,18 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
     };
 
     initLiff();
-  }, [mounted, isRegisterPage, router]);
+  }, [isRegisterPage, router]);
 
-  // Don't show loading on server
+  // Handle loading states
   if (typeof window === 'undefined') {
     return children;
   }
 
-  if (!mounted || isLoading) {
+  if (isLoading) {
     return <LoadingBar />;
   }
 
+  // Don't show error for register page
   if (error && !isRegisterPage) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -126,26 +120,4 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
   return (
     <LiffContext.Provider value={contextValue}>{children}</LiffContext.Provider>
   );
-}
-
-export function useLiff() {
-  const context = useContext(LiffContext);
-
-  // Handle SSR case
-  if (typeof window === 'undefined') {
-    return {
-      lineUserId: null,
-      isInitialized: false,
-      error: null,
-      userData: null,
-      isLoading: true,
-      liffState: null,
-    };
-  }
-
-  if (!context) {
-    throw new Error('useLiff must be used within LiffProvider');
-  }
-
-  return context;
 }
