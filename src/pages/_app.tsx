@@ -4,20 +4,27 @@ import { useEffect, useState } from 'react';
 import type { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import store from '../store';
-import { LiffProvider } from '@/contexts/LiffContext';
+import { LiffProvider, useLiff } from '@/contexts/LiffContext';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import LoadingProgress from '@/components/LoadingProgress';
 import { useRouter } from 'next/router';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
+  const { isInitialized, error: liffError } = useLiff();
+  const [mounted, setMounted] = useState(false);
+
   const isAdminRoute = router.pathname.startsWith('/admin');
-  const { isLoading, isAuthorized, registrationStatus } = useAuth({
-    required: isAdminRoute,
+  const isRegisterPage = router.pathname === '/register';
+
+  // Only check auth for non-register pages
+  const { isLoading: authLoading, registrationStatus } = useAuth({
+    required: !isRegisterPage,
     requiredRoles: isAdminRoute ? ['Admin', 'SuperAdmin'] : undefined,
   });
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -28,7 +35,35 @@ function AppContent({ Component, pageProps }: AppProps) {
     return <LoadingProgress isLiffInitialized={false} isDataLoaded={false} />;
   }
 
-  // For admin routes
+  // Show loading state during LIFF initialization
+  if (!isInitialized) {
+    return <LoadingProgress isLiffInitialized={false} isDataLoaded={true} />;
+  }
+
+  // Handle LIFF errors
+  if (liffError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{liffError}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // Show loading state during auth check
+  if (authLoading) {
+    return <LoadingProgress isLiffInitialized={true} isDataLoaded={false} />;
+  }
+
+  // Handle registration redirect
+  if (!isRegisterPage && registrationStatus?.isComplete === false) {
+    router.replace('/register');
+    return <LoadingProgress isLiffInitialized={true} isDataLoaded={true} />;
+  }
+
+  // For admin routes, wrap with AdminLayout
   if (isAdminRoute) {
     return (
       <Provider store={store}>
@@ -39,14 +74,12 @@ function AppContent({ Component, pageProps }: AppProps) {
     );
   }
 
-  // For regular routes, just check registration status
-  if (registrationStatus && !registrationStatus.isComplete) {
-    router.replace('/register');
-    return null;
-  }
-
-  // For all other routes, render normally
-  return <Component {...pageProps} />;
+  // For all other routes
+  return (
+    <Provider store={store}>
+      <Component {...pageProps} />
+    </Provider>
+  );
 }
 
 export default function App(props: AppProps) {
