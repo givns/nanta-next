@@ -10,6 +10,7 @@ import { IOvertimeServiceServer } from '@/types/OvertimeService';
 import { TimeEntryService } from './TimeEntryService';
 import {
   ApprovedOvertime,
+  AttendanceRecord,
   ExtendedApprovedOvertime,
   OvertimeEntryData,
 } from '@/types/attendance';
@@ -188,7 +189,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   }
 
   async processOvertimeCheckInOut(
-    attendance: Attendance,
+    attendance: AttendanceRecord,
     timestamp: Date,
     isCheckIn: boolean,
   ): Promise<void> {

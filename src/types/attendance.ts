@@ -3,20 +3,13 @@
 import {
   Attendance,
   ShiftAdjustmentRequest,
-  OvertimeEntry,
-  TimeEntry,
   Prisma,
   OvertimeRequest,
+  OvertimeMetadata,
 } from '@prisma/client';
 import { UserData } from './user';
 
-export type {
-  Attendance,
-  ShiftAdjustmentRequest,
-  OvertimeEntry,
-  TimeEntry,
-  OvertimeRequest,
-};
+export type { Attendance, ShiftAdjustmentRequest, OvertimeRequest };
 
 // Location Interface
 export interface Location {
@@ -30,7 +23,48 @@ interface HolidayInfo {
   date: string;
 }
 
+export type TimeEntryStatus = 'IN_PROGRESS' | 'COMPLETED';
+export const isValidOvertimeRequestStatus = (
+  status: string,
+): status is OvertimeRequestStatus => {
+  return [
+    'pending_response',
+    'pending',
+    'approved',
+    'rejected',
+    'declined_by_employee',
+  ].includes(status);
+};
+
 export type EarlyCheckoutType = 'emergency' | 'planned';
+
+export interface BaseAttendance {
+  id: string;
+  employeeId: string;
+  date: Date;
+  isDayOff: boolean;
+  shiftStartTime: Date | null;
+  shiftEndTime: Date | null;
+  regularCheckInTime: Date | null;
+  regularCheckOutTime: Date | null;
+  isEarlyCheckIn: boolean | null;
+  isLateCheckIn: boolean | null;
+  isLateCheckOut: boolean | null;
+  isVeryLateCheckOut: boolean;
+  lateCheckOutMinutes: number;
+  checkInLocation: Prisma.JsonValue | null;
+  checkOutLocation: Prisma.JsonValue | null;
+  checkInAddress: string | null;
+  checkOutAddress: string | null;
+  checkInReason?: string | null;
+  checkInPhoto?: string | null;
+  checkOutPhoto?: string | null;
+  status: string;
+  isManualEntry: boolean;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // Attendance Data Interfaces
 export interface AttendanceData {
@@ -48,6 +82,46 @@ export interface AttendanceData {
   isEarlyCheckOut?: boolean;
   earlyCheckoutType?: EarlyCheckoutType;
   isManualEntry: boolean;
+}
+
+export interface SimpleOvertimeMetadata {
+  isDayOffOvertime: boolean;
+  isInsideShiftHours: boolean;
+}
+
+// Define TimeEntry type
+export interface TimeEntry {
+  id: string;
+  employeeId: string;
+  date: Date;
+  startTime: Date;
+  endTime: Date | null;
+  regularHours: number;
+  overtimeHours: number;
+  status: TimeEntryStatus;
+  attendanceId: string | null;
+  overtimeRequestId: string | null;
+  entryType: 'regular' | 'overtime';
+  actualMinutesLate: number;
+  isHalfDayLate: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  overtimeMetadata?: SimpleOvertimeMetadata;
+}
+
+export interface TimeEntryData {
+  id: string;
+  employeeId: string;
+  date: Date;
+  startTime: Date;
+  endTime: Date | null;
+  regularHours: number;
+  overtimeHours: number;
+  status: Lowercase<TimeEntryStatus>; // This will be 'in_progress' | 'completed'
+  attendanceId: string | null;
+  overtimeRequestId: string | null;
+  entryType: 'regular' | 'overtime';
+  overtimeMetadata?: SimpleOvertimeMetadata;
 }
 
 // Overtime Interfaces
@@ -87,15 +161,30 @@ export interface OvertimeWindows {
   lateCheckOutWindow: Date;
 }
 
-export interface OvertimeCheckInOutData {
-  actualStartTime?: Date;
-  actualEndTime?: Date;
-  plannedStartTime?: Date;
-  plannedEndTime?: Date;
+// Add to existing interfaces
+export interface OvertimeCheckOutData {
+  actualStartTime: Date;
+  actualEndTime: Date;
+  plannedStartTime: Date;
+  plannedEndTime: Date;
+  isAutoCheckIn: boolean;
+  isLateCheckIn: boolean;
+  maxCheckOutTime: Date;
 }
 
 export interface ExtendedApprovedOvertime extends ApprovedOvertime {
   overtimeEntries: OvertimeEntryData[];
+}
+
+// Define OvertimeEntry type
+export interface OvertimeEntry {
+  id: string;
+  attendanceId: string;
+  overtimeRequestId: string;
+  actualStartTime: Date;
+  actualEndTime: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface OvertimeEntryData {
@@ -201,13 +290,28 @@ export type ShiftData = {
   workDays: number[];
 };
 
-// Attendance Record Interface
-export interface AttendanceRecord extends Attendance {
-  overtimeEntries: OvertimeEntryData[];
+// Update AttendanceRecord to correctly extend BaseAttendance with optional fields
+export interface AttendanceRecord
+  extends Omit<
+    BaseAttendance,
+    'checkInReason' | 'checkInPhoto' | 'checkOutPhoto'
+  > {
+  overtimeEntries: OvertimeEntry[];
   timeEntries: TimeEntry[];
+  checkInReason?: string | null;
+  checkInPhoto?: string | null;
+  checkOutPhoto?: string | null;
 }
 
-// Processed Attendance Interface
+// Update EnhancedAttendanceRecord
+export interface EnhancedAttendanceRecord extends AttendanceRecord {
+  overtimeBounds?: {
+    plannedStartTime: Date;
+    plannedEndTime: Date;
+  };
+}
+
+// Update ProcessedAttendance to match actual usage
 export interface ProcessedAttendance {
   id: string;
   employeeId: string;
@@ -215,33 +319,22 @@ export interface ProcessedAttendance {
   status: AttendanceStatusValue;
   regularHours: number;
   overtimeHours: number;
-  overtimeInfo?: OvertimeInfo;
   detailedStatus: string;
   attendanceStatusType: AttendanceStatusType;
   regularCheckInTime?: Date | null;
   regularCheckOutTime?: Date | null;
-}
-
-// Time Entry Data Interface
-export interface TimeEntryData {
-  id: string;
-  employeeId: string;
-  date: Date;
-  startTime: Date;
-  endTime: Date | null;
-  regularHours: number;
-  overtimeHours: number;
-  status: 'in_progress' | 'completed';
-  attendanceId: string | null;
-  overtimeRequestId: string | null;
-  entryType: 'regular' | 'overtime';
-  overtimeMetadata?: {
+  overtime?: {
     isDayOffOvertime: boolean;
     isInsideShiftHours: boolean;
+    startTime: string;
+    endTime: string;
+    actualStartTime: Date;
+    actualEndTime: Date;
   };
 }
 
 // Raw data from API/Database
+// RawTimeEntry should use OvertimeMetadata
 export interface RawTimeEntry {
   id: string;
   employeeId: string;
@@ -254,12 +347,28 @@ export interface RawTimeEntry {
   attendanceId: string | null;
   overtimeRequestId: string | null;
   entryType: string;
-  overtimeMetadata?: {
-    isDayOffOvertime: boolean;
-    isInsideShiftHours: boolean;
-  };
+  overtimeMetadata?: SimpleOvertimeMetadata;
 }
 
+// TimeEntryWithDate should also use OvertimeMetadata
+export interface TimeEntryWithDate {
+  id: string;
+  employeeId: string;
+  date: Date;
+  startTime: Date | null;
+  endTime: Date | null;
+  regularHours: number;
+  overtimeHours: number;
+  status: 'in_progress' | 'completed';
+  attendanceId: string | null;
+  overtimeRequestId: string | null;
+  entryType: 'regular' | 'overtime';
+  isLate: boolean;
+  isDayOff: boolean;
+  overtimeMetadata?: SimpleOvertimeMetadata; // Changed from OvertimeMetadata
+}
+
+// Update the transform function
 export function transformTimeEntry(raw: RawTimeEntry): TimeEntryData {
   return {
     id: raw.id,
@@ -269,14 +378,17 @@ export function transformTimeEntry(raw: RawTimeEntry): TimeEntryData {
     endTime: raw.endTime ? new Date(raw.endTime) : null,
     regularHours: raw.regularHours,
     overtimeHours: raw.overtimeHours,
-    status: raw.status === 'in_progress' ? 'in_progress' : 'completed',
+    status:
+      raw.status.toLowerCase() === 'in_progress' ? 'in_progress' : 'completed',
     attendanceId: raw.attendanceId,
     overtimeRequestId: raw.overtimeRequestId,
-    entryType: raw.entryType === 'overtime' ? 'overtime' : 'regular',
-    overtimeMetadata: {
-      isDayOffOvertime: raw.overtimeMetadata?.isDayOffOvertime || false,
-      isInsideShiftHours: raw.overtimeMetadata?.isInsideShiftHours || false,
-    },
+    entryType: raw.entryType === 'overtime' ? 'overtime' : ('regular' as const),
+    overtimeMetadata: raw.overtimeMetadata
+      ? {
+          isDayOffOvertime: raw.overtimeMetadata.isDayOffOvertime,
+          isInsideShiftHours: raw.overtimeMetadata.isInsideShiftHours,
+        }
+      : undefined,
   };
 }
 
@@ -382,6 +494,7 @@ export interface CheckInOutAllowance {
   plannedEndTime?: Date;
   isAutoCheckIn?: boolean;
   isAutoCheckOut?: boolean;
+  maxCheckOutTime?: Date;
   missedCheckInTime?: number;
   lateCheckOutMinutes?: number;
   isPotentialOvertime?: boolean;
@@ -511,25 +624,6 @@ export interface DailyAttendanceResponse {
   leaveInfo: LeaveInfo | null;
 }
 
-export interface TimeEntryWithDate {
-  id: string;
-  employeeId: string;
-  date: Date;
-  startTime: Date | null;
-  endTime: Date | null;
-  regularHours: number;
-  overtimeHours: number;
-  status: 'in_progress' | 'completed';
-  attendanceId: string | null;
-  overtimeRequestId: string | null;
-  entryType: 'regular' | 'overtime';
-  isLate: boolean;
-  isDayOff: boolean;
-  overtimeMetadata?: {
-    isDayOffOvertime: boolean;
-    isInsideShiftHours: boolean;
-  };
-}
 export interface DetailedTimeEntry {
   date: string;
   regularCheckInTime: string | null;

@@ -6,9 +6,13 @@ import {
   Attendance,
   LeaveRequest,
 } from '@prisma/client';
-import { differenceInMinutes, format, isSameDay } from 'date-fns';
+import { differenceInMinutes, format, isSameDay, min } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService';
-import { ApprovedOvertime, ShiftData } from '@/types/attendance';
+import {
+  ApprovedOvertime,
+  EnhancedAttendanceRecord,
+  ShiftData,
+} from '@/types/attendance';
 import { NotificationService } from './NotificationService';
 import { cacheService } from './CacheService';
 
@@ -40,7 +44,7 @@ export class TimeEntryService {
 
   // Main Public Methods
   async createOrUpdateTimeEntry(
-    attendance: Attendance,
+    attendance: EnhancedAttendanceRecord,
     isCheckIn: boolean,
     approvedOvertimeRequest: ApprovedOvertime | null,
     leaveRequests: LeaveRequest[] = [],
@@ -62,7 +66,11 @@ export class TimeEntryService {
     // Handle check-in specifics
     const { minutesLate, isHalfDayLate } =
       isCheckIn && attendance.regularCheckInTime
-        ? this.handleCheckInCalculations(attendance, shiftStart, leaveRequests)
+        ? this.handleCheckInCalculations(
+            attendance as Attendance,
+            shiftStart,
+            leaveRequests,
+          )
         : { minutesLate: 0, isHalfDayLate: false };
 
     // Calculate working hours
@@ -280,20 +288,19 @@ export class TimeEntryService {
       approvedOvertimeRequest.date,
     );
 
-    if (checkOutTime <= overtimeStart) {
-      return { hours: 0, metadata: null };
-    }
+    // Always use the planned overtime end time as maximum
+    const effectiveCheckOutTime = min([checkOutTime, overtimeEnd]);
 
-    const effectiveOvertimeStart = new Date(
-      Math.max(checkInTime.getTime(), overtimeStart.getTime()),
-    );
-    const effectiveOvertimeEnd = new Date(
-      Math.min(checkOutTime.getTime(), overtimeEnd.getTime()),
-    );
+    // For auto check-in cases, use planned start time
+    const effectiveCheckInTime =
+      checkInTime <= overtimeStart
+        ? overtimeStart // Auto check-in case
+        : checkInTime; // Manual late check-in case
 
     const overtimeMinutes = this.calculateOvertimeIncrement(
-      differenceInMinutes(effectiveOvertimeEnd, effectiveOvertimeStart),
+      differenceInMinutes(effectiveCheckOutTime, effectiveCheckInTime),
     );
+
     const overtimeHours = Math.round((overtimeMinutes / 60) * 100) / 100;
 
     return {

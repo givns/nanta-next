@@ -2,11 +2,17 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { parseISO, startOfDay, endOfDay, format } from 'date-fns';
+import { parseISO, startOfDay, endOfDay, format, max, min } from 'date-fns';
 import { NotificationService } from '@/services/NotificationService';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
+import {
+  ApprovedOvertime,
+  EnhancedAttendanceRecord,
+  OvertimeRequestStatus,
+  TimeEntryStatus,
+} from '@/types/attendance';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
@@ -78,6 +84,16 @@ export default async function handler(
 
     const targetDate = startOfDay(parseISO(date));
 
+    // Get approved overtime for this date
+    // In manual-entry.ts
+    const approvedOvertime = await prisma.overtimeRequest.findFirst({
+      where: {
+        employeeId,
+        date: targetDate,
+        status: 'approved' as OvertimeRequestStatus, // Explicitly type the status
+      },
+    });
+
     // Get effective shift for the date
     const shiftData = await shiftService.getEffectiveShiftAndStatus(
       employeeId,
@@ -111,7 +127,6 @@ export default async function handler(
     let updatedAttendance;
 
     if (existingAttendance) {
-      // Update existing record
       const updateData: any = {
         isManualEntry: true,
         shiftStartTime: shiftStart,
@@ -119,6 +134,7 @@ export default async function handler(
         isDayOff: !shiftData.effectiveShift.workDays.includes(
           targetDate.getDay(),
         ),
+        version: { increment: 1 },
       };
 
       if (checkInTime) {
@@ -133,7 +149,7 @@ export default async function handler(
         const checkOutDateTime = parseISO(`${date}T${checkOutTime}`);
         updateData.regularCheckOutTime = checkOutDateTime;
         updateData.isLateCheckOut = checkOutDateTime > shiftEnd;
-        updateData.status = 'present';
+        updateData.status = approvedOvertime ? 'overtime' : 'present';
       }
 
       updatedAttendance = await prisma.attendance.update({
@@ -175,12 +191,57 @@ export default async function handler(
       });
     }
 
-    // Create/update time entry
+    const attendanceWithEntries = await prisma.attendance.findUnique({
+      where: { id: updatedAttendance.id },
+      include: {
+        overtimeEntries: true,
+        timeEntries: {
+          include: {
+            overtimeMetadata: true,
+          },
+        },
+      },
+    });
+
+    if (!attendanceWithEntries) {
+      throw new Error('Attendance record not found');
+    }
+
+    const enhancedAttendance: EnhancedAttendanceRecord = {
+      ...attendanceWithEntries,
+      overtimeEntries: attendanceWithEntries.overtimeEntries,
+      timeEntries: attendanceWithEntries.timeEntries.map((entry) => ({
+        ...entry,
+        status: entry.status as TimeEntryStatus,
+        entryType: entry.entryType as 'regular' | 'overtime',
+        overtimeMetadata: entry.overtimeMetadata || undefined, // Add this line
+      })),
+    };
+
     await timeEntryService.createOrUpdateTimeEntry(
-      updatedAttendance,
+      enhancedAttendance,
       false,
-      null,
+      approvedOvertime as ApprovedOvertime,
+      [],
     );
+
+    if (approvedOvertime && checkOutTime) {
+      const checkOutDateTime = parseISO(`${date}T${checkOutTime}`);
+      const overtimeStart = parseISO(`${date}T${approvedOvertime.startTime}`);
+      const overtimeEnd = parseISO(`${date}T${approvedOvertime.endTime}`);
+
+      await prisma.overtimeEntry.create({
+        data: {
+          attendanceId: updatedAttendance.id,
+          overtimeRequestId: approvedOvertime.id,
+          actualStartTime: max([
+            updatedAttendance.regularCheckInTime!,
+            overtimeStart,
+          ]),
+          actualEndTime: min([checkOutDateTime, overtimeEnd]),
+        },
+      });
+    }
 
     // Send notifications
     try {
