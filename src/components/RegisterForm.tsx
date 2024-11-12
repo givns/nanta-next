@@ -102,6 +102,13 @@ const RegisterForm: React.FC = () => {
         throw new Error('Registration failed');
       }
 
+      const result = await response.json();
+
+      // Verify the registration was successful
+      if (!result.success || result.user?.isRegistrationComplete !== 'Yes') {
+        throw new Error('Registration status not updated properly');
+      }
+
       // Show success message
       setConfirmationMessage(true);
 

@@ -25,23 +25,53 @@ export default async function handler(
   const { employeeId, profilePictureUrl } = req.body;
 
   try {
-    // Update user record
+    console.log('Starting registration for:', { employeeId, lineUserId });
+
+    // Log the user before update
+    const beforeUser = await prisma.user.findUnique({
+      where: { employeeId },
+    });
+    console.log('User before update:', beforeUser);
+
+    // Update user record with explicit data
     const updatedUser = await prisma.user.update({
       where: { employeeId },
       data: {
         lineUserId,
-        profilePictureUrl,
-        isRegistrationComplete: 'Yes',
+        profilePictureUrl: profilePictureUrl || undefined,
+        isRegistrationComplete: 'Yes', // Explicitly set this
+        updatedAt: new Date(), // Force update timestamp
       },
       include: {
         department: true,
       },
     });
 
-    // Assign rich menu based on role
-    const richMenuId = getRichMenuIdForRole(updatedUser.role);
-    await client.linkRichMenuToUser(lineUserId, richMenuId);
+    // Log the updated user
+    console.log('User after update:', updatedUser);
 
+    // Verify the update
+    const verifyUser = await prisma.user.findUnique({
+      where: { employeeId },
+    });
+    console.log('Verification query result:', verifyUser);
+
+    // Double-check if the update was successful
+    if (verifyUser?.isRegistrationComplete !== 'Yes') {
+      throw new Error('Registration status not updated properly');
+    }
+
+    // Assign rich menu based on role
+    try {
+      const richMenuId = getRichMenuIdForRole(updatedUser.role);
+      await client.linkRichMenuToUser(lineUserId, richMenuId);
+      console.log('Rich menu assigned:', richMenuId);
+    } catch (menuError) {
+      console.error('Error assigning rich menu:', menuError);
+      // Don't fail the registration if menu assignment fails
+    }
+
+    // Send success response
     return res.status(200).json({
       success: true,
       user: updatedUser,
@@ -49,21 +79,33 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('Registration error:', error);
+
+    // Try to log the current state
+    try {
+      const currentState = await prisma.user.findUnique({
+        where: { employeeId },
+      });
+      console.log('User state after error:', currentState);
+    } catch (logError) {
+      console.error('Error logging user state:', logError);
+    }
+
     return res.status(500).json({
       success: false,
       error: error.message || 'Registration failed',
+      details: 'Check server logs for more information',
     });
   }
 }
 
 function getRichMenuIdForRole(role: string): string {
-  switch (role) {
-    case 'Admin':
-    case 'SuperAdmin':
+  switch (role.toLowerCase()) {
+    case 'admin':
+    case 'superadmin':
       return RICH_MENU_IDS.ADMIN_1;
-    case 'Manager':
+    case 'manager':
       return RICH_MENU_IDS.MANAGER;
-    case 'Driver':
+    case 'driver':
       return RICH_MENU_IDS.DRIVER;
     default:
       return RICH_MENU_IDS.GENERAL;
