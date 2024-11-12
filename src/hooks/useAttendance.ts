@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDebounce } from './useDebounce';
 import { AttendanceApiService } from '@/services/attendanceApiService';
 import {
@@ -6,16 +6,10 @@ import {
   DepartmentInfo,
   ManualEntryRequest,
   AttendanceFilters,
+  UseAttendanceProps,
 } from '@/types/attendance';
 import { startOfDay, isValid, parseISO, format } from 'date-fns';
-
-export interface UseAttendanceProps {
-  lineUserId: string | null;
-  initialDate?: Date | string;
-  initialDepartment?: string;
-  initialSearchTerm?: string;
-  enabled?: boolean; // Add enabled prop
-}
+import { validateAttendanceTime, validateShiftInfo } from '@/utils/timeUtils';
 
 export interface UseAttendanceReturn {
   records: DailyAttendanceResponse[];
@@ -36,12 +30,14 @@ export function useAttendance({
   initialSearchTerm = '',
   enabled = true,
 }: UseAttendanceProps): UseAttendanceReturn {
+  // State declarations
   const [records, setRecords] = useState<DailyAttendanceResponse[]>([]);
   const [departments, setDepartments] = useState<DepartmentInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getValidDate = (date: Date | string): Date => {
+  // Memoize date validation function
+  const getValidDate = useCallback((date: Date | string): Date => {
     try {
       const parsedDate = typeof date === 'string' ? parseISO(date) : date;
       return isValid(parsedDate)
@@ -50,42 +46,83 @@ export function useAttendance({
     } catch {
       return startOfDay(new Date());
     }
-  };
+  }, []);
 
-  const [filters, setFilters] = useState<AttendanceFilters>({
+  // Initialize filters with memoized valid date
+  const [filters, setFilters] = useState<AttendanceFilters>(() => ({
     date: getValidDate(initialDate),
     department: initialDepartment,
     searchTerm: initialSearchTerm,
-  });
+  }));
 
   const debouncedSearch = useDebounce(filters.searchTerm, 300);
 
-  const updateFilters = (newFilters: Partial<AttendanceFilters>) => {
-    setFilters((prev) => {
-      const updated = { ...prev };
+  // Memoize filter update function
+  const updateFilters = useCallback(
+    (newFilters: Partial<AttendanceFilters>) => {
+      setFilters((prev) => {
+        const updated = { ...prev };
 
-      if ('date' in newFilters && newFilters.date) {
-        updated.date = getValidDate(newFilters.date);
-      }
-      if ('department' in newFilters && newFilters.department) {
-        updated.department = newFilters.department;
-      }
-      if ('searchTerm' in newFilters) {
-        updated.searchTerm = newFilters.searchTerm ?? '';
-      }
+        if ('date' in newFilters && newFilters.date) {
+          updated.date = getValidDate(newFilters.date);
+        }
+        if ('department' in newFilters && newFilters.department) {
+          updated.department = newFilters.department;
+        }
+        if ('searchTerm' in newFilters) {
+          updated.searchTerm = newFilters.searchTerm ?? '';
+        }
 
-      return updated;
-    });
-  };
+        return updated;
+      });
+    },
+    [getValidDate],
+  );
 
-  const fetchAttendanceRecords = async () => {
+  // Memoize record validation function
+  const validateAttendanceRecord = useCallback(
+    (record: any): DailyAttendanceResponse | null => {
+      if (!record) return null;
+
+      try {
+        const validatedRecord: DailyAttendanceResponse = {
+          employeeId: record.employeeId || '',
+          employeeName: record.employeeName || '',
+          departmentName: record.departmentName || '',
+          date: record.date || format(new Date(), 'yyyy-MM-dd'),
+          shift: validateShiftInfo(record.shift),
+          attendance: validateAttendanceTime(record.attendance),
+          isDayOff: !!record.isDayOff,
+          leaveInfo: record.leaveInfo
+            ? {
+                type: record.leaveInfo.type || '',
+                status: record.leaveInfo.status || '',
+              }
+            : null,
+        };
+
+        // Additional validation for required fields
+        if (!validatedRecord.employeeId || !validatedRecord.employeeName) {
+          return null;
+        }
+
+        return validatedRecord;
+      } catch (error) {
+        console.error('Error validating attendance record:', error, record);
+        return null;
+      }
+    },
+    [],
+  );
+
+  // Memoize fetch function
+  const fetchAttendanceRecords = useCallback(async () => {
     if (!lineUserId || !enabled) return;
 
     try {
       setIsLoading(true);
       setError(null);
 
-      // Validate and format date
       const validDate = getValidDate(filters.date);
       const dateStr = format(validDate, 'yyyy-MM-dd');
 
@@ -100,7 +137,12 @@ export function useAttendance({
         throw new Error('Invalid response format from server');
       }
 
-      setRecords(data);
+      // Validate and filter records in one pass
+      const validatedRecords = data
+        .map(validateAttendanceRecord)
+        .filter((record): record is DailyAttendanceResponse => record !== null);
+
+      setRecords(validatedRecords);
     } catch (error) {
       console.error('Error fetching attendance:', error);
       setError(
@@ -111,13 +153,25 @@ export function useAttendance({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [
+    lineUserId,
+    enabled,
+    filters.date,
+    filters.department,
+    debouncedSearch,
+    getValidDate,
+    validateAttendanceRecord,
+  ]);
 
   // Fetch departments on mount if enabled
   useEffect(() => {
+    let isMounted = true;
+
     if (lineUserId && enabled) {
       AttendanceApiService.getDepartments(lineUserId)
         .then((data) => {
+          if (!isMounted) return;
+
           if (Array.isArray(data)) {
             setDepartments(data);
           } else {
@@ -125,10 +179,16 @@ export function useAttendance({
           }
         })
         .catch((error) => {
+          if (!isMounted) return;
+
           console.error('Error fetching departments:', error);
           setError('Failed to load departments');
         });
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [lineUserId, enabled]);
 
   // Fetch attendance when filters change and enabled
@@ -136,7 +196,7 @@ export function useAttendance({
     if (lineUserId && enabled) {
       fetchAttendanceRecords();
     }
-  }, [lineUserId, enabled, filters.date, filters.department, debouncedSearch]);
+  }, [fetchAttendanceRecords, lineUserId, enabled]);
 
   // Memoized filtered records with type safety
   const filteredRecords = useMemo(() => {
@@ -160,25 +220,29 @@ export function useAttendance({
     });
   }, [records, debouncedSearch, filters.department]);
 
-  const createManualEntry = async (entryData: ManualEntryRequest) => {
-    if (!lineUserId || !enabled) return;
+  // Memoize createManualEntry function
+  const createManualEntry = useCallback(
+    async (entryData: ManualEntryRequest) => {
+      if (!lineUserId || !enabled) return;
 
-    try {
-      setIsLoading(true);
-      setError(null);
-      await AttendanceApiService.createManualEntry(lineUserId, entryData);
-      await fetchAttendanceRecords();
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : 'Failed to create manual entry';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      try {
+        setIsLoading(true);
+        setError(null);
+        await AttendanceApiService.createManualEntry(lineUserId, entryData);
+        await fetchAttendanceRecords();
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : 'Failed to create manual entry';
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [lineUserId, enabled, fetchAttendanceRecords],
+  );
 
   return {
     records,

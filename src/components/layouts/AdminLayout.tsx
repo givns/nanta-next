@@ -7,6 +7,7 @@ import { AdminDesktopNav } from '@/components/admin/AdminDesktopNav';
 import { AdminMobileTabs } from '@/components/admin/AdminMobileTabs';
 import { routeTabs } from '@/config/routeTabs';
 import DashboardSkeleton from '../dashboard/DashboardSkeleton';
+import { cn } from '@/lib/utils';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -23,12 +24,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const currentPath = router.pathname;
   const baseRoute = `/${currentPath.split('/').slice(1, 3).join('/')}`;
   const currentTabs = routeTabs[baseRoute];
-  const currentTabValue = currentPath.split('/').pop() || '';
+  const currentTabValue = router.pathname.split('/').pop() || '';
 
   // Show navigation on desktop browsers (not in LIFF)
-  const showNavigation = env.isMounted && env.isDesktop && !env.isLiffBrowser;
-  // Show tabs only on mobile/LIFF
-  const showTabs =
+  const showDesktopNav = env.isMounted && env.isDesktop && !env.isLiffBrowser;
+  // Show tabs based on route configuration and device
+  const showMobileTabs =
     env.isMounted && (!env.isDesktop || env.isLiffBrowser) && currentTabs;
 
   if (isLoading) {
@@ -59,18 +60,24 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {showNavigation && user && <AdminDesktopNav userName={user.name} />}
+      {showDesktopNav && user && <AdminDesktopNav userName={user.name} />}
 
       <main
-        className={`max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 ${showNavigation ? 'mt-16' : ''}`}
+        className={cn(
+          'max-w-7xl mx-auto',
+          showDesktopNav ? 'mt-16' : 'mt-0',
+          'relative',
+        )}
       >
-        {showTabs && (
+        {/* Mobile Tabs */}
+        {showMobileTabs && currentTabs && (
           <AdminMobileTabs
             currentTabs={currentTabs}
             currentTabValue={currentTabValue}
           />
         )}
-        {children}
+
+        <div className="py-6 px-4 sm:px-6 lg:px-8">{children}</div>
       </main>
     </div>
   );

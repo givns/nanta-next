@@ -3,6 +3,7 @@ export interface RouteTab {
   value: string;
   label: string;
   href: string;
+  icon?: React.ComponentType<{ className?: string }>;
 }
 
 export interface RouteTabs {
@@ -11,7 +12,11 @@ export interface RouteTabs {
 
 export const routeTabs: RouteTabs = {
   '/admin/attendance': [
-    { value: 'daily', label: 'Daily Records', href: '/admin/attendance/daily' },
+    {
+      value: 'daily',
+      label: 'Daily Records',
+      href: '/admin/attendance/daily',
+    },
     {
       value: 'shifts',
       label: 'Shift Adjustments',
@@ -34,6 +39,10 @@ export const routeTabs: RouteTabs = {
       label: 'Holiday Calendar',
       href: '/admin/leaves/holidays',
     },
-    { value: 'nowork', label: 'No-Work Days', href: '/admin/leaves/nowork' },
+    {
+      value: 'nowork',
+      label: 'No-Work Days',
+      href: '/admin/leaves/nowork',
+    },
   ],
-} as const;
+};
