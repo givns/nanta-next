@@ -1,15 +1,34 @@
-// components/admin/attendance/AttendanceCard.tsx
-
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { format, parseISO } from 'date-fns';
-import { DailyAttendanceResponse } from '@/types/attendance';
 import { Clock } from 'lucide-react';
+import { DailyAttendanceResponse } from '@/types/attendance';
 
 interface AttendanceCardProps {
   record: DailyAttendanceResponse;
   onView: () => void;
+}
+
+function formatTime(timeString: string | null | undefined): string {
+  if (!timeString) return '-';
+
+  try {
+    // Check if timeString is already in HH:mm format
+    if (/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeString)) {
+      return timeString;
+    }
+
+    // If it's a full ISO string, extract just the time part
+    const timeMatch = timeString.match(/\d{2}:\d{2}/);
+    if (timeMatch) {
+      return timeMatch[0];
+    }
+
+    return '-';
+  } catch (error) {
+    console.error('Error formatting time:', error, timeString);
+    return '-';
+  }
 }
 
 export function AttendanceCard({ record, onView }: AttendanceCardProps) {
@@ -51,7 +70,8 @@ export function AttendanceCard({ record, onView }: AttendanceCardProps) {
             <div>
               <span className="font-medium">{record.shift.name}</span>
               <span className="text-sm text-gray-500 ml-2">
-                {record.shift.startTime} - {record.shift.endTime}
+                {formatTime(record.shift.startTime)} -{' '}
+                {formatTime(record.shift.endTime)}
               </span>
             </div>
           </div>
@@ -61,20 +81,11 @@ export function AttendanceCard({ record, onView }: AttendanceCardProps) {
           <div>
             <div className="text-sm text-gray-500">Check In</div>
             <div className="flex items-center gap-2">
-              {record.attendance?.regularCheckInTime ? (
-                <>
-                  {format(
-                    parseISO(record.attendance.regularCheckInTime),
-                    'HH:mm',
-                  )}
-                  {record.attendance.isLateCheckIn && (
-                    <Badge variant="warning" className="h-5">
-                      Late
-                    </Badge>
-                  )}
-                </>
-              ) : (
-                <span className="text-gray-400">-</span>
+              <span>{formatTime(record.attendance?.regularCheckInTime)}</span>
+              {record.attendance?.isLateCheckIn && (
+                <Badge variant="warning" className="h-5">
+                  Late
+                </Badge>
               )}
             </div>
           </div>
@@ -82,20 +93,11 @@ export function AttendanceCard({ record, onView }: AttendanceCardProps) {
           <div>
             <div className="text-sm text-gray-500">Check Out</div>
             <div className="flex items-center gap-2">
-              {record.attendance?.regularCheckOutTime ? (
-                <>
-                  {format(
-                    parseISO(record.attendance.regularCheckOutTime),
-                    'HH:mm',
-                  )}
-                  {record.attendance.isLateCheckOut && (
-                    <Badge variant="warning" className="h-5">
-                      Late
-                    </Badge>
-                  )}
-                </>
-              ) : (
-                <span className="text-gray-400">-</span>
+              <span>{formatTime(record.attendance?.regularCheckOutTime)}</span>
+              {record.attendance?.isLateCheckOut && (
+                <Badge variant="warning" className="h-5">
+                  Late
+                </Badge>
               )}
             </div>
           </div>
