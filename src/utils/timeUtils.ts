@@ -38,25 +38,27 @@ export function isValidTimeString(time: string | null | undefined): boolean {
   return TIME_REGEX.test(time);
 }
 
-export function formatTimeString(time: string | null | undefined): string | null {
+export function formatTimeString(
+  time: string | null | undefined,
+): string | null {
   if (!time) return null;
-  
+
   try {
     if (!isValidTimeString(time)) return null;
-    
+
     const [hours, minutes] = time.split(':').map(Number);
-    
+
     if (
-      isNaN(hours) || 
-      isNaN(minutes) || 
-      hours < 0 || 
-      hours > 23 || 
-      minutes < 0 || 
+      isNaN(hours) ||
+      isNaN(minutes) ||
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
       minutes > 59
     ) {
       return null;
     }
-    
+
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   } catch {
     return null;
@@ -65,7 +67,7 @@ export function formatTimeString(time: string | null | undefined): string | null
 
 export function validateAttendanceTime(attendance: any): AttendanceTime | null {
   if (!attendance) return null;
-  
+
   try {
     const validatedTime: AttendanceTime = {
       id: attendance.id || '',
@@ -76,9 +78,9 @@ export function validateAttendanceTime(attendance: any): AttendanceTime | null {
       isEarlyCheckIn: !!attendance.isEarlyCheckIn,
       isVeryLateCheckOut: !!attendance.isVeryLateCheckOut,
       lateCheckOutMinutes: Number(attendance.lateCheckOutMinutes) || 0,
-      status: attendance.status || ''
+      status: attendance.status || '',
     };
-    
+
     return validatedTime;
   } catch {
     return null;
@@ -87,14 +89,14 @@ export function validateAttendanceTime(attendance: any): AttendanceTime | null {
 
 export function validateShiftInfo(shift: any): ShiftInfo | null {
   if (!shift) return null;
-  
+
   try {
     const validatedShift: ShiftInfo = {
       name: shift.name || '',
       startTime: formatTimeString(shift.startTime) || '00:00',
-      endTime: formatTimeString(shift.endTime) || '00:00'
+      endTime: formatTimeString(shift.endTime) || '00:00',
     };
-    
+
     return validatedShift;
   } catch {
     return null;

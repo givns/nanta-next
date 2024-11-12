@@ -478,7 +478,7 @@ export type AttendanceSelect = Prisma.AttendanceSelect & {
 
 export interface AttendanceTime {
   id: string;
-  regularCheckInTime: string | null;  // Format: "HH:mm"
+  regularCheckInTime: string | null; // Format: "HH:mm"
   regularCheckOutTime: string | null; // Format: "HH:mm"
   isLateCheckIn: boolean;
   isLateCheckOut: boolean;
@@ -496,7 +496,7 @@ export interface LeaveInfo {
 export interface ShiftInfo {
   name: string;
   startTime: string; // Format: "HH:mm"
-  endTime: string;   // Format: "HH:mm"
+  endTime: string; // Format: "HH:mm"
 }
 
 // Complete daily attendance response
@@ -504,7 +504,7 @@ export interface DailyAttendanceResponse {
   employeeId: string;
   employeeName: string;
   departmentName: string;
-  date: string;        // Format: "YYYY-MM-DD"
+  date: string; // Format: "YYYY-MM-DD"
   shift: ShiftInfo | null;
   attendance: AttendanceTime | null;
   isDayOff: boolean;
@@ -557,13 +557,6 @@ export interface TimeEntriesResponse {
   periodStart: string;
   periodEnd: string;
   records: DetailedTimeEntry[];
-}
-
-export interface UseAttendanceProps {
-  lineUserId: string | null;
-  initialDate?: Date | string;
-  initialDepartment?: string;
-  initialSearchTerm?: string;
 }
 
 export interface ManualEntryRequest {
