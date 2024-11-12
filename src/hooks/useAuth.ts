@@ -34,9 +34,24 @@ export function useAuth(options: UseAuthOptions = {}) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  // Add refs to track mounted state and prevent unnecessary effects
+  const isMounted = useRef(true);
+  const checkInProgress = useRef(false);
+  const requiredRolesString = options.requiredRoles?.join(',') || '';
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     const checkAuth = async () => {
-      if (!isInitialized) return;
+      // Prevent concurrent checks and check if component is still mounted
+      if (checkInProgress.current || !isMounted.current || !isInitialized)
+        return;
+
+      checkInProgress.current = true;
 
       try {
         if (!lineUserId) {
@@ -67,22 +82,21 @@ export function useAuth(options: UseAuthOptions = {}) {
         const response = await fetch('/api/auth/check', {
           headers: {
             'x-line-userid': lineUserId,
-            'x-required-roles': options.requiredRoles?.join(',') || '',
+            'x-required-roles': requiredRolesString,
           },
         });
 
+        if (!isMounted.current) return;
+
         if (response.status === 404) {
-          // User needs registration
-          setState({
+          const newState = {
             user: null,
             isAuthorized: false,
             needsRegistration: true,
-          });
-          authCache.set(lineUserId, {
-            user: null,
-            isAuthorized: false,
-            needsRegistration: true,
-          });
+          };
+
+          setState(newState);
+          authCache.set(lineUserId, newState);
 
           if (options.required && !options.allowRegistration) {
             router.replace('/register');
@@ -97,7 +111,7 @@ export function useAuth(options: UseAuthOptions = {}) {
         const data = await response.json();
 
         if (response.ok) {
-          setState({
+          const newState = {
             user: data.user,
             isAuthorized: data.isAuthorized,
             needsRegistration: false,
@@ -105,9 +119,11 @@ export function useAuth(options: UseAuthOptions = {}) {
               isComplete: data.user.isRegistrationComplete === 'Yes',
               employeeId: data.user.employeeId,
             },
-          });
+          };
 
-          // If registration is not complete and we're not on registration page
+          setState(newState);
+          authCache.set(lineUserId, newState);
+
           if (
             data.user.isRegistrationComplete === 'No' &&
             !options.allowRegistration
@@ -115,24 +131,14 @@ export function useAuth(options: UseAuthOptions = {}) {
             router.replace('/register');
             return;
           }
-        } else if (response.status === 404) {
-          setState({
-            user: null,
-            isAuthorized: false,
-            needsRegistration: true,
-            registrationStatus: undefined,
-          });
-
-          if (options.required && !options.allowRegistration) {
-            router.replace('/register');
-          }
-        } else {
-          throw new Error('Auth check failed');
         }
       } catch (error) {
         console.error('Auth check failed:', error);
       } finally {
-        setIsLoading(false);
+        if (isMounted.current) {
+          setIsLoading(false);
+        }
+        checkInProgress.current = false;
       }
     };
 
@@ -142,7 +148,7 @@ export function useAuth(options: UseAuthOptions = {}) {
     isInitialized,
     options.required,
     options.allowRegistration,
-    options.requiredRoles,
+    requiredRolesString, // Use memoized string instead of array
   ]);
 
   return {
