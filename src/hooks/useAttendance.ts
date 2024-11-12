@@ -6,11 +6,18 @@ import {
   DepartmentInfo,
   ManualEntryRequest,
   AttendanceFilters,
-  UseAttendanceProps,
 } from '@/types/attendance';
 import { startOfDay, isValid, parseISO, format } from 'date-fns';
 
-interface UseAttendanceReturn {
+export interface UseAttendanceProps {
+  lineUserId: string | null;
+  initialDate?: Date | string;
+  initialDepartment?: string;
+  initialSearchTerm?: string;
+  enabled?: boolean; // Add enabled prop
+}
+
+export interface UseAttendanceReturn {
   records: DailyAttendanceResponse[];
   filteredRecords: DailyAttendanceResponse[];
   departments: DepartmentInfo[];
@@ -27,6 +34,7 @@ export function useAttendance({
   initialDate = new Date(),
   initialDepartment = 'all',
   initialSearchTerm = '',
+  enabled = true,
 }: UseAttendanceProps): UseAttendanceReturn {
   const [records, setRecords] = useState<DailyAttendanceResponse[]>([]);
   const [departments, setDepartments] = useState<DepartmentInfo[]>([]);
@@ -35,7 +43,7 @@ export function useAttendance({
 
   const getValidDate = (date: Date | string): Date => {
     try {
-      const parsedDate = date instanceof Date ? date : new Date(date);
+      const parsedDate = typeof date === 'string' ? parseISO(date) : date;
       return isValid(parsedDate)
         ? startOfDay(parsedDate)
         : startOfDay(new Date());
@@ -56,14 +64,14 @@ export function useAttendance({
     setFilters((prev) => {
       const updated = { ...prev };
 
-      if ('date' in newFilters) {
-        updated.date = getValidDate(newFilters.date!);
+      if ('date' in newFilters && newFilters.date) {
+        updated.date = getValidDate(newFilters.date);
       }
-      if ('department' in newFilters) {
-        updated.department = newFilters.department!;
+      if ('department' in newFilters && newFilters.department) {
+        updated.department = newFilters.department;
       }
       if ('searchTerm' in newFilters) {
-        updated.searchTerm = newFilters.searchTerm!;
+        updated.searchTerm = newFilters.searchTerm ?? '';
       }
 
       return updated;
@@ -71,22 +79,27 @@ export function useAttendance({
   };
 
   const fetchAttendanceRecords = async () => {
-    if (!lineUserId) return;
+    if (!lineUserId || !enabled) return;
 
     try {
       setIsLoading(true);
       setError(null);
 
-      // Format date safely for API
-      const dateStr = format(getValidDate(filters.date), 'yyyy-MM-dd');
-      const dateObj = new Date(dateStr); // Convert dateStr to a Date object
+      // Validate and format date
+      const validDate = getValidDate(filters.date);
+      const dateStr = format(validDate, 'yyyy-MM-dd');
 
       const data = await AttendanceApiService.getDailyAttendance(
         lineUserId,
-        dateObj, // Pass the dateObj instead of dateStr
+        validDate,
         filters.department,
         debouncedSearch,
       );
+
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid response format from server');
+      }
+
       setRecords(data);
     } catch (error) {
       console.error('Error fetching attendance:', error);
@@ -100,28 +113,38 @@ export function useAttendance({
     }
   };
 
-  // Fetch departments on mount
+  // Fetch departments on mount if enabled
   useEffect(() => {
-    if (lineUserId) {
+    if (lineUserId && enabled) {
       AttendanceApiService.getDepartments(lineUserId)
-        .then(setDepartments)
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setDepartments(data);
+          } else {
+            throw new Error('Invalid departments data format');
+          }
+        })
         .catch((error) => {
           console.error('Error fetching departments:', error);
           setError('Failed to load departments');
         });
     }
-  }, [lineUserId]);
+  }, [lineUserId, enabled]);
 
-  // Fetch attendance when filters change
+  // Fetch attendance when filters change and enabled
   useEffect(() => {
-    if (lineUserId) {
+    if (lineUserId && enabled) {
       fetchAttendanceRecords();
     }
-  }, [lineUserId, filters.date, filters.department, debouncedSearch]);
+  }, [lineUserId, enabled, filters.date, filters.department, debouncedSearch]);
 
-  // Memoized filtered records
+  // Memoized filtered records with type safety
   const filteredRecords = useMemo(() => {
+    if (!Array.isArray(records)) return [];
+
     return records.filter((record) => {
+      if (!record) return false;
+
       const matchesSearch =
         !debouncedSearch ||
         record.employeeName
@@ -138,7 +161,7 @@ export function useAttendance({
   }, [records, debouncedSearch, filters.department]);
 
   const createManualEntry = async (entryData: ManualEntryRequest) => {
-    if (!lineUserId) return;
+    if (!lineUserId || !enabled) return;
 
     try {
       setIsLoading(true);
@@ -146,12 +169,12 @@ export function useAttendance({
       await AttendanceApiService.createManualEntry(lineUserId, entryData);
       await fetchAttendanceRecords();
     } catch (error) {
-      setError(
+      const errorMessage =
         error instanceof Error
           ? error.message
-          : 'Failed to create manual entry',
-      );
-      throw error;
+          : 'Failed to create manual entry';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }

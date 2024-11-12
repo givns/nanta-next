@@ -11,11 +11,46 @@ import { MobileView } from './components/MobileView';
 import { LoadingState } from './components/LoadingState';
 import { ErrorAlert } from './components/ErrorAlert';
 import { EmployeeDetailDialog } from './EmployeeDetailDialog';
-import { format, isValid, startOfDay, parse } from 'date-fns';
+import { format, isValid, startOfDay, parseISO } from 'date-fns';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ErrorBoundary } from 'react-error-boundary';
+
+// Safe date parsing utility
+const parseDateSafely = (dateString: string | null | undefined): Date => {
+  if (!dateString) return startOfDay(new Date());
+
+  try {
+    const parsed = parseISO(dateString);
+    return isValid(parsed) ? parsed : startOfDay(new Date());
+  } catch (error) {
+    console.error('Error parsing date:', error);
+    return startOfDay(new Date());
+  }
+};
+
+interface ErrorFallbackProps {
+  error: Error;
+  resetErrorBoundary: () => void;
+}
+
+function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
+  return (
+    <div className="p-4">
+      <Alert variant="destructive">
+        <AlertTitle>Something went wrong</AlertTitle>
+        <AlertDescription>
+          {error.message}
+          <button onClick={resetErrorBoundary} className="ml-2 underline">
+            Try again
+          </button>
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
 
 export default function DailyAttendanceView() {
   const router = useRouter();
@@ -29,30 +64,38 @@ export default function DailyAttendanceView() {
   });
   const { lineUserId } = useLiff();
 
-  // State declarations
+  // State declarations with safe initialization
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
   const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const [selectedRecord, setSelectedRecord] =
     useState<DailyAttendanceResponse | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Calculate memoized values first
-  const processedData = useMemo(() => {
-    if (!selectedDate || authLoading || !lineUserId) {
-      return {
-        shouldInitialize: false,
-        date: new Date(),
-      };
+  // Safe date initialization from URL or current date
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (!router.isReady) return startOfDay(new Date());
+
+    const { date } = router.query;
+    return parseDateSafely(typeof date === 'string' ? date : null);
+  });
+
+  // Initialize when router is ready
+  useEffect(() => {
+    if (router.isReady && !isInitialized) {
+      const { date } = router.query;
+      setSelectedDate(parseDateSafely(typeof date === 'string' ? date : null));
+      setIsInitialized(true);
     }
-    return {
-      shouldInitialize:
-        !authLoading && isInitialized && !!lineUserId && !!selectedDate,
-      date: selectedDate,
-    };
+  }, [router.isReady, isInitialized]);
+
+  // Memoized computation of whether we should fetch data
+  const shouldFetchData = useMemo(() => {
+    return (
+      !authLoading && isInitialized && !!lineUserId && isValid(selectedDate)
+    );
   }, [authLoading, isInitialized, lineUserId, selectedDate]);
 
-  // Use lineUserId directly for API authentication
+  // Fetch attendance data with safe date
   const {
     records,
     filteredRecords,
@@ -63,15 +106,16 @@ export default function DailyAttendanceView() {
     setFilters,
     refreshData,
   } = useAttendance({
-    lineUserId, // Pass lineUserId directly
-    initialDate: processedData.date,
+    lineUserId,
+    initialDate: selectedDate,
     initialDepartment: 'all',
     initialSearchTerm: '',
+    enabled: shouldFetchData,
   });
 
-  // Process records with proper sorting
+  // Safe record processing with error handling
   const processedRecords = useMemo(() => {
-    if (!records?.length) return [];
+    if (!Array.isArray(records)) return [];
 
     try {
       return [...records].sort((a, b) => {
@@ -95,9 +139,18 @@ export default function DailyAttendanceView() {
     }
   }, [records]);
 
-  // Calculate summary statistics
-  const summary = useMemo(
-    () => ({
+  // Safe summary calculation
+  const summary = useMemo(() => {
+    if (!Array.isArray(filteredRecords))
+      return {
+        total: 0,
+        present: 0,
+        absent: 0,
+        onLeave: 0,
+        dayOff: 0,
+      };
+
+    return {
       total: filteredRecords.length,
       present: filteredRecords.filter((r) => r?.attendance?.regularCheckInTime)
         .length,
@@ -107,49 +160,30 @@ export default function DailyAttendanceView() {
       ).length,
       onLeave: filteredRecords.filter((r) => r?.leaveInfo).length,
       dayOff: filteredRecords.filter((r) => r?.isDayOff).length,
-    }),
-    [filteredRecords],
-  );
+    };
+  }, [filteredRecords]);
 
-  // Initialize date from query params or current date
-  useEffect(() => {
-    if (router.isReady) {
-      const { date } = router.query;
-      let initialDate: Date;
-
-      if (date && typeof date === 'string') {
-        try {
-          initialDate = parse(date, 'yyyy-MM-dd', new Date());
-          if (!isValid(initialDate)) throw new Error('Invalid date');
-        } catch {
-          initialDate = startOfDay(new Date());
-        }
-      } else {
-        initialDate = startOfDay(new Date());
-      }
-
-      setSelectedDate(initialDate);
-      setIsInitialized(true);
-    }
-  }, [router.isReady, router.query]);
-
-  // Handle date changes with URL sync
+  // Safe date change handler
   const handleDateChange = (newDate: Date | undefined) => {
-    if (newDate && isValid(newDate)) {
-      const formattedDate = format(newDate, 'yyyy-MM-dd');
-      router.push(
-        {
-          pathname: router.pathname,
-          query: { ...router.query, date: formattedDate },
-        },
-        undefined,
-        { shallow: true },
-      );
-      setSelectedDate(newDate);
-      setFilters({ date: newDate });
+    if (!newDate || !isValid(newDate)) {
+      console.warn('Invalid date selected:', newDate);
+      return;
     }
+
+    const formattedDate = format(newDate, 'yyyy-MM-dd');
+    router.push(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, date: formattedDate },
+      },
+      undefined,
+      { shallow: true },
+    );
+    setSelectedDate(newDate);
+    setFilters({ date: newDate });
   };
 
+  // Safe record selection handlers
   const handleRecordSelect = (record: DailyAttendanceResponse) => {
     if (!record || !selectedDate) return;
     setSelectedEmployee(record.employeeId);
@@ -164,17 +198,6 @@ export default function DailyAttendanceView() {
     setSelectedRecord(record);
     setShowEmployeeDetail(true);
   };
-
-  // Date selector configuration
-  const dateSelectorConfig = useMemo(
-    () => ({
-      fromYear: 2024,
-      toYear: new Date().getFullYear(),
-      disableFutureDates: true,
-      className: 'w-[260px]',
-    }),
-    [],
-  );
 
   if (authLoading || !isInitialized) {
     return <LoadingState />;
@@ -194,69 +217,79 @@ export default function DailyAttendanceView() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="md:hidden">
-        <SummaryStats summary={summary} />
-      </div>
+    <ErrorBoundary
+      FallbackComponent={ErrorFallback}
+      onReset={() => {
+        refreshData();
+      }}
+    >
+      <div className="space-y-4">
+        <div className="md:hidden">
+          <SummaryStats summary={summary} />
+        </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <CardTitle>Daily Attendance</CardTitle>
-            <DateSelector
-              date={selectedDate || new Date()} // Ensure selectedDate is never null
-              onChange={handleDateChange}
-              {...dateSelectorConfig}
-            />{' '}
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          <div className="space-y-6">
-            <SearchFilters
-              filters={filters}
-              departments={departments}
-              onSearchChange={(term) => setFilters({ searchTerm: term })}
-              onDepartmentChange={(dept) => setFilters({ department: dept })}
-            />
-
-            <div className="hidden md:block">
-              <SummaryStats summary={summary} />
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <CardTitle>Daily Attendance</CardTitle>
+              <DateSelector
+                date={selectedDate}
+                onChange={handleDateChange}
+                fromYear={2024}
+                toYear={new Date().getFullYear()}
+                disableFutureDates={true}
+                className="w-[260px]"
+              />
             </div>
+          </CardHeader>
 
-            {isDataLoading ? (
-              <LoadingState />
-            ) : error ? (
-              <ErrorAlert error={error} onRetry={refreshData} />
-            ) : (
-              <>
-                <div className="hidden md:block">
-                  <DesktopView
-                    records={processedRecords}
-                    onRecordSelect={handleRecordSelect}
-                    onEditRecord={handleEditRecord}
-                  />
-                </div>
-                <div className="md:hidden">
-                  <MobileView
-                    records={processedRecords}
-                    onRecordSelect={handleRecordSelect}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          <CardContent>
+            <div className="space-y-6">
+              <SearchFilters
+                filters={filters}
+                departments={departments}
+                onSearchChange={(term) => setFilters({ searchTerm: term })}
+                onDepartmentChange={(dept) => setFilters({ department: dept })}
+              />
 
-      {selectedEmployee && selectedDate && (
-        <EmployeeDetailDialog
-          open={showEmployeeDetail}
-          onOpenChange={setShowEmployeeDetail}
-          employeeId={selectedEmployee}
-          date={selectedDate}
-        />
-      )}
-    </div>
+              <div className="hidden md:block">
+                <SummaryStats summary={summary} />
+              </div>
+
+              {isDataLoading ? (
+                <LoadingState />
+              ) : error ? (
+                <ErrorAlert error={error} onRetry={refreshData} />
+              ) : (
+                <>
+                  <div className="hidden md:block">
+                    <DesktopView
+                      records={processedRecords}
+                      onRecordSelect={handleRecordSelect}
+                      onEditRecord={handleEditRecord}
+                    />
+                  </div>
+                  <div className="md:hidden">
+                    <MobileView
+                      records={processedRecords}
+                      onRecordSelect={handleRecordSelect}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {selectedEmployee && selectedDate && (
+          <EmployeeDetailDialog
+            open={showEmployeeDetail}
+            onOpenChange={setShowEmployeeDetail}
+            employeeId={selectedEmployee}
+            date={selectedDate}
+          />
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }
