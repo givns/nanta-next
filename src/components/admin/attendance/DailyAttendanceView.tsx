@@ -18,19 +18,6 @@ import { useLiff } from '@/contexts/LiffContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ErrorBoundary } from 'react-error-boundary';
 
-// Safe date parsing utility
-const parseDateSafely = (dateString: string | null | undefined): Date => {
-  if (!dateString) return startOfDay(new Date());
-
-  try {
-    const parsed = parseISO(dateString);
-    return isValid(parsed) ? parsed : startOfDay(new Date());
-  } catch (error) {
-    console.error('Error parsing date:', error);
-    return startOfDay(new Date());
-  }
-};
-
 interface ErrorFallbackProps {
   error: Error;
   resetErrorBoundary: () => void;
@@ -50,6 +37,23 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
       </Alert>
     </div>
   );
+}
+
+// Add this utility function at the top
+function ensureValidDate(date: Date | string | null | undefined): Date {
+  if (!date) {
+    return startOfDay(new Date());
+  }
+
+  try {
+    const parsedDate = typeof date === 'string' ? parseISO(date) : date;
+    return isValid(parsedDate)
+      ? startOfDay(parsedDate)
+      : startOfDay(new Date());
+  } catch (error) {
+    console.error('Error parsing date:', error);
+    return startOfDay(new Date());
+  }
 }
 
 export default function DailyAttendanceView() {
@@ -76,14 +80,14 @@ export default function DailyAttendanceView() {
     if (!router.isReady) return startOfDay(new Date());
 
     const { date } = router.query;
-    return parseDateSafely(typeof date === 'string' ? date : null);
+    return ensureValidDate(typeof date === 'string' ? date : null);
   });
 
   // Initialize when router is ready
   useEffect(() => {
     if (router.isReady && !isInitialized) {
       const { date } = router.query;
-      setSelectedDate(parseDateSafely(typeof date === 'string' ? date : null));
+      setSelectedDate(ensureValidDate(typeof date === 'string' ? date : null));
       setIsInitialized(true);
     }
   }, [router.isReady, isInitialized]);
@@ -164,23 +168,31 @@ export default function DailyAttendanceView() {
   }, [filteredRecords]);
 
   // Safe date change handler
+  // Update date change handler
   const handleDateChange = (newDate: Date | undefined) => {
     if (!newDate || !isValid(newDate)) {
       console.warn('Invalid date selected:', newDate);
       return;
     }
 
-    const formattedDate = format(newDate, 'yyyy-MM-dd');
-    router.push(
-      {
-        pathname: router.pathname,
-        query: { ...router.query, date: formattedDate },
-      },
-      undefined,
-      { shallow: true },
-    );
-    setSelectedDate(newDate);
-    setFilters({ date: newDate });
+    const processedDate = startOfDay(newDate);
+    const formattedDate = format(processedDate, 'yyyy-MM-dd');
+
+    try {
+      router.push(
+        {
+          pathname: router.pathname,
+          query: { ...router.query, date: formattedDate },
+        },
+        undefined,
+        { shallow: true },
+      );
+
+      setSelectedDate(processedDate);
+      setFilters({ date: processedDate });
+    } catch (error) {
+      console.error('Error updating date:', error);
+    }
   };
 
   // Safe record selection handlers

@@ -40,36 +40,34 @@ export function DateSelector({
 }: DateSelectorProps) {
   // Validate and process the date input
   const validDate = useMemo(() => {
-    const processDate = (dateInput: Date | string): Date => {
-      try {
-        // Handle Date object
-        if (dateInput instanceof Date) {
-          return isValid(dateInput)
-            ? startOfDay(dateInput)
-            : startOfDay(new Date());
-        }
-
-        // Handle ISO string
-        if (typeof dateInput === 'string') {
-          const parsedDate = parseISO(dateInput);
-          if (isValid(parsedDate)) {
-            return startOfDay(parsedDate);
-          }
-        }
-
-        // Fallback to current date
-        console.warn(
-          'Invalid date input, falling back to current date:',
-          dateInput,
-        );
-        return startOfDay(new Date());
-      } catch (error) {
-        console.error('Error processing date:', error);
-        return startOfDay(new Date());
+    try {
+      // Handle Date object
+      if (date instanceof Date) {
+        return isValid(date) ? startOfDay(date) : startOfDay(new Date());
       }
-    };
 
-    return processDate(date);
+      // Handle ISO string
+      if (typeof date === 'string') {
+        // First try parsing as ISO date
+        const parsedDate = parseISO(date);
+        if (isValid(parsedDate)) {
+          return startOfDay(parsedDate);
+        }
+
+        // If that fails, try creating a new date
+        const fallbackDate = new Date(date);
+        if (isValid(fallbackDate)) {
+          return startOfDay(fallbackDate);
+        }
+      }
+
+      // Fallback to current date
+      console.warn('Invalid date input, falling back to current date:', date);
+      return startOfDay(new Date());
+    } catch (error) {
+      console.error('Error processing date:', error);
+      return startOfDay(new Date());
+    }
   }, [date]);
 
   // Date constraints
@@ -115,6 +113,9 @@ export function DateSelector({
   // Format date for display
   const formattedDate = useMemo(() => {
     try {
+      if (!isValid(validDate)) {
+        throw new Error('Invalid date for formatting');
+      }
       return format(validDate, 'EEEE, d MMMM yyyy', { locale: th });
     } catch (error) {
       console.error('Error formatting date:', error);
@@ -122,7 +123,7 @@ export function DateSelector({
     }
   }, [validDate]);
 
-  // Memoize the disabled date function
+  // Disable dates function
   const isDateDisabled = useMemo(() => {
     return (date: Date) => {
       const startOfDate = startOfDay(date);
