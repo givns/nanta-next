@@ -24,7 +24,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   const { isLoading: authLoading, registrationStatus } = useAuth({
     required: !isRegisterPage,
     requiredRoles: isAdminRoute ? ['Admin', 'SuperAdmin'] : undefined,
-    allowRegistration: isRegisterPage, 
+    allowRegistration: isRegisterPage,
   });
 
   useEffect(() => {
@@ -53,17 +53,17 @@ function AppContent({ Component, pageProps }: AppProps) {
     );
   }
 
-    // Check if we have lineUserId before proceeding with registration
-    if (isRegisterPage) {
-      if (!lineUserId) {
-        return <LoadingProgress isLiffInitialized={true} isDataLoaded={false} />;
-      }
-      return (
-        <Provider store={store}>
-          <Component {...pageProps} />
-        </Provider>
-      );
+  // Check if we have lineUserId before proceeding with registration
+  if (isRegisterPage) {
+    if (!lineUserId) {
+      return <LoadingProgress isLiffInitialized={true} isDataLoaded={false} />;
     }
+    return (
+      <Provider store={store}>
+        <Component {...pageProps} />
+      </Provider>
+    );
+  }
 
   // Show loading state during auth check
   if (authLoading) {
