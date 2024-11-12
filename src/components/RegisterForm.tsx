@@ -1,3 +1,4 @@
+//RegisterForm.tsx
 import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
@@ -9,6 +10,7 @@ import { useLiff } from '@/contexts/LiffContext';
 import { User } from '@/types/user';
 import { ShiftData } from '@/types/attendance';
 import { useRouter } from 'next/router';
+import { authCache } from '@/hooks/useAuth';
 
 const ExistingEmployeeSchema = Yup.object().shape({
   employeeId: Yup.string().required('กรุณากรอกรหัสพนักงาน'),
@@ -24,6 +26,7 @@ const RegisterForm: React.FC = () => {
   const [shiftDetails, setShiftDetails] = useState<ShiftData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmationMessage, setConfirmationMessage] = useState(false);
 
   // Check if user already has ongoing registration
   useEffect(() => {
@@ -82,6 +85,7 @@ const RegisterForm: React.FC = () => {
     if (!userInfo || !lineUserId) return;
 
     try {
+      setIsLoading(true);
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -98,17 +102,18 @@ const RegisterForm: React.FC = () => {
         throw new Error('Registration failed');
       }
 
-      const result = await response.json();
+      // Show success message
+      setConfirmationMessage(true);
 
-      // Redirect based on role
-      if (['Admin', 'SuperAdmin'].includes(result.user.role)) {
-        router.push('/admin');
-      } else {
-        router.push('/');
-      }
+      // Close LIFF window after a short delay
+      setTimeout(() => {
+        liff.closeWindow();
+      }, 2000);
     } catch (error) {
       console.error('Registration error:', error);
       setError('การลงทะเบียนล้มเหลว กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -175,6 +180,37 @@ const RegisterForm: React.FC = () => {
     return (
       <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
         <div className="text-center">กำลังโหลด...</div>
+      </div>
+    );
+  }
+
+  if (confirmationMessage) {
+    return (
+      <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
+        <div className="text-center">
+          <div className="text-green-500 mb-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-16 w-16 mx-auto"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            ลงทะเบียนสำเร็จ
+          </h2>
+          <p className="text-gray-600">
+            ระบบกำลังปิดหน้าต่าง กรุณารอสักครู่...
+          </p>
+        </div>
       </div>
     );
   }
@@ -313,4 +349,5 @@ const RegisterForm: React.FC = () => {
     );
   }
 };
+
 export default RegisterForm;

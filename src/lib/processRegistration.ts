@@ -14,8 +14,8 @@ function stringToUserRole(role: string): UserRole {
       return UserRole.MANAGER;
     case 'ADMIN':
       return UserRole.ADMIN;
-    case 'OPERATION':
-      return UserRole.OPERATION;
+    case 'SALES':
+      return UserRole.SALES;
     case 'DRIVER':
       return UserRole.DRIVER;
     case 'EMPLOYEE':

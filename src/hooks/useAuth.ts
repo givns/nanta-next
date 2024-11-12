@@ -21,7 +21,7 @@ interface AuthState {
 }
 
 // Cache auth results
-const authCache = new Map<string, AuthState>();
+export const authCache = new Map<string, AuthState>();
 
 export function useAuth(options: UseAuthOptions = {}) {
   const { lineUserId, isInitialized } = useLiff();
@@ -34,7 +34,6 @@ export function useAuth(options: UseAuthOptions = {}) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // Add refs to track mounted state and prevent unnecessary effects
   const isMounted = useRef(true);
   const checkInProgress = useRef(false);
   const requiredRolesString = options.requiredRoles?.join(',') || '';
@@ -47,38 +46,43 @@ export function useAuth(options: UseAuthOptions = {}) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      // Prevent concurrent checks and check if component is still mounted
       if (checkInProgress.current || !isMounted.current || !isInitialized)
         return;
 
       checkInProgress.current = true;
 
       try {
+        // 1. Handle no LINE userId case
         if (!lineUserId) {
           setIsLoading(false);
-          if (options.required) {
+          if (options.required && !options.allowRegistration) {
             router.replace('/login');
           }
           return;
         }
 
-        // Check cache first
+        // 2. Check cache
         if (authCache.has(lineUserId)) {
           const cachedState = authCache.get(lineUserId)!;
           setState(cachedState);
           setIsLoading(false);
 
+          // Don't redirect if registration is allowed
           if (
             options.required &&
             !cachedState.isAuthorized &&
             !options.allowRegistration
           ) {
-            router.replace('/unauthorized');
+            if (cachedState.needsRegistration) {
+              router.replace('/register');
+            } else {
+              router.replace('/unauthorized');
+            }
           }
           return;
         }
 
-        // Check user and auth status
+        // 3. Check auth status
         const response = await fetch('/api/auth/check', {
           headers: {
             'x-line-userid': lineUserId,
@@ -88,6 +92,7 @@ export function useAuth(options: UseAuthOptions = {}) {
 
         if (!isMounted.current) return;
 
+        // 4. Handle user not found (needs registration)
         if (response.status === 404) {
           const newState = {
             user: null,
@@ -98,38 +103,47 @@ export function useAuth(options: UseAuthOptions = {}) {
           setState(newState);
           authCache.set(lineUserId, newState);
 
-          if (options.required && !options.allowRegistration) {
+          // Only redirect if we're not already on the registration page
+          // and registration is not explicitly allowed
+          const isRegistrationPage = router.pathname === '/register';
+          if (
+            !isRegistrationPage &&
+            options.required &&
+            !options.allowRegistration
+          ) {
             router.replace('/register');
           }
           return;
         }
 
+        // 5. Handle auth errors
         if (!response.ok) {
           throw new Error('Auth check failed');
         }
 
+        // 6. Process successful auth response
         const data = await response.json();
+        const newState = {
+          user: data.user,
+          isAuthorized: data.isAuthorized,
+          needsRegistration: false,
+          registrationStatus: {
+            isComplete: data.user.isRegistrationComplete === 'Yes',
+            employeeId: data.user.employeeId,
+          },
+        };
 
-        if (response.ok) {
-          const newState = {
-            user: data.user,
-            isAuthorized: data.isAuthorized,
-            needsRegistration: false,
-            registrationStatus: {
-              isComplete: data.user.isRegistrationComplete === 'Yes',
-              employeeId: data.user.employeeId,
-            },
-          };
+        setState(newState);
+        authCache.set(lineUserId, newState);
 
-          setState(newState);
-          authCache.set(lineUserId, newState);
-
-          if (
-            data.user.isRegistrationComplete === 'No' &&
-            !options.allowRegistration
-          ) {
+        // Only redirect for incomplete registration if we're not already handling registration
+        if (
+          data.user.isRegistrationComplete === 'No' &&
+          !options.allowRegistration
+        ) {
+          const isRegistrationPage = router.pathname === '/register';
+          if (!isRegistrationPage) {
             router.replace('/register');
-            return;
           }
         }
       } catch (error) {
@@ -148,7 +162,8 @@ export function useAuth(options: UseAuthOptions = {}) {
     isInitialized,
     options.required,
     options.allowRegistration,
-    requiredRolesString, // Use memoized string instead of array
+    requiredRolesString,
+    router.pathname, // Add pathname to dependencies
   ]);
 
   return {
