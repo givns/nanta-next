@@ -81,7 +81,7 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
           {phase === 1
             ? 'กำลังเริ่มต้นระบบ...'
             : phase === 2
-              ? 'กำลังโหลดข้อมูล...'
+              ? 'กำลังโหลดเชื่อมต่อระบบ...'
               : 'กำลังเตรียมระบบ...'}
         </div>
       )}
