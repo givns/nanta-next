@@ -1,8 +1,7 @@
 // pages/api/check-in-out.ts
-
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { AttendanceService } from '../../services/AttendanceService';
+import { AttendanceService } from '@/services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
 import {
@@ -11,36 +10,34 @@ import {
   EarlyCheckoutType,
 } from '@/types/attendance';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { createNotificationService } from '../../services/NotificationService';
-import { createLeaveServiceServer } from '../../services/LeaveServiceServer';
+import { createNotificationService } from '@/services/NotificationService';
+import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { TimeEntryService } from '@/services/TimeEntryService';
-import {
-  formatTime,
-  formatDate,
-  getCurrentTime,
-  formatDateTime,
-} from '@/utils/dateUtils';
+import { getCurrentTime } from '@/utils/dateUtils';
 import * as Yup from 'yup';
 import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
-import { format } from 'date-fns';
-import { th } from 'date-fns/locale';
 
+// Constants
+const PROCESS_TIMEOUT = 30000; // 30 seconds total
+const QUEUE_TIMEOUT = 25000; // 25 seconds for queue processing
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 2000;
+
+// Initialize Services
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);
-export const notificationService = createNotificationService(prisma);
-export const leaveServiceServer = createLeaveServiceServer(
+const notificationService = createNotificationService(prisma);
+const leaveServiceServer = createLeaveServiceServer(
   prisma,
   notificationService,
 );
 const shiftService = new ShiftManagementService(prisma, holidayService);
-
 const timeEntryService = new TimeEntryService(
   prisma,
   shiftService,
   notificationService,
 );
-
 const overtimeService = new OvertimeServiceServer(
   prisma,
   holidayService,
@@ -49,7 +46,6 @@ const overtimeService = new OvertimeServiceServer(
   timeEntryService,
   notificationService,
 );
-
 shiftService.setOvertimeService(overtimeService);
 
 const attendanceService = new AttendanceService(
@@ -62,9 +58,7 @@ const attendanceService = new AttendanceService(
   timeEntryService,
 );
 
-const PROCESS_TIMEOUT = 20000; // 30 seconds total
-const QUEUE_TIMEOUT = 15000; // 25 seconds for queue processing
-
+// Validation Schema
 const attendanceSchema = Yup.object()
   .shape({
     employeeId: Yup.string(),
@@ -83,13 +77,12 @@ const attendanceSchema = Yup.object()
       .oneOf(['emergency', 'planned', null])
       .when('isEarlyCheckOut', {
         is: true,
-        then: (schema) =>
-          schema
-            .required('Early checkout type is required when checking out early')
-            .oneOf(['emergency', 'planned']),
+        then: (schema) => schema.required().oneOf(['emergency', 'planned']),
         otherwise: (schema) => schema.nullable(),
       }),
     isManualEntry: Yup.boolean().optional(),
+    inPremises: Yup.boolean().required(),
+    address: Yup.string().required(),
   })
   .test(
     'either-employeeId-or-lineUserId',
@@ -97,236 +90,132 @@ const attendanceSchema = Yup.object()
     (value) => Boolean(value.employeeId || value.lineUserId),
   );
 
-interface QueueTask extends AttendanceData {
+// Queue Types
+interface QueueTask {
+  data: AttendanceData;
   inPremises: boolean;
   address: string;
 }
 
-const checkInOutQueue = new BetterQueue(
+interface QueueResult {
+  status: AttendanceStatusInfo;
+  notificationSent: boolean;
+}
+
+// Initialize Queue
+const checkInOutQueue = new BetterQueue<QueueTask, QueueResult>(
   async (task, cb) => {
     try {
-      let isCompleted = false;
-
-      // Create task timeout
-      const taskTimeout = setTimeout(() => {
-        if (!isCompleted) {
-          console.error('Task timeout reached for:', task.employeeId);
-          cb(new Error('Task processing timeout'));
-        }
-      }, QUEUE_TIMEOUT);
-
-      // Process the task
       const result = await processCheckInOut(task);
-      isCompleted = true;
-      clearTimeout(taskTimeout);
-
       cb(null, result);
     } catch (error) {
       console.error('Queue task error:', error);
-      cb(error);
+      cb(error as Error);
     }
   },
   {
     concurrent: 3,
     store: new MemoryStore(),
-    failTaskOnProcessException: true,
-    maxTimeout: QUEUE_TIMEOUT + 2000,
-    retryDelay: 2000,
-    maxRetries: 1,
+    maxTimeout: QUEUE_TIMEOUT,
+    retryDelay: RETRY_DELAY,
+    maxRetries: MAX_RETRIES,
   },
 );
 
-async function processCheckInOut(
-  data: QueueTask,
-): Promise<AttendanceStatusInfo> {
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Processing timeout')), QUEUE_TIMEOUT);
-  });
+// Processing Functions
+async function processCheckInOut(task: QueueTask): Promise<QueueResult> {
+  console.log('Processing check-in/out task:', task);
 
   try {
-    // Race between processing and timeout
-    const result = await Promise.race([
-      (async () => {
-        const validatedData = await attendanceSchema.validate(data);
-        const user = validatedData.employeeId
-          ? await prisma.user.findUnique({
-              where: { employeeId: validatedData.employeeId },
-            })
-          : await prisma.user.findUnique({
-              where: { lineUserId: validatedData.lineUserId },
-            });
+    // Validate input
+    const validatedData = await attendanceSchema.validate(task);
 
-        if (!user) throw new Error('User not found');
+    // Get user
+    const user = validatedData.employeeId
+      ? await prisma.user.findUnique({
+          where: { employeeId: validatedData.employeeId },
+        })
+      : await prisma.user.findUnique({
+          where: { lineUserId: validatedData.lineUserId },
+        });
 
-        const now = getCurrentTime();
-        const checkTime = validatedData.checkTime
-          ? new Date(validatedData.checkTime)
-          : now;
+    if (!user) throw new Error('User not found');
 
-        const attendanceData: AttendanceData = {
-          employeeId: user.employeeId,
-          lineUserId: user.lineUserId,
-          isCheckIn: validatedData.isCheckIn,
-          checkTime: checkTime.toISOString(), // Use parsed checkTime
-          location: validatedData.location || '',
-          [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
-            validatedData.isCheckIn
-              ? validatedData.checkInAddress || user.departmentName || ''
-              : validatedData.checkOutAddress || user.departmentName || '',
-          reason: validatedData.reason || '',
-          isOvertime: validatedData.isOvertime || false,
-          isLate: validatedData.isLate || false,
-          isEarlyCheckOut: validatedData.isEarlyCheckOut || false,
-          earlyCheckoutType:
-            (validatedData.earlyCheckoutType as EarlyCheckoutType) || undefined,
-          isManualEntry: validatedData.isManualEntry || false,
-        };
+    const now = getCurrentTime();
+    const checkTime = validatedData.checkTime
+      ? new Date(validatedData.checkTime)
+      : now;
 
-        // Process attendance
-        const processedAttendance =
-          await attendanceService.processAttendance(attendanceData);
-        if (!processedAttendance)
-          throw new Error('Failed to process attendance');
+    // Prepare attendance data
+    const attendanceData: AttendanceData = {
+      employeeId: user.employeeId,
+      lineUserId: user.lineUserId,
+      isCheckIn: validatedData.isCheckIn,
+      checkTime: checkTime.toISOString(),
+      location: validatedData.location || '',
+      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
+        validatedData.isCheckIn
+          ? validatedData.checkInAddress || validatedData.address
+          : validatedData.checkOutAddress || validatedData.address,
+      reason: validatedData.reason || '',
+      isOvertime: validatedData.isOvertime || false,
+      isLate: validatedData.isLate || false,
+      isEarlyCheckOut: validatedData.isEarlyCheckOut || false,
+      earlyCheckoutType: validatedData.earlyCheckoutType as
+        | EarlyCheckoutType
+        | undefined,
+      isManualEntry: validatedData.isManualEntry || false,
+    };
 
-        // Get updated status
-        const updatedStatus = await attendanceService.getLatestAttendanceStatus(
-          attendanceData.employeeId,
-        );
+    // Process attendance
+    const processedAttendance =
+      await attendanceService.processAttendance(attendanceData);
+    if (!processedAttendance) throw new Error('Failed to process attendance');
 
-        // Handle notifications asynchronously
-        if (user.lineUserId) {
-          Promise.resolve().then(async () => {
-            try {
-              // Get the actual check time from the processed attendance record
-              const notificationTime = validatedData.isCheckIn
-                ? processedAttendance.regularCheckInTime
-                : processedAttendance.regularCheckOutTime;
+    // Get updated status
+    const updatedStatus = await attendanceService.getLatestAttendanceStatus(
+      attendanceData.employeeId,
+    );
 
-              console.log('Sending notification with check time:', {
-                isCheckIn: validatedData.isCheckIn,
-                checkTime: checkTime.toISOString(),
-                employeeId: user.employeeId,
-                lineUserId: user.lineUserId,
-              });
+    // Send notification asynchronously
+    let notificationSent = false;
+    if (user.lineUserId) {
+      try {
+        const notificationTime = validatedData.isCheckIn
+          ? processedAttendance.regularCheckInTime
+          : processedAttendance.regularCheckOutTime;
 
-              if (user.lineUserId) {
-                if (validatedData.isCheckIn) {
-                  await notificationService.sendCheckInConfirmation(
-                    user.employeeId,
-                    user.lineUserId,
-                    notificationTime || now,
-                  );
-                  console.log(
-                    'Check-in notification sent to user:',
-                    user.employeeId,
-                  );
-                } else {
-                  await notificationService.sendCheckOutConfirmation(
-                    user.employeeId,
-                    user.lineUserId,
-                    notificationTime || now,
-                  );
-                  console.log(
-                    'Check-out notification sent to user:',
-                    user.employeeId,
-                  );
-                }
-              }
-            } catch (error) {
-              console.error('Notification error:', error);
-            }
-          });
+        if (validatedData.isCheckIn) {
+          await notificationService.sendCheckInConfirmation(
+            user.employeeId,
+            user.lineUserId,
+            notificationTime || now,
+          );
+        } else {
+          await notificationService.sendCheckOutConfirmation(
+            user.employeeId,
+            user.lineUserId,
+            notificationTime || now,
+          );
         }
+        notificationSent = true;
+      } catch (error) {
+        console.error('Notification error:', error);
+        // Don't throw - notifications shouldn't fail the whole process
+      }
+    }
 
-        return updatedStatus;
-      })(),
-      timeoutPromise,
-    ]);
-
-    return result as AttendanceStatusInfo;
+    return {
+      status: updatedStatus,
+      notificationSent,
+    };
   } catch (error) {
     console.error('Error in processCheckInOut:', error);
     throw error;
   }
 }
 
-function isAttendanceStatusInfo(value: any): value is AttendanceStatusInfo {
-  try {
-    if (!value || typeof value !== 'object') {
-      console.error('Value is not an object:', value);
-      return false;
-    }
-
-    // Required properties
-    const requiredProps = [
-      'latestAttendance',
-      'isDayOff',
-      'status',
-      'isCheckingIn',
-    ];
-
-    for (const prop of requiredProps) {
-      if (!(prop in value)) {
-        console.error(`Missing required property: ${prop}`);
-        return false;
-      }
-    }
-
-    // Validate latestAttendance structure if present
-    if (value.latestAttendance !== null) {
-      if (typeof value.latestAttendance !== 'object') {
-        console.error('latestAttendance is not an object');
-        return false;
-      }
-
-      const requiredAttendanceProps = ['id', 'employeeId', 'date', 'status'];
-
-      for (const prop of requiredAttendanceProps) {
-        if (!(prop in value.latestAttendance)) {
-          console.error(
-            `Missing required property in latestAttendance: ${prop}`,
-          );
-          return false;
-        }
-      }
-
-      // Check types of important properties
-      if (typeof value.latestAttendance.employeeId !== 'string') {
-        console.error('employeeId is not a string');
-        return false;
-      }
-
-      // Validate date format
-      if (!value.latestAttendance.date) {
-        console.error('date is missing');
-        return false;
-      }
-    }
-
-    // Validate boolean properties
-    const booleanProps = ['isDayOff', 'isCheckingIn'];
-    for (const prop of booleanProps) {
-      if (typeof value[prop] !== 'boolean') {
-        console.error(`Property ${prop} is not a boolean:`, value[prop]);
-        return false;
-      }
-    }
-
-    // Additional validation for status
-    if (typeof value.status !== 'string') {
-      console.error('status is not a string:', value.status);
-      return false;
-    }
-
-    console.log('AttendanceStatusInfo validation passed');
-    return true;
-  } catch (error) {
-    console.error('Error validating AttendanceStatusInfo:', error);
-    console.error('Failed value:', JSON.stringify(value, null, 2));
-    return false;
-  }
-}
-
+// API Handler
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -338,24 +227,36 @@ export default async function handler(
     });
   }
 
-  // Set a shorter timeout
-  res.setTimeout(PROCESS_TIMEOUT);
-
   try {
-    const result = await processCheckInOut(req.body);
+    const task: QueueTask = {
+      data: req.body,
+      inPremises: req.body.inPremises,
+      address: req.body.address,
+    };
+
+    // Add to queue and wait for result
+    const result = await new Promise<QueueResult>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Processing timeout'));
+      }, PROCESS_TIMEOUT);
+
+      checkInOutQueue.push(task, (error, result) => {
+        clearTimeout(timeoutId);
+        if (error) reject(error);
+        else resolve(result);
+      });
+    });
 
     return res.status(200).json({
       success: true,
-      data: result,
+      data: result.status,
+      notificationSent: result.notificationSent,
       timestamp: getCurrentTime().toISOString(),
     });
   } catch (error: any) {
     console.error('Handler error:', error);
 
-    if (
-      error.message === 'Processing timeout' ||
-      error.message === 'Task processing timeout'
-    ) {
+    if (error.message === 'Processing timeout') {
       return res.status(504).json({
         error: 'Gateway Timeout',
         message:
