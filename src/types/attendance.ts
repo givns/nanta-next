@@ -474,12 +474,12 @@ export type CheckoutStatusType = 'very_early' | 'early' | 'normal' | 'late';
 export interface CheckInOutAllowance {
   allowed: boolean;
   reason: string;
+  inPremises: boolean;
+  address: string;
   isLate?: boolean;
   isOvertime?: boolean;
   countdown?: number;
   isOutsideShift?: boolean;
-  inPremises: boolean;
-  address: string;
   isDayOffOvertime?: boolean;
   isPendingDayOffOvertime?: boolean;
   isPendingOvertime?: boolean;
@@ -489,15 +489,6 @@ export interface CheckInOutAllowance {
   isLateCheckIn?: boolean;
   isLateCheckOut?: boolean;
   isVeryLateCheckOut?: boolean;
-  isInsideShift?: boolean;
-  actualStartTime?: Date;
-  actualEndTime?: Date;
-  plannedStartTime?: Date;
-  plannedEndTime?: Date;
-  isAutoCheckIn?: boolean;
-  isAutoCheckOut?: boolean;
-  maxCheckOutTime?: Date;
-  missedCheckInTime?: number;
   lateCheckOutMinutes?: number;
   isPotentialOvertime?: boolean;
   isAfternoonShift?: boolean;
@@ -509,6 +500,16 @@ export interface CheckInOutAllowance {
   earlyCheckoutType?: EarlyCheckoutType;
   minutesEarly?: number;
   checkoutStatus?: CheckoutStatusType;
+  // Time-related fields as strings for API transport
+  actualStartTime?: string;
+  actualEndTime?: string;
+  plannedStartTime?: string;
+  plannedEndTime?: string;
+  maxCheckOutTime?: string;
+  isInsideShift?: boolean;
+  isAutoCheckIn?: boolean;
+  isAutoCheckOut?: boolean;
+  missedCheckInTime?: number;
 }
 
 // Check In/Out Data Interfaces

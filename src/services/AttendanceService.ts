@@ -397,8 +397,11 @@ export class AttendanceService {
               isInsideShift: approvedOvertime.isInsideShiftHours,
               inPremises,
               address,
-              actualStartTime: now >= overtimeStart ? now : overtimeStart,
-              plannedStartTime: overtimeStart,
+              actualStartTime:
+                now >= overtimeStart
+                  ? now.toISOString()
+                  : overtimeStart.toISOString(), // Convert date object to string
+              plannedStartTime: overtimeStart.toISOString(), // Convert date object to string
             },
           );
         }
@@ -422,8 +425,11 @@ export class AttendanceService {
                 isInsideShift: approvedOvertime.isInsideShiftHours,
                 inPremises,
                 address,
-                actualStartTime: overtimeStart,
-                actualEndTime: now <= overtimeEnd ? now : overtimeEnd,
+                actualStartTime: overtimeStart.toISOString(), // Convert date object to string
+                actualEndTime:
+                  now <= overtimeEnd
+                    ? now.toISOString()
+                    : overtimeEnd.toISOString(), // Convert date object to string
                 requireConfirmation: true,
                 isAutoCheckIn: true,
                 isAutoCheckOut: true,
@@ -454,8 +460,11 @@ export class AttendanceService {
               isInsideShift: approvedOvertime.isInsideShiftHours,
               inPremises,
               address,
-              actualEndTime: now <= overtimeEnd ? now : overtimeEnd,
-              plannedEndTime: overtimeEnd,
+              actualEndTime:
+                now <= overtimeEnd
+                  ? now.toISOString()
+                  : overtimeEnd.toISOString(),
+              plannedEndTime: overtimeEnd.toISOString(),
             },
           );
         }
@@ -520,9 +529,12 @@ export class AttendanceService {
             address,
             isDayOffOvertime: approvedOvertime.isDayOffOvertime,
             isInsideShift: approvedOvertime.isInsideShiftHours,
-            actualStartTime: now >= overtimeStart ? now : overtimeStart,
-            plannedStartTime: overtimeStart,
-            maxCheckOutTime: overtimeEnd,
+            actualStartTime:
+              now >= overtimeStart
+                ? now.toISOString()
+                : overtimeStart.toISOString(),
+            plannedStartTime: overtimeStart.toISOString(),
+            maxCheckOutTime: overtimeEnd.toISOString(),
             isLateCheckIn:
               now > addMinutes(overtimeStart, LATE_CHECK_IN_THRESHOLD),
           },
@@ -547,15 +559,15 @@ export class AttendanceService {
               address,
               isDayOffOvertime: approvedOvertime.isDayOffOvertime,
               isInsideShift: approvedOvertime.isInsideShiftHours,
-              actualStartTime: overtimeStart,
-              actualEndTime: min([now, overtimeEnd]),
+              actualStartTime: overtimeStart.toISOString(),
+              actualEndTime: min([now, overtimeEnd]).toISOString(),
               requireConfirmation: true,
               isAutoCheckIn: true,
               isAutoCheckOut: true,
               missedCheckInTime: missedTime,
-              plannedStartTime: overtimeStart,
-              plannedEndTime: overtimeEnd,
-              maxCheckOutTime: overtimeEnd,
+              plannedStartTime: overtimeStart.toISOString(),
+              plannedEndTime: overtimeEnd.toISOString(),
+              maxCheckOutTime: overtimeEnd.toISOString(),
             },
           );
         }
@@ -572,11 +584,11 @@ export class AttendanceService {
             address,
             isDayOffOvertime: approvedOvertime.isDayOffOvertime,
             isInsideShift: approvedOvertime.isInsideShiftHours,
-            actualStartTime: latestAttendance.regularCheckInTime,
-            actualEndTime: min([now, overtimeEnd]),
-            plannedStartTime: overtimeStart,
-            plannedEndTime: overtimeEnd,
-            maxCheckOutTime: overtimeEnd,
+            actualStartTime: latestAttendance.regularCheckInTime.toISOString(),
+            actualEndTime: min([now, overtimeEnd]).toISOString(),
+            plannedStartTime: overtimeStart.toISOString(),
+            plannedEndTime: overtimeEnd.toISOString(),
+            maxCheckOutTime: overtimeEnd.toISOString(),
             isLateCheckIn: isAfter(
               latestAttendance.regularCheckInTime,
               addMinutes(overtimeStart, LATE_CHECK_IN_THRESHOLD),
