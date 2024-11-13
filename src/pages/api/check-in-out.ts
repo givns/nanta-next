@@ -1,4 +1,3 @@
-// pages/api/check-in-out.ts
 import { PrismaClient } from '@prisma/client';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '@/services/AttendanceService';
@@ -59,36 +58,38 @@ const attendanceService = new AttendanceService(
 );
 
 // Validation Schema
-const attendanceSchema = Yup.object()
-  .shape({
-    employeeId: Yup.string(),
-    lineUserId: Yup.string(),
-    isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
-    checkTime: Yup.date().optional(),
-    location: Yup.string().optional(),
-    checkInAddress: Yup.string().optional(),
-    checkOutAddress: Yup.string().optional(),
-    reason: Yup.string(),
-    isOvertime: Yup.boolean().optional(),
-    isLate: Yup.boolean().optional(),
-    isEarlyCheckOut: Yup.boolean().optional(),
-    earlyCheckoutType: Yup.string()
-      .nullable()
-      .oneOf(['emergency', 'planned', null])
-      .when('isEarlyCheckOut', {
-        is: true,
-        then: (schema) => schema.required().oneOf(['emergency', 'planned']),
-        otherwise: (schema) => schema.nullable(),
-      }),
-    isManualEntry: Yup.boolean().optional(),
-    inPremises: Yup.boolean().required(),
-    address: Yup.string().required(),
-  })
-  .test(
-    'either-employeeId-or-lineUserId',
-    'Either employeeId or lineUserId must be provided',
-    (value) => Boolean(value.employeeId || value.lineUserId),
-  );
+const attendanceSchema = Yup.object().shape({
+  data: Yup.object()
+    .shape({
+      employeeId: Yup.string(),
+      lineUserId: Yup.string(),
+      isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
+      checkTime: Yup.string().optional(),
+      location: Yup.string().optional(),
+      checkInAddress: Yup.string().optional(),
+      checkOutAddress: Yup.string().optional(),
+      reason: Yup.string().default(''),
+      isOvertime: Yup.boolean().optional().default(false),
+      isLate: Yup.boolean().optional().default(false),
+      isEarlyCheckOut: Yup.boolean().optional().default(false),
+      earlyCheckoutType: Yup.string()
+        .nullable()
+        .oneOf(['emergency', 'planned', null])
+        .when('isEarlyCheckOut', {
+          is: true,
+          then: (schema) => schema.required().oneOf(['emergency', 'planned']),
+          otherwise: (schema) => schema.nullable(),
+        }),
+      isManualEntry: Yup.boolean().optional().default(false),
+    })
+    .test(
+      'either-employeeId-or-lineUserId',
+      'Either employeeId or lineUserId must be provided',
+      (value) => Boolean(value?.employeeId || value?.lineUserId),
+    ),
+  inPremises: Yup.boolean().required(),
+  address: Yup.string().required(),
+});
 
 // Queue Types
 interface QueueTask {
@@ -131,40 +132,40 @@ async function processCheckInOut(task: QueueTask): Promise<QueueResult> {
     const validatedData = await attendanceSchema.validate(task);
 
     // Get user
-    const user = validatedData.employeeId
+    const user = validatedData.data.employeeId
       ? await prisma.user.findUnique({
-          where: { employeeId: validatedData.employeeId },
+          where: { employeeId: validatedData.data.employeeId },
         })
       : await prisma.user.findUnique({
-          where: { lineUserId: validatedData.lineUserId },
+          where: { lineUserId: validatedData.data.lineUserId },
         });
 
     if (!user) throw new Error('User not found');
 
     const now = getCurrentTime();
-    const checkTime = validatedData.checkTime
-      ? new Date(validatedData.checkTime)
+    const checkTime = validatedData.data.checkTime
+      ? new Date(validatedData.data.checkTime)
       : now;
 
     // Prepare attendance data
     const attendanceData: AttendanceData = {
       employeeId: user.employeeId,
       lineUserId: user.lineUserId,
-      isCheckIn: validatedData.isCheckIn,
+      isCheckIn: validatedData.data.isCheckIn,
       checkTime: checkTime.toISOString(),
-      location: validatedData.location || '',
-      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
-        validatedData.isCheckIn
-          ? validatedData.checkInAddress || validatedData.address
-          : validatedData.checkOutAddress || validatedData.address,
-      reason: validatedData.reason || '',
-      isOvertime: validatedData.isOvertime || false,
-      isLate: validatedData.isLate || false,
-      isEarlyCheckOut: validatedData.isEarlyCheckOut || false,
-      earlyCheckoutType: validatedData.earlyCheckoutType as
+      location: validatedData.data.location || '',
+      [validatedData.data.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
+        validatedData.data.isCheckIn
+          ? validatedData.data.checkInAddress || validatedData.address
+          : validatedData.data.checkOutAddress || validatedData.address,
+      reason: validatedData.data.reason || '',
+      isOvertime: validatedData.data.isOvertime || false,
+      isLate: validatedData.data.isLate || false,
+      isEarlyCheckOut: validatedData.data.isEarlyCheckOut || false,
+      earlyCheckoutType: validatedData.data.earlyCheckoutType as
         | EarlyCheckoutType
         | undefined,
-      isManualEntry: validatedData.isManualEntry || false,
+      isManualEntry: validatedData.data.isManualEntry || false,
     };
 
     // Process attendance
@@ -181,11 +182,11 @@ async function processCheckInOut(task: QueueTask): Promise<QueueResult> {
     let notificationSent = false;
     if (user.lineUserId) {
       try {
-        const notificationTime = validatedData.isCheckIn
+        const notificationTime = validatedData.data.isCheckIn
           ? processedAttendance.regularCheckInTime
           : processedAttendance.regularCheckOutTime;
 
-        if (validatedData.isCheckIn) {
+        if (validatedData.data.isCheckIn) {
           await notificationService.sendCheckInConfirmation(
             user.employeeId,
             user.lineUserId,
@@ -228,11 +229,9 @@ export default async function handler(
   }
 
   try {
-    const task: QueueTask = {
-      data: req.body,
-      inPremises: req.body.inPremises,
-      address: req.body.address,
-    };
+    console.log('Received request body:', req.body);
+
+    const task: QueueTask = req.body;
 
     // Add to queue and wait for result
     const result = await new Promise<QueueResult>((resolve, reject) => {
