@@ -250,6 +250,8 @@ const AttendanceStatusInfoSchema = z.object({
   pendingLeaveRequest: z.boolean(),
 });
 
+const CheckoutStatusSchema = z.enum(['very_early', 'early', 'normal', 'late']);
+
 // Check-in/out Allowance Schema
 const CheckInOutAllowanceSchema = z.object({
   allowed: z.boolean(),
@@ -278,7 +280,33 @@ const CheckInOutAllowanceSchema = z.object({
   isEmergencyLeave: z.boolean().optional(),
   isAfterMidshift: z.boolean().optional(),
   earlyCheckoutType: z.enum(['emergency', 'planned']).optional(),
+  // New properties
+  minutesEarly: z.number().optional(),
+  checkoutStatus: CheckoutStatusSchema.optional(),
+  // Time-related fields using ISO strings
+  actualStartTime: z.string().datetime().optional(),
+  actualEndTime: z.string().datetime().optional(),
+  plannedStartTime: z.string().datetime().optional(),
+  plannedEndTime: z.string().datetime().optional(),
+  maxCheckOutTime: z.string().datetime().optional(),
+  isInsideShift: z.boolean().optional(),
+  isAutoCheckIn: z.boolean().optional(),
+  isAutoCheckOut: z.boolean().optional(),
+  missedCheckInTime: z.number().optional(),
 });
+
+export type CheckInOutAllowanceSchemaType = z.infer<typeof CheckInOutAllowanceSchema>;
+export type CheckoutStatusType = z.infer<typeof CheckoutStatusSchema>;
+
+// Optional: Add validation helper
+export const validateCheckInOutAllowance = (data: unknown) => {
+  return CheckInOutAllowanceSchema.parse(data);
+};
+
+// Optional: Add safe parsing helper
+export const safeValidateCheckInOutAllowance = (data: unknown) => {
+  return CheckInOutAllowanceSchema.safeParse(data);
+};
 
 // Complete Response Schema
 const ResponseDataSchema = z.object({

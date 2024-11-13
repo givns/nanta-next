@@ -468,6 +468,9 @@ export interface WorkHoursCalculation {
   hasUnapprovedEarlyDeparture: boolean;
 }
 
+export type CheckoutStatusType = 'very_early' | 'early' | 'normal' | 'late';
+
+
 // Check In/Out Allowance Interface
 export interface CheckInOutAllowance {
   allowed: boolean;
@@ -505,6 +508,8 @@ export interface CheckInOutAllowance {
   isEmergencyLeave?: boolean;
   isAfterMidshift?: boolean;
   earlyCheckoutType?: EarlyCheckoutType;
+  minutesEarly?: number;
+  checkoutStatus?: CheckoutStatusType;
 }
 
 // Check In/Out Data Interfaces

@@ -359,6 +359,8 @@ export class AttendanceService {
       isEmergencyLeave: options.isEmergencyLeave ?? false,
       isAfterMidshift: options.isAfterMidshift ?? false,
       earlyCheckoutType: options.earlyCheckoutType,
+      minutesEarly: options.minutesEarly,
+      checkoutStatus: options.checkoutStatus,
       ...options,
     };
   }
@@ -733,6 +735,47 @@ export class AttendanceService {
       (shiftStart.getTime() + shiftEnd.getTime()) / 2,
     );
 
+    // Get checkout windows
+    const { earlyCheckoutStart, regularCheckoutEnd } = this.getCheckoutWindow(shiftEnd);
+
+    // Check if this is an early checkout
+    const isEarlyCheckout = this.isEarlyCheckout(now, shiftEnd);
+    const minutesEarly = isEarlyCheckout ? Math.abs(differenceInMinutes(now, shiftEnd)) : 0;
+    const checkoutStatus = this.getCheckoutStatus(now, shiftEnd);
+
+    // Handle checkout based on timing
+    if (checkoutStatus === 'very_early') {
+      if (now < shiftMidpoint) {
+        return this.createResponse(
+          true,
+          'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ',
+          {
+            inPremises,
+            address,
+            requireConfirmation: true,
+            isEarlyCheckOut: true,
+            isEmergencyLeave: true,
+            minutesEarly,
+            checkoutStatus: 'very_early'
+          },
+        );
+      } else {
+        return this.createResponse(
+          false,
+          'ไม่สามารถลงเวลาออกก่อนเวลาเลิกงานได้ กรุณาติดต่อฝ่ายบุคคล',
+          {
+            inPremises,
+            address,
+            isEarlyCheckOut: true,
+            isAfterMidshift: true,
+            checkoutStatus: 'very_early',
+            minutesEarly
+          },
+        );
+      }
+    }
+
+    // Rest of your existing handleCheckOut logic...
     const leaveContext = this.determineHalfDayLeaveContext(
       leaveRequests,
       latestAttendance,
@@ -741,15 +784,7 @@ export class AttendanceService {
     );
 
     // Handle half-day leave check-out around midshift
-    if (
-      leaveContext.hasHalfDayLeave &&
-      leaveContext.checkInTime &&
-      isBefore(leaveContext.checkInTime, shiftMidpoint) &&
-      isWithinInterval(now, {
-        start: subMinutes(shiftMidpoint, 30),
-        end: addMinutes(shiftMidpoint, 30),
-      })
-    ) {
+    if (leaveContext.hasHalfDayLeave) {
       return this.createResponse(
         true,
         'คุณกำลังลงเวลาออกงานสำหรับช่วงเช้า (ลาครึ่งวันช่วงบ่าย)',
@@ -759,60 +794,15 @@ export class AttendanceService {
           isMorningShift: true,
           isApprovedEarlyCheckout: true,
           isPlannedHalfDayLeave: true,
-        },
-      );
-    }
-
-    // Handle emergency early checkout
-    if (now < shiftMidpoint && !leaveContext.hasHalfDayLeave) {
-      return this.createResponse(
-        true,
-        'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ',
-        {
-          inPremises,
-          address,
-          requireConfirmation: true,
-          isEarlyCheckOut: true,
-          isEmergencyLeave: true,
-        },
-      );
-    }
-
-    // Handle normal check-out window
-    const withinCheckoutWindow = isWithinInterval(now, {
-      start: subMinutes(shiftEnd, EARLY_CHECK_OUT_THRESHOLD),
-      end: addMinutes(shiftEnd, LATE_CHECK_OUT_THRESHOLD),
-    });
-
-    if (
-      !withinCheckoutWindow &&
-      !leaveContext.hasHalfDayLeave &&
-      now < shiftEnd
-    ) {
-      return this.createResponse(
-        false,
-        'ไม่สามารถลงเวลาออกก่อนเวลาเลิกงานได้ กรุณาติดต่อฝ่ายบุคคล',
-        {
-          inPremises,
-          address,
-          isEarlyCheckOut: true,
-          isAfterMidshift: true,
-          requireConfirmation: false,
+          checkoutStatus
         },
       );
     }
 
     // Handle overtime
     if (approvedOvertime) {
-      const isOvertime = this.isOvertimeCheckOut(
-        now,
-        shiftEnd,
-        approvedOvertime,
-      );
+      const isOvertime = this.isOvertimeCheckOut(now, shiftEnd, approvedOvertime);
       if (isOvertime) {
-        const overtimeEnd = parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-        );
         return this.createResponse(
           true,
           'คุณกำลังลงเวลาออกงาน (ทำงานล่วงเวลาที่ได้รับอนุมัติ)',
@@ -820,31 +810,78 @@ export class AttendanceService {
             isOvertime: true,
             inPremises,
             address,
-            maxCheckOutTime: overtimeEnd,
-            actualEndTime: min([now, overtimeEnd]),
+            checkoutStatus
           },
         );
       }
     }
 
-    // Regular late check-out
-    const isLateCheckOut = isAfter(
-      now,
-      addMinutes(shiftEnd, LATE_CHECK_OUT_THRESHOLD),
-    );
-    if (isLateCheckOut) {
-      return this.createResponse(true, 'คุณกำลังลงเวลาออกงานช้า', {
-        isLateCheckOut: true,
-        inPremises,
-        address,
-      });
+    // Handle normal checkout windows
+    if (checkoutStatus === 'normal') {
+      return this.createResponse(
+        true,
+        'คุณกำลังลงเวลาออกงาน',
+        {
+          inPremises,
+          address,
+          checkoutStatus: 'normal'
+        }
+      );
     }
 
-    // Normal check-out
-    return this.createResponse(true, 'คุณกำลังลงเวลาออกงาน', {
-      inPremises,
-      address,
-    });
+    if (checkoutStatus === 'late') {
+      return this.createResponse(
+        true,
+        'คุณกำลังลงเวลาออกงานช้า',
+        {
+          isLateCheckOut: true,
+          inPremises,
+          address,
+          checkoutStatus: 'late'
+        }
+      );
+    }
+
+    // Default case for early but within window
+    return this.createResponse(
+      true,
+      'คุณกำลังลงเวลาออกงาน',
+      {
+        inPremises,
+        address,
+        isEarlyCheckOut: true,
+        checkoutStatus: 'early',
+        minutesEarly
+      }
+    );
+  }
+
+  private getCheckoutWindow(shiftEnd: Date): {
+    earlyCheckoutStart: Date;
+    regularCheckoutEnd: Date;
+  } {
+    return {
+      earlyCheckoutStart: subMinutes(shiftEnd, EARLY_CHECK_OUT_THRESHOLD),
+      regularCheckoutEnd: addMinutes(shiftEnd, LATE_CHECK_OUT_THRESHOLD),
+    };
+  }
+
+  private isEarlyCheckout(checkOutTime: Date, shiftEnd: Date): boolean {
+    return differenceInMinutes(checkOutTime, shiftEnd) < 0;
+  }
+
+  private getCheckoutStatus(checkOutTime: Date, shiftEnd: Date): 'very_early' | 'early' | 'normal' | 'late' {
+    const { earlyCheckoutStart, regularCheckoutEnd } = this.getCheckoutWindow(shiftEnd);
+
+    if (checkOutTime < earlyCheckoutStart) {
+      return 'very_early';
+    } else if (checkOutTime < shiftEnd) {
+      return 'early';
+    } else if (checkOutTime <= regularCheckoutEnd) {
+      return 'normal';
+    } else {
+      return 'late';
+    }
   }
 
   async processAttendance(
