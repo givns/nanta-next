@@ -736,11 +736,14 @@ export class AttendanceService {
     );
 
     // Get checkout windows
-    const { earlyCheckoutStart, regularCheckoutEnd } = this.getCheckoutWindow(shiftEnd);
+    const { earlyCheckoutStart, regularCheckoutEnd } =
+      this.getCheckoutWindow(shiftEnd);
 
     // Check if this is an early checkout
     const isEarlyCheckout = this.isEarlyCheckout(now, shiftEnd);
-    const minutesEarly = isEarlyCheckout ? Math.abs(differenceInMinutes(now, shiftEnd)) : 0;
+    const minutesEarly = isEarlyCheckout
+      ? Math.abs(differenceInMinutes(now, shiftEnd))
+      : 0;
     const checkoutStatus = this.getCheckoutStatus(now, shiftEnd);
 
     // Handle checkout based on timing
@@ -756,7 +759,7 @@ export class AttendanceService {
             isEarlyCheckOut: true,
             isEmergencyLeave: true,
             minutesEarly,
-            checkoutStatus: 'very_early'
+            checkoutStatus: 'very_early',
           },
         );
       } else {
@@ -769,7 +772,7 @@ export class AttendanceService {
             isEarlyCheckOut: true,
             isAfterMidshift: true,
             checkoutStatus: 'very_early',
-            minutesEarly
+            minutesEarly,
           },
         );
       }
@@ -794,14 +797,18 @@ export class AttendanceService {
           isMorningShift: true,
           isApprovedEarlyCheckout: true,
           isPlannedHalfDayLeave: true,
-          checkoutStatus
+          checkoutStatus,
         },
       );
     }
 
     // Handle overtime
     if (approvedOvertime) {
-      const isOvertime = this.isOvertimeCheckOut(now, shiftEnd, approvedOvertime);
+      const isOvertime = this.isOvertimeCheckOut(
+        now,
+        shiftEnd,
+        approvedOvertime,
+      );
       if (isOvertime) {
         return this.createResponse(
           true,
@@ -810,7 +817,7 @@ export class AttendanceService {
             isOvertime: true,
             inPremises,
             address,
-            checkoutStatus
+            checkoutStatus,
           },
         );
       }
@@ -818,42 +825,30 @@ export class AttendanceService {
 
     // Handle normal checkout windows
     if (checkoutStatus === 'normal') {
-      return this.createResponse(
-        true,
-        'คุณกำลังลงเวลาออกงาน',
-        {
-          inPremises,
-          address,
-          checkoutStatus: 'normal'
-        }
-      );
+      return this.createResponse(true, 'คุณกำลังลงเวลาออกงาน', {
+        inPremises,
+        address,
+        checkoutStatus: 'normal',
+      });
     }
 
     if (checkoutStatus === 'late') {
-      return this.createResponse(
-        true,
-        'คุณกำลังลงเวลาออกงานช้า',
-        {
-          isLateCheckOut: true,
-          inPremises,
-          address,
-          checkoutStatus: 'late'
-        }
-      );
+      return this.createResponse(true, 'คุณกำลังลงเวลาออกงานช้า', {
+        isLateCheckOut: true,
+        inPremises,
+        address,
+        checkoutStatus: 'late',
+      });
     }
 
     // Default case for early but within window
-    return this.createResponse(
-      true,
-      'คุณกำลังลงเวลาออกงาน',
-      {
-        inPremises,
-        address,
-        isEarlyCheckOut: true,
-        checkoutStatus: 'early',
-        minutesEarly
-      }
-    );
+    return this.createResponse(true, 'คุณกำลังลงเวลาออกงาน', {
+      inPremises,
+      address,
+      isEarlyCheckOut: true,
+      checkoutStatus: 'early',
+      minutesEarly,
+    });
   }
 
   private getCheckoutWindow(shiftEnd: Date): {
@@ -870,8 +865,12 @@ export class AttendanceService {
     return differenceInMinutes(checkOutTime, shiftEnd) < 0;
   }
 
-  private getCheckoutStatus(checkOutTime: Date, shiftEnd: Date): 'very_early' | 'early' | 'normal' | 'late' {
-    const { earlyCheckoutStart, regularCheckoutEnd } = this.getCheckoutWindow(shiftEnd);
+  private getCheckoutStatus(
+    checkOutTime: Date,
+    shiftEnd: Date,
+  ): 'very_early' | 'early' | 'normal' | 'late' {
+    const { earlyCheckoutStart, regularCheckoutEnd } =
+      this.getCheckoutWindow(shiftEnd);
 
     if (checkOutTime < earlyCheckoutStart) {
       return 'very_early';

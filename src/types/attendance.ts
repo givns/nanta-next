@@ -470,7 +470,6 @@ export interface WorkHoursCalculation {
 
 export type CheckoutStatusType = 'very_early' | 'early' | 'normal' | 'late';
 
-
 // Check In/Out Allowance Interface
 export interface CheckInOutAllowance {
   allowed: boolean;

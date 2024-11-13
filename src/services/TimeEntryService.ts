@@ -7,10 +7,12 @@ import {
   LeaveRequest,
 } from '@prisma/client';
 import {
+  addHours,
   addMinutes,
   differenceInMinutes,
   format,
   isSameDay,
+  max,
   min,
   subMinutes,
 } from 'date-fns';
@@ -34,6 +36,11 @@ interface OvertimeMetadataInput {
   isDayOffOvertime: boolean;
 }
 
+interface OvertimeResult {
+  hours: number;
+  metadata: OvertimeMetadataInput | null;
+}
+
 export class TimeEntryService {
   // Constants
   private readonly REGULAR_HOURS_PER_SHIFT = 8;
@@ -42,6 +49,8 @@ export class TimeEntryService {
   private readonly HALF_DAY_THRESHOLD = 240; // 4 hours (in minutes)
   private readonly OVERTIME_MINIMUM_MINUTES = 30;
   private readonly OVERTIME_ROUND_TO_MINUTES = 30;
+  private readonly BREAK_DURATION_MINUTES = 60; // 1 hour break
+  private readonly BREAK_START_OFFSET = 4; // Break starts after 4 hours of work
 
   constructor(
     private prisma: PrismaClient,
@@ -246,12 +255,42 @@ export class TimeEntryService {
     }
 
     try {
-      // Get checkout windows
       const { earlyCheckoutStart, regularCheckoutEnd } =
         this.getCheckoutWindow(shiftEnd);
+      const checkoutStatus = this.getCheckoutStatus(checkOutTime, shiftEnd);
 
-      // Check if this is an early checkout
-      const isEarly = this.isEarlyCheckout(checkOutTime, shiftEnd);
+      // Calculate break period
+      const breakStart = addHours(shiftStart, this.BREAK_START_OFFSET);
+      const breakEnd = addMinutes(breakStart, this.BREAK_DURATION_MINUTES);
+
+      // Calculate raw minutes worked
+      let regularMinutes: number;
+
+      if (checkoutStatus === 'normal' || checkoutStatus === 'late') {
+        regularMinutes = this.calculateEffectiveMinutes(
+          checkInTime,
+          shiftEnd,
+          breakStart,
+          breakEnd,
+        );
+      } else if (
+        checkoutStatus === 'early' &&
+        checkOutTime >= earlyCheckoutStart
+      ) {
+        regularMinutes = this.calculateEffectiveMinutes(
+          checkInTime,
+          shiftEnd,
+          breakStart,
+          breakEnd,
+        );
+      } else {
+        regularMinutes = this.calculateEffectiveMinutes(
+          checkInTime,
+          checkOutTime,
+          breakStart,
+          breakEnd,
+        );
+      }
 
       // Check for half-day leave
       const hasHalfDayLeave = leaveRequests.some(
@@ -261,66 +300,47 @@ export class TimeEntryService {
           isSameDay(new Date(leave.startDate), checkInTime),
       );
 
-      // Calculate actual worked time
-      let workedMinutes = differenceInMinutes(checkOutTime, checkInTime);
-
-      // Adjust worked minutes based on checkout timing
-      if (isEarly) {
-        if (checkOutTime < earlyCheckoutStart) {
-          // Very early checkout - use actual minutes
-          console.log(
-            'Very early checkout detected, using actual minutes worked',
-          );
-        } else {
-          // Within early window - round to nearest shift end
-          workedMinutes = differenceInMinutes(shiftEnd, checkInTime);
-          console.log('Checkout within early window, rounding to shift end');
-        }
-      } else if (checkOutTime <= regularCheckoutEnd) {
-        // Normal checkout - use shift end time
-        workedMinutes = differenceInMinutes(shiftEnd, checkInTime);
-        console.log('Normal checkout, using shift duration');
-      } else {
-        // Late checkout - will be handled by overtime calculation
-        workedMinutes = differenceInMinutes(shiftEnd, checkInTime);
-        console.log('Late checkout detected, overtime may apply');
-      }
-
-      // Convert to hours and round to 2 decimal places
-      const actualHours = Math.round((workedMinutes / 60) * 100) / 100;
-
-      // Calculate maximum regular hours based on half-day status
+      // Apply maximum hours
       const maxRegularHours = hasHalfDayLeave
         ? this.REGULAR_HOURS_PER_SHIFT / 2
         : this.REGULAR_HOURS_PER_SHIFT;
 
-      // Determine regular hours (capped at maxRegularHours)
-      const regularHours = Math.min(actualHours, maxRegularHours);
+      const calculatedRegularHours = Math.min(
+        regularMinutes / 60,
+        maxRegularHours,
+      );
 
-      // Calculate overtime for late checkouts
-      const overtimeResult =
-        checkOutTime > regularCheckoutEnd
-          ? this.calculateOvertimeHours(
-              checkInTime,
-              checkOutTime,
-              approvedOvertimeRequest,
-            )
-          : { hours: 0, metadata: null };
+      // Calculate overtime
+      let overtimeResult: OvertimeResult = { hours: 0, metadata: null };
 
-      // Log the calculation details
+      if (approvedOvertimeRequest) {
+        overtimeResult = this.calculateOvertimeHours(
+          checkInTime,
+          checkOutTime,
+          approvedOvertimeRequest,
+          breakStart,
+          breakEnd,
+        );
+      }
+
+      // Log calculation details
       console.log('Time calculation details:', {
-        isEarlyCheckout: isEarly,
-        checkoutTime: format(checkOutTime, 'HH:mm'),
-        earlyWindowStart: format(earlyCheckoutStart, 'HH:mm'),
-        regularWindowEnd: format(regularCheckoutEnd, 'HH:mm'),
-        workedMinutes,
-        actualHours,
-        regularHours,
+        checkoutStatus,
+        checkIn: format(checkInTime, 'HH:mm'),
+        checkOut: format(checkOutTime, 'HH:mm'),
+        breakStart: format(breakStart, 'HH:mm'),
+        breakEnd: format(breakEnd, 'HH:mm'),
+        rawMinutes: differenceInMinutes(checkOutTime, checkInTime),
+        effectiveMinutes: regularMinutes,
+        calculatedHours: calculatedRegularHours,
         overtimeHours: overtimeResult.hours,
       });
 
       return {
-        regularHours: Math.max(0, regularHours), // Ensure non-negative
+        regularHours: Math.max(
+          0,
+          Math.round(calculatedRegularHours * 100) / 100,
+        ),
         overtimeHours: overtimeResult.hours,
         overtimeMetadata: overtimeResult.metadata,
       };
@@ -328,6 +348,95 @@ export class TimeEntryService {
       console.error('Error calculating working hours:', error);
       return { regularHours: 0, overtimeHours: 0, overtimeMetadata: null };
     }
+  }
+
+  private calculateEffectiveMinutes(
+    startTime: Date,
+    endTime: Date,
+    breakStart: Date,
+    breakEnd: Date,
+  ): number {
+    // If period doesn't include break time
+    if (endTime <= breakStart || startTime >= breakEnd) {
+      return differenceInMinutes(endTime, startTime);
+    }
+
+    // If period includes full break
+    if (startTime <= breakStart && endTime >= breakEnd) {
+      const totalMinutes = differenceInMinutes(endTime, startTime);
+      return totalMinutes - this.BREAK_DURATION_MINUTES;
+    }
+
+    // If period overlaps part of break
+    if (startTime < breakEnd && endTime > breakStart) {
+      const overlapStart = max([startTime, breakStart]);
+      const overlapEnd = min([endTime, breakEnd]);
+      const breakOverlapMinutes = differenceInMinutes(overlapEnd, overlapStart);
+      const totalMinutes = differenceInMinutes(endTime, startTime);
+      return totalMinutes - breakOverlapMinutes;
+    }
+
+    // Fallback
+    return differenceInMinutes(endTime, startTime);
+  }
+
+  private calculateOvertimeHours(
+    checkInTime: Date,
+    checkOutTime: Date,
+    approvedOvertimeRequest: ApprovedOvertime | null,
+    breakStart: Date,
+    breakEnd: Date,
+  ): { hours: number; metadata: OvertimeMetadataInput | null } {
+    if (!approvedOvertimeRequest) {
+      return { hours: 0, metadata: null };
+    }
+
+    const overtimeStart = this.parseShiftTime(
+      approvedOvertimeRequest.startTime,
+      approvedOvertimeRequest.date,
+    );
+    const overtimeEnd = this.parseShiftTime(
+      approvedOvertimeRequest.endTime,
+      approvedOvertimeRequest.date,
+    );
+
+    const effectiveStartTime = max([checkInTime, overtimeStart]);
+    const effectiveEndTime = min([checkOutTime, overtimeEnd]);
+
+    // Calculate overtime minutes excluding break time if applicable
+    const overtimeMinutes = this.calculateEffectiveMinutes(
+      effectiveStartTime,
+      effectiveEndTime,
+      breakStart,
+      breakEnd,
+    );
+
+    // Round to nearest increment
+    const roundedOvertimeMinutes =
+      this.calculateOvertimeIncrement(overtimeMinutes);
+    const overtimeHours = Math.round((roundedOvertimeMinutes / 60) * 100) / 100;
+
+    console.log('Overtime calculation:', {
+      effectiveStart: format(effectiveStartTime, 'HH:mm'),
+      effectiveEnd: format(effectiveEndTime, 'HH:mm'),
+      breakDeducted:
+        overtimeMinutes !==
+        differenceInMinutes(effectiveEndTime, effectiveStartTime),
+      actualMinutes: overtimeMinutes,
+      roundedMinutes: roundedOvertimeMinutes,
+      hours: overtimeHours,
+    });
+
+    return {
+      hours: overtimeHours,
+      metadata:
+        overtimeHours > 0
+          ? {
+              isDayOffOvertime: approvedOvertimeRequest.isDayOffOvertime,
+              isInsideShiftHours: approvedOvertimeRequest.isInsideShiftHours,
+            }
+          : null,
+    };
   }
 
   // Add helper method to handle early checkouts
@@ -426,51 +535,6 @@ export class TimeEntryService {
         );
       }
     }
-  }
-
-  private calculateOvertimeHours(
-    checkInTime: Date,
-    checkOutTime: Date,
-    approvedOvertimeRequest: ApprovedOvertime | null,
-  ): { hours: number; metadata: OvertimeMetadataInput | null } {
-    if (!approvedOvertimeRequest) {
-      return { hours: 0, metadata: null };
-    }
-
-    const overtimeStart = this.parseShiftTime(
-      approvedOvertimeRequest.startTime,
-      approvedOvertimeRequest.date,
-    );
-    const overtimeEnd = this.parseShiftTime(
-      approvedOvertimeRequest.endTime,
-      approvedOvertimeRequest.date,
-    );
-
-    // Always use the planned overtime end time as maximum
-    const effectiveCheckOutTime = min([checkOutTime, overtimeEnd]);
-
-    // For auto check-in cases, use planned start time
-    const effectiveCheckInTime =
-      checkInTime <= overtimeStart
-        ? overtimeStart // Auto check-in case
-        : checkInTime; // Manual late check-in case
-
-    const overtimeMinutes = this.calculateOvertimeIncrement(
-      differenceInMinutes(effectiveCheckOutTime, effectiveCheckInTime),
-    );
-
-    const overtimeHours = Math.round((overtimeMinutes / 60) * 100) / 100;
-
-    return {
-      hours: overtimeHours,
-      metadata:
-        overtimeHours > 0
-          ? {
-              isDayOffOvertime: approvedOvertimeRequest.isDayOffOvertime,
-              isInsideShiftHours: approvedOvertimeRequest.isInsideShiftHours,
-            }
-          : null,
-    };
   }
 
   private handleCheckInCalculations(

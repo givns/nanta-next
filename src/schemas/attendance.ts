@@ -295,7 +295,9 @@ const CheckInOutAllowanceSchema = z.object({
   missedCheckInTime: z.number().optional(),
 });
 
-export type CheckInOutAllowanceSchemaType = z.infer<typeof CheckInOutAllowanceSchema>;
+export type CheckInOutAllowanceSchemaType = z.infer<
+  typeof CheckInOutAllowanceSchema
+>;
 export type CheckoutStatusType = z.infer<typeof CheckoutStatusSchema>;
 
 // Optional: Add validation helper
