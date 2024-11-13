@@ -57,46 +57,52 @@ const attendanceService = new AttendanceService(
   timeEntryService,
 );
 
-// Validation Schema
-const attendanceSchema = Yup.object().shape({
-  data: Yup.object()
-    .shape({
-      employeeId: Yup.string(),
-      lineUserId: Yup.string(),
-      isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
-      checkTime: Yup.string().optional(),
-      location: Yup.string().optional(),
-      checkInAddress: Yup.string().optional(),
-      checkOutAddress: Yup.string().optional(),
-      reason: Yup.string().default(''),
-      isOvertime: Yup.boolean().optional().default(false),
-      isLate: Yup.boolean().optional().default(false),
-      isEarlyCheckOut: Yup.boolean().optional().default(false),
-      earlyCheckoutType: Yup.string()
-        .nullable()
-        .oneOf(['emergency', 'planned', null])
-        .when('isEarlyCheckOut', {
-          is: true,
-          then: (schema) => schema.required().oneOf(['emergency', 'planned']),
-          otherwise: (schema) => schema.nullable(),
-        }),
-      isManualEntry: Yup.boolean().optional().default(false),
-    })
-    .test(
-      'either-employeeId-or-lineUserId',
-      'Either employeeId or lineUserId must be provided',
-      (value) => Boolean(value?.employeeId || value?.lineUserId),
-    ),
-  inPremises: Yup.boolean().required(),
-  address: Yup.string().required(),
-});
+// Validation Schema - updated to match actual request structure
+const attendanceSchema = Yup.object({
+  employeeId: Yup.string(),
+  lineUserId: Yup.string(),
+  isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
+  checkTime: Yup.string().required('Check time is required'),
+  checkInAddress: Yup.string().when(['isCheckIn'], {
+    is: true,
+    then: () => Yup.string().required('Check-in address is required'),
+    otherwise: () => Yup.string().optional(),
+  }),
+  checkOutAddress: Yup.string().when(['isCheckIn'], {
+    is: false,
+    then: () => Yup.string().required('Check-out address is required'),
+    otherwise: () => Yup.string().optional(),
+  }),
+  reason: Yup.string().default(''),
+  photo: Yup.string().optional(),
+  inPremises: Yup.boolean().required('In premises flag is required'),
+  address: Yup.string().required('Address is required'),
+  isOvertime: Yup.boolean().default(false),
+  isLate: Yup.boolean().default(false),
+  isEarlyCheckOut: Yup.boolean().default(false),
+  earlyCheckoutType: Yup.string()
+    .nullable()
+    .oneOf(['emergency', 'planned', null])
+    .when(['isEarlyCheckOut'], {
+      is: true,
+      then: () =>
+        Yup.string()
+          .required('Early checkout type is required')
+          .oneOf(['emergency', 'planned']),
+      otherwise: () => Yup.string().nullable(),
+    }),
+  isManualEntry: Yup.boolean().default(false),
+}).test(
+  'either-employeeId-or-lineUserId',
+  'Either employeeId or lineUserId must be provided',
+  (value) => Boolean(value?.employeeId || value?.lineUserId),
+);
 
-// Queue Types
-interface QueueTask {
-  data: AttendanceData;
-  inPremises: boolean;
-  address: string;
-}
+// Type inference for better type safety
+type AttendanceSchemaType = Yup.InferType<typeof attendanceSchema>;
+
+// Queue Types that use the inferred type
+interface QueueTask extends AttendanceSchemaType {}
 
 interface QueueResult {
   status: AttendanceStatusInfo;
@@ -124,7 +130,9 @@ const checkInOutQueue = new BetterQueue<QueueTask, QueueResult>(
 );
 
 // Processing Functions
-async function processCheckInOut(task: QueueTask): Promise<QueueResult> {
+async function processCheckInOut(
+  task: AttendanceSchemaType,
+): Promise<QueueResult> {
   console.log('Processing check-in/out task:', task);
 
   try {
@@ -132,40 +140,37 @@ async function processCheckInOut(task: QueueTask): Promise<QueueResult> {
     const validatedData = await attendanceSchema.validate(task);
 
     // Get user
-    const user = validatedData.data.employeeId
+    const user = validatedData.employeeId
       ? await prisma.user.findUnique({
-          where: { employeeId: validatedData.data.employeeId },
+          where: { employeeId: validatedData.employeeId },
         })
       : await prisma.user.findUnique({
-          where: { lineUserId: validatedData.data.lineUserId },
+          where: { lineUserId: validatedData.lineUserId },
         });
 
     if (!user) throw new Error('User not found');
 
     const now = getCurrentTime();
-    const checkTime = validatedData.data.checkTime
-      ? new Date(validatedData.data.checkTime)
-      : now;
 
     // Prepare attendance data
     const attendanceData: AttendanceData = {
       employeeId: user.employeeId,
       lineUserId: user.lineUserId,
-      isCheckIn: validatedData.data.isCheckIn,
-      checkTime: checkTime.toISOString(),
-      location: validatedData.data.location || '',
-      [validatedData.data.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
-        validatedData.data.isCheckIn
-          ? validatedData.data.checkInAddress || validatedData.address
-          : validatedData.data.checkOutAddress || validatedData.address,
-      reason: validatedData.data.reason || '',
-      isOvertime: validatedData.data.isOvertime || false,
-      isLate: validatedData.data.isLate || false,
-      isEarlyCheckOut: validatedData.data.isEarlyCheckOut || false,
-      earlyCheckoutType: validatedData.data.earlyCheckoutType as
+      isCheckIn: validatedData.isCheckIn,
+      checkTime: new Date(validatedData.checkTime).toISOString(),
+      location: '',
+      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
+        validatedData.isCheckIn
+          ? validatedData.checkInAddress || validatedData.address
+          : validatedData.checkOutAddress || validatedData.address,
+      reason: validatedData.reason,
+      isOvertime: validatedData.isOvertime,
+      isLate: validatedData.isLate,
+      isEarlyCheckOut: validatedData.isEarlyCheckOut,
+      earlyCheckoutType: validatedData.earlyCheckoutType as
         | EarlyCheckoutType
         | undefined,
-      isManualEntry: validatedData.data.isManualEntry || false,
+      isManualEntry: validatedData.isManualEntry,
     };
 
     // Process attendance
@@ -182,11 +187,11 @@ async function processCheckInOut(task: QueueTask): Promise<QueueResult> {
     let notificationSent = false;
     if (user.lineUserId) {
       try {
-        const notificationTime = validatedData.data.isCheckIn
+        const notificationTime = validatedData.isCheckIn
           ? processedAttendance.regularCheckInTime
           : processedAttendance.regularCheckOutTime;
 
-        if (validatedData.data.isCheckIn) {
+        if (validatedData.isCheckIn) {
           await notificationService.sendCheckInConfirmation(
             user.employeeId,
             user.lineUserId,
