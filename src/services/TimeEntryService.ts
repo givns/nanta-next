@@ -6,7 +6,14 @@ import {
   Attendance,
   LeaveRequest,
 } from '@prisma/client';
-import { differenceInMinutes, format, isSameDay, min } from 'date-fns';
+import {
+  addMinutes,
+  differenceInMinutes,
+  format,
+  isSameDay,
+  min,
+  subMinutes,
+} from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService';
 import {
   ApprovedOvertime,
@@ -239,6 +246,13 @@ export class TimeEntryService {
     }
 
     try {
+      // Get checkout windows
+      const { earlyCheckoutStart, regularCheckoutEnd } =
+        this.getCheckoutWindow(shiftEnd);
+
+      // Check if this is an early checkout
+      const isEarly = this.isEarlyCheckout(checkOutTime, shiftEnd);
+
       // Check for half-day leave
       const hasHalfDayLeave = leaveRequests.some(
         (leave) =>
@@ -247,26 +261,170 @@ export class TimeEntryService {
           isSameDay(new Date(leave.startDate), checkInTime),
       );
 
-      // Calculate regular hours
-      const regularHours = hasHalfDayLeave
+      // Calculate actual worked time
+      let workedMinutes = differenceInMinutes(checkOutTime, checkInTime);
+
+      // Adjust worked minutes based on checkout timing
+      if (isEarly) {
+        if (checkOutTime < earlyCheckoutStart) {
+          // Very early checkout - use actual minutes
+          console.log(
+            'Very early checkout detected, using actual minutes worked',
+          );
+        } else {
+          // Within early window - round to nearest shift end
+          workedMinutes = differenceInMinutes(shiftEnd, checkInTime);
+          console.log('Checkout within early window, rounding to shift end');
+        }
+      } else if (checkOutTime <= regularCheckoutEnd) {
+        // Normal checkout - use shift end time
+        workedMinutes = differenceInMinutes(shiftEnd, checkInTime);
+        console.log('Normal checkout, using shift duration');
+      } else {
+        // Late checkout - will be handled by overtime calculation
+        workedMinutes = differenceInMinutes(shiftEnd, checkInTime);
+        console.log('Late checkout detected, overtime may apply');
+      }
+
+      // Convert to hours and round to 2 decimal places
+      const actualHours = Math.round((workedMinutes / 60) * 100) / 100;
+
+      // Calculate maximum regular hours based on half-day status
+      const maxRegularHours = hasHalfDayLeave
         ? this.REGULAR_HOURS_PER_SHIFT / 2
         : this.REGULAR_HOURS_PER_SHIFT;
 
-      // Calculate overtime if approved
-      const overtimeResult = this.calculateOvertimeHours(
-        checkInTime,
-        checkOutTime,
-        approvedOvertimeRequest,
-      );
+      // Determine regular hours (capped at maxRegularHours)
+      const regularHours = Math.min(actualHours, maxRegularHours);
+
+      // Calculate overtime for late checkouts
+      const overtimeResult =
+        checkOutTime > regularCheckoutEnd
+          ? this.calculateOvertimeHours(
+              checkInTime,
+              checkOutTime,
+              approvedOvertimeRequest,
+            )
+          : { hours: 0, metadata: null };
+
+      // Log the calculation details
+      console.log('Time calculation details:', {
+        isEarlyCheckout: isEarly,
+        checkoutTime: format(checkOutTime, 'HH:mm'),
+        earlyWindowStart: format(earlyCheckoutStart, 'HH:mm'),
+        regularWindowEnd: format(regularCheckoutEnd, 'HH:mm'),
+        workedMinutes,
+        actualHours,
+        regularHours,
+        overtimeHours: overtimeResult.hours,
+      });
 
       return {
-        regularHours: Math.round(regularHours * 100) / 100,
+        regularHours: Math.max(0, regularHours), // Ensure non-negative
         overtimeHours: overtimeResult.hours,
         overtimeMetadata: overtimeResult.metadata,
       };
     } catch (error) {
       console.error('Error calculating working hours:', error);
       return { regularHours: 0, overtimeHours: 0, overtimeMetadata: null };
+    }
+  }
+
+  // Add helper method to handle early checkouts
+  private isEarlyCheckout(checkOutTime: Date, shiftEnd: Date): boolean {
+    return differenceInMinutes(checkOutTime, shiftEnd) < 0;
+  }
+
+  // You might also want to add this method to get accurate time windows
+  private getCheckoutWindow(shiftEnd: Date): {
+    earlyCheckoutStart: Date;
+    regularCheckoutEnd: Date;
+  } {
+    return {
+      earlyCheckoutStart: subMinutes(shiftEnd, 15), // 15 minutes before shift end
+      regularCheckoutEnd: addMinutes(shiftEnd, 15), // 15 minutes after shift end
+    };
+  }
+
+  // Add a method to determine the check-out status
+  private getCheckoutStatus(
+    checkOutTime: Date,
+    shiftEnd: Date,
+  ): 'very_early' | 'early' | 'normal' | 'late' {
+    const { earlyCheckoutStart, regularCheckoutEnd } =
+      this.getCheckoutWindow(shiftEnd);
+
+    if (checkOutTime < earlyCheckoutStart) {
+      return 'very_early';
+    } else if (checkOutTime < shiftEnd) {
+      return 'early';
+    } else if (checkOutTime <= regularCheckoutEnd) {
+      return 'normal';
+    } else {
+      return 'late';
+    }
+  }
+
+  // Add a method to create a checkout status record
+  async createCheckoutStatusRecord(
+    employeeId: string,
+    attendanceId: string,
+    checkOutTime: Date,
+    shiftEnd: Date,
+  ): Promise<void> {
+    const status = this.getCheckoutStatus(checkOutTime, shiftEnd);
+    const minutesDeviation = differenceInMinutes(checkOutTime, shiftEnd);
+
+    // If very early checkout, notify admin
+    if (status === 'very_early') {
+      await this.notifyAdminOfEarlyCheckout(
+        employeeId,
+        checkOutTime,
+        shiftEnd,
+        minutesDeviation,
+      );
+    }
+  }
+
+  private async notifyAdminOfEarlyCheckout(
+    employeeId: string,
+    checkOutTime: Date,
+    shiftEnd: Date,
+    minutesEarly: number,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { employeeId },
+      select: { name: true, departmentName: true },
+    });
+
+    if (!user) return;
+
+    const message = {
+      type: 'text',
+      text:
+        `แจ้งเตือน: พนักงานออกก่อนเวลา\n` +
+        `พนักงาน: ${user.name}\n` +
+        `แผนก: ${user.departmentName}\n` +
+        `เวลาออก: ${format(checkOutTime, 'HH:mm')}\n` +
+        `เวลาเลิกงาน: ${format(shiftEnd, 'HH:mm')}\n` +
+        `ออกก่อน: ${Math.abs(minutesEarly)} นาที`,
+    };
+
+    // Send to admins
+    const admins = await this.prisma.user.findMany({
+      where: { role: { in: ['Admin', 'SuperAdmin'] } },
+      select: { employeeId: true, lineUserId: true },
+    });
+
+    for (const admin of admins) {
+      if (admin.lineUserId) {
+        await this.notificationService.sendNotification(
+          admin.employeeId,
+          admin.lineUserId,
+          JSON.stringify(message),
+          'check-out',
+        );
+      }
     }
   }
 
