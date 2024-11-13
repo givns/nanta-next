@@ -2,6 +2,13 @@
 import { z } from 'zod';
 import { UserRole } from '@/types/enum';
 import { UserData } from '@/types/user';
+import { AttendanceData, EarlyCheckoutType } from '@/types/attendance';
+
+// Create an enum for the allowed types
+const EarlyCheckoutTypeEnum = {
+  emergency: 'emergency' as EarlyCheckoutType,
+  planned: 'planned' as EarlyCheckoutType,
+};
 
 // Utility function for date handling
 const DateStringOrDate = z

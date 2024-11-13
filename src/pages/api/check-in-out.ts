@@ -3,17 +3,13 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { AttendanceService } from '@/services/AttendanceService';
 import { ShiftManagementService } from '@/services/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
-import {
-  AttendanceData,
-  AttendanceStatusInfo,
-  EarlyCheckoutType,
-} from '@/types/attendance';
+import { AttendanceData, AttendanceStatusInfo } from '@/types/attendance';
 import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
 import { createNotificationService } from '@/services/NotificationService';
 import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
 import { TimeEntryService } from '@/services/TimeEntryService';
 import { getCurrentTime } from '@/utils/dateUtils';
-import * as Yup from 'yup';
+import { z } from 'zod';
 import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
 
@@ -57,52 +53,42 @@ const attendanceService = new AttendanceService(
   timeEntryService,
 );
 
-// Validation Schema - updated to match actual request structure
-const attendanceSchema = Yup.object({
-  employeeId: Yup.string(),
-  lineUserId: Yup.string(),
-  isCheckIn: Yup.boolean().required('Check-in/out flag is required'),
-  checkTime: Yup.string().required('Check time is required'),
-  checkInAddress: Yup.string().when(['isCheckIn'], {
-    is: true,
-    then: () => Yup.string().required('Check-in address is required'),
-    otherwise: () => Yup.string().optional(),
-  }),
-  checkOutAddress: Yup.string().when(['isCheckIn'], {
-    is: false,
-    then: () => Yup.string().required('Check-out address is required'),
-    otherwise: () => Yup.string().optional(),
-  }),
-  reason: Yup.string().default(''),
-  photo: Yup.string().optional(),
-  inPremises: Yup.boolean().required('In premises flag is required'),
-  address: Yup.string().required('Address is required'),
-  isOvertime: Yup.boolean().default(false),
-  isLate: Yup.boolean().default(false),
-  isEarlyCheckOut: Yup.boolean().default(false),
-  earlyCheckoutType: Yup.string()
-    .nullable()
-    .oneOf(['emergency', 'planned', null])
-    .when(['isEarlyCheckOut'], {
-      is: true,
-      then: () =>
-        Yup.string()
-          .required('Early checkout type is required')
-          .oneOf(['emergency', 'planned']),
-      otherwise: () => Yup.string().nullable(),
-    }),
-  isManualEntry: Yup.boolean().default(false),
-}).test(
-  'either-employeeId-or-lineUserId',
-  'Either employeeId or lineUserId must be provided',
-  (value) => Boolean(value?.employeeId || value?.lineUserId),
-);
+// Validation Schema
+const checkInOutSchema = z
+  .object({
+    data: z
+      .object({
+        isManualEntry: z.boolean().default(false),
+        isEarlyCheckOut: z.boolean().default(false),
+        isLate: z.boolean().default(false),
+        isOvertime: z.boolean().default(false),
+        reason: z.string().default(''),
+      })
+      .default({}),
+    employeeId: z.string().optional(),
+    lineUserId: z.string().optional(),
+    isCheckIn: z.boolean(),
+    checkTime: z.string(),
+    checkInAddress: z.string().optional(),
+    checkOutAddress: z.string().optional(),
+    reason: z.string().optional(),
+    photo: z.string().optional(),
+    inPremises: z.boolean(),
+    address: z.string(),
+    earlyCheckoutType: z.enum(['emergency', 'planned'] as const).optional(),
+  })
+  .refine(
+    (data) => {
+      return Boolean(data.employeeId || data.lineUserId);
+    },
+    {
+      message: 'Either employeeId or lineUserId must be provided',
+      path: ['identification'],
+    },
+  );
 
-// Type inference for better type safety
-type AttendanceSchemaType = Yup.InferType<typeof attendanceSchema>;
-
-// Queue Types that use the inferred type
-interface QueueTask extends AttendanceSchemaType {}
+// Types
+type CheckInOutRequest = z.infer<typeof checkInOutSchema>;
 
 interface QueueResult {
   status: AttendanceStatusInfo;
@@ -110,7 +96,7 @@ interface QueueResult {
 }
 
 // Initialize Queue
-const checkInOutQueue = new BetterQueue<QueueTask, QueueResult>(
+const checkInOutQueue = new BetterQueue<CheckInOutRequest, QueueResult>(
   async (task, cb) => {
     try {
       const result = await processCheckInOut(task);
@@ -129,15 +115,39 @@ const checkInOutQueue = new BetterQueue<QueueTask, QueueResult>(
   },
 );
 
-// Processing Functions
+// Transform validated data to AttendanceData
+function transformToAttendanceData(
+  validatedData: CheckInOutRequest,
+  user: { employeeId: string; lineUserId: string | null },
+): AttendanceData {
+  return {
+    employeeId: user.employeeId,
+    lineUserId: user.lineUserId,
+    isCheckIn: validatedData.isCheckIn,
+    checkTime: new Date(validatedData.checkTime).toISOString(),
+    location: '',
+    [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
+      validatedData.isCheckIn
+        ? validatedData.checkInAddress || validatedData.address
+        : validatedData.checkOutAddress || validatedData.address,
+    reason: validatedData.data.reason || validatedData.reason || '',
+    isOvertime: validatedData.data.isOvertime,
+    isLate: validatedData.data.isLate,
+    isEarlyCheckOut: validatedData.data.isEarlyCheckOut,
+    earlyCheckoutType: validatedData.earlyCheckoutType,
+    isManualEntry: validatedData.data.isManualEntry,
+  };
+}
+
+// Processing Function
 async function processCheckInOut(
-  task: AttendanceSchemaType,
+  task: CheckInOutRequest,
 ): Promise<QueueResult> {
   console.log('Processing check-in/out task:', task);
 
   try {
-    // Validate input
-    const validatedData = await attendanceSchema.validate(task);
+    // Parse and validate input
+    const validatedData = checkInOutSchema.parse(task);
 
     // Get user
     const user = validatedData.employeeId
@@ -152,26 +162,8 @@ async function processCheckInOut(
 
     const now = getCurrentTime();
 
-    // Prepare attendance data
-    const attendanceData: AttendanceData = {
-      employeeId: user.employeeId,
-      lineUserId: user.lineUserId,
-      isCheckIn: validatedData.isCheckIn,
-      checkTime: new Date(validatedData.checkTime).toISOString(),
-      location: '',
-      [validatedData.isCheckIn ? 'checkInAddress' : 'checkOutAddress']:
-        validatedData.isCheckIn
-          ? validatedData.checkInAddress || validatedData.address
-          : validatedData.checkOutAddress || validatedData.address,
-      reason: validatedData.reason,
-      isOvertime: validatedData.isOvertime,
-      isLate: validatedData.isLate,
-      isEarlyCheckOut: validatedData.isEarlyCheckOut,
-      earlyCheckoutType: validatedData.earlyCheckoutType as
-        | EarlyCheckoutType
-        | undefined,
-      isManualEntry: validatedData.isManualEntry,
-    };
+    // Transform to AttendanceData
+    const attendanceData = transformToAttendanceData(validatedData, user);
 
     // Process attendance
     const processedAttendance =
@@ -183,7 +175,7 @@ async function processCheckInOut(
       attendanceData.employeeId,
     );
 
-    // Send notification asynchronously
+    // Handle notifications
     let notificationSent = false;
     if (user.lineUserId) {
       try {
@@ -236,15 +228,13 @@ export default async function handler(
   try {
     console.log('Received request body:', req.body);
 
-    const task: QueueTask = req.body;
-
     // Add to queue and wait for result
     const result = await new Promise<QueueResult>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         reject(new Error('Processing timeout'));
       }, PROCESS_TIMEOUT);
 
-      checkInOutQueue.push(task, (error, result) => {
+      checkInOutQueue.push(req.body, (error, result) => {
         clearTimeout(timeoutId);
         if (error) reject(error);
         else resolve(result);
@@ -260,6 +250,7 @@ export default async function handler(
   } catch (error: any) {
     console.error('Handler error:', error);
 
+    // Specific error handling
     if (error.message === 'Processing timeout') {
       return res.status(504).json({
         error: 'Gateway Timeout',
@@ -269,10 +260,22 @@ export default async function handler(
       });
     }
 
+    // Handle validation errors specifically
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Invalid request data',
+        details: error.errors,
+        timestamp: getCurrentTime().toISOString(),
+      });
+    }
+
     return res.status(500).json({
       error: 'Internal Server Error',
       message: error.message || 'An unexpected error occurred',
       timestamp: getCurrentTime().toISOString(),
     });
+  } finally {
+    // Any cleanup if needed
   }
 }

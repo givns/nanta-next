@@ -7,7 +7,7 @@ export const employeeSchema = z.object({
   nickname: z.string().nullable(),
   departmentName: z.string().min(1, 'Department is required'),
   departmentId: z.string().nullable(),
-  role: z.enum(['DRIVER', 'OPERATION', 'GENERAL', 'ADMIN', 'SUPERADMIN']),
+  role: z.enum(['DRIVER', 'SALES', 'EMPLOYEE', 'ADMIN', 'SUPERADMIN']),
   employeeType: z.enum(['FULL_TIME', 'PART_TIME', 'PROBATION']),
   shiftCode: z.string(),
   company: z.string().default('NT'),
