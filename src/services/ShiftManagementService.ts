@@ -175,22 +175,18 @@ export class ShiftManagementService {
         await this.overtimeService.getApprovedOvertimeRequest(employeeId, date);
 
       if (approvedOvertime) {
-        // Parse overtime start and end times, adjusting for cross-day if necessary
         const overtimeStart = parseISO(
           `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
         );
         let overtimeEnd = parseISO(
           `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
         );
+
         if (overtimeEnd < overtimeStart) {
-          overtimeEnd = addDays(overtimeEnd, 1); // Crosses midnight to next day
+          overtimeEnd = addDays(overtimeEnd, 1); // Adjust for overnight shifts
         }
 
-        console.log(
-          `Evaluating overtime: start=${overtimeStart}, end=${overtimeEnd}`,
-        );
-
-        // Determine if current time is within the approved overtime period
+        // Check if 'now' is within the overtime interval
         isOvertime = isWithinInterval(now, {
           start: overtimeStart,
           end: overtimeEnd,

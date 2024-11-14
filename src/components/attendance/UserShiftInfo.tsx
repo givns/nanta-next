@@ -3,19 +3,12 @@ import {
   AttendanceStatusInfo,
   ShiftData,
   ApprovedOvertime,
-  OvertimeRequestStatus,
   OvertimeAttendanceInfo,
+  AttendanceTime,
+  AttendanceStatusType,
 } from '../../types/attendance';
 import { UserData } from '../../types/user';
-import {
-  addHours,
-  format,
-  isAfter,
-  isBefore,
-  isToday,
-  isValid,
-  parseISO,
-} from 'date-fns';
+import { format, isToday, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Calendar, Clock, Briefcase, AlertCircle } from 'lucide-react';
 
@@ -24,13 +17,6 @@ interface UserShiftInfoProps {
   attendanceStatus: AttendanceStatusInfo | null;
   effectiveShift: ShiftData | null;
   isLoading: boolean;
-}
-
-interface OvertimeDisplayInfo {
-  overtimeRequest: ApprovedOvertime;
-  actualStartTime: string | null;
-  actualEndTime: string | null;
-  status: 'pending' | 'inProgress' | 'completed';
 }
 
 const UserShiftInfo = React.memo(
@@ -46,8 +32,7 @@ const UserShiftInfo = React.memo(
         return { activeOvertimes: [], futureOvertimes: [] };
       }
 
-      const now = new Date();
-      const today = format(now, 'yyyy-MM-dd');
+      const today = format(new Date(), 'yyyy-MM-dd');
 
       return {
         activeOvertimes: attendanceStatus.overtimeAttendances.filter(
@@ -61,60 +46,35 @@ const UserShiftInfo = React.memo(
       };
     }, [attendanceStatus?.overtimeAttendances]);
 
-    const overtimeDisplays = useMemo(() => {
-      if (!attendanceStatus?.approvedOvertime) return [];
-
-      return attendanceStatus.overtimeEntries.map((entry) => {
-        const overtimeRequest = attendanceStatus.approvedOvertime!;
-        const actualStart = entry.actualStartTime
-          ? format(new Date(entry.actualStartTime), 'HH:mm')
-          : null;
-        const actualEnd = entry.actualEndTime
-          ? format(new Date(entry.actualEndTime), 'HH:mm')
-          : null;
-
-        return {
-          overtimeRequest,
-          actualStartTime: actualStart,
-          actualEndTime: actualEnd,
-          status: !actualStart
-            ? 'pending'
-            : !actualEnd
-              ? 'inProgress'
-              : 'completed',
-        };
-      });
-    }, [attendanceStatus]);
-
     const latestAttendance = attendanceStatus?.latestAttendance;
 
-    // Move overtime calculation to its own useMemo
-    const todayOvertime = useMemo(() => {
-      if (!attendanceStatus?.approvedOvertime) return null;
+    // Determine today's overtime (if applicable)
+    const todayOvertime = useMemo<OvertimeAttendanceInfo | null>(() => {
+      const approvedOvertime = attendanceStatus?.approvedOvertime;
+      if (!approvedOvertime) return null;
 
-      const overtime = attendanceStatus.approvedOvertime;
-      const currentTime = new Date();
-      const overtimeDate = parseISO(overtime.date.toString());
-
-      if (!isValid(overtimeDate) || !isToday(overtimeDate)) {
-        return null;
-      }
-
-      const overtimeStart = parseISO(
-        `${format(currentTime, 'yyyy-MM-dd')}T${overtime.startTime}`,
+      const overtimeDate = format(
+        parseISO(approvedOvertime.date.toString()),
+        'yyyy-MM-dd',
       );
-      const overtimeEnd = parseISO(
-        `${format(currentTime, 'yyyy-MM-dd')}T${overtime.endTime}`,
-      );
+      const currentDate = format(new Date(), 'yyyy-MM-dd');
 
-      if (
-        isBefore(currentTime, overtimeEnd) ||
-        (isBefore(currentTime, addHours(overtimeEnd, 1)) &&
-          isAfter(currentTime, overtimeStart))
-      ) {
-        return overtime;
+      if (overtimeDate === currentDate) {
+        return {
+          overtimeRequest: approvedOvertime,
+          attendanceTime: {
+            checkInTime: approvedOvertime.startTime,
+            checkOutTime: approvedOvertime.endTime,
+            status: 'inProgress' as AttendanceStatusType, // Update the type of attendanceTime.status
+          },
+          periodStatus: {
+            isPending: false,
+            isActive: true,
+            isNext: false,
+            isComplete: false,
+          },
+        };
       }
-
       return null;
     }, [attendanceStatus?.approvedOvertime]);
 
@@ -155,7 +115,7 @@ const UserShiftInfo = React.memo(
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }, [attendanceStatus, latestAttendance]);
 
-    // Update the renderTodayOvertime function
+    // Render today's overtime entry
     const renderTodayOvertime = (overtime: OvertimeAttendanceInfo) => (
       <div
         key={overtime.overtimeRequest.id}
@@ -189,34 +149,6 @@ const UserShiftInfo = React.memo(
           </div>
         )}
       </div>
-    );
-
-    const renderUserInfo = useMemo(
-      () => (
-        <div className="bg-white p-6 rounded-lg shadow-md text-center mb-4">
-          <p className="text-2xl font-bold">{userData.name}</p>
-          <p className="text-xl text-gray-600">
-            รหัสพนักงาน: {userData.employeeId}
-          </p>
-          <p className="text-gray-600">แผนก: {userData.departmentName}</p>
-          <div
-            className="mt-4 inline-flex items-center px-3 py-1 rounded-full text-sm"
-            style={{
-              backgroundColor: `rgba(${getStatusMessage.color === 'red' ? '239, 68, 68' : getStatusMessage.color === 'green' ? '34, 197, 94' : '59, 130, 246'}, 0.1)`,
-            }}
-          >
-            <div
-              className={`w-2 h-2 rounded-full bg-${getStatusMessage.color === 'red' ? 'red-500' : getStatusMessage.color === 'green' ? 'green-500' : 'blue-500'} mr-2`}
-            ></div>
-            <span
-              className={`text-${getStatusMessage.color === 'red' ? 'red-700' : getStatusMessage.color === 'green' ? 'green-700' : 'blue-700'}`}
-            >
-              {getStatusMessage.message}
-            </span>
-          </div>
-        </div>
-      ),
-      [userData, getStatusMessage],
     );
 
     const renderTodayInfo = useMemo(() => {
@@ -313,7 +245,6 @@ const UserShiftInfo = React.memo(
       attendanceStatus?.isDayOff,
       attendanceStatus?.holidayInfo,
       effectiveShift,
-      latestAttendance,
       todayOvertime,
     ]);
 
@@ -462,11 +393,9 @@ const UserShiftInfo = React.memo(
         {/* Today's info */}
         <div className="mb-4">{renderTodayInfo}</div>
         {/* Today's overtime */}
-        {activeOvertimes.length > 0 && (
-          <div className="space-y-4">
-            {activeOvertimes.map(renderTodayOvertime)}
-          </div>
-        )}
+        <div className="mb-4">
+          {todayOvertime && renderTodayOvertime(todayOvertime)}
+        </div>
         {/* Future info - if exists */}
         {renderFutureInfo && (
           <div className="space-y-4">{renderFutureInfo}</div>
