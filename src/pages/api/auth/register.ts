@@ -22,10 +22,19 @@ export default async function handler(
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
-  const { employeeId, profilePictureUrl } = req.body;
+  const { employeeId: rawEmployeeId, profilePictureUrl } = req.body;
+  const employeeId = rawEmployeeId.trim(); // Add this line to trim spaces
 
   try {
     console.log('Starting registration for:', { employeeId, lineUserId });
+
+    // Add this before the prisma query
+    if (employeeId !== employeeId.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Employee ID cannot contain leading or trailing spaces',
+      });
+    }
 
     // Log the user before update
     const beforeUser = await prisma.user.findUnique({
