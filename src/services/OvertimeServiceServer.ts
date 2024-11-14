@@ -288,7 +288,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   ): Promise<ApprovedOvertime[]> {
     const currentTime = getCurrentTime();
     console.log('Current time in overtime request fetch:', currentTime);
-  
+
     // Get all approved overtime requests for the day
     const overtimes = await this.prisma.overtimeRequest.findMany({
       where: {
@@ -301,28 +301,32 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         employeeResponse: 'approve',
       },
     });
-  
+
     if (!overtimes.length) {
       return [];
     }
-  
+
     // Adjust end times that span into the next day
     const adjustedOvertimes = overtimes.map((overtime) => {
-      const startDateTime = parseISO(`${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`);
-      let endDateTime = parseISO(`${format(date, 'yyyy-MM-dd')}T${overtime.endTime}`);
-  
+      const startDateTime = parseISO(
+        `${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`,
+      );
+      let endDateTime = parseISO(
+        `${format(date, 'yyyy-MM-dd')}T${overtime.endTime}`,
+      );
+
       // If the end time is earlier than start time, adjust it to the next day
       if (isBefore(endDateTime, startDateTime)) {
         endDateTime = addDays(endDateTime, 1);
       }
-  
+
       return {
         ...overtime,
         adjustedStartDateTime: startDateTime,
         adjustedEndDateTime: endDateTime,
       };
     });
-  
+
     // Filter overtimes to find those that match the current time
     return adjustedOvertimes
       .filter((overtime) => {
@@ -331,13 +335,16 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
           isAfter(currentTime, overtime.adjustedStartDateTime)
         );
       })
-      .sort((a, b) => a.adjustedStartDateTime.getTime() - b.adjustedStartDateTime.getTime())
+      .sort(
+        (a, b) =>
+          a.adjustedStartDateTime.getTime() - b.adjustedStartDateTime.getTime(),
+      )
       .map((overtime) => ({
         ...overtime,
         status: 'approved' as const,
       }));
   }
-  
+
   // Existing wrapper method
   async getApprovedOvertimeRequest(
     employeeId: string,
