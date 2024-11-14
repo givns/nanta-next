@@ -4,6 +4,7 @@ import {
   ShiftData,
   ApprovedOvertime,
   OvertimeRequestStatus,
+  OvertimeAttendanceInfo,
 } from '../../types/attendance';
 import { UserData } from '../../types/user';
 import {
@@ -25,6 +26,13 @@ interface UserShiftInfoProps {
   isLoading: boolean;
 }
 
+interface OvertimeDisplayInfo {
+  overtimeRequest: ApprovedOvertime;
+  actualStartTime: string | null;
+  actualEndTime: string | null;
+  status: 'pending' | 'inProgress' | 'completed';
+}
+
 const UserShiftInfo = React.memo(
   ({
     userData,
@@ -32,6 +40,52 @@ const UserShiftInfo = React.memo(
     effectiveShift,
     isLoading,
   }: UserShiftInfoProps) => {
+    // Separate active and future overtimes
+    const { activeOvertimes, futureOvertimes } = useMemo(() => {
+      if (!attendanceStatus?.overtimeAttendances) {
+        return { activeOvertimes: [], futureOvertimes: [] };
+      }
+
+      const now = new Date();
+      const today = format(now, 'yyyy-MM-dd');
+
+      return {
+        activeOvertimes: attendanceStatus.overtimeAttendances.filter(
+          (ot) =>
+            format(new Date(ot.overtimeRequest.date), 'yyyy-MM-dd') === today,
+        ),
+        futureOvertimes: attendanceStatus.overtimeAttendances.filter(
+          (ot) =>
+            format(new Date(ot.overtimeRequest.date), 'yyyy-MM-dd') > today,
+        ),
+      };
+    }, [attendanceStatus?.overtimeAttendances]);
+
+    const overtimeDisplays = useMemo(() => {
+      if (!attendanceStatus?.approvedOvertime) return [];
+
+      return attendanceStatus.overtimeEntries.map((entry) => {
+        const overtimeRequest = attendanceStatus.approvedOvertime!;
+        const actualStart = entry.actualStartTime
+          ? format(new Date(entry.actualStartTime), 'HH:mm')
+          : null;
+        const actualEnd = entry.actualEndTime
+          ? format(new Date(entry.actualEndTime), 'HH:mm')
+          : null;
+
+        return {
+          overtimeRequest,
+          actualStartTime: actualStart,
+          actualEndTime: actualEnd,
+          status: !actualStart
+            ? 'pending'
+            : !actualEnd
+              ? 'inProgress'
+              : 'completed',
+        };
+      });
+    }, [attendanceStatus]);
+
     const latestAttendance = attendanceStatus?.latestAttendance;
 
     // Move overtime calculation to its own useMemo
@@ -100,6 +154,42 @@ const UserShiftInfo = React.memo(
 
       return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
     }, [attendanceStatus, latestAttendance]);
+
+    // Update the renderTodayOvertime function
+    const renderTodayOvertime = (overtime: OvertimeAttendanceInfo) => (
+      <div
+        key={overtime.overtimeRequest.id}
+        className="mt-4 p-4 bg-yellow-50 rounded-lg"
+      >
+        <h4 className="text-md font-semibold mb-2 flex items-center">
+          <AlertCircle className="mr-2" size={18} />
+          {attendanceStatus?.isDayOff
+            ? 'การทำงานล่วงเวลาในวันหยุด'
+            : 'การทำงานล่วงเวลา'}
+        </h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-gray-600">เวลาที่อนุมัติ</p>
+            <p className="font-medium">
+              {overtime.overtimeRequest.startTime} -{' '}
+              {overtime.overtimeRequest.endTime}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-600">เวลาทำงานจริง</p>
+            <p className="font-medium">
+              {overtime.attendanceTime?.checkInTime || 'ยังไม่ได้ลงเวลา'} -{' '}
+              {overtime.attendanceTime?.checkOutTime || 'ยังไม่สิ้นสุด'}
+            </p>
+          </div>
+        </div>
+        {overtime.periodStatus.isActive && (
+          <div className="mt-2 text-sm text-blue-600">
+            * กำลังอยู่ในช่วงเวลาทำงานล่วงเวลา
+          </div>
+        )}
+      </div>
+    );
 
     const renderUserInfo = useMemo(
       () => (
@@ -215,46 +305,6 @@ const UserShiftInfo = React.memo(
                   {latestAttendance.checkOutTime || 'ยังไม่ได้ลงเวลา'}
                 </p>
               </div>
-            </div>
-          )}
-
-          {todayOvertime && (
-            <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
-              <h4 className="text-md font-semibold mb-2 flex items-center">
-                <AlertCircle className="mr-2" size={18} />{' '}
-                {attendanceStatus?.isDayOff
-                  ? 'การทำงานล่วงเวลาในวันหยุดที่ได้รับอนุมัติ'
-                  : 'การทำงานล่วงเวลาที่ได้รับอนุมัติ'}
-              </h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-gray-600">เวลาที่อนุมัติ</p>
-                  <p className="font-medium">
-                    {todayOvertime.startTime} - {todayOvertime.endTime}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-600">เวลาทำงานจริง</p>
-                  <p className="font-medium">
-                    {latestAttendance?.checkInTime || 'ยังไม่ได้ลงเวลา'} -{' '}
-                    {latestAttendance?.checkOutTime || 'ยังไม่สิ้นสุด'}
-                  </p>
-                </div>
-              </div>
-              <p className="text-gray-600 mt-2">
-                เวลาที่อนุมัติ:{' '}
-                <span className="font-medium">
-                  {todayOvertime.updatedAt
-                    ? format(
-                        new Date(todayOvertime.updatedAt),
-                        'dd/MM/yyyy HH:mm',
-                        {
-                          locale: th,
-                        },
-                      )
-                    : 'N/A'}
-                </span>
-              </p>
             </div>
           )}
         </div>
@@ -411,6 +461,12 @@ const UserShiftInfo = React.memo(
         </div>
         {/* Today's info */}
         <div className="mb-4">{renderTodayInfo}</div>
+        {/* Today's overtime */}
+        {activeOvertimes.length > 0 && (
+          <div className="space-y-4">
+            {activeOvertimes.map(renderTodayOvertime)}
+          </div>
+        )}
         {/* Future info - if exists */}
         {renderFutureInfo && (
           <div className="space-y-4">{renderFutureInfo}</div>

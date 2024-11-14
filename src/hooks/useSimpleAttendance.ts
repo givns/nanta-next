@@ -3,15 +3,25 @@ import {
   AttendanceStatusInfo,
   AttendanceHookReturn,
   AttendanceData,
+  CurrentPeriodInfo,
+  OvertimeAttendanceInfo,
 } from '../types/attendance';
 import axios from 'axios';
 import useSWR from 'swr';
+import { format, isWithinInterval, parseISO } from 'date-fns';
 
 interface Premise {
   lat: number;
   lng: number;
   radius: number;
   name: string;
+}
+
+interface LocationState {
+  inPremises: boolean;
+  address: string;
+  error: string | null;
+  isLoading: boolean;
 }
 
 const PREMISES = [
@@ -34,12 +44,7 @@ export const useSimpleAttendance = (
   const [address, setAddress] = useState<string>('');
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocationLoading, setIsLocationLoading] = useState(true);
-  const [locationState, setLocationState] = useState<{
-    inPremises: boolean;
-    address: string;
-    error: string | null;
-    isLoading: boolean;
-  }>({
+  const [locationState, setLocationState] = useState<LocationState>({
     inPremises: false,
     address: '',
     error: null,
@@ -51,6 +56,10 @@ export const useSimpleAttendance = (
     address: '',
   });
 
+  const [currentPeriod, setCurrentPeriod] = useState<CurrentPeriodInfo | null>(
+    null,
+  );
+
   useEffect(() => {
     console.log('useSimpleAttendance effect', {
       employeeId,
@@ -59,6 +68,88 @@ export const useSimpleAttendance = (
       address,
     });
   }, [employeeId, lineUserId, inPremises, address]);
+
+  // SWR fetcher with location context
+  const { data, error, isValidating, mutate } = useSWR(
+    employeeId
+      ? [
+          '/api/attendance-status',
+          employeeId,
+          locationRef.current.inPremises,
+          locationRef.current.address,
+        ]
+      : null,
+    async ([url, id, inPremises, address]) => {
+      console.log('Fetching attendance status:', { id, inPremises, address });
+      const response = await axios.get(url, {
+        params: {
+          employeeId: id,
+          lineUserId,
+          inPremises,
+          address,
+        },
+      });
+
+      // Determine current period from response
+      const status = response.data.attendanceStatus;
+      const currentTime = format(new Date(), 'HH:mm');
+
+      // Check if there's an active overtime period
+      const activeOvertime = status.overtimeAttendances?.find(
+        (ot: OvertimeAttendanceInfo) => {
+          const start = parseISO(`2000-01-01T${ot.overtimeRequest.startTime}`);
+          let end = parseISO(`2000-01-01T${ot.overtimeRequest.endTime}`);
+          const current = parseISO(`2000-01-01T${currentTime}`);
+
+          if (end < start) {
+            // Handle overnight overtime
+            return current >= start || current <= end;
+          }
+          return isWithinInterval(current, { start, end });
+        },
+      );
+
+      // Set current period based on status
+      const newCurrentPeriod: CurrentPeriodInfo = activeOvertime
+        ? {
+            type: 'overtime',
+            overtimeId: activeOvertime.overtimeRequest.id,
+            isComplete: activeOvertime.periodStatus.isComplete,
+            checkInTime: activeOvertime.attendance?.checkInTime,
+            checkOutTime: activeOvertime.attendance?.checkOutTime,
+          }
+        : {
+            type: 'regular',
+            isComplete: !!status.latestAttendance?.checkOutTime,
+            checkInTime: status.latestAttendance?.checkInTime,
+            checkOutTime: status.latestAttendance?.checkOutTime,
+          };
+
+      setCurrentPeriod(newCurrentPeriod);
+
+      return {
+        ...response.data,
+        checkInOutAllowance: {
+          ...response.data.checkInOutAllowance,
+          inPremises,
+          periodType: newCurrentPeriod.type,
+          overtimeId:
+            newCurrentPeriod.type === 'overtime'
+              ? newCurrentPeriod.overtimeId
+              : undefined,
+        },
+      };
+    },
+    {
+      revalidateOnFocus: false,
+      refreshInterval: 60000, // Check every minute for period changes
+      dedupingInterval: 5000,
+    },
+  );
+
+  useEffect(() => {
+    console.log('checkInOutAllowance updated:', data?.checkInOutAllowance);
+  }, [data?.checkInOutAllowance]);
 
   const calculateDistance = (
     lat1: number,
@@ -92,6 +183,7 @@ export const useSimpleAttendance = (
     [],
   );
 
+  // Location handling
   const getCurrentLocation = useCallback(async () => {
     setIsLocationLoading(true);
     setLocationError(null);
@@ -115,20 +207,26 @@ export const useSimpleAttendance = (
       const newInPremises = !!premise;
       const newAddress = premise ? premise.name : 'Unknown location';
 
-      setInPremises(newInPremises);
-      setAddress(newAddress);
+      setLocationState({
+        inPremises: newInPremises,
+        address: newAddress,
+        error: null,
+        isLoading: false,
+      });
+
       locationRef.current = { inPremises: newInPremises, address: newAddress };
       console.log('Location updated:', {
         inPremises: newInPremises,
         address: newAddress,
       });
     } catch (error) {
-      console.error('Error getting location:', error);
-      setLocationError(
-        'Failed to get location. Please check your GPS settings and try again.',
-      );
-      setInPremises(false);
-      setAddress('Unknown location');
+      console.error('Location error:', error);
+      setLocationState({
+        inPremises: false,
+        address: 'Unknown location',
+        error: 'Failed to get location. Please check your GPS settings.',
+        isLoading: false,
+      });
       locationRef.current = { inPremises: false, address: 'Unknown location' };
     } finally {
       setIsLocationLoading(false);
@@ -139,57 +237,27 @@ export const useSimpleAttendance = (
     getCurrentLocation();
   }, [getCurrentLocation]);
 
-  const { data, error, isValidating, mutate } = useSWR(
-    employeeId
-      ? [
-          '/api/attendance-status',
-          employeeId,
-          locationRef.current.inPremises,
-          locationRef.current.address,
-        ]
-      : null,
-    async ([url, id, inPremises, address]) => {
-      console.log('SWR fetcher called with:', { id, inPremises, address });
-      const response = await axios.get(url, {
-        params: { employeeId: id, lineUserId, inPremises, address },
-      });
-      // Ensure inPremises is included in checkInOutAllowance
-      if (response.data.checkInOutAllowance) {
-        response.data.checkInOutAllowance.inPremises = inPremises;
-      }
-      return response.data;
-    },
-    {
-      revalidateOnFocus: false,
-      refreshInterval: 0,
-      dedupingInterval: 5000,
-    },
-  );
-
-  useEffect(() => {
-    console.log('checkInOutAllowance updated:', data?.checkInOutAllowance);
-  }, [data?.checkInOutAllowance]);
-
+  // Check-in/out handling
   const checkInOut = useCallback(
     async (checkInOutData: AttendanceData, retryCount = 0) => {
       const MAX_RETRIES = 2;
-      const BASE_TIMEOUT = 20000; // 20 seconds
+      const BASE_TIMEOUT = 20000;
 
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), BASE_TIMEOUT);
 
-        console.log('Attempting check-in/out:', {
-          attempt: retryCount + 1,
-          timestamp: new Date().toISOString(),
-        });
-
         const response = await axios.post(
           '/api/check-in-out',
           {
             ...checkInOutData,
-            inPremises,
-            address,
+            inPremises: locationState.inPremises,
+            address: locationState.address,
+            periodType: currentPeriod?.type,
+            overtimeId:
+              currentPeriod?.type === 'overtime'
+                ? currentPeriod.overtimeId
+                : undefined,
           },
           {
             signal: controller.signal,
@@ -206,51 +274,31 @@ export const useSimpleAttendance = (
         await mutate();
         return response.data;
       } catch (error: any) {
-        console.error('Check-in/out error:', error);
-
-        // Handle timeout cases
         if (
           error.code === 'ECONNABORTED' ||
           error.name === 'AbortError' ||
           error.response?.status === 504
         ) {
           if (retryCount < MAX_RETRIES) {
-            console.log(
-              `Retrying check-in/out (attempt ${retryCount + 2}/${MAX_RETRIES + 1})`,
-            );
-
-            // Wait before retrying
             await new Promise((resolve) => setTimeout(resolve, 1000));
-
             return checkInOut(checkInOutData, retryCount + 1);
           }
-
-          throw new Error(
-            'Request took too long. Please check your attendance status and try again if needed.',
-          );
-        }
-
-        // Handle other errors
-        if (axios.isAxiosError(error)) {
-          throw new Error(
-            error.response?.data?.message ||
-              'Failed to update status. Please try again.',
-          );
         }
 
         throw error;
       }
     },
-    [mutate, inPremises, address],
+    [mutate, locationState, currentPeriod],
   );
 
   return {
     attendanceStatus: data?.attendanceStatus || initialAttendanceStatus,
     effectiveShift: data?.effectiveShift || null,
-    isLoading: isValidating,
-    error: error ? 'Failed to fetch attendance status' : null,
-    inPremises,
-    address,
+    currentPeriod,
+    isLoading: isValidating || locationState.isLoading,
+    error: error?.message || locationState.error || null,
+    inPremises: locationState.inPremises,
+    address: locationState.address,
     checkInOut,
     checkInOutAllowance: data?.checkInOutAllowance || null,
     refreshAttendanceStatus: mutate,

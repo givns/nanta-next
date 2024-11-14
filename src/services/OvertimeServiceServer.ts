@@ -282,10 +282,10 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     }, 0);
   }
 
-  async getApprovedOvertimeRequest(
+  async getApprovedOvertimeRequests(
     employeeId: string,
     date: Date,
-  ): Promise<ApprovedOvertime | null> {
+  ): Promise<ApprovedOvertime[]> {
     const currentTime = getCurrentTime();
 
     // Get all approved overtimes for the day
@@ -302,11 +302,11 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     });
 
     if (!overtimes.length) {
-      return null;
+      return [];
     }
 
     // Sort by start time and filter for relevancy
-    const relevantOvertimes = overtimes
+    return overtimes
       .filter((overtime) => {
         const overtimeEnd = parseISO(
           `${format(date, 'yyyy-MM-dd')}T${overtime.endTime}`,
@@ -315,10 +315,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
           `${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`,
         );
 
-        // Consider overtime relevant if:
-        // 1. It hasn't started yet, or
-        // 2. It's currently ongoing, or
-        // 3. It just ended (within late checkout window)
         return (
           isBefore(currentTime, overtimeEnd) ||
           (isBefore(
@@ -332,15 +328,20 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         const timeA = parseISO(`${format(date, 'yyyy-MM-dd')}T${a.startTime}`);
         const timeB = parseISO(`${format(date, 'yyyy-MM-dd')}T${b.startTime}`);
         return timeA.getTime() - timeB.getTime();
-      });
+      })
+      .map((overtime) => ({
+        ...overtime,
+        status: 'approved' as const,
+      }));
+  }
 
-    // Return the next relevant overtime or most recent one within grace period
-    return relevantOvertimes[0]
-      ? {
-          ...relevantOvertimes[0],
-          status: 'approved', // Assign a value from the 'OvertimeRequestStatus' enum
-        }
-      : null;
+  // Keep the existing method but modify it to use the new one
+  async getApprovedOvertimeRequest(
+    employeeId: string,
+    date: Date,
+  ): Promise<ApprovedOvertime | null> {
+    const overtimes = await this.getApprovedOvertimeRequests(employeeId, date);
+    return overtimes[0] || null;
   }
 
   async employeeRespondToOvertimeRequest(

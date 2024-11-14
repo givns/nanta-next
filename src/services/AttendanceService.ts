@@ -8,6 +8,7 @@ import {
   TimeEntry as PrismaTimeEntry,
   OvertimeEntry as PrismaOvertimeEntry,
   Holiday,
+  OvertimeRequest,
 } from '@prisma/client';
 import { ShiftManagementService } from './ShiftManagementService';
 import { HolidayService } from './HolidayService';
@@ -35,6 +36,7 @@ import {
 import {
   AttendanceData,
   AttendanceStatusInfo,
+  AttendanceStatusInfoParams,
   ProcessedAttendance,
   ShiftData,
   ApprovedOvertime,
@@ -49,6 +51,11 @@ import {
   EnhancedAttendanceRecord,
   BaseAttendance,
   TimeEntryStatus,
+  OvertimePeriod,
+  OvertimeAttendanceInfo,
+  TimeEntryInfo,
+  OvertimeEntryInfo,
+  OvertimeRequestStatus,
 } from '../types/attendance';
 import { UserData } from '../types/user';
 import { NotificationService } from './NotificationService';
@@ -62,6 +69,7 @@ import {
 } from '../lib/serverCache';
 import { ErrorCode, AppError } from '../types/errors';
 import { cacheService } from './CacheService';
+import { CurrentPeriodInfo } from '../types/attendance'; // Import the CurrentPeriodInfo type
 
 const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
@@ -361,6 +369,20 @@ export class AttendanceService {
       earlyCheckoutType: options.earlyCheckoutType,
       minutesEarly: options.minutesEarly,
       checkoutStatus: options.checkoutStatus,
+      periodType: options.periodType ?? 'regular',
+      isDayOffOvertime: options.isDayOffOvertime ?? false,
+      isInsideShift: options.isInsideShift ?? false,
+      isPendingDayOffOvertime: options.isPendingDayOffOvertime ?? false,
+      actualStartTime: options.actualStartTime ?? '',
+      plannedStartTime: options.plannedStartTime ?? '',
+      maxCheckOutTime: options.maxCheckOutTime ?? '',
+      actualEndTime: options.actualEndTime ?? '',
+      plannedEndTime: options.plannedEndTime ?? '',
+      missedCheckInTime: options.missedCheckInTime,
+      isAutoCheckIn: options.isAutoCheckIn ?? false,
+      isAutoCheckOut: options.isAutoCheckOut ?? false,
+      isEarlyCheckIn: options.isEarlyCheckIn ?? false,
+      isLastPeriod: options.isLastPeriod || false,
       ...options,
     };
   }
@@ -1846,6 +1868,7 @@ export class AttendanceService {
     );
   }
 
+  // Refactored determineAttendanceStatus function with clear sections
   private determineAttendanceStatus(
     user: UserData,
     attendance: AttendanceRecord | null,
@@ -1859,100 +1882,73 @@ export class AttendanceService {
     futureOvertimes: Array<ApprovedOvertime>,
     pendingLeaveRequest: boolean,
   ): AttendanceStatusInfo {
-    let status: AttendanceStatusValue = 'absent';
-    let isCheckingIn = true;
-    let isOvertime = false;
-    let overtimeDuration = 0;
-    let isEarlyCheckIn = false;
-    let isLateCheckIn = false;
-    let isLateCheckOut = false;
-    let historicalIsLateCheckIn = false;
+    // 1. Initialize status variables
+    const initialState = this.initializeAttendanceState();
+    let {
+      status,
+      isCheckingIn,
+      isOvertime,
+      overtimeDuration,
+      isEarlyCheckIn,
+      isLateCheckIn,
+      isLateCheckOut,
+      historicalIsLateCheckIn,
+    } = initialState;
 
-    const isDayOff = isHoliday || !shift.workDays.includes(now.getDay());
-    const isWeeklyDayOff = !shift.workDays.includes(now.getDay());
-    const dayOffType = isHoliday
-      ? 'holiday'
-      : isWeeklyDayOff
-        ? 'weekly'
-        : 'none';
-    const shiftStart = this.parseShiftTime(shift.startTime, now);
-    const shiftEnd = this.parseShiftTime(shift.endTime, now);
+    // 2. Determine shift context
+    const shiftContext = this.determineShiftContext(shift, now, isHoliday);
+    const { isDayOff, isWeeklyDayOff, dayOffType, shiftStart, shiftEnd } =
+      shiftContext;
 
-    if (approvedOvertime && isSameDay(now, approvedOvertime.date)) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+    // 3. Process overtime periods
+    const overtimeContext = this.processOvertimePeriods(
+      now,
+      approvedOvertime,
+      futureOvertimes,
+      shift,
+    );
+    const {
+      overtimePeriods,
+      periodsValid,
+      currentPeriodInfo,
+      overtimeAttendances,
+    } = overtimeContext;
+
+    // 4. Update status based on attendance record
+    if (attendance) {
+      const attendanceStatus = this.processAttendanceRecord(
+        attendance,
+        shiftStart,
+        shiftEnd,
+        approvedOvertime,
+        now,
       );
-      const overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-      );
 
-      if (now >= overtimeStart && now <= overtimeEnd) {
-        status = 'overtime';
-        isOvertime = true;
-      }
+      // Update state with attendance processing results
+      ({
+        status,
+        isCheckingIn,
+        isOvertime,
+        overtimeDuration,
+        isEarlyCheckIn,
+        isLateCheckIn,
+        isLateCheckOut,
+        historicalIsLateCheckIn,
+      } = attendanceStatus);
     }
 
-    if (attendance && attendance.regularCheckInTime) {
-      isCheckingIn = false;
-      historicalIsLateCheckIn = isAfter(
-        attendance.regularCheckInTime,
-        addMinutes(shiftStart, LATE_CHECK_IN_THRESHOLD),
-      );
-      isEarlyCheckIn = isBefore(
-        attendance.regularCheckInTime,
-        subMinutes(shiftStart, EARLY_CHECK_IN_THRESHOLD),
-      );
-      isLateCheckIn = historicalIsLateCheckIn;
-
-      if (attendance.regularCheckOutTime) {
-        status = isOvertime ? 'overtime' : 'present';
-        isLateCheckOut = isAfter(
-          attendance.regularCheckOutTime,
-          addMinutes(shiftEnd, LATE_CHECK_OUT_THRESHOLD),
-        );
-      } else {
-        status = 'incomplete';
-        isLateCheckOut = isAfter(
-          now,
-          addMinutes(shiftEnd, LATE_CHECK_OUT_THRESHOLD),
-        );
-      }
-
-      if (isOvertime && approvedOvertime) {
-        const overtimeStart = parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
-        );
-        const overtimeEnd = parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-        );
-        const effectiveStart = max([
-          attendance.regularCheckInTime,
-          overtimeStart,
-        ]);
-        const effectiveEnd = attendance.regularCheckOutTime
-          ? min([attendance.regularCheckOutTime, overtimeEnd])
-          : now;
-
-        overtimeDuration =
-          differenceInMinutes(effectiveEnd, effectiveStart) / 60;
-      }
-    }
-
+    // 5. Apply special status rules
     if (isDayOff && !isOvertime) {
-      if (isHoliday) {
-        status = 'holiday';
-      } else {
-        status = 'off';
-      }
-      isCheckingIn = true;
-    } else if (leaveRequest && leaveRequest.status === 'approved') {
-      status = 'off';
-      isCheckingIn = true;
-    } else if (isHoliday && !isOvertime) {
-      status = 'holiday';
+      ({ status, isCheckingIn } = this.applyDayOffRules(isHoliday));
+    } else if (
+      leaveRequest?.status === 'approved' ||
+      (isHoliday && !isOvertime)
+    ) {
+      status = leaveRequest ? 'off' : 'holiday';
       isCheckingIn = true;
     }
 
+    // 6. Generate detailed status
     const combinedLateCheckOut = isLateCheckOut || isOvertime;
     const detailedStatus = this.generateDetailedStatus(
       status,
@@ -1962,27 +1958,16 @@ export class AttendanceService {
       combinedLateCheckOut,
       isOvertime,
       this.isOvernightShift(shiftStart, shiftEnd),
-      attendance as Attendance | null, // Cast attendance to the correct type
+      attendance as Attendance | null,
     );
 
-    const overtimeEntries: OvertimeEntryData[] =
-      attendance?.overtimeEntries.map((entry) => ({
-        ...entry,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })) || [];
+    // 7. Prepare overtime entries
+    const overtimeEntries = this.prepareOvertimeEntries(attendance);
 
-    return {
-      isDayOff,
-      isHoliday,
-      holidayInfo: holidayData
-        ? {
-            localName: holidayData.localName ?? '',
-            name: holidayData.name,
-            date: format(holidayData.date, 'yyyy-MM-dd'),
-          }
-        : null,
-      dayOffType: isHoliday ? 'holiday' : isDayOff ? 'weekly' : 'none',
+    // 8. Build and return final status info
+    return this.buildAttendanceStatusInfo({
+      user,
+      attendance,
       status,
       isCheckingIn,
       isOvertime,
@@ -1990,7 +1975,237 @@ export class AttendanceService {
       overtimeEntries,
       detailedStatus,
       isEarlyCheckIn,
-      isLateCheckIn: isCheckingIn ? isLateCheckIn : historicalIsLateCheckIn,
+      isLateCheckIn,
+      historicalIsLateCheckIn,
+      combinedLateCheckOut,
+      isDayOff,
+      isHoliday,
+      holidayData,
+      dayOffType,
+      approvedOvertime,
+      futureShifts,
+      futureOvertimes,
+      overtimeAttendances,
+      currentPeriodInfo,
+      pendingLeaveRequest,
+    });
+  }
+
+  // Helper methods for each section:
+
+  private initializeAttendanceState() {
+    return {
+      status: 'absent' as AttendanceStatusValue,
+      isCheckingIn: true,
+      isOvertime: false,
+      overtimeDuration: 0,
+      isEarlyCheckIn: false,
+      isLateCheckIn: false,
+      isLateCheckOut: false,
+      historicalIsLateCheckIn: false,
+    };
+  }
+
+  private determineShiftContext(
+    shift: ShiftData,
+    now: Date,
+    isHoliday: boolean,
+  ) {
+    const isDayOff = isHoliday || !shift.workDays.includes(now.getDay());
+    const isWeeklyDayOff = !shift.workDays.includes(now.getDay());
+    const dayOffType: 'holiday' | 'weekly' | 'none' = // Explicitly type this
+      isHoliday ? 'holiday' : isWeeklyDayOff ? 'weekly' : 'none';
+
+    return {
+      isDayOff,
+      isWeeklyDayOff,
+      dayOffType,
+      shiftStart: this.parseShiftTime(shift.startTime, now),
+      shiftEnd: this.parseShiftTime(shift.endTime, now),
+    };
+  }
+
+  private processAttendanceRecord(
+    attendance: AttendanceRecord,
+    shiftStart: Date,
+    shiftEnd: Date,
+    approvedOvertime: ApprovedOvertime | null,
+    now: Date,
+  ) {
+    const state = this.initializeAttendanceState();
+
+    if (!attendance.regularCheckInTime) {
+      return state;
+    }
+
+    // Process check-in status
+    state.isCheckingIn = false;
+    state.historicalIsLateCheckIn = isAfter(
+      attendance.regularCheckInTime,
+      addMinutes(shiftStart, LATE_CHECK_IN_THRESHOLD),
+    );
+    state.isEarlyCheckIn = isBefore(
+      attendance.regularCheckInTime,
+      subMinutes(shiftStart, EARLY_CHECK_IN_THRESHOLD),
+    );
+    state.isLateCheckIn = state.historicalIsLateCheckIn;
+
+    // Process check-out status
+    if (attendance.regularCheckOutTime) {
+      state.status = state.isOvertime ? 'overtime' : 'present';
+      state.isLateCheckOut = isAfter(
+        attendance.regularCheckOutTime,
+        addMinutes(shiftEnd, LATE_CHECK_OUT_THRESHOLD),
+      );
+    } else {
+      state.status = 'incomplete';
+      state.isLateCheckOut = isAfter(
+        now,
+        addMinutes(shiftEnd, LATE_CHECK_OUT_THRESHOLD),
+      );
+    }
+
+    // Calculate overtime if applicable
+    if (state.isOvertime && approvedOvertime) {
+      state.overtimeDuration = this.calculateOvertimeDuration(
+        attendance,
+        approvedOvertime,
+        now,
+      );
+    }
+
+    return state;
+  }
+
+  private processOvertimePeriods(
+    now: Date,
+    approvedOvertime: ApprovedOvertime | null,
+    futureOvertimes: Array<ApprovedOvertime>,
+    shift: ShiftData,
+  ) {
+    // Create combined overtime array and filter out nulls
+    const combinedOvertimes = [approvedOvertime, ...futureOvertimes].filter(
+      (ot): ot is ApprovedOvertime => ot !== null,
+    );
+
+    const overtimePeriods = this.determineOvertimePeriods(
+      now,
+      combinedOvertimes,
+    );
+
+    const regularShift = {
+      start: this.parseShiftTime(shift.startTime, now),
+      end: this.parseShiftTime(shift.endTime, now),
+    };
+
+    const currentPeriodInfo = this.getCurrentPeriod(
+      now,
+      regularShift,
+      overtimePeriods,
+    );
+
+    return {
+      overtimePeriods,
+      periodsValid: this.validateOvertimePeriods(regularShift, overtimePeriods),
+      currentPeriodInfo,
+      overtimeAttendances: [] as OvertimeAttendanceInfo[],
+    };
+  }
+
+  // 1. Apply Day Off Rules
+  private applyDayOffRules(isHoliday: boolean): {
+    status: AttendanceStatusValue;
+    isCheckingIn: boolean;
+    dayOffType: 'holiday' | 'weekly' | 'none';
+  } {
+    const dayOffType: 'holiday' | 'weekly' | 'none' = isHoliday
+      ? 'holiday'
+      : 'weekly';
+    return {
+      status: isHoliday ? 'holiday' : 'off',
+      isCheckingIn: true,
+      dayOffType,
+    };
+  }
+
+  // 2. Prepare Overtime Entries
+  private prepareOvertimeEntries(
+    attendance: AttendanceRecord | null,
+  ): OvertimeEntryData[] {
+    if (!attendance?.overtimeEntries?.length) {
+      return [];
+    }
+
+    return attendance.overtimeEntries.map((entry) => {
+      let actualStartTime = entry.actualStartTime;
+      let actualEndTime = entry.actualEndTime;
+
+      // Handle overnight overtime
+      if (actualEndTime && actualEndTime < actualStartTime) {
+        actualEndTime = addDays(actualEndTime, 1);
+      }
+
+      return {
+        ...entry,
+        actualStartTime,
+        actualEndTime,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    });
+  }
+
+  // 3. Build Attendance Status Info
+  private buildAttendanceStatusInfo(
+    params: AttendanceStatusInfoParams,
+  ): AttendanceStatusInfo {
+    const {
+      user,
+      attendance,
+      status,
+      isCheckingIn,
+      isOvertime,
+      overtimeDuration,
+      overtimeEntries,
+      detailedStatus,
+      isEarlyCheckIn,
+      isLateCheckIn,
+      historicalIsLateCheckIn,
+      combinedLateCheckOut,
+      isDayOff,
+      isHoliday,
+      holidayData,
+      dayOffType,
+      approvedOvertime,
+      futureShifts,
+      futureOvertimes,
+      overtimeAttendances,
+      currentPeriodInfo,
+      pendingLeaveRequest,
+    } = params;
+
+    // Convert Holiday to HolidayInfo
+    const holidayInfo = holidayData
+      ? {
+          localName: holidayData.localName || '', // Convert null to empty string
+          name: holidayData.name,
+          date: format(holidayData.date, 'yyyy-MM-dd'),
+        }
+      : null;
+
+    return {
+      isDayOff,
+      isHoliday,
+      holidayInfo,
+      dayOffType,
+      status,
+      isCheckingIn,
+      isOvertime,
+      overtimeDuration,
+      overtimeEntries,
+      detailedStatus,
+      isEarlyCheckIn,
+      isLateCheckIn,
       isLateCheckOut: combinedLateCheckOut,
       user,
       latestAttendance: attendance
@@ -2013,11 +2228,165 @@ export class AttendanceService {
           }
         : null,
       shiftAdjustment: null,
-      approvedOvertime,
+      approvedOvertime: approvedOvertime
+        ? {
+            ...approvedOvertime,
+            status: approvedOvertime.status as OvertimeRequestStatus,
+          }
+        : null,
       futureShifts,
       futureOvertimes,
+      overtimeAttendances,
+      currentPeriod: currentPeriodInfo,
       pendingLeaveRequest,
     };
+  }
+
+  private calculateOvertimeDuration(
+    attendance: AttendanceRecord,
+    approvedOvertime: ApprovedOvertime,
+    now: Date,
+  ): number {
+    // Delegate calculation to TimeEntryService
+    return this.timeEntryService.calculateOvertimeDuration(
+      attendance,
+      approvedOvertime,
+      now,
+    );
+  }
+
+  private determineOvertimeStatus(
+    overtimeRequest: OvertimeRequest,
+    timeEntry: TimeEntryInfo | null,
+    overtimeEntry: OvertimeEntryInfo | null,
+    currentTime: Date,
+    overtimeRequests: ApprovedOvertime[] = [],
+  ) {
+    const start = parseISO(
+      `${format(currentTime, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
+    );
+    let end = parseISO(
+      `${format(currentTime, 'yyyy-MM-dd')}T${overtimeRequest.endTime}`,
+    );
+
+    if (end < start) {
+      end = addDays(end, 1);
+    }
+
+    const isActive = isWithinInterval(currentTime, { start, end });
+    const isPending = currentTime < start;
+    const isComplete =
+      timeEntry?.status === 'completed' || !!overtimeEntry?.actualEndTime;
+
+    return {
+      isPending,
+      isActive,
+      isNext: isPending && !isActive && !isComplete,
+      isComplete,
+    };
+  }
+
+  // Add new method for handling multiple overtime periods
+  private determineOvertimePeriods(
+    now: Date,
+    overtimeRequests: ApprovedOvertime[],
+  ): OvertimePeriod[] {
+    return overtimeRequests
+      .filter((ot) => isSameDay(ot.date, now))
+      .map((ot) => {
+        const start = parseISO(`${format(now, 'yyyy-MM-dd')}T${ot.startTime}`);
+        let end = parseISO(`${format(now, 'yyyy-MM-dd')}T${ot.endTime}`);
+
+        if (end < start) {
+          end = addDays(end, 1);
+        }
+
+        return {
+          start,
+          end,
+          overtimeRequest: ot,
+          isActive: isWithinInterval(now, { start, end }),
+          isComplete: false, // Set based on your completion logic
+        };
+      });
+  }
+
+  // Add validation for overtime periods
+  private validateOvertimePeriods(
+    regularShift: { start: Date; end: Date },
+    overtimePeriods: OvertimePeriod[],
+  ): boolean {
+    // Sort periods by start time
+    const sortedPeriods = [...overtimePeriods].sort(
+      (a, b) => a.start.getTime() - b.start.getTime(),
+    );
+
+    // Check for overlaps between overtime periods
+    for (let i = 1; i < sortedPeriods.length; i++) {
+      if (sortedPeriods[i].start < sortedPeriods[i - 1].end) {
+        return false;
+      }
+    }
+
+    // Check overlap with regular shift
+    return !sortedPeriods.some(
+      (period) =>
+        isWithinInterval(period.start, regularShift) ||
+        isWithinInterval(period.end, regularShift),
+    );
+  }
+
+  // Add helper to determine current period
+  private getCurrentPeriod(
+    now: Date,
+    regularShift: { start: Date; end: Date },
+    overtimePeriods: OvertimePeriod[],
+  ): CurrentPeriodInfo {
+    const currentOT = overtimePeriods.find((period) =>
+      isWithinInterval(now, { start: period.start, end: period.end }),
+    );
+
+    if (currentOT) {
+      return {
+        type: 'overtime',
+        overtimeId: currentOT.overtimeRequest.id,
+        isComplete: currentOT.isComplete,
+        checkInTime: currentOT.overtimeRequest.actualStartTime
+          ? format(currentOT.overtimeRequest.actualStartTime, 'HH:mm:ss')
+          : null,
+        checkOutTime: currentOT.overtimeRequest.actualEndTime
+          ? format(currentOT.overtimeRequest.actualEndTime, 'HH:mm:ss')
+          : null,
+        current: { start: currentOT.start, end: currentOT.end },
+      };
+    }
+
+    return {
+      type: 'regular',
+      isComplete: isAfter(now, regularShift.end),
+      checkInTime: null,
+      checkOutTime: null,
+      current: regularShift,
+      next: this.getNextPeriod(now, overtimePeriods),
+    };
+  }
+
+  // Helper to find the next period
+  private getNextPeriod(
+    now: Date,
+    overtimePeriods: OvertimePeriod[],
+  ): CurrentPeriodInfo['next'] | undefined {
+    const nextOT = overtimePeriods
+      .filter((period) => isAfter(period.start, now))
+      .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
+
+    return nextOT
+      ? {
+          type: 'overtime',
+          start: nextOT.start,
+          overtimeId: nextOT.overtimeRequest.id,
+        }
+      : undefined;
   }
 
   private calculateLateCheckOutStatus(
@@ -2121,6 +2490,177 @@ export class AttendanceService {
       return addDays(date, 1);
     }
     return date;
+  }
+
+  private getActiveOvertimePeriods(
+    now: Date,
+    approvedOvertimes: ApprovedOvertime[],
+  ): OvertimePeriod[] {
+    const currentDate = format(now, 'yyyy-MM-dd');
+    const periods: OvertimePeriod[] = [];
+
+    approvedOvertimes.forEach((overtime) => {
+      // Handle same day overtime
+      const start = parseISO(`${currentDate}T${overtime.startTime}`);
+      let end = parseISO(`${currentDate}T${overtime.endTime}`);
+
+      // Adjust for overnight overtime
+      if (end < start) {
+        end = addDays(end, 1);
+      }
+
+      periods.push({
+        start,
+        end,
+        overtimeRequest: overtime,
+        isActive: isWithinInterval(now, { start, end }),
+        isComplete: !!overtime.actualEndTime,
+      });
+    });
+
+    // Sort by start time
+    return periods.sort((a, b) => a.start.getTime() - b.start.getTime());
+  }
+
+  private getCurrentOvertimePeriod(
+    now: Date,
+    approvedOvertimes: ApprovedOvertime[],
+  ): OvertimePeriod | null {
+    const periods = this.getActiveOvertimePeriods(now, approvedOvertimes);
+    return (
+      periods.find((period) =>
+        isWithinInterval(now, { start: period.start, end: period.end }),
+      ) || null
+    );
+  }
+
+  // services/AttendanceService.ts
+
+  private async getOvertimeTimeEntry(
+    employeeId: string,
+    overtimeRequest: ApprovedOvertime,
+  ): Promise<TimeEntryInfo | null> {
+    const timeEntry = await this.prisma.timeEntry.findFirst({
+      where: {
+        employeeId,
+        overtimeRequestId: overtimeRequest.id,
+        date: overtimeRequest.date,
+      },
+      include: {
+        overtimeMetadata: true,
+      },
+    });
+
+    if (!timeEntry) return null;
+
+    return {
+      id: timeEntry.id,
+      startTime: timeEntry.startTime,
+      endTime: timeEntry.endTime,
+      status: timeEntry.status as 'in_progress' | 'completed',
+      overtimeHours: timeEntry.overtimeHours,
+      overtimeMetadata: timeEntry.overtimeMetadata
+        ? {
+            isInsideShiftHours: timeEntry.overtimeMetadata.isInsideShiftHours,
+            isDayOffOvertime: timeEntry.overtimeMetadata.isDayOffOvertime,
+          }
+        : undefined,
+    };
+  }
+
+  private async getOvertimeEntry(
+    overtimeRequest: ApprovedOvertime,
+    date: Date,
+  ): Promise<OvertimeEntryInfo | null> {
+    const overtimeEntry = await this.prisma.overtimeEntry.findFirst({
+      where: {
+        overtimeRequestId: overtimeRequest.id,
+        attendance: {
+          date: {
+            gte: startOfDay(date),
+            lt: endOfDay(date),
+          },
+        },
+      },
+    });
+
+    if (!overtimeEntry) return null;
+
+    return {
+      id: overtimeEntry.id,
+      attendanceId: overtimeEntry.attendanceId,
+      overtimeRequestId: overtimeEntry.overtimeRequestId,
+      actualStartTime: overtimeEntry.actualStartTime,
+      actualEndTime: overtimeEntry.actualEndTime,
+    };
+  }
+
+  // 1. Update the function to match OvertimeAttendanceInfo interface
+  private async getOvertimeAttendance(
+    employeeId: string,
+    date: Date,
+    overtimeRequestId: string,
+  ): Promise<OvertimeAttendanceInfo | null> {
+    try {
+      const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
+        where: {
+          id: overtimeRequestId,
+          employeeId,
+          date: {
+            gte: startOfDay(date),
+            lt: endOfDay(date),
+          },
+        },
+      });
+
+      if (!overtimeRequest) return null;
+
+      // Cast the status to OvertimeRequestStatus
+      const typedOvertimeRequest: ApprovedOvertime = {
+        ...overtimeRequest,
+        status: overtimeRequest.status as OvertimeRequestStatus,
+      };
+
+      // Get the attendance record for this date
+      const attendance = await this.getLatestAttendance(employeeId);
+
+      const attendanceTime = attendance
+        ? {
+            checkInTime: attendance.regularCheckInTime
+              ? format(attendance.regularCheckInTime, 'HH:mm:ss')
+              : null,
+            checkOutTime: attendance.regularCheckOutTime
+              ? format(attendance.regularCheckOutTime, 'HH:mm:ss')
+              : null,
+            status: this.mapStatusToAttendanceStatusType(
+              attendance.status as AttendanceStatusValue,
+              !attendance.regularCheckInTime,
+              Boolean(overtimeRequest),
+            ),
+          }
+        : null;
+
+      const [timeEntry, overtimeEntry] = await Promise.all([
+        this.getOvertimeTimeEntry(employeeId, typedOvertimeRequest),
+        this.getOvertimeEntry(typedOvertimeRequest, date),
+      ]);
+
+      const periodStatus = this.determineOvertimeStatus(
+        overtimeRequest,
+        timeEntry,
+        overtimeEntry,
+        new Date(),
+      );
+
+      return {
+        overtimeRequest: typedOvertimeRequest,
+        attendanceTime,
+        periodStatus,
+      };
+    } catch (error) {
+      console.error('Error getting overtime attendance:', error);
+      return null;
+    }
   }
 
   async checkMissingAttendance() {

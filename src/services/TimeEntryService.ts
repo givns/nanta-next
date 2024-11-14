@@ -7,6 +7,7 @@ import {
   LeaveRequest,
 } from '@prisma/client';
 import {
+  addDays,
   addHours,
   addMinutes,
   differenceInMinutes,
@@ -19,6 +20,7 @@ import {
 import { ShiftManagementService } from './ShiftManagementService';
 import {
   ApprovedOvertime,
+  AttendanceRecord,
   EnhancedAttendanceRecord,
   ShiftData,
 } from '@/types/attendance';
@@ -380,12 +382,35 @@ export class TimeEntryService {
     return differenceInMinutes(endTime, startTime);
   }
 
+  public calculateOvertimeDuration(
+    attendance: AttendanceRecord,
+    approvedOvertime: ApprovedOvertime,
+    currentTime: Date,
+  ): number {
+    if (!attendance.regularCheckInTime) {
+      return 0;
+    }
+
+    // Instead of duplicating logic, use existing calculateOvertimeHours
+    const result = this.calculateOvertimeHours(
+      attendance.regularCheckInTime,
+      attendance.regularCheckOutTime || currentTime,
+      approvedOvertime,
+      // Pass null for break times since breaks aren't counted in overtime
+      null,
+      null,
+    );
+
+    return result.hours;
+  }
+
+  // Update calculateOvertimeHours to handle null break times
   private calculateOvertimeHours(
     checkInTime: Date,
     checkOutTime: Date,
     approvedOvertimeRequest: ApprovedOvertime | null,
-    breakStart: Date,
-    breakEnd: Date,
+    breakStart: Date | null,
+    breakEnd: Date | null,
   ): { hours: number; metadata: OvertimeMetadataInput | null } {
     if (!approvedOvertimeRequest) {
       return { hours: 0, metadata: null };
@@ -395,37 +420,33 @@ export class TimeEntryService {
       approvedOvertimeRequest.startTime,
       approvedOvertimeRequest.date,
     );
-    const overtimeEnd = this.parseShiftTime(
+    let overtimeEnd = this.parseShiftTime(
       approvedOvertimeRequest.endTime,
       approvedOvertimeRequest.date,
     );
 
+    // Handle overnight overtime
+    if (overtimeEnd < overtimeStart) {
+      overtimeEnd = addDays(overtimeEnd, 1);
+    }
+
     const effectiveStartTime = max([checkInTime, overtimeStart]);
     const effectiveEndTime = min([checkOutTime, overtimeEnd]);
 
-    // Calculate overtime minutes excluding break time if applicable
-    const overtimeMinutes = this.calculateEffectiveMinutes(
-      effectiveStartTime,
-      effectiveEndTime,
-      breakStart,
-      breakEnd,
-    );
+    // Calculate minutes without break deduction for overtime
+    const overtimeMinutes =
+      breakStart && breakEnd
+        ? this.calculateEffectiveMinutes(
+            effectiveStartTime,
+            effectiveEndTime,
+            breakStart,
+            breakEnd,
+          )
+        : differenceInMinutes(effectiveEndTime, effectiveStartTime);
 
-    // Round to nearest increment
     const roundedOvertimeMinutes =
       this.calculateOvertimeIncrement(overtimeMinutes);
     const overtimeHours = Math.round((roundedOvertimeMinutes / 60) * 100) / 100;
-
-    console.log('Overtime calculation:', {
-      effectiveStart: format(effectiveStartTime, 'HH:mm'),
-      effectiveEnd: format(effectiveEndTime, 'HH:mm'),
-      breakDeducted:
-        overtimeMinutes !==
-        differenceInMinutes(effectiveEndTime, effectiveStartTime),
-      actualMinutes: overtimeMinutes,
-      roundedMinutes: roundedOvertimeMinutes,
-      hours: overtimeHours,
-    });
 
     return {
       hours: overtimeHours,

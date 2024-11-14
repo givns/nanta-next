@@ -25,6 +25,15 @@ const CheckInOutForm = dynamic(
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
+interface AttendanceState {
+  regularAttendance: AttendanceStatusInfo | null;
+  overtimeAttendances: {
+    [key: string]: AttendanceStatusInfo;
+  };
+  currentPeriod: 'regular' | 'overtime' | null;
+  nextCheckTime: Date | null;
+}
+
 const CheckInRouter: React.FC = () => {
   const { lineUserId, isInitialized, error: liffError } = useLiff();
   const { isLoading: authLoading } = useAuth({
@@ -36,6 +45,12 @@ const CheckInRouter: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [cachedAttendanceStatus, setCachedAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
+  const [attendanceState, setAttendanceState] = useState<AttendanceState>({
+    regularAttendance: null,
+    overtimeAttendances: {},
+    currentPeriod: null,
+    nextCheckTime: null,
+  });
 
   useEffect(() => {
     const fetchInitialData = async () => {

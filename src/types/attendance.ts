@@ -17,10 +17,20 @@ export interface Location {
   lng: number;
 }
 
-interface HolidayInfo {
+export interface HolidayInfo {
   localName: string;
   name: string;
   date: string;
+}
+
+export interface Holiday {
+  id: string;
+  date: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  name: string;
+  localName: string | null;
+  types: string[];
 }
 
 export type TimeEntryStatus = 'IN_PROGRESS' | 'COMPLETED';
@@ -124,6 +134,43 @@ export interface TimeEntryData {
   overtimeMetadata?: SimpleOvertimeMetadata;
 }
 
+export interface OvertimeEntryInfo {
+  id: string;
+  attendanceId: string;
+  overtimeRequestId: string;
+  actualStartTime: Date | null;
+  actualEndTime: Date | null;
+}
+
+export interface TimeEntryInfo {
+  id: string;
+  startTime: Date;
+  endTime: Date | null;
+  status: 'in_progress' | 'completed';
+  overtimeHours: number;
+  overtimeMetadata?: {
+    isInsideShiftHours: boolean;
+    isDayOffOvertime: boolean;
+  };
+}
+
+interface AttendanceTimeStatus {
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  status: AttendanceStatusType;
+}
+
+export interface OvertimeAttendanceInfo {
+  overtimeRequest: ApprovedOvertime;
+  attendanceTime: AttendanceTimeStatus | null;
+  periodStatus: {
+    isPending: boolean;
+    isActive: boolean;
+    isNext: boolean;
+    isComplete: boolean;
+  };
+}
+
 // Overtime Interfaces
 export type OvertimeRequestStatus =
   | 'pending_response'
@@ -145,6 +192,8 @@ export interface ApprovedOvertime {
   approverId: string | null;
   isDayOffOvertime: boolean;
   isInsideShiftHours: boolean;
+  actualStartTime?: Date | null; // Add these optional fields
+  actualEndTime?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -257,6 +306,17 @@ export interface AttendanceStatusInfo {
     shift: ShiftData;
   }>;
   futureOvertimes: Array<ApprovedOvertime>;
+  overtimeAttendances: OvertimeAttendanceInfo[];
+  currentPeriod: {
+    type: 'regular' | 'overtime';
+    overtimeId?: string;
+    isComplete: boolean;
+  } | null;
+  nextPeriod?: {
+    type: 'regular' | 'overtime';
+    startTime: string;
+    overtimeId?: string;
+  };
   pendingLeaveRequest: boolean;
   leaveRequests?: {
     status: string;
@@ -266,10 +326,59 @@ export interface AttendanceStatusInfo {
   }[];
 }
 
+export interface AttendanceStatusInfoParams {
+  user: UserData;
+  attendance: AttendanceRecord | null;
+  status: AttendanceStatusValue;
+  isCheckingIn: boolean;
+  isOvertime: boolean;
+  overtimeDuration: number;
+  overtimeEntries: OvertimeEntryData[];
+  detailedStatus: string;
+  isEarlyCheckIn: boolean;
+  isLateCheckIn: boolean;
+  historicalIsLateCheckIn: boolean;
+  combinedLateCheckOut: boolean;
+  isDayOff: boolean;
+  isHoliday: boolean;
+  holidayData: Holiday | null; // Changed from HolidayInfo to Holiday
+  dayOffType: 'holiday' | 'weekly' | 'none';
+  approvedOvertime: ApprovedOvertime | null;
+  futureShifts: Array<{ date: string; shift: ShiftData }>;
+  futureOvertimes: Array<ApprovedOvertime>;
+  overtimeAttendances: OvertimeAttendanceInfo[];
+  currentPeriodInfo: CurrentPeriodInfo;
+  pendingLeaveRequest: boolean;
+}
+
+// Period tracking interfaces
+export interface AttendancePeriod {
+  type: 'regular' | 'overtime';
+  startTime: string; // HH:mm format
+  endTime: string;
+  overtimeId?: string;
+  status: 'pending' | 'active' | 'completed';
+}
+
+export interface CurrentPeriodInfo {
+  type: 'regular' | 'overtime';
+  overtimeId?: string; // Add this back for compatibility
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
+  isComplete: boolean;
+  current?: { start: Date; end: Date }; // Make optional
+  next?: {
+    type: 'regular' | 'overtime';
+    start: Date;
+    overtimeId?: string;
+  };
+}
+
 // Attendance Hook Return Interface
 export interface AttendanceHookReturn {
   attendanceStatus: AttendanceStatusInfo;
   effectiveShift: ShiftData | null;
+  currentPeriod: CurrentPeriodInfo | null;
   isLoading: boolean;
   error: string | null;
   inPremises: boolean;
@@ -510,6 +619,23 @@ export interface CheckInOutAllowance {
   isAutoCheckIn?: boolean;
   isAutoCheckOut?: boolean;
   missedCheckInTime?: number;
+  periodType: 'regular' | 'overtime';
+  overtimeId?: string;
+  nextPeriod?: {
+    type: 'regular' | 'overtime';
+    startTime: string;
+    overtimeId?: string;
+  };
+  isLastPeriod: boolean;
+}
+
+// Period tracking interfaces
+export interface OvertimePeriod {
+  start: Date;
+  end: Date;
+  overtimeRequest: ApprovedOvertime;
+  isActive: boolean;
+  isComplete: boolean; // Add this field
 }
 
 // Check In/Out Data Interfaces
