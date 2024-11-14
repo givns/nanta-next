@@ -202,8 +202,8 @@ const AttendanceStatusInfoSchema = z.object({
       id: z.string(),
       employeeId: z.string(),
       date: z.string(),
-      checkInTime: z.string().nullable(),
-      checkOutTime: z.string().nullable(),
+      regularCheckInTime: z.string().nullable(), // Changed from checkInTime
+      regularCheckOutTime: z.string().nullable(), //
       status: AttendanceStatusTypeSchema,
       isManualEntry: z.boolean(),
     })
