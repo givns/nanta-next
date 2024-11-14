@@ -305,16 +305,38 @@ export class AttendanceService {
         );
       }
 
+      // Handle overtime overlap case
+      if (approvedOvertime && latestAttendance?.regularCheckOutTime) {
+        const isAtStart = this.isAtOvertimeStart(now, approvedOvertime);
+        if (isAtStart) {
+          return (
+            this.handleApprovedOvertime(
+              approvedOvertime,
+              now,
+              inPremises,
+              address,
+              true, // Force check-in mode
+              latestAttendance,
+            ) ||
+            this.createResponse(false, 'ไม่สามารถลงเวลาได้', {
+              inPremises,
+              address,
+            })
+          );
+        }
+      }
+
+      // Normal flow
       if (approvedOvertime) {
-        const response = this.handleApprovedOvertime(
+        const overtimeResponse = this.handleApprovedOvertime(
           approvedOvertime,
           now,
           inPremises,
           address,
-          isCheckingIn,
+          !latestAttendance?.regularCheckInTime,
           latestAttendance,
         );
-        if (response) return response;
+        if (overtimeResponse) return overtimeResponse;
       }
 
       if (isCheckingIn) {
@@ -538,6 +560,34 @@ export class AttendanceService {
       `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
     );
 
+    const shiftEnd = latestAttendance?.shiftEndTime || overtimeStart;
+
+    // Get time windows
+    const timeWindows = this.getEffectiveTimeWindows(
+      shiftEnd,
+      overtimeStart,
+      overtimeEnd,
+    );
+
+    // Handle overlap case for shift end/overtime start
+    if (timeWindows.isOverlapping && latestAttendance?.regularCheckOutTime) {
+      if (timeWindows.isInOvertimeStartWindow(now)) {
+        return this.createResponse(
+          true,
+          'คุณกำลังลงเวลาเข้างานล่วงเวลาที่ได้รับอนุมัติ',
+          {
+            isOvertime: true,
+            inPremises,
+            address,
+            isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+            isInsideShift: approvedOvertime.isInsideShiftHours,
+            actualStartTime: overtimeStart.toISOString(),
+            plannedStartTime: overtimeStart.toISOString(),
+            maxCheckOutTime: overtimeEnd.toISOString(),
+          },
+        );
+      }
+    }
     const { earlyCheckInWindow, lateCheckOutWindow } = this.getOvertimeWindows(
       overtimeStart,
       overtimeEnd,
@@ -761,8 +811,32 @@ export class AttendanceService {
     effectiveShift: ShiftData,
     latestAttendance: AttendanceRecord | null,
   ): CheckInOutAllowance {
+    // Check for overtime first
+    if (approvedOvertime) {
+      const overtimeResponse = this.handleApprovedOvertime(
+        approvedOvertime,
+        now,
+        inPremises,
+        address,
+        false, // isCheckingIn false
+        latestAttendance,
+      );
+      if (overtimeResponse) return overtimeResponse;
+    }
+
     // Already checked out
     if (latestAttendance?.regularCheckOutTime) {
+      // If has overtime starting now, allow check-in
+      if (approvedOvertime && this.isAtOvertimeStart(now, approvedOvertime)) {
+        return this.handleApprovedOvertime(
+          approvedOvertime,
+          now,
+          inPremises,
+          address,
+          true, // isCheckingIn true
+          latestAttendance,
+        )!;
+      }
       return this.createResponse(false, 'คุณได้ลงเวลาออกงานแล้ว', {
         inPremises,
         address,
@@ -2567,15 +2641,30 @@ export class AttendanceService {
     now: Date,
     approvedOvertimes: ApprovedOvertime[],
   ): OvertimePeriod | null {
-    const periods = this.getActiveOvertimePeriods(now, approvedOvertimes);
-    return (
-      periods.find((period) =>
-        isWithinInterval(now, { start: period.start, end: period.end }),
-      ) || null
-    );
-  }
+    for (const overtime of approvedOvertimes) {
+      if (!isSameDay(overtime.date, now)) continue;
 
-  // services/AttendanceService.ts
+      const currentDate = format(now, 'yyyy-MM-dd');
+      const start = parseISO(`${currentDate}T${overtime.startTime}`);
+      let end = parseISO(`${currentDate}T${overtime.endTime}`);
+
+      // Handle overnight overtime
+      if (end < start) {
+        end = addDays(end, 1);
+      }
+
+      if (isWithinInterval(now, { start, end })) {
+        return {
+          start,
+          end,
+          overtimeRequest: overtime,
+          isActive: true,
+          isComplete: !!overtime.actualEndTime,
+        };
+      }
+    }
+    return null;
+  }
 
   private async getOvertimeTimeEntry(
     employeeId: string,
@@ -2864,6 +2953,41 @@ export class AttendanceService {
 
     await setCacheData(cacheKey, JSON.stringify(isHoliday), HOLIDAY_CACHE_TTL);
     return isHoliday;
+  }
+
+  // Add helper method
+  private isAtOvertimeStart(now: Date, overtime: ApprovedOvertime): boolean {
+    const overtimeStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`,
+    );
+    const OVERLAP_BUFFER = 2; // 2 minutes
+    return Math.abs(differenceInMinutes(now, overtimeStart)) <= OVERLAP_BUFFER;
+  }
+
+  private getEffectiveTimeWindows(
+    shiftEnd: Date,
+    overtimeStart: Date,
+    overtimeEnd: Date,
+  ) {
+    const OVERLAP_BUFFER = 2;
+    const shiftEndBuffer = addMinutes(shiftEnd, OVERLAP_BUFFER);
+    const overtimeStartBuffer = subMinutes(overtimeStart, OVERLAP_BUFFER);
+
+    return {
+      isInShiftEndWindow: (now: Date) =>
+        isWithinInterval(now, {
+          start: subMinutes(shiftEnd, OVERLAP_BUFFER),
+          end: shiftEndBuffer,
+        }),
+      isInOvertimeStartWindow: (now: Date) =>
+        isWithinInterval(now, {
+          start: overtimeStartBuffer,
+          end: addMinutes(overtimeStart, OVERLAP_BUFFER),
+        }),
+      isOverlapping:
+        Math.abs(differenceInMinutes(shiftEnd, overtimeStart)) <=
+        OVERLAP_BUFFER,
+    };
   }
 
   private async sendMissingCheckInNotification(user: User) {
