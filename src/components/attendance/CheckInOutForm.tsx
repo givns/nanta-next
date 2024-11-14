@@ -171,7 +171,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         });
 
         // Race between the actual submission and timeout
-        await Promise.race([
+        const response = await Promise.race([
           onStatusChange(
             currentAttendanceStatus?.isCheckingIn ?? true,
             photo,
@@ -189,13 +189,28 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           clearTimeout(submitTimeoutRef.current);
         }
 
+        // Check for already checked in response
+        if (
+          (response as { error?: string })?.error?.includes(
+            'Already checked in',
+          )
+        ) {
+          setLoadingState({
+            status: 'success',
+            message: 'คุณได้ลงเวลาเข้างานไปแล้ว',
+          });
+          setTimeout(() => {
+            closeWindow();
+          }, 2000);
+          return;
+        }
+
         // Show success state and close window
         setLoadingState({
           status: 'success',
           message: 'ลงเวลาสำเร็จ',
         });
 
-        // Important: Don't set step back to 'info'
         // Wait for 2 seconds before closing
         setTimeout(() => {
           closeWindow();
@@ -209,15 +224,33 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         }
 
         let errorMessage = 'ไม่สามารถลงเวลาได้ กรุณาลองใหม่อีกครั้ง';
+        let shouldRefresh = false;
 
-        if (
+        if (error.message?.includes('Already checked in')) {
+          // Handle already checked in case
+          setLoadingState({
+            status: 'success',
+            message: 'คุณได้ลงเวลาเข้างานไปแล้ว',
+          });
+          setTimeout(() => {
+            closeWindow();
+          }, 2000);
+          return;
+        } else if (
           error.message.includes('timeout') ||
           error.message.includes('too long')
         ) {
           errorMessage =
             'การลงเวลาใช้เวลานานเกินไป กรุณาตรวจสอบสถานะการลงเวลาของคุณ';
+          shouldRefresh = true;
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
 
-          // Try to refresh status after timeout
+        // Try to refresh status if needed
+        if (shouldRefresh) {
           try {
             await refreshAttendanceStatus(true);
           } catch (refreshError) {
@@ -226,20 +259,14 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               refreshError,
             );
           }
-        } else if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.message) {
-          errorMessage = error.message;
         }
 
-        // Stay in processing step but show error
+        // Show error state
         setLoadingState({
           status: 'error',
           message: errorMessage,
         });
 
-        // Important: Don't immediately set back to 'info' step
-        // Instead, show retry button in processing view
         setIsSubmitting(false);
       }
     },

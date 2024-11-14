@@ -93,6 +93,7 @@ type CheckInOutRequest = z.infer<typeof checkInOutSchema>;
 interface QueueResult {
   status: AttendanceStatusInfo;
   notificationSent: boolean;
+  success: boolean; // Add this
 }
 
 // Initialize Queue
@@ -165,54 +166,71 @@ async function processCheckInOut(
     // Transform to AttendanceData
     const attendanceData = transformToAttendanceData(validatedData, user);
 
-    // Process attendance
-    const processedAttendance =
-      await attendanceService.processAttendance(attendanceData);
-    if (!processedAttendance) throw new Error('Failed to process attendance');
-
-    // Get updated status
-    const updatedStatus = await attendanceService.getLatestAttendanceStatus(
-      attendanceData.employeeId,
-    );
-
-    // Handle notifications
-    let notificationSent = false;
-    if (user.lineUserId) {
-      try {
-        const notificationTime = validatedData.isCheckIn
-          ? processedAttendance.regularCheckInTime
-          : processedAttendance.regularCheckOutTime;
-
-        if (validatedData.isCheckIn) {
-          await notificationService.sendCheckInConfirmation(
-            user.employeeId,
-            user.lineUserId,
-            notificationTime || now,
-          );
-        } else {
-          await notificationService.sendCheckOutConfirmation(
-            user.employeeId,
-            user.lineUserId,
-            notificationTime || now,
-          );
-        }
-        notificationSent = true;
-      } catch (error) {
-        console.error('Notification error:', error);
-        // Don't throw - notifications shouldn't fail the whole process
+    try {
+      // Process attendance
+      const processedAttendance =
+        await attendanceService.processAttendance(attendanceData);
+      // Add specific error type checking
+      if (!processedAttendance) {
+        throw new Error('Failed to process attendance');
       }
-    }
+      // Get updated status
+      const updatedStatus = await attendanceService.getLatestAttendanceStatus(
+        attendanceData.employeeId,
+      );
 
-    return {
-      status: updatedStatus,
-      notificationSent,
-    };
-  } catch (error) {
+      // Handle notifications
+      let notificationSent = false;
+      if (user.lineUserId) {
+        try {
+          const notificationTime = validatedData.isCheckIn
+            ? processedAttendance.regularCheckInTime
+            : processedAttendance.regularCheckOutTime;
+
+          if (validatedData.isCheckIn) {
+            await notificationService.sendCheckInConfirmation(
+              user.employeeId,
+              user.lineUserId,
+              notificationTime || now,
+            );
+          } else {
+            await notificationService.sendCheckOutConfirmation(
+              user.employeeId,
+              user.lineUserId,
+              notificationTime || now,
+            );
+          }
+          notificationSent = true;
+        } catch (error) {
+          console.error('Notification error:', error);
+          // Don't throw - notifications shouldn't fail the whole process
+        }
+      }
+
+      return {
+        status: updatedStatus,
+        notificationSent,
+        success: true,
+      };
+    } catch (error: any) {
+      // Handle "already checked in" case specially
+      if (error.message?.includes('Already checked in')) {
+        const currentStatus = await attendanceService.getLatestAttendanceStatus(
+          user.employeeId,
+        );
+        return {
+          status: currentStatus,
+          notificationSent: false,
+          success: true,
+        };
+      }
+      throw error; // Re-throw other errors
+    }
+  } catch (error: any) {
     console.error('Error in processCheckInOut:', error);
     throw error;
   }
 }
-
 // API Handler
 export default async function handler(
   req: NextApiRequest,
@@ -275,7 +293,5 @@ export default async function handler(
       message: error.message || 'An unexpected error occurred',
       timestamp: getCurrentTime().toISOString(),
     });
-  } finally {
-    // Any cleanup if needed
   }
 }
