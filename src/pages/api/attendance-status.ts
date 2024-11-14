@@ -251,6 +251,7 @@ export default async function handler(
 
     const preparedUser = prepareUserData(user);
     const currentTime = new Date();
+    console.log('Current time in attendance-status:', currentTime);
 
     // Data Fetching
     const cacheKey = `attendance-status:${user.lineUserId || user.employeeId}`;
@@ -276,6 +277,11 @@ export default async function handler(
             ),
             leaveServiceServer.getLeaveRequests(preparedUser.employeeId),
           ]);
+
+        console.log('shiftData', shiftData);
+        console.log('attendanceStatus', attendanceStatus);
+        console.log('overtimeRequest', overtimeRequest);
+        console.log('leaveRequests', leaveRequests);
 
         // Get all overtimes including the current one
         const allOvertimes = overtimeRequest ? [overtimeRequest] : [];

@@ -287,6 +287,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     date: Date,
   ): Promise<ApprovedOvertime[]> {
     const currentTime = getCurrentTime();
+    console.log('Current time in overtime request fetch:', currentTime);
 
     // Get all approved overtimes for the day
     const overtimes = await this.prisma.overtimeRequest.findMany({
