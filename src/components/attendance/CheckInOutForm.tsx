@@ -25,13 +25,6 @@ import CameraFrame from '../CameraFrame';
 import { th } from 'date-fns/locale/th';
 import { closeWindow } from '@/services/liff';
 
-// Add this type for better error handling
-interface ApiError {
-  error: string;
-  message?: string;
-  details?: string;
-}
-
 interface CheckInOutFormProps {
   userData: UserData;
   cachedAttendanceStatus: AttendanceStatusInfo | null;
@@ -81,7 +74,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [loadingState, setLoadingState] = useState<{
-    status: 'idle' | 'loading' | 'submitting' | 'error';
+    status: 'idle' | 'loading' | 'submitting' | 'success' | 'error';
     message: string;
   }>({
     status: 'idle',
@@ -145,11 +138,13 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       if (isSubmitting) return;
 
       try {
-        // Show success state briefly before closing
+        setIsSubmitting(true);
+        setStep('processing');
         setLoadingState({
-          status: 'idle',
-          message: 'ลงเวลาสำเร็จ',
+          status: 'submitting',
+          message: 'กำลังประมวลผลการลงเวลา...',
         });
+        setError(null);
 
         const isLate = checkInOutAllowance?.isLateCheckIn || false;
         const isEarlyCheckOut = checkInOutAllowance?.isEarlyCheckOut || false;
@@ -168,19 +163,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           return;
         }
 
-        setIsSubmitting(true);
-        setStep('processing');
-        setError(null);
-
         // Set a client-side timeout for the entire operation
         const timeoutPromise = new Promise((_, reject) => {
           submitTimeoutRef.current = setTimeout(() => {
             reject(new Error('Request took too long. Please try again.'));
-          }, 20000); // 20 second timeout
+          }, 20000);
         });
 
         // Race between the actual submission and timeout
-        const result = await Promise.race([
+        await Promise.race([
           onStatusChange(
             currentAttendanceStatus?.isCheckingIn ?? true,
             photo,
@@ -198,35 +189,35 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           clearTimeout(submitTimeoutRef.current);
         }
 
-        // Show success state briefly before closing
+        // Show success state and close window
         setLoadingState({
-          status: 'idle',
+          status: 'success',
           message: 'ลงเวลาสำเร็จ',
         });
 
-        // Show success state briefly before closing
+        // Important: Don't set step back to 'info'
+        // Wait for 2 seconds before closing
         setTimeout(() => {
           closeWindow();
         }, 2000);
       } catch (error: any) {
         console.error('Status change error:', error);
 
-        // Clear any existing timeout
+        // Clear timeout
         if (submitTimeoutRef.current) {
           clearTimeout(submitTimeoutRef.current);
         }
 
-        // Handle different types of errors
-        let errorMessage = 'Failed to update status. Please try again.';
+        let errorMessage = 'ไม่สามารถลงเวลาได้ กรุณาลองใหม่อีกครั้ง';
 
         if (
           error.message.includes('timeout') ||
           error.message.includes('too long')
         ) {
           errorMessage =
-            'Request took too long. Please check your attendance status and try again if needed.';
+            'การลงเวลาใช้เวลานานเกินไป กรุณาตรวจสอบสถานะการลงเวลาของคุณ';
 
-          // After timeout error, try to refresh status
+          // Try to refresh status after timeout
           try {
             await refreshAttendanceStatus(true);
           } catch (refreshError) {
@@ -241,14 +232,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           errorMessage = error.message;
         }
 
-        setError(errorMessage);
-        setStep('info');
-        setIsSubmitting(false);
+        // Stay in processing step but show error
+        setLoadingState({
+          status: 'error',
+          message: errorMessage,
+        });
 
-        // Show error state for a moment before retrying
-        setTimeout(() => {
-          setError(null);
-        }, 5000);
+        // Important: Don't immediately set back to 'info' step
+        // Instead, show retry button in processing view
+        setIsSubmitting(false);
       }
     },
     [
@@ -616,6 +608,73 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   }, [isAttendanceLoading]);
 
+  const renderProcessingView = () => (
+    <div className="flex flex-col items-center justify-center p-4">
+      {loadingState.status === 'submitting' && (
+        <>
+          <SkeletonLoader />
+          <p className="text-lg font-semibold mt-4">
+            {loadingState.message || 'กำลังประมวลผล...'}
+          </p>
+        </>
+      )}
+
+      {loadingState.status === 'success' && (
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4">
+            <svg
+              className="w-full h-full text-green-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <p className="text-lg font-semibold">{loadingState.message}</p>
+          <p className="text-sm text-gray-500 mt-2">กำลังปิดหน้าต่าง...</p>
+        </div>
+      )}
+
+      {loadingState.status === 'error' && (
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4">
+            <svg
+              className="w-full h-full text-red-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </div>
+          <p className="text-lg font-semibold text-red-600">
+            {loadingState.message}
+          </p>
+          <button
+            onClick={() => {
+              setLoadingState({ status: 'idle', message: '' });
+              setStep('camera');
+            }}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+          >
+            ลองใหม่อีกครั้ง
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   const renderContent = () => {
     switch (step) {
       case 'info':
@@ -649,26 +708,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             )}
           </div>
         );
+
       case 'processing':
-        return (
-          <div className="flex flex-col items-center justify-center p-4">
-            <SkeletonLoader />
-            <p className="text-lg font-semibold mt-4">
-              {loadingState.message || 'กำลังประมวลผล...'}
-            </p>
-            {loadingState.status === 'error' && (
-              <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-md text-center">
-                <p>{loadingState.message}</p>
-                <button
-                  onClick={() => setStep('info')}
-                  className="mt-2 text-sm text-red-500 hover:text-red-700"
-                >
-                  ลองใหม่อีกครั้ง
-                </button>
-              </div>
-            )}
-          </div>
-        );
+        return renderProcessingView();
     }
   };
 
