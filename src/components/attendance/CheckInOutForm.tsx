@@ -163,11 +163,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           return;
         }
 
-        // Close window immediately
-        closeWindow();
-
-        // Continue processing in background
-        onStatusChange(
+        // Start the API call
+        const apiPromise = onStatusChange(
           currentAttendanceStatus?.isCheckingIn ?? true,
           photo,
           lateReason || '',
@@ -175,19 +172,37 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           checkInOutAllowance?.isOvertime || false,
           isEarlyCheckOut,
           earlyCheckoutType,
-        ).catch((error) => {
+        );
+
+        // Wait briefly to ensure API call has started
+        await Promise.race([
+          // Wait for first response from API
+          apiPromise.then(() => true).catch(() => true),
+          // Or wait 500ms, whichever comes first
+          new Promise((resolve) => setTimeout(resolve, 500)),
+        ]);
+
+        // Close window after API call has started
+        closeWindow();
+
+        // Let API call continue in background
+        apiPromise.catch((error) => {
           // Just log error since window is already closed
           console.error('Background process error:', error);
-
-          // Optionally log to error monitoring service
-          // Sentry.captureException(error);
         });
       } catch (error: any) {
-        // Log error but don't show UI since window will be closed
         console.error('Status change error:', error);
 
-        // Force close window in case of error
-        closeWindow();
+        // Show error briefly before closing
+        setLoadingState({
+          status: 'error',
+          message: 'เกิดข้อผิดพลาด กรุณาตรวจสอบสถานะการลงเวลาของคุณ',
+        });
+
+        // Close window after short delay
+        setTimeout(() => {
+          closeWindow();
+        }, 1000);
       }
     },
     [
