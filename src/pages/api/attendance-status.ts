@@ -271,7 +271,7 @@ export default async function handler(
                   preparedUser,
                 ),
               ),
-            overtimeService.getApprovedOvertimeRequest(
+            overtimeService.getApprovedOvertimeRequests(
               preparedUser.employeeId,
               currentTime,
             ),
@@ -287,7 +287,7 @@ export default async function handler(
         const allOvertimes = overtimeRequest ? [overtimeRequest] : [];
 
         const overtimeAttendances = await processOvertimeAttendances(
-          allOvertimes,
+          allOvertimes.flat(), // Flatten the array to ensure it is of type ApprovedOvertime[]
           preparedUser.employeeId,
           attendanceService,
           currentTime,
