@@ -163,8 +163,8 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           return;
         }
 
-        // Start the API call
-        const apiPromise = onStatusChange(
+        // Initiate API call and get the promise
+        const apiCall = onStatusChange(
           currentAttendanceStatus?.isCheckingIn ?? true,
           photo,
           lateReason || '',
@@ -174,35 +174,38 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           earlyCheckoutType,
         );
 
-        // Wait briefly to ensure API call has started
-        await Promise.race([
-          // Wait for first response from API
-          apiPromise.then(() => true).catch(() => true),
-          // Or wait 500ms, whichever comes first
-          new Promise((resolve) => setTimeout(resolve, 500)),
-        ]);
+        // Set up a 500ms timer
+        const timer = new Promise((resolve) => setTimeout(resolve, 500));
 
-        // Close window after API call has started
-        closeWindow();
+        try {
+          // Wait for either the API call to start sending or 500ms
+          // Using .catch here to handle API errors but continue execution
+          await Promise.race([
+            apiCall.catch((error) => {
+              console.error('Initial API error:', error);
+              // Return a resolved promise to continue execution
+              return Promise.resolve();
+            }),
+            timer,
+          ]);
 
-        // Let API call continue in background
-        apiPromise.catch((error) => {
-          // Just log error since window is already closed
-          console.error('Background process error:', error);
-        });
-      } catch (error: any) {
-        console.error('Status change error:', error);
-
-        // Show error briefly before closing
-        setLoadingState({
-          status: 'error',
-          message: 'เกิดข้อผิดพลาด กรุณาตรวจสอบสถานะการลงเวลาของคุณ',
-        });
-
-        // Close window after short delay
-        setTimeout(() => {
+          // At this point, either the API has started or we've waited 500ms
           closeWindow();
-        }, 1000);
+
+          // Let the API call complete in the background
+          apiCall.catch((error) => {
+            console.error('Background API error:', error);
+          });
+        } catch (error) {
+          // This catch block should never be hit due to error handling above,
+          // but keeping it as a safety measure
+          console.error('Error during API initiation:', error);
+          closeWindow(); // Still close the window
+        }
+      } catch (error: any) {
+        // Handle setup errors (before API call)
+        console.error('Setup error:', error);
+        closeWindow();
       }
     },
     [
