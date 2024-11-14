@@ -69,7 +69,12 @@ import {
 } from '../lib/serverCache';
 import { ErrorCode, AppError } from '../types/errors';
 import { cacheService } from './CacheService';
-import { CurrentPeriodInfo } from '../types/attendance'; // Import the CurrentPeriodInfo type
+import { CurrentPeriodInfo } from '../types/attendance';
+import {
+  isAttendanceStatusValue,
+  statusValueToType,
+  assertAttendanceStatus,
+} from '../utils/typeGuards';
 
 const USER_CACHE_TTL = 72 * 60 * 60; // 24 hours
 const ATTENDANCE_CACHE_TTL = 30 * 60; // 30 minutes
@@ -1512,27 +1517,59 @@ export class AttendanceService {
       };
     }>,
   ): AttendanceRecord {
+    const status = this.normalizeAttendanceStatus(attendance.status);
+
     return {
-      ...attendance,
-      checkInAddress: attendance.checkInAddress ?? null,
-      checkOutAddress: attendance.checkOutAddress ?? null,
-      checkInLocation: attendance.checkInLocation ?? null,
-      checkOutLocation: attendance.checkOutLocation ?? null,
+      id: attendance.id,
+      employeeId: attendance.employeeId,
+      date: new Date(attendance.date),
+      isDayOff: attendance.isDayOff,
+      shiftStartTime: attendance.shiftStartTime
+        ? new Date(attendance.shiftStartTime)
+        : null,
+      shiftEndTime: attendance.shiftEndTime
+        ? new Date(attendance.shiftEndTime)
+        : null,
+      regularCheckInTime: attendance.regularCheckInTime
+        ? new Date(attendance.regularCheckInTime)
+        : null,
+      regularCheckOutTime: attendance.regularCheckOutTime
+        ? new Date(attendance.regularCheckOutTime)
+        : null,
+      isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
+      isLateCheckIn: attendance.isLateCheckIn ?? false,
+      isLateCheckOut: attendance.isLateCheckOut ?? false,
+      isVeryLateCheckOut: attendance.isVeryLateCheckOut ?? false,
+      lateCheckOutMinutes: attendance.lateCheckOutMinutes ?? 0,
+      checkInLocation: attendance.checkInLocation,
+      checkOutLocation: attendance.checkOutLocation,
+      checkInAddress: attendance.checkInAddress,
+      checkOutAddress: attendance.checkOutAddress,
       checkInReason: attendance.checkInReason ?? null,
       checkInPhoto: attendance.checkInPhoto ?? null,
       checkOutPhoto: attendance.checkOutPhoto ?? null,
+      status,
+      isManualEntry: attendance.isManualEntry ?? false,
+      version: attendance.version,
+      createdAt: new Date(attendance.createdAt),
+      updatedAt: new Date(attendance.updatedAt),
       overtimeEntries: attendance.overtimeEntries.map((entry) => ({
         id: entry.id,
         attendanceId: entry.attendanceId,
         overtimeRequestId: entry.overtimeRequestId,
-        actualStartTime: entry.actualStartTime,
-        actualEndTime: entry.actualEndTime,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
+        actualStartTime: entry.actualStartTime!,
+        actualEndTime: entry.actualEndTime
+          ? new Date(entry.actualEndTime)
+          : null,
+        createdAt: new Date(entry.createdAt),
+        updatedAt: new Date(entry.updatedAt),
       })),
       timeEntries: attendance.timeEntries.map((entry) => ({
         ...entry,
-        status: entry.status as TimeEntryStatus,
+        date: new Date(entry.date),
+        startTime: new Date(entry.startTime),
+        endTime: entry.endTime ? new Date(entry.endTime) : null,
+        status: this.normalizeTimeEntryStatus(entry.status),
         entryType: entry.entryType as 'regular' | 'overtime',
       })),
     };
@@ -2207,16 +2244,18 @@ export class AttendanceService {
       isEarlyCheckIn,
       isLateCheckIn,
       isLateCheckOut: combinedLateCheckOut,
+      isOutsideShift: false, // Add the missing property 'isOutsideShift' with a default value
+      isLate: false, // Add the missing property 'isLate' with a default value
       user,
       latestAttendance: attendance
         ? {
             id: attendance.id,
             employeeId: attendance.employeeId,
             date: format(attendance.date, 'yyyy-MM-dd'),
-            checkInTime: attendance.regularCheckInTime
+            regularCheckInTime: attendance.regularCheckInTime
               ? format(attendance.regularCheckInTime, 'HH:mm:ss')
               : null,
-            checkOutTime: attendance.regularCheckOutTime
+            regularCheckOutTime: attendance.regularCheckOutTime
               ? format(attendance.regularCheckOutTime, 'HH:mm:ss')
               : null,
             status: this.mapStatusToAttendanceStatusType(
@@ -2225,6 +2264,7 @@ export class AttendanceService {
               isOvertime,
             ),
             isManualEntry: attendance.isManualEntry,
+            isDayOff: false, // Add the missing property 'isDayOff' with a default value
           }
         : null,
       shiftAdjustment: null,
@@ -2423,6 +2463,7 @@ export class AttendanceService {
       case 'off':
         return 'approved';
       default:
+        console.warn(`Unmapped status "${status}", using 'pending'`);
         return 'pending';
     }
   }
@@ -2757,23 +2798,40 @@ export class AttendanceService {
   }
 
   private normalizeAttendanceStatus(status: string): AttendanceStatusValue {
-    const validStatuses: AttendanceStatusValue[] = [
+    if (isAttendanceStatusValue(status.toLowerCase())) {
+      return status.toLowerCase() as AttendanceStatusValue;
+    }
+    console.warn(`Invalid status "${status}" normalized to 'absent'`);
+    return 'absent';
+  }
+
+  private mapStatusType(status: string): AttendanceStatusType {
+    try {
+      // First validate and get AttendanceStatusValue
+      const statusValue = assertAttendanceStatus(status);
+      // Then map to AttendanceStatusType
+      return statusValueToType(statusValue);
+    } catch {
+      console.warn(`Invalid status type "${status}", using 'pending'`);
+      return 'pending';
+    }
+  }
+
+  private isValidAttendanceStatus(
+    status: string,
+  ): status is AttendanceStatusValue {
+    return [
       'present',
       'absent',
       'incomplete',
       'holiday',
       'off',
       'overtime',
-    ];
+    ].includes(status);
+  }
 
-    const normalizedStatus = status.toLowerCase() as AttendanceStatusValue;
-    if (validStatuses.includes(normalizedStatus)) {
-      return normalizedStatus;
-    }
-
-    // Default fallback status
-    console.warn(`Invalid status ${status} normalized to 'absent'`);
-    return 'absent';
+  private isValidTimeEntryStatus(status: string): status is TimeEntryStatus {
+    return ['IN_PROGRESS', 'COMPLETED'].includes(status);
   }
 
   private normalizeTimeEntryStatus(status: string): TimeEntryStatus {

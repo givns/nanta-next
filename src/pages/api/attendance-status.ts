@@ -175,6 +175,8 @@ const createInitialAttendanceStatus = async (
     isEarlyCheckIn: false,
     isLateCheckIn: false,
     isLateCheckOut: false,
+    isOutsideShift: false,
+    isLate: false,
     user: {
       ...preparedUser,
       updatedAt: preparedUser.updatedAt ?? undefined,
@@ -299,7 +301,8 @@ export default async function handler(
             }
           : {
               type: 'regular' as const,
-              isComplete: !!attendanceStatus.latestAttendance?.checkOutTime,
+              isComplete:
+                !!attendanceStatus.latestAttendance?.regularCheckOutTime,
             };
 
         return {

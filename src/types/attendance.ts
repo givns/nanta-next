@@ -262,12 +262,27 @@ export type AttendanceStatusType =
   | 'overtime-ended'
   | 'pending'
   | 'approved'
-  | 'day-off';
+  | 'day-off'
+  | 'overtime' // Added
+  | 'incomplete'; // A
 
 export interface LateCheckOutStatus {
   isLateCheckOut: boolean;
   isVeryLateCheckOut: boolean; // More than 30 minutes late
   minutesLate: number;
+}
+export interface LatestAttendance {
+  id: string;
+  employeeId: string;
+  date: string;
+  regularCheckInTime: string | null; // Changed from checkInTime
+  regularCheckOutTime: string | null; // Changed from checkOutTime
+  status: AttendanceStatusType;
+  isManualEntry: boolean;
+  // Add missing fields from actual data
+  isDayOff: boolean;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
 }
 
 export interface AttendanceStatusInfo {
@@ -280,20 +295,14 @@ export interface AttendanceStatusInfo {
   isLateCheckIn: boolean;
   isLateCheckOut: boolean;
   user: UserData;
-  latestAttendance: {
-    id: string;
-    employeeId: string;
-    date: string;
-    checkInTime: string | null;
-    checkOutTime: string | null;
-    status: AttendanceStatusType;
-    isManualEntry: boolean;
-  } | null;
+  latestAttendance: LatestAttendance | null;
   isCheckingIn: boolean;
   isDayOff: boolean;
   isHoliday: boolean;
   holidayInfo?: HolidayInfo | null;
   dayOffType: 'holiday' | 'weekly' | 'none';
+  isOutsideShift: boolean;
+  isLate: boolean;
   shiftAdjustment: {
     date: string;
     requestedShiftId: string;

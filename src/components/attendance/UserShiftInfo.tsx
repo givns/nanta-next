@@ -144,11 +144,11 @@ const UserShiftInfo = React.memo(
         return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
       }
 
-      if (latestAttendance.checkOutTime) {
+      if (latestAttendance.regularCheckOutTime) {
         return { message: 'ทำงานเสร็จแล้ว', color: 'green' };
       }
 
-      if (latestAttendance.checkInTime) {
+      if (latestAttendance.regularCheckInTime) {
         return { message: 'อยู่ระหว่างเวลาทำงาน', color: 'orange' };
       }
 
@@ -296,13 +296,13 @@ const UserShiftInfo = React.memo(
               <div>
                 <p className="text-gray-600">เวลาเข้างาน</p>
                 <p className="font-medium">
-                  {latestAttendance.checkInTime || 'ยังไม่ได้ลงเวลา'}
+                  {latestAttendance.regularCheckInTime || 'ยังไม่ได้ลงเวลา'}
                 </p>
               </div>
               <div>
                 <p className="text-gray-600">เวลาออกงาน</p>
                 <p className="font-medium">
-                  {latestAttendance.checkOutTime || 'ยังไม่ได้ลงเวลา'}
+                  {latestAttendance.regularCheckOutTime || 'ยังไม่ได้ลงเวลา'}
                 </p>
               </div>
             </div>

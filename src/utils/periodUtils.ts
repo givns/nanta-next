@@ -73,9 +73,9 @@ export const getCurrentPeriodInfo = (
   if (attendanceStatus.latestAttendance) {
     return {
       type: 'regular',
-      checkInTime: attendanceStatus.latestAttendance.checkInTime ?? '',
-      checkOutTime: attendanceStatus.latestAttendance.checkOutTime ?? '',
-      isComplete: !!attendanceStatus.latestAttendance.checkOutTime,
+      checkInTime: attendanceStatus.latestAttendance.regularCheckInTime ?? '',
+      checkOutTime: attendanceStatus.latestAttendance.regularCheckOutTime ?? '',
+      isComplete: !!attendanceStatus.latestAttendance.regularCheckOutTime,
     };
   }
 
@@ -131,5 +131,5 @@ const getOvertimePeriodStatus = (
 };
 
 const isRegularComplete = (attendanceStatus: AttendanceStatusInfo): boolean => {
-  return !!attendanceStatus.latestAttendance?.checkOutTime;
+  return !!attendanceStatus.latestAttendance?.regularCheckOutTime;
 };
