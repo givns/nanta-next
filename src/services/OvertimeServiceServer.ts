@@ -287,9 +287,9 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     date: Date,
   ): Promise<ApprovedOvertime[]> {
     const currentTime = getCurrentTime();
-    console.log('Current time:', currentTime);
-
-    // Fetching overtime requests for the specified day
+    console.log('Current time in overtime request fetch:', currentTime);
+  
+    // Get all approved overtime requests for the day
     const overtimes = await this.prisma.overtimeRequest.findMany({
       where: {
         employeeId,
@@ -301,47 +301,44 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         employeeResponse: 'approve',
       },
     });
-
+  
     if (!overtimes.length) {
-      console.log('No approved overtime requests found for the day.');
       return [];
     }
-
-    return overtimes
+  
+    // Adjust end times that span into the next day
+    const adjustedOvertimes = overtimes.map((overtime) => {
+      const startDateTime = parseISO(`${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`);
+      let endDateTime = parseISO(`${format(date, 'yyyy-MM-dd')}T${overtime.endTime}`);
+  
+      // If the end time is earlier than start time, adjust it to the next day
+      if (isBefore(endDateTime, startDateTime)) {
+        endDateTime = addDays(endDateTime, 1);
+      }
+  
+      return {
+        ...overtime,
+        adjustedStartDateTime: startDateTime,
+        adjustedEndDateTime: endDateTime,
+      };
+    });
+  
+    // Filter overtimes to find those that match the current time
+    return adjustedOvertimes
       .filter((overtime) => {
-        const overtimeEnd = parseISO(
-          `${format(date, 'yyyy-MM-dd')}T${overtime.endTime}Z`,
-        );
-        const overtimeStart = parseISO(
-          `${format(date, 'yyyy-MM-dd')}T${overtime.startTime}Z`,
-        );
-
-        console.log(
-          `Evaluating overtime: start=${overtimeStart}, end=${overtimeEnd}`,
-        );
-
-        // Adjusted conditions to ensure they capture the valid overtime window
         return (
-          isBefore(currentTime, overtimeEnd) ||
-          (isBefore(
-            currentTime,
-            addMinutes(overtimeEnd, LATE_CHECK_OUT_THRESHOLD),
-          ) &&
-            isAfter(currentTime, overtimeStart))
+          isBefore(currentTime, overtime.adjustedEndDateTime) &&
+          isAfter(currentTime, overtime.adjustedStartDateTime)
         );
       })
-      .sort((a, b) => {
-        const timeA = parseISO(`${format(date, 'yyyy-MM-dd')}T${a.startTime}Z`);
-        const timeB = parseISO(`${format(date, 'yyyy-MM-dd')}T${b.startTime}Z`);
-        return timeA.getTime() - timeB.getTime();
-      })
+      .sort((a, b) => a.adjustedStartDateTime.getTime() - b.adjustedStartDateTime.getTime())
       .map((overtime) => ({
         ...overtime,
         status: 'approved' as const,
       }));
   }
-
-  // Keep the existing method but modify it to use the new one
+  
+  // Existing wrapper method
   async getApprovedOvertimeRequest(
     employeeId: string,
     date: Date,
