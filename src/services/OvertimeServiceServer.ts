@@ -287,9 +287,9 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     date: Date,
   ): Promise<ApprovedOvertime[]> {
     const currentTime = getCurrentTime();
-    console.log('Current time in overtime request fetch:', currentTime);
+    console.log('Current time:', currentTime);
 
-    // Get all approved overtimes for the day
+    // Fetching overtime requests for the specified day
     const overtimes = await this.prisma.overtimeRequest.findMany({
       where: {
         employeeId,
@@ -303,19 +303,24 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     });
 
     if (!overtimes.length) {
+      console.log('No approved overtime requests found for the day.');
       return [];
     }
 
-    // Sort by start time and filter for relevancy
     return overtimes
       .filter((overtime) => {
         const overtimeEnd = parseISO(
-          `${format(date, 'yyyy-MM-dd')}T${overtime.endTime}`,
+          `${format(date, 'yyyy-MM-dd')}T${overtime.endTime}Z`,
         );
         const overtimeStart = parseISO(
-          `${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`,
+          `${format(date, 'yyyy-MM-dd')}T${overtime.startTime}Z`,
         );
 
+        console.log(
+          `Evaluating overtime: start=${overtimeStart}, end=${overtimeEnd}`,
+        );
+
+        // Adjusted conditions to ensure they capture the valid overtime window
         return (
           isBefore(currentTime, overtimeEnd) ||
           (isBefore(
@@ -326,8 +331,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         );
       })
       .sort((a, b) => {
-        const timeA = parseISO(`${format(date, 'yyyy-MM-dd')}T${a.startTime}`);
-        const timeB = parseISO(`${format(date, 'yyyy-MM-dd')}T${b.startTime}`);
+        const timeA = parseISO(`${format(date, 'yyyy-MM-dd')}T${a.startTime}Z`);
+        const timeB = parseISO(`${format(date, 'yyyy-MM-dd')}T${b.startTime}Z`);
         return timeA.getTime() - timeB.getTime();
       })
       .map((overtime) => ({
