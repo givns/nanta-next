@@ -25,43 +25,6 @@ import {
   startOfDay,
 } from 'date-fns';
 
-// Types
-interface OvertimeStatusResult {
-  isPending: boolean;
-  isActive: boolean;
-  isNext: boolean;
-  isComplete: boolean;
-}
-
-// Helper Functions
-const determineOvertimeStatus = (
-  overtimeRequest: ApprovedOvertime,
-  attendance: any | null,
-  currentTime: Date,
-): OvertimeStatusResult => {
-  const start = parseISO(
-    `${format(currentTime, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
-  );
-  let end = parseISO(
-    `${format(currentTime, 'yyyy-MM-dd')}T${overtimeRequest.endTime}`,
-  );
-
-  if (end < start) {
-    end = addDays(end, 1);
-  }
-
-  const isActive = isWithinInterval(currentTime, { start, end });
-  const isPending = currentTime < start;
-  const isComplete = attendance?.regularCheckOutTime !== null;
-
-  return {
-    isPending,
-    isActive,
-    isNext: isPending && !isActive && !isComplete,
-    isComplete,
-  };
-};
-
 const processOvertimeAttendances = async (
   overtimeRequests: ApprovedOvertime[],
   employeeId: string,
@@ -362,51 +325,66 @@ export default async function handler(
         responseData = await fetchAttendanceData();
       }
 
-      // Get check-in/out allowance
+      // Get check-in/out allowance with proper date formatting
       const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
         preparedUser.employeeId,
         inPremises === 'true',
         address as string,
       );
 
-      // Prepare final response
+      // Format dates for Zod validation
+      const formattedCheckInOutAllowance = {
+        ...checkInOutAllowance,
+        actualStartTime: checkInOutAllowance.actualStartTime || undefined,
+        actualEndTime: checkInOutAllowance.actualEndTime || undefined,
+        plannedStartTime: checkInOutAllowance.plannedStartTime || undefined,
+        plannedEndTime: checkInOutAllowance.plannedEndTime || undefined,
+        maxCheckOutTime: checkInOutAllowance.maxCheckOutTime || undefined,
+        periodType: responseData.attendanceStatus.currentPeriod.type,
+        overtimeId:
+          responseData.attendanceStatus.currentPeriod.type === 'overtime'
+            ? responseData.attendanceStatus.currentPeriod.overtimeId
+            : undefined,
+      };
+
+      // Ensure all required fields are present
       const finalResponseData = {
         user: preparedUser,
-        attendanceStatus: responseData.attendanceStatus,
-        effectiveShift: responseData.shiftData?.effectiveShift,
-        checkInOutAllowance: {
-          ...checkInOutAllowance,
-          periodType: responseData.attendanceStatus.currentPeriod.type,
-          overtimeId:
-            responseData.attendanceStatus.currentPeriod.type === 'overtime'
-              ? responseData.attendanceStatus.currentPeriod.overtimeId
-              : undefined,
-        },
-        approvedOvertime: responseData.approvedOvertime,
-        leaveRequests: responseData.leaveRequests,
+        attendanceStatus: responseData.attendanceStatus || null,
+        effectiveShift: responseData.shiftData?.effectiveShift || null,
+        checkInOutAllowance: formattedCheckInOutAllowance,
+        approvedOvertime: responseData.approvedOvertime || null,
+        leaveRequests: responseData.leaveRequests || [],
       };
 
-      const validatedData = ResponseDataSchema.parse(finalResponseData);
-      return res.status(200).json(validatedData);
+      // Try validating with safe parse first to get detailed errors
+      const validationResult = ResponseDataSchema.safeParse(finalResponseData);
+
+      if (!validationResult.success) {
+        console.error('Validation errors:', {
+          issues: validationResult.error.issues.map((issue) => ({
+            path: issue.path,
+            message: issue.message,
+            code: issue.code,
+          })),
+        });
+
+        // Use fallback response
+        const fallbackData = await createFallbackResponse(
+          preparedUser,
+          currentTime,
+        );
+        return res.status(200).json(fallbackData);
+      }
+
+      return res.status(200).json(validationResult.data);
     } catch (error) {
       console.error('Error in data processing:', error);
-
-      // Fallback response
-      const fallbackData = {
-        shiftData: await shiftService.getEffectiveShiftAndStatus(
-          preparedUser.employeeId,
-          currentTime,
-        ),
-        attendanceStatus: await createInitialAttendanceStatus(
-          preparedUser.employeeId,
-          preparedUser,
-        ),
-        approvedOvertime: null,
-        leaveRequests: [],
-      };
-
-      const validatedData = ResponseDataSchema.parse(fallbackData);
-      return res.status(200).json(validatedData);
+      const fallbackData = await createFallbackResponse(
+        preparedUser,
+        currentTime,
+      );
+      return res.status(200).json(fallbackData);
     }
   } catch (error) {
     console.error('Unexpected error in attendance-status API:', error);
@@ -417,5 +395,37 @@ export default async function handler(
         stack: error instanceof Error ? error.stack : undefined,
       }),
     });
+  } finally {
+    await prisma.$disconnect();
+  }
+
+  // Add fallback response creator
+  async function createFallbackResponse(user: any, currentTime: Date) {
+    const initialStatus = await createInitialAttendanceStatus(
+      user.employeeId,
+      user,
+    );
+
+    return {
+      user,
+      attendanceStatus: initialStatus,
+      effectiveShift: {
+        id: 'default',
+        name: 'Default Shift',
+        shiftCode: 'DEFAULT',
+        startTime: '08:00',
+        endTime: '17:00',
+        workDays: [1, 2, 3, 4, 5],
+      },
+      checkInOutAllowance: {
+        allowed: false,
+        reason: 'System error occurred',
+        inPremises: false,
+        address: '',
+        periodType: 'regular' as const,
+      },
+      approvedOvertime: null,
+      leaveRequests: [],
+    };
   }
 }

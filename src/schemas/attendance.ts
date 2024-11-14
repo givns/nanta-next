@@ -307,19 +307,20 @@ const CheckInOutAllowanceSchema = z.object({
   isEmergencyLeave: z.boolean().optional(),
   isAfterMidshift: z.boolean().optional(),
   earlyCheckoutType: z.enum(['emergency', 'planned']).optional(),
-  // New properties
   minutesEarly: z.number().optional(),
   checkoutStatus: CheckoutStatusSchema.optional(),
-  // Time-related fields using ISO strings
-  actualStartTime: z.string().datetime().optional(),
-  actualEndTime: z.string().datetime().optional(),
-  plannedStartTime: z.string().datetime().optional(),
-  plannedEndTime: z.string().datetime().optional(),
-  maxCheckOutTime: z.string().datetime().optional(),
+  // Changed datetime validation to string for these fields
+  actualStartTime: z.string().optional(),
+  actualEndTime: z.string().optional(),
+  plannedStartTime: z.string().optional(),
+  plannedEndTime: z.string().optional(),
+  maxCheckOutTime: z.string().optional(),
   isInsideShift: z.boolean().optional(),
   isAutoCheckIn: z.boolean().optional(),
   isAutoCheckOut: z.boolean().optional(),
   missedCheckInTime: z.number().optional(),
+  periodType: z.enum(['regular', 'overtime']).default('regular'),
+  overtimeId: z.string().optional(),
 });
 
 export type CheckInOutAllowanceSchemaType = z.infer<
