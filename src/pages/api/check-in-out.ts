@@ -14,13 +14,15 @@ import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
 
 // Constants
-const PROCESS_TIMEOUT = 30000; // 30 seconds total
-const QUEUE_TIMEOUT = 25000; // 25 seconds for queue processing
-const MAX_RETRIES = 2;
+const PROCESS_TIMEOUT = 45000;
+const QUEUE_TIMEOUT = 40000;
 const RETRY_DELAY = 2000;
+const MAX_RETRIES = 0;
+const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
-// Initialize Services
+// Initialize Services with connection pooling
 const prisma = new PrismaClient();
+
 const holidayService = new HolidayService(prisma);
 const notificationService = createNotificationService(prisma);
 const leaveServiceServer = createLeaveServiceServer(
@@ -41,6 +43,7 @@ const overtimeService = new OvertimeServiceServer(
   timeEntryService,
   notificationService,
 );
+
 shiftService.setOvertimeService(overtimeService);
 
 const attendanceService = new AttendanceService(
@@ -52,6 +55,28 @@ const attendanceService = new AttendanceService(
   notificationService,
   timeEntryService,
 );
+
+// Caching
+const userCache = new Map<string, { data: any; timestamp: number }>();
+const processedRequests = new Map<
+  string,
+  { timestamp: number; status: AttendanceStatusInfo }
+>();
+
+// Cache cleanup
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, data] of processedRequests.entries()) {
+    if (now - data.timestamp > CACHE_TIMEOUT) {
+      processedRequests.delete(key);
+    }
+  }
+  for (const [key, data] of userCache.entries()) {
+    if (now - data.timestamp > CACHE_TIMEOUT) {
+      userCache.delete(key);
+    }
+  }
+}, CACHE_TIMEOUT);
 
 // Validation Schema
 const checkInOutSchema = z
@@ -77,15 +102,10 @@ const checkInOutSchema = z
     address: z.string(),
     earlyCheckoutType: z.enum(['emergency', 'planned'] as const).optional(),
   })
-  .refine(
-    (data) => {
-      return Boolean(data.employeeId || data.lineUserId);
-    },
-    {
-      message: 'Either employeeId or lineUserId must be provided',
-      path: ['identification'],
-    },
-  );
+  .refine((data) => Boolean(data.employeeId || data.lineUserId), {
+    message: 'Either employeeId or lineUserId must be provided',
+    path: ['identification'],
+  });
 
 // Types
 type CheckInOutRequest = z.infer<typeof checkInOutSchema>;
@@ -93,30 +113,42 @@ type CheckInOutRequest = z.infer<typeof checkInOutSchema>;
 interface QueueResult {
   status: AttendanceStatusInfo;
   notificationSent: boolean;
-  success: boolean; // Add this
+  success: boolean;
 }
 
-// Initialize Queue
-const checkInOutQueue = new BetterQueue<CheckInOutRequest, QueueResult>(
-  async (task, cb) => {
-    try {
-      const result = await processCheckInOut(task);
-      cb(null, result);
-    } catch (error) {
-      console.error('Queue task error:', error);
-      cb(error as Error);
-    }
-  },
-  {
-    concurrent: 3,
-    store: new MemoryStore(),
-    maxTimeout: QUEUE_TIMEOUT,
-    retryDelay: RETRY_DELAY,
-    maxRetries: MAX_RETRIES,
-  },
-);
+// Helper Functions
+async function getCachedUser(identifier: {
+  employeeId?: string;
+  lineUserId?: string;
+}) {
+  const key = identifier.employeeId || identifier.lineUserId;
+  if (!key) return null;
 
-// Transform validated data to AttendanceData
+  const cached = userCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TIMEOUT) {
+    return cached.data;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: identifier.employeeId
+      ? { employeeId: identifier.employeeId }
+      : { lineUserId: identifier.lineUserId },
+  });
+
+  if (user) {
+    userCache.set(key, {
+      data: user,
+      timestamp: Date.now(),
+    });
+  }
+
+  return user;
+}
+
+function getRequestKey(task: CheckInOutRequest): string {
+  return `${task.employeeId || task.lineUserId}-${task.checkTime}`;
+}
+
 function transformToAttendanceData(
   validatedData: CheckInOutRequest,
   user: { employeeId: string; lineUserId: string | null },
@@ -140,71 +172,92 @@ function transformToAttendanceData(
   };
 }
 
-// Processing Function
+// Queue setup
+const checkInOutQueue = new BetterQueue<CheckInOutRequest, QueueResult>(
+  async (task, cb) => {
+    try {
+      const result = await processCheckInOut(task);
+      cb(null, result);
+    } catch (error) {
+      console.error('Queue task error:', error);
+      cb(error as Error);
+    }
+  },
+  {
+    concurrent: 1,
+    store: new MemoryStore(),
+    maxTimeout: QUEUE_TIMEOUT,
+    retryDelay: RETRY_DELAY,
+    maxRetries: MAX_RETRIES,
+    // Fixed precondition typing
+    precondition: (cb) => {
+      cb(null, true);
+    },
+  },
+);
+
+// Main Processing Function
 async function processCheckInOut(
   task: CheckInOutRequest,
 ): Promise<QueueResult> {
-  console.log('Processing check-in/out task:', task);
+  const requestKey = getRequestKey(task);
+  console.log('Processing check-in/out task:', { requestKey, task });
+
+  const existingResult = processedRequests.get(requestKey);
+  if (existingResult) {
+    console.log('Request already processed:', requestKey);
+    return {
+      status: existingResult.status,
+      notificationSent: false,
+      success: true,
+    };
+  }
 
   try {
-    // Parse and validate input
-    const validatedData = checkInOutSchema.parse(task);
-
-    // Get user
-    const user = validatedData.employeeId
-      ? await prisma.user.findUnique({
-          where: { employeeId: validatedData.employeeId },
-        })
-      : await prisma.user.findUnique({
-          where: { lineUserId: validatedData.lineUserId },
-        });
+    const [validatedData, user] = await Promise.all([
+      Promise.resolve(checkInOutSchema.parse(task)),
+      getCachedUser({
+        employeeId: task.employeeId,
+        lineUserId: task.lineUserId,
+      }),
+    ]);
 
     if (!user) throw new Error('User not found');
 
     const now = getCurrentTime();
-
-    // Transform to AttendanceData
     const attendanceData = transformToAttendanceData(validatedData, user);
 
     try {
-      // Process attendance
-      const processedAttendance =
-        await attendanceService.processAttendance(attendanceData);
-      // Add specific error type checking
+      const [processedAttendance, updatedStatus] = await Promise.all([
+        attendanceService.processAttendance(attendanceData),
+        attendanceService.getLatestAttendanceStatus(user.employeeId),
+      ]);
+
       if (!processedAttendance) {
         throw new Error('Failed to process attendance');
       }
-      // Get updated status
-      const updatedStatus = await attendanceService.getLatestAttendanceStatus(
-        attendanceData.employeeId,
-      );
 
-      // Handle notifications
+      processedRequests.set(requestKey, {
+        timestamp: Date.now(),
+        status: updatedStatus,
+      });
+
       let notificationSent = false;
       if (user.lineUserId) {
-        try {
-          const notificationTime = validatedData.isCheckIn
-            ? processedAttendance.regularCheckInTime
-            : processedAttendance.regularCheckOutTime;
+        const notificationTime = validatedData.isCheckIn
+          ? processedAttendance.regularCheckInTime
+          : processedAttendance.regularCheckOutTime;
 
-          if (validatedData.isCheckIn) {
-            await notificationService.sendCheckInConfirmation(
-              user.employeeId,
-              user.lineUserId,
-              notificationTime || now,
-            );
-          } else {
-            await notificationService.sendCheckOutConfirmation(
-              user.employeeId,
-              user.lineUserId,
-              notificationTime || now,
-            );
-          }
-          notificationSent = true;
-        } catch (error) {
-          console.error('Notification error:', error);
-          // Don't throw - notifications shouldn't fail the whole process
-        }
+        // Fire and forget notifications
+        notificationService[
+          validatedData.isCheckIn
+            ? 'sendCheckInConfirmation'
+            : 'sendCheckOutConfirmation'
+        ](user.employeeId, user.lineUserId, notificationTime || now)
+          .then(() => {
+            notificationSent = true;
+          })
+          .catch(console.error);
       }
 
       return {
@@ -213,7 +266,6 @@ async function processCheckInOut(
         success: true,
       };
     } catch (error: any) {
-      // Handle "already checked in" case specially
       if (error.message?.includes('Already checked in')) {
         const currentStatus = await attendanceService.getLatestAttendanceStatus(
           user.employeeId,
@@ -224,13 +276,14 @@ async function processCheckInOut(
           success: true,
         };
       }
-      throw error; // Re-throw other errors
+      throw error;
     }
   } catch (error: any) {
     console.error('Error in processCheckInOut:', error);
     throw error;
   }
 }
+
 // API Handler
 export default async function handler(
   req: NextApiRequest,
@@ -246,18 +299,24 @@ export default async function handler(
   try {
     console.log('Received request body:', req.body);
 
-    // Add to queue and wait for result
-    const result = await new Promise<QueueResult>((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error('Processing timeout'));
-      }, PROCESS_TIMEOUT);
-
-      checkInOutQueue.push(req.body, (error, result) => {
-        clearTimeout(timeoutId);
-        if (error) reject(error);
-        else resolve(result);
-      });
-    });
+    const result = await Promise.race<QueueResult>([
+      new Promise<QueueResult>((resolve, reject) => {
+        checkInOutQueue.push(
+          req.body,
+          (error: Error | null, queueResult?: QueueResult) => {
+            if (error) reject(error);
+            else if (queueResult) resolve(queueResult);
+            else reject(new Error('No result returned from queue'));
+          },
+        );
+      }),
+      new Promise<QueueResult>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('Processing timeout')),
+          PROCESS_TIMEOUT,
+        ),
+      ),
+    ]);
 
     return res.status(200).json({
       success: true,
@@ -268,8 +327,36 @@ export default async function handler(
   } catch (error: any) {
     console.error('Handler error:', error);
 
-    // Specific error handling
-    if (error.message === 'Processing timeout') {
+    if (
+      error.message === 'Processing timeout' ||
+      error.message?.includes('timeout')
+    ) {
+      try {
+        const user = req.body.employeeId
+          ? await prisma.user.findUnique({
+              where: { employeeId: req.body.employeeId },
+            })
+          : await prisma.user.findUnique({
+              where: { lineUserId: req.body.lineUserId },
+            });
+
+        if (user) {
+          const currentStatus =
+            await attendanceService.getLatestAttendanceStatus(user.employeeId);
+          if (currentStatus) {
+            return res.status(200).json({
+              success: true,
+              data: currentStatus,
+              notificationSent: false,
+              message: 'Request processing continued in background',
+              timestamp: getCurrentTime().toISOString(),
+            });
+          }
+        }
+      } catch (statusError) {
+        console.error('Error getting status after timeout:', statusError);
+      }
+
       return res.status(504).json({
         error: 'Gateway Timeout',
         message:
@@ -278,7 +365,6 @@ export default async function handler(
       });
     }
 
-    // Handle validation errors specifically
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: 'Validation Error',
@@ -293,5 +379,11 @@ export default async function handler(
       message: error.message || 'An unexpected error occurred',
       timestamp: getCurrentTime().toISOString(),
     });
+  } finally {
+    try {
+      await prisma.$disconnect();
+    } catch (error) {
+      console.error('Error disconnecting from database:', error);
+    }
   }
 }

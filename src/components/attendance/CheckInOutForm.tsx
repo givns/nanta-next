@@ -163,111 +163,31 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           return;
         }
 
-        // Set a client-side timeout for the entire operation
-        const timeoutPromise = new Promise((_, reject) => {
-          submitTimeoutRef.current = setTimeout(() => {
-            reject(new Error('Request took too long. Please try again.'));
-          }, 20000);
+        // Close window immediately
+        closeWindow();
+
+        // Continue processing in background
+        onStatusChange(
+          currentAttendanceStatus?.isCheckingIn ?? true,
+          photo,
+          lateReason || '',
+          isLate,
+          checkInOutAllowance?.isOvertime || false,
+          isEarlyCheckOut,
+          earlyCheckoutType,
+        ).catch((error) => {
+          // Just log error since window is already closed
+          console.error('Background process error:', error);
+
+          // Optionally log to error monitoring service
+          // Sentry.captureException(error);
         });
-
-        // Race between the actual submission and timeout
-        const response = await Promise.race([
-          onStatusChange(
-            currentAttendanceStatus?.isCheckingIn ?? true,
-            photo,
-            lateReason || '',
-            isLate,
-            checkInOutAllowance?.isOvertime || false,
-            isEarlyCheckOut,
-            earlyCheckoutType,
-          ),
-          timeoutPromise,
-        ]);
-
-        // Clear timeout if successful
-        if (submitTimeoutRef.current) {
-          clearTimeout(submitTimeoutRef.current);
-        }
-
-        // Check for already checked in response
-        if (
-          (response as { error?: string })?.error?.includes(
-            'Already checked in',
-          )
-        ) {
-          setLoadingState({
-            status: 'success',
-            message: 'คุณได้ลงเวลาเข้างานไปแล้ว',
-          });
-          setTimeout(() => {
-            closeWindow();
-          }, 2000);
-          return;
-        }
-
-        // Show success state and close window
-        setLoadingState({
-          status: 'success',
-          message: 'ลงเวลาสำเร็จ',
-        });
-
-        // Wait for 2 seconds before closing
-        setTimeout(() => {
-          closeWindow();
-        }, 2000);
       } catch (error: any) {
+        // Log error but don't show UI since window will be closed
         console.error('Status change error:', error);
 
-        // Clear timeout
-        if (submitTimeoutRef.current) {
-          clearTimeout(submitTimeoutRef.current);
-        }
-
-        let errorMessage = 'ไม่สามารถลงเวลาได้ กรุณาลองใหม่อีกครั้ง';
-        let shouldRefresh = false;
-
-        if (error.message?.includes('Already checked in')) {
-          // Handle already checked in case
-          setLoadingState({
-            status: 'success',
-            message: 'คุณได้ลงเวลาเข้างานไปแล้ว',
-          });
-          setTimeout(() => {
-            closeWindow();
-          }, 2000);
-          return;
-        } else if (
-          error.message.includes('timeout') ||
-          error.message.includes('too long')
-        ) {
-          errorMessage =
-            'การลงเวลาใช้เวลานานเกินไป กรุณาตรวจสอบสถานะการลงเวลาของคุณ';
-          shouldRefresh = true;
-        } else if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-
-        // Try to refresh status if needed
-        if (shouldRefresh) {
-          try {
-            await refreshAttendanceStatus(true);
-          } catch (refreshError) {
-            console.error(
-              'Error refreshing status after timeout:',
-              refreshError,
-            );
-          }
-        }
-
-        // Show error state
-        setLoadingState({
-          status: 'error',
-          message: errorMessage,
-        });
-
-        setIsSubmitting(false);
+        // Force close window in case of error
+        closeWindow();
       }
     },
     [
@@ -276,7 +196,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       currentAttendanceStatus,
       onStatusChange,
       isSubmitting,
-      refreshAttendanceStatus,
     ],
   );
 
