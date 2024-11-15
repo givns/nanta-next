@@ -94,6 +94,37 @@ export interface AttendanceData {
   isManualEntry: boolean;
 }
 
+interface EnhancedAttendance {
+  // Base attendance fields
+  id: string;
+  employeeId: string;
+  date: Date;
+  isDayOff: boolean;
+
+  // Regular shift times
+  shiftStartTime: Date | null;
+  shiftEndTime: Date | null;
+  regularCheckInTime: Date | null;
+  regularCheckOutTime: Date | null;
+
+  // Status fields
+  isEarlyCheckIn: boolean;
+  isLateCheckIn: boolean;
+  isLateCheckOut: boolean;
+  status: string;
+
+  // Multiple overtime records
+  overtimePeriods: Array<{
+    overtimeRequestId: string;
+    startTime: string; // HH:mm format
+    endTime: string; // HH:mm format
+    actualStartTime: Date | null;
+    actualEndTime: Date | null;
+    isDayOffOvertime: boolean;
+    isInsideShiftHours: boolean;
+  }>;
+}
+
 export interface SimpleOvertimeMetadata {
   isDayOffOvertime: boolean;
   isInsideShiftHours: boolean;

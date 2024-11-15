@@ -230,9 +230,12 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setCapturedPhoto(photo);
 
       const isLate = checkInOutAllowance?.isLateCheckIn || false;
+      const isRegularCheckInOut =
+        checkInOutAllowance?.periodType === 'regular' &&
+        !checkInOutAllowance?.isOvertime;
 
       // Handle late check-in case
-      if (isLate && isCheckingIn) {
+      if (isLate && isCheckingIn && isRegularCheckInOut) {
         console.log('Late check-in detected, showing modal');
         setIsLateModalOpen(true);
         return;
@@ -259,30 +262,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     resetDetection,
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture);
-
-  // TimeEntry display component
-  const TimeEntryInfo: React.FC<{
-    checkTime: string | null;
-    isCheckingIn: boolean;
-    isLate?: boolean;
-  }> = ({ checkTime, isCheckingIn, isLate }) => {
-    if (!checkTime) return null;
-
-    return (
-      <div className="text-center space-y-2">
-        <div className="text-lg font-medium">
-          {isCheckingIn ? 'ลงเวลาเข้างานเรียบร้อย' : 'ลงเวลาออกงานเรียบร้อย'}
-        </div>
-        <div className="text-base">
-          เวลา:{' '}
-          {format(new Date(`2000-01-01T${checkTime}`), 'HH:mm น.', {
-            locale: th,
-          })}
-        </div>
-        {isLate && <div className="text-red-500 text-sm">มาสาย</div>}
-      </div>
-    );
-  };
 
   // Add monitoring for critical state changes
   useEffect(() => {

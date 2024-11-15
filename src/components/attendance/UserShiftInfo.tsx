@@ -141,11 +141,16 @@ const UserShiftInfo = React.memo(
               {overtime.attendanceTime?.checkInTime || 'ยังไม่ได้ลงเวลา'} -{' '}
               {overtime.attendanceTime?.checkOutTime || 'ยังไม่สิ้นสุด'}
             </p>
+            {overtime.periodStatus.isComplete && (
+              <div className="mt-2 text-sm text-green-600">
+                ✓ การทำงานล่วงเวลา OT เสร็จสิ้น
+              </div>
+            )}
           </div>
         </div>
         {overtime.periodStatus.isActive && (
           <div className="mt-2 text-sm text-blue-600">
-            * กำลังอยู่ในช่วงเวลาทำงานล่วงเวลา
+            * กำลังอยู่ในช่วงเวลาทำงานล่วงเวลา OT
           </div>
         )}
       </div>
@@ -155,6 +160,10 @@ const UserShiftInfo = React.memo(
       if (!attendanceStatus || !effectiveShift) return null;
 
       const today = new Date();
+      const showRegularTimes =
+        latestAttendance &&
+        (!attendanceStatus.currentPeriod ||
+          attendanceStatus.currentPeriod.type === 'regular');
 
       return (
         <div className="bg-white p-6 rounded-lg shadow-md mb-4">
@@ -223,7 +232,7 @@ const UserShiftInfo = React.memo(
             </div>
           )}
 
-          {latestAttendance && (
+          {showRegularTimes && (
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-gray-600">เวลาเข้างาน</p>
