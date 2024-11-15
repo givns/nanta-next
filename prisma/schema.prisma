@@ -220,6 +220,7 @@ model Attendance {
   regularCheckInTime   DateTime?
   regularCheckOutTime  DateTime?
   overtimeEntries      OvertimeEntry[]
+  overtimePeriods      Json?  // Array of overtime periods
   isEarlyCheckIn       Boolean?
   isLateCheckIn        Boolean?
   isLateCheckOut       Boolean?
