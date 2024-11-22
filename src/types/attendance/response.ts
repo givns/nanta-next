@@ -40,23 +40,33 @@ export interface DetailedTimeEntry {
   date: string;
   regularCheckInTime: string | null;
   regularCheckOutTime: string | null;
+
+  // Status fields
+  state: AttendanceState;
+  checkStatus: CheckStatus;
   isLateCheckIn: boolean;
   isLateCheckOut: boolean;
-  entryType: PeriodType;
   isManualEntry: boolean;
+
+  // Type and hours
+  entryType: PeriodType;
   regularHours: number;
   overtimeHours: number;
+
+  // Related info
   leave: {
     type: string;
     status: string;
   } | null;
+
   overtimeRequest?: {
     id: string;
     startTime: string;
     endTime: string;
     actualStartTime?: string;
     actualEndTime?: string;
-  } | null;
+  };
+
   canEditManually: boolean;
 }
 

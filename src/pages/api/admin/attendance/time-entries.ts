@@ -1,15 +1,46 @@
-// pages/api/admin/attendance/time-entries.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { startOfMonth, endOfMonth, parseISO, format } from 'date-fns';
 import {
+  AttendanceState,
+  CheckStatus,
   DetailedTimeEntry,
   PeriodType,
-  TimeEntriesResponse,
 } from '@/types/attendance';
 
 const prisma = new PrismaClient();
+
+// Helper function to map string to AttendanceState enum
+const mapToAttendanceState = (state: string): AttendanceState => {
+  switch (state.toLowerCase()) {
+    case 'present':
+      return AttendanceState.PRESENT;
+    case 'absent':
+      return AttendanceState.ABSENT;
+    case 'incomplete':
+      return AttendanceState.INCOMPLETE;
+    case 'holiday':
+      return AttendanceState.HOLIDAY;
+    case 'off':
+      return AttendanceState.OFF;
+    case 'overtime':
+      return AttendanceState.OVERTIME;
+    default:
+      return AttendanceState.ABSENT;
+  }
+};
+
+// Helper function to map string to CheckStatus enum
+const mapToCheckStatus = (status: string): CheckStatus => {
+  switch (status.toLowerCase()) {
+    case 'checked-in':
+      return CheckStatus.CHECKED_IN;
+    case 'checked-out':
+      return CheckStatus.CHECKED_OUT;
+    default:
+      return CheckStatus.PENDING;
+  }
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -38,13 +69,7 @@ export default async function handler(
       ? parseISO(endDate as string)
       : endOfMonth(new Date());
 
-    // Get payroll settings
-    const settings = await prisma.payrollSettings.findFirst();
-    const rules = (settings?.rules as any) || {};
-    const periodStartDay = rules.payrollPeriodStart || 26;
-    const periodEndDay = rules.payrollPeriodEnd || 25;
-
-    // Get all records with necessary includes
+    // Get attendance records with careful null handling
     const [attendanceRecords, leaveRequests] = await Promise.all([
       prisma.attendance.findMany({
         where: {
@@ -54,7 +79,6 @@ export default async function handler(
             lte: periodEnd,
           },
         },
-        orderBy: { date: 'desc' },
         include: {
           timeEntries: {
             include: {
@@ -67,6 +91,7 @@ export default async function handler(
             },
           },
         },
+        orderBy: { date: 'desc' },
       }),
       prisma.leaveRequest.findMany({
         where: {
@@ -78,7 +103,7 @@ export default async function handler(
       }),
     ]);
 
-    // Transform to DetailedTimeEntry
+    // Transform with proper enum mapping
     const records: DetailedTimeEntry[] = attendanceRecords.map((attendance) => {
       const regularEntry = attendance.timeEntries.find(
         (te) => te.entryType === PeriodType.REGULAR,
@@ -92,47 +117,53 @@ export default async function handler(
       );
 
       const overtimeData = attendance.overtimeEntries[0];
+      const overtimeRequest = overtimeData?.overtimeRequest;
 
       return {
         date: format(attendance.date, 'yyyy-MM-dd'),
         regularCheckInTime: attendance.regularCheckInTime
           ? format(attendance.regularCheckInTime, 'HH:mm')
-          : null, // Change undefined to null
+          : null,
         regularCheckOutTime: attendance.regularCheckOutTime
           ? format(attendance.regularCheckOutTime, 'HH:mm')
-          : null, // Change undefined to null
-        // Status and flags
-        state: attendance.state,
-        checkStatus: attendance.checkStatus,
+          : null,
+
+        // Map string values to proper enums
+        state: mapToAttendanceState(attendance.state),
+        checkStatus: mapToCheckStatus(attendance.checkStatus),
         isLateCheckIn: attendance.isLateCheckIn || false,
         isLateCheckOut: attendance.isLateCheckOut || false,
-        isManualEntry: attendance.isManualEntry,
+        isManualEntry: attendance.isManualEntry || false,
+
+        // Type and hours
         entryType: overtimeEntry ? PeriodType.OVERTIME : PeriodType.REGULAR,
-        // Hours
         regularHours: regularEntry?.regularHours || 0,
         overtimeHours: overtimeEntry?.overtimeHours || 0,
-        // Additional info
+
+        // Leave info with null safety
         leave: leave
           ? {
               type: leave.leaveType,
               status: leave.status,
             }
-          : null, // Change undefined to null
-        // Overtime info
-        overtimeRequest: overtimeData?.overtimeRequest
+          : null,
+
+        // Overtime info with null safety
+        overtimeRequest: overtimeRequest
           ? {
-              id: overtimeData.overtimeRequest.id,
-              startTime: overtimeData.overtimeRequest.startTime,
-              endTime: overtimeData.overtimeRequest.endTime,
-              actualStartTime: overtimeData.actualStartTime
+              id: overtimeRequest.id,
+              startTime: overtimeRequest.startTime,
+              endTime: overtimeRequest.endTime,
+              actualStartTime: overtimeData?.actualStartTime
                 ? format(overtimeData.actualStartTime, 'HH:mm')
                 : undefined,
-              actualEndTime: overtimeData.actualEndTime
+              actualEndTime: overtimeData?.actualEndTime
                 ? format(overtimeData.actualEndTime, 'HH:mm')
                 : undefined,
             }
           : undefined,
-        canEditManually: true,
+
+        canEditManually: !overtimeRequest && !leave,
       };
     });
 
