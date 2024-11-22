@@ -106,5 +106,7 @@ export interface ManualEntryFormData {
   checkOutTime?: string;
   reasonType: 'correction' | 'missing' | 'system_error' | 'other';
   reason: string;
-  overtimeRequestId?: string;
+  overtimeRequestId?: string; // Added for overtime entries
+  overtimeStartTime?: string; // Added for overtime entries
+  overtimeEndTime?: string; // Added for overtime entries
 }

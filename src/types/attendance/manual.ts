@@ -10,6 +10,8 @@ export interface ManualEntryRequest {
   checkOutTime?: string;
   reason: string;
   overtimeRequestId?: string; // Added for overtime entries
+  overtimeStartTime?: string; // Added for overtime entries
+  overtimeEndTime?: string; // Added for overtime entries
 }
 
 export interface ManualEntryResponse {

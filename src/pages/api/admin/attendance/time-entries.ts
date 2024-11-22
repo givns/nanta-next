@@ -101,6 +101,16 @@ export default async function handler(
           endDate: { gte: periodStart },
         },
       }),
+      prisma.overtimeRequest.findMany({
+        where: {
+          employeeId: employeeId as string,
+          date: {
+            gte: periodStart,
+            lte: periodEnd,
+          },
+          status: 'approved',
+        },
+      }),
     ]);
 
     // Transform with proper enum mapping
@@ -163,7 +173,8 @@ export default async function handler(
             }
           : undefined,
 
-        canEditManually: !overtimeRequest && !leave,
+        canEditManually:
+          !leave && (!overtimeRequest || overtimeRequest.status !== 'approved'),
       };
     });
 

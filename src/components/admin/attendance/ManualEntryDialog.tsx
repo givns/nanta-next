@@ -48,12 +48,32 @@ const formSchema = z
     checkOutTime: z.string().optional(),
     reasonType: z.enum(['correction', 'missing', 'system_error', 'other']),
     reason: z.string().min(1, 'Reason is required'),
+    overtimeStartTime: z.string().optional(),
+    overtimeEndTime: z.string().optional(),
     overtimeRequestId: z.string().optional(),
   })
   .refine((data) => data.checkInTime || data.checkOutTime, {
     message: 'At least one time must be entered',
     path: ['checkInTime'],
-  });
+  })
+  .refine(
+    (data) => {
+      // Add validation for overtime entries
+      if (data.periodType === PeriodType.OVERTIME) {
+        return (
+          !!data.overtimeStartTime &&
+          !!data.overtimeEndTime &&
+          !!data.overtimeRequestId
+        );
+      }
+      return true;
+    },
+    {
+      message:
+        'Overtime entries require start time, end time, and an approved overtime request',
+      path: ['overtimeStartTime'],
+    },
+  );
 
 type FormData = z.infer<typeof formSchema>;
 
@@ -99,7 +119,13 @@ export function ManualEntryDialog({
       checkOutTime: entry.regularCheckOutTime || '',
       reasonType: 'missing' as const,
       reason: '',
-      overtimeRequestId: entry.overtimeRequest?.id,
+      overtimeStartTime: entry.overtimeRequest
+        ? entry.overtimeRequest.startTime
+        : '',
+      overtimeEndTime: entry.overtimeRequest
+        ? entry.overtimeRequest.endTime
+        : '',
+      overtimeRequestId: entry.overtimeRequest?.id || '',
     },
   });
 
@@ -165,6 +191,8 @@ export function ManualEntryDialog({
         checkOutTime: data.checkOutTime,
         reasonType: data.reasonType,
         reason: data.reason,
+        overtimeStartTime: data.overtimeStartTime,
+        overtimeEndTime: data.overtimeEndTime,
         overtimeRequestId: data.overtimeRequestId,
       };
 
@@ -298,83 +326,122 @@ export function ManualEntryDialog({
             />
 
             {/* Time Inputs with Period Context */}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="checkInTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {isOvertimeEntry ? 'OT Start Time' : 'Check In Time'}
-                    </FormLabel>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <FormControl>
-                        <Input
-                          type="time"
-                          className="pl-9"
-                          {...field}
-                          min={
-                            isOvertimeEntry
-                              ? entry.overtimeRequest?.startTime
-                              : undefined
-                          }
-                          max={
-                            isOvertimeEntry
-                              ? entry.overtimeRequest?.endTime
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            if (validateTime(e.target.value, true)) {
-                              field.onChange(e);
-                            }
-                          }}
-                        />
-                      </FormControl>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
+            {isOvertimeEntry ? (
+              <div className="space-y-4">
+                {/* Overtime Period Info */}
+                {overtimeBounds && (
+                  <div className="p-2 bg-blue-50 rounded-md">
+                    <p className="text-sm text-blue-600">
+                      Approved overtime period: {overtimeBounds.start} -{' '}
+                      {overtimeBounds.end}
+                    </p>
+                  </div>
                 )}
-              />
 
-              <FormField
-                control={form.control}
-                name="checkOutTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {isOvertimeEntry ? 'OT End Time' : 'Check Out Time'}
-                    </FormLabel>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                {/* Overtime Time Entries */}
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="overtimeStartTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Overtime Start</FormLabel>
+                        <div className="relative">
+                          <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <FormControl>
+                            <Input
+                              type="time"
+                              className="pl-9"
+                              {...field}
+                              min={overtimeBounds?.start}
+                              max={overtimeBounds?.end}
+                            />
+                          </FormControl>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="overtimeEndTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Overtime End</FormLabel>
+                        <div className="relative">
+                          <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <FormControl>
+                            <Input
+                              type="time"
+                              className="pl-9"
+                              {...field}
+                              min={overtimeBounds?.start}
+                              max={overtimeBounds?.end}
+                            />
+                          </FormControl>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Hidden field for overtime request ID */}
+                <FormField
+                  control={form.control}
+                  name="overtimeRequestId"
+                  render={({ field }) => (
+                    <FormItem className="hidden">
                       <FormControl>
                         <Input
-                          type="time"
-                          className="pl-9"
+                          type="hidden"
                           {...field}
-                          min={
-                            isOvertimeEntry
-                              ? entry.overtimeRequest?.startTime
-                              : undefined
-                          }
-                          max={
-                            isOvertimeEntry
-                              ? entry.overtimeRequest?.endTime
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            if (validateTime(e.target.value, false)) {
-                              field.onChange(e);
-                            }
-                          }}
+                          value={entry.overtimeRequest?.id || ''}
                         />
                       </FormControl>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            ) : (
+              // Regular Time Entries
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="checkInTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Check In Time</FormLabel>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <FormControl>
+                          <Input type="time" className="pl-9" {...field} />
+                        </FormControl>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="checkOutTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Check Out Time</FormLabel>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <FormControl>
+                          <Input type="time" className="pl-9" {...field} />
+                        </FormControl>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             {/* Reason Fields */}
             <FormField
