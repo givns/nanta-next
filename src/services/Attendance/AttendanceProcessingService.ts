@@ -135,6 +135,7 @@ export class AttendanceProcessingService {
       }
     });
   }
+
   public async getLatestAttendance(
     employeeId: string,
   ): Promise<AttendanceRecord | null> {
