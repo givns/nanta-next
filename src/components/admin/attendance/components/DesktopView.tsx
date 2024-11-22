@@ -8,31 +8,31 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { DailyAttendanceResponse } from '@/types/attendance';
+import { DailyAttendanceRecord } from '@/types/attendance';
 import { AttendanceTime } from './AttendanceTime';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/admin/attendance/components/EmptyState';
 
 interface DesktopViewProps {
-  records: DailyAttendanceResponse[];
-  onRecordSelect: (record: DailyAttendanceResponse) => void;
-  onEditRecord: (e: React.MouseEvent, record: DailyAttendanceResponse) => void;
+  records: DailyAttendanceRecord[];
+  onRecordSelect: (record: DailyAttendanceRecord) => void;
+  onEditRecord: (e: React.MouseEvent, record: DailyAttendanceRecord) => void;
 }
 
-const getStatusBadge = (record: DailyAttendanceResponse) => {
+const getStatusBadge = (record: DailyAttendanceRecord) => {
   if (record.leaveInfo) {
     return <Badge variant="secondary">{`On ${record.leaveInfo.type}`}</Badge>;
   }
   if (record.isDayOff) {
     return <Badge variant="outline">Day Off</Badge>;
   }
-  if (!record.attendance?.regularCheckInTime) {
+  if (!record.regularCheckInTime) {
     return <Badge variant="destructive">Absent</Badge>;
   }
-  if (!record.attendance.regularCheckOutTime) {
+  if (!record.regularCheckOutTime) {
     return <Badge variant="warning">Incomplete</Badge>;
   }
-  if (record.attendance.isLateCheckIn || record.attendance.isLateCheckOut) {
+  if (record.isLateCheckIn || record.isLateCheckOut) {
     return <Badge variant="warning">Late</Badge>;
   }
   return <Badge variant="success">Present</Badge>;
@@ -86,14 +86,14 @@ export function DesktopView({
                 </TableCell>
                 <TableCell>
                   <AttendanceTime
-                    time={record.attendance?.regularCheckInTime}
-                    isLate={record.attendance?.isLateCheckIn}
+                    time={record.regularCheckInTime}
+                    isLate={record.isLateCheckIn}
                   />
                 </TableCell>
                 <TableCell>
                   <AttendanceTime
-                    time={record.attendance?.regularCheckOutTime}
-                    isLate={record.attendance?.isLateCheckOut}
+                    time={record.regularCheckOutTime}
+                    isLate={record.isLateCheckOut}
                   />
                 </TableCell>
                 <TableCell>{getStatusBadge(record)}</TableCell>

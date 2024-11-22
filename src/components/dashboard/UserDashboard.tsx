@@ -8,7 +8,6 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Calendar, Clock, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import AttendanceTable from '../AttendanceTable';
 import UserShiftInfo from '../attendance/UserShiftInfo';
 import { DashboardData } from '@/types/dashboard';
 
@@ -165,13 +164,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 locale: th,
               })}
             </h3>
-            <AttendanceTable
-              timeEntries={data.payrollAttendance}
-              shift={data.effectiveShift} // Use top-level effectiveShift
-              startDate={new Date(data.payrollPeriod.startDate)}
-              endDate={new Date(data.payrollPeriod.endDate)}
-              isLoading={isRefreshing}
-            />
           </div>
         </TabsContent>
 

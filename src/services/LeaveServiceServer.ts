@@ -407,13 +407,14 @@ export class LeaveServiceServer
           employeeId,
           date: currentDate,
           isDayOff: true,
-          status: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'off' : 'incomplete',
+          state: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'off' : 'incomplete',
+          checkStatus: 'pending', // Added required field
           isManualEntry: true,
           version: 1,
         },
         update: {
           isDayOff: true,
-          status: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'off' : 'incomplete',
+          state: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'off' : 'incomplete',
           version: {
             increment: 1,
           },

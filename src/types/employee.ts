@@ -54,12 +54,3 @@ export interface DepartmentInfo {
   name: string;
   employeeCount: number;
 }
-
-export interface ShiftInfo {
-  id: string;
-  name: string;
-  shiftCode: string;
-  startTime: string;
-  endTime: string;
-  workDays: number[];
-}

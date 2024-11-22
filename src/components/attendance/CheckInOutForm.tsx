@@ -6,12 +6,7 @@ import React, {
   useRef,
   useMemo,
 } from 'react';
-import {
-  AttendanceStatusInfo,
-  CheckInOutAllowance,
-  ShiftData,
-  EarlyCheckoutType,
-} from '../../types/attendance';
+
 import { UserData } from '../../types/user';
 import { useFaceDetection } from '../../hooks/useFaceDetection';
 import SkeletonLoader from '../SkeletonLoader';
@@ -24,6 +19,12 @@ import { format, isSameDay, parseISO, subMinutes } from 'date-fns';
 import CameraFrame from '../CameraFrame';
 import { th } from 'date-fns/locale/th';
 import { closeWindow } from '@/services/liff';
+import { AttendanceStatusInfo } from '@/types/attendance/status';
+import {
+  CheckInOutAllowance,
+  EarlyCheckoutType,
+} from '@/types/attendance/check';
+import { ShiftData } from '@/types/attendance';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -146,14 +147,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         });
         setError(null);
 
-        const isLate = checkInOutAllowance?.isLateCheckIn || false;
-        const isEarlyCheckOut = checkInOutAllowance?.isEarlyCheckOut || false;
+        const isLate = checkInOutAllowance?.flags.isLateCheckIn || false;
+        const isEarlyCheckOut =
+          checkInOutAllowance?.flags.isEarlyCheckOut || false;
         let earlyCheckoutType: EarlyCheckoutType | undefined;
 
         if (isEarlyCheckOut) {
-          if (checkInOutAllowance?.isPlannedHalfDayLeave) {
+          if (checkInOutAllowance?.flags.isPlannedHalfDayLeave) {
             earlyCheckoutType = 'planned';
-          } else if (checkInOutAllowance?.isEmergencyLeave) {
+          } else if (checkInOutAllowance?.flags.isEmergencyLeave) {
             earlyCheckoutType = 'emergency';
           }
         }
@@ -169,7 +171,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           photo,
           lateReason || '',
           isLate,
-          checkInOutAllowance?.isOvertime || false,
+          checkInOutAllowance?.flags.isOvertime || false,
           isEarlyCheckOut,
           earlyCheckoutType,
         );
@@ -229,10 +231,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setStep('processing');
       setCapturedPhoto(photo);
 
-      const isLate = checkInOutAllowance?.isLateCheckIn || false;
+      const isLate = checkInOutAllowance?.flags.isLateCheckIn || false;
       const isRegularCheckInOut =
         checkInOutAllowance?.periodType === 'regular' &&
-        !checkInOutAllowance?.isOvertime;
+        !checkInOutAllowance?.flags.isOvertime;
 
       // Handle late check-in case
       if (isLate && isCheckingIn && isRegularCheckInOut) {
@@ -269,7 +271,7 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       step,
       isLateModalOpen,
       hasPhoto: !!capturedPhoto,
-      isLate: checkInOutAllowance?.isLateCheckIn,
+      isLate: checkInOutAllowance?.flags.isLateCheckIn,
       isCheckingIn,
     });
   }, [step, isLateModalOpen, capturedPhoto, checkInOutAllowance, isCheckingIn]);
@@ -360,15 +362,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     if (!approved) return;
 
     // Handle early checkout cases
-    if (checkInOutAllowance?.isEarlyCheckOut) {
+    if (checkInOutAllowance?.flags.isEarlyCheckOut) {
       // Case 1: Pre-approved half-day leave
-      if (checkInOutAllowance.isPlannedHalfDayLeave) {
+      if (checkInOutAllowance.flags.isPlannedHalfDayLeave) {
         setStep('camera');
         return;
       }
 
       // Case 2: Emergency leave (before midshift)
-      if (checkInOutAllowance.isEmergencyLeave && !hasApprovedLeave) {
+      if (checkInOutAllowance.flags.isEmergencyLeave && !hasApprovedLeave) {
         // Single confirmation point for emergency leave
         if (!isConfirmedEarlyCheckout) {
           const confirmed = window.confirm(
@@ -520,7 +522,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     () => (
       <ActionButton
         isLoading={isAttendanceLoading}
-        loadingMessage={loadingState.message}
         isActionButtonReady={isActionButtonReady}
         checkInOutAllowance={checkInOutAllowance}
         isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}

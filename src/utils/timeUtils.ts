@@ -1,8 +1,9 @@
 // utils/timeUtils.ts
 
+import { ShiftData } from '@/types/attendance';
+import { DailyAttendanceRecord } from '@/types/attendance/records';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale/th';
-import { AttendanceTime, ShiftInfo } from '@/types/attendance';
 
 export function isWithinAllowedTimeRange(
   checkTime: Date,
@@ -65,40 +66,65 @@ export function formatTimeString(
   }
 }
 
-export function validateAttendanceTime(attendance: any): AttendanceTime | null {
-  if (!attendance) return null;
+export function validateAttendanceRecord(
+  record: any,
+): DailyAttendanceRecord | null {
+  if (!record) return null;
 
   try {
-    const validatedTime: AttendanceTime = {
-      id: attendance.id || '',
-      regularCheckInTime: formatTimeString(attendance.regularCheckInTime),
-      regularCheckOutTime: formatTimeString(attendance.regularCheckOutTime),
-      isLateCheckIn: !!attendance.isLateCheckIn,
-      isLateCheckOut: !!attendance.isLateCheckOut,
-      isEarlyCheckIn: !!attendance.isEarlyCheckIn,
-      isVeryLateCheckOut: !!attendance.isVeryLateCheckOut,
-      lateCheckOutMinutes: Number(attendance.lateCheckOutMinutes) || 0,
-      status: attendance.status || '',
+    const validatedRecord: DailyAttendanceRecord = {
+      employeeId: record.employeeId || '',
+      employeeName: record.employeeName || '',
+      departmentName: record.departmentName || '',
+      date: record.date || format(new Date(), 'yyyy-MM-dd'),
+      state: record.state || 'absent',
+      checkStatus: record.checkStatus || 'pending',
+      overtimeState: record.overtimeState,
+      regularCheckInTime: formatTimeString(record.regularCheckInTime),
+      regularCheckOutTime: formatTimeString(record.regularCheckOutTime),
+      isLateCheckIn: !!record.isLateCheckIn,
+      isLateCheckOut: !!record.isLateCheckOut,
+      isEarlyCheckIn: !!record.isEarlyCheckIn,
+      isVeryLateCheckOut: !!record.isVeryLateCheckOut,
+      lateCheckOutMinutes: Number(record.lateCheckOutMinutes) || 0,
+      shift: validateShiftData(record.shift),
+      isDayOff: !!record.isDayOff,
+      leaveInfo: record.leaveInfo
+        ? {
+            type: record.leaveInfo.type || '',
+            status: record.leaveInfo.status || '',
+          }
+        : null,
     };
 
-    return validatedTime;
-  } catch {
+    // Validate required fields
+    if (!validatedRecord.employeeId || !validatedRecord.employeeName) {
+      return null;
+    }
+
+    return validatedRecord;
+  } catch (error) {
+    console.error('Error validating attendance record:', error);
     return null;
   }
 }
 
-export function validateShiftInfo(shift: any): ShiftInfo | null {
+export function validateShiftData(shift: any): ShiftData | null {
   if (!shift) return null;
 
   try {
-    const validatedShift: ShiftInfo = {
+    return {
+      id: shift.id || '',
       name: shift.name || '',
+      shiftCode: shift.shiftCode || '',
       startTime: formatTimeString(shift.startTime) || '00:00',
       endTime: formatTimeString(shift.endTime) || '00:00',
+      workDays: Array.isArray(shift.workDays)
+        ? shift.workDays
+        : [1, 2, 3, 4, 5],
     };
-
-    return validatedShift;
-  } catch {
+  } catch (error) {
+    console.error('Error validating shift data:', error);
     return null;
   }
 }

@@ -1,34 +1,19 @@
 // pages/api/admin/attendance/overtime/reject.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { createNotificationService } from '@/services/NotificationService';
-import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { HolidayService } from '@/services/HolidayService';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
-import { TimeEntryService } from '@/services/TimeEntryService';
-import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
+import { initializeServices } from '@/services/ServiceInitializer';
+import { AttendanceService } from '@/services/Attendance/AttendanceService';
 
 const prisma = new PrismaClient();
-const notificationService = createNotificationService(prisma);
-const holidayService = new HolidayService(prisma);
-const shiftService = new ShiftManagementService(prisma, holidayService);
-const leaveServiceServer = createLeaveServiceServer(
+const services = initializeServices(prisma);
+const attendanceService = new AttendanceService(
   prisma,
-  notificationService,
-);
-const timeEntryService = new TimeEntryService(
-  prisma,
-  shiftService,
-  notificationService,
-);
-
-const overtimeService = new OvertimeServiceServer(
-  prisma,
-  holidayService,
-  leaveServiceServer,
-  shiftService,
-  timeEntryService,
-  notificationService,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
 );
 
 export default async function handler(
@@ -55,7 +40,7 @@ export default async function handler(
     }
 
     // Reject overtime request
-    await overtimeService.rejectOvertimeRequest(requestId, rejectedBy);
+    await services.overtimeService.rejectOvertimeRequest(requestId, rejectedBy);
 
     return res.status(200).json({
       message: 'Overtime request rejected successfully',

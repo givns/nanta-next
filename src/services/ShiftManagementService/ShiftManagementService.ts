@@ -20,6 +20,7 @@ import {
   parseISO,
   format,
   isWithinInterval,
+  subMinutes,
 } from 'date-fns';
 import {
   formatDate,
@@ -27,13 +28,16 @@ import {
   getCurrentTime,
   toBangkokTime,
 } from '@/utils/dateUtils';
-import { HolidayService } from './HolidayService';
+import { HolidayService } from '../HolidayService';
 import {
   getCacheData,
   setCacheData,
   invalidateCachePattern,
-} from '../lib/serverCache';
-import { OvertimeServiceServer } from './OvertimeServiceServer';
+} from '../../lib/serverCache';
+import { OvertimeServiceServer } from '../OvertimeServiceServer';
+import { ShiftTimeUtils } from './utils';
+import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
+import { EffectiveShiftResult, ShiftWindows } from '@/types/attendance/shift';
 
 interface Premise {
   lat: number;
@@ -59,7 +63,11 @@ export class ShiftManagementService {
   constructor(
     private prisma: PrismaClient,
     private holidayService: HolidayService,
-  ) {}
+  ) {
+    this.utils = ShiftTimeUtils;
+  }
+
+  readonly utils: typeof ShiftTimeUtils;
 
   setOvertimeService(overtimeService: OvertimeServiceServer) {
     this.overtimeService = overtimeService;
@@ -87,7 +95,7 @@ export class ShiftManagementService {
   async getEffectiveShiftAndStatus(
     employeeId: string,
     date: Date = getCurrentTime(),
-  ) {
+  ): Promise<EffectiveShiftResult | null> {
     const cacheKey = `shift:${employeeId}:${formatDate(date)}`;
     const cachedShift = await getCacheData(cacheKey);
 
@@ -139,8 +147,8 @@ export class ShiftManagementService {
 
     console.log('Effective shift:', effectiveShift);
 
-    let shiftStart = this.parseShiftTime(effectiveShift.startTime, now);
-    let shiftEnd = this.parseShiftTime(effectiveShift.endTime, now);
+    let shiftStart = this.utils.parseShiftTime(effectiveShift.startTime, now);
+    let shiftEnd = this.utils.parseShiftTime(effectiveShift.endTime, now);
 
     // Handle overnight shifts
     if (shiftEnd < shiftStart) {
@@ -213,11 +221,6 @@ export class ShiftManagementService {
 
   async invalidateShiftCache(employeeId: string): Promise<void> {
     await invalidateCachePattern(`shift:${employeeId}*`);
-  }
-
-  private parseShiftTime(timeString: string, referenceDate: Date): Date {
-    const [hours, minutes] = timeString.split(':').map(Number);
-    return set(referenceDate, { hours, minutes, seconds: 0, milliseconds: 0 });
   }
 
   public async getShiftByCode(shiftCode: string): Promise<Shift | null> {
@@ -298,7 +301,9 @@ export class ShiftManagementService {
     if (!adjustment) return null;
 
     return {
-      date: adjustment.date.toISOString(),
+      id: '', // Add the id property with an empty string value
+      date: new Date(adjustment.date),
+      employeeId: adjustment.employeeId,
       requestedShiftId: adjustment.requestedShiftId,
       requestedShift: adjustment.requestedShift,
       status: adjustment.status as 'pending' | 'approved' | 'rejected',
@@ -414,5 +419,80 @@ export class ShiftManagementService {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c; // Distance in meters
+  }
+  async isOutsideShiftHours(
+    employeeId: string,
+    checkTime: Date,
+  ): Promise<boolean> {
+    const shiftData = await this.getEffectiveShiftAndStatus(
+      employeeId,
+      checkTime,
+    );
+    if (!shiftData?.effectiveShift) return true;
+
+    return shiftData.shiftstatus.isOutsideShift;
+  }
+
+  async isWithinShiftWindow(
+    employeeId: string,
+    checkTime: Date,
+    windowMinutes: number = ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+  ): Promise<boolean> {
+    const shiftData = await this.getEffectiveShiftAndStatus(
+      employeeId,
+      checkTime,
+    );
+    if (!shiftData?.effectiveShift) return false;
+
+    const shiftStart = this.utils.parseShiftTime(
+      shiftData.effectiveShift.startTime,
+      checkTime,
+    );
+    const windowEnd = addMinutes(shiftStart, windowMinutes);
+
+    return isWithinInterval(checkTime, {
+      start: shiftStart,
+      end: windowEnd,
+    });
+  }
+
+  async getShiftWindows(
+    employeeId: string,
+    date: Date,
+  ): Promise<ShiftWindows | null> {
+    const shiftData = await this.getEffectiveShiftAndStatus(employeeId, date);
+    if (!shiftData?.effectiveShift) return null;
+
+    const shiftStart = this.utils.parseShiftTime(
+      shiftData.effectiveShift.startTime,
+      date,
+    );
+    const shiftEnd = this.utils.parseShiftTime(
+      shiftData.effectiveShift.endTime,
+      date,
+    );
+
+    // Handle overnight shifts
+    let adjustedShiftEnd = shiftEnd;
+    if (shiftEnd < shiftStart) {
+      adjustedShiftEnd = addDays(shiftEnd, 1);
+    }
+
+    return {
+      shiftStart,
+      shiftEnd: adjustedShiftEnd,
+      earlyWindow: subMinutes(
+        shiftStart,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      ),
+      lateWindow: addMinutes(
+        shiftStart,
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+      ),
+      overtimeWindow: addMinutes(
+        adjustedShiftEnd,
+        ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
+      ),
+    };
   }
 }

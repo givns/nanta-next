@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { isSameDay, subDays, addDays, startOfDay, endOfDay } from 'date-fns';
-import type { PrismaClient, Prisma, Holiday } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+import { PrismaHoliday } from '@/types/attendance';
 
 interface HolidayInput {
   date: string | Date;
@@ -53,14 +54,14 @@ const fallbackHolidays2024 = [
 
 export class HolidayService {
   private syncInProgress: { [key: number]: boolean } = {};
-  private holidayCache: { [key: number]: Holiday[] } = {};
+  private holidayCache: { [key: number]: PrismaHoliday[] } = {};
   private prisma: PrismaClient;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
   }
 
-  async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
+  async getHolidays(startDate: Date, endDate: Date): Promise<PrismaHoliday[]> {
     try {
       const normalizedStartDate = startOfDay(startDate);
       const normalizedEndDate = endOfDay(endDate);
@@ -81,7 +82,7 @@ export class HolidayService {
 
   async isHoliday(
     date: Date,
-    holidays?: Holiday[],
+    holidays?: PrismaHoliday[],
     is104?: boolean,
   ): Promise<boolean> {
     try {
@@ -222,7 +223,7 @@ export class HolidayService {
     date: Date;
     name: string;
     localName: string;
-  }): Promise<Holiday> {
+  }): Promise<PrismaHoliday> {
     console.log('Creating new holiday:', data);
 
     return await this.prisma.$transaction(async (tx) => {
@@ -242,7 +243,6 @@ export class HolidayService {
           date: data.date,
           name: data.name,
           localName: data.localName,
-          types: ['Public'],
         },
       });
     });
@@ -254,9 +254,8 @@ export class HolidayService {
       date: Date;
       name: string;
       localName: string;
-      types: string[];
     }>,
-  ): Promise<Holiday> {
+  ): Promise<PrismaHoliday> {
     return this.prisma.holiday.update({
       where: { id },
       data,
@@ -293,7 +292,7 @@ export class HolidayService {
   async getHolidaysForYear(
     year: number,
     shiftType: 'regular' | 'shift104',
-  ): Promise<Holiday[]> {
+  ): Promise<PrismaHoliday[]> {
     if (!this.holidayCache[year]) {
       await this.syncHolidays(year);
     }

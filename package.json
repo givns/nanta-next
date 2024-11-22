@@ -65,7 +65,7 @@
     "exceljs": "^4.4.0",
     "flowbite": "^2.5.2",
     "formik": "^2.4.6",
-    "framer-motion": "^11.11.10",
+    "framer-motion": "^11.11.17",
     "ioredis": "^5.4.1",
     "limiter": "^2.1.0",
     "localforage": "^1.10.0",

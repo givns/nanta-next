@@ -2,7 +2,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { HolidayService } from '@/services/HolidayService';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
+import { ShiftManagementService } from '@/services/ShiftManagementService/ShiftManagementService';
 
 const prisma = new PrismaClient();
 const holidayService = new HolidayService(prisma);

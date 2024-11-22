@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { AttendanceData, AttendanceStatusInfo } from '../types/attendance';
+import { ProcessingOptions, AttendanceStatusInfo } from '../types/attendance';
 
 export const fetchLatestAttendanceStatus = async (
   employeeId: string,
@@ -8,7 +8,7 @@ export const fetchLatestAttendanceStatus = async (
   return response.data;
 };
 
-export const submitCheckInOut = async (attendanceData: AttendanceData) => {
+export const submitCheckInOut = async (attendanceData: ProcessingOptions) => {
   const response = await axios.post('/api/attendance', attendanceData);
   return response.data;
 };

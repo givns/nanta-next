@@ -16,7 +16,7 @@ import {
   PayrollStatus,
 } from '@/types/payroll';
 import { format, isSameDay, isWeekend, min } from 'date-fns';
-import { ShiftManagementService } from '../ShiftManagementService';
+import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { HolidayService } from '../HolidayService';
 
 interface TimeEntryWithMetadata extends TimeEntry {

@@ -1,12 +1,12 @@
 // components/admin/attendance/components/MobileView.tsx
 
-import { DailyAttendanceResponse } from '@/types/attendance';
+import { DailyAttendanceRecord } from '@/types/attendance';
 import { EmptyState } from './EmptyState';
 import { AttendanceCard } from '../AttendanceCard';
 
 interface MobileViewProps {
-  records: DailyAttendanceResponse[];
-  onRecordSelect: (record: DailyAttendanceResponse) => void;
+  records: DailyAttendanceRecord[];
+  onRecordSelect: (record: DailyAttendanceRecord) => void;
 }
 
 export function MobileView({ records, onRecordSelect }: MobileViewProps) {

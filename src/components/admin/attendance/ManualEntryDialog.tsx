@@ -1,3 +1,5 @@
+//components/ManualEntryDialog.tsx
+
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -28,28 +30,45 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
-import { format, parseISO, isBefore, isToday } from 'date-fns';
+import { format, parseISO, isBefore, isToday, set } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { CalendarIcon, Clock } from 'lucide-react';
-import { DetailedTimeEntry } from '@/types/attendance';
+import {
+  DetailedTimeEntry,
+  ManualEntryFormData,
+  PeriodType,
+} from '@/types/attendance';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
 
-const formSchema = z.object({
-  date: z.string(),
-  checkInTime: z.string().optional(),
-  checkOutTime: z.string().optional(),
-  reasonType: z.enum(['correction', 'missing', 'system_error', 'other']),
-  reason: z.string().min(1, 'Reason is required'),
-});
+const formSchema = z
+  .object({
+    date: z.string(),
+    periodType: z.nativeEnum(PeriodType), // Changed from entryType to periodType
+    checkInTime: z.string().optional(),
+    checkOutTime: z.string().optional(),
+    reasonType: z.enum(['correction', 'missing', 'system_error', 'other']),
+    reason: z.string().min(1, 'Reason is required'),
+    overtimeRequestId: z.string().optional(),
+  })
+  .refine((data) => data.checkInTime || data.checkOutTime, {
+    message: 'At least one time must be entered',
+    path: ['checkInTime'],
+  });
 
 type FormData = z.infer<typeof formSchema>;
 
 interface ManualEntryDialogProps {
-  entry: Partial<DetailedTimeEntry> & { date: string };
+  entry: Partial<DetailedTimeEntry> & {
+    date: string;
+    overtimeRequest?: {
+      id: string;
+      startTime: string;
+      endTime: string;
+    } | null;
+  };
   isNewEntry?: boolean;
   onClose: () => void;
-  onSave: (data: FormData) => Promise<void>;
+  onSave: (data: ManualEntryFormData) => Promise<void>;
 }
 
 const reasonTypes = [
@@ -69,16 +88,50 @@ export function ManualEntryDialog({
   const [selectedDate, setSelectedDate] = useState<Date>(parseISO(entry.date));
   const [dateError, setDateError] = useState<string | null>(null);
 
-  const form = useForm<FormData>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       date: entry.date,
+      periodType: entry.overtimeRequest
+        ? PeriodType.OVERTIME
+        : PeriodType.REGULAR, // Using enum values
       checkInTime: entry.regularCheckInTime || '',
       checkOutTime: entry.regularCheckOutTime || '',
-      reasonType: 'missing',
+      reasonType: 'missing' as const,
       reason: '',
+      overtimeRequestId: entry.overtimeRequest?.id,
     },
   });
+
+  const periodType = form.watch('periodType'); // Changed from entryType
+  const isOvertimeEntry = periodType === PeriodType.OVERTIME;
+  const overtimeBounds = entry.overtimeRequest
+    ? {
+        start: entry.overtimeRequest.startTime,
+        end: entry.overtimeRequest.endTime,
+      }
+    : null;
+
+  // Validate time entries against overtime bounds
+  const validateTime = (time: string, isStart: boolean): boolean => {
+    if (!isOvertimeEntry || !overtimeBounds) return true;
+
+    const [hours, minutes] = time.split(':').map(Number);
+    const timeDate = set(selectedDate, {
+      hours,
+      minutes,
+      seconds: 0,
+      milliseconds: 0,
+    });
+
+    const boundTime = isStart
+      ? parseISO(
+          `${format(selectedDate, 'yyyy-MM-dd')}T${overtimeBounds.start}`,
+        )
+      : parseISO(`${format(selectedDate, 'yyyy-MM-dd')}T${overtimeBounds.end}`);
+
+    return isStart ? timeDate >= boundTime : timeDate <= boundTime;
+  };
 
   // Use useEffect to update form when selectedDate changes
   useEffect(() => {
@@ -102,18 +155,20 @@ export function ManualEntryDialog({
 
   const onSubmit = async (data: FormData) => {
     try {
-      if (!data.checkInTime && !data.checkOutTime) {
-        form.setError('checkInTime', {
-          message: 'At least one time must be entered',
-        });
-        return;
-      }
-
       setIsLoading(true);
-      await onSave({
-        ...data,
-        date: format(selectedDate, 'yyyy-MM-dd'),
-      });
+
+      // Ensure the data matches ManualEntryFormData
+      const formData: ManualEntryFormData = {
+        date: data.date,
+        periodType: data.periodType,
+        checkInTime: data.checkInTime,
+        checkOutTime: data.checkOutTime,
+        reasonType: data.reasonType,
+        reason: data.reason,
+        overtimeRequestId: data.overtimeRequestId,
+      };
+
+      await onSave(formData);
       onClose();
     } catch (error) {
       console.error('Error saving manual entry:', error);
@@ -137,15 +192,15 @@ export function ManualEntryDialog({
             {isNewEntry ? 'Add Missing Attendance' : 'Edit Attendance Record'}
           </DialogTitle>
           <DialogDescription>
-            {isNewEntry
-              ? 'Select a date and enter attendance details'
-              : 'Modify the existing attendance record'}
+            {isOvertimeEntry
+              ? 'Enter overtime attendance details within approved overtime period'
+              : 'Enter regular attendance details'}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Date Field */}
+            {/* Date Selection */}
             <FormField
               control={form.control}
               name="date"
@@ -161,23 +216,28 @@ export function ManualEntryDialog({
                         })}
                       </div>
                       {/* Calendar */}
-                      <div className="border rounded-md p-0">
+                      <div className="border rounded-md">
                         <Calendar
                           mode="single"
                           selected={selectedDate}
                           onSelect={handleDateSelect}
-                          disabled={(date) => date > new Date()}
+                          disabled={(date) => {
+                            // Disable future dates and dates before payroll period start
+                            const now = new Date();
+                            function subtractMonths(
+                              now: Date,
+                              arg1: number,
+                            ): any {
+                              throw new Error('Function not implemented.');
+                            }
+
+                            return (
+                              date > now ||
+                              isBefore(date, subtractMonths(now, 1))
+                            );
+                          }}
                           className="w-full"
                           initialFocus
-                          modifiers={{
-                            selected: selectedDate,
-                          }}
-                          modifiersStyles={{
-                            selected: {
-                              backgroundColor: 'var(--primary)',
-                              color: 'white',
-                            },
-                          }}
                         />
                       </div>
                     </>
@@ -198,18 +258,78 @@ export function ManualEntryDialog({
               )}
             />
 
-            {/* Time Inputs */}
+            {/* Period Type */}
+            <FormField
+              control={form.control}
+              name="periodType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Period Type</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    disabled={!entry.overtimeRequest}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select period type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={PeriodType.REGULAR}>
+                        Regular Hours
+                      </SelectItem>
+                      {entry.overtimeRequest && (
+                        <SelectItem value={PeriodType.OVERTIME}>
+                          Overtime Hours
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {isOvertimeEntry && overtimeBounds && (
+                    <p className="text-sm text-muted-foreground">
+                      Approved overtime period: {overtimeBounds.start} -{' '}
+                      {overtimeBounds.end}
+                    </p>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Time Inputs with Period Context */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="checkInTime"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Check In Time</FormLabel>
+                    <FormLabel>
+                      {isOvertimeEntry ? 'OT Start Time' : 'Check In Time'}
+                    </FormLabel>
                     <div className="relative">
                       <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <FormControl>
-                        <Input type="time" className="pl-9" {...field} />
+                        <Input
+                          type="time"
+                          className="pl-9"
+                          {...field}
+                          min={
+                            isOvertimeEntry
+                              ? entry.overtimeRequest?.startTime
+                              : undefined
+                          }
+                          max={
+                            isOvertimeEntry
+                              ? entry.overtimeRequest?.endTime
+                              : undefined
+                          }
+                          onChange={(e) => {
+                            if (validateTime(e.target.value, true)) {
+                              field.onChange(e);
+                            }
+                          }}
+                        />
                       </FormControl>
                     </div>
                     <FormMessage />
@@ -222,11 +342,32 @@ export function ManualEntryDialog({
                 name="checkOutTime"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Check Out Time</FormLabel>
+                    <FormLabel>
+                      {isOvertimeEntry ? 'OT End Time' : 'Check Out Time'}
+                    </FormLabel>
                     <div className="relative">
                       <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <FormControl>
-                        <Input type="time" className="pl-9" {...field} />
+                        <Input
+                          type="time"
+                          className="pl-9"
+                          {...field}
+                          min={
+                            isOvertimeEntry
+                              ? entry.overtimeRequest?.startTime
+                              : undefined
+                          }
+                          max={
+                            isOvertimeEntry
+                              ? entry.overtimeRequest?.endTime
+                              : undefined
+                          }
+                          onChange={(e) => {
+                            if (validateTime(e.target.value, false)) {
+                              field.onChange(e);
+                            }
+                          }}
+                        />
                       </FormControl>
                     </div>
                     <FormMessage />
@@ -235,7 +376,7 @@ export function ManualEntryDialog({
               />
             </div>
 
-            {/* Reason Type */}
+            {/* Reason Fields */}
             <FormField
               control={form.control}
               name="reasonType"
@@ -264,7 +405,6 @@ export function ManualEntryDialog({
               )}
             />
 
-            {/* Reason */}
             <FormField
               control={form.control}
               name="reason"

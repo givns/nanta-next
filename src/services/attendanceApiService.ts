@@ -1,11 +1,17 @@
 // services/attendanceApiService.ts
 
 import {
-  DailyAttendanceResponse,
+  DailyAttendanceRecord,
   ManualEntryRequest,
   ManualEntryResponse,
   DepartmentInfo,
+  AppError,
+  AttendanceState,
+  CheckStatus,
+  ErrorCode,
+  OvertimeState,
 } from '@/types/attendance';
+import axios from 'axios';
 import { format, isValid, parseISO, startOfDay } from 'date-fns';
 
 export class AttendanceApiService {
@@ -29,7 +35,7 @@ export class AttendanceApiService {
     date: Date,
     department: string = 'all',
     searchTerm: string = '',
-  ): Promise<DailyAttendanceResponse[]> {
+  ): Promise<DailyAttendanceRecord[]> {
     try {
       const queryParams = new URLSearchParams({
         date: this.formatDateForApi(date),
@@ -48,7 +54,7 @@ export class AttendanceApiService {
         throw new Error(error.message || 'Failed to fetch attendance records');
       }
 
-      const data: DailyAttendanceResponse[] = await response.json();
+      const data: DailyAttendanceRecord[] = await response.json();
       return data;
     } catch (error) {
       console.error('Error in getDailyAttendance:', error);

@@ -180,23 +180,33 @@ model OvertimeRequest {
   name               String
   user               User            @relation(fields: [employeeId], references: [employeeId])
   date               DateTime
-  startTime          String          // Store as HH:mm
-  endTime            String          // Store as HH:mm
-  durationMinutes    Int             @default(0)  
-  status             String          // 'pending_response', 'pending', 'approved', 'rejected', 'declined_by_employee'
+  startTime          String          // HH:mm format
+  endTime            String          // HH:mm format
+  durationMinutes    Int             @default(0)
+  
+  // Updated status field
+  status             String          // Should match OvertimeRequestStatus enum
+  state              String?         // New field to match OvertimeState enum
+  
   employeeResponse   String?         // 'accepted', 'declined', or null
   reason             String?
   approverId         String?         @db.ObjectId
   approver           User?           @relation("OvertimeApprover", fields: [approverId], references: [id])
+  
+  // Overtime context
   isDayOffOvertime   Boolean         @default(false)
   isInsideShiftHours Boolean         @default(false)
+  
+  // Related entries
   overtimeEntries    OvertimeEntry[]
   timeEntries        TimeEntry[]
+  
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
- @@index([employeeId, date, status])
+  @@index([employeeId, date, status])
   @@index([status, date])
+  @@index([state])  // New index
 }
 
 model OvertimeMetadata {
@@ -214,62 +224,122 @@ model Attendance {
   employeeId           String   
   user                 User            @relation(fields: [employeeId], references: [employeeId])
   date                 DateTime
-  isDayOff             Boolean         @default(false)
+  // Status fields to match new state enums
+  state               String          // Should match AttendanceState enum
+  checkStatus         String          // Should match CheckStatus enum
+  isOvertime          Boolean         @default(false)  // New explicit field
+  overtimeState       String?         // Should match OvertimeState enum
+  isDayOff            Boolean         @default(false)
+  
+  // Time fields
   shiftStartTime       DateTime?
   shiftEndTime         DateTime?
   regularCheckInTime   DateTime?
   regularCheckOutTime  DateTime?
-  overtimeEntries      OvertimeEntry[]
-  overtimePeriods      Json?  // Array of overtime periods
-  isEarlyCheckIn       Boolean?
-  isLateCheckIn        Boolean?
-  isLateCheckOut       Boolean?
+  
+  // Status flags
+  isEarlyCheckIn       Boolean         @default(false)  // Made explicit default
+  isLateCheckIn        Boolean         @default(false)  // Made explicit default
+  isLateCheckOut       Boolean         @default(false)  // Made explicit default
   isVeryLateCheckOut   Boolean         @default(false)
   lateCheckOutMinutes  Int             @default(0)
+  
+  // Location data
   checkInLocation      Json?
   checkOutLocation     Json?
   checkInAddress       String?
   checkOutAddress      String?
+  
+  // Additional metadata
   checkInReason        String?
   checkInPhoto         String?
   checkOutPhoto        String?
-  status               String          // "checked-in", "checked-out", "incomplete"
   isManualEntry        Boolean         @default(false)
+  
+  // Related entries
+  overtimeEntries      OvertimeEntry[]
   timeEntries          TimeEntry[]
-  version              Int             @default(0)
+  attendanceLogs       AttendanceLogs[]
+  
+  version              Int             @default(1)  // Changed default from 0 to 1
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
-   @@unique([employeeId, date], name: "employee_date_attendance")
-  @@index([date, status])
+  @@unique([employeeId, date], name: "employee_date_attendance")
+  @@index([date, state])  // Changed from status to state
+  @@index([employeeId, state])  // New index
 }
 
+model AttendanceLogs {
+  id                    String     @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId            String   
+  date                  DateTime
+  
+  // State changes
+  previousState         String     // Should match AttendanceState enum
+  currentState         String     // Should match AttendanceState enum
+  previousCheckStatus   String     // Should match CheckStatus enum
+  currentCheckStatus    String     // Should match CheckStatus enum
+  previousOvertimeState String?    // Should match OvertimeState enum
+  currentOvertimeState  String?    // Should match OvertimeState enum
+  
+  isOvertimeTransition  Boolean
+  reason                String
+  metadata              Json?
+  timestamp             DateTime
+  
+  // Reference
+  attendanceId          String     @db.ObjectId
+  attendance            Attendance @relation(fields: [attendanceId], references: [id])
+  
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@index([employeeId, date])
+  @@index([attendanceId])
+  @@index([timestamp])  // New index for time-based queries
+}
+
+
 model TimeEntry {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  id                String           @id @default(auto()) @map("_id") @db.ObjectId
   employeeId        String   
-  user              User      @relation(fields: [employeeId], references: [employeeId])
+  user              User             @relation(fields: [employeeId], references: [employeeId])
   date              DateTime
   startTime         DateTime
   endTime           DateTime?
+  
+  // Updated status fields
+  status            String           // Should match TimeEntryStatus enum
+  entryType         String           // Should match PeriodType enum
+  
+  // Hours
   regularHours      Float
   overtimeHours     Float
-  actualMinutesLate Int       @default(0)
-  isHalfDayLate     Boolean   @default(false)
-  status            String    // "in_progress", "completed"
-  attendanceId      String?   @db.ObjectId
-  attendance        Attendance? @relation(fields: [attendanceId], references: [id])
-  overtimeRequestId String?   @db.ObjectId
+  
+  // Late tracking
+  actualMinutesLate Int              @default(0)
+  isHalfDayLate     Boolean          @default(false)
+  
+  // References
+  attendanceId      String?          @db.ObjectId
+  attendance        Attendance?      @relation(fields: [attendanceId], references: [id])
+  overtimeRequestId String?          @db.ObjectId
   overtimeRequest   OvertimeRequest? @relation(fields: [overtimeRequestId], references: [id])
-  entryType         String    // "regular", "overtime"
+  
+  // Metadata
   overtimeMetadata  OvertimeMetadata?
   timeEntryPayrollPeriods TimeEntryPayrollPeriod[]
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([employeeId, date])
   @@index([attendanceId])
   @@index([date, status])
+  @@index([entryType])  // New index
 }
+
 
 model OvertimeEntry {
   id                String          @id @default(auto()) @map("_id") @db.ObjectId
@@ -468,9 +538,6 @@ model Holiday {
   date        DateTime
   name        String
   localName   String?
-  types       String[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
   @@unique([date, name], name: "date_date")
 }
 

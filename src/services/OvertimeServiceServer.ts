@@ -9,12 +9,6 @@ import {
 import { IOvertimeServiceServer } from '@/types/OvertimeService';
 import { TimeEntryService } from './TimeEntryService';
 import {
-  ApprovedOvertime,
-  AttendanceRecord,
-  ExtendedApprovedOvertime,
-  OvertimeEntryData,
-} from '@/types/attendance';
-import {
   parseISO,
   format,
   startOfDay,
@@ -30,18 +24,25 @@ import { NotificationService } from './NotificationService';
 import { th } from 'date-fns/locale';
 import { HolidayService } from './HolidayService';
 import { LeaveServiceServer } from './LeaveServiceServer';
-import { ShiftManagementService } from './ShiftManagementService';
+import { ShiftManagementService } from './ShiftManagementService/ShiftManagementService';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { useMemo } from 'react';
+import {
+  ApprovedOvertimeInfo,
+  CheckStatus,
+  OvertimeAttendanceInfo,
+  OvertimeRequestStatus,
+  OvertimeState,
+} from '@/types/attendance/status';
+import { TimeCalculationHelper } from './Attendance/utils/TimeCalculationHelper';
+import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
+import { AttendanceRecord } from '@/types/attendance/records';
+import {
+  ExtendedApprovedOvertime,
+  OvertimeEntryData,
+} from '@/types/attendance/overtime';
 
 const LATE_CHECK_OUT_THRESHOLD = 15; // 15 minutes after shift end
-
-type OvertimeRequestStatus =
-  | 'pending_response'
-  | 'pending'
-  | 'approved'
-  | 'rejected'
-  | 'declined_by_employee';
 
 export class OvertimeServiceServer implements IOvertimeServiceServer {
   constructor(
@@ -253,6 +254,15 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   ): Promise<OvertimeEntryData[]> {
     const entries = await this.prisma.overtimeEntry.findMany({
       where: { attendanceId },
+      include: {
+        // Include overtime request to get these fields
+        overtimeRequest: {
+          select: {
+            isDayOffOvertime: true,
+            isInsideShiftHours: true,
+          },
+        },
+      },
     });
 
     return entries.map((entry) => ({
@@ -261,6 +271,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       overtimeRequestId: entry.overtimeRequestId,
       actualStartTime: entry.actualStartTime,
       actualEndTime: entry.actualEndTime,
+      isDayOffOvertime: entry.overtimeRequest?.isDayOffOvertime ?? false,
+      isInsideShiftHours: entry.overtimeRequest?.isInsideShiftHours ?? false,
       createdAt: new Date(), // Added as per OvertimeEntryData interface
       updatedAt: new Date(), // Added as per OvertimeEntryData interface
     }));
@@ -285,7 +297,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   async getApprovedOvertimeRequests(
     employeeId: string,
     date: Date,
-  ): Promise<ApprovedOvertime[]> {
+  ): Promise<ApprovedOvertimeInfo[]> {
     const currentTime = getCurrentTime();
     console.log('Current time in overtime request fetch:', currentTime);
 
@@ -349,7 +361,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   async getApprovedOvertimeRequest(
     employeeId: string,
     date: Date,
-  ): Promise<ApprovedOvertime | null> {
+  ): Promise<ApprovedOvertimeInfo | null> {
     const overtimes = await this.getApprovedOvertimeRequests(employeeId, date);
     return overtimes[0] || null;
   }
@@ -482,7 +494,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   async getFutureApprovedOvertimes(
     employeeId: string,
     startDate: Date,
-  ): Promise<ApprovedOvertime[]> {
+  ): Promise<ApprovedOvertimeInfo[]> {
     const tomorrow = addDays(startOfDay(startDate), 1);
 
     const futureOvertimes = await this.prisma.overtimeRequest.findMany({
@@ -499,7 +511,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
   private convertToApprovedOvertime(
     overtime: OvertimeRequest,
-  ): ApprovedOvertime {
+  ): ApprovedOvertimeInfo {
     // Helper function to map OvertimeRequest status to ApprovedOvertime status
     const status: OvertimeRequestStatus =
       overtime.status as OvertimeRequestStatus;
@@ -618,6 +630,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         overtimeRequestId: entry.overtimeRequestId,
         actualStartTime: entry.actualStartTime,
         actualEndTime: entry.actualEndTime,
+        isDayOffOvertime: entry.isDayOffOvertime ?? false,
+        isInsideShiftHours: entry.isInsideShiftHours ?? false,
         createdAt: entry.createdAt || new Date(),
         updatedAt: entry.updatedAt || new Date(),
       }));
@@ -791,5 +805,49 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     const totalMinutes = differenceInMinutes(end, start);
     const roundedMinutes = Math.floor(totalMinutes / 30) * 30;
     return roundedMinutes / 60;
+  }
+  async getOvertimeAttendances(
+    employeeId: string,
+    date: Date,
+  ): Promise<OvertimeAttendanceInfo[]> {
+    const [overtimes, attendance] = await Promise.all([
+      this.getApprovedOvertimeRequests(employeeId, date),
+      this.prisma.attendance.findFirst({
+        where: {
+          employeeId,
+          date: {
+            gte: startOfDay(date),
+            lt: endOfDay(date),
+          },
+        },
+        orderBy: { date: 'desc' },
+      }),
+    ]);
+
+    const now = getCurrentTime();
+
+    return overtimes.map((overtime) => ({
+      overtimeRequest: overtime,
+      attendanceTime: {
+        checkInTime: attendance?.regularCheckInTime
+          ? format(attendance.regularCheckInTime, 'HH:mm:ss')
+          : null,
+        checkOutTime: attendance?.regularCheckOutTime
+          ? format(attendance.regularCheckOutTime, 'HH:mm:ss')
+          : null,
+        checkStatus: CheckStatus.PENDING, // Default value
+        isOvertime: true,
+        overtimeState: OvertimeState.NOT_STARTED, // Default value
+      },
+      periodStatus: {
+        isPending: isAfter(parseISO(overtime.startTime), now),
+        isActive: TimeCalculationHelper.isInOvertimePeriod(now, overtime),
+        isNext: TimeCalculationHelper.isInOvertimePeriod(
+          addMinutes(now, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD),
+          overtime,
+        ),
+        isComplete: !!overtime.actualEndTime,
+      },
+    }));
   }
 }

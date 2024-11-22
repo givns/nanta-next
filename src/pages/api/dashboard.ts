@@ -8,54 +8,21 @@ import {
   TimeEntry,
   User,
 } from '@prisma/client';
-import { AttendanceService } from '../../services/AttendanceService';
-import { HolidayService } from '@/services/HolidayService';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
-import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { TimeEntryService } from '@/services/TimeEntryService';
-import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
-import { createNotificationService } from '@/services/NotificationService';
+import { AttendanceService } from '../../services/Attendance/AttendanceService';
 import { cacheService } from '@/services/CacheService';
-import { UserDataSchema } from '@/schemas/attendance';
-import { UserRole } from '../../types/enum';
-import { ShiftData } from '@/types/attendance';
 import { addDays, endOfMonth, format, startOfMonth } from 'date-fns';
+import { initializeServices } from '@/services/ServiceInitializer';
 
 const prisma = new PrismaClient();
-
-// Initialize services
-const holidayService = new HolidayService(prisma);
-const notificationService = createNotificationService(prisma);
-const shiftService = new ShiftManagementService(prisma, holidayService);
-const leaveServiceServer = createLeaveServiceServer(
-  prisma,
-  notificationService,
-);
-const timeEntryService = new TimeEntryService(
-  prisma,
-  shiftService,
-  notificationService,
-);
-
-// Initialize OvertimeServiceServer with new dependencies
-const overtimeService = new OvertimeServiceServer(
-  prisma,
-  holidayService,
-  leaveServiceServer,
-  shiftService,
-  timeEntryService,
-  notificationService,
-);
-
-// Initialize AttendanceService
+const services = initializeServices(prisma);
 const attendanceService = new AttendanceService(
   prisma,
-  shiftService,
-  holidayService,
-  leaveServiceServer,
-  overtimeService,
-  notificationService,
-  timeEntryService,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
 );
 
 const getPayrollPeriod = (date: Date = new Date()) => {
@@ -126,12 +93,11 @@ export default async function handler(
 
       // Get shift data
       const shift = user?.shiftCode
-        ? await shiftService.getShiftByCode(user.shiftCode)
+        ? await services.shiftService.getShiftByCode(user.shiftCode)
         : null;
 
-      const effectiveShift = await shiftService.getEffectiveShiftAndStatus(
-        user.employeeId,
-      );
+      const effectiveShift =
+        await services.shiftService.getEffectiveShiftAndStatus(user.employeeId);
       // Accessing workDays with a default value to avoid errors
       const workDays = effectiveShift?.regularShift?.workDays || [];
       const isWorkDay = (day: number) => workDays.includes(day);
@@ -148,12 +114,12 @@ export default async function handler(
         workingDays,
       ] = await Promise.all([
         attendanceService.getLatestAttendanceStatus(user.employeeId),
-        timeEntryService.getTimeEntriesForEmployee(
+        services.timeEntryService.getTimeEntriesForEmployee(
           user.employeeId,
           payrollPeriod.start,
           payrollPeriod.end,
         ),
-        leaveServiceServer.checkLeaveBalance(user.employeeId),
+        services.leaveService.checkLeaveBalance(user.employeeId),
         prisma.leaveRequest.findMany({
           where: {
             employeeId: user.employeeId,
@@ -230,7 +196,7 @@ const calculateWorkingDays = async (
     // Check if it's a working day according to shift
     if (isWorkingDay(currentDate, shift.workDays, shift.shiftCode)) {
       // Check if it's not a holiday
-      const isHoliday = await holidayService.isHoliday(
+      const isHoliday = await services.holidayService.isHoliday(
         currentDate,
         [], // Empty array as we'll check within the service
         shift.shiftCode === 'SHIFT104', // Special handling for afternoon shift

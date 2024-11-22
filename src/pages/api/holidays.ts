@@ -45,9 +45,6 @@ export default async function handler(
                 ...h,
                 date: new Date(h.date),
                 id: '',
-                types: [],
-                createdAt: new Date(),
-                updatedAt: new Date(),
               }))
             : [];
 
@@ -74,7 +71,6 @@ export default async function handler(
           date: new Date(validatedData.date),
           name: validatedData.name,
           localName: validatedData.localName,
-          types: [], // Default empty array for types
         },
       });
 

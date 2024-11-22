@@ -1,16 +1,15 @@
 import React, { useCallback, useMemo } from 'react';
-import {
-  AttendanceStatusInfo,
-  ShiftData,
-  ApprovedOvertime,
-  OvertimeAttendanceInfo,
-  AttendanceTime,
-  AttendanceStatusType,
-} from '../../types/attendance';
 import { UserData } from '../../types/user';
 import { format, isToday, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Calendar, Clock, Briefcase, AlertCircle } from 'lucide-react';
+import {
+  AttendanceStatusInfo,
+  OvertimeAttendanceInfo,
+  ShiftData,
+} from '@/types/attendance';
+import { getStatusMessage } from './StatusMessage';
+import { OvertimePeriodInfo } from './OvertimePeriodInfo';
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -26,6 +25,10 @@ const UserShiftInfo = React.memo(
     effectiveShift,
     isLoading,
   }: UserShiftInfoProps) => {
+    const { message, color } = useMemo(
+      () => getStatusMessage(attendanceStatus),
+      [attendanceStatus],
+    );
     // Separate active and future overtimes
     const { activeOvertimes, futureOvertimes } = useMemo(() => {
       if (!attendanceStatus?.overtimeAttendances) {
@@ -33,7 +36,6 @@ const UserShiftInfo = React.memo(
       }
 
       const today = format(new Date(), 'yyyy-MM-dd');
-
       return {
         activeOvertimes: attendanceStatus.overtimeAttendances.filter(
           (ot) =>
@@ -46,76 +48,7 @@ const UserShiftInfo = React.memo(
       };
     }, [attendanceStatus?.overtimeAttendances]);
 
-    const latestAttendance = attendanceStatus?.latestAttendance;
-
-    // Determine today's overtime (if applicable)
-    const todayOvertime = useMemo<OvertimeAttendanceInfo | null>(() => {
-      const approvedOvertime = attendanceStatus?.approvedOvertime;
-      if (!approvedOvertime) return null;
-
-      const overtimeDate = format(
-        parseISO(approvedOvertime.date.toString()),
-        'yyyy-MM-dd',
-      );
-      const currentDate = format(new Date(), 'yyyy-MM-dd');
-
-      if (overtimeDate === currentDate) {
-        return {
-          overtimeRequest: approvedOvertime,
-          attendanceTime: {
-            checkInTime: approvedOvertime.startTime,
-            checkOutTime: approvedOvertime.endTime,
-            status: 'inProgress' as AttendanceStatusType, // Update the type of attendanceTime.status
-          },
-          periodStatus: {
-            isPending: false,
-            isActive: true,
-            isNext: false,
-            isComplete: false,
-          },
-        };
-      }
-      return null;
-    }, [attendanceStatus?.approvedOvertime]);
-
-    const getStatusMessage = useMemo(() => {
-      if (!attendanceStatus) {
-        return { message: 'ไม่พบข้อมูล', color: 'gray' };
-      }
-
-      if (attendanceStatus.isDayOff) {
-        if (attendanceStatus.holidayInfo) {
-          return { message: 'วันหยุดนักขัตฤกษ์', color: 'blue' };
-        }
-        return { message: 'วันหยุดประจำสัปดาห์', color: 'blue' };
-      }
-
-      if (attendanceStatus.pendingLeaveRequest) {
-        return { message: 'รออนุมัติการลา', color: 'orange' };
-      }
-
-      if (!latestAttendance) {
-        return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
-      }
-
-      const attendanceDate = parseISO(latestAttendance.date);
-
-      if (!isToday(attendanceDate)) {
-        return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
-      }
-
-      if (latestAttendance.regularCheckOutTime) {
-        return { message: 'ทำงานเสร็จแล้ว', color: 'green' };
-      }
-
-      if (latestAttendance.regularCheckInTime) {
-        return { message: 'อยู่ระหว่างเวลาทำงาน', color: 'orange' };
-      }
-
-      return { message: 'ยังไม่มีการลงเวลา', color: 'red' };
-    }, [attendanceStatus, latestAttendance]);
-
-    // Render today's overtime entry
+    // Render today's overtime separately
     const renderTodayOvertime = (overtime: OvertimeAttendanceInfo) => (
       <div
         key={overtime.overtimeRequest.id}
@@ -129,14 +62,14 @@ const UserShiftInfo = React.memo(
         </h4>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-gray-600">เวลาที่อนุมัติ</p>
+            <p className="text-gray-600">เวลาที่อนุมัติ (OT)</p>
             <p className="font-medium">
               {overtime.overtimeRequest.startTime} -{' '}
               {overtime.overtimeRequest.endTime}
             </p>
           </div>
           <div>
-            <p className="text-gray-600">เวลาทำงานจริง</p>
+            <p className="text-gray-600">เวลาทำงานจริง (OT)</p>
             <p className="font-medium">
               {overtime.attendanceTime?.checkInTime || 'ยังไม่ได้ลงเวลา'} -{' '}
               {overtime.attendanceTime?.checkOutTime || 'ยังไม่สิ้นสุด'}
@@ -160,10 +93,6 @@ const UserShiftInfo = React.memo(
       if (!attendanceStatus || !effectiveShift) return null;
 
       const today = new Date();
-      const showRegularTimes =
-        latestAttendance &&
-        (!attendanceStatus.currentPeriod ||
-          attendanceStatus.currentPeriod.type === 'regular');
 
       return (
         <div className="bg-white p-6 rounded-lg shadow-md mb-4">
@@ -194,7 +123,7 @@ const UserShiftInfo = React.memo(
                   <p className="text-blue-600">
                     {attendanceStatus.holidayInfo.localName}
                   </p>
-                  {todayOvertime && (
+                  {attendanceStatus.approvedOvertime && (
                     <p className="text-gray-600 mt-2">
                       *มีการอนุมัติทำงานล่วงเวลาในวันหยุด
                     </p>
@@ -205,7 +134,7 @@ const UserShiftInfo = React.memo(
                   <h4 className="text-md font-semibold mb-2 text-blue-700">
                     วันหยุดประจำสัปดาห์
                   </h4>
-                  {todayOvertime && (
+                  {attendanceStatus.approvedOvertime && (
                     <p className="text-gray-600 mt-2">
                       *มีการอนุมัติทำงานล่วงเวลาในวันหยุด
                     </p>
@@ -232,41 +161,37 @@ const UserShiftInfo = React.memo(
             </div>
           )}
 
-          {showRegularTimes && (
+          {/* Regular Period Times */}
+          {attendanceStatus.currentPeriod?.type === 'regular' && (
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-gray-600">เวลาเข้างาน</p>
                 <p className="font-medium">
-                  {latestAttendance.regularCheckInTime || 'ยังไม่ได้ลงเวลา'}
+                  {attendanceStatus.latestAttendance?.regularCheckInTime ||
+                    'ยังไม่ได้ลงเวลา'}
                 </p>
               </div>
               <div>
                 <p className="text-gray-600">เวลาออกงาน</p>
                 <p className="font-medium">
-                  {latestAttendance.regularCheckOutTime || 'ยังไม่ได้ลงเวลา'}
+                  {attendanceStatus.latestAttendance?.regularCheckOutTime ||
+                    'ยังไม่ได้ลงเวลา'}
                 </p>
               </div>
             </div>
           )}
         </div>
       );
-    }, [
-      attendanceStatus?.isDayOff,
-      attendanceStatus?.holidayInfo,
-      effectiveShift,
-      todayOvertime,
-    ]);
+    }, [attendanceStatus, effectiveShift]);
 
+    // Render future shift adjustments
     const renderFutureInfo = useMemo(() => {
       const futureShiftAdjustments =
         attendanceStatus?.futureShifts.filter(
           (adjustment) => !isToday(parseISO(adjustment.date)),
         ) ?? [];
 
-      if (
-        futureShiftAdjustments.length === 0 &&
-        (attendanceStatus?.futureOvertimes.length ?? 0) === 0
-      ) {
+      if (futureShiftAdjustments.length === 0 && futureOvertimes.length === 0) {
         return null;
       }
 
@@ -348,8 +273,6 @@ const UserShiftInfo = React.memo(
       );
     }, [attendanceStatus?.futureShifts, attendanceStatus?.futureOvertimes]);
 
-    const { message, color } = getStatusMessage;
-
     if (isLoading) {
       return (
         <div className="p-4 bg-white rounded-lg shadow animate-pulse space-y-4">
@@ -373,16 +296,15 @@ const UserShiftInfo = React.memo(
 
     return (
       <div className="pb-24">
-        {' '}
-        {/* Add bottom padding for fixed footer */}
-        {/* User info card - always visible */}
+        {/* User Info Card with Status */}
         <div className="bg-white p-6 rounded-lg shadow-md text-center mb-4">
-          {/* ... user info content ... */}
           <p className="text-2xl font-bold">{userData.name}</p>
           <p className="text-xl text-gray-600">
             รหัสพนักงาน: {userData.employeeId}
           </p>
           <p className="text-gray-600">แผนก: {userData.departmentName}</p>
+
+          {/* Status Message */}
           <div
             className="mt-4 inline-flex items-center px-3 py-1 rounded-full text-sm"
             style={{
@@ -399,16 +321,25 @@ const UserShiftInfo = React.memo(
             </span>
           </div>
         </div>
-        {/* Today's info */}
-        <div className="mb-4">{renderTodayInfo}</div>
-        {/* Today's overtime */}
-        <div className="mb-4">
-          {todayOvertime && renderTodayOvertime(todayOvertime)}
-        </div>
-        {/* Future info - if exists */}
-        {renderFutureInfo && (
-          <div className="space-y-4">{renderFutureInfo}</div>
-        )}
+
+        {/* Regular Period Info */}
+        {renderTodayInfo}
+
+        {/* Active Overtime Info */}
+        {attendanceStatus?.currentPeriod?.type === 'overtime'
+          ? // Show current overtime if in overtime period
+            renderTodayOvertime(activeOvertimes[0])
+          : // Show upcoming overtime if in regular period
+            activeOvertimes.map((overtime) => (
+              <OvertimePeriodInfo
+                key={overtime.overtimeRequest.id}
+                overtime={overtime}
+                isDayOff={attendanceStatus?.isDayOff ?? false}
+              />
+            ))}
+
+        {/* Future Info */}
+        {renderFutureInfo}
       </div>
     );
   },

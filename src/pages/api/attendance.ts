@@ -1,47 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { AttendanceService } from '../../services/AttendanceService';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
-import { HolidayService } from '@/services/HolidayService';
-import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { TimeEntryService } from '@/services/TimeEntryService';
-import { createNotificationService } from '@/services/NotificationService';
-import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
+import { AttendanceService } from '../../services/Attendance/AttendanceService';
+import { initializeServices } from '@/services/ServiceInitializer';
 
 const prisma = new PrismaClient();
-const holidayService = new HolidayService(prisma);
-export const notificationService = createNotificationService(prisma);
-export const leaveServiceServer = createLeaveServiceServer(
-  prisma,
-  notificationService,
-);
-const shiftService = new ShiftManagementService(prisma, holidayService);
-
-const timeEntryService = new TimeEntryService(
-  prisma,
-  shiftService,
-  notificationService,
-);
-
-const overtimeService = new OvertimeServiceServer(
-  prisma,
-  holidayService,
-  leaveServiceServer,
-  shiftService,
-  timeEntryService,
-  notificationService,
-);
-
-shiftService.setOvertimeService(overtimeService);
-
+const services = initializeServices(prisma);
 const attendanceService = new AttendanceService(
   prisma,
-  shiftService,
-  holidayService,
-  leaveServiceServer,
-  overtimeService,
-  notificationService,
-  timeEntryService,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
 );
 
 export default async function handler(

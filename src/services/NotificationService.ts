@@ -1,22 +1,19 @@
 // NotificationService.ts
 
-import { Client, FlexComponent, FlexMessage, Message } from '@line/bot-sdk';
+import { Client, FlexMessage, Message } from '@line/bot-sdk';
 import {
   PrismaClient,
   User,
   LeaveRequest,
   OvertimeRequest,
-  ShiftAdjustmentRequest,
 } from '@prisma/client';
 import { generateApprovalMessageForAdmins } from '../utils/generateApprovalMessage';
 import { generateDenialMessageForAdmins } from '../utils/generateDenialMessage';
-import { NotificationQueue } from './NotificationQueue';
 import { UseMappingService } from './useMappingService';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 
 export class NotificationService {
-  private notificationQueue: NotificationQueue;
   private lineClient: Client;
   private userMappingService: UseMappingService;
 
@@ -26,11 +23,6 @@ export class NotificationService {
       channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     });
     this.userMappingService = new UseMappingService();
-    this.notificationQueue = new NotificationQueue(
-      this.lineClient,
-      this.userMappingService,
-    );
-    console.log('NotificationService initialized');
   }
 
   async sendNotification(

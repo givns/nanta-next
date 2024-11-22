@@ -1,7 +1,7 @@
 // pages/api/employees.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { ShiftManagementService } from '../../services/ShiftManagementService';
+import { ShiftManagementService } from '../../services/ShiftManagementService/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
 
 const prisma = new PrismaClient();

@@ -3,7 +3,6 @@ import { CheckInOutAllowance } from '../../types/attendance';
 
 interface ActionButtonProps {
   isLoading: boolean;
-  loadingMessage: string;
   isActionButtonReady: boolean;
   checkInOutAllowance: CheckInOutAllowance | null;
   isCheckingIn: boolean;
@@ -13,7 +12,6 @@ interface ActionButtonProps {
 
 const ActionButton: React.FC<ActionButtonProps> = ({
   isLoading,
-  loadingMessage,
   isActionButtonReady,
   checkInOutAllowance,
   isCheckingIn,
@@ -21,7 +19,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 }) => {
   const buttonClass = `w-full ${
     checkInOutAllowance?.allowed && isActionButtonReady
-      ? 'bg-red-600 hover:bg-red-700'
+      ? 'bg-primary hover:bg-primary-dark'
       : 'bg-gray-400 cursor-not-allowed'
   } text-white py-3 px-4 rounded-lg transition duration-300`;
 

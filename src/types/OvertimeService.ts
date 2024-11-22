@@ -1,7 +1,8 @@
 // @/types/OvertimeService.ts
 
 import { OvertimeRequest } from '@prisma/client';
-import { ApprovedOvertime, ExtendedApprovedOvertime } from './attendance';
+import { ApprovedOvertimeInfo } from './attendance';
+import { ExtendedApprovedOvertime } from './attendance/overtime';
 export interface IOvertimeServiceBase {
   createOvertimeRequest(
     lineUserId: string,
@@ -31,7 +32,7 @@ export interface IOvertimeServiceServer extends IOvertimeServiceBase {
   getApprovedOvertimeRequest(
     employeeId: string,
     date: Date,
-  ): Promise<ApprovedOvertime | null>;
+  ): Promise<ApprovedOvertimeInfo | null>;
 
   getPendingOvertimeRequests(
     employeeId: string,
@@ -52,7 +53,7 @@ export interface IOvertimeServiceServer extends IOvertimeServiceBase {
   getFutureApprovedOvertimes(
     employeeId: string,
     startDate: Date,
-  ): Promise<ApprovedOvertime[]>;
+  ): Promise<ApprovedOvertimeInfo[]>;
 
   calculateOvertimeHours(startTime: string, endTime: string): Promise<number>;
 }

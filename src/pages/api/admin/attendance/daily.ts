@@ -3,19 +3,34 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient, Prisma, LeaveRequest } from '@prisma/client';
 import { startOfDay, endOfDay, parseISO, format, isValid } from 'date-fns';
-import { DailyAttendanceResponse } from '@/types/attendance';
+import {
+  AttendanceState,
+  CheckStatus,
+  DailyAttendanceRecord,
+  OvertimeState,
+  ShiftData,
+} from '@/types/attendance';
 import { getCacheData, setCacheData } from '@/lib/serverCache';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
+import { ShiftManagementService } from '@/services/ShiftManagementService/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
 import { LeaveServiceServer } from '@/services/LeaveServiceServer';
 import { NotificationService } from '@/services/NotificationService';
+import { initializeServices } from '@/services/ServiceInitializer';
+import { AttendanceService } from '@/services/Attendance/AttendanceService';
+import { AttendanceMappers } from '@/services/Attendance/utils/AttendanceMappers';
 
 const CACHE_TTL = 5 * 60; // 5 minutes cache
 const prisma = new PrismaClient();
-const notificationService = new NotificationService(prisma);
-const holidayService = new HolidayService(prisma);
-const shiftService = new ShiftManagementService(prisma, holidayService);
-const leaveService = new LeaveServiceServer(prisma, notificationService);
+const services = initializeServices(prisma);
+const attendanceService = new AttendanceService(
+  prisma,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
+);
 
 const parseDateSafely = (dateString: string | undefined): Date => {
   if (!dateString) return new Date();
@@ -93,9 +108,12 @@ async function handleGetDailyAttendance(
         shiftCode: true,
         assignedShift: {
           select: {
+            id: true,
             name: true,
             startTime: true,
             endTime: true,
+            workDays: true,
+            shiftCode: true,
           },
         },
         attendances: {
@@ -107,6 +125,9 @@ async function handleGetDailyAttendance(
           },
           select: {
             id: true,
+            state: true,
+            checkStatus: true,
+            overtimeState: true,
             regularCheckInTime: true,
             regularCheckOutTime: true,
             isLateCheckIn: true,
@@ -114,7 +135,6 @@ async function handleGetDailyAttendance(
             isEarlyCheckIn: true,
             isVeryLateCheckOut: true,
             lateCheckOutMinutes: true,
-            status: true,
             isDayOff: true,
           },
         },
@@ -123,22 +143,22 @@ async function handleGetDailyAttendance(
 
     // Get all required data with proper error handling
     const [holidays, leaveRequests] = await Promise.all([
-      holidayService.getHolidays(dateStart, dateEnd).catch((error) => {
+      services.holidayService.getHolidays(dateStart, dateEnd).catch((error) => {
         console.error('Error fetching holidays:', error);
         return []; // Return empty array on error instead of failing
       }),
-      leaveService.getUserLeaveRequests(targetDate).catch((error) => {
+      services.leaveService.getUserLeaveRequests(targetDate).catch((error) => {
         console.error('Error fetching leave requests:', error);
         return []; // Return empty array on error instead of failing
       }),
     ]);
 
-    const attendanceRecords: DailyAttendanceResponse[] = await Promise.all(
+    const attendanceRecords: DailyAttendanceRecord[] = await Promise.all(
       employees.map(async (employee) => {
         try {
           const attendance = employee.attendances[0];
           // Wrap holiday check in try-catch
-          const isHoliday = await holidayService
+          const isHoliday = await services.holidayService
             .isHoliday(targetDate, holidays, employee.shiftCode === 'SHIFT104')
             .catch(() => false); // Default to false if check fails
 
@@ -146,35 +166,49 @@ async function handleGetDailyAttendance(
             (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
           );
 
-          return {
+          const shift: ShiftData | null = employee.assignedShift
+            ? {
+                id: employee.assignedShift.id,
+                name: employee.assignedShift.name,
+                shiftCode: employee.shiftCode || 'DEFAULT',
+                startTime: employee.assignedShift.startTime,
+                endTime: employee.assignedShift.endTime,
+                workDays: employee.assignedShift.workDays || [1, 2, 3, 4, 5],
+              }
+            : null;
+
+          const record: DailyAttendanceRecord = {
             employeeId: employee.employeeId,
             employeeName: employee.name,
             departmentName: employee.departmentName || '',
             date: format(targetDate, 'yyyy-MM-dd'),
-            shift: employee.assignedShift
-              ? {
-                  name: employee.assignedShift.name,
-                  startTime: employee.assignedShift.startTime,
-                  endTime: employee.assignedShift.endTime,
-                }
-              : null,
-            attendance: attendance
-              ? {
-                  id: attendance.id,
-                  regularCheckInTime: formatAttendanceTime(
-                    attendance.regularCheckInTime,
-                  ),
-                  regularCheckOutTime: formatAttendanceTime(
-                    attendance.regularCheckOutTime,
-                  ),
-                  isLateCheckIn: attendance.isLateCheckIn ?? false,
-                  isLateCheckOut: attendance.isLateCheckOut ?? false,
-                  isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
-                  isVeryLateCheckOut: attendance.isVeryLateCheckOut ?? false,
-                  lateCheckOutMinutes: attendance.lateCheckOutMinutes ?? 0,
-                  status: attendance.status,
-                }
-              : null,
+
+            // Status fields with proper mapping
+            state: AttendanceMappers.mapToAttendanceState(attendance?.state),
+            checkStatus: AttendanceMappers.mapToCheckStatus(
+              attendance?.checkStatus,
+            ),
+            overtimeState: AttendanceMappers.mapToOvertimeState(
+              attendance?.overtimeState,
+            ),
+
+            // Time fields
+            regularCheckInTime: formatAttendanceTime(
+              attendance?.regularCheckInTime,
+            ),
+            regularCheckOutTime: formatAttendanceTime(
+              attendance?.regularCheckOutTime,
+            ),
+
+            // Flag fields
+            isLateCheckIn: attendance?.isLateCheckIn ?? false,
+            isLateCheckOut: attendance?.isLateCheckOut ?? false,
+            isEarlyCheckIn: attendance?.isEarlyCheckIn ?? false,
+            isVeryLateCheckOut: attendance?.isVeryLateCheckOut ?? false,
+            lateCheckOutMinutes: attendance?.lateCheckOutMinutes ?? 0,
+
+            // Related data
+            shift,
             isDayOff: isHoliday || attendance?.isDayOff || false,
             leaveInfo: leaveRequest
               ? {
@@ -183,22 +217,38 @@ async function handleGetDailyAttendance(
                 }
               : null,
           };
+
+          return record;
         } catch (error) {
           console.error(
             `Error processing employee ${employee.employeeId}:`,
             error,
           );
           // Return a safe default record if processing fails
-          return {
+          const defaultRecord: DailyAttendanceRecord = {
             employeeId: employee.employeeId,
             employeeName: employee.name || '',
             departmentName: employee.departmentName || '',
             date: format(targetDate, 'yyyy-MM-dd'),
+            // Ensure required enum values are set
+            state: AttendanceState.ABSENT,
+            checkStatus: CheckStatus.PENDING,
+            overtimeState: undefined,
+            // Required time fields
+            regularCheckInTime: null,
+            regularCheckOutTime: null,
+            // Required boolean flags
+            isLateCheckIn: false,
+            isLateCheckOut: false,
+            isEarlyCheckIn: false,
+            isVeryLateCheckOut: false,
+            lateCheckOutMinutes: 0,
+            // Other required fields
             shift: null,
-            attendance: null,
             isDayOff: false,
             leaveInfo: null,
           };
+          return defaultRecord;
         }
       }),
     );

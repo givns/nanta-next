@@ -1,3 +1,4 @@
+//Components/EmployeeDetailDialog.tsx
 import { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -11,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format, parseISO, eachDayOfInterval, isSameDay } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { DetailedTimeEntry } from '@/types/attendance';
+import { DetailedTimeEntry, ManualEntryRequest } from '@/types/attendance';
 import {
   Clock,
   Calendar as CalendarIcon,
@@ -26,15 +27,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
-
-interface ManualEntryData {
-  employeeId: string;
-  date: string;
-  checkInTime?: string;
-  checkOutTime?: string;
-  reason: string;
-  reasonType: 'correction' | 'missing' | 'system_error' | 'other';
-}
 
 interface EmployeeDetailDialogProps {
   open: boolean;
@@ -116,12 +108,12 @@ export function EmployeeDetailDialog({
   };
 
   const handleManualEntry = async (
-    data: Omit<ManualEntryData, 'employeeId'>,
+    data: Omit<ManualEntryRequest, 'employeeId'>,
   ) => {
     try {
       if (!employeeId || !lineUserId) return;
 
-      const entryData: ManualEntryData = {
+      const entryData: ManualEntryRequest = {
         ...data,
         employeeId,
       };
@@ -230,23 +222,27 @@ export function EmployeeDetailDialog({
                 </div>
               </CardHeader>
               <CardContent className="p-4 pt-2">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <div className="text-sm text-gray-500">Check In</div>
-                    <div className="flex items-center mt-1">
-                      {entry.regularCheckInTime ? (
-                        <>
-                          <Clock className="h-4 w-4 mr-2 text-gray-400" />
-                          <span>{entry.regularCheckInTime}</span>
-                          {entry.isLateCheckIn && (
-                            <Badge variant="warning" className="ml-2">
-                              Late
-                            </Badge>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
+                {/* Regular Hours Section */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium mb-2">Regular Hours</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500">Check In</div>
+                      <div className="flex items-center mt-1">
+                        {entry.regularCheckInTime ? (
+                          <>
+                            <Clock className="h-4 w-4 mr-2 text-gray-400" />
+                            <span>{entry.regularCheckInTime}</span>
+                            {entry.isLateCheckIn && (
+                              <Badge variant="warning" className="ml-2">
+                                Late
+                              </Badge>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -268,17 +264,53 @@ export function EmployeeDetailDialog({
                       )}
                     </div>
                   </div>
+                </div>
 
-                  <div>
-                    <div className="text-sm text-gray-500">Hours</div>
-                    <div className="flex items-center mt-1">
-                      <span>{entry.regularHours.toFixed(1)}h</span>
-                      {entry.overtimeHours > 0 && (
-                        <Badge variant="secondary" className="ml-2">
-                          +{entry.overtimeHours.toFixed(1)}h OT
-                        </Badge>
-                      )}
+                {/* Overtime Section */}
+                {entry.overtimeRequest && (
+                  <div className="mt-4 border-t pt-4">
+                    <h4 className="text-sm font-medium mb-2">Overtime Hours</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-sm text-gray-500">OT Start</div>
+                        <div className="flex items-center mt-1">
+                          <Clock className="h-4 w-4 mr-2 text-gray-400" />
+                          <span>
+                            {entry.overtimeRequest.actualStartTime ||
+                              entry.overtimeRequest.startTime}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-500">OT End</div>
+                        <div className="flex items-center mt-1">
+                          <Clock className="h-4 w-4 mr-2 text-gray-400" />
+                          <span>
+                            {entry.overtimeRequest.actualEndTime ||
+                              entry.overtimeRequest.endTime}
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                    <div className="mt-2">
+                      <span className="text-sm text-gray-500">
+                        Approved OT Period: {entry.overtimeRequest.startTime} -{' '}
+                        {entry.overtimeRequest.endTime}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Total Hours */}
+                <div className="mt-4">
+                  <div className="text-sm text-gray-500">Total Hours</div>
+                  <div className="flex items-center mt-1">
+                    <span>{entry.regularHours.toFixed(1)}h Regular</span>
+                    {entry.overtimeHours > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        +{entry.overtimeHours.toFixed(1)}h OT
+                      </Badge>
+                    )}
                   </div>
                 </div>
 

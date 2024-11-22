@@ -1,29 +1,38 @@
-// pages/api/admin/attendance/manual-entry.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
-import { parseISO, startOfDay, endOfDay, format, max, min } from 'date-fns';
-import { NotificationService } from '@/services/NotificationService';
-import { TimeEntryService } from '@/services/TimeEntryService';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
-import { HolidayService } from '@/services/HolidayService';
+import { PrismaClient, Prisma } from '@prisma/client';
 import {
-  ApprovedOvertime,
-  EnhancedAttendanceRecord,
-  OvertimeRequestStatus,
+  parseISO,
+  startOfDay,
+  format,
+  isBefore,
+  addHours,
+  addMinutes,
+} from 'date-fns';
+import { initializeServices } from '@/services/ServiceInitializer';
+import { TimeCalculationHelper } from '@/services/Attendance/utils/TimeCalculationHelper';
+import {
+  AttendanceState,
+  CheckStatus,
+  PeriodType,
+  OvertimeState,
   TimeEntryStatus,
-} from '@/types/attendance';
+} from '@/types/attendance/status';
+import { ProcessingOptions } from '@/types/attendance/processing';
+import { ErrorCode, AppError } from '@/types/attendance/error';
+import { AttendanceService } from '@/services/Attendance/AttendanceService';
+import { ShiftData } from '@/types/attendance';
 
 const prisma = new PrismaClient();
-const holidayService = new HolidayService(prisma);
-const shiftService = new ShiftManagementService(prisma, holidayService);
-const notificationService = new NotificationService(prisma);
-const timeEntryService = new TimeEntryService(
+const services = initializeServices(prisma);
+const attendanceService = new AttendanceService(
   prisma,
-  shiftService,
-  notificationService,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
 );
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -38,258 +47,424 @@ export default async function handler(
   }
 
   try {
-    const { employeeId, date, checkInTime, checkOutTime, reason } = req.body;
-
-    console.log('Manual entry request:', {
+    const {
       employeeId,
       date,
       checkInTime,
       checkOutTime,
       reason,
-    });
+      periodType,
+      reasonType,
+      overtimeRequestId,
+    } = req.body;
 
-    // Get employee and admin data
-    const [targetEmployee, actionUser] = await Promise.all([
-      prisma.user.findUnique({
-        where: { employeeId },
-        include: {
-          assignedShift: true,
-        },
-      }),
-      prisma.user.findUnique({
-        where: { lineUserId },
-        select: { role: true, departmentId: true, employeeId: true },
-      }),
-    ]);
-
-    if (!targetEmployee || !actionUser) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee or admin user not found',
-      });
-    }
-
-    // Check permissions
+    // Validate inputs
     if (
-      !['SuperAdmin', 'Admin'].includes(actionUser.role) ||
-      (actionUser.role === 'Admin' &&
-        actionUser.departmentId &&
-        targetEmployee.departmentId !== actionUser.departmentId)
+      !employeeId ||
+      !date ||
+      (!checkInTime && !checkOutTime) ||
+      !periodType
     ) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized to modify this employee's attendance",
-      });
-    }
-
-    const targetDate = startOfDay(parseISO(date));
-
-    // Get approved overtime for this date
-    // In manual-entry.ts
-    const approvedOvertime = await prisma.overtimeRequest.findFirst({
-      where: {
-        employeeId,
-        date: targetDate,
-        status: 'approved' as OvertimeRequestStatus, // Explicitly type the status
-      },
-    });
-
-    // Get effective shift for the date
-    const shiftData = await shiftService.getEffectiveShiftAndStatus(
-      employeeId,
-      targetDate,
-    );
-
-    if (!shiftData?.effectiveShift) {
       return res.status(400).json({
         success: false,
-        message: 'No shift found for this date',
+        message: 'Missing required fields',
       });
     }
 
-    // Parse shift times
-    const shiftStart = parseISO(
-      `${date}T${shiftData.effectiveShift.startTime}`,
-    );
-    const shiftEnd = parseISO(`${date}T${shiftData.effectiveShift.endTime}`);
+    // Start transaction
+    return await prisma.$transaction(async (tx) => {
+      // Get permissions and data
+      const [targetEmployee, actionUser] = await Promise.all([
+        tx.user.findUnique({
+          where: { employeeId },
+          include: { department: true },
+        }),
+        tx.user.findUnique({
+          where: { lineUserId },
+          select: { role: true, departmentId: true, employeeId: true },
+        }),
+      ]);
 
-    // Find existing attendance
-    const existingAttendance = await prisma.attendance.findFirst({
-      where: {
+      if (!targetEmployee || !actionUser) {
+        throw new AppError({
+          code: ErrorCode.USER_NOT_FOUND,
+          message: 'Employee or admin user not found',
+        });
+      }
+
+      // Check permissions
+      if (
+        !['SuperAdmin', 'Admin'].includes(actionUser.role) ||
+        (actionUser.role === 'Admin' &&
+          actionUser.departmentId &&
+          targetEmployee.departmentId !== actionUser.departmentId)
+      ) {
+        throw new AppError({
+          code: ErrorCode.UNAUTHORIZED,
+          message: "Unauthorized to modify this employee's attendance",
+        });
+      }
+
+      const targetDate = startOfDay(parseISO(date));
+
+      // Get shift data
+      const shiftData = await services.shiftService.getEffectiveShiftAndStatus(
         employeeId,
-        date: {
-          gte: targetDate,
-          lt: endOfDay(targetDate),
+        targetDate,
+      );
+
+      if (!shiftData?.effectiveShift) {
+        throw new AppError({
+          code: ErrorCode.SHIFT_NOT_FOUND,
+          message: 'No shift found for this date',
+        });
+      }
+
+      // Get overtime request if needed
+      let overtimeRequest = null;
+      if (periodType === PeriodType.OVERTIME || overtimeRequestId) {
+        overtimeRequest = await tx.overtimeRequest.findFirst({
+          where: {
+            id: overtimeRequestId,
+            employeeId,
+            date: targetDate,
+            status: 'approved',
+          },
+        });
+
+        if (!overtimeRequest) {
+          throw new AppError({
+            code: ErrorCode.INVALID_INPUT,
+            message: 'No approved overtime request found',
+          });
+        }
+      }
+
+      // Create or update base attendance record first
+      const attendance = await tx.attendance.upsert({
+        where: {
+          employee_date_attendance: {
+            employeeId,
+            date: targetDate,
+          },
         },
-      },
-    });
-
-    let updatedAttendance;
-
-    if (existingAttendance) {
-      const updateData: any = {
-        isManualEntry: true,
-        shiftStartTime: shiftStart,
-        shiftEndTime: shiftEnd,
-        isDayOff: !shiftData.effectiveShift.workDays.includes(
-          targetDate.getDay(),
-        ),
-        version: { increment: 1 },
-      };
-
-      if (checkInTime) {
-        const checkInDateTime = parseISO(`${date}T${checkInTime}`);
-        updateData.regularCheckInTime = checkInDateTime;
-        updateData.isLateCheckIn = checkInDateTime > shiftStart;
-        updateData.isEarlyCheckIn = checkInDateTime < shiftStart;
-        updateData.checkInReason = reason;
-      }
-
-      if (checkOutTime) {
-        const checkOutDateTime = parseISO(`${date}T${checkOutTime}`);
-        updateData.regularCheckOutTime = checkOutDateTime;
-        updateData.isLateCheckOut = checkOutDateTime > shiftEnd;
-        updateData.status = approvedOvertime ? 'overtime' : 'present';
-      }
-
-      updatedAttendance = await prisma.attendance.update({
-        where: { id: existingAttendance.id },
-        data: updateData,
-      });
-    } else {
-      // Create new record
-      const checkInDateTime = checkInTime
-        ? parseISO(`${date}T${checkInTime}`)
-        : null;
-      const checkOutDateTime = checkOutTime
-        ? parseISO(`${date}T${checkOutTime}`)
-        : null;
-
-      updatedAttendance = await prisma.attendance.create({
-        data: {
+        create: {
           employeeId,
           date: targetDate,
-          shiftStartTime: shiftStart,
-          shiftEndTime: shiftEnd,
-          regularCheckInTime: checkInDateTime,
-          regularCheckOutTime: checkOutDateTime,
-          isLateCheckIn: checkInDateTime ? checkInDateTime > shiftStart : false,
-          isEarlyCheckIn: checkInDateTime
-            ? checkInDateTime < shiftStart
-            : false,
-          isLateCheckOut: checkOutDateTime
-            ? checkOutDateTime > shiftEnd
-            : false,
-          status: checkOutDateTime ? 'present' : 'incomplete',
+          state: AttendanceState.PRESENT,
+          checkStatus:
+            checkInTime && checkOutTime
+              ? CheckStatus.CHECKED_OUT
+              : checkInTime
+                ? CheckStatus.CHECKED_IN
+                : CheckStatus.PENDING,
           isManualEntry: true,
-          checkInReason: reason,
-          version: 0,
+          regularCheckInTime: checkInTime
+            ? parseISO(`${date}T${checkInTime}`)
+            : null,
+          regularCheckOutTime: checkOutTime
+            ? parseISO(`${date}T${checkOutTime}`)
+            : null,
+          shiftStartTime: parseISO(
+            `${date}T${shiftData.effectiveShift.startTime}`,
+          ),
+          shiftEndTime: parseISO(`${date}T${shiftData.effectiveShift.endTime}`),
           isDayOff: !shiftData.effectiveShift.workDays.includes(
             targetDate.getDay(),
           ),
+          checkInReason: reason,
+          version: 1,
+        },
+        update: {
+          regularCheckInTime: checkInTime
+            ? parseISO(`${date}T${checkInTime}`)
+            : undefined,
+          regularCheckOutTime: checkOutTime
+            ? parseISO(`${date}T${checkOutTime}`)
+            : undefined,
+          state: AttendanceState.PRESENT,
+          checkStatus:
+            checkInTime && checkOutTime
+              ? CheckStatus.CHECKED_OUT
+              : checkInTime
+                ? CheckStatus.CHECKED_IN
+                : CheckStatus.PENDING,
+          isManualEntry: true,
+          checkInReason: reason,
+          version: { increment: 1 },
         },
       });
-    }
 
-    const attendanceWithEntries = await prisma.attendance.findUnique({
-      where: { id: updatedAttendance.id },
-      include: {
-        overtimeEntries: true,
-        timeEntries: {
-          include: {
-            overtimeMetadata: true,
+      // Create break times based on shift data
+      const calculateBreakTimes = (date: string) => {
+        const shiftStart = parseISO(
+          `${date}T${shiftData.effectiveShift.startTime}`,
+        );
+        const breakStart = addHours(shiftStart, 4); // Break after 4 hours
+        const breakEnd = addMinutes(breakStart, 60); // 1 hour break
+        return { breakStart, breakEnd };
+      };
+
+      // Calculate hours for time entry
+      const calculateHours = async (
+        services: any,
+        {
+          checkInTime,
+          checkOutTime,
+          date,
+          shiftData,
+          overtimeRequest,
+          periodType,
+        }: {
+          checkInTime: string | null;
+          checkOutTime: string | null;
+          date: string;
+          shiftData: any;
+          overtimeRequest: any;
+          periodType: PeriodType;
+        },
+      ) => {
+        const { breakStart, breakEnd } = calculateBreakTimes(date);
+        const checkInDateTime = checkInTime
+          ? parseISO(`${date}T${checkInTime}`)
+          : null;
+        const checkOutDateTime = checkOutTime
+          ? parseISO(`${date}T${checkOutTime}`)
+          : null;
+
+        if (!checkInDateTime || !checkOutDateTime) {
+          return { regularHours: 0, overtimeHours: 0 };
+        }
+
+        const workingHours = services.timeEntryService.calculateWorkingHours(
+          checkInDateTime,
+          checkOutDateTime,
+          parseISO(`${date}T${shiftData.effectiveShift.startTime}`),
+          parseISO(`${date}T${shiftData.effectiveShift.endTime}`),
+          overtimeRequest,
+          [], // Empty leave requests array
+        );
+
+        return {
+          regularHours:
+            periodType === PeriodType.REGULAR ? workingHours.regularHours : 0,
+          overtimeHours:
+            periodType === PeriodType.OVERTIME ? workingHours.overtimeHours : 0,
+        };
+      };
+
+      // In the transaction, update the overtime entry creation:
+      if (periodType === PeriodType.OVERTIME && overtimeRequest) {
+        await tx.overtimeEntry.upsert({
+          where: {
+            id: `${attendance.id}-${overtimeRequest.id}`,
           },
+          create: {
+            id: `${attendance.id}-${overtimeRequest.id}`,
+            attendance: { connect: { id: attendance.id } },
+            overtimeRequest: { connect: { id: overtimeRequest.id } },
+            actualStartTime: checkInTime
+              ? parseISO(`${date}T${checkInTime}`)
+              : '',
+            actualEndTime: checkOutTime
+              ? parseISO(`${date}T${checkOutTime}`)
+              : undefined,
+          },
+          update: {
+            actualStartTime: checkInTime
+              ? parseISO(`${date}T${checkInTime}`)
+              : undefined,
+            actualEndTime: checkOutTime
+              ? parseISO(`${date}T${checkOutTime}`)
+              : undefined,
+          },
+        });
+      }
+
+      // Calculate hours
+      const hours = await calculateHours(services, {
+        checkInTime,
+        checkOutTime,
+        date,
+        shiftData,
+        overtimeRequest,
+        periodType,
+      });
+
+      // Create or update time entry
+      await tx.timeEntry.upsert({
+        where: {
+          id: `${attendance.id}-${periodType}`,
         },
-      },
-    });
-
-    if (!attendanceWithEntries) {
-      throw new Error('Attendance record not found');
-    }
-
-    const enhancedAttendance: EnhancedAttendanceRecord = {
-      ...attendanceWithEntries,
-      overtimeEntries: attendanceWithEntries.overtimeEntries,
-      timeEntries: attendanceWithEntries.timeEntries.map((entry) => ({
-        ...entry,
-        status: entry.status as TimeEntryStatus,
-        entryType: entry.entryType as 'regular' | 'overtime',
-        overtimeMetadata: entry.overtimeMetadata || undefined, // Add this line
-      })),
-    };
-
-    await timeEntryService.createOrUpdateTimeEntry(
-      enhancedAttendance,
-      false,
-      approvedOvertime as ApprovedOvertime,
-      [],
-    );
-
-    if (approvedOvertime && checkOutTime) {
-      const checkOutDateTime = parseISO(`${date}T${checkOutTime}`);
-      const overtimeStart = parseISO(`${date}T${approvedOvertime.startTime}`);
-      const overtimeEnd = parseISO(`${date}T${approvedOvertime.endTime}`);
-
-      await prisma.overtimeEntry.create({
-        data: {
-          attendanceId: updatedAttendance.id,
-          overtimeRequestId: approvedOvertime.id,
-          actualStartTime: max([
-            updatedAttendance.regularCheckInTime!,
-            overtimeStart,
-          ]),
-          actualEndTime: min([checkOutDateTime, overtimeEnd]),
+        create: {
+          id: `${attendance.id}-${periodType}`,
+          employeeId,
+          attendanceId: attendance.id,
+          date: targetDate,
+          entryType: periodType,
+          regularHours: hours.regularHours,
+          overtimeHours: hours.overtimeHours,
+          status: checkOutTime
+            ? TimeEntryStatus.COMPLETED
+            : TimeEntryStatus.IN_PROGRESS,
+          startTime: checkInTime
+            ? parseISO(`${date}T${checkInTime}`)
+            : targetDate,
+          endTime: checkOutTime ? parseISO(`${date}T${checkOutTime}`) : null,
+          ...(periodType === PeriodType.OVERTIME &&
+            overtimeRequest && {
+              overtimeMetadata: {
+                create: {
+                  isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+                  isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+                },
+              },
+            }),
+        },
+        update: {
+          status: checkOutTime
+            ? TimeEntryStatus.COMPLETED
+            : TimeEntryStatus.IN_PROGRESS,
+          regularHours: hours.regularHours,
+          overtimeHours: hours.overtimeHours,
+          startTime: checkInTime
+            ? parseISO(`${date}T${checkInTime}`)
+            : undefined,
+          endTime: checkOutTime ? parseISO(`${date}T${checkOutTime}`) : null,
+          ...(periodType === PeriodType.OVERTIME &&
+            overtimeRequest && {
+              overtimeMetadata: {
+                upsert: {
+                  create: {
+                    isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+                    isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+                  },
+                  update: {
+                    isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+                    isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+                  },
+                },
+              },
+            }),
         },
       });
-    }
 
-    // Send notifications
-    try {
+      // Process through attendance service
+      if (checkInTime) {
+        await attendanceService.processAttendance({
+          employeeId,
+          lineUserId,
+          checkTime: `${date}T${checkInTime}`,
+          isCheckIn: true,
+          entryType: periodType,
+          isManualEntry: true,
+          isOvertime: periodType === PeriodType.OVERTIME,
+          overtimeRequestId: overtimeRequest?.id,
+          reason,
+          state: AttendanceState.PRESENT,
+          checkStatus: CheckStatus.CHECKED_IN,
+          overtimeState:
+            periodType === PeriodType.OVERTIME
+              ? OvertimeState.IN_PROGRESS
+              : undefined,
+          updatedBy: actionUser.employeeId,
+          metadata: {
+            source: 'manual',
+            reasonType,
+            originalRequest: req.body,
+          },
+        });
+      }
+
+      if (checkOutTime) {
+        await attendanceService.processAttendance({
+          employeeId,
+          lineUserId,
+          checkTime: `${date}T${checkOutTime}`,
+          isCheckIn: false,
+          entryType: periodType,
+          isManualEntry: true,
+          isOvertime: periodType === PeriodType.OVERTIME,
+          overtimeRequestId: overtimeRequest?.id,
+          reason,
+          state: AttendanceState.PRESENT,
+          checkStatus: CheckStatus.CHECKED_OUT,
+          overtimeState:
+            periodType === PeriodType.OVERTIME
+              ? OvertimeState.COMPLETED
+              : undefined,
+          updatedBy: actionUser.employeeId,
+          metadata: {
+            source: 'manual',
+            reasonType,
+            originalRequest: req.body,
+          },
+        });
+      }
+
+      // Send notifications
       if (targetEmployee.lineUserId) {
-        await notificationService.sendNotification(
+        await services.notificationService.sendNotification(
           targetEmployee.employeeId,
           targetEmployee.lineUserId,
-          `Your attendance record for ${format(targetDate, 'dd/MM/yyyy')} has been updated by admin.\nReason: ${reason}`,
+          `Your attendance record for ${format(targetDate, 'dd/MM/yyyy')} has been updated by admin.
+          Type: ${periodType === PeriodType.OVERTIME ? 'Overtime' : 'Regular'}
+          Reason: ${reason}`,
           'attendance',
         );
       }
 
-      // Notify managers
-      const managers = await prisma.user.findMany({
-        where: {
-          role: { in: ['Manager', 'Admin', 'SuperAdmin'] },
-          NOT: { employeeId: actionUser.employeeId },
+      // Get final attendance status
+      const updatedStatus =
+        await attendanceService.getLatestAttendanceStatus(employeeId);
+
+      const finalAttendance = await tx.attendance.findUnique({
+        where: { id: attendance.id },
+        include: {
+          overtimeEntries: true,
+          timeEntries: {
+            include: { overtimeMetadata: true },
+          },
         },
-        select: { employeeId: true, lineUserId: true },
       });
 
-      for (const manager of managers) {
-        if (manager.lineUserId) {
-          await notificationService.sendNotification(
-            manager.employeeId,
-            manager.lineUserId,
-            `Attendance manual entry by ${actionUser.employeeId}:\nEmployee: ${targetEmployee.name}\nDate: ${format(targetDate, 'dd/MM/yyyy')}\nReason: ${reason}`,
-            'attendance',
-          );
-        }
-      }
-    } catch (notifyError) {
-      console.error('Failed to send notifications:', notifyError);
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Attendance record updated successfully',
-      data: updatedAttendance,
+      return res.status(200).json({
+        success: true,
+        message: 'Attendance record updated successfully',
+        data: {
+          status: updatedStatus,
+          attendance: {
+            ...finalAttendance,
+            regularCheckInTime: finalAttendance?.regularCheckInTime
+              ? format(finalAttendance.regularCheckInTime, 'HH:mm')
+              : null,
+            regularCheckOutTime: finalAttendance?.regularCheckOutTime
+              ? format(finalAttendance.regularCheckOutTime, 'HH:mm')
+              : null,
+          },
+        },
+      });
     });
   } catch (error) {
     console.error('Error in manual entry:', error);
+
+    if (error instanceof AppError) {
+      return res
+        .status(error.code === ErrorCode.UNAUTHORIZED ? 403 : 400)
+        .json({
+          success: false,
+          message: error.message,
+          code: error.code,
+        });
+    }
+
     return res.status(500).json({
       success: false,
       message:
         error instanceof Error
           ? error.message
           : 'Failed to process manual entry',
+      code: ErrorCode.INTERNAL_ERROR,
     });
   }
 }

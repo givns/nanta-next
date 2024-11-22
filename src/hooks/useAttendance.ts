@@ -1,27 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDebounce } from './useDebounce';
 import { AttendanceApiService } from '@/services/attendanceApiService';
+import { startOfDay, isValid, parseISO, format, endOfDay } from 'date-fns';
+import { validateAttendanceRecord } from '@/utils/timeUtils';
+import { DepartmentInfo } from '@/types/attendance/department';
+import { AttendanceFilters, DateRange } from '@/types/attendance/utils';
+import { ManualEntryRequest } from '@/types/attendance/manual';
 import {
-  DailyAttendanceResponse,
-  DepartmentInfo,
-  ManualEntryRequest,
-  AttendanceFilters,
+  AttendanceState,
+  DailyAttendanceRecord,
+  PeriodType,
   UseAttendanceProps,
+  UseAttendanceReturn,
 } from '@/types/attendance';
-import { startOfDay, isValid, parseISO, format } from 'date-fns';
-import { validateAttendanceTime, validateShiftInfo } from '@/utils/timeUtils';
-
-export interface UseAttendanceReturn {
-  records: DailyAttendanceResponse[];
-  filteredRecords: DailyAttendanceResponse[];
-  departments: DepartmentInfo[];
-  isLoading: boolean;
-  error: string | null;
-  filters: AttendanceFilters;
-  setFilters: (filters: Partial<AttendanceFilters>) => void;
-  createManualEntry: (data: ManualEntryRequest) => Promise<void>;
-  refreshData: () => Promise<void>;
-}
 
 export function useAttendance({
   lineUserId,
@@ -31,91 +22,70 @@ export function useAttendance({
   enabled = true,
 }: UseAttendanceProps): UseAttendanceReturn {
   // State declarations
-  const [records, setRecords] = useState<DailyAttendanceResponse[]>([]);
+  const [records, setRecords] = useState<DailyAttendanceRecord[]>([]);
   const [departments, setDepartments] = useState<DepartmentInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Initialize filters with proper types
+  const [filters, setFilters] = useState<AttendanceFilters>(() => ({
+    dateRange: {
+      start: startOfDay(initialDate),
+      end: endOfDay(initialDate),
+      isValid: true,
+      duration: 1,
+    },
+    departments: initialDepartment === 'all' ? undefined : [initialDepartment],
+    currentState: AttendanceState.PRESENT,
+    periodTypes: [PeriodType.REGULAR],
+    searchTerm: initialSearchTerm || undefined,
+  }));
+
+  const debouncedSearch = useDebounce(filters.searchTerm || '', 300);
+
   // Memoize date validation function
-  const getValidDate = useCallback((date: Date | string): Date => {
+  const getValidDateRange = useCallback((date: Date | string): DateRange => {
     try {
-      const parsedDate = typeof date === 'string' ? parseISO(date) : date;
-      return isValid(parsedDate)
-        ? startOfDay(parsedDate)
-        : startOfDay(new Date());
+      const validDate = typeof date === 'string' ? parseISO(date) : date;
+      if (!isValid(validDate)) {
+        throw new Error('Invalid date');
+      }
+      return {
+        start: startOfDay(validDate),
+        end: endOfDay(validDate),
+        isValid: true,
+        duration: 1,
+      };
     } catch {
-      return startOfDay(new Date());
+      const now = new Date();
+      return {
+        start: startOfDay(now),
+        end: endOfDay(now),
+        isValid: true,
+        duration: 1,
+      };
     }
   }, []);
 
-  // Initialize filters with memoized valid date
-  const [filters, setFilters] = useState<AttendanceFilters>(() => ({
-    date: getValidDate(initialDate),
-    department: initialDepartment,
-    searchTerm: initialSearchTerm,
-  }));
-
-  const debouncedSearch = useDebounce(filters.searchTerm, 300);
-
-  // Memoize filter update function
+  // Update filter update function
   const updateFilters = useCallback(
     (newFilters: Partial<AttendanceFilters>) => {
-      setFilters((prev) => {
-        const updated = { ...prev };
-
-        if ('date' in newFilters && newFilters.date) {
-          updated.date = getValidDate(newFilters.date);
-        }
-        if ('department' in newFilters && newFilters.department) {
-          updated.department = newFilters.department;
-        }
-        if ('searchTerm' in newFilters) {
-          updated.searchTerm = newFilters.searchTerm ?? '';
-        }
-
-        return updated;
-      });
-    },
-    [getValidDate],
-  );
-
-  // Memoize record validation function
-  const validateAttendanceRecord = useCallback(
-    (record: any): DailyAttendanceResponse | null => {
-      if (!record) return null;
-
-      try {
-        const validatedRecord: DailyAttendanceResponse = {
-          employeeId: record.employeeId || '',
-          employeeName: record.employeeName || '',
-          departmentName: record.departmentName || '',
-          date: record.date || format(new Date(), 'yyyy-MM-dd'),
-          shift: validateShiftInfo(record.shift),
-          attendance: validateAttendanceTime(record.attendance),
-          isDayOff: !!record.isDayOff,
-          leaveInfo: record.leaveInfo
-            ? {
-                type: record.leaveInfo.type || '',
-                status: record.leaveInfo.status || '',
-              }
-            : null,
-        };
-
-        // Additional validation for required fields
-        if (!validatedRecord.employeeId || !validatedRecord.employeeName) {
-          return null;
-        }
-
-        return validatedRecord;
-      } catch (error) {
-        console.error('Error validating attendance record:', error, record);
-        return null;
-      }
+      setFilters((prev) => ({
+        ...prev,
+        ...newFilters,
+        // Ensure dateRange is properly formatted if provided
+        ...(newFilters.dateRange && {
+          dateRange: {
+            ...newFilters.dateRange,
+            isValid: true,
+            duration: 1,
+          },
+        }),
+      }));
     },
     [],
   );
 
-  // Memoize fetch function
   const fetchAttendanceRecords = useCallback(async () => {
     if (!lineUserId || !enabled) return;
 
@@ -123,13 +93,12 @@ export function useAttendance({
       setIsLoading(true);
       setError(null);
 
-      const validDate = getValidDate(filters.date);
-      const dateStr = format(validDate, 'yyyy-MM-dd');
+      const dateStr = format(filters.dateRange.start, 'yyyy-MM-dd');
 
       const data = await AttendanceApiService.getDailyAttendance(
         lineUserId,
-        validDate,
-        filters.department,
+        filters.dateRange.start,
+        filters.departments?.[0] || 'all',
         debouncedSearch,
       );
 
@@ -137,10 +106,14 @@ export function useAttendance({
         throw new Error('Invalid response format from server');
       }
 
-      // Validate and filter records in one pass
       const validatedRecords = data
         .map(validateAttendanceRecord)
-        .filter((record): record is DailyAttendanceResponse => record !== null);
+        .filter((record): record is DailyAttendanceRecord => record !== null)
+        // Apply state filter
+        .filter(
+          (record) =>
+            !filters.currentState || record.state === filters.currentState,
+        );
 
       setRecords(validatedRecords);
     } catch (error) {
@@ -156,11 +129,10 @@ export function useAttendance({
   }, [
     lineUserId,
     enabled,
-    filters.date,
-    filters.department,
+    filters.dateRange,
+    filters.departments,
+    filters.currentState,
     debouncedSearch,
-    getValidDate,
-    validateAttendanceRecord,
   ]);
 
   // Fetch departments on mount if enabled
@@ -213,12 +185,15 @@ export function useAttendance({
         record.employeeId.toLowerCase().includes(debouncedSearch.toLowerCase());
 
       const matchesDepartment =
-        filters.department === 'all' ||
-        record.departmentName === filters.department;
+        !filters.departments?.length ||
+        filters.departments.includes(record.departmentName);
 
-      return matchesSearch && matchesDepartment;
+      const matchesState =
+        !filters.currentState || record.state === filters.currentState;
+
+      return matchesSearch && matchesDepartment && matchesState;
     });
-  }, [records, debouncedSearch, filters.department]);
+  }, [records, debouncedSearch, filters.departments, filters.currentState]);
 
   // Memoize createManualEntry function
   const createManualEntry = useCallback(

@@ -2,39 +2,19 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { OvertimeServiceServer } from '../../../services/OvertimeServiceServer';
-import { TimeEntryService } from '../../../services/TimeEntryService';
-import {
-  NotificationService,
-  createNotificationService,
-} from '../../../services/NotificationService';
-import { ShiftManagementService } from '../../../services/ShiftManagementService';
-import { HolidayService } from '@/services/HolidayService';
-import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
+import { initializeServices } from '@/services/ServiceInitializer';
+import { AttendanceService } from '@/services/Attendance/AttendanceService';
 
 const prisma = new PrismaClient();
-// Initialize services
-const holidayService = new HolidayService(prisma);
-const notificationService = createNotificationService(prisma);
-const shiftService = new ShiftManagementService(prisma, holidayService);
-const leaveServiceServer = createLeaveServiceServer(
+const services = initializeServices(prisma);
+const attendanceService = new AttendanceService(
   prisma,
-  notificationService,
-);
-const timeEntryService = new TimeEntryService(
-  prisma,
-  shiftService,
-  notificationService,
-);
-// Initialize OvertimeServiceServer with new dependencies
-
-const overtimeService = new OvertimeServiceServer(
-  prisma,
-  holidayService,
-  leaveServiceServer,
-  shiftService,
-  timeEntryService,
-  notificationService,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
 );
 
 export default async function handler(
@@ -46,7 +26,7 @@ export default async function handler(
       const { requestIds, approverId } = req.body;
 
       const approvedRequests =
-        await overtimeService.batchApproveOvertimeRequests(
+        await services.overtimeService.batchApproveOvertimeRequests(
           requestIds,
           approverId,
         );

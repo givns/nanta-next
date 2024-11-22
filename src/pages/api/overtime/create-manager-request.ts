@@ -2,15 +2,21 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { NotificationService } from '../../../services/NotificationService';
-import { ShiftManagementService } from '../../../services/ShiftManagementService';
+import { ShiftManagementService } from '../../../services/ShiftManagementService/ShiftManagementService';
 import { HolidayService } from '../../../services/HolidayService';
+import { initializeServices } from '@/services/ServiceInitializer';
+import { AttendanceService } from '@/services/Attendance/AttendanceService';
 
 const prisma = new PrismaClient();
-const holidayService = new HolidayService(prisma);
-const notificationService = new NotificationService(prisma);
-const shiftManagementService = new ShiftManagementService(
+const services = initializeServices(prisma);
+const attendanceService = new AttendanceService(
   prisma,
-  holidayService,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
 );
 
 interface OvertimeRequestData {
@@ -54,7 +60,11 @@ export default async function handler(
       .join('; ');
 
     const overtimeDate = new Date(date);
-    const isHoliday = await holidayService.isHoliday(overtimeDate, [], false);
+    const isHoliday = await services.holidayService.isHoliday(
+      overtimeDate,
+      [],
+      false,
+    );
 
     const createdRequests = await Promise.all(
       employeeIds.map(async (employeeId: string) => {
@@ -79,7 +89,7 @@ export default async function handler(
 
           // Get effective shift
           const shiftData =
-            await shiftManagementService.getEffectiveShiftAndStatus(
+            await services.shiftService.getEffectiveShiftAndStatus(
               employee.employeeId,
               overtimeDate,
             );
@@ -87,17 +97,26 @@ export default async function handler(
           // Check if it's a day off
           const isDayOffOvertime =
             isHoliday ||
-            !shiftData.effectiveShift.workDays.includes(overtimeDate.getDay());
+            (shiftData &&
+              !shiftData.effectiveShift.workDays.includes(
+                overtimeDate.getDay(),
+              ));
 
           // Determine if overtime is inside or outside shift hours
           const requestStartTime = parseTime(startTime);
           const requestEndTime = parseTime(endTime);
-          const shiftStartTime = parseTime(shiftData.effectiveShift.startTime);
-          const shiftEndTime = parseTime(shiftData.effectiveShift.endTime);
+          const shiftStartTime = shiftData?.effectiveShift?.startTime
+            ? parseTime(shiftData.effectiveShift.startTime)
+            : null;
+          const shiftEndTime = shiftData?.effectiveShift?.endTime
+            ? parseTime(shiftData.effectiveShift.endTime)
+            : null;
 
           // For day off overtime, check if it's within regular shift hours
           const isInsideShift =
             isDayOffOvertime &&
+            shiftStartTime !== null &&
+            shiftEndTime !== null &&
             requestStartTime >= shiftStartTime &&
             requestEndTime <= shiftEndTime;
 
@@ -112,14 +131,14 @@ export default async function handler(
               reason: formattedReason,
               status: 'pending_response',
               approverId: manager.id,
-              isDayOffOvertime, // Whether it's a day off (holiday or weekly off)
-              isInsideShiftHours: isInsideShift, // Only relevant for day off OT
+              isDayOffOvertime: isDayOffOvertime ?? false, // Ensure isDayOffOvertime is always a boolean
+              isInsideShiftHours: isInsideShift || false, // Only relevant for day off OT
             },
           });
 
           // Send notification
           if (employee.lineUserId) {
-            await notificationService.sendOvertimeRequestNotification(
+            await services.notificationService.sendOvertimeRequestNotification(
               request,
               employee.employeeId,
               employee.lineUserId,

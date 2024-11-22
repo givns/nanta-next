@@ -1,13 +1,20 @@
 // lib/shiftCache.ts
-import { ShiftManagementService } from '../services/ShiftManagementService';
+import { AttendanceService } from '@/services/Attendance/AttendanceService';
+import { ShiftManagementService } from '../services/ShiftManagementService/ShiftManagementService';
 import { HolidayService } from '@/services/HolidayService';
+import { initializeServices } from '@/services/ServiceInitializer';
 import { PrismaClient, Shift } from '@prisma/client';
 
 const prisma = new PrismaClient();
-const holidayService = new HolidayService(prisma);
-const shiftManagementService = new ShiftManagementService(
+const services = initializeServices(prisma);
+const attendanceService = new AttendanceService(
   prisma,
-  holidayService,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
 );
 
 // Client-side cache implementation
@@ -24,7 +31,7 @@ export async function getShiftByCode(shiftCode: string): Promise<Shift | null> {
   }
 
   // Fetch fresh data
-  const shift = await shiftManagementService.getShiftByCode(shiftCode);
+  const shift = await services.shiftService.getShiftByCode(shiftCode);
 
   // Update cache
   shiftCache.set(shiftCode, {
@@ -43,7 +50,7 @@ export async function getShiftById(shiftId: string): Promise<Shift | null> {
     return cached.data;
   }
 
-  const shift = await shiftManagementService.getShiftById(shiftId);
+  const shift = await services.shiftService.getShiftById(shiftId);
 
   shiftCache.set(shiftId, {
     data: shift,
@@ -55,11 +62,11 @@ export async function getShiftById(shiftId: string): Promise<Shift | null> {
 
 // Re-export other functions
 export async function getShifts(): Promise<Shift[]> {
-  return shiftManagementService.getAllShifts();
+  return services.shiftService.getAllShifts();
 }
 
 export function getDefaultShiftCode(department: string): string {
-  return shiftManagementService.getDefaultShiftCodeForDepartment(department);
+  return services.shiftService.getDefaultShiftCodeForDepartment(department);
 }
 
 export const DEFAULT_SHIFTS: { [key: string]: Shift } = {
@@ -122,4 +129,4 @@ export async function getShiftData(shiftCode: string): Promise<Shift | null> {
   return getShiftByCode(shiftCode);
 }
 
-export const departmentShiftMap = shiftManagementService['departmentShiftMap'];
+export const departmentShiftMap = services.shiftService['departmentShiftMap'];

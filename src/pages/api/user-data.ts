@@ -2,41 +2,10 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
-import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { TimeEntryService } from '@/services/TimeEntryService';
-import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
-import { createNotificationService } from '@/services/NotificationService';
 import { UserDataSchema } from '../../schemas/attendance';
 import { cacheService } from '@/services/CacheService';
-import { HolidayService } from '@/services/HolidayService';
 
 const prisma = new PrismaClient();
-// Initialize services
-const holidayService = new HolidayService(prisma);
-const notificationService = createNotificationService(prisma);
-const shiftService = new ShiftManagementService(prisma, holidayService);
-const leaveServiceServer = createLeaveServiceServer(
-  prisma,
-  notificationService,
-);
-const timeEntryService = new TimeEntryService(
-  prisma,
-  shiftService,
-  notificationService,
-);
-// Initialize OvertimeServiceServer with new dependencies
-
-const overtimeService = new OvertimeServiceServer(
-  prisma,
-  holidayService,
-  leaveServiceServer,
-  shiftService,
-  timeEntryService,
-  notificationService,
-);
-// Set overtime service in shift service if needed
-shiftService.setOvertimeService(overtimeService);
 
 export default async function handler(
   req: NextApiRequest,

@@ -1,6 +1,6 @@
 // pages/api/location/check.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { ShiftManagementService } from '../../../services/ShiftManagementService';
+import { ShiftManagementService } from '../../../services/ShiftManagementService/ShiftManagementService';
 import { PrismaClient } from '@prisma/client';
 import { HolidayService } from '@/services/HolidayService';
 

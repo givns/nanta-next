@@ -3,7 +3,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { startOfMonth, endOfMonth, parseISO, format } from 'date-fns';
-import { TimeEntriesResponse } from '@/types/attendance';
+import {
+  DetailedTimeEntry,
+  PeriodType,
+  TimeEntriesResponse,
+} from '@/types/attendance';
 
 const prisma = new PrismaClient();
 
@@ -40,8 +44,8 @@ export default async function handler(
     const periodStartDay = rules.payrollPeriodStart || 26;
     const periodEndDay = rules.payrollPeriodEnd || 25;
 
-    // Get all attendance records, leaves, and time entries
-    const [attendanceRecords, leaveRequests, timeEntries] = await Promise.all([
+    // Get all records with necessary includes
+    const [attendanceRecords, leaveRequests] = await Promise.all([
       prisma.attendance.findMany({
         where: {
           employeeId: employeeId as string,
@@ -50,9 +54,13 @@ export default async function handler(
             lte: periodEnd,
           },
         },
-        orderBy: { date: 'desc' }, // Latest first
+        orderBy: { date: 'desc' },
         include: {
-          timeEntries: true,
+          timeEntries: {
+            include: {
+              overtimeMetadata: true,
+            },
+          },
           overtimeEntries: {
             include: {
               overtimeRequest: true,
@@ -68,69 +76,72 @@ export default async function handler(
           endDate: { gte: periodStart },
         },
       }),
-      prisma.timeEntry.findMany({
-        where: {
-          employeeId: employeeId as string,
-          date: {
-            gte: periodStart,
-            lte: periodEnd,
-          },
-        },
-        include: {
-          overtimeMetadata: true,
-        },
-      }),
     ]);
 
     // Transform to DetailedTimeEntry
-    const records = attendanceRecords.map((attendance) => {
-      const timeEntry = timeEntries.find(
-        (te) => te.attendanceId === attendance.id,
+    const records: DetailedTimeEntry[] = attendanceRecords.map((attendance) => {
+      const regularEntry = attendance.timeEntries.find(
+        (te) => te.entryType === PeriodType.REGULAR,
+      );
+      const overtimeEntry = attendance.timeEntries.find(
+        (te) => te.entryType === PeriodType.OVERTIME,
       );
       const leave = leaveRequests.find(
         (lr) =>
           attendance.date >= lr.startDate && attendance.date <= lr.endDate,
       );
 
+      const overtimeData = attendance.overtimeEntries[0];
+
       return {
         date: format(attendance.date, 'yyyy-MM-dd'),
         regularCheckInTime: attendance.regularCheckInTime
           ? format(attendance.regularCheckInTime, 'HH:mm')
-          : null,
+          : null, // Change undefined to null
         regularCheckOutTime: attendance.regularCheckOutTime
           ? format(attendance.regularCheckOutTime, 'HH:mm')
-          : null,
+          : null, // Change undefined to null
+        // Status and flags
+        state: attendance.state,
+        checkStatus: attendance.checkStatus,
         isLateCheckIn: attendance.isLateCheckIn || false,
         isLateCheckOut: attendance.isLateCheckOut || false,
-        status: attendance.status,
         isManualEntry: attendance.isManualEntry,
-        regularHours: timeEntry?.regularHours || 0,
-        overtimeHours: timeEntry?.overtimeHours || 0,
+        entryType: overtimeEntry ? PeriodType.OVERTIME : PeriodType.REGULAR,
+        // Hours
+        regularHours: regularEntry?.regularHours || 0,
+        overtimeHours: overtimeEntry?.overtimeHours || 0,
+        // Additional info
         leave: leave
           ? {
               type: leave.leaveType,
               status: leave.status,
             }
-          : null,
-        overtimeDetails: attendance.overtimeEntries.map((oe) => ({
-          startTime: oe.actualStartTime
-            ? format(oe.actualStartTime, 'HH:mm')
-            : null,
-          endTime: oe.actualEndTime ? format(oe.actualEndTime, 'HH:mm') : null,
-          status: oe.overtimeRequest?.status || 'pending',
-        })),
+          : null, // Change undefined to null
+        // Overtime info
+        overtimeRequest: overtimeData?.overtimeRequest
+          ? {
+              id: overtimeData.overtimeRequest.id,
+              startTime: overtimeData.overtimeRequest.startTime,
+              endTime: overtimeData.overtimeRequest.endTime,
+              actualStartTime: overtimeData.actualStartTime
+                ? format(overtimeData.actualStartTime, 'HH:mm')
+                : undefined,
+              actualEndTime: overtimeData.actualEndTime
+                ? format(overtimeData.actualEndTime, 'HH:mm')
+                : undefined,
+            }
+          : undefined,
         canEditManually: true,
       };
     });
 
-    const response: TimeEntriesResponse = {
+    return res.status(200).json({
       employeeId: employeeId as string,
       periodStart: format(periodStart, 'yyyy-MM-dd'),
       periodEnd: format(periodEnd, 'yyyy-MM-dd'),
       records,
-    };
-
-    return res.status(200).json(response);
+    });
   } catch (error) {
     console.error('Error fetching time entries:', error);
     return res.status(500).json({

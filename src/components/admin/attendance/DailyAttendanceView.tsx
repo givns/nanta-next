@@ -1,6 +1,6 @@
 // components/admin/attendance/DailyAttendanceView.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { DailyAttendanceResponse } from '@/types/attendance';
+import { DailyAttendanceRecord, DateRange } from '@/types/attendance';
 import { useAttendance } from '@/hooks/useAttendance';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateSelector } from './components/DateSelector';
@@ -72,7 +72,7 @@ export default function DailyAttendanceView() {
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
   const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const [selectedRecord, setSelectedRecord] =
-    useState<DailyAttendanceResponse | null>(null);
+    useState<DailyAttendanceRecord | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Safe date initialization from URL or current date
@@ -123,11 +123,11 @@ export default function DailyAttendanceView() {
 
     try {
       return [...records].sort((a, b) => {
-        const getStatusPriority = (record: DailyAttendanceResponse): number => {
+        const getStatusPriority = (record: DailyAttendanceRecord): number => {
           if (!record) return -1;
           if (record.leaveInfo) return 1;
           if (record.isDayOff) return 2;
-          if (!record.attendance?.regularCheckInTime) return 0;
+          if (!record.regularCheckInTime) return 0;
           return 3;
         };
 
@@ -156,11 +156,9 @@ export default function DailyAttendanceView() {
 
     return {
       total: filteredRecords.length,
-      present: filteredRecords.filter((r) => r?.attendance?.regularCheckInTime)
-        .length,
+      present: filteredRecords.filter((r) => r?.regularCheckInTime).length,
       absent: filteredRecords.filter(
-        (r) =>
-          !r?.attendance?.regularCheckInTime && !r?.leaveInfo && !r?.isDayOff,
+        (r) => !r?.regularCheckInTime && !r?.leaveInfo && !r?.isDayOff,
       ).length,
       onLeave: filteredRecords.filter((r) => r?.leaveInfo).length,
       dayOff: filteredRecords.filter((r) => r?.isDayOff).length,
@@ -168,7 +166,7 @@ export default function DailyAttendanceView() {
   }, [filteredRecords]);
 
   // Safe date change handler
-  // Update date change handler
+  // Update the date change handler
   const handleDateChange = (newDate: Date | undefined) => {
     if (!newDate || !isValid(newDate)) {
       console.warn('Invalid date selected:', newDate);
@@ -179,6 +177,7 @@ export default function DailyAttendanceView() {
     const formattedDate = format(processedDate, 'yyyy-MM-dd');
 
     try {
+      // Update URL
       router.push(
         {
           pathname: router.pathname,
@@ -188,15 +187,28 @@ export default function DailyAttendanceView() {
         { shallow: true },
       );
 
+      // Update selected date state
       setSelectedDate(processedDate);
-      setFilters({ date: processedDate });
+
+      // Create a proper DateRange for the filter
+      const dateRange: DateRange = {
+        start: processedDate,
+        end: processedDate, // Same day for single date selection
+        isValid: true,
+        duration: 1, // One day
+      };
+
+      // Update filters with proper dateRange
+      setFilters({
+        dateRange,
+      });
     } catch (error) {
       console.error('Error updating date:', error);
     }
   };
 
   // Safe record selection handlers
-  const handleRecordSelect = (record: DailyAttendanceResponse) => {
+  const handleRecordSelect = (record: DailyAttendanceRecord) => {
     if (!record || !selectedDate) return;
     setSelectedEmployee(record.employeeId);
     setShowEmployeeDetail(true);
@@ -204,7 +216,7 @@ export default function DailyAttendanceView() {
 
   const handleEditRecord = (
     e: React.MouseEvent,
-    record: DailyAttendanceResponse,
+    record: DailyAttendanceRecord,
   ) => {
     e.stopPropagation();
     setSelectedRecord(record);
@@ -258,10 +270,14 @@ export default function DailyAttendanceView() {
           <CardContent>
             <div className="space-y-6">
               <SearchFilters
-                filters={filters}
+                filters={{ ...filters, department: '', searchTerm: '' }}
                 departments={departments}
-                onSearchChange={(term) => setFilters({ searchTerm: term })}
-                onDepartmentChange={(dept) => setFilters({ department: dept })}
+                onSearchChange={(term) =>
+                  setFilters({ ...filters, searchTerm: term })
+                }
+                onDepartmentChange={(dept) =>
+                  setFilters({ ...filters, departments: [dept] })
+                }
               />
 
               <div className="hidden md:block">

@@ -100,5 +100,6 @@ class CacheService {
     return fetchPromise;
   }
 }
+
 export const cacheService =
   typeof window === 'undefined' ? new CacheService() : null;

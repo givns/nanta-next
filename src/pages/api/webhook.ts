@@ -6,12 +6,8 @@ import { PrismaClient } from '@prisma/client';
 import { UserRole } from '../../types/enum';
 import { createAndAssignRichMenu } from '../../utils/richMenuUtils';
 import getRawBody from 'raw-body';
-import { ShiftManagementService } from '@/services/ShiftManagementService';
-import { createLeaveServiceServer } from '@/services/LeaveServiceServer';
-import { createNotificationService } from '@/services/NotificationService';
-import { TimeEntryService } from '@/services/TimeEntryService';
-import { OvertimeServiceServer } from '@/services/OvertimeServiceServer';
-import { HolidayService } from '@/services/HolidayService';
+import { initializeServices } from '@/services/ServiceInitializer';
+import { AttendanceService } from '@/services/Attendance/AttendanceService';
 
 dotenv.config({ path: './.env.local' });
 
@@ -19,28 +15,16 @@ const prisma = new PrismaClient();
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
-// Initialize services
-const holidayService = new HolidayService(prisma);
-const notificationService = createNotificationService(prisma);
-const shiftService = new ShiftManagementService(prisma, holidayService);
-const leaveServiceServer = createLeaveServiceServer(
+// Initialize main service
+const services = initializeServices(prisma);
+const attendanceService = new AttendanceService(
   prisma,
-  notificationService,
-);
-const timeEntryService = new TimeEntryService(
-  prisma,
-  shiftService,
-  notificationService,
-);
-
-// Initialize OvertimeServiceServer with new dependencies
-const overtimeService = new OvertimeServiceServer(
-  prisma,
-  holidayService,
-  leaveServiceServer,
-  shiftService,
-  timeEntryService,
-  notificationService,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
 );
 
 if (!channelSecret || !channelAccessToken) {
@@ -271,13 +255,13 @@ async function handleLeaveRequest(
 
     let result;
     if (action === 'approve') {
-      result = await leaveServiceServer.approveLeaveRequest(
+      result = await services.leaveService.approveLeaveRequest(
         requestId,
         approverId,
         replyToken,
       );
     } else if (action === 'deny') {
-      result = await leaveServiceServer.denyLeaveRequest(
+      result = await services.leaveService.denyLeaveRequest(
         requestId,
         approverId,
         replyToken,
@@ -330,7 +314,7 @@ async function handleOvertimeRequest(
   if (action === 'approve' || action === 'deny') {
     try {
       const { message } =
-        await overtimeService.employeeRespondToOvertimeRequest(
+        await services.overtimeService.employeeRespondToOvertimeRequest(
           requestId,
           employeeId,
           action,

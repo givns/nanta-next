@@ -190,6 +190,19 @@ textarea {
     background-color: #f3f4f6; /* Light gray background outside the container */
   }
 }
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}
+
+@supports (-webkit-overflow-scrolling: touch) {
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
 
 .text-danger {
   color: #e3342f;

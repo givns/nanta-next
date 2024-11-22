@@ -2,10 +2,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
-import { DailyAttendanceResponse } from '@/types/attendance';
+import { DailyAttendanceRecord } from '@/types/attendance';
 
 interface AttendanceCardProps {
-  record: DailyAttendanceResponse;
+  record: DailyAttendanceRecord;
   onView: () => void;
 }
 
@@ -39,13 +39,13 @@ export function AttendanceCard({ record, onView }: AttendanceCardProps) {
     if (record.isDayOff) {
       return <Badge variant="outline">Day Off</Badge>;
     }
-    if (!record.attendance?.regularCheckInTime) {
+    if (!record.regularCheckInTime) {
       return <Badge variant="destructive">Absent</Badge>;
     }
-    if (!record.attendance.regularCheckOutTime) {
+    if (!record.regularCheckOutTime) {
       return <Badge variant="warning">Incomplete</Badge>;
     }
-    if (record.attendance.isLateCheckIn || record.attendance.isLateCheckOut) {
+    if (record.isLateCheckIn || record.isLateCheckOut) {
       return <Badge variant="warning">Late</Badge>;
     }
     return <Badge variant="success">Present</Badge>;
@@ -81,8 +81,8 @@ export function AttendanceCard({ record, onView }: AttendanceCardProps) {
           <div>
             <div className="text-sm text-gray-500">Check In</div>
             <div className="flex items-center gap-2">
-              <span>{formatTime(record.attendance?.regularCheckInTime)}</span>
-              {record.attendance?.isLateCheckIn && (
+              <span>{formatTime(record.regularCheckInTime)}</span>
+              {record.isLateCheckIn && (
                 <Badge variant="warning" className="h-5">
                   Late
                 </Badge>
@@ -93,8 +93,8 @@ export function AttendanceCard({ record, onView }: AttendanceCardProps) {
           <div>
             <div className="text-sm text-gray-500">Check Out</div>
             <div className="flex items-center gap-2">
-              <span>{formatTime(record.attendance?.regularCheckOutTime)}</span>
-              {record.attendance?.isLateCheckOut && (
+              <span>{formatTime(record.regularCheckOutTime)}</span>
+              {record.isLateCheckOut && (
                 <Badge variant="warning" className="h-5">
                   Late
                 </Badge>

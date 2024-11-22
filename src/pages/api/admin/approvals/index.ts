@@ -1,10 +1,8 @@
 // pages/api/admin/approvals/index.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { createNotificationService } from '@/services/NotificationService';
 
 const prisma = new PrismaClient();
-const notificationService = createNotificationService(prisma);
 
 export default async function handler(
   req: NextApiRequest,

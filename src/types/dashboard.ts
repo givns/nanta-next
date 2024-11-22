@@ -1,10 +1,8 @@
 // types/dashboard.ts
+import { ShiftData } from './attendance';
+import { ProcessedAttendance } from './attendance/processing';
+import { AttendanceStatusInfo } from './attendance/status';
 import { UserData } from './user';
-import {
-  AttendanceStatusInfo,
-  ProcessedAttendance,
-  ShiftData,
-} from './attendance';
 
 // For UI display
 export interface PayrollPeriodDisplay {

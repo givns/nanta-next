@@ -1,11 +1,9 @@
 // services/Shift104HolidayService.ts
 
 import { PrismaClient } from '@prisma/client';
-import { NotificationService } from './NotificationService';
 import { subDays, format, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
-const notificationService = new NotificationService(prisma);
 
 export class Shift104HolidayService {
   async adjustHolidaysForShift104(year: number): Promise<void> {
