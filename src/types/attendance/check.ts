@@ -4,6 +4,7 @@
 // ===================================
 import { OvertimeMetadata } from './records';
 import { AttendanceState, PeriodType } from './status';
+import { Location } from './base';
 
 // Keep and enhance
 
@@ -106,3 +107,4 @@ export interface CheckOutData {
   reason?: string;
   photo: string;
 }
+

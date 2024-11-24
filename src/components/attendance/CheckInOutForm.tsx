@@ -6,25 +6,24 @@ import React, {
   useRef,
   useMemo,
 } from 'react';
-
-import { UserData } from '../../types/user';
-import { useFaceDetection } from '../../hooks/useFaceDetection';
+import { UserData } from '@/types/user';
+import { useFaceDetection } from '@/hooks/useFaceDetection';
+import { FaceDetectionService } from '@/services/EnhancedFaceDetection';
 import SkeletonLoader from '../SkeletonLoader';
 import UserShiftInfo from './UserShiftInfo';
 import LateReasonModal from '../LateReasonModal';
 import ErrorBoundary from '../ErrorBoundary';
 import ActionButton from './ActionButton';
-import { getCurrentTime, formatDate } from '../../utils/dateUtils';
-import { format, isSameDay, parseISO, subMinutes } from 'date-fns';
+import { formatDate, getCurrentTime } from '@/utils/dateUtils';
+import { format, isSameDay, parseISO } from 'date-fns';
 import CameraFrame from '../CameraFrame';
-import { th } from 'date-fns/locale/th';
 import { closeWindow } from '@/services/liff';
-import { AttendanceStatusInfo } from '@/types/attendance/status';
 import {
+  AttendanceStatusInfo,
   CheckInOutAllowance,
   EarlyCheckoutType,
-} from '@/types/attendance/check';
-import { ShiftData } from '@/types/attendance';
+  ShiftData,
+} from '@/types/attendance';
 
 interface CheckInOutFormProps {
   userData: UserData;
@@ -36,16 +35,18 @@ interface CheckInOutFormProps {
   checkInOutAllowance: CheckInOutAllowance | null;
   getCurrentLocation: () => void;
   refreshAttendanceStatus: (forceRefresh: boolean) => Promise<void>;
-  onStatusChange: (
-    newStatus: boolean,
-    photo?: string,
-    lateReason?: string,
-    isLate?: boolean,
-    isOvertime?: boolean,
-    isEarlyCheckOut?: boolean,
-    earlyCheckoutType?: EarlyCheckoutType,
-  ) => Promise<void>;
+  onStatusChange: (params: StatusChangeParams) => Promise<void>;
   onCloseWindow: () => void;
+}
+
+interface StatusChangeParams {
+  isCheckingIn: boolean;
+  photo: string;
+  lateReason?: string;
+  isLate?: boolean;
+  isOvertime?: boolean;
+  isEarlyCheckOut?: boolean;
+  earlyCheckoutType?: EarlyCheckoutType;
 }
 
 const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
@@ -166,15 +167,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         }
 
         // Initiate API call and get the promise
-        const apiCall = onStatusChange(
-          currentAttendanceStatus?.isCheckingIn ?? true,
+        const apiCall = onStatusChange({
+          isCheckingIn: currentAttendanceStatus?.isCheckingIn ?? true,
           photo,
-          lateReason || '',
+          lateReason: lateReason || '',
           isLate,
-          checkInOutAllowance?.flags.isOvertime || false,
+          isOvertime: checkInOutAllowance?.flags.isOvertime || false,
           isEarlyCheckOut,
           earlyCheckoutType,
-        );
+        });
 
         // Set up a 500ms timer
         const timer = new Promise((resolve) => setTimeout(resolve, 500));

@@ -1,64 +1,25 @@
+// hooks/useFaceDetection.ts
 import { useState, useEffect, useRef, useCallback } from 'react';
-import * as tf from '@tensorflow/tfjs';
-import * as blazeface from '@tensorflow-models/blazeface';
-import '@tensorflow/tfjs-backend-webgl';
 import Webcam from 'react-webcam';
+import {
+  FaceDetectionService,
+  FACE_DETECTION_MESSAGES,
+} from '../services/EnhancedFaceDetection';
 
 export const useFaceDetection = (
   captureThreshold: number = 5,
   onPhotoCapture: (photo: string) => void,
 ) => {
-  const [model, setModel] = useState<blazeface.BlazeFaceModel | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [faceDetected, setFaceDetected] = useState(false);
-  const [message, setMessage] = useState<string>('');
-  const webcamRef = useRef<Webcam>(null);
+  const [message, setMessage] = useState<string>(
+    FACE_DETECTION_MESSAGES.INITIALIZING,
+  );
   const [faceDetectionCount, setFaceDetectionCount] = useState(0);
+
+  const webcamRef = useRef<Webcam>(null);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Load the model from the self-hosted URL on mount
-  useEffect(() => {
-    let mounted = true;
-
-    const setupModel = async () => {
-      setMessage('กำลังเริ่มต้นระบบ...');
-      setIsModelLoading(true);
-
-      try {
-        // Ensure WebGL backend is ready
-        await tf.setBackend('webgl');
-        await tf.ready();
-
-        // Self-hosted BlazeFace model URL
-        const modelUrl = '/tf-model/model.json';
-
-        // Initialize the BlazeFace detector with the local model URL
-        const detector = await blazeface.load({
-          modelUrl: modelUrl,
-        });
-
-        if (mounted) {
-          setModel(detector);
-          setIsModelLoading(false);
-          setMessage('กรุณาวางใบหน้าให้อยู่ในกรอบ');
-        }
-      } catch (error) {
-        console.error('Model loading error:', error);
-        if (mounted) {
-          setIsModelLoading(false);
-          setMessage('ไม่สามารถโหลดระบบตรวจจับใบหน้าได้');
-        }
-      }
-    };
-
-    setupModel();
-
-    // Cleanup function on unmount
-    return () => {
-      mounted = false;
-      tf.engine().reset();
-    };
-  }, []);
+  const faceDetectionService = useRef(FaceDetectionService.getInstance());
 
   const stopDetection = useCallback(() => {
     if (detectionIntervalRef.current) {
@@ -67,9 +28,8 @@ export const useFaceDetection = (
     }
   }, []);
 
-  // in useFaceDetection.ts
   const detectFace = useCallback(async () => {
-    if (!webcamRef.current || !model) return;
+    if (!webcamRef.current) return;
 
     try {
       const imageSrc = webcamRef.current.getScreenshot();
@@ -83,63 +43,43 @@ export const useFaceDetection = (
         img.onerror = () => reject(new Error('Failed to load image'));
       });
 
-      const faces = await model.estimateFaces(img, false);
+      const faces = await faceDetectionService.current.detectFaces(img);
 
       if (faces.length > 0) {
         setFaceDetected(true);
         setFaceDetectionCount((prev) => {
           const newCount = prev + 1;
-          console.log(
-            'Face detection count:',
-            newCount,
-            'threshold:',
-            captureThreshold,
-          );
-
           if (newCount >= captureThreshold) {
-            console.log('Threshold reached, capturing photo');
-            // Stop detection immediately
             stopDetection();
-            // Stop webcam
             if (webcamRef.current?.stream) {
-              const tracks = webcamRef.current.stream.getTracks();
-              tracks.forEach((track) => track.stop());
+              webcamRef.current.stream
+                .getTracks()
+                .forEach((track) => track.stop());
             }
-            // Call capture callback
             onPhotoCapture(imageSrc);
-            setMessage('บันทึกภาพสำเร็จ');
+            setMessage(FACE_DETECTION_MESSAGES.SUCCESS);
             return captureThreshold;
           }
 
-          setMessage('ตรวจพบใบหน้า กรุณาอย่าเคลื่อนไหว...');
+          setMessage(FACE_DETECTION_MESSAGES.FACE_DETECTED);
           return newCount;
         });
       } else {
         setFaceDetected(false);
         setFaceDetectionCount(0);
-        setMessage('ไม่พบใบหน้า กรุณาวางใบหน้าให้อยู่ในกรอบ');
+        setMessage(FACE_DETECTION_MESSAGES.NO_FACE);
       }
     } catch (error) {
-      console.error('Error during face detection:', error);
+      console.error('Face detection error:', error);
       stopDetection();
-      setMessage('เกิดข้อผิดพลาดในการตรวจจับใบหน้า');
+      setMessage(FACE_DETECTION_MESSAGES.ERROR);
     }
-  }, [model, captureThreshold, onPhotoCapture, stopDetection]);
+  }, [captureThreshold, onPhotoCapture, stopDetection]);
 
   const startDetection = useCallback(() => {
     stopDetection();
     detectionIntervalRef.current = setInterval(detectFace, 500);
-  }, [detectFace]);
-
-  // In your useFaceDetection hook
-  useEffect(() => {
-    if (faceDetected) {
-      console.log('Face detected, status:', {
-        faceDetected,
-        faceDetectionCount,
-      });
-    }
-  }, [faceDetected, faceDetectionCount]);
+  }, [detectFace, stopDetection]);
 
   const resetDetection = useCallback(() => {
     setFaceDetectionCount(0);
@@ -148,23 +88,39 @@ export const useFaceDetection = (
     startDetection();
   }, [startDetection, stopDetection]);
 
-  // Cleanup on unmount
+  // Initialize face detection
   useEffect(() => {
-    return () => {
-      stopDetection();
-      if (webcamRef.current?.stream) {
-        const tracks = webcamRef.current.stream.getTracks();
-        tracks.forEach((track) => track.stop());
+    let mounted = true;
+
+    const initialize = async () => {
+      try {
+        setIsModelLoading(true);
+        await faceDetectionService.current.initialize();
+
+        if (mounted) {
+          setIsModelLoading(false);
+          setMessage(FACE_DETECTION_MESSAGES.READY);
+          startDetection();
+        }
+      } catch (error) {
+        if (mounted) {
+          setIsModelLoading(false);
+          setMessage(FACE_DETECTION_MESSAGES.LOAD_ERROR);
+        }
       }
     };
-  }, [stopDetection]);
 
-  // Start detection when model is ready
-  useEffect(() => {
-    if (model && !isModelLoading) {
-      startDetection();
-    }
-  }, [model, isModelLoading, startDetection]);
+    initialize();
+
+    return () => {
+      mounted = false;
+      stopDetection();
+      if (webcamRef.current?.stream) {
+        webcamRef.current.stream.getTracks().forEach((track) => track.stop());
+      }
+      faceDetectionService.current.cleanup();
+    };
+  }, [startDetection, stopDetection]);
 
   return {
     webcamRef,

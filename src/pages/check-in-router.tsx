@@ -7,6 +7,7 @@ import {
   AttendanceStatusInfo,
   CheckInOutData,
   PeriodType,
+  StatusChangeParams,
 } from '@/types/attendance';
 import { CacheManager } from '@/services/CacheManager';
 import Clock from '@/components/Clock';
@@ -192,50 +193,72 @@ const CheckInRouter: React.FC = () => {
     }
   };
 
-  // Modified handleStatusChange
   const handleStatusChange = useCallback(
-    async (
-      newStatus: boolean,
-      photo?: string,
-      lateReason?: string,
-      isLate?: boolean,
-      isOvertime?: boolean,
-    ) => {
+    async (params: StatusChangeParams) => {
       if (!userData?.employeeId || !checkInOutAllowance || !address) {
         const error = new Error('Missing required data. Please try again.');
         setFormError(error.message);
         throw error;
       }
 
-      try {
-        const serverTimeResponse = await fetch('/api/server-time');
-        const { serverTime } = await serverTimeResponse.json();
+      let retryCount = 0;
+      const MAX_RETRIES = 2;
 
-        const checkInOutData: CheckInOutData = {
-          employeeId: userData.employeeId,
-          lineUserId: userData.lineUserId,
-          isCheckIn: newStatus,
-          checkTime: serverTime,
-          address,
-          reason: lateReason || '',
-          photo,
-          isLate: isLate || false,
-          isOvertime: isOvertime || false,
-          isManualEntry: false,
-          entryType: isOvertime ? PeriodType.OVERTIME : PeriodType.REGULAR,
-          metadata: {
-            overtimeId: checkInOutAllowance.metadata?.overtimeId,
-            isDayOffOvertime: checkInOutAllowance.flags?.isDayOffOvertime,
-            isInsideShiftHours: checkInOutAllowance.flags?.isInsideShift,
-          },
-        };
+      while (retryCount <= MAX_RETRIES) {
+        try {
+          const serverTimeResponse = await fetch('/api/server-time');
+          const { serverTime } = await serverTimeResponse.json();
 
-        await checkInOut(checkInOutData);
-      } catch (error: any) {
-        console.error('Error during check-in/out:', error);
-        const errorMessage = error.response?.data?.error || error.message;
-        setFormError(`Failed to update status. ${errorMessage}`);
-        throw error;
+          const checkInOutData: CheckInOutData = {
+            employeeId: userData.employeeId,
+            lineUserId: userData.lineUserId,
+            isCheckIn: params.isCheckingIn,
+            checkTime: serverTime,
+            address,
+            reason: params.lateReason,
+            photo: params.photo,
+            isLate: params.isLate,
+            isOvertime: params.isOvertime,
+            isManualEntry: false,
+            isEarlyCheckOut: params.isEarlyCheckOut,
+            earlyCheckoutType: params.earlyCheckoutType,
+            entryType: params.isOvertime
+              ? PeriodType.OVERTIME
+              : PeriodType.REGULAR,
+            metadata: {
+              overtimeId: checkInOutAllowance.metadata?.overtimeId,
+              isDayOffOvertime: checkInOutAllowance.flags?.isDayOffOvertime,
+              isInsideShiftHours: checkInOutAllowance.flags?.isInsideShift,
+            },
+          };
+
+          await checkInOut(checkInOutData);
+          break; // Success - exit the retry loop
+        } catch (error: any) {
+          console.error(
+            `Error during check-in/out (attempt ${retryCount + 1}):`,
+            error,
+          );
+
+          // Check if error is retryable
+          const isRetryable =
+            error.response?.status >= 500 || // Server errors
+            error.code === 'ECONNABORTED' || // Timeout
+            !navigator.onLine; // Offline
+
+          if (retryCount < MAX_RETRIES && isRetryable) {
+            retryCount++;
+            // Exponential backoff
+            await new Promise((resolve) =>
+              setTimeout(resolve, 1000 * Math.pow(2, retryCount)),
+            );
+            continue;
+          }
+
+          const errorMessage = error.response?.data?.error || error.message;
+          setFormError(`Failed to update status. ${errorMessage}`);
+          throw error;
+        }
       }
     },
     [userData, checkInOutAllowance, address, checkInOut],

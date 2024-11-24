@@ -57,6 +57,8 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  res.setHeader('Cache-Control', 's-maxage=1, stale-while-revalidate');
+
   const { employeeId, lineUserId, inPremises, address, forceRefresh } =
     req.query;
 

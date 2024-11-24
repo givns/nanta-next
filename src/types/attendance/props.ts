@@ -3,6 +3,7 @@ import {
   CheckInOutAllowance,
   DailyAttendanceRecord,
   DepartmentInfo,
+  EarlyCheckoutType,
   ManualEntryRequest,
   ShiftData,
 } from '../attendance';
@@ -16,6 +17,17 @@ import {
   PeriodType,
 } from './status';
 import { KeyedMutator } from 'swr';
+import { Location } from './base';
+
+export interface StatusChangeParams {
+  isCheckingIn: boolean;
+  photo: string;
+  lateReason?: string;
+  isLate?: boolean;
+  isOvertime?: boolean;
+  isEarlyCheckOut?: boolean;
+  earlyCheckoutType?: EarlyCheckoutType;
+}
 
 export interface UseAttendanceProps {
   lineUserId: string | null;
@@ -74,6 +86,8 @@ export interface CheckInOutData {
   photo?: string;
   isLate?: boolean;
   isOvertime?: boolean;
+  isEarlyCheckOut?: boolean;
+  earlyCheckoutType?: EarlyCheckoutType;
   isManualEntry?: boolean;
   entryType: PeriodType;
   metadata?: {

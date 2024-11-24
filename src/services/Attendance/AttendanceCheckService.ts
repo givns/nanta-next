@@ -352,160 +352,213 @@ export class AttendanceCheckService {
     latestAttendance: AttendanceRecord | null,
     pendingOvertimeRequest?: any,
   ): CheckInOutAllowance {
+    // Early return if no overtime and no pending request
+    if (!approvedOvertime && !pendingOvertimeRequest) {
+      return this.createResponse(
+        false,
+        `${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}: การลงเวลาจะต้องได้รับการอนุมัติ`,
+        {
+          inPremises,
+          address,
+          periodType: PeriodType.REGULAR,
+          flags: {
+            isDayOffOvertime: false,
+            isOvertime: false
+          }
+        }
+      );
+    }
+  
+    // Handle pending overtime request
+    if (pendingOvertimeRequest?.status === 'pending') {
+      return this.createResponse(
+        false,
+        `คุณมีคำขอทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}ที่รออนุมัติ`,
+        {
+          inPremises,
+          address,
+          periodType: PeriodType.OVERTIME,
+          flags: {
+            isOvertime: true,
+            isPendingDayOffOvertime: true
+          }
+        }
+      );
+    }
+  
+    // From here on, we're dealing with approved overtime
     if (approvedOvertime) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
-      );
-      const overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-      );
-
-      const { earlyCheckInWindow, lateCheckOutWindow } =
-        this.getOvertimeWindows(overtimeStart, overtimeEnd);
-
+      const overtimeStart = parseISO(`${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`);
+      const overtimeEnd = parseISO(`${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`);
+  
+      // Get time windows for early check-in and late check-out
+      const { earlyCheckInWindow, lateCheckOutWindow } = this.getOvertimeWindows(overtimeStart, overtimeEnd);
+      
+      // Check if this is a check-in attempt
       const isCheckingIn = !latestAttendance?.regularCheckInTime;
-
+  
+      // Time window validations
+      const isWithinOvertimeWindow = isWithinInterval(now, {
+        start: earlyCheckInWindow,
+        end: lateCheckOutWindow
+      });
+  
+      const isWithinMainPeriod = isWithinInterval(now, {
+        start: overtimeStart,
+        end: overtimeEnd
+      });
+  
+      // Too early for overtime
+      if (isBefore(now, earlyCheckInWindow)) {
+        return this.createResponse(
+          false,
+          `คุณมาเร็วเกินไปสำหรับการทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}`,
+          {
+            inPremises,
+            address,
+            periodType: PeriodType.OVERTIME,
+            flags: {
+              isOvertime: true,
+              isDayOffOvertime: true,
+              isEarlyCheckIn: true
+            },
+            timing: {
+              plannedStartTime: overtimeStart.toISOString()
+            }
+          }
+        );
+      }
+  
+      // Too late for overtime
+      if (isAfter(now, lateCheckOutWindow)) {
+        return this.createResponse(
+          false,
+          `เลยเวลาทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}แล้ว`,
+          {
+            inPremises,
+            address,
+            periodType: PeriodType.OVERTIME,
+            flags: {
+              isOvertime: true,
+              isDayOffOvertime: true,
+              isLateCheckOut: true
+            },
+            timing: {
+              plannedEndTime: overtimeEnd.toISOString()
+            }
+          }
+        );
+      }
+  
       // Handle Check-in
       if (isCheckingIn) {
-        if (now >= earlyCheckInWindow && now <= overtimeEnd) {
+        // Regular overtime check-in
+        if (isWithinOvertimeWindow) {
+          const isLateCheckIn = isAfter(now, addMinutes(overtimeStart, ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD));
+          
           return this.createResponse(
             true,
             `คุณกำลังลงเวลาทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}ที่ได้รับอนุมัติ`,
             {
               inPremises,
               address,
+              periodType: PeriodType.OVERTIME,
               flags: {
                 isOvertime: true,
-                isDayOffOvertime: true, // Always true for non-working days
+                isDayOffOvertime: true,
                 isInsideShift: approvedOvertime.isInsideShiftHours,
+                isLateCheckIn
               },
               timing: {
-                actualStartTime:
-                  now >= overtimeStart
-                    ? now.toISOString()
-                    : overtimeStart.toISOString(),
-                plannedStartTime: overtimeStart.toISOString(),
+                actualStartTime: now >= overtimeStart ? now.toISOString() : overtimeStart.toISOString(),
+                plannedStartTime: overtimeStart.toISOString()
               },
               metadata: {
-                overtimeId: approvedOvertime.id,
-              },
-              periodType: PeriodType.OVERTIME, // Always overtime
-            },
+                overtimeId: approvedOvertime.id
+              }
+            }
           );
         }
       }
-
-      // Handle Check-out with missed check-in
-      const missedOvertimeCheckIn = !latestAttendance?.regularCheckInTime;
-      const isLateCheckout = now <= lateCheckOutWindow;
-
-      if (missedOvertimeCheckIn && isLateCheckout) {
+  
+      // Handle Check-out scenarios
+      else {
+        // Handle missed check-in near period end
         const missedTime = differenceInMinutes(now, overtimeStart);
-        const MAX_MISSED_TIME = 60;
-
-        if (missedTime <= MAX_MISSED_TIME) {
+        if (missedTime <= ATTENDANCE_CONSTANTS.AUTO_CHECKOUT_WINDOW) {
           return this.createResponse(
             true,
-            `ระบบจะทำการลงเวลาเข้า-ออกงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}ย้อนหลังให้`,
+            'ระบบจะทำการลงเวลาเข้า-ออกงานล่วงเวลาย้อนหลังให้',
             {
               inPremises,
               address,
+              periodType: PeriodType.OVERTIME,
+              requireConfirmation: true,
               flags: {
                 isOvertime: true,
                 isDayOffOvertime: true,
                 isInsideShift: approvedOvertime.isInsideShiftHours,
                 isAutoCheckIn: true,
-                isAutoCheckOut: true,
+                isAutoCheckOut: true
               },
               timing: {
                 actualStartTime: overtimeStart.toISOString(),
                 actualEndTime: min([now, overtimeEnd]).toISOString(),
-                missedCheckInTime: missedTime,
+                missedCheckInTime: missedTime
               },
               metadata: {
-                overtimeId: approvedOvertime.id,
-              },
-              periodType: PeriodType.OVERTIME,
-              requireConfirmation: true,
-            },
+                overtimeId: approvedOvertime.id
+              }
+            }
           );
         }
-
-        // For missed time exceeding limit
-        return this.createResponse(
-          false,
-          `ไม่สามารถลงเวลาได้เนื่องจากไม่ได้ลงเวลาเข้างานใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}และเวลาผ่านมานานเกินไป`,
-          {
-            inPremises,
-            address,
-            timing: {
-              missedCheckInTime: missedTime,
-            },
-            periodType: PeriodType.OVERTIME,
-          },
-        );
+  
+        // Regular overtime check-out
+        if (isWithinOvertimeWindow) {
+          const isEarlyCheckOut = isBefore(now, overtimeEnd);
+          const minutesEarly = isEarlyCheckOut ? differenceInMinutes(overtimeEnd, now) : 0;
+  
+          return this.createResponse(
+            true,
+            `คุณกำลังลงเวลาออกจากการทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}`,
+            {
+              inPremises,
+              address,
+              periodType: PeriodType.OVERTIME,
+              flags: {
+                isOvertime: true,
+                isDayOffOvertime: true,
+                isInsideShift: approvedOvertime.isInsideShiftHours,
+                isEarlyCheckOut
+              },
+              timing: {
+                actualEndTime: now.toISOString(),
+                plannedEndTime: overtimeEnd.toISOString(),
+                minutesEarly: isEarlyCheckOut ? minutesEarly : 0,
+                checkoutStatus: this.getCheckoutStatus(now, overtimeEnd)
+              },
+              metadata: {
+                overtimeId: approvedOvertime.id
+              }
+            }
+          );
+        }
       }
-      // Normal check-out
-      if (isLateCheckout && latestAttendance?.regularCheckInTime) {
-        return this.createResponse(
-          true,
-          `คุณกำลังลงเวลาออกจากการทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}`,
-          {
-            inPremises,
-            address,
-            flags: {
-              isOvertime: true,
-              isDayOffOvertime: true,
-              isInsideShift: approvedOvertime.isInsideShiftHours,
-            },
-            timing: {
-              actualEndTime: min([now, overtimeEnd]).toISOString(),
-              plannedEndTime: overtimeEnd.toISOString(),
-            },
-            metadata: {
-              overtimeId: approvedOvertime.id,
-            },
-            periodType: PeriodType.OVERTIME,
-          },
-        );
-      }
-
-      return this.createResponse(
-        false,
-        `คุณมาเร็วหรือช้าเกินไปสำหรับเวลาทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}ที่ได้รับอนุมัติ`,
-        {
-          inPremises,
-          address,
-          periodType: PeriodType.OVERTIME,
-        },
-      );
     }
-
-    // Handle pending overtime request
-    if (pendingOvertimeRequest?.status === 'pending') {
-      return this.createResponse(
-        true,
-        `คุณกำลังลงเวลาทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'} (คำขออยู่ระหว่างการพิจารณา)`,
-        {
-          inPremises,
-          address,
-          flags: {
-            isOvertime: true,
-            isPendingDayOffOvertime: true,
-          },
-          periodType: PeriodType.OVERTIME,
-        },
-      );
-    }
-
+  
+    // Fallback response for any unhandled cases
     return this.createResponse(
       false,
-      `${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}: การลงเวลาจะต้องได้รับการอนุมัติ`,
+      `ไม่สามารถลงเวลาได้ใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}`,
       {
         inPremises,
         address,
         periodType: PeriodType.OVERTIME,
-      },
+        flags: {
+          isOvertime: false,
+          isDayOffOvertime: false
+        }
+      }
     );
   }
 
