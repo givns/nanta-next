@@ -21,6 +21,14 @@ export interface Location {
   provider?: string; // Enhanced
 }
 
+export interface LocationState {
+  inPremises: boolean;
+  address: string;
+  confidence: 'high' | 'medium' | 'low';
+  coordinates?: { lat: number; lng: number };
+  accuracy?: number;
+}
+
 export interface AddressInput {
   checkIn?: string;
   checkOut?: string;

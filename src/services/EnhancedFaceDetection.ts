@@ -45,7 +45,9 @@ export class FaceDetectionService {
     return this.modelLoadPromise;
   }
 
-  async detectFaces(imageElement: HTMLImageElement): Promise<blazeface.NormalizedFace[]> {
+  async detectFaces(
+    imageElement: HTMLImageElement,
+  ): Promise<blazeface.NormalizedFace[]> {
     if (!this.model) {
       throw new Error('Face detection model not initialized');
     }

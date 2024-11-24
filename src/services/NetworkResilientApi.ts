@@ -1,8 +1,8 @@
-import axios, { 
-  AxiosInstance, 
+import axios, {
+  AxiosInstance,
   InternalAxiosRequestConfig,
   AxiosResponse,
-  AxiosRequestConfig
+  AxiosRequestConfig,
 } from 'axios';
 
 interface QueuedRequest {
@@ -19,7 +19,7 @@ export class NetworkResilientApi {
   constructor() {
     this.axiosInstance = axios.create({
       timeout: 30000,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
 
     window.addEventListener('online', this.handleNetworkChange.bind(this));
@@ -33,28 +33,32 @@ export class NetworkResilientApi {
         }
         return config;
       },
-      (error: any) => Promise.reject(error)
+      (error: any) => Promise.reject(error),
     );
 
     this.axiosInstance.interceptors.response.use(
       (response: AxiosResponse) => response,
       async (error: any) => {
-        const config = error.config as InternalAxiosRequestConfig & { __retryCount?: number };
-        
-        if (!config || 
-            (config.__retryCount ?? 0) >= this.RETRY_DELAYS.length ||
-            error.response?.status === 401 ||
-            error.response?.status === 403 ||
-            error.response?.status === 404) {
+        const config = error.config as InternalAxiosRequestConfig & {
+          __retryCount?: number;
+        };
+
+        if (
+          !config ||
+          (config.__retryCount ?? 0) >= this.RETRY_DELAYS.length ||
+          error.response?.status === 401 ||
+          error.response?.status === 403 ||
+          error.response?.status === 404
+        ) {
           return Promise.reject(error);
         }
 
         config.__retryCount = (config.__retryCount || 0) + 1;
         const delay = this.RETRY_DELAYS[config.__retryCount - 1];
-        
-        await new Promise(resolve => setTimeout(resolve, delay));
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
         return this.axiosInstance(config);
-      }
+      },
     );
   }
 
@@ -69,7 +73,7 @@ export class NetworkResilientApi {
     const queue = await this.getOfflineQueue();
     queue.push({
       config,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     await this.saveOfflineQueue(queue);
   }
@@ -79,7 +83,7 @@ export class NetworkResilientApi {
     if (!queue.length) return;
 
     const results = await Promise.allSettled(
-      queue.map((item: QueuedRequest) => this.axiosInstance(item.config))
+      queue.map((item: QueuedRequest) => this.axiosInstance(item.config)),
     );
 
     await this.saveOfflineQueue([]);
@@ -115,8 +119,8 @@ export class NetworkResilientApi {
       data,
       timeout: 45000,
       headers: {
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     });
   }
 }

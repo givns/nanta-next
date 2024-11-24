@@ -363,12 +363,12 @@ export class AttendanceCheckService {
           periodType: PeriodType.REGULAR,
           flags: {
             isDayOffOvertime: false,
-            isOvertime: false
-          }
-        }
+            isOvertime: false,
+          },
+        },
       );
     }
-  
+
     // Handle pending overtime request
     if (pendingOvertimeRequest?.status === 'pending') {
       return this.createResponse(
@@ -380,34 +380,39 @@ export class AttendanceCheckService {
           periodType: PeriodType.OVERTIME,
           flags: {
             isOvertime: true,
-            isPendingDayOffOvertime: true
-          }
-        }
+            isPendingDayOffOvertime: true,
+          },
+        },
       );
     }
-  
+
     // From here on, we're dealing with approved overtime
     if (approvedOvertime) {
-      const overtimeStart = parseISO(`${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`);
-      const overtimeEnd = parseISO(`${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`);
-  
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+      );
+
       // Get time windows for early check-in and late check-out
-      const { earlyCheckInWindow, lateCheckOutWindow } = this.getOvertimeWindows(overtimeStart, overtimeEnd);
-      
+      const { earlyCheckInWindow, lateCheckOutWindow } =
+        this.getOvertimeWindows(overtimeStart, overtimeEnd);
+
       // Check if this is a check-in attempt
       const isCheckingIn = !latestAttendance?.regularCheckInTime;
-  
+
       // Time window validations
       const isWithinOvertimeWindow = isWithinInterval(now, {
         start: earlyCheckInWindow,
-        end: lateCheckOutWindow
+        end: lateCheckOutWindow,
       });
-  
+
       const isWithinMainPeriod = isWithinInterval(now, {
         start: overtimeStart,
-        end: overtimeEnd
+        end: overtimeEnd,
       });
-  
+
       // Too early for overtime
       if (isBefore(now, earlyCheckInWindow)) {
         return this.createResponse(
@@ -420,15 +425,15 @@ export class AttendanceCheckService {
             flags: {
               isOvertime: true,
               isDayOffOvertime: true,
-              isEarlyCheckIn: true
+              isEarlyCheckIn: true,
             },
             timing: {
-              plannedStartTime: overtimeStart.toISOString()
-            }
-          }
+              plannedStartTime: overtimeStart.toISOString(),
+            },
+          },
         );
       }
-  
+
       // Too late for overtime
       if (isAfter(now, lateCheckOutWindow)) {
         return this.createResponse(
@@ -441,21 +446,27 @@ export class AttendanceCheckService {
             flags: {
               isOvertime: true,
               isDayOffOvertime: true,
-              isLateCheckOut: true
+              isLateCheckOut: true,
             },
             timing: {
-              plannedEndTime: overtimeEnd.toISOString()
-            }
-          }
+              plannedEndTime: overtimeEnd.toISOString(),
+            },
+          },
         );
       }
-  
+
       // Handle Check-in
       if (isCheckingIn) {
         // Regular overtime check-in
         if (isWithinOvertimeWindow) {
-          const isLateCheckIn = isAfter(now, addMinutes(overtimeStart, ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD));
-          
+          const isLateCheckIn = isAfter(
+            now,
+            addMinutes(
+              overtimeStart,
+              ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+            ),
+          );
+
           return this.createResponse(
             true,
             `คุณกำลังลงเวลาทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}ที่ได้รับอนุมัติ`,
@@ -467,20 +478,23 @@ export class AttendanceCheckService {
                 isOvertime: true,
                 isDayOffOvertime: true,
                 isInsideShift: approvedOvertime.isInsideShiftHours,
-                isLateCheckIn
+                isLateCheckIn,
               },
               timing: {
-                actualStartTime: now >= overtimeStart ? now.toISOString() : overtimeStart.toISOString(),
-                plannedStartTime: overtimeStart.toISOString()
+                actualStartTime:
+                  now >= overtimeStart
+                    ? now.toISOString()
+                    : overtimeStart.toISOString(),
+                plannedStartTime: overtimeStart.toISOString(),
               },
               metadata: {
-                overtimeId: approvedOvertime.id
-              }
-            }
+                overtimeId: approvedOvertime.id,
+              },
+            },
           );
         }
       }
-  
+
       // Handle Check-out scenarios
       else {
         // Handle missed check-in near period end
@@ -499,25 +513,27 @@ export class AttendanceCheckService {
                 isDayOffOvertime: true,
                 isInsideShift: approvedOvertime.isInsideShiftHours,
                 isAutoCheckIn: true,
-                isAutoCheckOut: true
+                isAutoCheckOut: true,
               },
               timing: {
                 actualStartTime: overtimeStart.toISOString(),
                 actualEndTime: min([now, overtimeEnd]).toISOString(),
-                missedCheckInTime: missedTime
+                missedCheckInTime: missedTime,
               },
               metadata: {
-                overtimeId: approvedOvertime.id
-              }
-            }
+                overtimeId: approvedOvertime.id,
+              },
+            },
           );
         }
-  
+
         // Regular overtime check-out
         if (isWithinOvertimeWindow) {
           const isEarlyCheckOut = isBefore(now, overtimeEnd);
-          const minutesEarly = isEarlyCheckOut ? differenceInMinutes(overtimeEnd, now) : 0;
-  
+          const minutesEarly = isEarlyCheckOut
+            ? differenceInMinutes(overtimeEnd, now)
+            : 0;
+
           return this.createResponse(
             true,
             `คุณกำลังลงเวลาออกจากการทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}`,
@@ -529,23 +545,23 @@ export class AttendanceCheckService {
                 isOvertime: true,
                 isDayOffOvertime: true,
                 isInsideShift: approvedOvertime.isInsideShiftHours,
-                isEarlyCheckOut
+                isEarlyCheckOut,
               },
               timing: {
                 actualEndTime: now.toISOString(),
                 plannedEndTime: overtimeEnd.toISOString(),
                 minutesEarly: isEarlyCheckOut ? minutesEarly : 0,
-                checkoutStatus: this.getCheckoutStatus(now, overtimeEnd)
+                checkoutStatus: this.getCheckoutStatus(now, overtimeEnd),
               },
               metadata: {
-                overtimeId: approvedOvertime.id
-              }
-            }
+                overtimeId: approvedOvertime.id,
+              },
+            },
           );
         }
       }
     }
-  
+
     // Fallback response for any unhandled cases
     return this.createResponse(
       false,
@@ -556,9 +572,9 @@ export class AttendanceCheckService {
         periodType: PeriodType.OVERTIME,
         flags: {
           isOvertime: false,
-          isDayOffOvertime: false
-        }
-      }
+          isDayOffOvertime: false,
+        },
+      },
     );
   }
 

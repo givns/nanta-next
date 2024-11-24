@@ -12,30 +12,25 @@ import {
   AttendanceState,
   CheckStatus,
   PeriodType,
+  LocationState,
 } from '@/types/attendance';
 
 type FetcherArgs = [url: string, employeeId: string, location: LocationState];
-
-interface LocationState {
-  inPremises: boolean;
-  address: string;
-}
 
 export const useSimpleAttendance = ({
   employeeId,
   lineUserId,
   initialAttendanceStatus,
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn => {
-  // Initialize LocationService
   const locationService = useRef(new EnhancedLocationService());
   const [locationState, setLocationState] = useState<LocationState>({
     inPremises: false,
     address: '',
+    confidence: 'low',
   });
   const [isLocationLoading, setIsLocationLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  // Enhanced getCurrentLocation function
   const getCurrentLocation = useCallback(async (forceRefresh = false) => {
     setIsLocationLoading(true);
     setLocationError(null);
@@ -43,10 +38,16 @@ export const useSimpleAttendance = ({
     try {
       const result =
         await locationService.current.getCurrentLocation(forceRefresh);
+
       setLocationState({
         inPremises: result.inPremises,
         address: result.address,
+        confidence: result.confidence,
+        coordinates: result.coordinates,
+        accuracy: result.accuracy,
       });
+
+      return;
     } catch (error) {
       console.error('Location error:', error);
       setLocationError(
@@ -55,13 +56,13 @@ export const useSimpleAttendance = ({
       setLocationState({
         inPremises: false,
         address: 'Unknown location',
+        confidence: 'low',
       });
     } finally {
       setIsLocationLoading(false);
     }
   }, []);
 
-  // SWR configuration
   const { data, error, mutate } = useSWR<
     UseSimpleAttendanceState,
     Error,
@@ -75,6 +76,9 @@ export const useSimpleAttendance = ({
           lineUserId,
           inPremises: location.inPremises,
           address: location.address,
+          confidence: location.confidence,
+          coordinates: location.coordinates,
+          accuracy: location.accuracy,
         },
       });
 
@@ -98,6 +102,15 @@ export const useSimpleAttendance = ({
       revalidateOnFocus: false,
       refreshInterval: 60000,
       dedupingInterval: 5000,
+      onError: async (err) => {
+        if (
+          axios.isAxiosError(err) &&
+          (err.response?.data?.code === 'OUTSIDE_PREMISES' ||
+            err.response?.status === 503)
+        ) {
+          await getCurrentLocation(true);
+        }
+      },
       fallbackData: initialAttendanceStatus
         ? {
             attendanceStatus: initialAttendanceStatus,
@@ -117,54 +130,75 @@ export const useSimpleAttendance = ({
     },
   );
 
-  // Enhanced checkInOut with retries
   const checkInOut = useCallback(
     async (data: CheckInOutData): Promise<ProcessingResult> => {
-      try {
-        // Get server time
-        const serverTimeResponse = await axios.get('/api/server-time');
-        const { serverTime } = serverTimeResponse.data;
+      let retryCount = 0;
+      const MAX_RETRIES = 2;
 
-        // Force refresh location before check-in/out
-        await getCurrentLocation(true);
+      while (retryCount <= MAX_RETRIES) {
+        try {
+          const serverTimeResponse = await axios.get('/api/server-time');
+          const { serverTime } = serverTimeResponse.data;
 
-        const requestData: CheckInOutData = {
-          ...data,
-          checkTime: serverTime,
-          address: locationState.address,
-          entryType: data.isOvertime ? PeriodType.OVERTIME : PeriodType.REGULAR,
-        };
+          // Force refresh location
+          await getCurrentLocation(true);
 
-        const response = await axios.post<ProcessingResult>(
-          '/api/check-in-out',
-          requestData,
-          {
-            timeout: 30000,
-            headers: {
-              'Content-Type': 'application/json',
+          // Check location state after refresh
+          if (!locationState.inPremises && locationState.confidence === 'low') {
+            throw new Error('Failed to validate location');
+          }
+
+          const requestData: CheckInOutData = {
+            ...data,
+            checkTime: serverTime,
+            address: locationState.address,
+            entryType: data.isOvertime
+              ? PeriodType.OVERTIME
+              : PeriodType.REGULAR,
+            confidence: locationState.confidence, // Include confidence
+          };
+
+          const response = await axios.post<ProcessingResult>(
+            '/api/check-in-out',
+            requestData,
+            {
+              timeout: 30000,
+              headers: {
+                'Content-Type': 'application/json',
+              },
             },
-          },
-        );
-
-        if (!response.data.success || response.data.errors) {
-          throw new Error(
-            response.data.errors || 'Failed to process attendance',
           );
+
+          if (!response.data.success || response.data.errors) {
+            throw new Error(
+              response.data.errors || 'Failed to process attendance',
+            );
+          }
+
+          await mutate();
+          return response.data;
+        } catch (error) {
+          console.error(
+            `Check-in/out error (attempt ${retryCount + 1}):`,
+            error,
+          );
+
+          const shouldRetry =
+            retryCount < MAX_RETRIES &&
+            axios.isAxiosError(error) &&
+            (error.response?.status === 504 || error.response?.status === 503);
+
+          if (shouldRetry) {
+            retryCount++;
+            await new Promise((resolve) =>
+              setTimeout(resolve, 1000 * Math.pow(2, retryCount)),
+            );
+            continue;
+          }
+          throw error;
         }
-
-        await mutate();
-        return response.data;
-      } catch (error) {
-        console.error('Check-in/out error:', error);
-
-        // Handle timeout with retry
-        if (axios.isAxiosError(error) && error.response?.status === 504) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          return checkInOut(data); // Single retry
-        }
-
-        throw error;
       }
+      throw new Error('Max retries exceeded');
     },
     [mutate, locationState, getCurrentLocation],
   );
@@ -174,9 +208,16 @@ export const useSimpleAttendance = ({
       try {
         if (options?.forceRefresh) {
           await getCurrentLocation(true);
+          if (
+            !locationState.inPremises &&
+            locationState.confidence === 'low' &&
+            options.throwOnError
+          ) {
+            throw new Error('Failed to validate location');
+          }
         }
         await mutate(undefined, {
-          revalidate: options?.forceRefresh ?? true,
+          revalidate: true,
           throwOnError: options?.throwOnError,
         });
       } catch (error) {
@@ -184,19 +225,17 @@ export const useSimpleAttendance = ({
         throw error;
       }
     },
-    [mutate, getCurrentLocation],
+    [mutate, getCurrentLocation, locationState],
   ) as UseSimpleAttendanceActions['refreshAttendanceStatus'];
 
-  // Assign mutate to refreshAttendanceStatus
   Object.assign(refreshAttendanceStatus, { mutate });
 
-  // Initial location fetch and periodic updates
   useEffect(() => {
     getCurrentLocation();
 
     const locationInterval = setInterval(() => {
       getCurrentLocation();
-    }, 60000); // Update location every minute
+    }, 60000);
 
     return () => {
       clearInterval(locationInterval);

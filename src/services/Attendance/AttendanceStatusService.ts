@@ -195,7 +195,12 @@ export class AttendanceStatusService {
 
     const status: AttendanceStatusInfo = {
       // Base state
-      state: this.determineState(attendance, isHoliday, isDayOff, approvedOvertime),
+      state: this.determineState(
+        attendance,
+        isHoliday,
+        isDayOff,
+        approvedOvertime,
+      ),
       checkStatus: attendance?.checkStatus ?? CheckStatus.PENDING,
       overtimeState: attendance?.overtimeState,
       isOvertime: !!approvedOvertime,
@@ -278,31 +283,37 @@ export class AttendanceStatusService {
     attendance: AttendanceRecord | null,
     isHoliday: boolean,
     isDayOff: boolean,
-    overtime: ApprovedOvertimeInfo | null
+    overtime: ApprovedOvertimeInfo | null,
   ): AttendanceState {
     const now = getCurrentTime();
-    
+
     // If there's active overtime, check that first
     if (overtime) {
-      const overtimeStart = parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`);
-      const overtimeEnd = parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`);
-      
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`,
+      );
+
       const isInOvertimePeriod = isWithinInterval(now, {
         start: overtimeStart,
-        end: overtimeEnd
+        end: overtimeEnd,
       });
-  
+
       if (isInOvertimePeriod && attendance?.regularCheckInTime) {
         return AttendanceState.OVERTIME;
       }
     }
-  
+
     if (isHoliday) return AttendanceState.HOLIDAY;
     if (isDayOff && !overtime) return AttendanceState.OFF;
     if (!attendance?.regularCheckInTime) return AttendanceState.ABSENT;
     if (!attendance.regularCheckOutTime) return AttendanceState.INCOMPLETE;
-    
-    return attendance.isOvertime ? AttendanceState.OVERTIME : AttendanceState.PRESENT;
+
+    return attendance.isOvertime
+      ? AttendanceState.OVERTIME
+      : AttendanceState.PRESENT;
   }
 
   private determineDayOffType(
@@ -320,18 +331,22 @@ export class AttendanceStatusService {
     shiftWindows: ShiftWindows | null,
   ): Promise<CurrentPeriodInfo> {
     const now = getCurrentTime();
-    
+
     // If there's an approved overtime, check if we're in that period first
     if (overtime) {
-      const overtimeStart = parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`);
-      const overtimeEnd = parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`);
-      
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`,
+      );
+
       // Check if current time is within overtime period
       const isInOvertimePeriod = isWithinInterval(now, {
         start: overtimeStart,
-        end: overtimeEnd
+        end: overtimeEnd,
       });
-  
+
       if (isInOvertimePeriod) {
         return {
           type: PeriodType.OVERTIME,
@@ -341,28 +356,29 @@ export class AttendanceStatusService {
           checkOutTime: attendance?.regularCheckOutTime?.toISOString(),
           current: {
             start: overtimeStart,
-            end: overtimeEnd
-          }
+            end: overtimeEnd,
+          },
         };
       }
     }
-  
+
     // Default to regular period if not in overtime
     return {
       type: PeriodType.REGULAR,
       isComplete: !!attendance?.regularCheckOutTime,
       checkInTime: attendance?.regularCheckInTime?.toISOString(),
       checkOutTime: attendance?.regularCheckOutTime?.toISOString(),
-      current: shiftWindows ? {
-        start: shiftWindows.shiftStart,
-        end: shiftWindows.shiftEnd
-      } : {
-        start: startOfDay(now),
-        end: endOfDay(now)
-      }
+      current: shiftWindows
+        ? {
+            start: shiftWindows.shiftStart,
+            end: shiftWindows.shiftEnd,
+          }
+        : {
+            start: startOfDay(now),
+            end: endOfDay(now),
+          },
     };
   }
-  
 
   async checkMissingAttendance(): Promise<void> {
     const now = new Date();

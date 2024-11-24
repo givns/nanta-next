@@ -6,6 +6,7 @@ import { UserData } from '@/types/user';
 import {
   AttendanceStatusInfo,
   CheckInOutData,
+  LocationState,
   PeriodType,
   StatusChangeParams,
 } from '@/types/attendance';
@@ -46,6 +47,11 @@ const CheckInRouter: React.FC = () => {
   const [cachedAttendanceStatus, setCachedAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [locationState, setLocationState] = useState<LocationState>({
+    inPremises: false,
+    address: '',
+    confidence: 'low',
+  });
 
   // Cache helpers
   const getCacheKey = useCallback((type: 'user' | 'attendance', id: string) => {
@@ -225,6 +231,8 @@ const CheckInRouter: React.FC = () => {
             entryType: params.isOvertime
               ? PeriodType.OVERTIME
               : PeriodType.REGULAR,
+            confidence: locationState.confidence, // Add this
+
             metadata: {
               overtimeId: checkInOutAllowance.metadata?.overtimeId,
               isDayOffOvertime: checkInOutAllowance.flags?.isDayOffOvertime,

@@ -90,6 +90,7 @@ export interface CheckInOutData {
   earlyCheckoutType?: EarlyCheckoutType;
   isManualEntry?: boolean;
   entryType: PeriodType;
+  confidence: 'high' | 'medium' | 'low';
   metadata?: {
     overtimeId?: string;
     isDayOffOvertime?: boolean;

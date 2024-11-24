@@ -107,4 +107,3 @@ export interface CheckOutData {
   reason?: string;
   photo: string;
 }
-
