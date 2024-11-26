@@ -235,14 +235,19 @@ export const LeaveRequestSchema = z.object({
 });
 
 export const AttendanceStatusInfoSchema = z.object({
-  status: z.enum([
-    'present',
-    'absent',
-    'incomplete',
-    'holiday',
-    'off',
-    'overtime',
-  ]),
+  state: z
+    .enum(['present', 'absent', 'incomplete', 'holiday', 'off', 'overtime'])
+    .describe('AttendanceState'),
+
+  // Add checkStatus which was missing
+  checkStatus: z
+    .enum(['checked-in', 'checked-out', 'pending'])
+    .describe('CheckStatus'),
+
+  // Add overtimeState which was missing
+  overtimeState: z
+    .enum(['not-started', 'overtime-started', 'overtime-ended'])
+    .optional(),
   isOvertime: z.boolean(),
   overtimeDuration: z.number().default(0),
   overtimeEntries: z.array(OvertimeEntrySchema).default([]),
@@ -258,16 +263,20 @@ export const AttendanceStatusInfoSchema = z.object({
       date: z.string(),
       regularCheckInTime: z.string().nullable(),
       regularCheckOutTime: z.string().nullable(),
-      status: z.enum([
+      state: z.enum([
+        // Changed 'status' to 'state'
+        'present',
+        'absent',
+        'incomplete',
+        'holiday',
+        'off',
+        'overtime',
+      ]),
+      checkStatus: z.enum([
+        // Added checkStatus
         'checked-in',
         'checked-out',
-        'overtime-started',
-        'overtime-ended',
         'pending',
-        'approved',
-        'day-off',
-        'incomplete',
-        'overtime',
       ]),
       isManualEntry: z.boolean(),
       isDayOff: z.boolean(),

@@ -32,6 +32,7 @@ import { CacheManager } from '../CacheManager';
 import { TimeCalculationHelper } from './utils/TimeCalculationHelper';
 import { StatusHelpers } from './utils/StatusHelper';
 import { UserRole } from '../../types/enum';
+import { AttendanceStatusInfoSchema } from '@/schemas/attendance';
 
 export class AttendanceStatusService {
   constructor(
@@ -150,57 +151,6 @@ export class AttendanceStatusService {
     employeeId: string,
   ): Promise<AttendanceStatusInfo> {
     const now = getCurrentTime();
-
-    if (process.env.NODE_ENV === 'test') {
-      // Return mock data for testing
-      return {
-        state: AttendanceState.ABSENT,
-        checkStatus: CheckStatus.PENDING,
-        user: {
-          employeeId,
-          name: 'Test User',
-          lineUserId: null,
-          nickname: null,
-          departmentName: 'Test Department',
-          role: UserRole.GENERAL,
-          profilePictureUrl: null,
-          shiftId: null,
-          shiftCode: null,
-          sickLeaveBalance: 0,
-          businessLeaveBalance: 0,
-          annualLeaveBalance: 0,
-          employeeType: 'Fulltime',
-        },
-        isCheckingIn: true,
-        isDayOff: false,
-        isHoliday: false,
-        isLate: false,
-        isOvertime: false,
-        isEarlyCheckIn: false,
-        isLateCheckIn: false,
-        isLateCheckOut: false,
-        isOutsideShift: false,
-        shiftAdjustment: null,
-        detailedStatus: 'absent',
-        currentPeriod: {
-          type: PeriodType.REGULAR,
-          isComplete: false,
-          current: {
-            start: startOfDay(new Date()),
-            end: endOfDay(new Date()),
-          },
-        },
-        pendingLeaveRequest: false,
-        approvedOvertime: null,
-        futureShifts: [],
-        futureOvertimes: [],
-        overtimeAttendances: [],
-        overtimeDuration: 0,
-        overtimeEntries: [],
-        latestAttendance: null,
-        dayOffType: 'none',
-      };
-    }
 
     const cachedStatus = await CacheManager.getStatus(employeeId);
     if (cachedStatus) return cachedStatus;
@@ -331,10 +281,17 @@ export class AttendanceStatusService {
 
       // Additional flags
       pendingLeaveRequest: pendingLeave,
-    };
+    } satisfies AttendanceStatusInfo; // Use satisfies to type check
 
-    await CacheManager.cacheAttendanceStatus(employeeId, status);
-    return status;
+    // Validate before caching
+    const validationResult = AttendanceStatusInfoSchema.safeParse(status);
+    if (!validationResult.success) {
+      console.error('Status validation failed:', validationResult.error);
+      throw new Error('Invalid status data structure');
+    }
+
+    await CacheManager.cacheAttendanceStatus(employeeId, validationResult.data);
+    return validationResult.data;
   }
 
   private determineState(

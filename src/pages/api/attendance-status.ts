@@ -109,7 +109,7 @@ export default async function handler(
     console.log('Current time in attendance-status:', currentTime);
 
     // Fetch attendance data using service
-    const cacheKey = `attendance-status:${user.lineUserId || user.employeeId}`;
+    const cacheKey = `attendance:${employeeId}`; // Use employeeId consistently
 
     const fetchAttendanceData = async () => {
       // Get attendance status (which includes overtime attendances)
@@ -158,24 +158,14 @@ export default async function handler(
       responseData = await fetchAttendanceData();
     }
 
-    // Validate response
+    // Validate before returning
     const validationResult = ResponseDataSchema.safeParse(responseData);
-
     if (!validationResult.success) {
-      console.error('Validation errors:', {
-        issues: validationResult.error.issues.map((issue) => ({
-          path: issue.path,
-          message: issue.message,
-          code: issue.code,
-        })),
-      });
-
-      // Use fallback response
-      const fallbackData = await createFallbackResponse(preparedUser);
-      return res.status(200).json(fallbackData);
+      console.error('Validation errors:', validationResult.error);
+      throw new Error('Invalid response data structure');
     }
 
-    return res.status(200).json(validationResult.data);
+    return validationResult.data;
   } catch (error) {
     console.error('Error in attendance-status:', error);
 
@@ -200,32 +190,4 @@ export default async function handler(
   } finally {
     await prisma.$disconnect();
   }
-}
-
-// Fallback response helper
-async function createFallbackResponse(user: any) {
-  return {
-    user,
-    attendanceStatus: await attendanceService.createInitialAttendanceStatus(
-      user.employeeId,
-      user,
-    ),
-    effectiveShift: {
-      id: 'default',
-      name: 'Default Shift',
-      shiftCode: 'DEFAULT',
-      startTime: '08:00',
-      endTime: '17:00',
-      workDays: [1, 2, 3, 4, 5],
-    },
-    checkInOutAllowance: {
-      allowed: false,
-      reason: 'System error occurred',
-      inPremises: false,
-      address: '',
-      periodType: 'regular' as const,
-    },
-    approvedOvertime: null,
-    leaveRequests: [],
-  };
 }

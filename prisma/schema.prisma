@@ -225,7 +225,6 @@ model Attendance {
   user                 User            @relation(fields: [employeeId], references: [employeeId])
   date                 DateTime
   // Status fields to match new state enums
-  status        String?   // Mark as optional during transition
   state               String          // Should match AttendanceState enum
   checkStatus         String          // Should match CheckStatus enum
   isOvertime          Boolean         @default(false)  // New explicit field
