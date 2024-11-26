@@ -11,6 +11,8 @@ import {
   PeriodType,
 } from '../../types/attendance';
 import { initializeServices } from '../../services/ServiceInitializer';
+import { get } from 'lodash';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 // Initialize services
 const prisma = new PrismaClient();
@@ -109,7 +111,7 @@ export default async function handler(
     }
 
     const preparedUser = prepareUserData(user);
-    const currentTime = new Date();
+    const currentTime = getCurrentTime();
     console.log('Current time in attendance-status:', currentTime);
 
     // Fetch attendance data using service
@@ -261,22 +263,22 @@ export default async function handler(
     }
 
     // Final validation before returning
+    // Final validation before returning
     const validationResult = ResponseDataSchema.safeParse(responseData);
+
     if (!validationResult.success) {
+      // Log detailed validation errors for debugging
       console.error(
-        'Response validation failed:',
-        JSON.stringify(validationResult.error.errors, null, 2),
+        'Validation failed for response data:',
+        JSON.stringify(validationResult.error.errors, null, 2), // Pretty-print errors
       );
 
-      // If validation fails, try to return fallback data
-      const fallbackData = await createFallbackResponse(preparedUser);
-      const fallbackValidation = ResponseDataSchema.safeParse(fallbackData);
-
-      if (fallbackValidation.success) {
-        return res.status(200).json(fallbackValidation.data);
-      }
-
-      throw new Error('Invalid response data structure');
+      // Temporarily relax validation to allow processing and identify issues
+      return res.status(200).json({
+        warning: 'Validation errors occurred. Response might be incomplete.',
+        validationErrors: validationResult.error.errors, // Include errors in the response (optional)
+        responseData, // Send the unvalidated response for debugging
+      });
     }
 
     return res.status(200).json(validationResult.data);

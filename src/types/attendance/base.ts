@@ -54,7 +54,7 @@ export interface Metadata {
 // Constants used across the service
 export const CACHE_CONSTANTS = {
   USER_CACHE_TTL: 72 * 60 * 60, // 24 hours
-  ATTENDANCE_CACHE_TTL: 1 * 60, // 30 minutes
+  ATTENDANCE_CACHE_TTL: 30 * 60, // 30 minutes
   HOLIDAY_CACHE_TTL: 72 * 60 * 60, // 24 hours
   PROCESS_TIMEOUT: 45000,
   QUEUE_TIMEOUT: 40000,
