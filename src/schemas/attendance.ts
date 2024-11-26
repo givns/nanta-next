@@ -722,9 +722,9 @@ export const ResponseDataSchema = z.object({
   user: UserDataSchema,
   attendanceStatus: AttendanceStatusInfoSchema.nullable(),
   effectiveShift: ShiftDataSchema.nullable(),
-  checkInOutAllowance: CheckInOutAllowanceSchema,
-  approvedOvertime: ApprovedOvertimeSchema,
-  leaveRequests: z.array(LeaveRequestSchema),
+  checkInOutAllowance: CheckInOutAllowanceSchema.nullable(), // Make nullable
+  approvedOvertime: ApprovedOvertimeSchema.nullable(), // Make nullable
+  leaveRequests: z.array(LeaveRequestSchema).default([]), // Provide default
 });
 
 export type ResponseData = z.infer<typeof ResponseDataSchema>;

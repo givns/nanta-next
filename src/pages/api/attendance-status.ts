@@ -129,20 +129,26 @@ export default async function handler(
         address as string,
       );
 
+      // Transform data before returning
       return {
-        user: preparedUser,
-        attendanceStatus,
-        effectiveShift: shiftData?.effectiveShift || null,
-        checkInOutAllowance: {
-          ...checkInOutAllowance,
-          periodType: attendanceStatus.currentPeriod?.type || 'regular',
-          overtimeId:
-            attendanceStatus.currentPeriod?.type === 'overtime'
-              ? attendanceStatus.currentPeriod.overtimeId
-              : undefined,
+        user: {
+          ...preparedUser,
+          nickname: preparedUser.nickname ?? null,
         },
-        approvedOvertime: attendanceStatus.approvedOvertime,
-        leaveRequests,
+        attendanceStatus: attendanceStatus ?? null,
+        effectiveShift: shiftData?.effectiveShift ?? null,
+        checkInOutAllowance: checkInOutAllowance
+          ? {
+              ...checkInOutAllowance,
+              periodType: attendanceStatus?.currentPeriod?.type || 'regular',
+              overtimeId:
+                attendanceStatus?.currentPeriod?.type === 'overtime'
+                  ? attendanceStatus.currentPeriod.overtimeId
+                  : undefined,
+            }
+          : null,
+        approvedOvertime: attendanceStatus?.approvedOvertime ?? null,
+        leaveRequests: leaveRequests ?? [],
       };
     };
 
