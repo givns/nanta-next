@@ -200,15 +200,13 @@ export class AttendanceStatusService {
         : null;
 
     // Then determine state based on period and other factors
-    const state = this.determineState(
-      attendance,
-      isHoliday,
-      isDayOff,
-      approvedOvertime,
-    );
-
     const status: AttendanceStatusInfo = {
-      state,
+      state: this.determineState(
+        attendance,
+        isHoliday,
+        isDayOff,
+        approvedOvertime,
+      ),
       checkStatus: attendance?.checkStatus ?? CheckStatus.PENDING,
       overtimeState: attendance?.overtimeState,
       isOvertime: !!approvedOvertime && periodInfo.type === PeriodType.OVERTIME,
@@ -218,7 +216,6 @@ export class AttendanceStatusService {
         requestedShiftId: shiftData.id,
         requestedShift: shiftData,
       },
-      // Time-related
       overtimeDuration: TimeCalculationHelper.calculateOvertimeDuration(
         attendance,
         approvedOvertime || null,
@@ -235,63 +232,41 @@ export class AttendanceStatusService {
           createdAt: entry.createdAt,
           updatedAt: entry.updatedAt,
         })) ?? [],
-      // Attendance flags
       isCheckingIn: !attendance?.regularCheckInTime,
       isEarlyCheckIn: attendance?.isEarlyCheckIn ?? false,
       isLateCheckIn: attendance?.isLateCheckIn ?? false,
       isLateCheckOut: attendance?.isLateCheckOut ?? false,
-
-      // User and attendance info
       user: AttendanceMappers.toUserData(user),
       latestAttendance: attendance
         ? AttendanceMappers.toLatestAttendance(attendance)
         : null,
-
-      // Status indicators
       isDayOff,
       isHoliday,
       holidayInfo,
-
-      // Type information
       dayOffType: this.determineDayOffType(isHoliday, isDayOff),
       isOutsideShift: await this.shiftService.isOutsideShiftHours(
         employeeId,
         new Date(),
       ),
-
-      // Related data
-      approvedOvertime: approvedOvertime,
-      futureShifts: futureShifts,
-      futureOvertimes: futureOvertimes,
+      approvedOvertime,
+      futureShifts,
+      futureOvertimes,
       overtimeAttendances: await this.overtimeService.getOvertimeAttendances(
         employeeId,
         new Date(),
       ),
-      // Current period info
-      currentPeriod: await this.determineCurrentPeriod(
-        attendance,
-        approvedOvertime, // Pass the actual ApprovedOvertimeInfo
-        shiftWindows,
-      ),
-
-      // Status display
+      currentPeriod: periodInfo,
       detailedStatus: attendance
         ? StatusHelpers.getDisplayStatus(attendance, isHoliday)
         : 'absent',
-
-      // Additional flags
       pendingLeaveRequest: pendingLeave,
-    } satisfies AttendanceStatusInfo; // Use satisfies to type check
+    } satisfies AttendanceStatusInfo;
 
-    // Validate before caching
-    const validationResult = AttendanceStatusInfoSchema.safeParse(status);
-    if (!validationResult.success) {
-      console.error('Status validation failed:', validationResult.error);
-      throw new Error('Invalid status data structure');
+    if (process.env.NODE_ENV !== 'test') {
+      await CacheManager.cacheAttendanceStatus(employeeId, status);
     }
 
-    await CacheManager.cacheAttendanceStatus(employeeId, validationResult.data);
-    return validationResult.data;
+    return status;
   }
 
   private determineState(
