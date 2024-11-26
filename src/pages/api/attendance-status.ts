@@ -128,6 +128,10 @@ export default async function handler(
         services.leaveService.getLeaveRequests(preparedUser.employeeId),
       ]);
 
+      console.log('Attendance Status:', attendanceStatus);
+      console.log('Shift Data:', shiftData);
+      console.log('Leave Requests:', leaveRequests);
+
       // Get check-in/out allowance
       const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
         preparedUser.employeeId,
@@ -268,10 +272,12 @@ export default async function handler(
 
     if (!validationResult.success) {
       // Log detailed validation errors for debugging
+      console.error('Validation Errors:', validationResult.error.errors);
       console.error(
-        'Validation failed for response data:',
-        JSON.stringify(validationResult.error.errors, null, 2), // Pretty-print errors
+        'Invalid Response Data:',
+        JSON.stringify(responseData, null, 2),
       );
+      // Proceed with fallback or error handling as necessary
 
       // Temporarily relax validation to allow processing and identify issues
       return res.status(200).json({

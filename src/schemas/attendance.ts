@@ -250,13 +250,13 @@ export const LatestAttendanceSchema = z.object({
 });
 
 export const AttendanceStatusInfoSchema = z.object({
-  state: z.nativeEnum(AttendanceState),
-  checkStatus: z.nativeEnum(CheckStatus),
+  state: z.nativeEnum(AttendanceState).nullable(),
+  checkStatus: z.nativeEnum(CheckStatus).nullable(),
   overtimeState: z.nativeEnum(OvertimeState).optional(),
   isOvertime: z.boolean().optional(),
   overtimeDuration: z.number().optional().default(0),
   overtimeEntries: z.array(OvertimeEntrySchema).default([]),
-  detailedStatus: z.string(),
+  detailedStatus: z.string().nullable(),
   isEarlyCheckIn: z.boolean(),
   isLateCheckIn: z.boolean(),
   isLateCheckOut: z.boolean(),
