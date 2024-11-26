@@ -17,6 +17,12 @@ import { getCurrentTime } from '@/utils/dateUtils';
 import { endOfDay, startOfDay, format } from 'date-fns';
 import type { ZodIssue } from 'zod';
 
+// Constants
+const DEBOUNCE_TIME = 1000; // 1 second
+const LOCK_TIMEOUT = 5; // 5 seconds
+const CACHE_TTL = 300; // 5 minutes
+let lastFetchTime = 0;
+
 // Validation logging helpers
 const logValidationErrors = (
   errors: ZodIssue[],
@@ -42,13 +48,14 @@ const logValidationErrors = (
     console.error('---');
   });
 
+  console.error('=== Full Data Structure ===');
   try {
-    const stringified = JSON.stringify(data, null, 2);
-    console.error('=== Full Data Structure ===');
-    console.error(stringified);
+    console.error(JSON.stringify(data, null, 2));
   } catch (e) {
-    console.error('Data contains circular references - showing shallow copy');
-    console.error(JSON.stringify({ ...data }, null, 2));
+    console.error(
+      'Data contains circular references or non-serializable values',
+    );
+    console.error(data);
   }
   console.error('=========================');
 };
@@ -180,13 +187,6 @@ export default async function handler(
   const { employeeId, lineUserId, inPremises, address, forceRefresh } =
     req.query;
 
-  // At the start of the handler
-  if (!forceRefresh && cacheService) {
-    // Clear old cache if it exists
-    const cacheKey = `attendance:${employeeId || user?.employeeId}`;
-    await cacheService.del(cacheKey);
-  }
-
   try {
     // User Data Fetching
     user = await (async () => {
@@ -235,8 +235,18 @@ export default async function handler(
     const currentTime = getCurrentTime();
     console.log('Current time in attendance-status:', currentTime);
 
-    // Fetch attendance data using service
-    const cacheKey = `attendance:${user.employeeId}`;
+    // Fetch attendance data using service with debounce
+    const fetchAttendanceDataWithDebounce = async () => {
+      const now = Date.now();
+      if (now - lastFetchTime < DEBOUNCE_TIME) {
+        console.log('Request debounced, using cached data');
+        return null;
+      }
+      lastFetchTime = now;
+
+      console.log('Fetching fresh attendance data');
+      return fetchAttendanceData();
+    };
 
     const fetchAttendanceData = async () => {
       try {
@@ -335,28 +345,50 @@ export default async function handler(
       }
     };
 
-    // Handle caching and validation
+    // Handle caching with lock mechanism
+    const cacheKey = `attendance:${user.employeeId}`;
     let responseData;
+
     if (cacheService && !forceRefresh) {
       try {
-        const cachedResponse = await cacheService.getWithSWR(
-          cacheKey,
-          fetchAttendanceData,
-          300,
-        );
+        const lockKey = `lock:${cacheKey}`;
+        const isLocked = await cacheService.get(lockKey);
 
-        const cachedValidation = ResponseDataSchema.safeParse(cachedResponse);
-        if (cachedValidation.success) {
-          console.log('Using valid cached data');
-          responseData = cachedValidation.data;
-        } else {
-          console.warn('Invalid cached data, fetching fresh data');
-          logValidationErrors(
-            cachedValidation.error.issues,
-            cachedResponse,
-            'Cache Validation Error',
+        if (isLocked) {
+          console.log('Cache operation in progress, waiting...');
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        await cacheService.set(lockKey, 'true', LOCK_TIMEOUT);
+
+        try {
+          const cachedResponse = await cacheService.getWithSWR(
+            cacheKey,
+            fetchAttendanceDataWithDebounce,
+            CACHE_TTL,
           );
-          responseData = await fetchAttendanceData();
+
+          if (!cachedResponse) {
+            console.log('No cached data available, fetching fresh');
+            responseData = await fetchAttendanceData();
+          } else {
+            const cachedValidation =
+              ResponseDataSchema.safeParse(cachedResponse);
+            if (cachedValidation.success) {
+              console.log('Using valid cached data');
+              responseData = cachedValidation.data;
+            } else {
+              console.warn('Invalid cached data, fetching fresh');
+              logValidationErrors(
+                cachedValidation.error.issues,
+                cachedResponse,
+                'Cache Validation Error',
+              );
+              responseData = await fetchAttendanceData();
+            }
+          }
+        } finally {
+          await cacheService.del(lockKey);
         }
       } catch (error) {
         console.error('Cache error:', error);
@@ -377,53 +409,9 @@ export default async function handler(
         'Final Validation Error',
       );
 
-      // Try fallback
+      // Return fallback data
       const fallbackData = createFallbackResponse(preparedUser);
-      const fallbackValidation = ResponseDataSchema.safeParse(fallbackData);
-
-      if (fallbackValidation.success) {
-        console.log('Using fallback data');
-        return res.status(200).json(fallbackValidation.data);
-      }
-
-      console.error('Fallback validation failed');
-      logValidationErrors(
-        fallbackValidation.error.issues,
-        fallbackData,
-        'Fallback Validation Error',
-      );
-
-      // Return minimal valid structure
-      return res.status(200).json({
-        user: preparedUser,
-        attendanceStatus: {
-          state: AttendanceState.ABSENT,
-          checkStatus: CheckStatus.PENDING,
-          isCheckingIn: true,
-          currentPeriod: {
-            type: PeriodType.REGULAR,
-            isComplete: false,
-            current: {
-              start: startOfDay(currentTime),
-              end: endOfDay(currentTime),
-            },
-          },
-        },
-        effectiveShift: null,
-        checkInOutAllowance: {
-          allowed: false,
-          reason: 'System temporarily unavailable',
-          inPremises: false,
-          address: '',
-          periodType: PeriodType.REGULAR,
-          flags: {},
-          timing: {},
-          metadata: {},
-          isLastPeriod: false,
-        },
-        approvedOvertime: null,
-        leaveRequests: [],
-      });
+      return res.status(200).json(fallbackData);
     }
 
     return res.status(200).json(validationResult.data);
