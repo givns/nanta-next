@@ -4,8 +4,12 @@ import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '../../services/Attendance/AttendanceService';
 import { cacheService } from '../../services/CacheService';
 import { ResponseDataSchema } from '../../schemas/attendance';
-
-import { AppError, ErrorCode } from '@/types/attendance';
+import {
+  AppError,
+  ErrorCode,
+  CheckStatus,
+  PeriodType,
+} from '../../types/attendance';
 import { initializeServices } from '../../services/ServiceInitializer';
 
 // Initialize services
@@ -28,7 +32,7 @@ const prepareUserData = (user: any) => {
     employeeId: user.employeeId,
     name: user.name,
     lineUserId: user.lineUserId,
-    nickname: user.nickname,
+    nickname: user.nickname ?? null,
     departmentId: user.departmentId,
     departmentName: user.departmentName || user.department?.name || '',
     role: user.role,
@@ -109,7 +113,7 @@ export default async function handler(
     console.log('Current time in attendance-status:', currentTime);
 
     // Fetch attendance data using service
-    const cacheKey = `attendance:${employeeId}`; // Use employeeId consistently
+    const cacheKey = `attendance:${user.employeeId}`;
 
     const fetchAttendanceData = async () => {
       // Get attendance status (which includes overtime attendances)
@@ -129,49 +133,153 @@ export default async function handler(
         address as string,
       );
 
-      // Transform data before returning
+      // Transform overtime attendances to ensure proper structure
+      const transformedAttendances =
+        attendanceStatus?.overtimeAttendances?.map((ot) => ({
+          overtimeRequest: {
+            id: ot.overtimeRequest.id,
+            employeeId: ot.overtimeRequest.employeeId,
+            date: ot.overtimeRequest.date,
+            startTime: ot.overtimeRequest.startTime,
+            endTime: ot.overtimeRequest.endTime,
+            durationMinutes: ot.overtimeRequest.durationMinutes,
+            status: ot.overtimeRequest.status,
+            reason: ot.overtimeRequest.reason,
+            isDayOffOvertime: ot.overtimeRequest.isDayOffOvertime,
+            isInsideShiftHours: ot.overtimeRequest.isInsideShiftHours,
+            employeeResponse: ot.overtimeRequest.employeeResponse,
+            approverId: ot.overtimeRequest.approverId,
+          },
+          attendanceTime: ot.attendanceTime
+            ? {
+                checkInTime: ot.attendanceTime.checkInTime,
+                checkOutTime: ot.attendanceTime.checkOutTime,
+                checkStatus: ot.attendanceTime.checkStatus,
+                isOvertime: ot.attendanceTime.isOvertime ?? false,
+                overtimeState: ot.attendanceTime.overtimeState,
+              }
+            : null,
+          periodStatus: {
+            isPending: ot.periodStatus.isPending,
+            isActive: ot.periodStatus.isActive,
+            isNext: ot.periodStatus.isNext,
+            isComplete: ot.periodStatus.isComplete,
+          },
+        })) || [];
+
+      // Transform attendance status to ensure proper structure
+      const transformedAttendanceStatus = attendanceStatus
+        ? {
+            ...attendanceStatus,
+            user: {
+              ...attendanceStatus.user,
+              nickname: attendanceStatus.user?.nickname ?? null,
+            },
+            overtimeAttendances: transformedAttendances,
+            latestAttendance: attendanceStatus.latestAttendance
+              ? {
+                  id: attendanceStatus.latestAttendance.id,
+                  employeeId: attendanceStatus.latestAttendance.employeeId,
+                  date: attendanceStatus.latestAttendance.date,
+                  regularCheckInTime:
+                    attendanceStatus.latestAttendance.regularCheckInTime,
+                  regularCheckOutTime:
+                    attendanceStatus.latestAttendance.regularCheckOutTime,
+                  state: attendanceStatus.latestAttendance.state,
+                  checkStatus:
+                    attendanceStatus.latestAttendance.checkStatus ??
+                    CheckStatus.PENDING,
+                  overtimeState:
+                    attendanceStatus.latestAttendance.overtimeState,
+                  isManualEntry:
+                    attendanceStatus.latestAttendance.isManualEntry ?? false,
+                  isDayOff: attendanceStatus.latestAttendance.isDayOff ?? false,
+                  shiftStartTime:
+                    attendanceStatus.latestAttendance.shiftStartTime,
+                  shiftEndTime: attendanceStatus.latestAttendance.shiftEndTime,
+                }
+              : null,
+            currentPeriod: {
+              ...attendanceStatus.currentPeriod,
+              checkInTime: attendanceStatus.currentPeriod?.checkInTime ?? null,
+              checkOutTime:
+                attendanceStatus.currentPeriod?.checkOutTime ?? null,
+            },
+            isOvertime: Boolean(attendanceStatus.isOvertime),
+            overtimeDuration: attendanceStatus.overtimeDuration ?? 0,
+          }
+        : null;
+
       return {
         user: {
           ...preparedUser,
           nickname: preparedUser.nickname ?? null,
         },
-        attendanceStatus: attendanceStatus ?? null,
+        attendanceStatus: transformedAttendanceStatus,
         effectiveShift: shiftData?.effectiveShift ?? null,
         checkInOutAllowance: checkInOutAllowance
           ? {
               ...checkInOutAllowance,
-              periodType: attendanceStatus?.currentPeriod?.type || 'regular',
+              periodType:
+                transformedAttendanceStatus?.currentPeriod?.type ||
+                PeriodType.REGULAR,
               overtimeId:
-                attendanceStatus?.currentPeriod?.type === 'overtime'
-                  ? attendanceStatus.currentPeriod.overtimeId
+                transformedAttendanceStatus?.currentPeriod?.type ===
+                PeriodType.OVERTIME
+                  ? transformedAttendanceStatus.currentPeriod.overtimeId
                   : undefined,
             }
           : null,
-        approvedOvertime: attendanceStatus?.approvedOvertime ?? null,
+        approvedOvertime: transformedAttendanceStatus?.approvedOvertime ?? null,
         leaveRequests: leaveRequests ?? [],
       };
     };
 
-    // Handle caching
+    // Handle caching and validation
     let responseData;
     if (cacheService && !forceRefresh) {
-      responseData = await cacheService.getWithSWR(
+      const cachedResponse = await cacheService.getWithSWR(
         cacheKey,
         fetchAttendanceData,
         300,
       );
+
+      // Validate cached data
+      const cachedValidation = ResponseDataSchema.safeParse(cachedResponse);
+      if (cachedValidation.success) {
+        responseData = cachedValidation.data;
+      } else {
+        // If cached data is invalid, fetch fresh data
+        console.warn(
+          'Invalid cached data, fetching fresh data:',
+          JSON.stringify(cachedValidation.error.errors, null, 2),
+        );
+        responseData = await fetchAttendanceData();
+      }
     } else {
       responseData = await fetchAttendanceData();
     }
 
-    // Validate before returning
+    // Final validation before returning
     const validationResult = ResponseDataSchema.safeParse(responseData);
     if (!validationResult.success) {
-      console.error('Validation errors:', validationResult.error);
+      console.error(
+        'Response validation failed:',
+        JSON.stringify(validationResult.error.errors, null, 2),
+      );
+
+      // If validation fails, try to return fallback data
+      const fallbackData = await createFallbackResponse(preparedUser);
+      const fallbackValidation = ResponseDataSchema.safeParse(fallbackData);
+
+      if (fallbackValidation.success) {
+        return res.status(200).json(fallbackValidation.data);
+      }
+
       throw new Error('Invalid response data structure');
     }
 
-    return validationResult.data;
+    return res.status(200).json(validationResult.data);
   } catch (error) {
     console.error('Error in attendance-status:', error);
 
@@ -196,4 +304,32 @@ export default async function handler(
   } finally {
     await prisma.$disconnect();
   }
+}
+
+// Fallback response helper
+async function createFallbackResponse(user: any) {
+  return {
+    user,
+    attendanceStatus: await attendanceService.createInitialAttendanceStatus(
+      user.employeeId,
+      user,
+    ),
+    effectiveShift: {
+      id: 'default',
+      name: 'Default Shift',
+      shiftCode: 'DEFAULT',
+      startTime: '08:00',
+      endTime: '17:00',
+      workDays: [1, 2, 3, 4, 5],
+    },
+    checkInOutAllowance: {
+      allowed: false,
+      reason: 'System error occurred',
+      inPremises: false,
+      address: '',
+      periodType: PeriodType.REGULAR,
+    },
+    approvedOvertime: null,
+    leaveRequests: [],
+  };
 }
