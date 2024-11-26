@@ -14,10 +14,10 @@ import {
 import { initializeServices } from '../../services/ServiceInitializer';
 import { get } from 'lodash';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { endOfDay, startOfDay } from 'date-fns';
-import type { ZodIssue } from 'zod'; // Add this import at the top
+import { endOfDay, startOfDay, format } from 'date-fns';
+import type { ZodIssue } from 'zod';
 
-// Update the logging helper
+// Validation logging helpers
 const logValidationErrors = (
   errors: ZodIssue[],
   data: any,
@@ -29,20 +29,26 @@ const logValidationErrors = (
     console.error(`- Path: ${error.path.join('.')}`);
     console.error(`- Code: ${error.code}`);
     console.error(`- Message: ${error.message}`);
-    console.error('- Actual Value:', get(data, error.path));
+    const actualValue = get(data, error.path);
+    console.error(
+      '- Actual Value:',
+      typeof actualValue === 'object'
+        ? JSON.stringify(actualValue)
+        : actualValue,
+    );
     if ('expected' in error) {
       console.error('Expected Type:', error.expected);
     }
     console.error('---');
   });
-  console.error('=== Full Data Structure ===');
+
   try {
-    console.error(JSON.stringify(data, null, 2));
+    const stringified = JSON.stringify(data, null, 2);
+    console.error('=== Full Data Structure ===');
+    console.error(stringified);
   } catch (e) {
-    console.error(
-      'Data contains circular references or non-serializable values',
-    );
-    console.error(data);
+    console.error('Data contains circular references - showing shallow copy');
+    console.error(JSON.stringify({ ...data }, null, 2));
   }
   console.error('=========================');
 };
@@ -110,9 +116,20 @@ function createFallbackResponse(user: any) {
       isHoliday: false,
       holidayInfo: null,
       dayOffType: 'none',
-      isOutsideShift: false,
+      isOutsideShift: true,
       isLate: false,
-      shiftAdjustment: null,
+      shiftAdjustment: {
+        date: format(now, 'yyyy-MM-dd'),
+        requestedShiftId: user.shiftId || 'default',
+        requestedShift: {
+          id: user.shiftId || 'default',
+          name: 'Default Shift',
+          startTime: '08:00',
+          endTime: '17:00',
+          workDays: [1, 2, 3, 4, 5],
+          shiftCode: user.shiftCode || 'DEFAULT',
+        },
+      },
       approvedOvertime: null,
       futureShifts: [],
       futureOvertimes: [],
@@ -151,7 +168,6 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // Store user for fallback scenarios
   let user: any = null;
   let preparedUser: any = null;
 
@@ -219,7 +235,6 @@ export default async function handler(
       try {
         console.log('Fetching attendance data for:', user.employeeId);
 
-        // Use Promise.allSettled instead of Promise.all
         const [attendanceStatusResult, shiftDataResult, leaveRequestsResult] =
           await Promise.allSettled([
             attendanceService.getLatestAttendanceStatus(
@@ -232,14 +247,12 @@ export default async function handler(
             services.leaveService.getLeaveRequests(preparedUser.employeeId),
           ]);
 
-        // Log results of each promise
         console.log('Promise results:', {
           attendanceStatus: attendanceStatusResult.status,
           shiftData: shiftDataResult.status,
           leaveRequests: leaveRequestsResult.status,
         });
 
-        // Safely extract values with fallbacks
         const attendanceStatus =
           attendanceStatusResult.status === 'fulfilled'
             ? attendanceStatusResult.value
@@ -251,7 +264,6 @@ export default async function handler(
             ? leaveRequestsResult.value
             : [];
 
-        // Log extracted data
         if (attendanceStatus)
           console.log(
             'Attendance Status:',
@@ -261,7 +273,6 @@ export default async function handler(
           console.log('Shift Data:', JSON.stringify(shiftData, null, 2));
         console.log('Leave Requests count:', leaveRequests.length);
 
-        // Get check-in/out allowance with error handling
         let checkInOutAllowance;
         try {
           checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
@@ -274,61 +285,43 @@ export default async function handler(
           checkInOutAllowance = null;
         }
 
-        // Transform attendance status to ensure proper structure
-        const transformedAttendanceStatus = attendanceStatus
-          ? {
-              ...attendanceStatus,
-              user: {
-                ...attendanceStatus.user,
-                nickname: attendanceStatus.user?.nickname ?? null,
-              },
-              currentPeriod: {
-                ...attendanceStatus.currentPeriod,
-                checkInTime:
-                  attendanceStatus.currentPeriod?.checkInTime ?? null,
-                checkOutTime:
-                  attendanceStatus.currentPeriod?.checkOutTime ?? null,
-                current: attendanceStatus.currentPeriod?.current ?? {
-                  start: startOfDay(currentTime),
-                  end: endOfDay(currentTime),
-                },
-              },
-              isOvertime: Boolean(attendanceStatus.isOvertime),
-              overtimeDuration: attendanceStatus.overtimeDuration ?? 0,
-            }
-          : null;
-
-        // Construct the response data
-        const responseData = {
+        return {
           user: {
             ...preparedUser,
             nickname: preparedUser.nickname ?? null,
           },
-          attendanceStatus: transformedAttendanceStatus,
+          attendanceStatus: attendanceStatus
+            ? {
+                ...attendanceStatus,
+                state: attendanceStatus.state || AttendanceState.ABSENT,
+                checkStatus:
+                  attendanceStatus.checkStatus || CheckStatus.PENDING,
+                currentPeriod: {
+                  ...attendanceStatus.currentPeriod,
+                  type:
+                    attendanceStatus.currentPeriod?.type || PeriodType.REGULAR,
+                  current: attendanceStatus.currentPeriod?.current || {
+                    start: startOfDay(currentTime),
+                    end: endOfDay(currentTime),
+                  },
+                },
+              }
+            : null,
           effectiveShift: shiftData?.effectiveShift ?? null,
           checkInOutAllowance: checkInOutAllowance
             ? {
                 ...checkInOutAllowance,
                 periodType:
-                  transformedAttendanceStatus?.currentPeriod?.type ||
-                  PeriodType.REGULAR,
-                overtimeId:
-                  transformedAttendanceStatus?.currentPeriod?.type ===
-                  PeriodType.OVERTIME
-                    ? transformedAttendanceStatus.currentPeriod.overtimeId
-                    : undefined,
+                  attendanceStatus?.currentPeriod?.type || PeriodType.REGULAR,
                 flags: checkInOutAllowance.flags ?? {},
                 timing: checkInOutAllowance.timing ?? {},
                 metadata: checkInOutAllowance.metadata ?? {},
                 isLastPeriod: checkInOutAllowance.isLastPeriod ?? false,
               }
             : null,
-          approvedOvertime:
-            transformedAttendanceStatus?.approvedOvertime ?? null,
+          approvedOvertime: attendanceStatus?.approvedOvertime ?? null,
           leaveRequests: leaveRequests ?? [],
         };
-
-        return responseData;
       } catch (error) {
         console.error('Error in fetchAttendanceData:', error);
         return createFallbackResponse(preparedUser);
@@ -345,15 +338,14 @@ export default async function handler(
           300,
         );
 
-        // Validate cached data
         const cachedValidation = ResponseDataSchema.safeParse(cachedResponse);
         if (cachedValidation.success) {
-          responseData = cachedValidation.data;
           console.log('Using valid cached data');
+          responseData = cachedValidation.data;
         } else {
           console.warn('Invalid cached data, fetching fresh data');
           logValidationErrors(
-            cachedValidation.error.errors,
+            cachedValidation.error.issues,
             cachedResponse,
             'Cache Validation Error',
           );
@@ -373,13 +365,13 @@ export default async function handler(
     if (!validationResult.success) {
       console.error('Final validation failed');
       logValidationErrors(
-        validationResult.error.errors,
+        validationResult.error.issues,
         responseData,
         'Final Validation Error',
       );
 
       // Try fallback
-      const fallbackData = await createFallbackResponse(preparedUser);
+      const fallbackData = createFallbackResponse(preparedUser);
       const fallbackValidation = ResponseDataSchema.safeParse(fallbackData);
 
       if (fallbackValidation.success) {
@@ -389,7 +381,7 @@ export default async function handler(
 
       console.error('Fallback validation failed');
       logValidationErrors(
-        fallbackValidation.error.errors,
+        fallbackValidation.error.issues,
         fallbackData,
         'Fallback Validation Error',
       );
@@ -431,17 +423,6 @@ export default async function handler(
   } catch (error) {
     console.error('Critical error in handler:', error);
 
-    if (error instanceof AppError) {
-      return res
-        .status(error.code === ErrorCode.USER_NOT_FOUND ? 404 : 400)
-        .json({
-          error: error.code,
-          message: error.message,
-          details: error.details,
-        });
-    }
-
-    // Create a minimal user for fallback if preparedUser is not available
     const fallbackUser =
       preparedUser ||
       (user
