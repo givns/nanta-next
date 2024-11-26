@@ -9,10 +9,12 @@ import {
   ErrorCode,
   CheckStatus,
   PeriodType,
+  AttendanceState,
 } from '../../types/attendance';
 import { initializeServices } from '../../services/ServiceInitializer';
 import { get } from 'lodash';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { endOfDay, startOfDay } from 'date-fns';
 
 // Initialize services
 const prisma = new PrismaClient();
@@ -118,127 +120,165 @@ export default async function handler(
     const cacheKey = `attendance:${user.employeeId}`;
 
     const fetchAttendanceData = async () => {
-      // Get attendance status (which includes overtime attendances)
-      const [attendanceStatus, shiftData, leaveRequests] = await Promise.all([
-        attendanceService.getLatestAttendanceStatus(preparedUser.employeeId),
-        services.shiftService.getEffectiveShiftAndStatus(
-          preparedUser.employeeId,
-          currentTime,
-        ),
-        services.leaveService.getLeaveRequests(preparedUser.employeeId),
-      ]);
+      try {
+        // Use Promise.allSettled instead of Promise.all
+        const [attendanceStatusResult, shiftDataResult, leaveRequestsResult] =
+          await Promise.allSettled([
+            attendanceService.getLatestAttendanceStatus(
+              preparedUser.employeeId,
+            ),
+            services.shiftService.getEffectiveShiftAndStatus(
+              preparedUser.employeeId,
+              currentTime,
+            ),
+            services.leaveService.getLeaveRequests(preparedUser.employeeId),
+          ]);
 
-      console.log('Attendance Status:', attendanceStatus);
-      console.log('Shift Data:', shiftData);
-      console.log('Leave Requests:', leaveRequests);
+        // Safely extract values with fallbacks
+        const attendanceStatus =
+          attendanceStatusResult.status === 'fulfilled'
+            ? attendanceStatusResult.value
+            : null;
+        const shiftData =
+          shiftDataResult.status === 'fulfilled' ? shiftDataResult.value : null;
+        const leaveRequests =
+          leaveRequestsResult.status === 'fulfilled'
+            ? leaveRequestsResult.value
+            : [];
 
-      // Get check-in/out allowance
-      const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
-        preparedUser.employeeId,
-        inPremises === 'true',
-        address as string,
-      );
+        // Get check-in/out allowance with error handling
+        let checkInOutAllowance;
+        try {
+          checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
+            preparedUser.employeeId,
+            inPremises === 'true',
+            address as string,
+          );
+        } catch (error) {
+          console.error('Error getting check-in/out allowance:', error);
+          checkInOutAllowance = null;
+        }
 
-      // Transform overtime attendances to ensure proper structure
-      const transformedAttendances =
-        attendanceStatus?.overtimeAttendances?.map((ot) => ({
-          overtimeRequest: {
-            id: ot.overtimeRequest.id,
-            employeeId: ot.overtimeRequest.employeeId,
-            date: ot.overtimeRequest.date,
-            startTime: ot.overtimeRequest.startTime,
-            endTime: ot.overtimeRequest.endTime,
-            durationMinutes: ot.overtimeRequest.durationMinutes,
-            status: ot.overtimeRequest.status,
-            reason: ot.overtimeRequest.reason,
-            isDayOffOvertime: ot.overtimeRequest.isDayOffOvertime,
-            isInsideShiftHours: ot.overtimeRequest.isInsideShiftHours,
-            employeeResponse: ot.overtimeRequest.employeeResponse,
-            approverId: ot.overtimeRequest.approverId,
-          },
-          attendanceTime: ot.attendanceTime
-            ? {
-                checkInTime: ot.attendanceTime.checkInTime,
-                checkOutTime: ot.attendanceTime.checkOutTime,
-                checkStatus: ot.attendanceTime.checkStatus,
-                isOvertime: ot.attendanceTime.isOvertime ?? false,
-                overtimeState: ot.attendanceTime.overtimeState,
-              }
-            : null,
-          periodStatus: {
-            isPending: ot.periodStatus.isPending,
-            isActive: ot.periodStatus.isActive,
-            isNext: ot.periodStatus.isNext,
-            isComplete: ot.periodStatus.isComplete,
-          },
-        })) || [];
-
-      // Transform attendance status to ensure proper structure
-      const transformedAttendanceStatus = attendanceStatus
-        ? {
-            ...attendanceStatus,
-            user: {
-              ...attendanceStatus.user,
-              nickname: attendanceStatus.user?.nickname ?? null,
+        // Transform overtime attendances to ensure proper structure
+        const transformedAttendances =
+          attendanceStatus?.overtimeAttendances?.map((ot) => ({
+            overtimeRequest: {
+              id: ot.overtimeRequest.id,
+              employeeId: ot.overtimeRequest.employeeId,
+              date: ot.overtimeRequest.date,
+              startTime: ot.overtimeRequest.startTime,
+              endTime: ot.overtimeRequest.endTime,
+              durationMinutes: ot.overtimeRequest.durationMinutes,
+              status: ot.overtimeRequest.status,
+              reason: ot.overtimeRequest.reason,
+              isDayOffOvertime: ot.overtimeRequest.isDayOffOvertime,
+              isInsideShiftHours: ot.overtimeRequest.isInsideShiftHours,
+              employeeResponse: ot.overtimeRequest.employeeResponse,
+              approverId: ot.overtimeRequest.approverId,
             },
-            overtimeAttendances: transformedAttendances,
-            latestAttendance: attendanceStatus.latestAttendance
+            attendanceTime: ot.attendanceTime
               ? {
-                  id: attendanceStatus.latestAttendance.id,
-                  employeeId: attendanceStatus.latestAttendance.employeeId,
-                  date: attendanceStatus.latestAttendance.date,
-                  regularCheckInTime:
-                    attendanceStatus.latestAttendance.regularCheckInTime,
-                  regularCheckOutTime:
-                    attendanceStatus.latestAttendance.regularCheckOutTime,
-                  state: attendanceStatus.latestAttendance.state,
-                  checkStatus:
-                    attendanceStatus.latestAttendance.checkStatus ??
-                    CheckStatus.PENDING,
-                  overtimeState:
-                    attendanceStatus.latestAttendance.overtimeState,
-                  isManualEntry:
-                    attendanceStatus.latestAttendance.isManualEntry ?? false,
-                  isDayOff: attendanceStatus.latestAttendance.isDayOff ?? false,
-                  shiftStartTime:
-                    attendanceStatus.latestAttendance.shiftStartTime,
-                  shiftEndTime: attendanceStatus.latestAttendance.shiftEndTime,
+                  checkInTime: ot.attendanceTime.checkInTime,
+                  checkOutTime: ot.attendanceTime.checkOutTime,
+                  checkStatus: ot.attendanceTime.checkStatus,
+                  isOvertime: ot.attendanceTime.isOvertime ?? false,
+                  overtimeState: ot.attendanceTime.overtimeState,
                 }
               : null,
-            currentPeriod: {
-              ...attendanceStatus.currentPeriod,
-              checkInTime: attendanceStatus.currentPeriod?.checkInTime ?? null,
-              checkOutTime:
-                attendanceStatus.currentPeriod?.checkOutTime ?? null,
+            periodStatus: {
+              isPending: ot.periodStatus.isPending,
+              isActive: ot.periodStatus.isActive,
+              isNext: ot.periodStatus.isNext,
+              isComplete: ot.periodStatus.isComplete,
             },
-            isOvertime: Boolean(attendanceStatus.isOvertime),
-            overtimeDuration: attendanceStatus.overtimeDuration ?? 0,
-          }
-        : null;
+          })) || [];
 
-      return {
-        user: {
-          ...preparedUser,
-          nickname: preparedUser.nickname ?? null,
-        },
-        attendanceStatus: transformedAttendanceStatus,
-        effectiveShift: shiftData?.effectiveShift ?? null,
-        checkInOutAllowance: checkInOutAllowance
+        // Transform attendance status to ensure proper structure
+        const transformedAttendanceStatus = attendanceStatus
           ? {
-              ...checkInOutAllowance,
-              periodType:
-                transformedAttendanceStatus?.currentPeriod?.type ||
-                PeriodType.REGULAR,
-              overtimeId:
-                transformedAttendanceStatus?.currentPeriod?.type ===
-                PeriodType.OVERTIME
-                  ? transformedAttendanceStatus.currentPeriod.overtimeId
-                  : undefined,
+              ...attendanceStatus,
+              user: {
+                ...attendanceStatus.user,
+                nickname: attendanceStatus.user?.nickname ?? null,
+              },
+              overtimeAttendances: transformedAttendances,
+              latestAttendance: attendanceStatus.latestAttendance
+                ? {
+                    id: attendanceStatus.latestAttendance.id,
+                    employeeId: attendanceStatus.latestAttendance.employeeId,
+                    date: attendanceStatus.latestAttendance.date,
+                    regularCheckInTime:
+                      attendanceStatus.latestAttendance.regularCheckInTime,
+                    regularCheckOutTime:
+                      attendanceStatus.latestAttendance.regularCheckOutTime,
+                    state: attendanceStatus.latestAttendance.state,
+                    checkStatus:
+                      attendanceStatus.latestAttendance.checkStatus ??
+                      CheckStatus.PENDING,
+                    overtimeState:
+                      attendanceStatus.latestAttendance.overtimeState,
+                    isManualEntry:
+                      attendanceStatus.latestAttendance.isManualEntry ?? false,
+                    isDayOff:
+                      attendanceStatus.latestAttendance.isDayOff ?? false,
+                    shiftStartTime:
+                      attendanceStatus.latestAttendance.shiftStartTime,
+                    shiftEndTime:
+                      attendanceStatus.latestAttendance.shiftEndTime,
+                  }
+                : null,
+              currentPeriod: {
+                ...attendanceStatus.currentPeriod,
+                checkInTime:
+                  attendanceStatus.currentPeriod?.checkInTime ?? null,
+                checkOutTime:
+                  attendanceStatus.currentPeriod?.checkOutTime ?? null,
+                current: attendanceStatus.currentPeriod?.current ?? {
+                  start: startOfDay(currentTime),
+                  end: endOfDay(currentTime),
+                },
+              },
+              isOvertime: Boolean(attendanceStatus.isOvertime),
+              overtimeDuration: attendanceStatus.overtimeDuration ?? 0,
             }
-          : null,
-        approvedOvertime: transformedAttendanceStatus?.approvedOvertime ?? null,
-        leaveRequests: leaveRequests ?? [],
-      };
+          : null;
+
+        // Construct the response data
+        const responseData = {
+          user: {
+            ...preparedUser,
+            nickname: preparedUser.nickname ?? null,
+          },
+          attendanceStatus: transformedAttendanceStatus,
+          effectiveShift: shiftData?.effectiveShift ?? null,
+          checkInOutAllowance: checkInOutAllowance
+            ? {
+                ...checkInOutAllowance,
+                periodType:
+                  transformedAttendanceStatus?.currentPeriod?.type ||
+                  PeriodType.REGULAR,
+                overtimeId:
+                  transformedAttendanceStatus?.currentPeriod?.type ===
+                  PeriodType.OVERTIME
+                    ? transformedAttendanceStatus.currentPeriod.overtimeId
+                    : undefined,
+                flags: checkInOutAllowance.flags ?? {},
+                timing: checkInOutAllowance.timing ?? {},
+                metadata: checkInOutAllowance.metadata ?? {},
+                isLastPeriod: checkInOutAllowance.isLastPeriod ?? false,
+              }
+            : null,
+          approvedOvertime:
+            transformedAttendanceStatus?.approvedOvertime ?? null,
+          leaveRequests: leaveRequests ?? [],
+        };
+
+        return responseData;
+      } catch (error) {
+        console.error('Error in fetchAttendanceData:', error);
+        // If fetchAttendanceData fails, return fallback data
+        return createFallbackResponse(preparedUser);
+      }
     };
 
     // Handle caching and validation
@@ -314,40 +354,58 @@ export default async function handler(
 }
 
 // Fallback response helper
-async function createFallbackResponse(user: any) {
+function createFallbackResponse(user: any) {
+  const now = getCurrentTime();
   return {
     user,
     attendanceStatus: {
-      latestAttendance: null,
-      state: 'absent',
-      checkStatus: 'pending',
+      state: AttendanceState.ABSENT,
+      checkStatus: CheckStatus.PENDING,
       overtimeState: null,
       isOvertime: false,
       overtimeDuration: 0,
       overtimeEntries: [],
-      isCheckingIn: false,
+      detailedStatus: 'absent',
+      isEarlyCheckIn: false,
+      isLateCheckIn: false,
+      isLateCheckOut: false,
+      user: user,
+      latestAttendance: null,
+      isCheckingIn: true,
       isDayOff: false,
       isHoliday: false,
+      holidayInfo: null,
       dayOffType: 'none',
+      isOutsideShift: false,
+      isLate: false,
+      shiftAdjustment: null,
+      approvedOvertime: null,
+      futureShifts: [],
+      futureOvertimes: [],
+      overtimeAttendances: [],
       currentPeriod: {
-        type: 'regular',
+        type: PeriodType.REGULAR,
         isComplete: false,
-        checkInTime: null,
-        checkOutTime: null,
-        current: null,
+        current: {
+          start: startOfDay(now),
+          end: endOfDay(now),
+        },
       },
+      pendingLeaveRequest: false,
     },
-    effectiveShift: {
-      id: 'default',
-      name: 'Default Shift',
-      shiftCode: 'DEFAULT',
-      startTime: '08:00',
-      endTime: '17:00',
-      workDays: [1, 2, 3, 4, 5],
-    },
+    effectiveShift: null,
     checkInOutAllowance: {
       allowed: false,
-      reason: 'No attendance data available.',
+      reason: 'System error occurred',
+      inPremises: false,
+      address: '',
+      periodType: PeriodType.REGULAR,
+      flags: {
+        isOvertime: false,
+      },
+      timing: {},
+      metadata: {},
+      isLastPeriod: false,
     },
     approvedOvertime: null,
     leaveRequests: [],

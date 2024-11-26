@@ -11,14 +11,12 @@ import { addDays } from 'date-fns';
 
 // Create LINE client conditionally based on environment
 let client: Client | null = null;
-if (process.env.NODE_ENV !== 'test') {
-  try {
-    client = new Client({
-      channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-    });
-  } catch (error) {
-    console.warn('Failed to initialize LINE client:', error);
-  }
+try {
+  client = new Client({
+    channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+  });
+} catch (error) {
+  console.warn('Failed to initialize LINE client:', error);
 }
 
 type TransactionClient = Omit<
