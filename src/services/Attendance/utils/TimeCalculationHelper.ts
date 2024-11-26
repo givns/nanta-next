@@ -5,17 +5,17 @@ import {
   addMinutes,
   differenceInMinutes,
   set,
-  startOfDay,
   isAfter,
-  isBefore,
   parseISO,
   format,
   isWithinInterval,
 } from 'date-fns';
-import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
-import { ApprovedOvertimeInfo, OvertimeState } from '@/types/attendance/status';
-import { ShiftData } from '@/types/attendance/shift';
-import { AttendanceRecord } from '@/types/attendance/records';
+import {
+  ATTENDANCE_CONSTANTS,
+  ApprovedOvertimeInfo,
+  ShiftData,
+  AttendanceRecord,
+} from '../../../types/attendance';
 
 export class TimeCalculationHelper {
   static isOutsideShiftHours(now: Date, shift: ShiftData): boolean {

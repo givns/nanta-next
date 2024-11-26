@@ -1,7 +1,7 @@
 // services/ShiftManagementService/utils.ts
 
-import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
-import { ShiftWindows } from '@/types/attendance/shift';
+import { ATTENDANCE_CONSTANTS } from '../../types/attendance/base';
+import { ShiftWindows } from '../../types/attendance/shift';
 import {
   set,
   parseISO,

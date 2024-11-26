@@ -7,10 +7,10 @@ import {
   AttendanceCompositeStatus,
   StatusUpdateResult,
   ApprovedOvertimeInfo,
-} from '@/types/attendance/status';
-import { ProcessingOptions } from '@/types/attendance/processing';
+  ProcessingOptions,
+  AttendanceRecord,
+} from '../../../types/attendance';
 import { addDays, format, isWithinInterval, parseISO } from 'date-fns';
-import { AttendanceRecord } from '@/types/attendance/records';
 
 export class StatusHelpers {
   static processStatusTransition(

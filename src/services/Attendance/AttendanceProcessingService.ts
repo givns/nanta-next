@@ -9,14 +9,15 @@ import {
   TimeEntryStatus,
   PeriodType,
   PeriodStatus,
-} from '@/types/attendance/status';
-import {
   ProcessingOptions,
   ProcessingResult,
-} from '@/types/attendance/processing';
-import { AppError, ErrorCode } from '@/types/attendance/error';
-import { AttendanceRecord } from '@/types/attendance/records';
-import { getCurrentTime } from '@/utils/dateUtils';
+  AttendanceRecord,
+  AppError,
+  ErrorCode,
+  LeaveRequest,
+  AttendancePeriodContext,
+} from '../../types/attendance';
+import { getCurrentTime } from '../../utils/dateUtils';
 import {
   startOfDay,
   endOfDay,
@@ -38,8 +39,6 @@ import { AttendanceMappers } from './utils/AttendanceMappers';
 import { AttendanceValidators } from './utils/AttendanceValidators';
 import { AttendanceResponseBuilder } from './utils/AttendanceResponseBuilder';
 import { StatusHelpers } from './utils/StatusHelper';
-import { AttendancePeriodContext } from '@/types/attendance/common';
-import { LeaveRequest } from '@/types/attendance/leave';
 
 export class AttendanceProcessingService {
   constructor(

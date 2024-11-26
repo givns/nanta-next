@@ -3,15 +3,23 @@
 import { PrismaClient, Prisma, LeaveRequest, User } from '@prisma/client';
 import { Client } from '@line/bot-sdk';
 import { UserRole } from '../types/enum';
-import { ILeaveServiceServer, LeaveBalanceData } from '@/types/LeaveService';
+import { ILeaveServiceServer, LeaveBalanceData } from '../types/LeaveService';
 import { NotificationService } from './NotificationService';
 import { cacheService } from './CacheService';
 import { RequestService } from './RequestService';
 import { addDays } from 'date-fns';
 
-const client = new Client({
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-});
+// Create LINE client conditionally based on environment
+let client: Client | null = null;
+if (process.env.NODE_ENV !== 'test') {
+  try {
+    client = new Client({
+      channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+    });
+  } catch (error) {
+    console.warn('Failed to initialize LINE client:', error);
+  }
+}
 
 type TransactionClient = Omit<
   PrismaClient,
@@ -155,6 +163,11 @@ export class LeaveServiceServer
   private async notifyAdmins(
     leaveRequest: LeaveRequest & { user: User },
   ): Promise<void> {
+    if (process.env.NODE_ENV === 'test') {
+      console.log('Test mode: Skipping admin notifications');
+      return;
+    }
+
     const admins = await this.prisma.user.findMany({
       where: {
         role: {

@@ -7,7 +7,12 @@ import {
   User,
 } from '@prisma/client';
 import axios from 'axios';
-import { ShiftData } from '@/types/attendance';
+import {
+  ShiftData,
+  ATTENDANCE_CONSTANTS,
+  EffectiveShiftResult,
+  ShiftWindows,
+} from '../../types/attendance';
 import {
   endOfDay,
   startOfDay,
@@ -16,7 +21,6 @@ import {
   isAfter,
   addDays,
   subDays,
-  set,
   parseISO,
   format,
   isWithinInterval,
@@ -27,7 +31,7 @@ import {
   formatDateTime,
   getCurrentTime,
   toBangkokTime,
-} from '@/utils/dateUtils';
+} from '../../utils/dateUtils';
 import { HolidayService } from '../HolidayService';
 import {
   getCacheData,
@@ -36,8 +40,6 @@ import {
 } from '../../lib/serverCache';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { ShiftTimeUtils } from './utils';
-import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
-import { EffectiveShiftResult, ShiftWindows } from '@/types/attendance/shift';
 
 interface Premise {
   lat: number;
@@ -56,6 +58,15 @@ const PREMISES: Premise[] = [
     name: 'สำนักงานใหญ่',
   },
 ];
+
+interface GoogleMapsResult {
+  formatted_address: string;
+}
+
+interface GoogleMapsResponse {
+  results: GoogleMapsResult[];
+  status: string;
+}
 
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
@@ -364,12 +375,17 @@ export class ShiftManagementService {
     lat: number,
     lng: number,
   ): Promise<string> {
+    // In test environment, return test location
+    if (process.env.NODE_ENV === 'test') {
+      return 'Test Location';
+    }
+
     const premise = this.isWithinPremises(lat, lng);
     if (premise) {
       return premise.name;
     }
     try {
-      const response = await axios.get(
+      const response = await axios.get<GoogleMapsResponse>(
         `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`,
       );
       if (response.data.results && response.data.results.length > 0) {

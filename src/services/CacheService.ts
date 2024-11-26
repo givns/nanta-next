@@ -1,14 +1,16 @@
-// services/CacheService.ts
+import { Redis } from 'ioredis';
 
 class CacheService {
-  private client: any = null;
+  private client: Redis | null = null;
+  private locks: Map<string, Promise<any>> = new Map();
+  private isTest: boolean = process.env.NODE_ENV === 'test';
 
   constructor() {
-    if (typeof window === 'undefined') {
+    if (!this.isTest) {
       this.initializeRedis();
     }
   }
-  private locks: Map<string, Promise<any>> = new Map();
+
   private async initializeRedis() {
     const redisUrl = process.env.REDIS_URL;
     if (redisUrl) {
@@ -27,7 +29,7 @@ class CacheService {
   }
 
   async get(key: string): Promise<string | null> {
-    if (!this.client) return null;
+    if (this.isTest || !this.client) return null;
     const cachedData = await this.client.get(key);
     if (cachedData) {
       console.log(`Cache hit for key: ${key}`);
@@ -42,7 +44,7 @@ class CacheService {
     value: string,
     expirationInSeconds?: number,
   ): Promise<void> {
-    if (!this.client) return;
+    if (this.isTest || !this.client) return;
     if (expirationInSeconds) {
       await this.client.set(key, value, 'EX', expirationInSeconds);
     } else {
@@ -51,23 +53,27 @@ class CacheService {
   }
 
   async del(key: string): Promise<void> {
-    if (!this.client) return;
+    if (this.isTest || !this.client) return;
     await this.client.del(key);
   }
 
   async invalidatePattern(pattern: string): Promise<void> {
-    if (!this.client) return;
+    if (this.isTest || !this.client) return;
     const keys = await this.client.keys(pattern);
     if (keys.length > 0) {
       await this.client.del(...keys);
     }
   }
 
-  async getWithSWR(
+  async getWithSWR<T>(
     key: string,
-    fetchFunction: () => Promise<any>,
+    fetchFunction: () => Promise<T>,
     ttl: number,
-  ): Promise<any> {
+  ): Promise<T> {
+    if (this.isTest) {
+      return fetchFunction();
+    }
+
     // Check if there's an ongoing request for this key
     if (this.locks.has(key)) {
       console.log(`Waiting for ongoing request for key: ${key}`);
@@ -101,5 +107,6 @@ class CacheService {
   }
 }
 
-export const cacheService =
-  typeof window === 'undefined' ? new CacheService() : null;
+// Export a singleton instance
+const cacheService = new CacheService();
+export { cacheService };

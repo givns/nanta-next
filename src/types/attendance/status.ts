@@ -350,6 +350,7 @@ export interface CurrentPeriodInfo {
     start: Date;
     end: Date;
   };
+  next?: NextPeriod;
 }
 
 // Update StatusHelpers to use isOvertime flag

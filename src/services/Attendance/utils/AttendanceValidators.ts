@@ -1,13 +1,12 @@
 // services/Attendance/utils/AttendanceValidators.ts
 
-import { ProcessingOptions } from '@/types/attendance/processing';
 import {
   ValidationResult,
   ValidationError,
-} from '@/types/attendance/validation';
-import { Location } from '@/types/attendance/base';
-import { ErrorCode } from '@/types/attendance/error';
-import { AttendanceState } from '@/types/attendance';
+  ProcessingOptions,
+  Location,
+  AttendanceState,
+} from '../../../types/attendance';
 
 export class AttendanceValidators {
   static validateProcessingOptions(

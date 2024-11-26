@@ -3,12 +3,12 @@ import { PrismaClient } from '@prisma/client';
 import { AttendanceCheckService } from './AttendanceCheckService';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { AttendanceStatusService } from './AttendanceStatusService';
-import { AttendanceStatusInfo } from '@/types/attendance/status';
-import { CheckInOutAllowance } from '@/types/attendance/check';
 import {
   ProcessingOptions,
   ProcessingResult,
-} from '@/types/attendance/processing';
+  CheckInOutAllowance,
+  AttendanceStatusInfo,
+} from '../../types/attendance';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { LeaveServiceServer } from '../LeaveServiceServer';

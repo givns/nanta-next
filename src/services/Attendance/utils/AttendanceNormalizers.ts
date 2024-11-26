@@ -6,7 +6,7 @@ import {
   OvertimeState,
   TimeEntryStatus,
   PeriodType,
-} from '@/types/attendance/status';
+} from '../../../types/attendance/status';
 
 export class AttendanceNormalizers {
   static normalizeAttendanceState(state: string): AttendanceState {

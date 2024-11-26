@@ -1,18 +1,16 @@
 // services/Attendance/utils/AttendanceMappers.ts
 
-import { UserData } from '@/types/user';
+import { UserData } from '../../../types/user';
 import {
   AttendanceCompositeStatus,
   AttendanceState,
   CheckStatus,
   LatestAttendance,
   OvertimeState,
-} from '@/types/attendance/status';
-import {
   AttendanceRecord,
   TimeEntry,
   OvertimeEntry,
-} from '@/types/attendance/records';
+} from '../../../types/attendance';
 import { AttendanceNormalizers } from './AttendanceNormalizers';
 import { format } from 'date-fns';
 
@@ -38,59 +36,63 @@ export class AttendanceMappers {
 
   static toAttendanceRecord(dbAttendance: any): AttendanceRecord | null {
     if (!dbAttendance) return null;
+    try {
+      return {
+        id: dbAttendance.id,
+        employeeId: dbAttendance.employeeId,
+        date: new Date(dbAttendance.date),
+        state: AttendanceNormalizers.normalizeAttendanceState(
+          dbAttendance.state,
+        ),
+        checkStatus: AttendanceNormalizers.normalizeCheckStatus(
+          dbAttendance.checkStatus,
+        ),
+        isOvertime: dbAttendance.isOvertime || false,
+        overtimeState: AttendanceNormalizers.normalizeOvertimeState(
+          dbAttendance.overtimeState,
+        ),
 
-    return {
-      id: dbAttendance.id,
-      employeeId: dbAttendance.employeeId,
-      date: new Date(dbAttendance.date),
-      state: AttendanceNormalizers.normalizeAttendanceState(dbAttendance.state),
-      checkStatus: AttendanceNormalizers.normalizeCheckStatus(
-        dbAttendance.checkStatus,
-      ),
-      isOvertime: dbAttendance.isOvertime || false,
-      overtimeState: AttendanceNormalizers.normalizeOvertimeState(
-        dbAttendance.overtimeState,
-      ),
+        // Add missing fields
+        shiftStartTime: dbAttendance.shiftStartTime
+          ? new Date(dbAttendance.shiftStartTime)
+          : null,
+        shiftEndTime: dbAttendance.shiftEndTime
+          ? new Date(dbAttendance.shiftEndTime)
+          : null,
+        lateCheckOutMinutes: dbAttendance.lateCheckOutMinutes || 0,
+        isManualEntry: dbAttendance.isManualEntry || false,
 
-      // Add missing fields
-      shiftStartTime: dbAttendance.shiftStartTime
-        ? new Date(dbAttendance.shiftStartTime)
-        : null,
-      shiftEndTime: dbAttendance.shiftEndTime
-        ? new Date(dbAttendance.shiftEndTime)
-        : null,
-      lateCheckOutMinutes: dbAttendance.lateCheckOutMinutes || 0,
-      isManualEntry: dbAttendance.isManualEntry || false,
+        regularCheckInTime: dbAttendance.regularCheckInTime
+          ? new Date(dbAttendance.regularCheckInTime)
+          : null,
+        regularCheckOutTime: dbAttendance.regularCheckOutTime
+          ? new Date(dbAttendance.regularCheckOutTime)
+          : null,
 
-      regularCheckInTime: dbAttendance.regularCheckInTime
-        ? new Date(dbAttendance.regularCheckInTime)
-        : null,
-      regularCheckOutTime: dbAttendance.regularCheckOutTime
-        ? new Date(dbAttendance.regularCheckOutTime)
-        : null,
+        isEarlyCheckIn: dbAttendance.isEarlyCheckIn || false,
+        isLateCheckIn: dbAttendance.isLateCheckIn || false,
+        isLateCheckOut: dbAttendance.isLateCheckOut || false,
+        isVeryLateCheckOut: dbAttendance.isVeryLateCheckOut || false,
 
-      isEarlyCheckIn: dbAttendance.isEarlyCheckIn || false,
-      isLateCheckIn: dbAttendance.isLateCheckIn || false,
-      isLateCheckOut: dbAttendance.isLateCheckOut || false,
-      isVeryLateCheckOut: dbAttendance.isVeryLateCheckOut || false,
+        // Safely handle location data
+        checkInLocation: this.safeParseLocation(dbAttendance.checkInLocation),
+        checkOutLocation: this.safeParseLocation(dbAttendance.checkOutLocation),
+        checkInAddress: dbAttendance.checkInAddress || null,
+        checkOutAddress: dbAttendance.checkOutAddress || null,
 
-      checkInLocation: dbAttendance.checkInLocation
-        ? JSON.parse(dbAttendance.checkInLocation)
-        : null,
-      checkOutLocation: dbAttendance.checkOutLocation
-        ? JSON.parse(dbAttendance.checkOutLocation)
-        : null,
-      checkInAddress: dbAttendance.checkInAddress || null,
-      checkOutAddress: dbAttendance.checkOutAddress || null,
+        timeEntries: (dbAttendance.timeEntries || []).map(this.mapTimeEntry),
+        overtimeEntries: (dbAttendance.overtimeEntries || []).map(
+          this.mapOvertimeEntry,
+        ),
 
-      timeEntries: (dbAttendance.timeEntries || []).map(this.mapTimeEntry),
-      overtimeEntries: (dbAttendance.overtimeEntries || []).map(
-        this.mapOvertimeEntry,
-      ),
-
-      createdAt: new Date(dbAttendance.createdAt),
-      updatedAt: new Date(dbAttendance.updatedAt),
-    };
+        createdAt: new Date(dbAttendance.createdAt),
+        updatedAt: new Date(dbAttendance.updatedAt),
+      };
+    } catch (error) {
+      console.error('Error mapping attendance record:', error);
+      console.error('Problem attendance data:', dbAttendance);
+      throw error;
+    }
   }
 
   static toLatestAttendance(
@@ -141,6 +143,19 @@ export class AttendanceMappers {
       createdAt: new Date(entry.createdAt),
       updatedAt: new Date(entry.updatedAt),
     };
+  }
+
+  private static safeParseLocation(location: any): any {
+    if (!location) return null;
+
+    if (typeof location === 'string') {
+      try {
+        return JSON.parse(location);
+      } catch (error) {
+        console.warn('Failed to parse location string:', location);
+        return null;
+      }
+    }
   }
 
   private static mapOvertimeEntry(entry: any): OvertimeEntry {

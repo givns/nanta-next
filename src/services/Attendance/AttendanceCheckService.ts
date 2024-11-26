@@ -15,7 +15,9 @@ import {
   ErrorCode,
   CheckoutStatusType,
   PeriodType,
-} from '@/types/attendance/index';
+  CACHE_CONSTANTS,
+  ATTENDANCE_CONSTANTS,
+} from '../../types/attendance';
 import {
   getCacheData,
   setCacheData,
@@ -36,8 +38,7 @@ import {
   startOfDay,
   subMinutes,
 } from 'date-fns';
-import { getCurrentTime } from '@/utils/dateUtils';
-import { CACHE_CONSTANTS, ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
+import { getCurrentTime } from '../../utils/dateUtils';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 
 export class AttendanceCheckService {

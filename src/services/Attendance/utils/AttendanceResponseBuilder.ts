@@ -4,14 +4,12 @@ import {
   AttendanceState,
   CheckStatus,
   OvertimeState,
-  AttendanceCompositeStatus,
-} from '@/types/attendance/status';
-import { ErrorResponse, SuccessResponse } from '@/types/attendance/response';
-import { AttendanceRecord, TimeEntry } from '@/types/attendance/records';
-import {
+  ErrorResponse,
+  AttendanceRecord,
+  TimeEntry,
   ProcessedAttendance,
   ProcessingResult,
-} from '@/types/attendance/processing';
+} from '../../../types/attendance';
 
 export class AttendanceResponseBuilder {
   static createProcessingResponse(

@@ -1,7 +1,7 @@
 // services/OvertimeServiceClient.ts
 
 import { PrismaClient, OvertimeRequest, Prisma } from '@prisma/client';
-import { IOvertimeServiceClient } from '@/types/OvertimeService';
+import { IOvertimeServiceClient } from '../types/OvertimeService';
 
 const prisma = new PrismaClient();
 
