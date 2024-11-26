@@ -180,6 +180,13 @@ export default async function handler(
   const { employeeId, lineUserId, inPremises, address, forceRefresh } =
     req.query;
 
+  // At the start of the handler
+  if (!forceRefresh && cacheService) {
+    // Clear old cache if it exists
+    const cacheKey = `attendance:${employeeId || user?.employeeId}`;
+    await cacheService.del(cacheKey);
+  }
+
   try {
     // User Data Fetching
     user = await (async () => {
