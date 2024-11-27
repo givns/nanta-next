@@ -31,8 +31,6 @@ import { AttendanceMappers } from './utils/AttendanceMappers';
 import { CacheManager } from '../CacheManager';
 import { TimeCalculationHelper } from './utils/TimeCalculationHelper';
 import { StatusHelpers } from './utils/StatusHelper';
-import { UserRole } from '../../types/enum';
-import { AttendanceStatusInfoSchema } from '@/schemas/attendance';
 
 export class AttendanceStatusService {
   constructor(
