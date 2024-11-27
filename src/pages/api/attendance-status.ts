@@ -347,7 +347,8 @@ export default async function handler(
           user: preparedUser,
           attendanceStatus: {
             user: preparedUser,
-            attendanceStatus: {  // Add nested attendanceStatus object to match schema
+            attendanceStatus: {
+              // Add nested attendanceStatus object to match schema
               state: formattedAttendanceStatus.state,
               checkStatus: formattedAttendanceStatus.checkStatus,
               overtimeState: formattedAttendanceStatus.overtimeState,
@@ -370,17 +371,23 @@ export default async function handler(
               approvedOvertime: formattedAttendanceStatus.approvedOvertime,
               futureShifts: formattedAttendanceStatus.futureShifts,
               futureOvertimes: formattedAttendanceStatus.futureOvertimes,
-              overtimeAttendances: formattedAttendanceStatus.overtimeAttendances,
+              overtimeAttendances:
+                formattedAttendanceStatus.overtimeAttendances,
               currentPeriod: {
                 ...formattedAttendanceStatus.currentPeriod,
                 current: {
-                  start: new Date(formattedAttendanceStatus.currentPeriod.current.start).toISOString(),
-                  end: new Date(formattedAttendanceStatus.currentPeriod.current.end).toISOString()
-                }
+                  start: new Date(
+                    formattedAttendanceStatus.currentPeriod.current.start,
+                  ).toISOString(),
+                  end: new Date(
+                    formattedAttendanceStatus.currentPeriod.current.end,
+                  ).toISOString(),
+                },
               },
               detailedStatus: formattedAttendanceStatus.detailedStatus,
-              pendingLeaveRequest: formattedAttendanceStatus.pendingLeaveRequest
-            }
+              pendingLeaveRequest:
+                formattedAttendanceStatus.pendingLeaveRequest,
+            },
           },
           effectiveShift: shiftData?.effectiveShift || null,
           checkInOutAllowance: checkInOutAllowance
@@ -394,7 +401,7 @@ export default async function handler(
               }
             : null,
           approvedOvertime: formattedAttendanceStatus.approvedOvertime,
-          leaveRequests: leaveRequests || []
+          leaveRequests: leaveRequests || [],
         };
       } catch (error) {
         console.error('Error in fetchAttendanceData:', error);
