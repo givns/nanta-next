@@ -249,6 +249,7 @@ export default async function handler(
     };
 
     // Modified fetchAttendanceData function in attendance-status.ts
+    // Modify fetchAttendanceData function in attendance-status.ts
     const fetchAttendanceData = async () => {
       try {
         console.log('Fetching attendance data for:', user.employeeId);
@@ -294,7 +295,7 @@ export default async function handler(
           checkInOutAllowance = null;
         }
 
-        // Ensure all required fields are present in the response
+        // Format the main attendance status
         const formattedAttendanceStatus = {
           state: attendanceStatus?.state || AttendanceState.ABSENT,
           checkStatus: attendanceStatus?.checkStatus || CheckStatus.PENDING,
@@ -334,7 +335,7 @@ export default async function handler(
             type: PeriodType.REGULAR,
             isComplete: false,
             current: {
-              start: startOfDay(currentTime).toISOString(), // Ensure we send ISO string
+              start: startOfDay(currentTime).toISOString(),
               end: endOfDay(currentTime).toISOString(),
             },
           },
@@ -342,12 +343,10 @@ export default async function handler(
           pendingLeaveRequest: attendanceStatus?.pendingLeaveRequest || false,
         };
 
+        // Return without double nesting of attendanceStatus
         return {
           user: preparedUser,
-          attendanceStatus: {
-            user: preparedUser,
-            attendanceStatus: formattedAttendanceStatus,
-          },
+          attendanceStatus: formattedAttendanceStatus, // Direct assignment without nesting
           effectiveShift: shiftData?.effectiveShift || null,
           checkInOutAllowance: checkInOutAllowance
             ? {

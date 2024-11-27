@@ -18,6 +18,20 @@ interface UserShiftInfoProps {
   isLoading: boolean;
 }
 
+const defaultAttendanceStatus = {
+  futureShifts: [],
+  futureOvertimes: [],
+  overtimeAttendances: [],
+  currentPeriod: {
+    type: 'regular' as const,
+    isComplete: false,
+    current: {
+      start: new Date(),
+      end: new Date(),
+    },
+  },
+};
+
 const UserShiftInfo = React.memo(
   ({
     userData,
@@ -25,6 +39,13 @@ const UserShiftInfo = React.memo(
     effectiveShift,
     isLoading,
   }: UserShiftInfoProps) => {
+    const status = useMemo(
+      () => ({
+        ...defaultAttendanceStatus,
+        ...attendanceStatus,
+      }),
+      [attendanceStatus],
+    );
     const { message, color } = useMemo(
       () => getStatusMessage(attendanceStatus),
       [attendanceStatus],
@@ -186,20 +207,24 @@ const UserShiftInfo = React.memo(
 
     // Render future shift adjustments
     const renderFutureInfo = useMemo(() => {
-      const futureShiftAdjustments =
-        attendanceStatus?.futureShifts.filter(
-          (adjustment) => !isToday(parseISO(adjustment.date)),
-        ) ?? [];
+      const futureShiftAdjustments = attendanceStatus?.futureShifts
+        ? attendanceStatus.futureShifts.filter(
+            (adjustment) => !isToday(parseISO(adjustment.date)),
+          )
+        : [];
 
-      if (futureShiftAdjustments.length === 0 && futureOvertimes.length === 0) {
+      const futureOts = attendanceStatus?.futureOvertimes || [];
+
+      if (futureShiftAdjustments.length === 0 && futureOts.length === 0) {
         return null;
       }
 
       return (
         <div className="space-y-4">
+          {/* Render future shift adjustments */}
           {futureShiftAdjustments.map((adjustment, index) => (
             <div
-              key={`shift-${index}`}
+              key={`shift-${adjustment.date}-${index}`}
               className="bg-white p-6 rounded-lg shadow-md"
             >
               <div className="flex items-center justify-between mb-4">
@@ -233,9 +258,10 @@ const UserShiftInfo = React.memo(
               </div>
             </div>
           ))}
-          {attendanceStatus?.futureOvertimes.map((overtime, index) => (
+          {/* Render future overtimes */}
+          {futureOts.map((overtime, index) => (
             <div
-              key={`overtime-${index}`}
+              key={`overtime-${overtime.id || index}`}
               className="bg-white p-6 rounded-lg shadow-md"
             >
               <div className="flex items-center justify-between mb-4">
