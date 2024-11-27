@@ -1,5 +1,6 @@
+// useSimpleAttendance.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
-import useSWR from 'swr';
+import useSWR, { KeyedMutator } from 'swr';
 import axios from 'axios';
 import { EnhancedLocationService } from '../services/EnhancedLocationService';
 import {
@@ -16,6 +17,8 @@ import {
 } from '@/types/attendance';
 
 type FetcherArgs = [url: string, employeeId: string, location: LocationState];
+type IntervalType = ReturnType<typeof setInterval>;
+type TimeoutType = ReturnType<typeof setTimeout>;
 
 export const useSimpleAttendance = ({
   employeeId,
@@ -23,6 +26,9 @@ export const useSimpleAttendance = ({
   initialAttendanceStatus,
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn => {
   const locationService = useRef(new EnhancedLocationService());
+  const locationIntervalRef = useRef<IntervalType>();
+  const refreshTimeoutRef = useRef<TimeoutType>();
+
   const [locationState, setLocationState] = useState<LocationState>({
     inPremises: false,
     address: '',
@@ -30,38 +36,40 @@ export const useSimpleAttendance = ({
   });
   const [isLocationLoading, setIsLocationLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const getCurrentLocation = useCallback(async (forceRefresh = false) => {
-    setIsLocationLoading(true);
-    setLocationError(null);
+  const getCurrentLocation = useCallback(
+    async (forceRefresh = false) => {
+      if (isLocationLoading && !forceRefresh) return;
+      setIsLocationLoading(true);
+      setLocationError(null);
 
-    try {
-      const result =
-        await locationService.current.getCurrentLocation(forceRefresh);
-
-      setLocationState({
-        inPremises: result.inPremises,
-        address: result.address,
-        confidence: result.confidence,
-        coordinates: result.coordinates,
-        accuracy: result.accuracy,
-      });
-
-      return;
-    } catch (error) {
-      console.error('Location error:', error);
-      setLocationError(
-        error instanceof Error ? error.message : 'Failed to get location',
-      );
-      setLocationState({
-        inPremises: false,
-        address: 'Unknown location',
-        confidence: 'low',
-      });
-    } finally {
-      setIsLocationLoading(false);
-    }
-  }, []);
+      try {
+        const result =
+          await locationService.current.getCurrentLocation(forceRefresh);
+        setLocationState({
+          inPremises: result.inPremises,
+          address: result.address,
+          confidence: result.confidence,
+          coordinates: result.coordinates,
+          accuracy: result.accuracy,
+        });
+      } catch (error) {
+        console.error('Location error:', error);
+        setLocationError(
+          error instanceof Error ? error.message : 'Failed to get location',
+        );
+        setLocationState({
+          inPremises: false,
+          address: 'Unknown location',
+          confidence: 'low',
+        });
+      } finally {
+        setIsLocationLoading(false);
+      }
+    },
+    [isLocationLoading],
+  );
 
   const { data, error, mutate } = useSWR<
     UseSimpleAttendanceState,
@@ -137,13 +145,16 @@ export const useSimpleAttendance = ({
 
       while (retryCount <= MAX_RETRIES) {
         try {
+          // Cancel any pending refresh
+          if (refreshTimeoutRef.current) {
+            clearTimeout(refreshTimeoutRef.current);
+          }
+
           const serverTimeResponse = await axios.get('/api/server-time');
           const { serverTime } = serverTimeResponse.data;
 
-          // Force refresh location
           await getCurrentLocation(true);
 
-          // Check location state after refresh
           if (!locationState.inPremises && locationState.confidence === 'low') {
             throw new Error('Failed to validate location');
           }
@@ -155,7 +166,7 @@ export const useSimpleAttendance = ({
             entryType: data.isOvertime
               ? PeriodType.OVERTIME
               : PeriodType.REGULAR,
-            confidence: locationState.confidence, // Include confidence
+            confidence: locationState.confidence,
           };
 
           const response = await axios.post<ProcessingResult>(
@@ -205,7 +216,15 @@ export const useSimpleAttendance = ({
 
   const refreshAttendanceStatus = useCallback(
     async (options?: { forceRefresh?: boolean; throwOnError?: boolean }) => {
+      if (isRefreshing) return;
+
       try {
+        setIsRefreshing(true);
+
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current);
+        }
+
         if (options?.forceRefresh) {
           await getCurrentLocation(true);
           if (
@@ -216,6 +235,7 @@ export const useSimpleAttendance = ({
             throw new Error('Failed to validate location');
           }
         }
+
         await mutate(undefined, {
           revalidate: true,
           throwOnError: options?.throwOnError,
@@ -223,25 +243,34 @@ export const useSimpleAttendance = ({
       } catch (error) {
         console.error('Refresh failed:', error);
         throw error;
+      } finally {
+        setIsRefreshing(false);
       }
     },
-    [mutate, getCurrentLocation, locationState],
+    [mutate, getCurrentLocation, locationState, isRefreshing],
   ) as UseSimpleAttendanceActions['refreshAttendanceStatus'];
-
-  Object.assign(refreshAttendanceStatus, { mutate });
 
   useEffect(() => {
     getCurrentLocation();
 
-    const locationInterval = setInterval(() => {
+    // Clear any existing interval
+    if (locationIntervalRef.current) {
+      clearInterval(locationIntervalRef.current);
+    }
+
+    locationIntervalRef.current = setInterval(() => {
       getCurrentLocation();
     }, 60000);
 
     return () => {
-      clearInterval(locationInterval);
+      if (locationIntervalRef.current) {
+        clearInterval(locationIntervalRef.current);
+      }
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
     };
   }, [getCurrentLocation]);
-
   return {
     ...(data || {
       attendanceStatus: initialAttendanceStatus,
@@ -256,7 +285,7 @@ export const useSimpleAttendance = ({
       error: error?.message || locationError,
       checkInOutAllowance: null,
     }),
-    refreshAttendanceStatus,
+    refreshAttendanceStatus: Object.assign(refreshAttendanceStatus, { mutate }),
     checkInOut,
     getCurrentLocation,
   };

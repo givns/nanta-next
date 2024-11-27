@@ -1,5 +1,11 @@
 // check-in-router.tsx
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import dynamic from 'next/dynamic';
 import { format } from 'date-fns';
 import { UserData } from '@/types/user';
@@ -22,11 +28,12 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 
+type IntervalType = ReturnType<typeof setInterval>;
+type TimeoutType = ReturnType<typeof setTimeout>;
+
 const CheckInOutForm = dynamic(
   () => import('../components/attendance/CheckInOutForm'),
-  {
-    ssr: false,
-  },
+  { ssr: false },
 );
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
@@ -34,10 +41,12 @@ const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 const CheckInRouter: React.FC = () => {
   // Hooks
   const { lineUserId, isInitialized, error: liffError } = useLiff();
-  const { isLoading: authLoading } = useAuth({
-    required: true, // Require auth but no specific roles
-  });
+  const { isLoading: authLoading } = useAuth({ required: true });
   const { toast } = useToast();
+
+  // Refs for cleanup
+  const refreshIntervalRef = useRef<IntervalType>();
+  const initialFetchTimeoutRef = useRef<TimeoutType>();
 
   // State
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -47,7 +56,7 @@ const CheckInRouter: React.FC = () => {
   const [cachedAttendanceStatus, setCachedAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [locationState, setLocationState] = useState<LocationState>({
+  const [locationState] = useState<LocationState>({
     inPremises: false,
     address: '',
     confidence: 'low',
@@ -79,6 +88,8 @@ const CheckInRouter: React.FC = () => {
 
   // Fetch initial data
   useEffect(() => {
+    let isMounted = true;
+
     const fetchInitialData = async () => {
       if (!lineUserId) {
         setError('LINE User ID not available');
@@ -87,7 +98,11 @@ const CheckInRouter: React.FC = () => {
       }
 
       try {
-        // Fetch user data function
+        // Cancel any existing initial fetch timeout
+        if (initialFetchTimeoutRef.current) {
+          clearTimeout(initialFetchTimeoutRef.current);
+        }
+
         const fetchUserData = async () => {
           const response = await fetch('/api/user-data', {
             headers: { 'x-line-userid': lineUserId },
@@ -102,61 +117,84 @@ const CheckInRouter: React.FC = () => {
           fetchUserData,
         );
 
-        if (cachedUser?.user) {
-          setUserData(cachedUser.user);
+        if (isMounted) {
+          if (cachedUser?.user) {
+            setUserData(cachedUser.user);
 
-          // Get cached attendance status
-          const today = format(new Date(), 'yyyy-MM-dd');
-          const fetchAttendanceStatus = async () => {
-            const response = await fetch('/api/attendance-status', {
-              headers: {
-                'x-line-userid': lineUserId,
-                'x-employee-id': cachedUser.user.employeeId,
-              },
-            });
-            if (!response.ok)
-              throw new Error('Failed to fetch attendance status');
-            return response.json();
-          };
+            // Get cached attendance status only after setting user data
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const fetchAttendanceStatus = async () => {
+              const response = await fetch('/api/attendance-status', {
+                headers: {
+                  'x-line-userid': lineUserId,
+                  'x-employee-id': cachedUser.user.employeeId,
+                },
+              });
+              if (!response.ok)
+                throw new Error('Failed to fetch attendance status');
+              return response.json();
+            };
 
-          const cachedStatus = await CacheManager.getCachedAttendanceData(
-            cachedUser.user.employeeId,
-            today,
-            fetchAttendanceStatus,
-          );
+            try {
+              const cachedStatus = await CacheManager.getCachedAttendanceData(
+                cachedUser.user.employeeId,
+                today,
+                fetchAttendanceStatus,
+              );
 
-          if (cachedStatus) {
-            setCachedAttendanceStatus(cachedStatus);
+              if (isMounted && cachedStatus) {
+                setCachedAttendanceStatus(cachedStatus);
+              }
+            } catch (error) {
+              console.error('Error fetching cached attendance:', error);
+              // Continue without cached attendance
+            }
+          } else {
+            // Fetch fresh data if no cache
+            const freshUserData = await fetchUserData();
+            setUserData(freshUserData.user);
+            await CacheManager.setCacheData(
+              getCacheKey('user', lineUserId),
+              freshUserData,
+            );
           }
-        } else {
-          // Fetch fresh data if no cache
-          const freshUserData = await fetchUserData();
-          setUserData(freshUserData.user);
-          await CacheManager.setCacheData(
-            getCacheKey('user', lineUserId),
-            freshUserData,
-          );
         }
       } catch (error) {
         console.error('Error fetching initial data:', error);
-        setError('Failed to fetch initial data');
-        // Clear invalid cache if any
-        if (userData?.employeeId) {
-          await CacheManager.invalidateAllEmployeeData(userData.employeeId);
+        if (isMounted) {
+          setError('Failed to fetch initial data');
+          // Clear invalid cache if any
+          if (userData?.employeeId) {
+            await CacheManager.invalidateAllEmployeeData(userData.employeeId);
+          }
         }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchInitialData();
+
+    return () => {
+      isMounted = false;
+      if (initialFetchTimeoutRef.current) {
+        clearTimeout(initialFetchTimeoutRef.current);
+      }
+    };
   }, [lineUserId, getCacheKey]);
 
-  // Background refresh effect
+  // Background refresh effect with cleanup
   useEffect(() => {
     if (!userData?.employeeId) return;
 
-    const refreshInterval = setInterval(async () => {
+    // Clear any existing interval
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+    }
+
+    refreshIntervalRef.current = setInterval(async () => {
       try {
         await refreshAttendanceStatus({
           forceRefresh: false,
@@ -165,9 +203,13 @@ const CheckInRouter: React.FC = () => {
       } catch (error) {
         console.error('Background refresh failed:', error);
       }
-    }, 30000); // Every 30 seconds
+    }, 30000);
 
-    return () => clearInterval(refreshInterval);
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
   }, [userData?.employeeId, refreshAttendanceStatus]);
 
   // Handlers
@@ -179,7 +221,7 @@ const CheckInRouter: React.FC = () => {
       if (!userData?.employeeId) return;
 
       await CacheManager.invalidateAllEmployeeData(userData.employeeId);
-      await refreshAttendanceStatus({ forceRefresh: true }); // Fixed type
+      await refreshAttendanceStatus({ forceRefresh: true });
       await getCurrentLocation();
 
       toast({
