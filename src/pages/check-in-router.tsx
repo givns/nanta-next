@@ -28,9 +28,6 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 
-type IntervalType = ReturnType<typeof setInterval>;
-type TimeoutType = ReturnType<typeof setTimeout>;
-
 const CheckInOutForm = dynamic(
   () => import('../components/attendance/CheckInOutForm'),
   { ssr: false },
@@ -38,15 +35,16 @@ const CheckInOutForm = dynamic(
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
+type RefreshInterval = ReturnType<typeof setInterval>;
+
 const CheckInRouter: React.FC = () => {
   // Hooks
   const { lineUserId, isInitialized, error: liffError } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
   const { toast } = useToast();
 
-  // Refs for cleanup
-  const refreshIntervalRef = useRef<IntervalType>();
-  const initialFetchTimeoutRef = useRef<TimeoutType>();
+  // Refs
+  const refreshIntervalRef = useRef<RefreshInterval>();
 
   // State
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -98,11 +96,6 @@ const CheckInRouter: React.FC = () => {
       }
 
       try {
-        // Cancel any existing initial fetch timeout
-        if (initialFetchTimeoutRef.current) {
-          clearTimeout(initialFetchTimeoutRef.current);
-        }
-
         const fetchUserData = async () => {
           const response = await fetch('/api/user-data', {
             headers: { 'x-line-userid': lineUserId },
@@ -111,47 +104,45 @@ const CheckInRouter: React.FC = () => {
           return response.json();
         };
 
-        // Try to get cached user data
         const cachedUser = await CacheManager.getCachedUserData(
           lineUserId,
           fetchUserData,
         );
 
-        if (isMounted) {
-          if (cachedUser?.user) {
-            setUserData(cachedUser.user);
+        if (!isMounted) return;
 
-            // Get cached attendance status only after setting user data
-            const today = format(new Date(), 'yyyy-MM-dd');
-            const fetchAttendanceStatus = async () => {
-              const response = await fetch('/api/attendance-status', {
-                headers: {
-                  'x-line-userid': lineUserId,
-                  'x-employee-id': cachedUser.user.employeeId,
-                },
-              });
-              if (!response.ok)
-                throw new Error('Failed to fetch attendance status');
-              return response.json();
-            };
+        if (cachedUser?.user) {
+          setUserData(cachedUser.user);
 
-            try {
-              const cachedStatus = await CacheManager.getCachedAttendanceData(
-                cachedUser.user.employeeId,
-                today,
-                fetchAttendanceStatus,
-              );
+          const today = format(new Date(), 'yyyy-MM-dd');
+          const fetchAttendanceStatus = async () => {
+            const response = await fetch('/api/attendance-status', {
+              headers: {
+                'x-line-userid': lineUserId,
+                'x-employee-id': cachedUser.user.employeeId,
+              },
+            });
+            if (!response.ok)
+              throw new Error('Failed to fetch attendance status');
+            return response.json();
+          };
 
-              if (isMounted && cachedStatus) {
-                setCachedAttendanceStatus(cachedStatus);
-              }
-            } catch (error) {
-              console.error('Error fetching cached attendance:', error);
-              // Continue without cached attendance
+          try {
+            const cachedStatus = await CacheManager.getCachedAttendanceData(
+              cachedUser.user.employeeId,
+              today,
+              fetchAttendanceStatus,
+            );
+
+            if (isMounted && cachedStatus) {
+              setCachedAttendanceStatus(cachedStatus);
             }
-          } else {
-            // Fetch fresh data if no cache
-            const freshUserData = await fetchUserData();
+          } catch (error) {
+            console.error('Error fetching cached attendance:', error);
+          }
+        } else {
+          const freshUserData = await fetchUserData();
+          if (isMounted) {
             setUserData(freshUserData.user);
             await CacheManager.setCacheData(
               getCacheKey('user', lineUserId),
@@ -163,7 +154,6 @@ const CheckInRouter: React.FC = () => {
         console.error('Error fetching initial data:', error);
         if (isMounted) {
           setError('Failed to fetch initial data');
-          // Clear invalid cache if any
           if (userData?.employeeId) {
             await CacheManager.invalidateAllEmployeeData(userData.employeeId);
           }
@@ -176,41 +166,10 @@ const CheckInRouter: React.FC = () => {
     };
 
     fetchInitialData();
-
     return () => {
       isMounted = false;
-      if (initialFetchTimeoutRef.current) {
-        clearTimeout(initialFetchTimeoutRef.current);
-      }
     };
   }, [lineUserId, getCacheKey]);
-
-  // Background refresh effect with cleanup
-  useEffect(() => {
-    if (!userData?.employeeId) return;
-
-    // Clear any existing interval
-    if (refreshIntervalRef.current) {
-      clearInterval(refreshIntervalRef.current);
-    }
-
-    refreshIntervalRef.current = setInterval(async () => {
-      try {
-        await refreshAttendanceStatus({
-          forceRefresh: false,
-          throwOnError: false,
-        });
-      } catch (error) {
-        console.error('Background refresh failed:', error);
-      }
-    }, 30000);
-
-    return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
-    };
-  }, [userData?.employeeId, refreshAttendanceStatus]);
 
   // Handlers
   const handleRefresh = async () => {
@@ -267,7 +226,7 @@ const CheckInRouter: React.FC = () => {
             employeeId: userData.employeeId,
             lineUserId: userData.lineUserId,
             isCheckIn: params.isCheckingIn,
-            checkTime: checkTime.toISOString(), // Ensure proper date string format
+            checkTime: checkTime.toISOString(),
             address,
             reason: params.lateReason,
             photo: params.photo,
@@ -280,7 +239,6 @@ const CheckInRouter: React.FC = () => {
               ? PeriodType.OVERTIME
               : PeriodType.REGULAR,
             confidence: locationState.confidence,
-
             metadata: {
               overtimeId: checkInOutAllowance.metadata?.overtimeId,
               isDayOffOvertime: checkInOutAllowance.flags?.isDayOffOvertime,
@@ -289,23 +247,22 @@ const CheckInRouter: React.FC = () => {
           };
 
           await checkInOut(checkInOutData);
-          break; // Success - exit the retry loop
+          break;
         } catch (error: any) {
           console.error(
             `Error during check-in/out (attempt ${retryCount + 1}):`,
             error,
           );
 
-          // Check if error is retryable
           const isRetryable =
-            error.response?.status >= 500 || // Server errors
-            error.code === 'ECONNABORTED' || // Timeout
-            !navigator.onLine || // Offline
-            error.message === 'Invalid server time received'; // Time sync issues
+            retryCount < MAX_RETRIES &&
+            (error.response?.status >= 500 ||
+              error.code === 'ECONNABORTED' ||
+              !navigator.onLine ||
+              error.message === 'Invalid server time received');
 
-          if (retryCount < MAX_RETRIES && isRetryable) {
+          if (isRetryable) {
             retryCount++;
-            // Exponential backoff
             await new Promise((resolve) =>
               setTimeout(resolve, 1000 * Math.pow(2, retryCount)),
             );
@@ -327,24 +284,34 @@ const CheckInRouter: React.FC = () => {
     ],
   );
 
-  // Background refresh modification
-  useEffect(() => {
-    if (!userData?.employeeId) return;
-
-    const refreshInterval = setInterval(async () => {
-      try {
-        await refreshAttendanceStatus({ forceRefresh: false }); // Fixed type
-      } catch (error) {
-        console.error('Background refresh failed:', error);
-      }
-    }, 30000);
-
-    return () => clearInterval(refreshInterval);
-  }, [userData?.employeeId, refreshAttendanceStatus]);
-
   const handleCloseWindow = useCallback(() => {
     closeWindow();
   }, []);
+
+  // Background refresh
+  useEffect(() => {
+    if (!userData?.employeeId) return;
+
+    const doRefresh = async () => {
+      try {
+        await refreshAttendanceStatus({
+          forceRefresh: false,
+          throwOnError: false,
+        });
+      } catch (error) {
+        console.error('Background refresh failed:', error);
+      }
+    };
+
+    doRefresh(); // Initial refresh
+    refreshIntervalRef.current = setInterval(doRefresh, 30000);
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, [userData?.employeeId, refreshAttendanceStatus]);
 
   // Memoized form component
   const memoizedCheckInOutForm = useMemo(
@@ -380,15 +347,10 @@ const CheckInRouter: React.FC = () => {
     ],
   );
 
-  // Determine ready state
-  const isDataReady = userData && checkInOutAllowance && !isAttendanceLoading;
-
-  // Loading state
   if (authLoading || !isInitialized) {
     return <LoadingBar />;
   }
 
-  // Error states
   if (liffError || !lineUserId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
@@ -411,12 +373,12 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  // Main render
+  const isDataReady = userData && checkInOutAllowance && !isAttendanceLoading;
+
   return (
     <ErrorBoundary>
       <PullToRefresh onRefresh={handleRefresh} isRefreshing={isRefreshing}>
         <div className="main-container flex flex-col min-h-screen bg-gray-100">
-          {/* Fixed header */}
           <div className="sticky top-0 bg-white shadow-md z-20 px-4 py-3 safe-top">
             <h1 className="text-2xl font-bold text-center text-gray-800">
               {attendanceStatus?.isCheckingIn
@@ -426,7 +388,6 @@ const CheckInRouter: React.FC = () => {
             <Clock />
           </div>
 
-          {/* Scrollable content area */}
           <div className="flex-1 overflow-y-auto pb-32">
             {formError && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 m-4 rounded relative">
@@ -449,14 +410,13 @@ const CheckInRouter: React.FC = () => {
               </div>
             )}
 
-            {/* Main content */}
             <ErrorBoundary
               onError={(error: Error) => {
                 console.error('Error in CheckInOutForm:', error);
                 setFormError(error.message);
               }}
             >
-              <div className="h-full">
+              <div className="flex items-center justify-center h-full">
                 {isDataReady ? (
                   userData && memoizedCheckInOutForm
                 ) : (
@@ -473,4 +433,5 @@ const CheckInRouter: React.FC = () => {
   );
 };
 
+// Ensure memo for performance optimization
 export default React.memo(CheckInRouter);
