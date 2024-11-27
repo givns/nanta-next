@@ -257,11 +257,17 @@ const CheckInRouter: React.FC = () => {
           const serverTimeResponse = await fetch('/api/server-time');
           const { serverTime } = await serverTimeResponse.json();
 
+          // Ensure serverTime is a valid date
+          const checkTime = new Date(serverTime);
+          if (isNaN(checkTime.getTime())) {
+            throw new Error('Invalid server time received');
+          }
+
           const checkInOutData: CheckInOutData = {
             employeeId: userData.employeeId,
             lineUserId: userData.lineUserId,
             isCheckIn: params.isCheckingIn,
-            checkTime: serverTime,
+            checkTime: checkTime.toISOString(), // Ensure proper date string format
             address,
             reason: params.lateReason,
             photo: params.photo,
@@ -273,7 +279,7 @@ const CheckInRouter: React.FC = () => {
             entryType: params.isOvertime
               ? PeriodType.OVERTIME
               : PeriodType.REGULAR,
-            confidence: locationState.confidence, // Add this
+            confidence: locationState.confidence,
 
             metadata: {
               overtimeId: checkInOutAllowance.metadata?.overtimeId,
@@ -294,7 +300,8 @@ const CheckInRouter: React.FC = () => {
           const isRetryable =
             error.response?.status >= 500 || // Server errors
             error.code === 'ECONNABORTED' || // Timeout
-            !navigator.onLine; // Offline
+            !navigator.onLine || // Offline
+            error.message === 'Invalid server time received'; // Time sync issues
 
           if (retryCount < MAX_RETRIES && isRetryable) {
             retryCount++;
@@ -311,7 +318,13 @@ const CheckInRouter: React.FC = () => {
         }
       }
     },
-    [userData, checkInOutAllowance, address, checkInOut],
+    [
+      userData,
+      checkInOutAllowance,
+      address,
+      checkInOut,
+      locationState.confidence,
+    ],
   );
 
   // Background refresh modification
