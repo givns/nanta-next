@@ -90,14 +90,29 @@ export const useSimpleAttendance = ({
         },
       });
 
+      // Ensure dates are properly parsed
+      const attendanceData = response.data.attendanceStatus;
+      const currentPeriod = attendanceData?.currentPeriod;
+
       return {
         attendanceStatus: response.data.attendanceStatus,
-        state: response.data.attendanceStatus?.state || AttendanceState.ABSENT,
-        checkStatus:
-          response.data.attendanceStatus?.checkStatus || CheckStatus.PENDING,
-        overtimeState: response.data.attendanceStatus?.overtimeState,
+        state: attendanceData?.state || AttendanceState.ABSENT,
+        checkStatus: attendanceData?.checkStatus || CheckStatus.PENDING,
+        overtimeState: attendanceData?.overtimeState,
         effectiveShift: response.data.effectiveShift,
-        currentPeriod: response.data.attendanceStatus?.currentPeriod || null,
+        currentPeriod: currentPeriod
+          ? {
+              ...currentPeriod,
+              current: {
+                start: currentPeriod.current?.start
+                  ? new Date(currentPeriod.current.start)
+                  : new Date(),
+                end: currentPeriod.current?.end
+                  ? new Date(currentPeriod.current.end)
+                  : new Date(),
+              },
+            }
+          : null,
         inPremises: location.inPremises,
         address: location.address,
         isLoading: false,
@@ -126,7 +141,19 @@ export const useSimpleAttendance = ({
             checkStatus: initialAttendanceStatus.checkStatus,
             overtimeState: initialAttendanceStatus.overtimeState,
             effectiveShift: null,
-            currentPeriod: null,
+            currentPeriod: initialAttendanceStatus.currentPeriod
+              ? {
+                  ...initialAttendanceStatus.currentPeriod,
+                  current: {
+                    start: new Date(
+                      initialAttendanceStatus.currentPeriod.current.start,
+                    ),
+                    end: new Date(
+                      initialAttendanceStatus.currentPeriod.current.end,
+                    ),
+                  },
+                }
+              : null,
             inPremises: false,
             address: '',
             isLoading: true,

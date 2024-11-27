@@ -248,6 +248,7 @@ export default async function handler(
       return fetchAttendanceData();
     };
 
+    // Modified fetchAttendanceData function in attendance-status.ts
     const fetchAttendanceData = async () => {
       try {
         console.log('Fetching attendance data for:', user.employeeId);
@@ -281,15 +282,6 @@ export default async function handler(
             ? leaveRequestsResult.value
             : [];
 
-        if (attendanceStatus)
-          console.log(
-            'Attendance Status:',
-            JSON.stringify(attendanceStatus, null, 2),
-          );
-        if (shiftData)
-          console.log('Shift Data:', JSON.stringify(shiftData, null, 2));
-        console.log('Leave Requests count:', leaveRequests.length);
-
         let checkInOutAllowance;
         try {
           checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
@@ -302,42 +294,73 @@ export default async function handler(
           checkInOutAllowance = null;
         }
 
-        return {
-          user: {
-            ...preparedUser,
-            nickname: preparedUser.nickname ?? null,
+        // Ensure all required fields are present in the response
+        const formattedAttendanceStatus = {
+          state: attendanceStatus?.state || AttendanceState.ABSENT,
+          checkStatus: attendanceStatus?.checkStatus || CheckStatus.PENDING,
+          overtimeState: attendanceStatus?.overtimeState,
+          isOvertime: attendanceStatus?.isOvertime || false,
+          isLate: attendanceStatus?.isLate || false,
+          overtimeDuration: attendanceStatus?.overtimeDuration || 0,
+          overtimeEntries: attendanceStatus?.overtimeEntries || [],
+          isCheckingIn: attendanceStatus?.isCheckingIn ?? true,
+          isEarlyCheckIn: attendanceStatus?.isEarlyCheckIn || false,
+          isLateCheckIn: attendanceStatus?.isLateCheckIn || false,
+          isLateCheckOut: attendanceStatus?.isLateCheckOut || false,
+          user: preparedUser,
+          latestAttendance: attendanceStatus?.latestAttendance || null,
+          isDayOff: attendanceStatus?.isDayOff || false,
+          isHoliday: attendanceStatus?.isHoliday || false,
+          holidayInfo: attendanceStatus?.holidayInfo || null,
+          dayOffType: attendanceStatus?.dayOffType || 'none',
+          isOutsideShift: attendanceStatus?.isOutsideShift || false,
+          shiftAdjustment: attendanceStatus?.shiftAdjustment || {
+            date: format(currentTime, 'yyyy-MM-dd'),
+            requestedShiftId: shiftData?.effectiveShift?.id || 'default',
+            requestedShift: shiftData?.effectiveShift || {
+              id: 'default',
+              name: 'Default Shift',
+              shiftCode: user.shiftCode || 'DEFAULT',
+              startTime: '08:00',
+              endTime: '17:00',
+              workDays: [1, 2, 3, 4, 5],
+            },
           },
-          attendanceStatus: attendanceStatus
-            ? {
-                ...attendanceStatus,
-                state: attendanceStatus.state || AttendanceState.ABSENT,
-                checkStatus:
-                  attendanceStatus.checkStatus || CheckStatus.PENDING,
-                currentPeriod: {
-                  ...attendanceStatus.currentPeriod,
-                  type:
-                    attendanceStatus.currentPeriod?.type || PeriodType.REGULAR,
-                  current: attendanceStatus.currentPeriod?.current || {
-                    start: startOfDay(currentTime),
-                    end: endOfDay(currentTime),
-                  },
-                },
-              }
-            : null,
-          effectiveShift: shiftData?.effectiveShift ?? null,
+          approvedOvertime: attendanceStatus?.approvedOvertime || null,
+          futureShifts: attendanceStatus?.futureShifts || [],
+          futureOvertimes: attendanceStatus?.futureOvertimes || [],
+          overtimeAttendances: attendanceStatus?.overtimeAttendances || [],
+          currentPeriod: attendanceStatus?.currentPeriod || {
+            type: PeriodType.REGULAR,
+            isComplete: false,
+            current: {
+              start: startOfDay(currentTime).toISOString(), // Ensure we send ISO string
+              end: endOfDay(currentTime).toISOString(),
+            },
+          },
+          detailedStatus: attendanceStatus?.detailedStatus || 'pending',
+          pendingLeaveRequest: attendanceStatus?.pendingLeaveRequest || false,
+        };
+
+        return {
+          user: preparedUser,
+          attendanceStatus: {
+            user: preparedUser,
+            attendanceStatus: formattedAttendanceStatus,
+          },
+          effectiveShift: shiftData?.effectiveShift || null,
           checkInOutAllowance: checkInOutAllowance
             ? {
                 ...checkInOutAllowance,
-                periodType:
-                  attendanceStatus?.currentPeriod?.type || PeriodType.REGULAR,
-                flags: checkInOutAllowance.flags ?? {},
-                timing: checkInOutAllowance.timing ?? {},
-                metadata: checkInOutAllowance.metadata ?? {},
-                isLastPeriod: checkInOutAllowance.isLastPeriod ?? false,
+                periodType: formattedAttendanceStatus.currentPeriod.type,
+                flags: checkInOutAllowance.flags || {},
+                timing: checkInOutAllowance.timing || {},
+                metadata: checkInOutAllowance.metadata || {},
+                isLastPeriod: checkInOutAllowance.isLastPeriod || false,
               }
             : null,
-          approvedOvertime: attendanceStatus?.approvedOvertime ?? null,
-          leaveRequests: leaveRequests ?? [],
+          approvedOvertime: attendanceStatus?.approvedOvertime || null,
+          leaveRequests: leaveRequests || [],
         };
       } catch (error) {
         console.error('Error in fetchAttendanceData:', error);

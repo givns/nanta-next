@@ -14,6 +14,7 @@ import {
   parseISO,
   isWithinInterval,
   isAfter,
+  isValid,
 } from 'date-fns';
 import {
   ApprovedOvertimeInfo,
@@ -331,54 +332,36 @@ export class AttendanceStatusService {
           end: endOfDay(now),
         };
 
-    // If there's an approved overtime, check if we're in that period first
+    let current: { start: Date; end: Date };
+
     if (overtime) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`,
-      );
-      const overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`,
-      );
-
-      // If we're in the overtime period
-      if (isWithinInterval(now, { start: overtimeStart, end: overtimeEnd })) {
-        return {
-          type: PeriodType.OVERTIME,
-          overtimeId: overtime.id,
-          isComplete: attendance?.regularCheckOutTime != null,
-          checkInTime: attendance?.regularCheckInTime?.toISOString(),
-          checkOutTime: attendance?.regularCheckOutTime?.toISOString(),
-          current: {
-            start: overtimeStart,
-            end: overtimeEnd,
-          },
-        };
-      }
-
-      // If regular shift has ended but overtime hasn't started
-      if (isAfter(now, shiftPeriod.end) && !isAfter(now, overtimeStart)) {
-        return {
-          type: PeriodType.REGULAR,
-          isComplete: true,
-          checkInTime: attendance?.regularCheckInTime?.toISOString(),
-          checkOutTime: attendance?.regularCheckOutTime?.toISOString(),
-          current: shiftPeriod,
-          next: {
-            type: PeriodType.OVERTIME,
-            startTime: overtime.startTime,
-            overtimeId: overtime.id,
-          },
-        };
-      }
+      current = {
+        start: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`),
+        end: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`),
+      };
+    } else if (shiftWindows) {
+      current = {
+        start: new Date(shiftWindows.shiftStart),
+        end: new Date(shiftWindows.shiftEnd),
+      };
+    } else {
+      current = {
+        start: startOfDay(now),
+        end: endOfDay(now),
+      };
     }
 
-    // Default to regular period
+    // Validate dates
+    if (!isValid(current.start)) current.start = startOfDay(now);
+    if (!isValid(current.end)) current.end = endOfDay(now);
+
     return {
-      type: PeriodType.REGULAR,
-      isComplete: isAfter(now, shiftPeriod.end),
+      type: overtime ? PeriodType.OVERTIME : PeriodType.REGULAR,
+      overtimeId: overtime?.id,
+      isComplete: attendance?.regularCheckOutTime != null,
       checkInTime: attendance?.regularCheckInTime?.toISOString(),
       checkOutTime: attendance?.regularCheckOutTime?.toISOString(),
-      current: shiftPeriod,
+      current,
     };
   }
 
