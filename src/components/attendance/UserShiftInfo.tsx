@@ -18,20 +18,6 @@ interface UserShiftInfoProps {
   isLoading: boolean;
 }
 
-const defaultAttendanceStatus = {
-  futureShifts: [],
-  futureOvertimes: [],
-  overtimeAttendances: [],
-  currentPeriod: {
-    type: 'regular' as const,
-    isComplete: false,
-    current: {
-      start: new Date(),
-      end: new Date(),
-    },
-  },
-};
-
 const UserShiftInfo = React.memo(
   ({
     userData,
@@ -39,32 +25,43 @@ const UserShiftInfo = React.memo(
     effectiveShift,
     isLoading,
   }: UserShiftInfoProps) => {
-    const status = useMemo(
-      () => ({
-        ...defaultAttendanceStatus,
-        ...attendanceStatus,
-      }),
-      [attendanceStatus],
-    );
     const { message, color } = useMemo(
       () => getStatusMessage(attendanceStatus),
       [attendanceStatus],
     );
-    // Separate active and future overtimes
+
+    // Improve overtime calculations with safe type handling
     const { activeOvertimes, futureOvertimes } = useMemo(() => {
-      if (!attendanceStatus?.overtimeAttendances) {
+      if (!attendanceStatus?.overtimeAttendances?.length) {
         return { activeOvertimes: [], futureOvertimes: [] };
       }
 
       const today = format(new Date(), 'yyyy-MM-dd');
+
+      // Safe date parsing
+      const processAttendances = attendanceStatus.overtimeAttendances.map(
+        (ot) => {
+          const date =
+            ot.overtimeRequest.date instanceof Date
+              ? ot.overtimeRequest.date
+              : new Date(ot.overtimeRequest.date);
+
+          return {
+            ...ot,
+            overtimeRequest: {
+              ...ot.overtimeRequest,
+              date,
+            },
+          };
+        },
+      );
+
       return {
-        activeOvertimes: attendanceStatus.overtimeAttendances.filter(
-          (ot) =>
-            format(new Date(ot.overtimeRequest.date), 'yyyy-MM-dd') === today,
+        activeOvertimes: processAttendances.filter(
+          (ot) => format(ot.overtimeRequest.date, 'yyyy-MM-dd') === today,
         ),
-        futureOvertimes: attendanceStatus.overtimeAttendances.filter(
-          (ot) =>
-            format(new Date(ot.overtimeRequest.date), 'yyyy-MM-dd') > today,
+        futureOvertimes: processAttendances.filter(
+          (ot) => format(ot.overtimeRequest.date, 'yyyy-MM-dd') > today,
         ),
       };
     }, [attendanceStatus?.overtimeAttendances]);
@@ -207,13 +204,12 @@ const UserShiftInfo = React.memo(
 
     // Render future shift adjustments
     const renderFutureInfo = useMemo(() => {
-      const futureShiftAdjustments = attendanceStatus?.futureShifts
-        ? attendanceStatus.futureShifts.filter(
-            (adjustment) => !isToday(parseISO(adjustment.date)),
-          )
-        : [];
+      const futureShiftAdjustments =
+        attendanceStatus?.futureShifts?.filter(
+          (adjustment) => !isToday(parseISO(adjustment.date)),
+        ) ?? [];
 
-      const futureOts = attendanceStatus?.futureOvertimes || [];
+      const futureOts = attendanceStatus?.futureOvertimes ?? [];
 
       if (futureShiftAdjustments.length === 0 && futureOts.length === 0) {
         return null;

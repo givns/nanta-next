@@ -248,7 +248,6 @@ export default async function handler(
       return fetchAttendanceData();
     };
 
-    // Modified fetchAttendanceData function in attendance-status.ts
     // Modify fetchAttendanceData function in attendance-status.ts
     const fetchAttendanceData = async () => {
       try {
@@ -346,7 +345,43 @@ export default async function handler(
         // Return without double nesting of attendanceStatus
         return {
           user: preparedUser,
-          attendanceStatus: formattedAttendanceStatus, // Direct assignment without nesting
+          attendanceStatus: {
+            user: preparedUser,
+            attendanceStatus: {  // Add nested attendanceStatus object to match schema
+              state: formattedAttendanceStatus.state,
+              checkStatus: formattedAttendanceStatus.checkStatus,
+              overtimeState: formattedAttendanceStatus.overtimeState,
+              isOvertime: formattedAttendanceStatus.isOvertime,
+              isLate: formattedAttendanceStatus.isLate,
+              overtimeDuration: formattedAttendanceStatus.overtimeDuration,
+              overtimeEntries: formattedAttendanceStatus.overtimeEntries,
+              isCheckingIn: formattedAttendanceStatus.isCheckingIn,
+              isEarlyCheckIn: formattedAttendanceStatus.isEarlyCheckIn,
+              isLateCheckIn: formattedAttendanceStatus.isLateCheckIn,
+              isLateCheckOut: formattedAttendanceStatus.isLateCheckOut,
+              user: formattedAttendanceStatus.user,
+              latestAttendance: formattedAttendanceStatus.latestAttendance,
+              isDayOff: formattedAttendanceStatus.isDayOff,
+              isHoliday: formattedAttendanceStatus.isHoliday,
+              holidayInfo: formattedAttendanceStatus.holidayInfo,
+              dayOffType: formattedAttendanceStatus.dayOffType,
+              isOutsideShift: formattedAttendanceStatus.isOutsideShift,
+              shiftAdjustment: formattedAttendanceStatus.shiftAdjustment,
+              approvedOvertime: formattedAttendanceStatus.approvedOvertime,
+              futureShifts: formattedAttendanceStatus.futureShifts,
+              futureOvertimes: formattedAttendanceStatus.futureOvertimes,
+              overtimeAttendances: formattedAttendanceStatus.overtimeAttendances,
+              currentPeriod: {
+                ...formattedAttendanceStatus.currentPeriod,
+                current: {
+                  start: new Date(formattedAttendanceStatus.currentPeriod.current.start).toISOString(),
+                  end: new Date(formattedAttendanceStatus.currentPeriod.current.end).toISOString()
+                }
+              },
+              detailedStatus: formattedAttendanceStatus.detailedStatus,
+              pendingLeaveRequest: formattedAttendanceStatus.pendingLeaveRequest
+            }
+          },
           effectiveShift: shiftData?.effectiveShift || null,
           checkInOutAllowance: checkInOutAllowance
             ? {
@@ -358,8 +393,8 @@ export default async function handler(
                 isLastPeriod: checkInOutAllowance.isLastPeriod || false,
               }
             : null,
-          approvedOvertime: attendanceStatus?.approvedOvertime || null,
-          leaveRequests: leaveRequests || [],
+          approvedOvertime: formattedAttendanceStatus.approvedOvertime,
+          leaveRequests: leaveRequests || []
         };
       } catch (error) {
         console.error('Error in fetchAttendanceData:', error);
