@@ -781,6 +781,22 @@ export class AttendanceCheckService {
     const EARLY_CHECK_IN_WINDOW = 30; // minutes
     const LATE_CHECK_IN_THRESHOLD = 5; // minutes
 
+    if (isAfter(now, shiftEnd)) {
+      return this.createResponse(
+        false,
+        'ไม่สามารถลงเวลาได้เนื่องจากเลยเวลาทำงานแล้ว',
+        {
+          inPremises,
+          address,
+          periodType: PeriodType.REGULAR,
+          flags: {
+            isLateCheckOut: true,
+            isOutsideShift: true,
+          },
+        },
+      );
+    }
+
     if (isCheckingIn) {
       // Handle check-in
       const earlyWindow = subMinutes(shiftStart, EARLY_CHECK_IN_WINDOW);

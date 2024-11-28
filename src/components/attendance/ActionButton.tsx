@@ -19,8 +19,8 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 }) => {
   const buttonClass = `w-full ${
     checkInOutAllowance?.allowed && isActionButtonReady
-      ? 'bg-primary hover:bg-primary-dark'
-      : 'bg-gray-400 cursor-not-allowed'
+      ? 'bg-primary hover:bg-primary-dark visible'
+      : 'bg-gray-400 cursor-not-allowed invisible' // Change to invisible
   } text-white py-3 px-4 rounded-lg transition duration-300`;
 
   const buttonText = isLoading

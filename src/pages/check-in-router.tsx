@@ -61,6 +61,8 @@ const CheckInRouter: React.FC = () => {
     useState<AttendanceStatusInfo | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const isDataReady = userData && !authLoading && isInitialized;
+
   // Attendance hook
   const {
     attendanceStatus,
@@ -74,7 +76,7 @@ const CheckInRouter: React.FC = () => {
     checkInOut,
     getCurrentLocation,
   } = useSimpleAttendance({
-    employeeId: userData?.employeeId,
+    employeeId: isDataReady ? userData.employeeId : undefined,
     lineUserId,
     initialAttendanceStatus: cachedAttendanceStatus,
   });
@@ -104,22 +106,25 @@ const CheckInRouter: React.FC = () => {
           const now = getCurrentTime();
           const today = format(now, 'yyyy-MM-dd');
 
-          try {
-            const attendanceResponse = await fetch('/api/attendance-status', {
-              headers: {
-                'x-line-userid': lineUserId,
-                'x-employee-id': data.user.employeeId,
-              },
-            });
-            if (!attendanceResponse.ok)
-              throw new Error('Failed to fetch attendance status');
-            const attendanceData = await attendanceResponse.json();
+          // Only fetch attendance status after user data is set
+          if (isDataReady) {
+            try {
+              const attendanceResponse = await fetch('/api/attendance-status', {
+                headers: {
+                  'x-line-userid': lineUserId,
+                  'x-employee-id': data.user.employeeId,
+                },
+              });
+              if (!attendanceResponse.ok)
+                throw new Error('Failed to fetch attendance status');
+              const attendanceData = await attendanceResponse.json();
 
-            if (isMounted && attendanceData) {
-              setCachedAttendanceStatus(attendanceData);
+              if (isMounted && attendanceData) {
+                setCachedAttendanceStatus(attendanceData);
+              }
+            } catch (error) {
+              console.error('Error fetching cached attendance:', error);
             }
-          } catch (error) {
-            console.error('Error fetching cached attendance:', error);
           }
         }
       } catch (error) {
@@ -146,10 +151,10 @@ const CheckInRouter: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [lineUserId, userData?.employeeId]);
+  }, [lineUserId, isDataReady]);
 
   // Handle status change
-  const handleStatusChange = useCallback(
+  const handleStatusChange = useCallback<CheckInOutFormProps['onStatusChange']>(
     async (params: StatusChangeParams) => {
       if (!userData?.employeeId || !checkInOutAllowance || !address) {
         const error = new Error('Missing required data. Please try again.');
@@ -195,39 +200,46 @@ const CheckInRouter: React.FC = () => {
   );
 
   // Handle refresh
-  const handleRefresh = async () => {
-    if (isRefreshing) return;
+  const handleRefresh = useCallback<
+    CheckInOutFormProps['refreshAttendanceStatus']
+  >(
+    async (forceRefresh: boolean) => {
+      if (isRefreshing) return;
 
-    try {
-      setIsRefreshing(true);
-      if (!userData?.employeeId) return;
+      try {
+        setIsRefreshing(true);
+        if (!userData?.employeeId) return;
 
-      await Promise.all([
-        CacheManager.invalidateCache('attendance', userData.employeeId),
-        CacheManager.invalidateCache('user', userData.employeeId),
-        CacheManager.invalidateCache('shift', userData.employeeId),
-      ]);
-      await refreshAttendanceStatus({ forceRefresh: true });
+        await Promise.all([
+          CacheManager.invalidateCache('attendance', userData.employeeId),
+          CacheManager.invalidateCache('user', userData.employeeId),
+          CacheManager.invalidateCache('shift', userData.employeeId),
+        ]);
+        await refreshAttendanceStatus({ forceRefresh: true });
 
-      toast({
-        title: 'รีเฟรชข้อมูลสำเร็จ',
-        duration: 2000,
-      });
-    } catch (error) {
-      console.error('Refresh failed:', error);
-      setFormError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
-      toast({
-        variant: 'destructive',
-        title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
-      });
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+        toast({
+          title: 'รีเฟรชข้อมูลสำเร็จ',
+          duration: 2000,
+        });
+      } catch (error) {
+        console.error('Refresh failed:', error);
+        setFormError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+        toast({
+          variant: 'destructive',
+          title: 'เกิดข้อผิดพลาด',
+          description: 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+        });
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    [userData, refreshAttendanceStatus, toast, isRefreshing],
+  );
 
   // Handlers
-  const handleCloseWindow = useCallback(() => {
+  const handleCloseWindow = useCallback<
+    CheckInOutFormProps['onCloseWindow']
+  >(() => {
     closeWindow();
   }, []);
 
@@ -258,8 +270,6 @@ const CheckInRouter: React.FC = () => {
       </div>
     );
   }
-
-  const isDataReady = userData && checkInOutAllowance && !isAttendanceLoading;
 
   return (
     <ErrorBoundary>
