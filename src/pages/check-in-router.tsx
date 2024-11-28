@@ -1,20 +1,17 @@
-// check-in-router.tsx
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { format } from 'date-fns';
 import { UserData } from '@/types/user';
 import {
   AttendanceStatusInfo,
-  CheckInOutData,
+  CheckInOutAllowance,
   LocationState,
   PeriodType,
   StatusChangeParams,
+  ShiftData,
+  CheckStatus,
+  AttendanceState,
+  EarlyCheckoutType,
 } from '@/types/attendance';
 import { CacheManager } from '@/services/CacheManager';
 import Clock from '@/components/Clock';
@@ -35,16 +32,25 @@ const CheckInOutForm = dynamic(
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
-type RefreshInterval = ReturnType<typeof setInterval>;
+interface CheckInOutFormProps {
+  userData: UserData;
+  cachedAttendanceStatus: AttendanceStatusInfo | null;
+  liveAttendanceStatus: AttendanceStatusInfo | null;
+  isCheckingIn: boolean;
+  effectiveShift: ShiftData | null;
+  isAttendanceLoading: boolean;
+  checkInOutAllowance: CheckInOutAllowance | null;
+  getCurrentLocation: () => void;
+  refreshAttendanceStatus: (forceRefresh: boolean) => Promise<void>;
+  onStatusChange: (params: StatusChangeParams) => Promise<void>;
+  onCloseWindow: () => void;
+}
 
 const CheckInRouter: React.FC = () => {
   // Hooks
   const { lineUserId, isInitialized, error: liffError } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
   const { toast } = useToast();
-
-  // Refs
-  const refreshIntervalRef = useRef<RefreshInterval>();
 
   // State
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -55,13 +61,7 @@ const CheckInRouter: React.FC = () => {
     useState<AttendanceStatusInfo | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Cache helpers
-  const getCacheKey = useCallback((type: 'user' | 'attendance', id: string) => {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    return type === 'user' ? `user:${id}` : `attendance:${id}:${today}`;
-  }, []);
-
-  // Simple attendance hook
+  // Attendance hook
   const {
     attendanceStatus,
     effectiveShift,
@@ -79,7 +79,7 @@ const CheckInRouter: React.FC = () => {
     initialAttendanceStatus: cachedAttendanceStatus,
   });
 
-  // Fetch initial data
+  // Initial data fetch
   useEffect(() => {
     let isMounted = true;
 
@@ -91,58 +91,35 @@ const CheckInRouter: React.FC = () => {
       }
 
       try {
-        const fetchUserData = async () => {
-          const response = await fetch('/api/user-data', {
-            headers: { 'x-line-userid': lineUserId },
-          });
-          if (!response.ok) throw new Error('Failed to fetch user data');
-          return response.json();
-        };
-
-        const cachedUser = await CacheManager.getCachedUserData(
-          lineUserId,
-          fetchUserData,
-        );
+        const response = await fetch('/api/user-data', {
+          headers: { 'x-line-userid': lineUserId },
+        });
+        if (!response.ok) throw new Error('Failed to fetch user data');
+        const data = await response.json();
 
         if (!isMounted) return;
 
-        if (cachedUser?.user) {
-          setUserData(cachedUser.user);
-
-          const today = format(new Date(), 'yyyy-MM-dd');
-          const fetchAttendanceStatus = async () => {
-            const response = await fetch('/api/attendance-status', {
-              headers: {
-                'x-line-userid': lineUserId,
-                'x-employee-id': cachedUser.user.employeeId,
-              },
-            });
-            if (!response.ok)
-              throw new Error('Failed to fetch attendance status');
-            return response.json();
-          };
+        if (data?.user) {
+          setUserData(data.user);
+          const now = getCurrentTime();
+          const today = format(now, 'yyyy-MM-dd');
 
           try {
-            const cachedStatus = await CacheManager.getCachedAttendanceData(
-              cachedUser.user.employeeId,
-              today,
-              fetchAttendanceStatus,
-            );
+            const attendanceResponse = await fetch('/api/attendance-status', {
+              headers: {
+                'x-line-userid': lineUserId,
+                'x-employee-id': data.user.employeeId,
+              },
+            });
+            if (!attendanceResponse.ok)
+              throw new Error('Failed to fetch attendance status');
+            const attendanceData = await attendanceResponse.json();
 
-            if (isMounted && cachedStatus) {
-              setCachedAttendanceStatus(cachedStatus);
+            if (isMounted && attendanceData) {
+              setCachedAttendanceStatus(attendanceData);
             }
           } catch (error) {
             console.error('Error fetching cached attendance:', error);
-          }
-        } else {
-          const freshUserData = await fetchUserData();
-          if (isMounted) {
-            setUserData(freshUserData.user);
-            await CacheManager.setCacheData(
-              getCacheKey('user', lineUserId),
-              freshUserData,
-            );
           }
         }
       } catch (error) {
@@ -150,7 +127,12 @@ const CheckInRouter: React.FC = () => {
         if (isMounted) {
           setError('Failed to fetch initial data');
           if (userData?.employeeId) {
-            await CacheManager.invalidateAllEmployeeData(userData.employeeId);
+            // Use the correct static methods
+            await Promise.all([
+              CacheManager.invalidateCache('attendance', userData.employeeId),
+              CacheManager.invalidateCache('user', userData.employeeId),
+              CacheManager.invalidateCache('shift', userData.employeeId),
+            ]);
           }
         }
       } finally {
@@ -164,9 +146,55 @@ const CheckInRouter: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [lineUserId, getCacheKey]);
+  }, [lineUserId, userData?.employeeId]);
 
-  // Handlers
+  // Handle status change
+  const handleStatusChange = useCallback(
+    async (params: StatusChangeParams) => {
+      if (!userData?.employeeId || !checkInOutAllowance || !address) {
+        const error = new Error('Missing required data. Please try again.');
+        setFormError(error.message);
+        throw error;
+      }
+
+      try {
+        await checkInOut({
+          employeeId: userData.employeeId,
+          lineUserId: userData.lineUserId,
+          isCheckIn: params.isCheckingIn,
+          checkTime: getCurrentTime().toISOString(),
+          address,
+          reason: params.lateReason,
+          photo: params.photo,
+          isLate: params.isLate,
+          isOvertime: params.isOvertime,
+          isEarlyCheckOut: params.isEarlyCheckOut,
+          earlyCheckoutType: params.earlyCheckoutType,
+          isManualEntry: false,
+          entryType: params.isOvertime
+            ? PeriodType.OVERTIME
+            : PeriodType.REGULAR,
+          confidence: inPremises ? 'high' : 'low',
+          metadata: {
+            overtimeId: checkInOutAllowance.metadata?.overtimeId,
+            isDayOffOvertime: checkInOutAllowance.flags?.isDayOffOvertime,
+            isInsideShiftHours: checkInOutAllowance.flags?.isInsideShift,
+          },
+        });
+
+        closeWindow();
+      } catch (error) {
+        console.error('Error in handleStatusChange:', error);
+        setFormError(
+          error instanceof Error ? error.message : 'An error occurred',
+        );
+        closeWindow();
+      }
+    },
+    [userData, checkInOutAllowance, address, inPremises, checkInOut],
+  );
+
+  // Handle refresh
   const handleRefresh = async () => {
     if (isRefreshing) return;
 
@@ -174,7 +202,11 @@ const CheckInRouter: React.FC = () => {
       setIsRefreshing(true);
       if (!userData?.employeeId) return;
 
-      await CacheManager.invalidateAllEmployeeData(userData.employeeId);
+      await Promise.all([
+        CacheManager.invalidateCache('attendance', userData.employeeId),
+        CacheManager.invalidateCache('user', userData.employeeId),
+        CacheManager.invalidateCache('shift', userData.employeeId),
+      ]);
       await refreshAttendanceStatus({ forceRefresh: true });
 
       toast({
@@ -194,146 +226,17 @@ const CheckInRouter: React.FC = () => {
     }
   };
 
-  const handleStatusChange = useCallback(
-    async (params: StatusChangeParams) => {
-      if (!userData?.employeeId || !checkInOutAllowance || !address) {
-        const error = new Error('Missing required data. Please try again.');
-        setFormError(error.message);
-        throw error;
-      }
-
-      let retryCount = 0;
-      const MAX_RETRIES = 2;
-
-      while (retryCount <= MAX_RETRIES) {
-        try {
-          // Ensure serverTime is a valid date
-          const checkTime = getCurrentTime();
-          console.log('time in handleStatusChange', checkTime);
-
-          const checkInOutData: CheckInOutData = {
-            employeeId: userData.employeeId,
-            lineUserId: userData.lineUserId,
-            isCheckIn: params.isCheckingIn,
-            checkTime: checkTime.toISOString(),
-            address, // Use address from useSimpleAttendance
-            reason: params.lateReason,
-            photo: params.photo,
-            isLate: params.isLate,
-            isOvertime: params.isOvertime,
-            isManualEntry: false,
-            isEarlyCheckOut: params.isEarlyCheckOut,
-            earlyCheckoutType: params.earlyCheckoutType,
-            entryType: params.isOvertime
-              ? PeriodType.OVERTIME
-              : PeriodType.REGULAR,
-            confidence: inPremises ? 'high' : 'low', // Use inPremises from useSimpleAttendance
-            metadata: {
-              overtimeId: checkInOutAllowance.metadata?.overtimeId,
-              isDayOffOvertime: checkInOutAllowance.flags?.isDayOffOvertime,
-              isInsideShiftHours: checkInOutAllowance.flags?.isInsideShift,
-            },
-          };
-
-          await checkInOut(checkInOutData);
-          break;
-        } catch (error: any) {
-          console.error(
-            `Error during check-in/out (attempt ${retryCount + 1}):`,
-            error,
-          );
-
-          const isRetryable =
-            retryCount < MAX_RETRIES &&
-            (error.response?.status >= 500 ||
-              error.code === 'ECONNABORTED' ||
-              !navigator.onLine ||
-              error.message === 'Invalid server time received');
-
-          if (isRetryable) {
-            retryCount++;
-            await new Promise((resolve) =>
-              setTimeout(resolve, 1000 * Math.pow(2, retryCount)),
-            );
-            continue;
-          }
-
-          const errorMessage = error.response?.data?.error || error.message;
-          setFormError(`Failed to update status. ${errorMessage}`);
-          throw error;
-        }
-      }
-    },
-    [userData, checkInOutAllowance, address, inPremises, checkInOut],
-  );
-
+  // Handlers
   const handleCloseWindow = useCallback(() => {
     closeWindow();
   }, []);
 
-  // Background refresh
-  useEffect(() => {
-    if (!userData?.employeeId) return;
-
-    const doRefresh = async () => {
-      try {
-        await refreshAttendanceStatus({
-          forceRefresh: false,
-          throwOnError: false,
-        });
-      } catch (error) {
-        console.error('Background refresh failed:', error);
-      }
-    };
-
-    doRefresh(); // Initial refresh
-    refreshIntervalRef.current = setInterval(doRefresh, 30000);
-
-    return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
-    };
-  }, [userData?.employeeId, refreshAttendanceStatus]);
-
-  // Memoized form component
-  const memoizedCheckInOutForm = useMemo(
-    () =>
-      userData ? (
-        <CheckInOutForm
-          userData={userData}
-          cachedAttendanceStatus={cachedAttendanceStatus}
-          liveAttendanceStatus={attendanceStatus}
-          isCheckingIn={attendanceStatus?.isCheckingIn ?? true}
-          effectiveShift={effectiveShift}
-          isAttendanceLoading={isAttendanceLoading}
-          checkInOutAllowance={checkInOutAllowance}
-          getCurrentLocation={getCurrentLocation}
-          refreshAttendanceStatus={async (forceRefresh) => {
-            await refreshAttendanceStatus({ forceRefresh });
-          }}
-          onStatusChange={handleStatusChange}
-          onCloseWindow={handleCloseWindow}
-        />
-      ) : null,
-    [
-      userData,
-      cachedAttendanceStatus,
-      attendanceStatus,
-      effectiveShift,
-      isAttendanceLoading,
-      checkInOutAllowance,
-      getCurrentLocation,
-      refreshAttendanceStatus,
-      handleStatusChange,
-      handleCloseWindow,
-    ],
-  );
-
+  // Loading states
   if (authLoading || !isInitialized) {
     return <LoadingBar />;
   }
 
+  // Error states
   if (liffError || !lineUserId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
@@ -400,7 +303,23 @@ const CheckInRouter: React.FC = () => {
           >
             <div className="flex items-center justify-center h-full">
               {isDataReady ? (
-                userData && memoizedCheckInOutForm
+                userData && (
+                  <CheckInOutForm
+                    userData={userData}
+                    cachedAttendanceStatus={cachedAttendanceStatus}
+                    liveAttendanceStatus={attendanceStatus}
+                    isCheckingIn={attendanceStatus?.isCheckingIn ?? true}
+                    effectiveShift={effectiveShift}
+                    isAttendanceLoading={isAttendanceLoading}
+                    checkInOutAllowance={checkInOutAllowance}
+                    getCurrentLocation={getCurrentLocation}
+                    refreshAttendanceStatus={async (forceRefresh) => {
+                      await refreshAttendanceStatus({ forceRefresh });
+                    }}
+                    onStatusChange={handleStatusChange}
+                    onCloseWindow={handleCloseWindow}
+                  />
+                )
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <LoadingBar />
@@ -414,5 +333,4 @@ const CheckInRouter: React.FC = () => {
   );
 };
 
-// Ensure memo for performance optimization
 export default React.memo(CheckInRouter);

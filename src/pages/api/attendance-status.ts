@@ -1,6 +1,6 @@
-// pages/api/attendance-status.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
+import { z } from 'zod';
 import { AttendanceService } from '../../services/Attendance/AttendanceService';
 import { cacheService } from '../../services/CacheService';
 import { ResponseDataSchema } from '../../schemas/attendance';
@@ -10,6 +10,7 @@ import {
   CheckStatus,
   PeriodType,
   AttendanceState,
+  CheckInOutAllowance,
 } from '../../types/attendance';
 import { initializeServices } from '../../services/ServiceInitializer';
 import { get } from 'lodash';
@@ -21,19 +22,85 @@ import type { ZodIssue } from 'zod';
 const DEBOUNCE_TIME = 1000; // 1 second
 const LOCK_TIMEOUT = 5; // 5 seconds
 const CACHE_TTL = 300; // 5 minutes
-let lastFetchTime = 0;
+const REQUEST_TIMEOUT = 5000; // 5 seconds
+const MAX_RETRIES = 2;
 
-// Validation logging helpers
+// Request validation schema
+const RequestSchema = z.object({
+  employeeId: z.string().optional(),
+  lineUserId: z.string().optional(),
+  inPremises: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
+  address: z.string().optional(),
+  forceRefresh: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
+});
+
+// Types
+type RequestParams = z.infer<typeof RequestSchema>;
+type ResponseData = z.infer<typeof ResponseDataSchema>;
+
+// Request tracking for deduplication
+const requestTracker = new Map<
+  string,
+  {
+    promise: Promise<ResponseData>;
+    timestamp: number;
+  }
+>();
+
+// Helper function to create a request key
+const createRequestKey = (params: RequestParams): string => {
+  return `${params.employeeId || params.lineUserId}:${getCurrentTime().getTime()}`;
+};
+
+// Helper function to clean up old request trackers
+const cleanupRequestTracker = () => {
+  const now = Date.now();
+  for (const [key, value] of requestTracker.entries()) {
+    if (now - value.timestamp > REQUEST_TIMEOUT) {
+      requestTracker.delete(key);
+    }
+  }
+};
+
+// Helper function for timeout
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string,
+): Promise<T> => {
+  let timeoutHandle: NodeJS.Timeout;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutHandle!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutHandle!);
+    throw error;
+  }
+};
+
+// Validation logging helper
 const logValidationErrors = (
   errors: ZodIssue[],
   data: any,
   context: string = 'Validation Error',
 ) => {
   console.error(`=== ${context} Details ===`);
-  errors.forEach((error, index) => {
-    console.error(`Error ${index + 1}:`);
+  errors.forEach((error) => {
     console.error(`- Path: ${error.path.join('.')}`);
-    console.error(`- Code: ${error.code}`);
     console.error(`- Message: ${error.message}`);
     const actualValue = get(data, error.path);
     console.error(
@@ -42,22 +109,18 @@ const logValidationErrors = (
         ? JSON.stringify(actualValue)
         : actualValue,
     );
-    if ('expected' in error) {
-      console.error('Expected Type:', error.expected);
-    }
-    console.error('---');
   });
+};
 
-  console.error('=== Full Data Structure ===');
-  try {
-    console.error(JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error(
-      'Data contains circular references or non-serializable values',
-    );
-    console.error(data);
+const ensureValidResponse = (data: any) => {
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return data;
+    }
   }
-  console.error('=========================');
+  return data;
 };
 
 // Initialize services
@@ -100,263 +163,138 @@ const prepareUserData = (user: any) => {
   };
 };
 
+// Create fallback user
+const createFallbackUser = (
+  employeeId: string | string[] | undefined,
+  lineUserId: string | string[] | undefined,
+) => ({
+  employeeId: (employeeId as string) || 'unknown',
+  name: 'Unknown User',
+  lineUserId: (lineUserId as string) || null,
+  nickname: null,
+  departmentName: 'Unknown Department',
+  role: 'Employee',
+  profilePictureUrl: null,
+  shiftId: null,
+  shiftCode: null,
+  sickLeaveBalance: 0,
+  businessLeaveBalance: 0,
+  annualLeaveBalance: 0,
+});
+
 // Create fallback response
-function createFallbackResponse(user: any) {
+const createFallbackResponse = (user: any): ResponseData => {
   const now = getCurrentTime();
   return {
     user,
     attendanceStatus: {
-      state: AttendanceState.ABSENT,
-      checkStatus: CheckStatus.PENDING,
-      overtimeState: null,
-      isOvertime: false,
-      overtimeDuration: 0,
-      overtimeEntries: [],
-      detailedStatus: 'absent',
-      isEarlyCheckIn: false,
-      isLateCheckIn: false,
-      isLateCheckOut: false,
-      user: user,
-      latestAttendance: null,
-      isCheckingIn: true,
-      isDayOff: false,
-      isHoliday: false,
-      holidayInfo: null,
-      dayOffType: 'none',
-      isOutsideShift: true,
-      isLate: false,
-      shiftAdjustment: {
-        date: format(now, 'yyyy-MM-dd'),
-        requestedShiftId: user.shiftId || 'default',
-        requestedShift: {
-          id: user.shiftId || 'default',
-          name: 'Default Shift',
-          startTime: '08:00',
-          endTime: '17:00',
-          workDays: [1, 2, 3, 4, 5],
-          shiftCode: user.shiftCode || 'DEFAULT',
+      user,
+      attendanceStatus: {
+        state: AttendanceState.ABSENT,
+        checkStatus: CheckStatus.PENDING,
+        isOvertime: false,
+        overtimeDuration: 0,
+        overtimeEntries: [],
+        detailedStatus: 'absent',
+        isEarlyCheckIn: false,
+        isLateCheckIn: false,
+        isLateCheckOut: false,
+        user: user,
+        latestAttendance: null,
+        isCheckingIn: true,
+        isDayOff: false,
+        isHoliday: false,
+        holidayInfo: null,
+        dayOffType: 'none',
+        isOutsideShift: true,
+        isLate: false,
+        shiftAdjustment: {
+          date: format(now, 'yyyy-MM-dd'),
+          requestedShiftId: user.shiftId || 'default',
+          requestedShift: {
+            id: 'default',
+            name: 'Default Shift',
+            startTime: '08:00',
+            endTime: '17:00',
+            workDays: [1, 2, 3, 4, 5],
+            shiftCode: user.shiftCode || 'DEFAULT',
+          },
         },
-      },
-      approvedOvertime: null,
-      futureShifts: [],
-      futureOvertimes: [],
-      overtimeAttendances: [],
-      currentPeriod: {
-        type: PeriodType.REGULAR,
-        isComplete: false,
-        current: {
-          start: startOfDay(now),
-          end: endOfDay(now),
+        approvedOvertime: null,
+        futureShifts: [],
+        futureOvertimes: [],
+        overtimeAttendances: [],
+        currentPeriod: {
+          type: PeriodType.REGULAR,
+          isComplete: false,
+          current: {
+            start: startOfDay(now),
+            end: endOfDay(now),
+          },
         },
+        pendingLeaveRequest: false,
       },
-      pendingLeaveRequest: false,
     },
     effectiveShift: null,
-    checkInOutAllowance: {
-      allowed: false,
-      reason: 'System error occurred',
-      inPremises: false,
-      address: '',
-      periodType: PeriodType.REGULAR,
-      flags: {
-        isOvertime: false,
-      },
-      timing: {},
-      metadata: {},
-      isLastPeriod: false,
-    },
+    checkInOutAllowance: null,
     approvedOvertime: null,
     leaveRequests: [],
   };
-}
+};
 
-// Main API Handler
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  let user: any = null;
-  let preparedUser: any = null;
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  res.setHeader('Cache-Control', 's-maxage=1, stale-while-revalidate');
-
-  const { employeeId, lineUserId, inPremises, address, forceRefresh } =
-    req.query;
-
+// Fetch attendance data function
+const fetchAttendanceData = async (
+  preparedUser: any,
+  inPremises: boolean,
+  address: string | string[] | undefined,
+): Promise<ResponseData> => {
   try {
-    // User Data Fetching
-    user = await (async () => {
-      if (lineUserId && typeof lineUserId === 'string') {
-        const cacheKey = `user:${lineUserId}`;
-        const cachedUser = cacheService
-          ? await cacheService.get(cacheKey)
-          : null;
-
-        if (cachedUser) {
-          console.log('User data found in cache for key:', cacheKey);
-          return JSON.parse(cachedUser);
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { lineUserId },
-          include: { department: true },
-        });
-
-        if (user && cacheService) {
-          await cacheService.set(cacheKey, JSON.stringify(user), 3600);
-          console.log('Caching user data for key:', cacheKey);
-        }
-
-        return user;
-      }
-
-      if (employeeId && typeof employeeId === 'string') {
-        return prisma.user.findUnique({
-          where: { employeeId },
-          include: { department: true },
-        });
-      }
-
-      return null;
-    })();
-
-    if (!user) {
-      return res.status(404).json({
-        error: 'User not found',
-        message: 'Please complete your registration first.',
-      });
-    }
-
-    preparedUser = prepareUserData(user);
+    console.log('Fetching attendance data for:', preparedUser.employeeId);
     const currentTime = getCurrentTime();
-    console.log('Current time in attendance-status:', currentTime);
 
-    // Request deduplication
-    const requestCache = new Map<string, Promise<any>>();
-    const memoryCache = new Map<string, { data: any; timestamp: number }>();
-    const MEMORY_CACHE_TTL = 5000; // 5 seconds
-
-    // Add these helper functions
-    const getFromMemoryCache = (key: string) => {
-      const cached = memoryCache.get(key);
-      if (cached && Date.now() - cached.timestamp < MEMORY_CACHE_TTL) {
-        return cached.data;
-      }
-      return null;
-    };
-
-    const setInMemoryCache = (key: string, data: any) => {
-      memoryCache.set(key, { data, timestamp: Date.now() });
-    };
-
-    // Modify the fetchAttendanceDataWithDebounce function
-    const fetchAttendanceDataWithDebounce = async () => {
-      const now = Date.now();
-      console.log('Checking debounce time:', now - lastFetchTime);
-      if (now - lastFetchTime < DEBOUNCE_TIME) {
-        const memoryCached = getFromMemoryCache('attendance');
-        if (memoryCached) {
-          console.log('Using memory cached data');
-          return memoryCached;
-        }
-      }
-      lastFetchTime = now;
-
-      // Check if there's an ongoing request
-      const cacheKey = `attendance:${user.employeeId}`;
-      if (requestCache.has(cacheKey)) {
-        console.log('Using ongoing request');
-        return requestCache.get(cacheKey);
-      }
-
-      console.log('Fetching fresh attendance data');
-      const fetchPromise = fetchAttendanceData();
-      requestCache.set(cacheKey, fetchPromise);
-
-      try {
-        const result = await fetchPromise;
-        setInMemoryCache('attendance', result);
-        return result;
-      } finally {
-        requestCache.delete(cacheKey);
-      }
-    };
-
-    // Modify the fetchAttendanceData function to include timeouts
-    // Fix the timeout function in attendance-status.ts
-    const timeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
-      return Promise.race([
-        promise,
-        new Promise<T>((_, reject) =>
-          setTimeout(() => reject(new Error('Request timeout')), ms),
+    const [attendanceStatusResult, shiftDataResult, leaveRequestsResult] =
+      await Promise.allSettled([
+        withTimeout(
+          attendanceService.getLatestAttendanceStatus(preparedUser.employeeId),
+          REQUEST_TIMEOUT,
+          'Attendance status fetch timeout',
+        ),
+        withTimeout(
+          services.shiftService.getEffectiveShiftAndStatus(
+            preparedUser.employeeId,
+            currentTime,
+          ),
+          REQUEST_TIMEOUT,
+          'Shift data fetch timeout',
+        ),
+        withTimeout(
+          services.leaveService.getLeaveRequests(preparedUser.employeeId),
+          REQUEST_TIMEOUT,
+          'Leave requests fetch timeout',
         ),
       ]);
-    };
 
-    // Modify fetchAttendanceData function in attendance-status.ts
-    const fetchAttendanceData = async () => {
-      try {
-        console.log('Fetching attendance data for:', user.employeeId);
+    const attendanceStatus =
+      attendanceStatusResult.status === 'fulfilled'
+        ? ensureValidResponse(attendanceStatusResult.value)
+        : null;
+    const shiftData =
+      shiftDataResult.status === 'fulfilled'
+        ? ensureValidResponse(shiftDataResult.value)
+        : null;
+    const leaveRequests =
+      leaveRequestsResult.status === 'fulfilled'
+        ? ensureValidResponse(leaveRequestsResult.value)
+        : [];
 
-        const [attendanceStatusResult, shiftDataResult, leaveRequestsResult] =
-          await Promise.allSettled([
-            timeout(
-              attendanceService.getLatestAttendanceStatus(
-                preparedUser.employeeId,
-              ),
-              5000,
-            ),
-            timeout(
-              services.shiftService.getEffectiveShiftAndStatus(
-                preparedUser.employeeId,
-                currentTime,
-              ),
-              5000,
-            ),
-            timeout(
-              services.leaveService.getLeaveRequests(preparedUser.employeeId),
-              5000,
-            ),
-          ]);
-
-        console.log('Promise results:', {
-          attendanceStatus: attendanceStatusResult.status,
-          shiftData: shiftDataResult.status,
-          leaveRequests: leaveRequestsResult.status,
-        });
-
-        const attendanceStatus =
-          attendanceStatusResult.status === 'fulfilled'
-            ? attendanceStatusResult.value
-            : null;
-        const shiftData =
-          shiftDataResult.status === 'fulfilled' ? shiftDataResult.value : null;
-        const leaveRequests =
-          leaveRequestsResult.status === 'fulfilled'
-            ? leaveRequestsResult.value
-            : [];
-
-        let checkInOutAllowance;
-        try {
-          checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
-            preparedUser.employeeId,
-            inPremises === 'true',
-            address as string,
-          );
-        } catch (error) {
-          console.error('Error getting check-in/out allowance:', error);
-          checkInOutAllowance = null;
-        }
-
-        // Format the main attendance status
-        const formattedAttendanceStatus = {
+    // Create initial response data
+    const responseData: ResponseData = {
+      user: preparedUser,
+      attendanceStatus: {
+        user: preparedUser,
+        attendanceStatus: {
           state: attendanceStatus?.state || AttendanceState.ABSENT,
           checkStatus: attendanceStatus?.checkStatus || CheckStatus.PENDING,
-          overtimeState: attendanceStatus?.overtimeState,
           isOvertime: attendanceStatus?.isOvertime || false,
           isLate: attendanceStatus?.isLate || false,
           overtimeDuration: attendanceStatus?.overtimeDuration || 0,
@@ -378,7 +316,7 @@ export default async function handler(
             requestedShift: shiftData?.effectiveShift || {
               id: 'default',
               name: 'Default Shift',
-              shiftCode: user.shiftCode || 'DEFAULT',
+              shiftCode: preparedUser.shiftCode || 'DEFAULT',
               startTime: '08:00',
               endTime: '17:00',
               workDays: [1, 2, 3, 4, 5],
@@ -392,175 +330,194 @@ export default async function handler(
             type: PeriodType.REGULAR,
             isComplete: false,
             current: {
-              start: startOfDay(currentTime).toISOString(),
-              end: endOfDay(currentTime).toISOString(),
+              start: startOfDay(currentTime),
+              end: endOfDay(currentTime),
             },
           },
           detailedStatus: attendanceStatus?.detailedStatus || 'pending',
           pendingLeaveRequest: attendanceStatus?.pendingLeaveRequest || false,
-        };
-
-        // Return without double nesting of attendanceStatus
-        return {
-          user: preparedUser,
-          attendanceStatus: {
-            user: preparedUser,
-            attendanceStatus: {
-              // Add nested attendanceStatus object to match schema
-              state: formattedAttendanceStatus.state,
-              checkStatus: formattedAttendanceStatus.checkStatus,
-              overtimeState: formattedAttendanceStatus.overtimeState,
-              isOvertime: formattedAttendanceStatus.isOvertime,
-              isLate: formattedAttendanceStatus.isLate,
-              overtimeDuration: formattedAttendanceStatus.overtimeDuration,
-              overtimeEntries: formattedAttendanceStatus.overtimeEntries,
-              isCheckingIn: formattedAttendanceStatus.isCheckingIn,
-              isEarlyCheckIn: formattedAttendanceStatus.isEarlyCheckIn,
-              isLateCheckIn: formattedAttendanceStatus.isLateCheckIn,
-              isLateCheckOut: formattedAttendanceStatus.isLateCheckOut,
-              user: formattedAttendanceStatus.user,
-              latestAttendance: formattedAttendanceStatus.latestAttendance,
-              isDayOff: formattedAttendanceStatus.isDayOff,
-              isHoliday: formattedAttendanceStatus.isHoliday,
-              holidayInfo: formattedAttendanceStatus.holidayInfo,
-              dayOffType: formattedAttendanceStatus.dayOffType,
-              isOutsideShift: formattedAttendanceStatus.isOutsideShift,
-              shiftAdjustment: formattedAttendanceStatus.shiftAdjustment,
-              approvedOvertime: formattedAttendanceStatus.approvedOvertime,
-              futureShifts: formattedAttendanceStatus.futureShifts,
-              futureOvertimes: formattedAttendanceStatus.futureOvertimes,
-              overtimeAttendances:
-                formattedAttendanceStatus.overtimeAttendances,
-              currentPeriod: {
-                ...formattedAttendanceStatus.currentPeriod,
-                current: {
-                  start: new Date(
-                    formattedAttendanceStatus.currentPeriod.current.start,
-                  ).toISOString(),
-                  end: new Date(
-                    formattedAttendanceStatus.currentPeriod.current.end,
-                  ).toISOString(),
-                },
-              },
-              detailedStatus: formattedAttendanceStatus.detailedStatus,
-              pendingLeaveRequest:
-                formattedAttendanceStatus.pendingLeaveRequest,
-            },
-          },
-          effectiveShift: shiftData?.effectiveShift || null,
-          checkInOutAllowance: checkInOutAllowance
-            ? {
-                ...checkInOutAllowance,
-                periodType: formattedAttendanceStatus.currentPeriod.type,
-                flags: checkInOutAllowance.flags || {},
-                timing: checkInOutAllowance.timing || {},
-                metadata: checkInOutAllowance.metadata || {},
-                isLastPeriod: checkInOutAllowance.isLastPeriod || false,
-              }
-            : null,
-          approvedOvertime: formattedAttendanceStatus.approvedOvertime,
-          leaveRequests: leaveRequests || [],
-        };
-      } catch (error) {
-        console.error('Error in fetchAttendanceData:', error);
-        return createFallbackResponse(preparedUser);
-      }
+        },
+      },
+      effectiveShift: shiftData?.effectiveShift || null,
+      checkInOutAllowance: null,
+      approvedOvertime: attendanceStatus?.approvedOvertime || null,
+      leaveRequests: leaveRequests || [],
     };
 
-    // Handle caching with lock mechanism
-    const cacheKey = `attendance:${user.employeeId}`;
-    let responseData;
+    // Handle check-in/out allowance separately
+    try {
+      const checkInOutAllowance = await attendanceService.isCheckInOutAllowed(
+        preparedUser.employeeId,
+        inPremises, // Should be passed as is since the service expects string | string[] | undefined
+        address as string,
+      );
 
-    if (cacheService && !forceRefresh) {
-      try {
+      if (checkInOutAllowance) {
+        responseData.checkInOutAllowance = {
+          ...checkInOutAllowance,
+          periodType:
+            responseData.attendanceStatus.attendanceStatus.currentPeriod
+              ?.type || PeriodType.REGULAR,
+        } as CheckInOutAllowance;
+      }
+    } catch (error) {
+      console.error('Error getting check-in/out allowance:', error);
+    }
+
+    return responseData;
+  } catch (error) {
+    console.error('Error in fetchAttendanceData:', error);
+    return createFallbackResponse(preparedUser);
+  }
+};
+
+// Main API handler
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  res.setHeader('Cache-Control', 's-maxage=1, stale-while-revalidate');
+
+  let user: any = null;
+  let preparedUser: any = null;
+  let responseData: ResponseData | null = null;
+
+  try {
+    // Validate request parameters
+    const validatedParams = RequestSchema.parse(req.query);
+    const { employeeId, lineUserId, inPremises, address, forceRefresh } =
+      validatedParams;
+
+    // Clean up old request trackers
+    cleanupRequestTracker();
+
+    // Check for existing request
+    const requestKey = createRequestKey(validatedParams);
+    const existingRequest = requestTracker.get(requestKey);
+    if (
+      existingRequest &&
+      Date.now() - existingRequest.timestamp < REQUEST_TIMEOUT
+    ) {
+      return res.json(await existingRequest.promise);
+    }
+
+    // User Data Fetching
+    user = await (async () => {
+      if (lineUserId) {
+        const cacheKey = `user:${lineUserId}`;
+        const cachedUser = cacheService
+          ? await cacheService.get(cacheKey)
+          : null;
+
+        if (cachedUser) {
+          return JSON.parse(cachedUser);
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { lineUserId },
+          include: { department: true },
+        });
+
+        if (user && cacheService) {
+          await cacheService.set(cacheKey, JSON.stringify(user), 3600);
+        }
+
+        return user;
+      }
+
+      if (employeeId) {
+        return prisma.user.findUnique({
+          where: { employeeId },
+          include: { department: true },
+        });
+      }
+
+      return null;
+    });
+
+    preparedUser = prepareUserData(user);
+    const cacheKey = `attendance:${validatedParams.employeeId || validatedParams.lineUserId}`; // Use validatedParams
+
+    // Create request promise
+    const fetchPromise = (async () => {
+      if (cacheService && !forceRefresh) {
         const lockKey = `lock:${cacheKey}`;
         const isLocked = await cacheService.get(lockKey);
 
         if (isLocked) {
-          console.log('Cache operation in progress, waiting...');
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        await cacheService.set(lockKey, 'true', LOCK_TIMEOUT);
-
         try {
-          const cachedResponse = await cacheService.getWithSWR(
-            cacheKey,
-            fetchAttendanceDataWithDebounce,
-            CACHE_TTL,
-          );
+          await cacheService.set(lockKey, 'true', LOCK_TIMEOUT);
+          const cachedResponse = await cacheService.get(cacheKey);
 
-          if (!cachedResponse) {
-            console.log('No cached data available, fetching fresh');
-            responseData = await fetchAttendanceData();
-          } else {
-            const cachedValidation =
-              ResponseDataSchema.safeParse(cachedResponse);
-            if (cachedValidation.success) {
-              console.log('Using valid cached data');
-              responseData = cachedValidation.data;
-            } else {
-              console.warn('Invalid cached data, fetching fresh');
-              logValidationErrors(
-                cachedValidation.error.issues,
-                cachedResponse,
-                'Cache Validation Error',
-              );
-              responseData = await fetchAttendanceData();
+          if (cachedResponse) {
+            const parsedResponse = ensureValidResponse(cachedResponse);
+            const validation = ResponseDataSchema.safeParse(parsedResponse);
+            if (validation.success) {
+              return validation.data;
             }
           }
+
+          responseData = await fetchAttendanceData(
+            preparedUser,
+            inPremises,
+            address,
+          );
+          if (responseData) {
+            await cacheService.set(
+              cacheKey,
+              JSON.stringify(responseData),
+              CACHE_TTL,
+            );
+          }
+          return responseData;
         } finally {
           await cacheService.del(lockKey);
         }
-      } catch (error) {
-        console.error('Cache error:', error);
-        responseData = await fetchAttendanceData();
       }
-    } else {
-      responseData = await fetchAttendanceData();
+
+      return await fetchAttendanceData(preparedUser, inPremises, address);
+    })();
+
+    // Track the request
+    requestTracker.set(requestKey, {
+      promise: fetchPromise,
+      timestamp: Date.now(),
+    });
+
+    try {
+      // Wait for result and send response
+      responseData = await fetchPromise;
+
+      if (!responseData) {
+        throw new Error('No response data available');
+      }
+
+      // Final validation before sending response
+      const finalValidation = ResponseDataSchema.safeParse(responseData);
+      if (!finalValidation.success) {
+        console.warn(
+          'Final response validation failed:',
+          finalValidation.error,
+        );
+        return res.status(200).json(createFallbackResponse(preparedUser));
+      }
+
+      return res.status(200).json(finalValidation.data);
+    } catch (error) {
+      console.error('Error processing request:', error);
+      return res.status(200).json(createFallbackResponse(preparedUser));
     }
-
-    // Final validation
-    const validationResult = ResponseDataSchema.safeParse(responseData);
-
-    if (!validationResult.success) {
-      console.error('Final validation failed');
-      logValidationErrors(
-        validationResult.error.issues,
-        responseData,
-        'Final Validation Error',
-      );
-
-      // Return fallback data
-      const fallbackData = createFallbackResponse(preparedUser);
-      return res.status(200).json(fallbackData);
-    }
-
-    return res.status(200).json(validationResult.data);
   } catch (error) {
-    console.error('Critical error in handler:', error);
-
-    const fallbackUser =
-      preparedUser ||
-      (user
-        ? prepareUserData(user)
-        : {
-            employeeId: (employeeId as string) || 'unknown',
-            name: 'Unknown User',
-            lineUserId: (lineUserId as string) || null,
-            nickname: null,
-            departmentName: 'Unknown Department',
-            role: 'Employee',
-            profilePictureUrl: null,
-            shiftId: null,
-            shiftCode: null,
-            sickLeaveBalance: 0,
-            businessLeaveBalance: 0,
-            annualLeaveBalance: 0,
-          });
-
-    const fallbackData = createFallbackResponse(fallbackUser);
-    return res.status(200).json(fallbackData);
+    console.error('API handler error:', error);
+    const fallbackUser = preparedUser;
+    return res.status(200).json(createFallbackResponse(fallbackUser));
   } finally {
     await prisma.$disconnect();
   }
