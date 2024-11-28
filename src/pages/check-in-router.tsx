@@ -62,9 +62,8 @@ const CheckInRouter: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const isDataReady = useMemo(
-    () =>
-      userData && !authLoading && effectiveShift?.id && !isAttendanceLoading,
-    [userData, authLoading],
+    () => Boolean(userData && !authLoading && isInitialized),
+    [userData, authLoading, isInitialized],
   );
   // Attendance hook
   const {
@@ -239,6 +238,31 @@ const CheckInRouter: React.FC = () => {
     },
     [userData, refreshAttendanceStatus, toast, isRefreshing],
   );
+
+  // In check-in-router.tsx
+  useEffect(() => {
+    const logError = (error: Error) => {
+      console.error('CheckInRouter error:', {
+        message: error.message,
+        stack: error.stack,
+        userData: userData?.employeeId,
+        isInitialized,
+        authLoading,
+      });
+    };
+
+    window.addEventListener('error', (event) => logError(event.error));
+    window.addEventListener('unhandledrejection', (event) =>
+      logError(event.reason),
+    );
+
+    return () => {
+      window.removeEventListener('error', (event) => logError(event.error));
+      window.removeEventListener('unhandledrejection', (event) =>
+        logError(event.reason),
+      );
+    };
+  }, [userData, isInitialized, authLoading]);
 
   // Handlers
   const handleCloseWindow = useCallback<

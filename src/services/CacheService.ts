@@ -28,7 +28,68 @@ export class CacheService {
   private readonly MEMORY_CACHE_TTL = 5000; // 5 seconds
   private readonly MAX_RETRY_ATTEMPTS = 3;
   private readonly RETRY_DELAY = 1000; // 1 second
-  private readonly IS_TEST = process.env.NODE_ENV === 'test';
+  private readonly IS_CLIENT = typeof window !== 'undefined';
+
+  constructor() {
+    if (!this.IS_CLIENT) {
+      this.initializeRedis();
+    } else {
+      console.debug('Using memory-only cache on client side');
+    }
+  }
+
+  private async initializeRedis() {
+    if (this.IS_CLIENT) return;
+
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      console.warn('REDIS_URL is not set. Using memory-only cache.');
+      return;
+    }
+
+    try {
+      console.debug(
+        'Initializing Redis with URL pattern:',
+        redisUrl.replace(/(:.*@)/, ':****@'),
+      );
+
+      const Redis = await import('ioredis');
+      this.client = new Redis.default(redisUrl, {
+        maxRetriesPerRequest: 3,
+        retryStrategy: (times: number) => Math.min(times * 1000, 3000),
+        connectTimeout: 10000,
+        enableReadyCheck: true,
+        enableOfflineQueue: true,
+        reconnectOnError: (err) => {
+          console.error('Redis reconnect error:', err.message);
+          return true;
+        },
+      });
+
+      this.setupRedisEventListeners();
+    } catch (error) {
+      console.error('Failed to initialize Redis:', error);
+      this.recordError('redis_init_failed');
+      console.info('Falling back to memory-only cache');
+    }
+  }
+
+  private setupRedisEventListeners() {
+    if (!this.client) return;
+
+    this.client
+      .on('connect', () => console.info('Redis: Establishing connection...'))
+      .on('ready', () =>
+        console.info('Redis: Connection established and ready'),
+      )
+      .on('error', (err) => console.error('Redis error:', err.message))
+      .on('close', () => console.warn('Redis: Connection closed'))
+      .on('reconnecting', (ms: any) =>
+        console.info(`Redis: Reconnecting in ${ms}ms`),
+      )
+      .on('end', () => console.warn('Redis: Connection ended'));
+  }
+
   private async checkRedisHealth(): Promise<boolean> {
     if (!this.client) return false;
 
@@ -41,81 +102,8 @@ export class CacheService {
     }
   }
 
-  constructor() {
-    if (!this.IS_TEST) {
-      this.initializeRedis();
-      // Check Redis health every 30 seconds
-      setInterval(async () => {
-        const isHealthy = await this.checkRedisHealth();
-        if (!isHealthy) {
-          console.warn(
-            'Redis health check failed, reinitializing connection...',
-          );
-          await this.initializeRedis();
-        }
-      }, 30000);
-    }
-  }
-
-  private async initializeRedis() {
-    const redisUrl = process.env.REDIS_URL;
-    if (!redisUrl) {
-      console.warn('REDIS_URL is not set. Caching will be disabled.');
-      return;
-    }
-
-    try {
-      // Add debug logging
-      console.debug(
-        'Initializing Redis with URL pattern:',
-        redisUrl.replace(/(:.*@)/, ':****@'),
-      ); // Hide credentials in logs
-
-      const Redis = await import('ioredis');
-      this.client = new Redis.default(redisUrl, {
-        maxRetriesPerRequest: 3,
-        retryStrategy: (times: number) => {
-          const delay = Math.min(times * 1000, 3000);
-          console.debug(`Redis retry attempt ${times} with delay ${delay}ms`);
-          return delay;
-        },
-        connectTimeout: 10000, // 10 seconds
-        enableReadyCheck: true,
-        enableOfflineQueue: true,
-        reconnectOnError: (err) => {
-          console.error('Redis reconnect error:', err.message);
-          return true; // Always try to reconnect
-        },
-      });
-
-      // Add more detailed event listeners
-      this.client
-        .on('connect', () => console.info('Redis: Establishing connection...'))
-        .on('ready', () =>
-          console.info('Redis: Connection established and ready'),
-        )
-        .on('error', (err) => console.error('Redis error:', err.message))
-        .on('close', () => console.warn('Redis: Connection closed'))
-        .on('reconnecting', (ms: any) =>
-          console.info(`Redis: Reconnecting in ${ms}ms`),
-        )
-        .on('end', () => console.warn('Redis: Connection ended'));
-    } catch (error) {
-      console.error('Failed to initialize Redis:', error);
-      this.recordError('redis_init_failed');
-      // Fallback to memory-only cache
-      console.info('Falling back to memory-only cache');
-    }
-  }
-
-  private handleRedisError(error: Error) {
-    console.error('Redis error:', error);
-    this.recordError('redis_operation_failed');
-  }
-
   private recordError(type: string) {
     this.metrics.errors++;
-    // Could expand this to include error types, timestamps, etc.
   }
 
   private async measureOperation<T>(
@@ -150,12 +138,15 @@ export class CacheService {
   }
 
   async get(key: string): Promise<string | null> {
+    if (this.IS_CLIENT) {
+      return this.getFromMemoryCache(key);
+    }
+
     return this.measureOperation(async () => {
-      // Check memory cache first
       const memoryCached = this.getFromMemoryCache(key);
       if (memoryCached) return memoryCached;
 
-      if (this.IS_TEST || !this.client) return null;
+      if (!this.client) return null;
 
       try {
         const cachedData = await this.client.get(key);
@@ -178,8 +169,13 @@ export class CacheService {
     value: string,
     expirationInSeconds?: number,
   ): Promise<void> {
+    if (this.IS_CLIENT) {
+      this.setInMemoryCache(key, value);
+      return;
+    }
+
     return this.measureOperation(async () => {
-      if (this.IS_TEST || !this.client) return;
+      if (!this.client) return;
 
       try {
         if (expirationInSeconds) {
@@ -202,7 +198,6 @@ export class CacheService {
     schema?: z.ZodType<T>,
   ): Promise<T> {
     return this.measureOperation(async () => {
-      // Check memory cache first
       const memoryCached = this.getFromMemoryCache(key);
       if (memoryCached) {
         try {
@@ -220,7 +215,6 @@ export class CacheService {
         }
       }
 
-      // Check for ongoing requests
       if (this.locks.has(key)) {
         return this.locks.get(key);
       }
@@ -245,13 +239,12 @@ export class CacheService {
 
   async invalidatePattern(pattern: string): Promise<void> {
     return this.measureOperation(async () => {
-      if (this.IS_TEST || !this.client) return;
+      if (!this.client) return;
 
       try {
         const keys = await this.client.keys(pattern);
         if (keys.length > 0) {
           await this.client.del(...keys);
-          // Clear memory cache for matching keys
           for (const key of this.memoryCache.keys()) {
             if (key.includes(pattern.replace('*', ''))) {
               this.memoryCache.delete(key);
@@ -267,7 +260,7 @@ export class CacheService {
 
   async del(key: string): Promise<void> {
     return this.measureOperation(async () => {
-      if (this.IS_TEST || !this.client) return;
+      if (!this.client) return;
 
       try {
         await this.client.del(key);
@@ -286,7 +279,6 @@ export class CacheService {
     };
   }
 
-  // Helper method to clear metrics (useful for testing)
   clearMetrics(): void {
     this.metrics = {
       hits: 0,
@@ -297,5 +289,4 @@ export class CacheService {
   }
 }
 
-// Export a singleton instance
 export const cacheService = new CacheService();
