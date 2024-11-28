@@ -21,7 +21,6 @@ import Clock from '@/components/Clock';
 import { closeWindow } from '@/services/liff';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
 import LoadingBar from '@/components/LoadingBar';
-import PullToRefresh from '@/components/PullToRefresh';
 import { useLiff } from '@/contexts/LiffContext';
 import { useAuth } from '@/hooks/useAuth';
 import { AlertCircle } from 'lucide-react';
@@ -361,7 +360,6 @@ const CheckInRouter: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <PullToRefresh onRefresh={handleRefresh} isRefreshing={isRefreshing}>
         <div className="main-container flex flex-col min-h-screen bg-gray-100">
           <div className="sticky top-0 bg-white shadow-md z-20 px-4 py-3 safe-top">
             <h1 className="text-2xl font-bold text-center text-gray-800">
@@ -412,7 +410,6 @@ const CheckInRouter: React.FC = () => {
             </ErrorBoundary>
           </div>
         </div>
-      </PullToRefresh>
     </ErrorBoundary>
   );
 };

@@ -1,7 +1,7 @@
 // useSimpleAttendance.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
-import useSWR, { KeyedMutator } from 'swr';
-import axios from 'axios';
+import useSWR from 'swr';
+import axios, { AxiosError } from 'axios';
 import { EnhancedLocationService } from '../services/EnhancedLocationService';
 import {
   UseSimpleAttendanceProps,
@@ -138,10 +138,9 @@ export const useSimpleAttendance = ({
     {
       revalidateOnFocus: false,
       refreshInterval: 60000,
-      dedupingInterval: 5000,
-      onError: async (err) => {
+      onError: async (err: Error) => {
         if (
-          axios.isAxiosError(err) &&
+          err instanceof AxiosError &&
           (err.response?.data?.code === 'OUTSIDE_PREMISES' ||
             err.response?.status === 503)
         ) {
