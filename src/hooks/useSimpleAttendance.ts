@@ -17,7 +17,6 @@ import {
 } from '@/types/attendance';
 
 type FetcherArgs = [url: string, employeeId: string, location: LocationState];
-type IntervalType = ReturnType<typeof setInterval>;
 type TimeoutType = ReturnType<typeof setTimeout>;
 
 export const useSimpleAttendance = ({
@@ -36,45 +35,55 @@ export const useSimpleAttendance = ({
   const [isLocationLoading, setIsLocationLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const locationRef = useRef<{
+    promise: Promise<any> | null;
+    timestamp: number;
+    data: LocationState | null;
+  }>({
+    promise: null,
+    timestamp: 0,
+    data: null,
+  });
 
-  const getCurrentLocation = useCallback(
-    async (forceRefresh = false): Promise<void> => {
-      if (isLocationLoading && !forceRefresh) return;
-      if (locationState.address && !forceRefresh) {
-        return;
-      }
+  const getCurrentLocation = useCallback(async (forceRefresh = false) => {
+    const now = Date.now();
+    const LOCATION_CACHE_TIME = 30000; // 30 seconds
 
-      setIsLocationLoading(true);
-      setLocationError(null);
+    // Return cached location if within cache time and not forcing refresh
+    if (
+      !forceRefresh &&
+      locationRef.current.data &&
+      now - locationRef.current.timestamp < LOCATION_CACHE_TIME
+    ) {
+      return locationRef.current.data;
+    }
 
-      try {
-        const result =
-          await locationService.current.getCurrentLocation(forceRefresh);
-        const newLocation = {
-          inPremises: result.inPremises,
-          address: result.address,
-          confidence: result.confidence,
-          coordinates: result.coordinates,
-          accuracy: result.accuracy,
-          timestamp: new Date().toISOString(),
-        };
-        setLocationState(newLocation);
-      } catch (error) {
-        console.error('Location error:', error);
-        setLocationError(
-          error instanceof Error ? error.message : 'Failed to get location',
-        );
-        setLocationState({
-          inPremises: false,
-          address: 'Unknown location',
-          confidence: 'low',
-        });
-      } finally {
-        setIsLocationLoading(false);
-      }
-    },
-    [isLocationLoading, locationState],
-  );
+    // If there's an ongoing request, return it
+    if (locationRef.current.promise) {
+      return locationRef.current.promise;
+    }
+
+    try {
+      const locationPromise = locationService.current.getCurrentLocation();
+      locationRef.current.promise = locationPromise;
+
+      const result = await locationPromise;
+      const locationState = {
+        inPremises: result.inPremises,
+        address: result.address,
+        confidence: result.confidence,
+        coordinates: result.coordinates,
+        accuracy: result.accuracy,
+      };
+
+      locationRef.current.data = locationState;
+      locationRef.current.timestamp = now;
+
+      return locationState;
+    } finally {
+      locationRef.current.promise = null;
+    }
+  }, []);
 
   const { data, error, mutate } = useSWR<
     UseSimpleAttendanceState,

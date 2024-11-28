@@ -256,6 +256,7 @@ export default async function handler(
     // Modify the fetchAttendanceDataWithDebounce function
     const fetchAttendanceDataWithDebounce = async () => {
       const now = Date.now();
+      console.log('Checking debounce time:', now - lastFetchTime);
       if (now - lastFetchTime < DEBOUNCE_TIME) {
         const memoryCached = getFromMemoryCache('attendance');
         if (memoryCached) {

@@ -28,8 +28,6 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { locationAtom, attendanceAtom } from '../components/attendance/atoms';
-import { AttendanceTracker } from '../components/attendance/AttendanceTracker';
 
 const CheckInOutForm = dynamic(
   () => import('../components/attendance/CheckInOutForm'),
@@ -57,11 +55,6 @@ const CheckInRouter: React.FC = () => {
   const [cachedAttendanceStatus, setCachedAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [locationState] = useState<LocationState>({
-    inPremises: false,
-    address: '',
-    confidence: 'low',
-  });
 
   // Cache helpers
   const getCacheKey = useCallback((type: 'user' | 'attendance', id: string) => {
@@ -184,7 +177,6 @@ const CheckInRouter: React.FC = () => {
 
       await CacheManager.invalidateAllEmployeeData(userData.employeeId);
       await refreshAttendanceStatus({ forceRefresh: true });
-      await getCurrentLocation();
 
       toast({
         title: 'รีเฟรชข้อมูลสำเร็จ',
@@ -225,7 +217,7 @@ const CheckInRouter: React.FC = () => {
             lineUserId: userData.lineUserId,
             isCheckIn: params.isCheckingIn,
             checkTime: checkTime.toISOString(),
-            address,
+            address, // Use address from useSimpleAttendance
             reason: params.lateReason,
             photo: params.photo,
             isLate: params.isLate,
@@ -236,7 +228,7 @@ const CheckInRouter: React.FC = () => {
             entryType: params.isOvertime
               ? PeriodType.OVERTIME
               : PeriodType.REGULAR,
-            confidence: locationState.confidence,
+            confidence: inPremises ? 'high' : 'low', // Use inPremises from useSimpleAttendance
             metadata: {
               overtimeId: checkInOutAllowance.metadata?.overtimeId,
               isDayOffOvertime: checkInOutAllowance.flags?.isDayOffOvertime,
@@ -273,13 +265,7 @@ const CheckInRouter: React.FC = () => {
         }
       }
     },
-    [
-      userData,
-      checkInOutAllowance,
-      address,
-      checkInOut,
-      locationState.confidence,
-    ],
+    [userData, checkInOutAllowance, address, inPremises, checkInOut],
   );
 
   const handleCloseWindow = useCallback(() => {
