@@ -27,6 +27,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
+import { getCurrentTime } from '@/utils/dateUtils';
+import { locationAtom, attendanceAtom } from '../components/attendance/atoms';
+import { AttendanceTracker } from '../components/attendance/AttendanceTracker';
 
 const CheckInOutForm = dynamic(
   () => import('../components/attendance/CheckInOutForm'),
@@ -213,14 +216,9 @@ const CheckInRouter: React.FC = () => {
 
       while (retryCount <= MAX_RETRIES) {
         try {
-          const serverTimeResponse = await fetch('/api/server-time');
-          const { serverTime } = await serverTimeResponse.json();
-
           // Ensure serverTime is a valid date
-          const checkTime = new Date(serverTime);
-          if (isNaN(checkTime.getTime())) {
-            throw new Error('Invalid server time received');
-          }
+          const checkTime = getCurrentTime();
+          console.log('time in handleStatusChange', checkTime);
 
           const checkInOutData: CheckInOutData = {
             employeeId: userData.employeeId,

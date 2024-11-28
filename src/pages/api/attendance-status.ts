@@ -235,17 +235,65 @@ export default async function handler(
     const currentTime = getCurrentTime();
     console.log('Current time in attendance-status:', currentTime);
 
-    // Fetch attendance data using service with debounce
+    // Request deduplication
+    const requestCache = new Map<string, Promise<any>>();
+    const memoryCache = new Map<string, { data: any; timestamp: number }>();
+    const MEMORY_CACHE_TTL = 5000; // 5 seconds
+
+    // Add these helper functions
+    const getFromMemoryCache = (key: string) => {
+      const cached = memoryCache.get(key);
+      if (cached && Date.now() - cached.timestamp < MEMORY_CACHE_TTL) {
+        return cached.data;
+      }
+      return null;
+    };
+
+    const setInMemoryCache = (key: string, data: any) => {
+      memoryCache.set(key, { data, timestamp: Date.now() });
+    };
+
+    // Modify the fetchAttendanceDataWithDebounce function
     const fetchAttendanceDataWithDebounce = async () => {
       const now = Date.now();
       if (now - lastFetchTime < DEBOUNCE_TIME) {
-        console.log('Request debounced, using cached data');
-        return null;
+        const memoryCached = getFromMemoryCache('attendance');
+        if (memoryCached) {
+          console.log('Using memory cached data');
+          return memoryCached;
+        }
       }
       lastFetchTime = now;
 
+      // Check if there's an ongoing request
+      const cacheKey = `attendance:${user.employeeId}`;
+      if (requestCache.has(cacheKey)) {
+        console.log('Using ongoing request');
+        return requestCache.get(cacheKey);
+      }
+
       console.log('Fetching fresh attendance data');
-      return fetchAttendanceData();
+      const fetchPromise = fetchAttendanceData();
+      requestCache.set(cacheKey, fetchPromise);
+
+      try {
+        const result = await fetchPromise;
+        setInMemoryCache('attendance', result);
+        return result;
+      } finally {
+        requestCache.delete(cacheKey);
+      }
+    };
+
+    // Modify the fetchAttendanceData function to include timeouts
+    // Fix the timeout function in attendance-status.ts
+    const timeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+      return Promise.race([
+        promise,
+        new Promise<T>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timeout')), ms),
+        ),
+      ]);
     };
 
     // Modify fetchAttendanceData function in attendance-status.ts
@@ -255,14 +303,23 @@ export default async function handler(
 
         const [attendanceStatusResult, shiftDataResult, leaveRequestsResult] =
           await Promise.allSettled([
-            attendanceService.getLatestAttendanceStatus(
-              preparedUser.employeeId,
+            timeout(
+              attendanceService.getLatestAttendanceStatus(
+                preparedUser.employeeId,
+              ),
+              5000,
             ),
-            services.shiftService.getEffectiveShiftAndStatus(
-              preparedUser.employeeId,
-              currentTime,
+            timeout(
+              services.shiftService.getEffectiveShiftAndStatus(
+                preparedUser.employeeId,
+                currentTime,
+              ),
+              5000,
             ),
-            services.leaveService.getLeaveRequests(preparedUser.employeeId),
+            timeout(
+              services.leaveService.getLeaveRequests(preparedUser.employeeId),
+              5000,
+            ),
           ]);
 
         console.log('Promise results:', {

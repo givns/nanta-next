@@ -26,7 +26,6 @@ export const useSimpleAttendance = ({
   initialAttendanceStatus,
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn => {
   const locationService = useRef(new EnhancedLocationService());
-  const locationIntervalRef = useRef<IntervalType>();
   const refreshTimeoutRef = useRef<TimeoutType>();
 
   const [locationState, setLocationState] = useState<LocationState>({
@@ -39,21 +38,27 @@ export const useSimpleAttendance = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const getCurrentLocation = useCallback(
-    async (forceRefresh = false) => {
+    async (forceRefresh = false): Promise<void> => {
       if (isLocationLoading && !forceRefresh) return;
+      if (locationState.address && !forceRefresh) {
+        return;
+      }
+
       setIsLocationLoading(true);
       setLocationError(null);
 
       try {
         const result =
           await locationService.current.getCurrentLocation(forceRefresh);
-        setLocationState({
+        const newLocation = {
           inPremises: result.inPremises,
           address: result.address,
           confidence: result.confidence,
           coordinates: result.coordinates,
           accuracy: result.accuracy,
-        });
+          timestamp: new Date().toISOString(),
+        };
+        setLocationState(newLocation);
       } catch (error) {
         console.error('Location error:', error);
         setLocationError(
@@ -68,7 +73,7 @@ export const useSimpleAttendance = ({
         setIsLocationLoading(false);
       }
     },
-    [isLocationLoading],
+    [isLocationLoading, locationState],
   );
 
   const { data, error, mutate } = useSWR<
@@ -280,19 +285,7 @@ export const useSimpleAttendance = ({
   useEffect(() => {
     getCurrentLocation();
 
-    // Clear any existing interval
-    if (locationIntervalRef.current) {
-      clearInterval(locationIntervalRef.current);
-    }
-
-    locationIntervalRef.current = setInterval(() => {
-      getCurrentLocation();
-    }, 60000);
-
     return () => {
-      if (locationIntervalRef.current) {
-        clearInterval(locationIntervalRef.current);
-      }
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
       }
