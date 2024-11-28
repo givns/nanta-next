@@ -61,8 +61,11 @@ const CheckInRouter: React.FC = () => {
     useState<AttendanceStatusInfo | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const isDataReady = userData && !authLoading && isInitialized;
-
+  const isDataReady = useMemo(
+    () =>
+      userData && !authLoading && effectiveShift?.id && !isAttendanceLoading,
+    [userData, authLoading],
+  );
   // Attendance hook
   const {
     attendanceStatus,
@@ -76,9 +79,10 @@ const CheckInRouter: React.FC = () => {
     checkInOut,
     getCurrentLocation,
   } = useSimpleAttendance({
-    employeeId: isDataReady ? userData.employeeId : undefined,
+    employeeId: userData?.employeeId,
     lineUserId,
     initialAttendanceStatus: cachedAttendanceStatus,
+    enabled: !!userData?.employeeId && !!lineUserId,
   });
 
   // Initial data fetch

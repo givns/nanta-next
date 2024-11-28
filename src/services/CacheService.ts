@@ -29,16 +29,32 @@ export class CacheService {
   private readonly MAX_RETRY_ATTEMPTS = 3;
   private readonly RETRY_DELAY = 1000; // 1 second
   private readonly IS_TEST = process.env.NODE_ENV === 'test';
+  private async checkRedisHealth(): Promise<boolean> {
+    if (!this.client) return false;
+
+    try {
+      const pong = await this.client.ping();
+      return pong === 'PONG';
+    } catch (error) {
+      console.error('Redis health check failed:', error);
+      return false;
+    }
+  }
 
   constructor() {
     if (!this.IS_TEST) {
       this.initializeRedis();
+      // Check Redis health every 30 seconds
+      setInterval(async () => {
+        const isHealthy = await this.checkRedisHealth();
+        if (!isHealthy) {
+          console.warn(
+            'Redis health check failed, reinitializing connection...',
+          );
+          await this.initializeRedis();
+        }
+      }, 30000);
     }
-
-    // Start metrics cleanup interval
-    setInterval(() => {
-      this.metrics.latency = this.metrics.latency.slice(-1000); // Keep last 1000 measurements
-    }, 3600000); // Clean every hour
   }
 
   private async initializeRedis() {
@@ -49,21 +65,46 @@ export class CacheService {
     }
 
     try {
+      // Add debug logging
+      console.debug(
+        'Initializing Redis with URL pattern:',
+        redisUrl.replace(/(:.*@)/, ':****@'),
+      ); // Hide credentials in logs
+
       const Redis = await import('ioredis');
       this.client = new Redis.default(redisUrl, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times: number) => {
-          if (times > this.MAX_RETRY_ATTEMPTS) return null;
-          return Math.min(times * this.RETRY_DELAY, 3000);
+          const delay = Math.min(times * 1000, 3000);
+          console.debug(`Redis retry attempt ${times} with delay ${delay}ms`);
+          return delay;
+        },
+        connectTimeout: 10000, // 10 seconds
+        enableReadyCheck: true,
+        enableOfflineQueue: true,
+        reconnectOnError: (err) => {
+          console.error('Redis reconnect error:', err.message);
+          return true; // Always try to reconnect
         },
       });
 
-      this.client.on('error', this.handleRedisError.bind(this));
-      this.client.on('connect', () => console.log('Redis connected'));
-      this.client.on('reconnecting', () => console.warn('Redis reconnecting'));
+      // Add more detailed event listeners
+      this.client
+        .on('connect', () => console.info('Redis: Establishing connection...'))
+        .on('ready', () =>
+          console.info('Redis: Connection established and ready'),
+        )
+        .on('error', (err) => console.error('Redis error:', err.message))
+        .on('close', () => console.warn('Redis: Connection closed'))
+        .on('reconnecting', (ms: any) =>
+          console.info(`Redis: Reconnecting in ${ms}ms`),
+        )
+        .on('end', () => console.warn('Redis: Connection ended'));
     } catch (error) {
       console.error('Failed to initialize Redis:', error);
       this.recordError('redis_init_failed');
+      // Fallback to memory-only cache
+      console.info('Falling back to memory-only cache');
     }
   }
 

@@ -59,6 +59,7 @@ export interface UseSimpleAttendanceProps {
   employeeId?: string;
   lineUserId: string | null;
   initialAttendanceStatus: AttendanceStatusInfo | null;
+  enabled?: boolean;
 }
 
 export interface UseSimpleAttendanceState {

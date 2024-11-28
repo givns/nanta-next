@@ -27,6 +27,7 @@ export const useSimpleAttendance = ({
   employeeId,
   lineUserId,
   initialAttendanceStatus,
+  enabled = true,
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn => {
   // Services and Refs
   const locationService = useRef(new EnhancedLocationService());
