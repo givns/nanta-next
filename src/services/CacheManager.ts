@@ -18,6 +18,7 @@ import {
   PrismaHoliday,
   ApprovedOvertimeInfo,
   FutureShift,
+  CACHE_CONSTANTS,
 } from '../types/attendance';
 import { getCurrentTime } from '../utils/dateUtils';
 import { ShiftManagementService } from './ShiftManagementService/ShiftManagementService';
@@ -415,6 +416,21 @@ export class CacheManager {
     employeeId: string,
   ): Promise<AttendanceRecord | null> {
     return this.fetchAttendanceRecord(employeeId);
+  }
+  // Convert static methods to instance methods
+
+  static async cacheAttendanceStatus(
+    employeeId: string,
+    status: AttendanceStatusInfo,
+    ttl: number = CACHE_CONSTANTS.ATTENDANCE_CACHE_TTL,
+  ): Promise<void> {
+    if (!cacheService) return;
+    const cacheKey = `attendance:${employeeId}`;
+
+    // Don't cache in test environment
+    if (process.env.NODE_ENV === 'test') return;
+
+    await cacheService.set(cacheKey, JSON.stringify(status), ttl);
   }
 
   // Public static methods
