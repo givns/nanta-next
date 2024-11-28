@@ -385,12 +385,44 @@ export default async function handler(
   let user: any = null;
   let preparedUser: any = null;
   let responseData: ResponseData | null = null;
+  const validatedParams = RequestSchema.parse(req.query);
+  const { employeeId, lineUserId, inPremises, address, forceRefresh } =
+    validatedParams;
+
+  // User Data Fetching
+  const fetchUserData = async () => {
+    if (lineUserId) {
+      const cacheKey = `user:${lineUserId}`;
+      const cachedUser = cacheService ? await cacheService.get(cacheKey) : null;
+
+      if (cachedUser) {
+        return JSON.parse(cachedUser);
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { lineUserId },
+        include: { department: true },
+      });
+
+      if (user && cacheService) {
+        await cacheService.set(cacheKey, JSON.stringify(user), 3600);
+      }
+
+      return user;
+    }
+
+    if (employeeId) {
+      return prisma.user.findUnique({
+        where: { employeeId },
+        include: { department: true },
+      });
+    }
+
+    return null;
+  };
 
   try {
     // Validate request parameters
-    const validatedParams = RequestSchema.parse(req.query);
-    const { employeeId, lineUserId, inPremises, address, forceRefresh } =
-      validatedParams;
 
     // Clean up old request trackers
     cleanupRequestTracker();
@@ -405,39 +437,15 @@ export default async function handler(
       return res.json(await existingRequest.promise);
     }
 
-    // User Data Fetching
-    user = await (async () => {
-      if (lineUserId) {
-        const cacheKey = `user:${lineUserId}`;
-        const cachedUser = cacheService
-          ? await cacheService.get(cacheKey)
-          : null;
+    // Fetch user data
+    user = await fetchUserData();
 
-        if (cachedUser) {
-          return JSON.parse(cachedUser);
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { lineUserId },
-          include: { department: true },
-        });
-
-        if (user && cacheService) {
-          await cacheService.set(cacheKey, JSON.stringify(user), 3600);
-        }
-
-        return user;
-      }
-
-      if (employeeId) {
-        return prisma.user.findUnique({
-          where: { employeeId },
-          include: { department: true },
-        });
-      }
-
-      return null;
-    });
+    if (!user) {
+      return res.status(404).json({
+        error: 'User not found',
+        message: 'Please complete your registration first.',
+      });
+    }
 
     preparedUser = prepareUserData(user);
     const cacheKey = `attendance:${validatedParams.employeeId || validatedParams.lineUserId}`; // Use validatedParams
