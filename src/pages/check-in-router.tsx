@@ -60,6 +60,9 @@ const CheckInRouter: React.FC = () => {
   const [cachedAttendanceStatus, setCachedAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [locationState, setLocationState] = useState<LocationState | null>(
+    null,
+  );
 
   // Attendance hook
   const {
@@ -77,7 +80,9 @@ const CheckInRouter: React.FC = () => {
     employeeId: userData?.employeeId,
     lineUserId,
     initialAttendanceStatus: cachedAttendanceStatus,
-    enabled: Boolean(userData?.employeeId && lineUserId), // Add enabled flag
+    enabled: Boolean(
+      userData?.employeeId && lineUserId && locationState?.address,
+    ),
   });
 
   useEffect(() => {
@@ -113,6 +118,10 @@ const CheckInRouter: React.FC = () => {
     );
   }, [userData?.employeeId, authLoading, isInitialized, isAttendanceLoading]);
   console.log('isDataReady:', isDataReady);
+  console.log('userData:', userData);
+  console.log('authLoading:', authLoading);
+  console.log('isInitialized:', isInitialized);
+  console.log('isAttendanceLoading:', isAttendanceLoading);
 
   // Initial data fetch
   useEffect(() => {
@@ -136,6 +145,7 @@ const CheckInRouter: React.FC = () => {
 
         if (data?.user) {
           setUserData(data.user);
+
           const now = getCurrentTime();
           const today = format(now, 'yyyy-MM-dd');
 

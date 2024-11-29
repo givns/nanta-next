@@ -389,11 +389,12 @@ export default async function handler(
   const { employeeId, lineUserId, inPremises, address, forceRefresh } =
     validatedParams;
 
-  console.log('employeeId:', employeeId);
-  console.log('lineUserId:', lineUserId);
-  console.log('inPremises:', inPremises);
-  console.log('address:', address);
-  console.log('forceRefresh:', forceRefresh);
+  console.debug('Attendance API request params:', {
+    employeeId,
+    lineUserId,
+    inPremises,
+    address,
+  });
 
   // Validate required parameters
   if (!employeeId && !lineUserId) {

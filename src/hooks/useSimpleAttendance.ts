@@ -99,7 +99,26 @@ export const useSimpleAttendance = ({
 
   const { data, error, mutate } = useSWR<UseSimpleAttendanceState>(
     () => {
-      if (!employeeId || !locationState) return null;
+      // Add more robust check for required params
+      if (!enabled || !employeeId || !locationState) {
+        console.debug('Skipping attendance fetch:', {
+          enabled,
+          employeeId,
+          locationState,
+        });
+        return null;
+      }
+
+      const params = {
+        employeeId,
+        lineUserId,
+        inPremises: locationState.inPremises,
+        address: locationState.address || '',
+      };
+
+      // Log parameters to verify
+      console.debug('Fetching attendance with params:', params);
+
       return ['/api/attendance-status', employeeId, locationState];
     },
 
