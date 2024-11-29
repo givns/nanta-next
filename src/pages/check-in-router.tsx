@@ -61,10 +61,6 @@ const CheckInRouter: React.FC = () => {
     useState<AttendanceStatusInfo | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const isDataReady = useMemo(
-    () => Boolean(userData && !authLoading && isInitialized),
-    [userData, authLoading, isInitialized],
-  );
   // Attendance hook
   const {
     attendanceStatus,
@@ -81,8 +77,17 @@ const CheckInRouter: React.FC = () => {
     employeeId: userData?.employeeId,
     lineUserId,
     initialAttendanceStatus: cachedAttendanceStatus,
-    enabled: !!userData?.employeeId && !!lineUserId,
+    enabled: Boolean(userData?.employeeId && lineUserId), // Add enabled flag
   });
+
+  const isDataReady = useMemo(() => {
+    return Boolean(
+      userData?.employeeId &&
+        !authLoading &&
+        isInitialized &&
+        !isAttendanceLoading,
+    );
+  }, [userData?.employeeId, authLoading, isInitialized, isAttendanceLoading]);
 
   // Initial data fetch
   useEffect(() => {
@@ -341,7 +346,7 @@ const CheckInRouter: React.FC = () => {
           >
             <div className="flex items-center justify-center h-full">
               {isDataReady ? (
-                userData && (
+                userData && effectiveShift ? (
                   <CheckInOutForm
                     userData={userData}
                     cachedAttendanceStatus={cachedAttendanceStatus}
@@ -351,12 +356,12 @@ const CheckInRouter: React.FC = () => {
                     isAttendanceLoading={isAttendanceLoading}
                     checkInOutAllowance={checkInOutAllowance}
                     getCurrentLocation={getCurrentLocation}
-                    refreshAttendanceStatus={async (forceRefresh) => {
-                      await refreshAttendanceStatus({ forceRefresh });
-                    }}
+                    refreshAttendanceStatus={handleRefresh}
                     onStatusChange={handleStatusChange}
                     onCloseWindow={handleCloseWindow}
                   />
+                ) : (
+                  <div>Loading shift data...</div>
                 )
               ) : (
                 <div className="flex items-center justify-center h-full">

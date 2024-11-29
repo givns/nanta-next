@@ -84,7 +84,6 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   });
 
   const [isInitialized, setIsInitialized] = useState(false);
-  const [showGuide, setShowGuide] = useState(true);
   const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
     useState(false);
   const submitTimeout = useRef<NodeJS.Timeout>();
@@ -99,7 +98,10 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   useEffect(() => {
     if (liveAttendanceStatus) {
       console.log('Received attendanceStatus:', liveAttendanceStatus);
-      console.log('isCheckingIn:', liveAttendanceStatus.isCheckingIn);
+      console.log(
+        'State Monitoring: isCheckingIn:',
+        liveAttendanceStatus.isCheckingIn,
+      );
     }
   }, [liveAttendanceStatus]);
 
@@ -516,8 +518,19 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         isLoading={loadingState.status === 'loading'}
       />
     ),
-    [userData, liveAttendanceStatus, effectiveShift],
+    [userData, liveAttendanceStatus, effectiveShift, loadingState.status],
   );
+
+  // Add effect to monitor shift availability
+  useEffect(() => {
+    if (effectiveShift?.id) {
+      console.log('Effective shift loaded:', effectiveShift);
+      setIsActionButtonReady(true);
+    } else {
+      console.log('Waiting for shift data...');
+      setIsActionButtonReady(false);
+    }
+  }, [effectiveShift]);
 
   const memoizedActionButton = useMemo(
     () => (
