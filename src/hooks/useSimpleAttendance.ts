@@ -97,73 +97,57 @@ export const useSimpleAttendance = ({
     }
   }, []);
 
-  const { data, error, mutate } = useSWR<
-    UseSimpleAttendanceState,
-    Error,
-    FetcherArgs | null
-  >(
-    employeeId ? ['/api/attendance-status', employeeId, locationState] : null,
+  const { data, error, mutate } = useSWR<UseSimpleAttendanceState>(
+    () => {
+      if (!employeeId || !locationState) return null;
+      return ['/api/attendance-status', employeeId, locationState];
+    },
+
     async ([url, id, location]) => {
       try {
         const response = await axios.get(url, {
           params: {
             employeeId: id,
             lineUserId,
-            inPremises: location.inPremises,
-            address: location.address,
-            confidence: location.confidence,
-            coordinates: location.coordinates,
-            accuracy: location.accuracy,
+            inPremises: (location as LocationState).inPremises,
+            address: (location as LocationState).address,
+            confidence: (location as LocationState).confidence,
+            coordinates: (location as LocationState).coordinates,
+            accuracy: (location as LocationState).accuracy,
           },
           timeout: REQUEST_TIMEOUT,
         });
 
         return response.data;
-      } catch (error) {
-        // Return cached data on error if available
-        const cachedStatus = await CacheManager.getStatus(id);
-        if (cachedStatus) {
-          return {
-            attendanceStatus: cachedStatus,
-            state: cachedStatus.state,
-            checkStatus: cachedStatus.checkStatus,
-          };
+      } catch (error: any) {
+        console.error('Attendance fetch error:', {
+          employeeId: id,
+          error: error.message,
+        });
+
+        // On 404, try to get cached data
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          const cachedData = await CacheManager.getStatus(id as string); // Add type assertion
+          if (cachedData) {
+            return {
+              attendanceStatus: cachedData,
+              state: cachedData.state,
+              checkStatus: cachedData.checkStatus,
+            };
+          }
         }
         throw error;
       }
     },
     {
-      revalidateOnFocus: false,
-      refreshInterval: 60000,
-      fallbackData: initialAttendanceStatus
-        ? {
-            attendanceStatus: initialAttendanceStatus,
-            state: initialAttendanceStatus.state,
-            checkStatus: initialAttendanceStatus.checkStatus,
-            overtimeState: initialAttendanceStatus.overtimeState,
-            effectiveShift: null,
-            currentPeriod: initialAttendanceStatus.currentPeriod
-              ? {
-                  ...initialAttendanceStatus.currentPeriod,
-                  current: {
-                    start: new Date(
-                      initialAttendanceStatus.currentPeriod.current.start,
-                    ),
-                    end: new Date(
-                      initialAttendanceStatus.currentPeriod.current.end,
-                    ),
-                  },
-                }
-              : null,
-            inPremises: false,
-            address: '',
-            isLoading: true,
-            isLocationLoading: true,
-            error: null,
-            checkInOutAllowance: null,
-          }
-        : undefined,
+      revalidateOnFocus: false, // Disable focus revalidation
+      refreshInterval: 30000, // Poll every 30 seconds instead
+      dedupingInterval: 2000, // Prevent duplicate requests
+      shouldRetryOnError: false,
       keepPreviousData: true,
+      onError: (error) => {
+        console.error('SWR Error:', error);
+      },
     },
   );
 

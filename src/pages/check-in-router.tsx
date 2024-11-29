@@ -80,6 +80,30 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && lineUserId), // Add enabled flag
   });
 
+  useEffect(() => {
+    if (attendanceError) {
+      const handleError = async () => {
+        console.error('Attendance error:', attendanceError);
+
+        // Only invalidate cache and retry if we have user data
+        if (userData?.employeeId) {
+          try {
+            await CacheManager.invalidateCache(
+              'attendance',
+              userData.employeeId,
+            );
+            await refreshAttendanceStatus({ forceRefresh: true });
+          } catch (retryError) {
+            console.error('Error recovery failed:', retryError);
+            setFormError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+          }
+        }
+      };
+
+      handleError();
+    }
+  }, [attendanceError, userData?.employeeId, refreshAttendanceStatus]);
+
   const isDataReady = useMemo(() => {
     return Boolean(
       userData?.employeeId &&
@@ -88,6 +112,7 @@ const CheckInRouter: React.FC = () => {
         !isAttendanceLoading,
     );
   }, [userData?.employeeId, authLoading, isInitialized, isAttendanceLoading]);
+  console.log('isDataReady:', isDataReady);
 
   // Initial data fetch
   useEffect(() => {

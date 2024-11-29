@@ -389,6 +389,20 @@ export default async function handler(
   const { employeeId, lineUserId, inPremises, address, forceRefresh } =
     validatedParams;
 
+  console.log('employeeId:', employeeId);
+  console.log('lineUserId:', lineUserId);
+  console.log('inPremises:', inPremises);
+  console.log('address:', address);
+  console.log('forceRefresh:', forceRefresh);
+
+  // Validate required parameters
+  if (!employeeId && !lineUserId) {
+    return res.status(400).json({
+      error: 'Missing required parameters',
+      message: 'Either employeeId or lineUserId is required',
+    });
+  }
+
   // User Data Fetching
   const fetchUserData = async () => {
     if (lineUserId) {
@@ -523,9 +537,19 @@ export default async function handler(
       return res.status(200).json(createFallbackResponse(preparedUser));
     }
   } catch (error) {
-    console.error('API handler error:', error);
-    const fallbackUser = preparedUser;
-    return res.status(200).json(createFallbackResponse(fallbackUser));
+    console.error('Attendance API Error:', {
+      path: req.url,
+      query: req.query,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    });
+
+    // Return error with guidance
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to fetch attendance status. Please try again.',
+      timestamp: new Date().toISOString(),
+    });
   } finally {
     await prisma.$disconnect();
   }
