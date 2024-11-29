@@ -19,7 +19,6 @@ import { endOfDay, startOfDay, format } from 'date-fns';
 import type { ZodIssue } from 'zod';
 
 // Constants
-const DEBOUNCE_TIME = 1000; // 1 second
 const LOCK_TIMEOUT = 5; // 5 seconds
 const CACHE_TTL = 300; // 5 minutes
 const REQUEST_TIMEOUT = 5000; // 5 seconds

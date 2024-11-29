@@ -109,21 +109,28 @@ const CheckInRouter: React.FC = () => {
     }
   }, [attendanceError, userData?.employeeId, refreshAttendanceStatus]);
 
+  // In check-in-router.tsx
   const isDataReady = useMemo(() => {
-    return Boolean(
+    const ready = Boolean(
       userData?.employeeId &&
         !authLoading &&
         isInitialized &&
         !isAttendanceLoading,
     );
+
+    console.log('Data ready check:', {
+      hasEmployeeId: Boolean(userData?.employeeId),
+      authLoading,
+      isInitialized,
+      isAttendanceLoading,
+      isReady: ready,
+    });
+
+    return ready;
   }, [userData?.employeeId, authLoading, isInitialized, isAttendanceLoading]);
-  console.log('isDataReady:', isDataReady);
-  console.log('userData:', userData);
-  console.log('authLoading:', authLoading);
-  console.log('isInitialized:', isInitialized);
-  console.log('isAttendanceLoading:', isAttendanceLoading);
 
   // Initial data fetch
+  // In check-in-router.tsx
   useEffect(() => {
     let isMounted = true;
 
@@ -138,6 +145,7 @@ const CheckInRouter: React.FC = () => {
         const response = await fetch('/api/user-data', {
           headers: { 'x-line-userid': lineUserId },
         });
+
         if (!response.ok) throw new Error('Failed to fetch user data');
         const data = await response.json();
 
@@ -145,12 +153,8 @@ const CheckInRouter: React.FC = () => {
 
         if (data?.user) {
           setUserData(data.user);
-
-          const now = getCurrentTime();
-          const today = format(now, 'yyyy-MM-dd');
-
-          // Only fetch attendance status after user data is set
-          if (isDataReady) {
+          // Only start attendance fetch after we have user data
+          if (!isAttendanceLoading) {
             try {
               const attendanceResponse = await fetch('/api/attendance-status', {
                 headers: {
@@ -158,15 +162,16 @@ const CheckInRouter: React.FC = () => {
                   'x-employee-id': data.user.employeeId,
                 },
               });
-              if (!attendanceResponse.ok)
+              if (!attendanceResponse.ok) {
                 throw new Error('Failed to fetch attendance status');
+              }
               const attendanceData = await attendanceResponse.json();
 
-              if (isMounted && attendanceData) {
+              if (isMounted) {
                 setCachedAttendanceStatus(attendanceData);
               }
             } catch (error) {
-              console.error('Error fetching cached attendance:', error);
+              console.error('Error fetching attendance:', error);
             }
           }
         }
@@ -174,14 +179,6 @@ const CheckInRouter: React.FC = () => {
         console.error('Error fetching initial data:', error);
         if (isMounted) {
           setError('Failed to fetch initial data');
-          if (userData?.employeeId) {
-            // Use the correct static methods
-            await Promise.all([
-              CacheManager.invalidateCache('attendance', userData.employeeId),
-              CacheManager.invalidateCache('user', userData.employeeId),
-              CacheManager.invalidateCache('shift', userData.employeeId),
-            ]);
-          }
         }
       } finally {
         if (isMounted) {
@@ -190,11 +187,14 @@ const CheckInRouter: React.FC = () => {
       }
     };
 
-    fetchInitialData();
+    if (!userData && !isLoading) {
+      fetchInitialData();
+    }
+
     return () => {
       isMounted = false;
     };
-  }, [lineUserId, isDataReady]);
+  }, [lineUserId, isAttendanceLoading, userData, isLoading]);
 
   // Handle status change
   const handleStatusChange = useCallback<CheckInOutFormProps['onStatusChange']>(
@@ -279,7 +279,6 @@ const CheckInRouter: React.FC = () => {
     [userData, refreshAttendanceStatus, toast, isRefreshing],
   );
 
-  // In check-in-router.tsx
   useEffect(() => {
     const logError = (error: Error) => {
       console.error('CheckInRouter error:', {
@@ -303,6 +302,24 @@ const CheckInRouter: React.FC = () => {
       );
     };
   }, [userData, isInitialized, authLoading]);
+
+  const handleError = useCallback(
+    (error: Error) => {
+      console.error('Error in CheckInRouter:', error);
+      setFormError(error.message);
+      // Attempt recovery
+      if (userData?.employeeId) {
+        Promise.all([
+          CacheManager.invalidateCache('attendance', userData.employeeId),
+          CacheManager.invalidateCache('user', userData.employeeId),
+          CacheManager.invalidateCache('shift', userData.employeeId),
+        ]).then(() => {
+          setIsLoading(false);
+        });
+      }
+    },
+    [userData?.employeeId],
+  );
 
   // Handlers
   const handleCloseWindow = useCallback<
@@ -340,7 +357,7 @@ const CheckInRouter: React.FC = () => {
   }
 
   return (
-    <ErrorBoundary>
+    <ErrorBoundary onError={handleError}>
       <div className="main-container flex flex-col min-h-screen bg-gray-100">
         <div className="sticky top-0 bg-white shadow-md z-20 px-4 py-3 safe-top">
           <h1 className="text-2xl font-bold text-center text-gray-800">
