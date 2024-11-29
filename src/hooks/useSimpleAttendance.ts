@@ -1,4 +1,3 @@
-// useSimpleAttendance.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import axios, { AxiosError } from 'axios';
@@ -15,9 +14,8 @@ import {
   PeriodType,
   LocationState,
 } from '@/types/attendance';
-import { CacheManager } from '@/services/CacheManager';
 
-type FetcherArgs = [url: string, employeeId: string, location: LocationState];
+type FetcherArgs = [string, string, LocationState];
 type TimeoutType = ReturnType<typeof setTimeout>;
 
 const LOCATION_CACHE_TIME = 30000; // 30 seconds
@@ -30,12 +28,10 @@ export const useSimpleAttendance = ({
   initialAttendanceStatus,
   enabled = true,
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn => {
-  // Services and Refs
   const locationService = useRef(new EnhancedLocationService());
   const refreshTimeoutRef = useRef<NodeJS.Timeout>();
   const submitTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Location State
   const locationRef = useRef<{
     promise: Promise<any> | null;
     timestamp: number;
@@ -46,7 +42,6 @@ export const useSimpleAttendance = ({
     data: null,
   });
 
-  // State
   const [locationState, setLocationState] = useState<LocationState>({
     inPremises: false,
     address: '',
@@ -55,12 +50,11 @@ export const useSimpleAttendance = ({
   const [isLocationLoading, setIsLocationLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [locationReady, setLocationReady] = useState(false);
 
-  // Get current location with caching
   const getCurrentLocation = useCallback(async (forceRefresh = false) => {
     const now = Date.now();
 
-    // Return cached location if within cache time and not forcing refresh
     if (
       !forceRefresh &&
       locationRef.current.data &&
@@ -69,7 +63,6 @@ export const useSimpleAttendance = ({
       return locationRef.current.data;
     }
 
-    // If there's an ongoing request, return it
     if (locationRef.current.promise) {
       return locationRef.current.promise;
     }
@@ -81,8 +74,8 @@ export const useSimpleAttendance = ({
       const result = await locationPromise;
       const locationState = {
         inPremises: result.inPremises,
-        address: result.address,
-        confidence: result.confidence,
+        address: result.address || '',
+        confidence: result.confidence || 'low',
         coordinates: result.coordinates,
         accuracy: result.accuracy,
       };
@@ -90,87 +83,76 @@ export const useSimpleAttendance = ({
       setLocationState(locationState);
       locationRef.current.data = locationState;
       locationRef.current.timestamp = now;
-
+      setLocationReady(true);
       return locationState;
     } finally {
       locationRef.current.promise = null;
     }
   }, []);
 
-  const { data, error, mutate } = useSWR<UseSimpleAttendanceState>(
-    () => {
-      // Add more robust check for required params
-      if (!enabled || !employeeId || !locationState) {
-        console.debug('Skipping attendance fetch:', {
-          enabled,
-          employeeId,
-          locationState,
-        });
-        return null;
-      }
-
-      const params = {
-        employeeId,
-        lineUserId,
-        inPremises: locationState.inPremises,
-        address: locationState.address || '',
-      };
-
-      // Log parameters to verify
-      console.debug('Fetching attendance with params:', params);
-
-      return ['/api/attendance-status', employeeId, locationState];
-    },
-
-    async ([url, id, location]) => {
+  const { data, error, mutate } = useSWR<
+    UseSimpleAttendanceState,
+    Error,
+    FetcherArgs | null
+  >(
+    enabled && employeeId && locationReady
+      ? (['/api/attendance-status', employeeId, locationState] as FetcherArgs)
+      : null,
+    async ([url, id, location]: FetcherArgs) => {
       try {
         const response = await axios.get(url, {
           params: {
             employeeId: id,
             lineUserId,
-            inPremises: (location as LocationState).inPremises,
-            address: (location as LocationState).address,
-            confidence: (location as LocationState).confidence,
-            coordinates: (location as LocationState).coordinates,
-            accuracy: (location as LocationState).accuracy,
+            inPremises: location.inPremises,
+            address: location.address,
+            confidence: location.confidence,
+            coordinates: location.coordinates,
+            accuracy: location.accuracy,
           },
           timeout: REQUEST_TIMEOUT,
         });
 
         return response.data;
-      } catch (error: any) {
-        console.error('Attendance fetch error:', {
-          employeeId: id,
-          error: error.message,
-        });
-
-        // On 404, try to get cached data
-        if (axios.isAxiosError(error) && error.response?.status === 404) {
-          const cachedData = await CacheManager.getStatus(id as string); // Add type assertion
-          if (cachedData) {
-            return {
-              attendanceStatus: cachedData,
-              state: cachedData.state,
-              checkStatus: cachedData.checkStatus,
-            };
-          }
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 503) {
+          await getCurrentLocation(true);
         }
         throw error;
       }
     },
     {
-      revalidateOnFocus: false, // Disable focus revalidation
-      refreshInterval: 30000, // Poll every 30 seconds instead
-      dedupingInterval: 2000, // Prevent duplicate requests
-      shouldRetryOnError: false,
-      keepPreviousData: true,
-      onError: (error) => {
-        console.error('SWR Error:', error);
-      },
+      revalidateOnFocus: false,
+      refreshInterval: 60000,
+      fallbackData: initialAttendanceStatus
+        ? {
+            attendanceStatus: initialAttendanceStatus,
+            state: initialAttendanceStatus.state,
+            checkStatus: initialAttendanceStatus.checkStatus,
+            effectiveShift: null,
+            currentPeriod: initialAttendanceStatus.currentPeriod
+              ? {
+                  ...initialAttendanceStatus.currentPeriod,
+                  current: {
+                    start: new Date(
+                      initialAttendanceStatus.currentPeriod.current.start,
+                    ),
+                    end: new Date(
+                      initialAttendanceStatus.currentPeriod.current.end,
+                    ),
+                  },
+                }
+              : null,
+            inPremises: false,
+            address: '',
+            isLoading: true,
+            error: null,
+            checkInOutAllowance: null,
+          }
+        : undefined,
     },
   );
 
-  // Check in/out function
   const checkInOut = useCallback(
     async (data: CheckInOutData): Promise<ProcessingResult> => {
       let retryCount = 0;
@@ -181,7 +163,6 @@ export const useSimpleAttendance = ({
             clearTimeout(submitTimeoutRef.current);
           }
 
-          // Get latest location
           await getCurrentLocation(true);
 
           const requestData: CheckInOutData = {
@@ -237,7 +218,6 @@ export const useSimpleAttendance = ({
     [getCurrentLocation, locationState, mutate],
   );
 
-  // Refresh attendance status
   const refreshAttendanceStatus = useCallback(
     async (options?: { forceRefresh?: boolean; throwOnError?: boolean }) => {
       if (isRefreshing) return;
@@ -264,7 +244,6 @@ export const useSimpleAttendance = ({
     [getCurrentLocation, isRefreshing, mutate],
   ) as UseSimpleAttendanceActions['refreshAttendanceStatus'];
 
-  // Initial location fetch
   useEffect(() => {
     getCurrentLocation();
 
@@ -284,7 +263,7 @@ export const useSimpleAttendance = ({
       currentPeriod: null,
       inPremises: locationState.inPremises,
       address: locationState.address,
-      isLoading: true,
+      isLoading: !locationReady || !data,
       isLocationLoading,
       error: error?.message || locationError,
       checkInOutAllowance: null,
@@ -292,5 +271,6 @@ export const useSimpleAttendance = ({
     refreshAttendanceStatus: Object.assign(refreshAttendanceStatus, { mutate }),
     checkInOut,
     getCurrentLocation,
+    locationReady,
   };
 };

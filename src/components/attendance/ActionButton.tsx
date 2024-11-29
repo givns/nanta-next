@@ -1,13 +1,14 @@
 import React from 'react';
-import { CheckInOutAllowance } from '../../types/attendance';
+import { CheckInOutAllowance } from '@/types/attendance';
 
 interface ActionButtonProps {
   isLoading: boolean;
   isActionButtonReady: boolean;
   checkInOutAllowance: CheckInOutAllowance | null;
   isCheckingIn: boolean;
-  isDayOff: boolean;
+  isDayOff?: boolean;
   onAction: (action: 'checkIn' | 'checkOut') => void;
+  locationReady?: boolean; // Add new prop
 }
 
 const ActionButton: React.FC<ActionButtonProps> = ({
@@ -16,37 +17,53 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   checkInOutAllowance,
   isCheckingIn,
   onAction,
+  locationReady = true, // Default to true for backward compatibility
 }) => {
+  // Determine if button should be enabled
+  const isButtonEnabled = Boolean(
+    checkInOutAllowance?.allowed &&
+      isActionButtonReady &&
+      locationReady &&
+      !isLoading,
+  );
+
+  // Dynamic button classes
   const buttonClass = `w-full ${
-    checkInOutAllowance?.allowed && isActionButtonReady
-      ? 'bg-primary hover:bg-primary-dark visible'
-      : 'bg-gray-400 cursor-not-allowed invisible' // Change to invisible
+    isButtonEnabled
+      ? 'bg-primary hover:bg-primary-dark'
+      : 'bg-gray-400 cursor-not-allowed'
   } text-white py-3 px-4 rounded-lg transition duration-300`;
 
-  const buttonText = isLoading
-    ? 'กรุณารอสักครู่...'
-    : checkInOutAllowance?.allowed
-      ? `เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`
-      : 'ไม่สามารถลงเวลาได้ในขณะนี้';
+  // Get button text based on state
+  const getButtonText = () => {
+    if (isLoading) return 'กรุณารอสักครู่...';
+    if (!locationReady) return 'กำลังตรวจสอบตำแหน่ง...';
+    if (!checkInOutAllowance?.allowed) return 'ไม่สามารถลงเวลาได้ในขณะนี้';
+    return `เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`;
+  };
 
-  const statusText = checkInOutAllowance?.reason ? (
-    <div className="text-sm text-center mb-2 text-red-600">
-      {checkInOutAllowance.reason}
-    </div>
-  ) : null;
+  // Get status message if any
+  const getStatusMessage = () => {
+    if (!locationReady) return 'กำลังตรวจสอบตำแหน่งของคุณ';
+    return checkInOutAllowance?.reason || null;
+  };
+
+  const statusText = getStatusMessage();
 
   return (
     <div className="space-y-2">
-      {statusText}
+      {statusText && (
+        <div className="text-sm text-center mb-2 text-red-600">
+          {statusText}
+        </div>
+      )}
       <button
         onClick={() => onAction(isCheckingIn ? 'checkIn' : 'checkOut')}
-        disabled={
-          isLoading || !isActionButtonReady || !checkInOutAllowance?.allowed
-        }
+        disabled={!isButtonEnabled}
         className={buttonClass}
-        aria-label={buttonText}
+        aria-label={getButtonText()}
       >
-        {buttonText}
+        {getButtonText()}
       </button>
     </div>
   );

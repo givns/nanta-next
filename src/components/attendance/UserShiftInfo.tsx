@@ -16,6 +16,7 @@ interface UserShiftInfoProps {
   attendanceStatus: AttendanceStatusInfo | null;
   effectiveShift: ShiftData | null;
   isLoading: boolean;
+  locationReady?: boolean; // Add location ready state
 }
 
 const UserShiftInfo = React.memo(
@@ -24,13 +25,13 @@ const UserShiftInfo = React.memo(
     attendanceStatus,
     effectiveShift,
     isLoading,
+    locationReady = true, // Default to true for backward compatibility
   }: UserShiftInfoProps) => {
     const { message, color } = useMemo(
       () => getStatusMessage(attendanceStatus),
       [attendanceStatus],
     );
 
-    // Improve overtime calculations with safe type handling
     const { activeOvertimes, futureOvertimes } = useMemo(() => {
       if (!attendanceStatus?.overtimeAttendances?.length) {
         return { activeOvertimes: [], futureOvertimes: [] };
@@ -38,7 +39,6 @@ const UserShiftInfo = React.memo(
 
       const today = format(new Date(), 'yyyy-MM-dd');
 
-      // Safe date parsing
       const processAttendances = attendanceStatus.overtimeAttendances.map(
         (ot) => {
           const date =
@@ -66,45 +66,47 @@ const UserShiftInfo = React.memo(
       };
     }, [attendanceStatus?.overtimeAttendances]);
 
-    // Render today's overtime separately
-    const renderTodayOvertime = (overtime: OvertimeAttendanceInfo) => (
-      <div
-        key={overtime.overtimeRequest.id}
-        className="mt-4 p-4 bg-yellow-50 rounded-lg"
-      >
-        <h4 className="text-md font-semibold mb-2 flex items-center">
-          <AlertCircle className="mr-2" size={18} />
-          {attendanceStatus?.isDayOff
-            ? 'การทำงานล่วงเวลาในวันหยุด'
-            : 'การทำงานล่วงเวลา'}
-        </h4>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-gray-600">เวลาที่อนุมัติ (OT)</p>
-            <p className="font-medium">
-              {overtime.overtimeRequest.startTime} -{' '}
-              {overtime.overtimeRequest.endTime}
-            </p>
+    const renderTodayOvertime = useCallback(
+      (overtime: OvertimeAttendanceInfo) => (
+        <div
+          key={overtime.overtimeRequest.id}
+          className="mt-4 p-4 bg-yellow-50 rounded-lg"
+        >
+          <h4 className="text-md font-semibold mb-2 flex items-center">
+            <AlertCircle className="mr-2" size={18} />
+            {attendanceStatus?.isDayOff
+              ? 'การทำงานล่วงเวลาในวันหยุด'
+              : 'การทำงานล่วงเวลา'}
+          </h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-gray-600">เวลาที่อนุมัติ (OT)</p>
+              <p className="font-medium">
+                {overtime.overtimeRequest.startTime} -{' '}
+                {overtime.overtimeRequest.endTime}
+              </p>
+            </div>
+            <div>
+              <p className="text-gray-600">เวลาทำงานจริง (OT)</p>
+              <p className="font-medium">
+                {overtime.attendanceTime?.checkInTime || 'ยังไม่ได้ลงเวลา'} -{' '}
+                {overtime.attendanceTime?.checkOutTime || 'ยังไม่สิ้นสุด'}
+              </p>
+              {overtime.periodStatus.isComplete && (
+                <div className="mt-2 text-sm text-green-600">
+                  ✓ การทำงานล่วงเวลา OT เสร็จสิ้น
+                </div>
+              )}
+            </div>
           </div>
-          <div>
-            <p className="text-gray-600">เวลาทำงานจริง (OT)</p>
-            <p className="font-medium">
-              {overtime.attendanceTime?.checkInTime || 'ยังไม่ได้ลงเวลา'} -{' '}
-              {overtime.attendanceTime?.checkOutTime || 'ยังไม่สิ้นสุด'}
-            </p>
-            {overtime.periodStatus.isComplete && (
-              <div className="mt-2 text-sm text-green-600">
-                ✓ การทำงานล่วงเวลา OT เสร็จสิ้น
-              </div>
-            )}
-          </div>
+          {overtime.periodStatus.isActive && (
+            <div className="mt-2 text-sm text-blue-600">
+              * กำลังอยู่ในช่วงเวลาทำงานล่วงเวลา OT
+            </div>
+          )}
         </div>
-        {overtime.periodStatus.isActive && (
-          <div className="mt-2 text-sm text-blue-600">
-            * กำลังอยู่ในช่วงเวลาทำงานล่วงเวลา OT
-          </div>
-        )}
-      </div>
+      ),
+      [attendanceStatus?.isDayOff],
     );
 
     const renderTodayInfo = useMemo(() => {
@@ -198,11 +200,20 @@ const UserShiftInfo = React.memo(
               </div>
             </div>
           )}
+
+          {/* Location Status */}
+          {!locationReady && (
+            <div className="mt-2 p-3 bg-yellow-50 rounded-lg">
+              <p className="text-yellow-700 flex items-center">
+                <AlertCircle className="mr-2" size={16} />
+                กำลังตรวจสอบตำแหน่งของคุณ...
+              </p>
+            </div>
+          )}
         </div>
       );
-    }, [attendanceStatus, effectiveShift]);
+    }, [attendanceStatus, effectiveShift, locationReady]);
 
-    // Render future shift adjustments
     const renderFutureInfo = useMemo(() => {
       const futureShiftAdjustments =
         attendanceStatus?.futureShifts?.filter(
@@ -217,7 +228,6 @@ const UserShiftInfo = React.memo(
 
       return (
         <div className="space-y-4">
-          {/* Render future shift adjustments */}
           {futureShiftAdjustments.map((adjustment, index) => (
             <div
               key={`shift-${adjustment.date}-${index}`}
@@ -254,7 +264,6 @@ const UserShiftInfo = React.memo(
               </div>
             </div>
           ))}
-          {/* Render future overtimes */}
           {futureOts.map((overtime, index) => (
             <div
               key={`overtime-${overtime.id || index}`}

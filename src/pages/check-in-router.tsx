@@ -5,13 +5,9 @@ import { UserData } from '@/types/user';
 import {
   AttendanceStatusInfo,
   CheckInOutAllowance,
-  LocationState,
-  PeriodType,
   StatusChangeParams,
   ShiftData,
-  CheckStatus,
-  AttendanceState,
-  EarlyCheckoutType,
+  PeriodType,
 } from '@/types/attendance';
 import { CacheManager } from '@/services/CacheManager';
 import Clock from '@/components/Clock';
@@ -32,64 +28,40 @@ const CheckInOutForm = dynamic(
 
 const ErrorBoundary = dynamic(() => import('../components/ErrorBoundary'));
 
-interface CheckInOutFormProps {
-  userData: UserData;
-  cachedAttendanceStatus: AttendanceStatusInfo | null;
-  liveAttendanceStatus: AttendanceStatusInfo | null;
-  isCheckingIn: boolean;
-  effectiveShift: ShiftData | null;
-  isAttendanceLoading: boolean;
-  checkInOutAllowance: CheckInOutAllowance | null;
-  getCurrentLocation: () => void;
-  refreshAttendanceStatus: (forceRefresh: boolean) => Promise<void>;
-  onStatusChange: (params: StatusChangeParams) => Promise<void>;
-  onCloseWindow: () => void;
-}
-
 const CheckInRouter: React.FC = () => {
-  // Hooks
+  // Core hooks
   const { lineUserId, isInitialized, error: liffError } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
   const { toast } = useToast();
 
-  // State
+  // Local state
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [cachedAttendanceStatus, setCachedAttendanceStatus] =
     useState<AttendanceStatusInfo | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [locationState, setLocationState] = useState<LocationState | null>(
-    null,
-  );
+  const [isUserDataLoading, setIsUserDataLoading] = useState(true);
 
+  // Debug logging
   useEffect(() => {
-    console.log('Hook states:', {
+    console.log('Prerequisites state:', {
       lineUserId,
       isInitialized,
       authLoading,
       hasUserData: !!userData,
+      isUserDataLoading,
     });
-  }, [lineUserId, isInitialized, authLoading, userData]);
+  }, [lineUserId, isInitialized, authLoading, userData, isUserDataLoading]);
 
+  // Fetch user data
   useEffect(() => {
     let isMounted = true;
 
-    const fetchInitialData = async () => {
-      if (!lineUserId || authLoading || !isInitialized) {
-        console.log('Waiting for prerequisites:', {
-          lineUserId,
-          authLoading,
-          isInitialized,
-        });
-        return;
-      }
-
-      console.log('Starting initial data fetch');
-      setIsLoading(true);
+    const fetchUserData = async () => {
+      if (!lineUserId || authLoading || !isInitialized) return;
 
       try {
+        setIsUserDataLoading(true);
         const response = await fetch('/api/user-data', {
           headers: { 'x-line-userid': lineUserId },
         });
@@ -100,30 +72,31 @@ const CheckInRouter: React.FC = () => {
         if (!isMounted) return;
 
         if (data?.user) {
-          console.log('User data received, setting state');
+          console.log('User data received:', data.user);
           setUserData(data.user);
-          setIsLoading(false);
         }
       } catch (error) {
-        console.error('Error fetching initial data:', error);
+        console.error('Error fetching user data:', error);
+        setError('Failed to fetch user data');
+      } finally {
         if (isMounted) {
-          setError('Failed to fetch initial data');
-          setIsLoading(false);
+          setIsUserDataLoading(false);
         }
       }
     };
 
-    fetchInitialData();
+    fetchUserData();
     return () => {
       isMounted = false;
     };
   }, [lineUserId, authLoading, isInitialized]);
 
-  // Initialize attendance data only after user data is ready
+  // Initialize attendance tracking
   const {
     attendanceStatus,
     effectiveShift,
-    isLoading: isAttendanceLoading = true, // Provide default value
+    isLoading: isAttendanceLoading,
+    locationReady,
     error: attendanceError,
     inPremises,
     address,
@@ -136,56 +109,25 @@ const CheckInRouter: React.FC = () => {
     lineUserId,
     initialAttendanceStatus: cachedAttendanceStatus,
     enabled: Boolean(
-      !authLoading && isInitialized && userData?.employeeId && !isLoading,
+      userData?.employeeId && !isUserDataLoading && !authLoading,
     ),
   });
 
-  // Add early state validation
-  const isCheckingIn = useMemo(
-    () => attendanceStatus?.isCheckingIn ?? true,
-    [attendanceStatus],
-  );
-
-  useEffect(() => {
-    if (attendanceError) {
-      const handleError = async () => {
-        console.error('Attendance error:', attendanceError);
-
-        // Only invalidate cache and retry if we have user data
-        if (userData?.employeeId) {
-          try {
-            await CacheManager.invalidateCache(
-              'attendance',
-              userData.employeeId,
-            );
-            await refreshAttendanceStatus({ forceRefresh: true });
-          } catch (retryError) {
-            console.error('Error recovery failed:', retryError);
-            setFormError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
-          }
-        }
-      };
-
-      handleError();
-    }
-  }, [attendanceError, userData?.employeeId, refreshAttendanceStatus]);
-
-  // Update isDataReady check
+  // Determine if all data is ready
   const isDataReady = useMemo(() => {
     const ready = Boolean(
       userData?.employeeId &&
         !authLoading &&
-        isInitialized &&
-        !isLoading && // Check our loading state
-        isAttendanceLoading !== undefined && // Add this check
+        !isUserDataLoading &&
+        locationReady &&
         !isAttendanceLoading,
     );
 
     console.log('Data ready check:', {
       hasEmployeeId: Boolean(userData?.employeeId),
       authLoading,
-      isInitialized,
-      isLoading,
+      isUserDataLoading,
+      locationReady,
       isAttendanceLoading,
       isReady: ready,
     });
@@ -194,13 +136,13 @@ const CheckInRouter: React.FC = () => {
   }, [
     userData?.employeeId,
     authLoading,
-    isInitialized,
-    isLoading,
+    isUserDataLoading,
+    locationReady,
     isAttendanceLoading,
   ]);
 
-  // Handle status change
-  const handleStatusChange = useCallback<CheckInOutFormProps['onStatusChange']>(
+  // Handle status changes
+  const handleStatusChange = useCallback(
     async (params: StatusChangeParams) => {
       if (!userData?.employeeId || !checkInOutAllowance || !address) {
         const error = new Error('Missing required data. Please try again.');
@@ -246,94 +188,58 @@ const CheckInRouter: React.FC = () => {
   );
 
   // Handle refresh
-  const handleRefresh = useCallback<
-    CheckInOutFormProps['refreshAttendanceStatus']
-  >(
-    async (forceRefresh: boolean) => {
-      if (isRefreshing) return;
+  const handleRefresh = useCallback(async () => {
+    if (!userData?.employeeId) return;
 
-      try {
-        setIsRefreshing(true);
-        if (!userData?.employeeId) return;
+    try {
+      await Promise.all([
+        CacheManager.invalidateCache('attendance', userData.employeeId),
+        CacheManager.invalidateCache('user', userData.employeeId),
+        CacheManager.invalidateCache('shift', userData.employeeId),
+      ]);
 
-        await Promise.all([
-          CacheManager.invalidateCache('attendance', userData.employeeId),
-          CacheManager.invalidateCache('user', userData.employeeId),
-          CacheManager.invalidateCache('shift', userData.employeeId),
-        ]);
-        await refreshAttendanceStatus({ forceRefresh: true });
+      await refreshAttendanceStatus({ forceRefresh: true });
+      toast({
+        title: 'รีเฟรชข้อมูลสำเร็จ',
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Refresh failed:', error);
+      setFormError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+      toast({
+        variant: 'destructive',
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+      });
+    }
+  }, [userData?.employeeId, refreshAttendanceStatus, toast]);
 
-        toast({
-          title: 'รีเฟรชข้อมูลสำเร็จ',
-          duration: 2000,
-        });
-      } catch (error) {
-        console.error('Refresh failed:', error);
-        setFormError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
-        toast({
-          variant: 'destructive',
-          title: 'เกิดข้อผิดพลาด',
-          description: 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
-        });
-      } finally {
-        setIsRefreshing(false);
-      }
-    },
-    [userData, refreshAttendanceStatus, toast, isRefreshing],
-  );
+  // Handle close
+  const handleCloseWindow = useCallback(() => {
+    closeWindow();
+  }, []);
 
-  useEffect(() => {
-    const logError = (error: Error) => {
+  // Error boundary handler
+  const handleError = useCallback(
+    (error: Error) => {
       console.error('CheckInRouter error:', {
         message: error.message,
         stack: error.stack,
         userData: userData?.employeeId,
-        isInitialized,
-        authLoading,
       });
-    };
-
-    window.addEventListener('error', (event) => logError(event.error));
-    window.addEventListener('unhandledrejection', (event) =>
-      logError(event.reason),
-    );
-
-    return () => {
-      window.removeEventListener('error', (event) => logError(event.error));
-      window.removeEventListener('unhandledrejection', (event) =>
-        logError(event.reason),
-      );
-    };
-  }, [userData, isInitialized, authLoading]);
-
-  const handleError = useCallback(
-    (error: Error) => {
-      console.error('Error in CheckInRouter:', error);
       setFormError(error.message);
-      // Attempt recovery
-      if (userData?.employeeId) {
-        Promise.all([
-          CacheManager.invalidateCache('attendance', userData.employeeId),
-          CacheManager.invalidateCache('user', userData.employeeId),
-          CacheManager.invalidateCache('shift', userData.employeeId),
-        ]).then(() => {
-          setIsLoading(false);
-        });
-      }
     },
     [userData?.employeeId],
   );
 
-  // Handlers
-  const handleCloseWindow = useCallback<
-    CheckInOutFormProps['onCloseWindow']
-  >(() => {
-    closeWindow();
-  }, []);
-
-  // Loading states
+  // Loading state
   if (authLoading || !isInitialized) {
-    return <LoadingBar />;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <LoadingBar />
+        <p className="mt-4 text-gray-600">กำลังตรวจสอบสิทธิ์...</p>
+      </div>
+    );
   }
 
   // Error states
@@ -359,6 +265,7 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
+  // Main render
   return (
     <ErrorBoundary onError={handleError}>
       <div className="main-container flex flex-col min-h-screen bg-gray-100">
@@ -393,38 +300,44 @@ const CheckInRouter: React.FC = () => {
             </div>
           )}
 
-          <ErrorBoundary
-            onError={(error: Error) => {
-              console.error('Error in CheckInOutForm:', error);
-              setFormError(error.message);
-            }}
-          >
-            <div className="flex items-center justify-center h-full">
-              {isDataReady ? (
-                userData && effectiveShift ? (
-                  <CheckInOutForm
-                    userData={userData}
-                    cachedAttendanceStatus={cachedAttendanceStatus}
-                    liveAttendanceStatus={attendanceStatus}
-                    isCheckingIn={isCheckingIn}
-                    effectiveShift={effectiveShift}
-                    isAttendanceLoading={isAttendanceLoading}
-                    checkInOutAllowance={checkInOutAllowance}
-                    getCurrentLocation={getCurrentLocation}
-                    refreshAttendanceStatus={handleRefresh}
-                    onStatusChange={handleStatusChange}
-                    onCloseWindow={handleCloseWindow}
-                  />
-                ) : (
-                  <div>Loading shift data...</div>
-                )
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <LoadingBar />
-                </div>
-              )}
-            </div>
-          </ErrorBoundary>
+          <div className="flex items-center justify-center h-full">
+            {!isDataReady ? (
+              <div className="flex flex-col items-center space-y-4">
+                <LoadingBar />
+                <p className="text-gray-600">
+                  {isUserDataLoading
+                    ? 'กำลังโหลดข้อมูลผู้ใช้...'
+                    : !locationReady
+                      ? 'กำลังตรวจสอบตำแหน่ง...'
+                      : 'กำลังโหลดข้อมูล...'}
+                </p>
+              </div>
+            ) : userData && effectiveShift ? (
+              <CheckInOutForm
+                userData={userData}
+                cachedAttendanceStatus={cachedAttendanceStatus}
+                liveAttendanceStatus={attendanceStatus}
+                isCheckingIn={attendanceStatus?.isCheckingIn ?? true}
+                effectiveShift={effectiveShift}
+                isAttendanceLoading={isAttendanceLoading}
+                checkInOutAllowance={checkInOutAllowance}
+                getCurrentLocation={getCurrentLocation}
+                refreshAttendanceStatus={handleRefresh}
+                onStatusChange={handleStatusChange}
+                onCloseWindow={handleCloseWindow}
+              />
+            ) : (
+              <div className="text-center">
+                <p className="text-gray-600">ไม่พบข้อมูลกะการทำงาน</p>
+                <button
+                  onClick={handleRefresh}
+                  className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  ลองใหม่อีกครั้ง
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </ErrorBoundary>

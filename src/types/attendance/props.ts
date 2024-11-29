@@ -66,16 +66,16 @@ export interface UseSimpleAttendanceState {
   attendanceStatus: AttendanceStatusInfo | null;
   state: AttendanceState;
   checkStatus: CheckStatus;
-  overtimeState?: OvertimeState;
   effectiveShift: ShiftData | null;
   currentPeriod: CurrentPeriodInfo | null;
   inPremises: boolean;
   address: string;
   isLoading: boolean;
-  isLocationLoading: boolean;
+  isLocationLoading?: boolean;
   error: string | null;
   checkInOutAllowance: CheckInOutAllowance | null;
 }
+
 export interface CheckInOutData {
   employeeId: string;
   lineUserId: string | null;
@@ -110,6 +110,7 @@ export interface UseSimpleAttendanceActions {
     mutate: KeyedMutator<UseSimpleAttendanceState>;
   };
   getCurrentLocation: () => Promise<void>;
+  locationReady: boolean;
 }
 
 export type UseSimpleAttendanceReturn = UseSimpleAttendanceState &
