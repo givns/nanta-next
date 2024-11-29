@@ -64,7 +64,62 @@ const CheckInRouter: React.FC = () => {
     null,
   );
 
-  // Attendance hook
+  useEffect(() => {
+    console.log('Hook states:', {
+      lineUserId,
+      isInitialized,
+      authLoading,
+      hasUserData: !!userData,
+    });
+  }, [lineUserId, isInitialized, authLoading, userData]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchInitialData = async () => {
+      if (!lineUserId || authLoading || !isInitialized) {
+        console.log('Waiting for prerequisites:', {
+          lineUserId,
+          authLoading,
+          isInitialized,
+        });
+        return;
+      }
+
+      console.log('Starting initial data fetch');
+      setIsLoading(true);
+
+      try {
+        const response = await fetch('/api/user-data', {
+          headers: { 'x-line-userid': lineUserId },
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch user data');
+        const data = await response.json();
+
+        if (!isMounted) return;
+
+        if (data?.user) {
+          console.log('User data received, setting state');
+          setUserData(data.user);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        if (isMounted) {
+          setError('Failed to fetch initial data');
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchInitialData();
+    return () => {
+      isMounted = false;
+    };
+  }, [lineUserId, authLoading, isInitialized]);
+
+  // Initialize attendance data only after user data is ready
   const {
     attendanceStatus,
     effectiveShift,
@@ -81,7 +136,7 @@ const CheckInRouter: React.FC = () => {
     lineUserId,
     initialAttendanceStatus: cachedAttendanceStatus,
     enabled: Boolean(
-      userData?.employeeId && lineUserId && locationState?.address,
+      !authLoading && isInitialized && userData?.employeeId && !isLoading,
     ),
   });
 
@@ -109,12 +164,13 @@ const CheckInRouter: React.FC = () => {
     }
   }, [attendanceError, userData?.employeeId, refreshAttendanceStatus]);
 
-  // In check-in-router.tsx
+  // Update isDataReady check
   const isDataReady = useMemo(() => {
     const ready = Boolean(
       userData?.employeeId &&
         !authLoading &&
         isInitialized &&
+        !isLoading && // Check our loading state
         !isAttendanceLoading,
     );
 
@@ -122,79 +178,19 @@ const CheckInRouter: React.FC = () => {
       hasEmployeeId: Boolean(userData?.employeeId),
       authLoading,
       isInitialized,
+      isLoading,
       isAttendanceLoading,
       isReady: ready,
     });
 
     return ready;
-  }, [userData?.employeeId, authLoading, isInitialized, isAttendanceLoading]);
-
-  // Initial data fetch
-  // In check-in-router.tsx
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchInitialData = async () => {
-      if (!lineUserId) {
-        setError('LINE User ID not available');
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/user-data', {
-          headers: { 'x-line-userid': lineUserId },
-        });
-
-        if (!response.ok) throw new Error('Failed to fetch user data');
-        const data = await response.json();
-
-        if (!isMounted) return;
-
-        if (data?.user) {
-          setUserData(data.user);
-          // Only start attendance fetch after we have user data
-          if (!isAttendanceLoading) {
-            try {
-              const attendanceResponse = await fetch('/api/attendance-status', {
-                headers: {
-                  'x-line-userid': lineUserId,
-                  'x-employee-id': data.user.employeeId,
-                },
-              });
-              if (!attendanceResponse.ok) {
-                throw new Error('Failed to fetch attendance status');
-              }
-              const attendanceData = await attendanceResponse.json();
-
-              if (isMounted) {
-                setCachedAttendanceStatus(attendanceData);
-              }
-            } catch (error) {
-              console.error('Error fetching attendance:', error);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching initial data:', error);
-        if (isMounted) {
-          setError('Failed to fetch initial data');
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    if (!userData && !isLoading) {
-      fetchInitialData();
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [lineUserId, isAttendanceLoading, userData, isLoading]);
+  }, [
+    userData?.employeeId,
+    authLoading,
+    isInitialized,
+    isLoading,
+    isAttendanceLoading,
+  ]);
 
   // Handle status change
   const handleStatusChange = useCallback<CheckInOutFormProps['onStatusChange']>(
