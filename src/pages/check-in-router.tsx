@@ -123,7 +123,7 @@ const CheckInRouter: React.FC = () => {
   const {
     attendanceStatus,
     effectiveShift,
-    isLoading: isAttendanceLoading,
+    isLoading: isAttendanceLoading = true, // Provide default value
     error: attendanceError,
     inPremises,
     address,
@@ -139,6 +139,12 @@ const CheckInRouter: React.FC = () => {
       !authLoading && isInitialized && userData?.employeeId && !isLoading,
     ),
   });
+
+  // Add early state validation
+  const isCheckingIn = useMemo(
+    () => attendanceStatus?.isCheckingIn ?? true,
+    [attendanceStatus],
+  );
 
   useEffect(() => {
     if (attendanceError) {
@@ -171,6 +177,7 @@ const CheckInRouter: React.FC = () => {
         !authLoading &&
         isInitialized &&
         !isLoading && // Check our loading state
+        isAttendanceLoading !== undefined && // Add this check
         !isAttendanceLoading,
     );
 
@@ -399,7 +406,7 @@ const CheckInRouter: React.FC = () => {
                     userData={userData}
                     cachedAttendanceStatus={cachedAttendanceStatus}
                     liveAttendanceStatus={attendanceStatus}
-                    isCheckingIn={attendanceStatus?.isCheckingIn ?? true}
+                    isCheckingIn={isCheckingIn}
                     effectiveShift={effectiveShift}
                     isAttendanceLoading={isAttendanceLoading}
                     checkInOutAllowance={checkInOutAllowance}
