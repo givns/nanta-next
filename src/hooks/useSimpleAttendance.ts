@@ -153,6 +153,8 @@ export const useSimpleAttendance = ({
     },
   );
 
+  console.log('data', data);
+
   const checkInOut = useCallback(
     async (data: CheckInOutData): Promise<ProcessingResult> => {
       let retryCount = 0;

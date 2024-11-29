@@ -113,6 +113,17 @@ const CheckInRouter: React.FC = () => {
     ),
   });
 
+  console.log('Attendance status:', {
+    attendanceStatus,
+    effectiveShift,
+    isAttendanceLoading,
+    locationReady,
+    attendanceError,
+    inPremises,
+    address,
+    checkInOutAllowance,
+  });
+
   // Determine if all data is ready
   const isDataReady = useMemo(() => {
     const ready = Boolean(
