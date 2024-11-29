@@ -15,6 +15,7 @@ import {
   PeriodType,
   LocationState,
 } from '@/types/attendance';
+import { CacheManager } from '@/services/CacheManager';
 
 type FetcherArgs = [url: string, employeeId: string, location: LocationState];
 type TimeoutType = ReturnType<typeof setTimeout>;
@@ -119,9 +120,14 @@ export const useSimpleAttendance = ({
 
         return response.data;
       } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.status === 503) {
-          // Location validation failed, refresh location
-          await getCurrentLocation(true);
+        // Return cached data on error if available
+        const cachedStatus = await CacheManager.getStatus(id);
+        if (cachedStatus) {
+          return {
+            attendanceStatus: cachedStatus,
+            state: cachedStatus.state,
+            checkStatus: cachedStatus.checkStatus,
+          };
         }
         throw error;
       }
@@ -157,6 +163,7 @@ export const useSimpleAttendance = ({
             checkInOutAllowance: null,
           }
         : undefined,
+      keepPreviousData: true,
     },
   );
 
