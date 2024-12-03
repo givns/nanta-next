@@ -54,7 +54,10 @@ export default async function handler(
     // Verify user and shift existence first
     const user = await prisma.user.findUnique({
       where: { employeeId },
-      include: { shiftCode: true } as any, // Add 'shiftCode' to the include property
+      select: {
+        employeeId: true,
+        shiftCode: true,
+      },
     });
 
     if (!user) {
