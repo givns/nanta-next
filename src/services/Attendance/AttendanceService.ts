@@ -152,6 +152,8 @@ export class AttendanceService {
         flags: {
           isLateCheckIn: false,
           isEarlyCheckOut: false,
+          isPlannedHalfDayLeave: false,
+          isEmergencyLeave: false,
           isOvertime: false,
           requireConfirmation: false,
         },
@@ -171,6 +173,8 @@ export class AttendanceService {
       flags: {
         isLateCheckIn: Boolean(allowance.flags.isLateCheckIn),
         isEarlyCheckOut: Boolean(allowance.flags.isEarlyCheckOut),
+        isPlannedHalfDayLeave: Boolean(allowance.flags.isPlannedHalfDayLeave),
+        isEmergencyLeave: Boolean(allowance.flags.isEmergencyLeave),
         isOvertime: Boolean(allowance.flags.isOvertime),
         requireConfirmation: false, // Default value since it's not in allowance flags
       },
