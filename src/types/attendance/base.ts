@@ -3,6 +3,8 @@
 // Core type definitions and enums
 // ===================================
 
+import { AttendanceState, CheckStatus } from './status';
+
 // Core interfaces - Keep
 export interface BaseEntity {
   id: string;
@@ -22,11 +24,41 @@ export interface Location {
 }
 
 export interface LocationState {
+  status: 'initializing' | 'loading' | 'ready' | 'error';
   inPremises: boolean;
   address: string;
-  confidence: 'high' | 'medium' | 'low';
-  coordinates?: { lat: number; lng: number };
-  accuracy?: number;
+  confidence: 'high' | 'medium' | 'low' | 'manual';
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  error: string | null;
+}
+
+export interface AttendanceCore {
+  state: AttendanceState;
+  checkStatus: CheckStatus;
+  isCheckingIn: boolean;
+  latestAttendance?: {
+    regularCheckInTime?: Date;
+    regularCheckOutTime?: Date;
+    isLateCheckIn?: boolean;
+    isOvertime?: boolean;
+  };
+}
+
+export interface AttendanceBaseResponse {
+  state: AttendanceState;
+  checkStatus: CheckStatus;
+  isCheckingIn: boolean;
+  latestAttendance?: {
+    regularCheckInTime?: Date;
+    regularCheckOutTime?: Date;
+    overtimeCheckInTime?: Date;
+    overtimeCheckOutTime?: Date;
+    isLateCheckIn?: boolean;
+    isOvertime?: boolean;
+  };
 }
 
 export interface AddressInput {
@@ -76,3 +108,9 @@ export const ATTENDANCE_CONSTANTS = {
   VERY_LATE_THRESHOLD: 30, // 30 minutes
   AUTO_CHECKOUT_WINDOW: 60, // 60 minutes
 } as const;
+
+export const LOCATION_CONSTANTS = {
+  REFRESH_INTERVAL: 30000, // 30 seconds
+  STALE_THRESHOLD: 60000, // 1 minute
+  CACHE_TIME: 30000, // 30 seconds
+};

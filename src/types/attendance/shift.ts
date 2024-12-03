@@ -1,6 +1,3 @@
-import { BaseEntity } from './base';
-import { ApprovalStatus } from './status';
-
 export interface ShiftData {
   id: string;
   name: string;
@@ -10,19 +7,46 @@ export interface ShiftData {
   workDays: number[];
 }
 
+export interface EffectiveShift {
+  current: ShiftData;
+  regular: ShiftData;
+  isAdjusted: boolean;
+  adjustment?: ShiftAdjustment | null;
+}
+
 export interface ShiftWindows {
-  shiftStart: Date;
-  shiftEnd: Date;
+  start: Date;
+  end: Date;
   earlyWindow: Date;
   lateWindow: Date;
   overtimeWindow: Date;
 }
 
-export interface ShiftAdjustment extends BaseEntity {
+export interface ShiftAdjustment {
+  id: string;
+  employeeId: string;
+  updatedAt: Date;
   requestedShiftId: string;
-  requestedShift: ShiftData;
-  status: ApprovalStatus;
+  date: Date;
   reason: string;
+  status: string;
+  createdAt: Date;
+  requestedShift: {
+    id: string;
+    name: string;
+    shiftCode: string;
+    startTime: string;
+    endTime: string;
+    workDays: number[];
+  };
+}
+
+export interface ShiftStatus {
+  isOutsideShift: boolean;
+  isLate: boolean;
+  isDayOff: boolean;
+  isHoliday: boolean;
+  isOvertime: boolean;
 }
 
 export interface ShiftAdjustmentInfo {

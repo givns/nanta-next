@@ -25,8 +25,6 @@ import { ShiftManagementService } from './ShiftManagementService/ShiftManagement
 import { HolidayService } from './HolidayService';
 import { LeaveServiceServer } from './LeaveServiceServer';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
-import { key } from 'localforage';
-import { type } from 'os';
 
 // Cache key generation
 const generateCacheKey = {

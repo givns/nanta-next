@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '@/services/Attendance/AttendanceService';
-import { initializeServices } from '../../services/ServiceInitializer';
+import { initializeServices } from '../../../services/ServiceInitializer';
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
 import { CACHE_CONSTANTS } from '@/types/attendance/base';

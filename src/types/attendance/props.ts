@@ -1,11 +1,15 @@
 import {
   AttendanceFilters,
+  AttendanceResponse,
+  AttendanceStateResponse,
   CheckInOutAllowance,
   DailyAttendanceRecord,
   DepartmentInfo,
   EarlyCheckoutType,
   ManualEntryRequest,
   ShiftData,
+  UserData,
+  ValidationResponse,
 } from '../attendance';
 import { ProcessingResult } from './processing';
 import {
@@ -13,11 +17,10 @@ import {
   AttendanceStatusInfo,
   CheckStatus,
   CurrentPeriodInfo,
-  OvertimeState,
   PeriodType,
 } from './status';
 import { KeyedMutator } from 'swr';
-import { Location } from './base';
+import { Location, LocationState } from './base';
 
 export interface StatusChangeParams {
   isCheckingIn: boolean;
@@ -29,14 +32,14 @@ export interface StatusChangeParams {
   earlyCheckoutType?: EarlyCheckoutType;
 }
 
-export interface UseAttendanceProps {
+export interface UseDailyAttendanceProps {
   lineUserId: string | null;
   initialDate?: Date | string;
   initialDepartment?: string;
   initialSearchTerm?: string;
   enabled?: boolean;
 }
-export interface UseAttendanceReturn {
+export interface UseDailyAttendanceReturn {
   records: DailyAttendanceRecord[];
   filteredRecords: DailyAttendanceRecord[];
   departments: DepartmentInfo[];
@@ -57,8 +60,8 @@ export interface AttendanceControlProps {
 
 export interface UseSimpleAttendanceProps {
   employeeId?: string;
-  lineUserId: string | null;
-  initialAttendanceStatus: AttendanceStatusInfo | null;
+  lineUserId?: string | null; // Changed to allow null
+  initialAttendanceStatus?: AttendanceStateResponse | null; // Changed to match API response
   enabled?: boolean;
 }
 
@@ -66,12 +69,12 @@ export interface UseSimpleAttendanceState {
   attendanceStatus: AttendanceStatusInfo | null;
   state: AttendanceState;
   checkStatus: CheckStatus;
-  effectiveShift: ShiftData | null;
+  effectiveShift: ShiftData;
   currentPeriod: CurrentPeriodInfo | null;
+  locationReady: boolean; // Added missing property
   inPremises: boolean;
   address: string;
   isLoading: boolean;
-  isLocationLoading?: boolean;
   error: string | null;
   checkInOutAllowance: CheckInOutAllowance | null;
 }
@@ -99,22 +102,70 @@ export interface CheckInOutData {
   };
 }
 
+export interface CheckInOutFormProps {
+  userData: UserData;
+  onComplete?: () => void;
+}
+
+export interface ProcessingViewProps {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  message: string;
+  onRetry: () => void;
+}
+
+export interface ActionButtonProps {
+  isEnabled: boolean;
+  isLoading: boolean;
+  checkInOutAllowance: ValidationResponse | null;
+  isCheckingIn: boolean;
+  locationReady: boolean;
+  onAction: () => void; // Changed type
+}
+
 export interface UseSimpleAttendanceActions {
   // Updated to use CheckInOutData instead of ProcessingOptions
-  checkInOut: (data: CheckInOutData) => Promise<ProcessingResult>;
+  checkInOut: (params: CheckInOutData) => Promise<ProcessingResult>;
   refreshAttendanceStatus: {
     (options?: {
       forceRefresh?: boolean;
       throwOnError?: boolean;
     }): Promise<void>;
-    mutate: KeyedMutator<UseSimpleAttendanceState>;
+    mutate: KeyedMutator<AttendanceResponse>;
   };
-  getCurrentLocation: () => Promise<void>;
-  locationReady: boolean;
+  getCurrentLocation: (forceRefresh?: boolean) => Promise<LocationState>;
 }
 
-export type UseSimpleAttendanceReturn = UseSimpleAttendanceState &
-  UseSimpleAttendanceActions;
+export interface UseSimpleAttendanceReturn {
+  // Core attendance states
+  state: AttendanceState;
+  checkStatus: CheckStatus;
+  isCheckingIn: boolean;
+
+  // Shift and period info
+  effectiveShift: ShiftData | null;
+  currentPeriod: CurrentPeriodInfo | null;
+  validation: ValidationResponse | null;
+
+  // Location states
+  locationReady: boolean;
+  locationState: LocationState;
+  isLocationLoading: boolean;
+
+  // Loading/Error states
+  isLoading: boolean;
+  error: string | null;
+
+  // Actions
+  checkInOut: (params: CheckInOutData) => Promise<ProcessingResult>;
+  refreshAttendanceStatus: {
+    (options?: {
+      forceRefresh?: boolean;
+      throwOnError?: boolean;
+    }): Promise<void>;
+    mutate: KeyedMutator<AttendanceStateResponse>;
+  };
+  getCurrentLocation: () => Promise<LocationState>;
+}
 
 export interface ManualEntryFormData {
   date: string;

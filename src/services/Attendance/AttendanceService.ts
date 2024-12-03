@@ -8,6 +8,11 @@ import {
   ProcessingResult,
   CheckInOutAllowance,
   AttendanceStatusInfo,
+  PeriodType,
+  AttendanceBaseResponse,
+  CheckStatus,
+  ValidationResponse,
+  AttendanceState,
 } from '../../types/attendance';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
@@ -15,11 +20,32 @@ import { LeaveServiceServer } from '../LeaveServiceServer';
 import { HolidayService } from '../HolidayService';
 import { NotificationService } from '../NotificationService';
 import { TimeEntryService } from '../TimeEntryService';
+import { getCacheData, setCacheData } from '@/lib/serverCache';
+import { getCurrentTime } from '@/utils/dateUtils';
+import { startOfDay, endOfDay } from 'date-fns';
+
+interface ValidationResult {
+  allowed: boolean;
+  reason: string;
+  periodType: PeriodType;
+  flags: {
+    isLateCheckIn: boolean;
+    isEarlyCheckOut: boolean;
+    isOvertime: boolean;
+    isDayOffOvertime: boolean;
+    isInsideShift: boolean;
+  };
+  metadata?: {
+    overtimeId?: string;
+  };
+}
 
 export class AttendanceService {
   private readonly checkService: AttendanceCheckService;
   private readonly processingService: AttendanceProcessingService;
   private readonly statusService: AttendanceStatusService;
+  private readonly prisma: PrismaClient;
+  private readonly shiftService: ShiftManagementService;
 
   constructor(
     prisma: PrismaClient,
@@ -30,6 +56,8 @@ export class AttendanceService {
     notificationService: NotificationService,
     timeEntryService: TimeEntryService,
   ) {
+    this.prisma = prisma;
+    this.shiftService = shiftService;
     // Initialize specialized services
     this.processingService = new AttendanceProcessingService(
       prisma,
@@ -58,7 +86,105 @@ export class AttendanceService {
     );
   }
 
-  // Delegate to appropriate specialized service
+  private determineAttendanceState(attendance: any): AttendanceState {
+    if (!attendance?.regularCheckInTime) return AttendanceState.ABSENT;
+    if (!attendance.regularCheckOutTime) return AttendanceState.INCOMPLETE;
+    return attendance.isOvertime
+      ? AttendanceState.OVERTIME
+      : AttendanceState.PRESENT;
+  }
+
+  async getBaseStatus(employeeId: string): Promise<AttendanceBaseResponse> {
+    const cacheKey = `attendance:status:${employeeId}`;
+    const cached = await getCacheData(cacheKey);
+    if (cached) return JSON.parse(cached);
+
+    const attendance = await this.prisma.attendance.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(new Date()),
+          lt: endOfDay(new Date()),
+        },
+      },
+      select: {
+        regularCheckInTime: true,
+        regularCheckOutTime: true,
+        isLateCheckIn: true,
+        isOvertime: true,
+        state: true,
+        checkStatus: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const result: AttendanceBaseResponse = {
+      state: this.determineAttendanceState(attendance),
+      checkStatus:
+        (attendance?.checkStatus as CheckStatus) || CheckStatus.PENDING,
+      isCheckingIn: !attendance?.regularCheckInTime,
+      latestAttendance: attendance
+        ? {
+            regularCheckInTime: attendance.regularCheckInTime || undefined,
+            regularCheckOutTime: attendance.regularCheckOutTime || undefined,
+            isLateCheckIn: attendance.isLateCheckIn || false,
+            isOvertime: attendance.isOvertime || false,
+          }
+        : undefined,
+    };
+
+    await setCacheData(cacheKey, JSON.stringify(result), 300);
+    return result;
+  }
+
+  async validateCheckInOut(
+    employeeId: string,
+    inPremises: boolean,
+    address: string,
+  ): Promise<ValidationResponse> {
+    const now = getCurrentTime();
+
+    const window = await this.shiftService.getCurrentWindow(employeeId, now);
+    if (!window) {
+      return {
+        allowed: false,
+        reason: 'No active window found',
+        flags: {
+          isLateCheckIn: false,
+          isEarlyCheckOut: false,
+          isOvertime: false,
+          requireConfirmation: false,
+        },
+      };
+    }
+
+    // Delegate to checkService for detailed validation
+    const allowance = await this.checkService.isCheckInOutAllowed(
+      employeeId,
+      inPremises,
+      address,
+    );
+
+    return {
+      allowed: allowance.allowed,
+      reason: allowance.reason,
+      flags: {
+        isLateCheckIn: Boolean(allowance.flags.isLateCheckIn),
+        isEarlyCheckOut: Boolean(allowance.flags.isEarlyCheckOut),
+        isOvertime: Boolean(allowance.flags.isOvertime),
+        requireConfirmation: false, // Default value since it's not in allowance flags
+      },
+    };
+  }
+
+  private getDefaultFlags() {
+    return {
+      isLateCheckIn: false,
+      isEarlyCheckOut: false,
+      isOvertime: false,
+      requireConfirmation: false,
+    };
+  }
 
   async createInitialAttendanceStatus(
     userId: string,

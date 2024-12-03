@@ -22,7 +22,6 @@ import type { ZodIssue } from 'zod';
 const LOCK_TIMEOUT = 5; // 5 seconds
 const CACHE_TTL = 300; // 5 minutes
 const REQUEST_TIMEOUT = 5000; // 5 seconds
-const MAX_RETRIES = 2;
 
 // Request validation schema
 const RequestSchema = z.object({
@@ -342,6 +341,8 @@ const fetchAttendanceData = async (
       approvedOvertime: attendanceStatus?.approvedOvertime || null,
       leaveRequests: leaveRequests || [],
     };
+
+    console.log('Attendance data fetched:', responseData);
 
     // Handle check-in/out allowance separately
     try {

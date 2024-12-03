@@ -97,55 +97,6 @@ export class AttendanceStatusService {
     };
   }
 
-  public mapLegacyStatus(status: string | null): {
-    state: AttendanceState;
-    checkStatus: CheckStatus;
-    isOvertime: boolean;
-    overtimeState?: OvertimeState;
-  } {
-    // Default values
-    const defaultValues = {
-      state: AttendanceState.ABSENT,
-      checkStatus: CheckStatus.PENDING,
-      isOvertime: false,
-    };
-
-    if (!status) return defaultValues;
-
-    // Map legacy status to new format
-    switch (status) {
-      case 'present':
-        return {
-          state: AttendanceState.PRESENT,
-          checkStatus: CheckStatus.CHECKED_OUT,
-          isOvertime: false,
-        };
-      case 'checked-in':
-        return {
-          state: AttendanceState.PRESENT,
-          checkStatus: CheckStatus.CHECKED_IN,
-          isOvertime: false,
-        };
-      case 'overtime-started':
-        return {
-          state: AttendanceState.OVERTIME,
-          checkStatus: CheckStatus.CHECKED_IN,
-          isOvertime: true,
-          overtimeState: OvertimeState.IN_PROGRESS,
-        };
-      case 'overtime-ended':
-        return {
-          state: AttendanceState.OVERTIME,
-          checkStatus: CheckStatus.CHECKED_OUT,
-          isOvertime: true,
-          overtimeState: OvertimeState.COMPLETED,
-        };
-      // Add other mappings as needed
-      default:
-        return defaultValues;
-    }
-  }
-
   async getLatestAttendanceStatus(
     employeeId: string,
   ): Promise<AttendanceStatusInfo> {
@@ -324,8 +275,8 @@ export class AttendanceStatusService {
     // Get the basic shift window
     const shiftPeriod = shiftWindows
       ? {
-          start: shiftWindows.shiftStart,
-          end: shiftWindows.shiftEnd,
+          start: shiftWindows.start,
+          end: shiftWindows.end,
         }
       : {
           start: startOfDay(now),
@@ -341,8 +292,8 @@ export class AttendanceStatusService {
       };
     } else if (shiftWindows) {
       current = {
-        start: new Date(shiftWindows.shiftStart),
-        end: new Date(shiftWindows.shiftEnd),
+        start: new Date(shiftWindows.start),
+        end: new Date(shiftWindows.end),
       };
     } else {
       current = {

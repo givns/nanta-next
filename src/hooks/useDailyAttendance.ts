@@ -10,17 +10,17 @@ import {
   AttendanceState,
   DailyAttendanceRecord,
   PeriodType,
-  UseAttendanceProps,
-  UseAttendanceReturn,
+  UseDailyAttendanceProps,
+  UseDailyAttendanceReturn,
 } from '@/types/attendance';
 
-export function useAttendance({
+export function useDailyAttendance({
   lineUserId,
   initialDate = new Date(),
   initialDepartment = 'all',
   initialSearchTerm = '',
   enabled = true,
-}: UseAttendanceProps): UseAttendanceReturn {
+}: UseDailyAttendanceProps): UseDailyAttendanceReturn {
   // State declarations
   const [records, setRecords] = useState<DailyAttendanceRecord[]>([]);
   const [departments, setDepartments] = useState<DepartmentInfo[]>([]);

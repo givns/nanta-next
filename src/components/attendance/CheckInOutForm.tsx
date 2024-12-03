@@ -1,284 +1,99 @@
-//CheckInoutForm.tsx
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-  useMemo,
-} from 'react';
+// components/attendance/CheckInOutForm.tsx
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserData } from '@/types/user';
+import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
-import { FaceDetectionService } from '@/services/EnhancedFaceDetection';
-import SkeletonLoader from '../SkeletonLoader';
-import UserShiftInfo from './UserShiftInfo';
-import LateReasonModal from '../LateReasonModal';
-import ErrorBoundary from '../ErrorBoundary';
-import ActionButton from './ActionButton';
-import { formatDate, getCurrentTime } from '@/utils/dateUtils';
-import { format, isSameDay, parseISO } from 'date-fns';
-import CameraFrame from '../CameraFrame';
+import { getCurrentTime, formatDate } from '@/utils/dateUtils';
+import { UserShiftInfo } from './UserShiftInfo';
+import { ActionButton } from './ActionButton';
+import CameraFrame from './CameraFrame';
+import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
-import {
-  AttendanceStatusInfo,
-  CheckInOutAllowance,
-  EarlyCheckoutType,
-  ShiftData,
-} from '@/types/attendance';
+import { format, isSameDay, parseISO } from 'date-fns';
 
 interface CheckInOutFormProps {
   userData: UserData;
-  cachedAttendanceStatus: AttendanceStatusInfo | null;
-  liveAttendanceStatus: AttendanceStatusInfo | null;
-  isCheckingIn: boolean;
-  effectiveShift: ShiftData | null;
-  isAttendanceLoading: boolean;
-  checkInOutAllowance: CheckInOutAllowance | null;
-  getCurrentLocation: () => void;
-  refreshAttendanceStatus: (forceRefresh: boolean) => Promise<void>;
-  onStatusChange: (params: StatusChangeParams) => Promise<void>;
-  onCloseWindow: () => void;
+  onComplete?: () => void;
 }
 
-interface StatusChangeParams {
-  isCheckingIn: boolean;
-  photo: string;
-  lateReason?: string;
-  isLate?: boolean;
-  isOvertime?: boolean;
-  isEarlyCheckOut?: boolean;
-  earlyCheckoutType?: EarlyCheckoutType;
+type FormStep = 'info' | 'camera' | 'processing';
+
+interface ProcessingState {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  message: string;
 }
 
-const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
+export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
-  cachedAttendanceStatus,
-  liveAttendanceStatus,
-  isCheckingIn,
-  effectiveShift,
-  isAttendanceLoading,
-  checkInOutAllowance,
-  getCurrentLocation,
-  refreshAttendanceStatus,
-  onStatusChange,
-  onCloseWindow,
+  onComplete = closeWindow,
 }) => {
-  const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
+  // States
+  const [step, setStep] = useState<FormStep>('info');
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState(30);
-  const [isActionButtonReady, setIsActionButtonReady] = useState(false);
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
-  const currentAttendanceStatus = useMemo(
-    () => liveAttendanceStatus || cachedAttendanceStatus,
-    [liveAttendanceStatus, cachedAttendanceStatus],
-  );
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [loadingState, setLoadingState] = useState<{
-    status: 'idle' | 'loading' | 'submitting' | 'success' | 'error';
-    message: string;
-  }>({
+  const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
+    useState(false);
+  const [processingState, setProcessingState] = useState<ProcessingState>({
     status: 'idle',
     message: '',
   });
 
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
-    useState(false);
-  const submitTimeout = useRef<NodeJS.Timeout>();
-  const [isLoading, setIsLoading] = useState(false);
+  // Timeouts
+  const timerRef = useRef<NodeJS.Timeout>();
+  const [timeRemaining, setTimeRemaining] = useState(55);
 
-  useEffect(() => {
-    if (checkInOutAllowance !== null) {
-      setIsActionButtonReady(true);
-    }
-  }, [checkInOutAllowance]);
+  // Main attendance hook
+  const {
+    state,
+    checkStatus,
+    currentPeriod,
+    effectiveShift,
+    validation,
+    locationState,
+    locationReady,
+    isLoading,
+    error: attendanceError,
+    checkInOut,
+    refreshAttendanceStatus,
+    getCurrentLocation,
+  } = useSimpleAttendance({
+    employeeId: userData.employeeId,
+    lineUserId: userData.lineUserId,
+  });
 
-  useEffect(() => {
-    if (liveAttendanceStatus) {
-      console.log('Received attendanceStatus:', liveAttendanceStatus);
-      console.log(
-        'State Monitoring: isCheckingIn:',
-        liveAttendanceStatus.isCheckingIn,
-      );
-    }
-  }, [liveAttendanceStatus]);
-
-  useEffect(() => {
-    if (effectiveShift) {
-      console.log('Effective shift:', effectiveShift);
-    } else {
-      console.log('Effective shift is not available');
-    }
-  }, [effectiveShift]);
-
-  const resetStates = useCallback(() => {
-    setIsSubmitting(false);
-    setCapturedPhoto(null);
-    setError(null);
-    if (submitTimeoutRef.current) {
-      clearTimeout(submitTimeoutRef.current);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isSubmitting) {
-      submitTimeout.current = setTimeout(() => {
-        setError('Request took too long. Please check your attendance status.');
-        setIsSubmitting(false);
-      }, 32000); // Slightly longer than API timeout
-    }
-
-    return () => {
-      if (submitTimeout.current) {
-        clearTimeout(submitTimeout.current);
-      }
-    };
-  }, [isSubmitting, resetStates]);
-
-  const submitCheckInOut = useCallback(
-    async (photo: string, lateReason?: string) => {
-      if (isSubmitting) return;
-
-      try {
-        setIsSubmitting(true);
-        setStep('processing');
-        setLoadingState({
-          status: 'submitting',
-          message: 'กำลังประมวลผลการลงเวลา...',
-        });
-        setError(null);
-
-        const isLate = checkInOutAllowance?.flags.isLateCheckIn || false;
-        const isEarlyCheckOut =
-          checkInOutAllowance?.flags.isEarlyCheckOut || false;
-        let earlyCheckoutType: EarlyCheckoutType | undefined;
-
-        if (isEarlyCheckOut) {
-          if (checkInOutAllowance?.flags.isPlannedHalfDayLeave) {
-            earlyCheckoutType = 'planned';
-          } else if (checkInOutAllowance?.flags.isEmergencyLeave) {
-            earlyCheckoutType = 'emergency';
-          }
-        }
-
-        if (isLate && isCheckingIn && !lateReason) {
-          setIsLateModalOpen(true);
-          return;
-        }
-
-        // Initiate API call and get the promise
-        const apiCall = onStatusChange({
-          isCheckingIn: currentAttendanceStatus?.isCheckingIn ?? true,
-          photo,
-          lateReason: lateReason || '',
-          isLate,
-          isOvertime: checkInOutAllowance?.flags.isOvertime || false,
-          isEarlyCheckOut,
-          earlyCheckoutType,
-        });
-
-        // Set up a 500ms timer
-        const timer = new Promise((resolve) => setTimeout(resolve, 500));
-
-        try {
-          // Wait for either the API call to start sending or 500ms
-          // Using .catch here to handle API errors but continue execution
-          await Promise.race([
-            apiCall.catch((error) => {
-              console.error('Initial API error:', error);
-              // Return a resolved promise to continue execution
-              return Promise.resolve();
-            }),
-            timer,
-          ]);
-
-          // At this point, either the API has started or we've waited 500ms
-          closeWindow();
-
-          // Let the API call complete in the background
-          apiCall.catch((error) => {
-            console.error('Background API error:', error);
-          });
-        } catch (error) {
-          // This catch block should never be hit due to error handling above,
-          // but keeping it as a safety measure
-          console.error('Error during API initiation:', error);
-          closeWindow(); // Still close the window
-        }
-      } catch (error: any) {
-        // Handle setup errors (before API call)
-        console.error('Setup error:', error);
-        closeWindow();
-      }
-    },
-    [
-      checkInOutAllowance,
-      isCheckingIn,
-      currentAttendanceStatus,
-      onStatusChange,
-      isSubmitting,
-    ],
-  );
-
-  const handlePhotoCapture = useCallback(
-    async (photo: string) => {
-      console.log('Photo captured, proceeding with submission');
-      if (isSubmitting) {
-        console.log('Already submitting, skipping');
-        return;
-      }
-
-      // Stop camera/detection immediately
-      setStep('processing');
-      setCapturedPhoto(photo);
-
-      const isLate = checkInOutAllowance?.flags.isLateCheckIn || false;
-      const isRegularCheckInOut =
-        checkInOutAllowance?.periodType === 'regular' &&
-        !checkInOutAllowance?.flags.isOvertime;
-
-      // Handle late check-in case
-      if (isLate && isCheckingIn && isRegularCheckInOut) {
-        console.log('Late check-in detected, showing modal');
-        setIsLateModalOpen(true);
-        return;
-      }
-
-      try {
-        console.log('Processing regular check-in/out');
-        await submitCheckInOut(photo);
-      } catch (error) {
-        console.error('Error processing photo:', error);
-        setError('An error occurred. Please try again.');
-        setStep('info'); // Reset to info step on error
-      }
-    },
-    [isSubmitting, submitCheckInOut, checkInOutAllowance, isCheckingIn],
-  );
-
+  // Face detection setup
   const {
     webcamRef,
     isModelLoading,
     faceDetected,
     faceDetectionCount,
-    message,
+    message: detectionMessage,
     resetDetection,
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture);
 
-  // Add monitoring for critical state changes
+  // Initialize timer
   useEffect(() => {
-    console.log('State change monitoring:', {
-      step,
-      isLateModalOpen,
-      hasPhoto: !!capturedPhoto,
-      isLate: checkInOutAllowance?.flags.isLateCheckIn,
-      isCheckingIn,
-    });
-  }, [step, isLateModalOpen, capturedPhoto, checkInOutAllowance, isCheckingIn]);
+    if (step === 'info') {
+      timerRef.current = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            onComplete();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
 
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [step, onComplete]);
+
+  // Create sick leave request
   const createSickLeaveRequest = async (lineUserId: string, date: Date) => {
     const response = await fetch('/api/admin/leaves/create', {
       method: 'POST',
@@ -304,36 +119,9 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     return response.json();
   };
 
-  useEffect(() => {
-    if (step === 'info') {
-      setTimeRemaining(55);
-      timerRef.current = setInterval(() => {
-        setTimeRemaining((prevTime) => {
-          if (prevTime <= 1) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            onCloseWindow();
-            return 0;
-          }
-          return prevTime - 1;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [step, onCloseWindow]);
-
   const handleEmergencyLeave = async (now: Date) => {
     try {
-      setIsLoading(true);
+      setProcessingState((prev) => ({ ...prev, status: 'loading' }));
       if (userData?.lineUserId) {
         await createSickLeaveRequest(userData.lineUserId, now);
         return true;
@@ -344,17 +132,42 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
       return false;
     } finally {
-      setIsLoading(false);
+      setProcessingState((prev) => ({ ...prev, status: 'idle' }));
     }
   };
 
-  const handleCheckIn = () => {
-    setStep('camera');
+  const calculateShiftTimes = (now: Date) => {
+    if (!effectiveShift) return null;
+
+    const shiftStart = new Date(now);
+    const shiftEnd = new Date(now);
+
+    shiftStart.setHours(parseInt(effectiveShift.startTime.split(':')[0], 10));
+    shiftStart.setMinutes(parseInt(effectiveShift.startTime.split(':')[1], 10));
+
+    shiftEnd.setHours(parseInt(effectiveShift.endTime.split(':')[0], 10));
+    shiftEnd.setMinutes(parseInt(effectiveShift.endTime.split(':')[1], 10));
+
+    const midpoint = new Date((shiftStart.getTime() + shiftEnd.getTime()) / 2);
+
+    return { shiftStart, shiftEnd, midpoint };
+  };
+
+  const validateCheckOutConditions = async (now: Date) => {
+    const shiftTimes = calculateShiftTimes(now);
+    if (!shiftTimes) return { approved: false, hasApprovedLeave: false };
+
+    // Check for half-day leave
+    const approvedHalfDayLeave = validation?.flags.isPlannedHalfDayLeave;
+
+    return {
+      approved: true,
+      hasApprovedLeave: !!approvedHalfDayLeave,
+    };
   };
 
   const handleCheckOut = async () => {
     if (!effectiveShift) {
-      console.error('Effective shift is not available');
       setError('Unable to process check-out. Shift information is missing.');
       return;
     }
@@ -365,16 +178,15 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     if (!approved) return;
 
     // Handle early checkout cases
-    if (checkInOutAllowance?.flags.isEarlyCheckOut) {
+    if (validation?.flags.isEarlyCheckOut) {
       // Case 1: Pre-approved half-day leave
-      if (checkInOutAllowance.flags.isPlannedHalfDayLeave) {
+      if (validation.flags.isPlannedHalfDayLeave) {
         setStep('camera');
         return;
       }
 
       // Case 2: Emergency leave (before midshift)
-      if (checkInOutAllowance.flags.isEmergencyLeave && !hasApprovedLeave) {
-        // Single confirmation point for emergency leave
+      if (validation.flags.isEmergencyLeave && !hasApprovedLeave) {
         if (!isConfirmedEarlyCheckout) {
           const confirmed = window.confirm(
             'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
@@ -391,36 +203,83 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     setStep('camera');
   };
 
-  // Update handleAction to handle both cases consistently
-  const handleAction = useCallback(
-    async (action: 'checkIn' | 'checkOut') => {
-      console.log('handleAction details:', {
-        action,
-        checkInOutAllowance,
-        currentStep: step,
+  // Handle photo capture
+  async function handlePhotoCapture(photo: string) {
+    if (processingState.status === 'loading') return;
+
+    try {
+      setStep('processing');
+      setProcessingState({
+        status: 'loading',
+        message: 'กำลังประมวลผลการลงเวลา...',
       });
 
-      // Clear any existing errors
-      setError(null);
+      const isCheckingIn = !currentPeriod?.checkInTime;
+      const isLate = validation?.flags.isLateCheckIn;
 
-      // Clear timers
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+      // Handle late check-in
+      if (isCheckingIn && isLate && !validation?.flags.isOvertime) {
+        setIsLateModalOpen(true);
+        return;
       }
 
-      // Validate conditions
-      if (!checkInOutAllowance?.allowed) {
+      await handleAttendanceSubmit(photo);
+    } catch (error) {
+      setProcessingState({
+        status: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'เกิดข้อผิดพลาดในการบันทึกเวลา',
+      });
+      setStep('info');
+    }
+  }
+
+  // Handle attendance submission
+  const handleAttendanceSubmit = async (photo: string, lateReason?: string) => {
+    try {
+      await checkInOut({
+        photo,
+        checkTime: getCurrentTime().toISOString(),
+        isCheckIn: !currentPeriod?.checkInTime,
+        lateReason,
+        isOvertime: currentPeriod?.type === 'overtime',
+        overtimeId: currentPeriod?.overtimeId,
+        earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
+          ? 'planned'
+          : validation?.flags.isEmergencyLeave
+            ? 'emergency'
+            : undefined,
+      });
+
+      setProcessingState({
+        status: 'success',
+        message: 'บันทึกเวลาสำเร็จ',
+      });
+
+      // Delay before closing
+      setTimeout(onComplete, 1500);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Handle action button click
+  const handleAction = useCallback(
+    async (action: 'checkIn' | 'checkOut') => {
+      setError(null);
+
+      if (!validation?.allowed) {
         setError(
-          checkInOutAllowance?.reason ||
-            'Check-in/out is not allowed at this time.',
+          validation?.reason || 'Check-in/out is not allowed at this time.',
         );
         return;
       }
 
       try {
         if (action === 'checkIn') {
-          handleCheckIn();
+          setStep('camera');
         } else {
           await handleCheckOut();
         }
@@ -430,270 +289,107 @@ const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           message: error.message,
           stack: error.stack,
         });
-
         setError(
           error.message || 'An unexpected error occurred. Please try again.',
         );
-
-        // Reset to initial state on error
         setStep('info');
       }
     },
-    [checkInOutAllowance, handleCheckIn, handleCheckOut],
+    [validation, handleCheckOut],
   );
 
-  useEffect(() => {
-    // Cleanup function for webcam
-    const cleanupWebcam = () => {
-      if (webcamRef.current?.stream) {
-        const tracks = webcamRef.current.stream.getTracks();
-        tracks.forEach((track) => track.stop());
-      }
-    };
-
-    // If we're moving away from camera step, cleanup
-    if (step !== 'camera') {
-      cleanupWebcam();
-    }
-
-    // Cleanup on component unmount
-    return () => {
-      cleanupWebcam();
-    };
-  }, [step]);
-
-  // Update step change effect
-  useEffect(() => {
-    if (step === 'camera') {
-      console.log('Camera step entered');
-      setIsInitialized(true);
-      resetDetection();
-    } else {
-      setIsInitialized(false);
-    }
-  }, [step, resetDetection]);
-
-  const validateCheckOutConditions = async (now: Date) => {
-    // Calculate shift times
-    const shiftTimes = calculateShiftTimes(now);
-
-    // Check for half-day leave
-    const approvedHalfDayLeave = liveAttendanceStatus?.leaveRequests?.find(
-      (leave) =>
-        leave.status === 'Approved' &&
-        leave.leaveFormat === 'ลาครึ่งวัน' &&
-        isSameDay(parseISO(leave.startDate), now),
-    );
-
-    return {
-      shiftTimes,
-      approved: true,
-      hasApprovedLeave: !!approvedHalfDayLeave,
-    };
-  };
-
-  const calculateShiftTimes = (now: Date) => {
-    const shiftStart = new Date(now);
-    const shiftEnd = new Date(now);
-
-    shiftStart.setHours(parseInt(effectiveShift!.startTime.split(':')[0], 10));
-    shiftStart.setMinutes(
-      parseInt(effectiveShift!.startTime.split(':')[1], 10),
-    );
-
-    shiftEnd.setHours(parseInt(effectiveShift!.endTime.split(':')[0], 10));
-    shiftEnd.setMinutes(parseInt(effectiveShift!.endTime.split(':')[1], 10));
-
-    const midpoint = new Date((shiftStart.getTime() + shiftEnd.getTime()) / 2);
-
-    return { shiftStart, shiftEnd, midpoint };
-  };
-
-  const memoizedUserShiftInfo = useMemo(
-    () => (
-      <UserShiftInfo
-        userData={userData}
-        attendanceStatus={liveAttendanceStatus}
-        effectiveShift={effectiveShift}
-        isLoading={loadingState.status === 'loading'}
-      />
-    ),
-    [userData, liveAttendanceStatus, effectiveShift, loadingState.status],
-  );
-
-  // Add effect to monitor shift availability
-  useEffect(() => {
-    if (effectiveShift?.id) {
-      console.log('Effective shift loaded:', effectiveShift);
-      setIsActionButtonReady(true);
-    } else {
-      console.log('Waiting for shift data...');
-      setIsActionButtonReady(false);
-    }
-  }, [effectiveShift]);
-
-  const memoizedActionButton = useMemo(
-    () => (
-      <ActionButton
-        isLoading={isAttendanceLoading}
-        isActionButtonReady={isActionButtonReady}
-        checkInOutAllowance={checkInOutAllowance}
-        isCheckingIn={currentAttendanceStatus?.isCheckingIn ?? true}
-        isDayOff={currentAttendanceStatus?.isDayOff ?? false}
-        onAction={handleAction}
-      />
-    ),
-    [
-      isAttendanceLoading,
-      isActionButtonReady,
-      checkInOutAllowance,
-      currentAttendanceStatus,
-      handleAction,
-    ],
-  );
-
-  useEffect(() => {
-    if (isAttendanceLoading) {
-      setLoadingState({
-        status: 'loading',
-        message: 'กำลังตรวจสอบข้อมูลการลงเวลา...',
-      });
-    } else {
-      setLoadingState({
-        status: 'idle',
-        message: '',
-      });
-    }
-  }, [isAttendanceLoading]);
-
+  // Render processing view
   const renderProcessingView = () => (
-    <div className="flex flex-col items-center justify-center p-4">
-      {loadingState.status === 'submitting' && (
-        <>
-          <SkeletonLoader />
-          <p className="text-lg font-semibold mt-4">
-            {loadingState.message || 'กำลังประมวลผล...'}
-          </p>
-        </>
-      )}
+    <ProcessingView
+      status={processingState.status}
+      message={processingState.message}
+      onRetry={() => setStep('info')}
+    />
+  );
 
-      {loadingState.status === 'success' && (
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4">
-            <svg
-              className="w-full h-full text-green-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </div>
-          <p className="text-lg font-semibold">{loadingState.message}</p>
-          <p className="text-sm text-gray-500 mt-2">กำลังปิดหน้าต่าง...</p>
-        </div>
-      )}
-
-      {loadingState.status === 'error' && (
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4">
-            <svg
-              className="w-full h-full text-red-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </div>
-          <p className="text-lg font-semibold text-red-600">
-            {loadingState.message}
+  // Render camera view
+  const renderCameraView = () => (
+    <div className="fixed inset-0 z-50 bg-black">
+      {isModelLoading ? (
+        <div className="flex-grow flex flex-col items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+          <p className="mt-4 text-lg text-white">
+            กำลังโหลดระบบตรวจจับใบหน้า...
           </p>
-          <button
-            onClick={() => {
-              setLoadingState({ status: 'idle', message: '' });
-              setStep('camera');
-            }}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-          >
-            ลองใหม่อีกครั้ง
-          </button>
         </div>
+      ) : (
+        <CameraFrame
+          webcamRef={webcamRef}
+          faceDetected={faceDetected}
+          faceDetectionCount={faceDetectionCount}
+          message={detectionMessage}
+          captureThreshold={captureThreshold}
+        />
       )}
     </div>
   );
 
-  const renderContent = () => {
-    switch (step) {
-      case 'info':
-        return (
-          <div className="h-full flex flex-col">
-            <>{memoizedUserShiftInfo}</>
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
-              <div className="px-4 py-3 pb-safe">{memoizedActionButton}</div>
-            </div>
-          </div>
-        );
-
-      case 'camera':
-        return (
-          <div className="fixed inset-0 z-50 bg-black">
-            {isModelLoading ? (
-              <div className="flex-grow flex flex-col items-center justify-center h-full">
-                <SkeletonLoader />
-                <p className="mt-4 text-lg text-white">
-                  กำลังโหลดระบบตรวจจับใบหน้า...
-                </p>
-              </div>
-            ) : (
-              <CameraFrame
-                webcamRef={webcamRef}
-                faceDetected={faceDetected}
-                faceDetectionCount={faceDetectionCount}
-                message={message}
-                captureThreshold={captureThreshold}
-              />
-            )}
-          </div>
-        );
-
-      case 'processing':
-        return renderProcessingView();
-    }
-  };
+  // Error display
+  if (error || attendanceError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>{error || attendanceError}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
-    <ErrorBoundary>
-      <div
-        className={`min-h-screen flex flex-col relative ${step === 'camera' ? 'camera-active' : ''}`}
-      >
-        {renderContent()}
-        <LateReasonModal
-          isOpen={isLateModalOpen}
-          onClose={() => {
-            setIsLateModalOpen(false);
-            setLoadingState({ status: 'idle', message: '' });
-          }}
-          onSubmit={(lateReason) => {
-            if (capturedPhoto) {
-              submitCheckInOut(capturedPhoto, lateReason);
-            }
-            setIsLateModalOpen(false);
-          }}
-        />
-      </div>
-    </ErrorBoundary>
+    <div
+      className={`min-h-screen flex flex-col relative ${step === 'camera' ? 'camera-active' : ''}`}
+    >
+      {step === 'info' && (
+        <div className="h-full flex flex-col">
+          <UserShiftInfo
+            userData={userData}
+            status={{
+              state,
+              checkStatus,
+              currentPeriod,
+              isHoliday: effectiveShift?.isHoliday || false,
+              isDayOff: effectiveShift?.isDayOff || false,
+              isOvertime: currentPeriod?.type === 'overtime',
+            }}
+            effectiveShift={effectiveShift}
+            isLoading={isLoading}
+          />
+
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+            <div className="px-4 py-3 pb-safe">
+              <ActionButton
+                isEnabled={!!validation?.allowed}
+                isLoading={isLoading}
+                checkInOutAllowance={validation}
+                currentPeriod={currentPeriod}
+                onAction={handleAction}
+                locationReady={locationReady}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === 'camera' && renderCameraView()}
+      {step === 'processing' && renderProcessingView()}
+
+      <LateReasonModal
+        isOpen={isLateModalOpen}
+        onClose={() => setIsLateModalOpen(false)}
+        onSubmit={async (reason) => {
+          setIsLateModalOpen(false);
+          await handleAttendanceSubmit(
+            webcamRef.current?.getScreenshot() || '',
+            reason,
+          );
+        }}
+      />
+    </div>
   );
 };
 
-export default React.memo(CheckInOutForm);
+export default CheckInOutForm;

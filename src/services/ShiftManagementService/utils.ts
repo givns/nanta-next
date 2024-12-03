@@ -60,34 +60,4 @@ export class ShiftTimeUtils {
     const end = this.parseShiftTime(endTime, baseDate);
     return end <= start;
   }
-
-  static getWindowsForShift(
-    startTime: string,
-    endTime: string,
-    baseDate: Date,
-  ): ShiftWindows {
-    const shiftStart = this.parseShiftTime(startTime, baseDate);
-    let shiftEnd = this.parseShiftTime(endTime, baseDate);
-
-    if (shiftEnd < shiftStart) {
-      shiftEnd = addDays(shiftEnd, 1);
-    }
-
-    return {
-      shiftStart,
-      shiftEnd,
-      earlyWindow: subMinutes(
-        shiftStart,
-        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-      ),
-      lateWindow: addMinutes(
-        shiftStart,
-        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
-      ),
-      overtimeWindow: addMinutes(
-        shiftEnd,
-        ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
-      ),
-    };
-  }
 }

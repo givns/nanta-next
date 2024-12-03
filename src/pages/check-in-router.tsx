@@ -106,8 +106,7 @@ const CheckInRouter: React.FC = () => {
     getCurrentLocation,
   } = useSimpleAttendance({
     employeeId: userData?.employeeId,
-    lineUserId,
-    initialAttendanceStatus: cachedAttendanceStatus,
+    lineUserId, // lineUserId can now be null
     enabled: Boolean(
       userData?.employeeId && !isUserDataLoading && !authLoading,
     ),
@@ -324,19 +323,7 @@ const CheckInRouter: React.FC = () => {
                 </p>
               </div>
             ) : userData && effectiveShift ? (
-              <CheckInOutForm
-                userData={userData}
-                cachedAttendanceStatus={cachedAttendanceStatus}
-                liveAttendanceStatus={attendanceStatus}
-                isCheckingIn={attendanceStatus?.isCheckingIn ?? true}
-                effectiveShift={effectiveShift}
-                isAttendanceLoading={isAttendanceLoading}
-                checkInOutAllowance={checkInOutAllowance}
-                getCurrentLocation={getCurrentLocation}
-                refreshAttendanceStatus={handleRefresh}
-                onStatusChange={handleStatusChange}
-                onCloseWindow={handleCloseWindow}
-              />
+              <CheckInOutForm userData={userData} />
             ) : (
               <div className="text-center">
                 <p className="text-gray-600">ไม่พบข้อมูลกะการทำงาน</p>
