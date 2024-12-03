@@ -1,4 +1,3 @@
-// pages/api/attendance/status/[employeeId].ts
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '@/services/Attendance/AttendanceService';
 import { initializeServices } from '@/services/ServiceInitializer';
@@ -52,6 +51,23 @@ export default async function handler(
   try {
     const now = getCurrentTime();
 
+    // Verify user and shift existence first
+    const user = await prisma.user.findUnique({
+      where: { employeeId },
+      include: { shiftCode: true } as any, // Add 'shiftCode' to the include property
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!user.shiftCode) {
+      return res.status(400).json({
+        error:
+          'Shift configuration error: No shift code assigned to user. Please contact HR.',
+      });
+    }
+
     // Get base attendance status and window in parallel
     const [status, window] = await Promise.all([
       attendanceService.getBaseStatus(employeeId),
@@ -59,7 +75,10 @@ export default async function handler(
     ]);
 
     if (!window) {
-      return res.status(404).json({ error: 'Shift window not found' });
+      return res.status(400).json({
+        error:
+          'Shift configuration error: Unable to calculate shift window. Please contact HR.',
+      });
     }
 
     // Only get validation if location is provided
@@ -81,7 +100,12 @@ export default async function handler(
       timestamp: now.toISOString(),
     });
   } catch (error) {
-    console.error('Attendance status error:', error);
+    console.error('Attendance status error:', {
+      error,
+      employeeId,
+      timestamp: new Date().toISOString(),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
 
     // Specific error handling
     if (error instanceof Error) {
@@ -94,6 +118,14 @@ export default async function handler(
       if (error.message.includes('permission')) {
         return res.status(403).json({ error: error.message });
       }
+      if (
+        error.message.includes('startTime') ||
+        error.message.includes('shift')
+      ) {
+        return res.status(400).json({
+          error: 'Shift configuration error. Please contact HR.',
+        });
+      }
     }
 
     // Generic error
@@ -101,11 +133,6 @@ export default async function handler(
       error: error instanceof Error ? error.message : 'Internal server error',
     });
   } finally {
-    // Ensure prisma disconnects
-    try {
-      await prisma.$disconnect();
-    } catch (error) {
-      console.error('Error disconnecting from database:', error);
-    }
+    await prisma.$disconnect();
   }
 }
