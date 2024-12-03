@@ -15,6 +15,11 @@ import type {
 const REQUEST_TIMEOUT = 30000;
 const MAX_RETRIES = 2;
 
+const defaultLatestAttendance = {
+  regularCheckInTime: null,
+  regularCheckOutTime: null,
+} as const;
+
 export function useAttendanceData({
   employeeId,
   lineUserId,
@@ -47,10 +52,22 @@ export function useAttendanceData({
           },
           timeout: REQUEST_TIMEOUT,
         });
-        return response.data;
+
+        const responseData = response.data;
+        return {
+          base: {
+            state: responseData.base?.state ?? 'absent',
+            checkStatus: responseData.base?.checkStatus ?? 'pending',
+            isCheckingIn: responseData.base?.isCheckingIn ?? true,
+            latestAttendance:
+              responseData.base?.latestAttendance ?? defaultLatestAttendance,
+          },
+          window: responseData.window,
+          validation: responseData.validation || null,
+          timestamp: responseData.timestamp || new Date().toISOString(),
+        } satisfies AttendanceStateResponse;
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 503) {
-          // Handle specific errors
           console.error('Service temporarily unavailable:', error);
         }
         throw error;
@@ -60,7 +77,20 @@ export function useAttendanceData({
       revalidateOnFocus: false,
       refreshInterval: 60000,
       dedupingInterval: 5000,
-      fallbackData: initialAttendanceStatus,
+      fallbackData: initialAttendanceStatus
+        ? {
+            ...initialAttendanceStatus,
+            base: {
+              ...initialAttendanceStatus.base,
+              latestAttendance: {
+                ...initialAttendanceStatus.base?.latestAttendance,
+                regularCheckInTime:
+                  initialAttendanceStatus.base?.latestAttendance
+                    ?.regularCheckInTime ?? undefined,
+              },
+            },
+          }
+        : undefined,
     },
   );
 
@@ -125,7 +155,16 @@ export function useAttendanceData({
   );
 
   return {
-    data,
+    data: data
+      ? {
+          ...data,
+          base: {
+            ...data.base,
+            latestAttendance:
+              data.base?.latestAttendance ?? defaultLatestAttendance,
+          },
+        }
+      : undefined,
     error,
     isLoading: !data,
     refreshAttendanceStatus,

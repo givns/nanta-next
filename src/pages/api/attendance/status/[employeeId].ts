@@ -3,6 +3,8 @@ import { AttendanceService } from '@/services/Attendance/AttendanceService';
 import { initializeServices } from '@/services/ServiceInitializer';
 import {
   AttendanceBaseResponse,
+  AttendanceState,
+  CheckStatus,
   ShiftWindowResponse,
   ValidationResponse,
 } from '@/types/attendance';
@@ -72,10 +74,26 @@ export default async function handler(
     }
 
     // Get base attendance status and window in parallel
+
     const [status, window] = await Promise.all([
       attendanceService.getBaseStatus(employeeId),
       services.shiftService.getCurrentWindow(employeeId, now),
     ]);
+
+    // Ensure status has all required fields with defaults
+    const normalizedStatus: AttendanceBaseResponse = {
+      state: status?.state || AttendanceState.ABSENT,
+      checkStatus: status?.checkStatus || CheckStatus.PENDING,
+      isCheckingIn: status?.isCheckingIn ?? true,
+      latestAttendance: status?.latestAttendance || {
+        regularCheckInTime: undefined,
+        regularCheckOutTime: undefined,
+        overtimeCheckInTime: undefined,
+        overtimeCheckOutTime: undefined,
+        isLateCheckIn: false,
+        isOvertime: false,
+      },
+    };
 
     if (!window) {
       return res.status(400).json({
@@ -97,7 +115,7 @@ export default async function handler(
     res.setHeader('Cache-Control', 'private, max-age=30'); // 30 seconds
 
     return res.status(200).json({
-      status,
+      status: normalizedStatus,
       window,
       validation,
       timestamp: now.toISOString(),

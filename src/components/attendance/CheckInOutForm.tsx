@@ -377,8 +377,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       regularCheckOutTime: currentPeriod?.checkOutTime
         ? new Date(currentPeriod.checkOutTime)
         : undefined,
-      isLateCheckIn: validation?.flags.isLateCheckIn,
-      isOvertime: currentPeriod?.type === 'overtime',
+      isLateCheckIn: validation?.flags?.isLateCheckIn || false,
+      isOvertime: currentPeriod?.type === 'overtime' || false,
+      overtimeCheckInTime: undefined,
+      overtimeCheckOutTime: undefined,
     },
   };
 
