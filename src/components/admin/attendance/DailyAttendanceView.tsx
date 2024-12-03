@@ -1,7 +1,7 @@
 // components/admin/attendance/DailyAttendanceView.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { DailyAttendanceRecord, DateRange } from '@/types/attendance';
-import { useAttendance } from '@/hooks/useDailyAttendance';
+import { useDailyAttendance } from '@/hooks/useDailyAttendance';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateSelector } from './components/DateSelector';
 import { SearchFilters } from './components/SearchFilters';
@@ -109,7 +109,7 @@ export default function DailyAttendanceView() {
     filters,
     setFilters,
     refreshData,
-  } = useAttendance({
+  } = useDailyAttendance({
     lineUserId,
     initialDate: selectedDate,
     initialDepartment: 'all',

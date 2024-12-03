@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { UserData } from '@/types/user';
 import CheckInOutForm from '@/components/attendance/CheckInOutForm';
-import { closeWindow } from '@line/liff';
+import { closeWindow } from '@/services/liff';
 
 // Define a proper loading state interface
 interface LoadingState {
