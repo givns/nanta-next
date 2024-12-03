@@ -24,22 +24,6 @@ import { getCacheData, setCacheData } from '@/lib/serverCache';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { startOfDay, endOfDay } from 'date-fns';
 
-interface ValidationResult {
-  allowed: boolean;
-  reason: string;
-  periodType: PeriodType;
-  flags: {
-    isLateCheckIn: boolean;
-    isEarlyCheckOut: boolean;
-    isOvertime: boolean;
-    isDayOffOvertime: boolean;
-    isInsideShift: boolean;
-  };
-  metadata?: {
-    overtimeId?: string;
-  };
-}
-
 export class AttendanceService {
   private readonly checkService: AttendanceCheckService;
   private readonly processingService: AttendanceProcessingService;

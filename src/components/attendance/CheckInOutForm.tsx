@@ -11,22 +11,10 @@ import CameraFrame from './CameraFrame';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
 import {
-  AttendanceState,
-  CheckStatus,
   CurrentPeriodInfo,
-  LocationState,
-  ValidationResponse,
-  ShiftData,
-  CheckInOutData,
   PeriodType,
   AttendanceBaseResponse,
 } from '@/types/attendance';
-
-// Enhanced type definitions
-interface FormStep {
-  type: 'info' | 'camera' | 'processing';
-  data?: any;
-}
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -72,7 +60,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   // Refs
   const timerRef = useRef<NodeJS.Timeout>();
-  const [timeRemaining, setTimeRemaining] = useState(55);
 
   // Main attendance hook
   const {
@@ -82,11 +69,9 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     effectiveShift,
     validation,
     locationState,
-    locationReady,
     isLoading,
     error: attendanceError,
     checkInOut,
-    refreshAttendanceStatus,
   } = useSimpleAttendance({
     employeeId: userData.employeeId,
     lineUserId: userData.lineUserId,
@@ -99,21 +84,19 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     faceDetected,
     faceDetectionCount,
     message: detectionMessage,
-    resetDetection,
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture);
 
   // Timer effect
   useEffect(() => {
+    let timeRemaining = 55;
+
     if (step === 'info') {
       timerRef.current = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            onComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
+        timeRemaining -= 1;
+        if (timeRemaining <= 0) {
+          onComplete();
+        }
       }, 1000);
     }
 
@@ -158,83 +141,84 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }
 
   // Emergency leave handling
-  const createSickLeaveRequest = async (lineUserId: string, date: Date) => {
-    try {
-      setProcessingState((prev) => ({ ...prev, status: 'loading' }));
-      const response = await fetch('/api/admin/leaves/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          lineUserId,
-          leaveType: 'ลาป่วย',
-          leaveFormat: 'ลาเต็มวัน',
-          reason: 'ลาป่วยฉุกเฉิน',
-          startDate: formatDate(date),
-          endDate: formatDate(date),
-          fullDayCount: 1,
-          resubmitted: false,
-        }),
-      });
+  const createSickLeaveRequest = useCallback(
+    async (lineUserId: string, date: Date) => {
+      try {
+        setProcessingState((prev) => ({ ...prev, status: 'loading' }));
+        const response = await fetch('/api/admin/leaves/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lineUserId,
+            leaveType: 'ลาป่วย',
+            leaveFormat: 'ลาเต็มวัน',
+            reason: 'ลาป่วยฉุกเฉิน',
+            startDate: formatDate(date),
+            endDate: formatDate(date),
+            fullDayCount: 1,
+            resubmitted: false,
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to create sick leave request');
+        if (!response.ok) {
+          throw new Error('Failed to create sick leave request');
+        }
+
+        return response.json();
+      } catch (error) {
+        console.error('Emergency leave request creation failed:', error);
+        setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
+        return false;
+      } finally {
+        setProcessingState((prev) => ({ ...prev, status: 'idle' }));
       }
+    },
+    [],
+  );
 
-      return response.json();
-    } catch (error) {
-      console.error('Emergency leave request creation failed:', error);
-      setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
-      return false;
-    } finally {
-      setProcessingState((prev) => ({ ...prev, status: 'idle' }));
-    }
+  // Handle attendance submission
+  const handleAttendanceSubmit = async (photo: string, lateReason?: string) => {
+    const mappedConfidence: 'high' | 'medium' | 'low' =
+      locationState.confidence === 'manual' ? 'low' : locationState.confidence;
+
+    await checkInOut({
+      photo,
+      checkTime: getCurrentTime().toISOString(),
+      isCheckIn: !currentPeriod?.checkInTime,
+      reason: lateReason,
+      address: locationState.address,
+      isOvertime: currentPeriod?.type === 'overtime',
+      earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
+        ? 'planned'
+        : validation?.flags.isEmergencyLeave
+          ? 'emergency'
+          : undefined,
+      entryType: currentPeriod?.type || PeriodType.REGULAR,
+      confidence: mappedConfidence,
+      isLate: validation?.flags.isLateCheckIn,
+      metadata: {
+        overtimeId: currentPeriod?.overtimeId,
+      },
+      employeeId: '',
+      lineUserId: null,
+    });
+
+    setProcessingState({
+      status: 'success',
+      message: 'บันทึกเวลาสำเร็จ',
+    });
+
+    setTimeout(onComplete, 1500);
   };
 
-  // Shift time calculation
-  const calculateShiftTimes = (now: Date) => {
-    if (!effectiveShift) return null;
-
-    const shiftStart = new Date(now);
-    const shiftEnd = new Date(now);
-
-    shiftStart.setHours(parseInt(effectiveShift.startTime.split(':')[0], 10));
-    shiftStart.setMinutes(parseInt(effectiveShift.startTime.split(':')[1], 10));
-
-    shiftEnd.setHours(parseInt(effectiveShift.endTime.split(':')[0], 10));
-    shiftEnd.setMinutes(parseInt(effectiveShift.endTime.split(':')[1], 10));
-
-    const midpoint = new Date((shiftStart.getTime() + shiftEnd.getTime()) / 2);
-
-    return { shiftStart, shiftEnd, midpoint };
-  };
-
-  // Check out validation
-  const validateCheckOutConditions = async (now: Date) => {
-    const shiftTimes = calculateShiftTimes(now);
-    if (!shiftTimes) return { approved: false, hasApprovedLeave: false };
-
-    // Check for half-day leave
-    const approvedHalfDayLeave = validation?.flags.isPlannedHalfDayLeave;
-
-    return {
-      approved: true,
-      hasApprovedLeave: !!approvedHalfDayLeave,
-    };
-  };
-
-  // Enhanced handleCheckOut
-  const handleCheckOut = async () => {
+  // Handle check out
+  const handleCheckOut = useCallback(async () => {
     if (!effectiveShift) {
       setError('Unable to process check-out. Shift information is missing.');
       return;
     }
 
     const now = getCurrentTime();
-    const { approved, hasApprovedLeave } =
-      await validateCheckOutConditions(now);
-    if (!approved) return;
 
     // Handle early checkout cases
     if (validation?.flags.isEarlyCheckOut) {
@@ -245,7 +229,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
 
       // Case 2: Emergency leave (before midshift)
-      if (validation.flags.isEmergencyLeave && !hasApprovedLeave) {
+      if (validation.flags.isEmergencyLeave) {
         if (!isConfirmedEarlyCheckout) {
           const confirmed = window.confirm(
             'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
@@ -265,53 +249,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
 
     setStep('camera');
-  };
-
-  const handleAttendanceSubmit = async (photo: string, lateReason?: string) => {
-    try {
-      const mappedConfidence: 'high' | 'medium' | 'low' =
-        locationState.confidence === 'manual'
-          ? 'low'
-          : locationState.confidence;
-
-      const checkInOutData: CheckInOutData = {
-        employeeId: userData.employeeId,
-        lineUserId: userData.lineUserId,
-        photo,
-        checkTime: getCurrentTime().toISOString(),
-        isCheckIn: !currentPeriod?.checkInTime,
-        reason: lateReason,
-        address: locationState.address,
-        isOvertime: currentPeriod?.type === 'overtime',
-        earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
-          ? 'planned'
-          : validation?.flags.isEmergencyLeave
-            ? 'emergency'
-            : undefined,
-        entryType: currentPeriod?.type || PeriodType.REGULAR,
-        confidence: mappedConfidence,
-        isLate: validation?.flags.isLateCheckIn,
-        metadata: {
-          overtimeId: currentPeriod?.overtimeId,
-          isDayOffOvertime: false,
-          isInsideShiftHours: false,
-        },
-      };
-
-      await checkInOut(checkInOutData);
-
-      setProcessingState({
-        status: 'success',
-        message: 'บันทึกเวลาสำเร็จ',
-      });
-
-      setTimeout(onComplete, 1500);
-    } catch (error) {
-      throw error;
-    }
-  };
+  }, [
+    effectiveShift,
+    validation?.flags,
+    isConfirmedEarlyCheckout,
+    userData?.lineUserId,
+    createSickLeaveRequest,
+  ]);
 
   // Enhanced handleAction
+  // Handle action button click
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
       setError(null);
