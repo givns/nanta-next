@@ -1,3 +1,8 @@
+// hooks/useSimpleAttendance.ts
+import { useCallback, useEffect, useState } from 'react';
+import { useEnhancedLocation } from './useEnhancedLocation';
+import { useAttendanceData } from './useAttendanceData';
+import { KeyedMutator } from 'swr';
 import {
   UseSimpleAttendanceProps,
   UseSimpleAttendanceReturn,
@@ -6,9 +11,6 @@ import {
   CheckStatus,
   CurrentPeriodInfo,
 } from '@/types/attendance';
-import { useEnhancedLocation } from './useEnhancedLocation';
-import { useAttendanceData } from './useAttendanceData';
-import { KeyedMutator } from 'swr';
 
 export function useSimpleAttendance({
   employeeId,
@@ -16,8 +18,14 @@ export function useSimpleAttendance({
   initialAttendanceStatus,
   enabled = true,
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn {
-  const { locationState, locationReady, locationError, getCurrentLocation } =
-    useEnhancedLocation();
+  const [isInitializing, setIsInitializing] = useState(true);
+  const {
+    locationState,
+    locationReady,
+    locationError,
+    getCurrentLocation,
+    isLoading: locationLoading,
+  } = useEnhancedLocation();
 
   const {
     data,
@@ -31,12 +39,14 @@ export function useSimpleAttendance({
     lineUserId: lineUserId ?? undefined,
     locationState,
     initialAttendanceStatus: initialAttendanceStatus ?? undefined,
-    enabled,
+    enabled: enabled && locationReady,
   });
 
-  const enhancedRefreshStatus = Object.assign(refreshAttendanceStatus, {
-    mutate: mutate as KeyedMutator<AttendanceStateResponse>,
-  });
+  useEffect(() => {
+    if (data && isInitializing) {
+      setIsInitializing(false);
+    }
+  }, [data, isInitializing]);
 
   // Create current period info from window data
   const currentPeriod: CurrentPeriodInfo | null = data?.window
@@ -50,6 +60,10 @@ export function useSimpleAttendance({
       }
     : null;
 
+  const enhancedRefreshStatus = Object.assign(refreshAttendanceStatus, {
+    mutate: mutate as KeyedMutator<AttendanceStateResponse>,
+  });
+
   return {
     state: data?.base.state || AttendanceState.ABSENT,
     checkStatus: data?.base.checkStatus || CheckStatus.PENDING,
@@ -57,8 +71,8 @@ export function useSimpleAttendance({
     effectiveShift: data?.window?.shift || null,
     currentPeriod,
     validation: data?.validation || null,
-    isLoading: !locationReady || isAttendanceLoading,
-    isLocationLoading: !locationReady,
+    isLoading: isInitializing || locationLoading || isAttendanceLoading,
+    isLocationLoading: locationLoading,
     error: attendanceError?.message || locationError,
     locationReady,
     locationState,

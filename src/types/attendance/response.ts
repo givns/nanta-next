@@ -151,6 +151,8 @@ export interface ValidationResponse {
   flags: {
     isLateCheckIn: boolean;
     isEarlyCheckOut: boolean;
+    isPlannedHalfDayLeave: boolean;
+    isEmergencyLeave: boolean;
     isOvertime: boolean;
     requireConfirmation: boolean;
   };

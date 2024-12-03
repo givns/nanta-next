@@ -18,14 +18,18 @@ export function useEnhancedLocation() {
     promise: Promise<any> | null;
     timestamp: number;
     data: LocationState | null;
+    retryCount: number;
   }>({
     promise: null,
     timestamp: 0,
     data: null,
+    retryCount: 0,
   });
 
   const getCurrentLocation = useCallback(async (forceRefresh = false) => {
     const now = Date.now();
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000;
 
     // Return cached location if valid
     if (
@@ -59,9 +63,19 @@ export function useEnhancedLocation() {
       setLocationState(newLocationState);
       locationRef.current.data = newLocationState;
       locationRef.current.timestamp = now;
+      locationRef.current.retryCount = 0;
 
       return newLocationState;
     } catch (error) {
+      // Implement retry logic
+      if (locationRef.current.retryCount < MAX_RETRIES) {
+        locationRef.current.retryCount++;
+        await new Promise((resolve) =>
+          setTimeout(resolve, RETRY_DELAY * locationRef.current.retryCount),
+        );
+        return getCurrentLocation(forceRefresh);
+      }
+
       const errorState: LocationState = {
         status: 'error',
         inPremises: false,
@@ -77,7 +91,23 @@ export function useEnhancedLocation() {
   }, []);
 
   useEffect(() => {
-    getCurrentLocation();
+    let mounted = true;
+
+    const initLocation = async () => {
+      try {
+        if (mounted) {
+          await getCurrentLocation();
+        }
+      } catch (error) {
+        console.error('Failed to initialize location:', error);
+      }
+    };
+
+    initLocation();
+
+    return () => {
+      mounted = false;
+    };
   }, [getCurrentLocation]);
 
   return {
@@ -85,5 +115,8 @@ export function useEnhancedLocation() {
     locationReady: locationState.status === 'ready',
     locationError: locationState.error,
     getCurrentLocation,
+    isLoading:
+      locationState.status === 'loading' ||
+      locationState.status === 'initializing',
   };
 }

@@ -82,19 +82,16 @@ export interface UseSimpleAttendanceState {
 export interface CheckInOutData {
   employeeId: string;
   lineUserId: string | null;
+  photo: string;
+  checkTime: string;
   isCheckIn: boolean;
-  checkTime: string | Date;
-  location?: Location;
-  address: string;
   reason?: string;
-  photo?: string;
-  isLate?: boolean;
+  address: string;
   isOvertime?: boolean;
-  isEarlyCheckOut?: boolean;
-  earlyCheckoutType?: EarlyCheckoutType;
-  isManualEntry?: boolean;
+  earlyCheckoutType?: 'planned' | 'emergency';
   entryType: PeriodType;
   confidence: 'high' | 'medium' | 'low';
+  isLate?: boolean;
   metadata?: {
     overtimeId?: string;
     isDayOffOvertime?: boolean;
@@ -115,11 +112,14 @@ export interface ProcessingViewProps {
 
 export interface ActionButtonProps {
   isEnabled: boolean;
-  isLoading: boolean;
-  checkInOutAllowance: ValidationResponse | null;
+  validationMessage?: string;
   isCheckingIn: boolean;
-  locationReady: boolean;
-  onAction: () => void; // Changed type
+  onAction: () => void;
+  className?: string;
+  locationState: {
+    isReady: boolean;
+    error?: string;
+  };
 }
 
 export interface UseSimpleAttendanceActions {
@@ -177,4 +177,43 @@ export interface ManualEntryFormData {
   overtimeRequestId?: string; // Added for overtime entries
   overtimeStartTime?: string; // Added for overtime entries
   overtimeEndTime?: string; // Added for overtime entries
+}
+
+export interface CheckInOutParams {
+  photo: string;
+  checkTime: string;
+  isCheckIn: boolean;
+  reason?: string;
+  isOvertime?: boolean;
+  overtimeId?: string;
+  earlyCheckoutType?: 'planned' | 'emergency';
+  lateReason?: string;
+}
+
+export interface UserShiftInfoProps {
+  userData: UserData;
+  status: {
+    state: AttendanceState;
+    checkStatus: CheckStatus;
+    isCheckingIn: boolean;
+    currentPeriod: CurrentPeriodInfo | null;
+    isHoliday: boolean;
+    isDayOff: boolean;
+    isOvertime: boolean;
+    latestAttendance?: {
+      regularCheckInTime?: Date;
+      regularCheckOutTime?: Date;
+      overtimeCheckInTime?: Date;
+      overtimeCheckOutTime?: Date;
+      isLateCheckIn?: boolean;
+      isOvertime?: boolean;
+    };
+  };
+  effectiveShift: ShiftData | null; // Add this line
+  isLoading?: boolean;
+}
+
+export interface ProcessingState {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  message: string;
 }

@@ -1,36 +1,66 @@
-// components/attendance/CheckInOutForm.tsx
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserData } from '@/types/user';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
-import { getCurrentTime, formatDate } from '@/utils/dateUtils';
+import { formatDate, getCurrentTime } from '@/utils/dateUtils';
 import { UserShiftInfo } from './UserShiftInfo';
 import { ActionButton } from './ActionButton';
 import CameraFrame from './CameraFrame';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
-import { format, isSameDay, parseISO } from 'date-fns';
+import {
+  AttendanceState,
+  CheckStatus,
+  CurrentPeriodInfo,
+  LocationState,
+  ValidationResponse,
+  ShiftData,
+  CheckInOutData,
+  PeriodType,
+  AttendanceBaseResponse,
+} from '@/types/attendance';
 
-interface CheckInOutFormProps {
-  userData: UserData;
-  onComplete?: () => void;
+// Enhanced type definitions
+interface FormStep {
+  type: 'info' | 'camera' | 'processing';
+  data?: any;
 }
-
-type FormStep = 'info' | 'camera' | 'processing';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
   message: string;
 }
 
+// Update UserShiftInfoStatus to match AttendanceBaseResponse
+interface UserShiftInfoStatus
+  extends Omit<AttendanceBaseResponse, 'latestAttendance'> {
+  currentPeriod: CurrentPeriodInfo | null;
+  isHoliday: boolean;
+  isDayOff: boolean;
+  isOvertime: boolean;
+  latestAttendance?: {
+    regularCheckInTime?: Date;
+    regularCheckOutTime?: Date;
+    overtimeCheckInTime?: Date;
+    overtimeCheckOutTime?: Date;
+    isLateCheckIn?: boolean;
+    isOvertime?: boolean;
+  };
+}
+
+interface CheckInOutFormProps {
+  userData: UserData;
+  onComplete?: () => void;
+}
+
 export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
   onComplete = closeWindow,
 }) => {
-  // States
-  const [step, setStep] = useState<FormStep>('info');
+  // Core states
+  const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [error, setError] = useState<string | null>(null);
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
   const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
@@ -40,7 +70,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     message: '',
   });
 
-  // Timeouts
+  // Refs
   const timerRef = useRef<NodeJS.Timeout>();
   const [timeRemaining, setTimeRemaining] = useState(55);
 
@@ -57,7 +87,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     error: attendanceError,
     checkInOut,
     refreshAttendanceStatus,
-    getCurrentLocation,
   } = useSimpleAttendance({
     employeeId: userData.employeeId,
     lineUserId: userData.lineUserId,
@@ -74,7 +103,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     captureThreshold,
   } = useFaceDetection(5, handlePhotoCapture);
 
-  // Initialize timer
+  // Timer effect
   useEffect(() => {
     if (step === 'info') {
       timerRef.current = setInterval(() => {
@@ -89,119 +118,11 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
   }, [step, onComplete]);
-
-  // Create sick leave request
-  const createSickLeaveRequest = async (lineUserId: string, date: Date) => {
-    const response = await fetch('/api/admin/leaves/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        lineUserId,
-        leaveType: 'ลาป่วย',
-        leaveFormat: 'ลาเต็มวัน',
-        reason: 'ลาป่วยฉุกเฉิน',
-        startDate: formatDate(date),
-        endDate: formatDate(date),
-        fullDayCount: 1,
-        resubmitted: false,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to create sick leave request');
-    }
-
-    return response.json();
-  };
-
-  const handleEmergencyLeave = async (now: Date) => {
-    try {
-      setProcessingState((prev) => ({ ...prev, status: 'loading' }));
-      if (userData?.lineUserId) {
-        await createSickLeaveRequest(userData.lineUserId, now);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Emergency leave request creation failed:', error);
-      setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
-      return false;
-    } finally {
-      setProcessingState((prev) => ({ ...prev, status: 'idle' }));
-    }
-  };
-
-  const calculateShiftTimes = (now: Date) => {
-    if (!effectiveShift) return null;
-
-    const shiftStart = new Date(now);
-    const shiftEnd = new Date(now);
-
-    shiftStart.setHours(parseInt(effectiveShift.startTime.split(':')[0], 10));
-    shiftStart.setMinutes(parseInt(effectiveShift.startTime.split(':')[1], 10));
-
-    shiftEnd.setHours(parseInt(effectiveShift.endTime.split(':')[0], 10));
-    shiftEnd.setMinutes(parseInt(effectiveShift.endTime.split(':')[1], 10));
-
-    const midpoint = new Date((shiftStart.getTime() + shiftEnd.getTime()) / 2);
-
-    return { shiftStart, shiftEnd, midpoint };
-  };
-
-  const validateCheckOutConditions = async (now: Date) => {
-    const shiftTimes = calculateShiftTimes(now);
-    if (!shiftTimes) return { approved: false, hasApprovedLeave: false };
-
-    // Check for half-day leave
-    const approvedHalfDayLeave = validation?.flags.isPlannedHalfDayLeave;
-
-    return {
-      approved: true,
-      hasApprovedLeave: !!approvedHalfDayLeave,
-    };
-  };
-
-  const handleCheckOut = async () => {
-    if (!effectiveShift) {
-      setError('Unable to process check-out. Shift information is missing.');
-      return;
-    }
-
-    const now = getCurrentTime();
-    const { approved, hasApprovedLeave } =
-      await validateCheckOutConditions(now);
-    if (!approved) return;
-
-    // Handle early checkout cases
-    if (validation?.flags.isEarlyCheckOut) {
-      // Case 1: Pre-approved half-day leave
-      if (validation.flags.isPlannedHalfDayLeave) {
-        setStep('camera');
-        return;
-      }
-
-      // Case 2: Emergency leave (before midshift)
-      if (validation.flags.isEmergencyLeave && !hasApprovedLeave) {
-        if (!isConfirmedEarlyCheckout) {
-          const confirmed = window.confirm(
-            'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
-          );
-          if (!confirmed) return;
-          setIsConfirmedEarlyCheckout(true);
-        }
-
-        const leaveCreated = await handleEmergencyLeave(now);
-        if (!leaveCreated) return;
-      }
-    }
-
-    setStep('camera');
-  };
 
   // Handle photo capture
   async function handlePhotoCapture(photo: string) {
@@ -236,36 +157,161 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
   }
 
-  // Handle attendance submission
+  // Emergency leave handling
+  const createSickLeaveRequest = async (lineUserId: string, date: Date) => {
+    try {
+      setProcessingState((prev) => ({ ...prev, status: 'loading' }));
+      const response = await fetch('/api/admin/leaves/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          lineUserId,
+          leaveType: 'ลาป่วย',
+          leaveFormat: 'ลาเต็มวัน',
+          reason: 'ลาป่วยฉุกเฉิน',
+          startDate: formatDate(date),
+          endDate: formatDate(date),
+          fullDayCount: 1,
+          resubmitted: false,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create sick leave request');
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Emergency leave request creation failed:', error);
+      setError('การสร้างใบลาป่วยล้มเหลว กรุณาติดต่อฝ่ายบุคคล');
+      return false;
+    } finally {
+      setProcessingState((prev) => ({ ...prev, status: 'idle' }));
+    }
+  };
+
+  // Shift time calculation
+  const calculateShiftTimes = (now: Date) => {
+    if (!effectiveShift) return null;
+
+    const shiftStart = new Date(now);
+    const shiftEnd = new Date(now);
+
+    shiftStart.setHours(parseInt(effectiveShift.startTime.split(':')[0], 10));
+    shiftStart.setMinutes(parseInt(effectiveShift.startTime.split(':')[1], 10));
+
+    shiftEnd.setHours(parseInt(effectiveShift.endTime.split(':')[0], 10));
+    shiftEnd.setMinutes(parseInt(effectiveShift.endTime.split(':')[1], 10));
+
+    const midpoint = new Date((shiftStart.getTime() + shiftEnd.getTime()) / 2);
+
+    return { shiftStart, shiftEnd, midpoint };
+  };
+
+  // Check out validation
+  const validateCheckOutConditions = async (now: Date) => {
+    const shiftTimes = calculateShiftTimes(now);
+    if (!shiftTimes) return { approved: false, hasApprovedLeave: false };
+
+    // Check for half-day leave
+    const approvedHalfDayLeave = validation?.flags.isPlannedHalfDayLeave;
+
+    return {
+      approved: true,
+      hasApprovedLeave: !!approvedHalfDayLeave,
+    };
+  };
+
+  // Enhanced handleCheckOut
+  const handleCheckOut = async () => {
+    if (!effectiveShift) {
+      setError('Unable to process check-out. Shift information is missing.');
+      return;
+    }
+
+    const now = getCurrentTime();
+    const { approved, hasApprovedLeave } =
+      await validateCheckOutConditions(now);
+    if (!approved) return;
+
+    // Handle early checkout cases
+    if (validation?.flags.isEarlyCheckOut) {
+      // Case 1: Pre-approved half-day leave
+      if (validation.flags.isPlannedHalfDayLeave) {
+        setStep('camera');
+        return;
+      }
+
+      // Case 2: Emergency leave (before midshift)
+      if (validation.flags.isEmergencyLeave && !hasApprovedLeave) {
+        if (!isConfirmedEarlyCheckout) {
+          const confirmed = window.confirm(
+            'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
+          );
+          if (!confirmed) return;
+          setIsConfirmedEarlyCheckout(true);
+        }
+
+        if (userData?.lineUserId) {
+          const leaveCreated = await createSickLeaveRequest(
+            userData.lineUserId,
+            now,
+          );
+          if (!leaveCreated) return;
+        }
+      }
+    }
+
+    setStep('camera');
+  };
+
   const handleAttendanceSubmit = async (photo: string, lateReason?: string) => {
     try {
-      await checkInOut({
+      const mappedConfidence: 'high' | 'medium' | 'low' =
+        locationState.confidence === 'manual'
+          ? 'low'
+          : locationState.confidence;
+
+      const checkInOutData: CheckInOutData = {
+        employeeId: userData.employeeId,
+        lineUserId: userData.lineUserId,
         photo,
         checkTime: getCurrentTime().toISOString(),
         isCheckIn: !currentPeriod?.checkInTime,
-        lateReason,
+        reason: lateReason,
+        address: locationState.address,
         isOvertime: currentPeriod?.type === 'overtime',
-        overtimeId: currentPeriod?.overtimeId,
         earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
           ? 'planned'
           : validation?.flags.isEmergencyLeave
             ? 'emergency'
             : undefined,
-      });
+        entryType: currentPeriod?.type || PeriodType.REGULAR,
+        confidence: mappedConfidence,
+        isLate: validation?.flags.isLateCheckIn,
+        metadata: {
+          overtimeId: currentPeriod?.overtimeId,
+          isDayOffOvertime: false,
+          isInsideShiftHours: false,
+        },
+      };
+
+      await checkInOut(checkInOutData);
 
       setProcessingState({
         status: 'success',
         message: 'บันทึกเวลาสำเร็จ',
       });
 
-      // Delay before closing
       setTimeout(onComplete, 1500);
     } catch (error) {
       throw error;
     }
   };
 
-  // Handle action button click
+  // Enhanced handleAction
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
       setError(null);
@@ -298,16 +344,52 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [validation, handleCheckOut],
   );
 
-  // Render processing view
+  if (error || attendanceError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>{error || attendanceError}</AlertDescription>
+      </Alert>
+    );
+  }
+
   const renderProcessingView = () => (
-    <ProcessingView
-      status={processingState.status}
-      message={processingState.message}
-      onRetry={() => setStep('info')}
-    />
+    <div className="flex flex-col items-center justify-center p-4">
+      {processingState.status === 'loading' && (
+        <>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="mt-4 text-lg">{processingState.message}</p>
+        </>
+      )}
+
+      {processingState.status === 'success' && (
+        <div className="text-center">
+          <div className="text-green-500 mx-auto mb-4">
+            <AlertCircle size={32} />
+          </div>
+          <p className="text-lg font-semibold">{processingState.message}</p>
+        </div>
+      )}
+
+      {processingState.status === 'error' && (
+        <div className="text-center">
+          <div className="text-red-500 mx-auto mb-4">
+            <AlertCircle size={32} />
+          </div>
+          <p className="text-lg font-semibold text-red-600">
+            {processingState.message}
+          </p>
+          <button
+            onClick={() => setStep('info')}
+            className="mt-4 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
+          >
+            ลองใหม่อีกครั้ง
+          </button>
+        </div>
+      )}
+    </div>
   );
 
-  // Render camera view
   const renderCameraView = () => (
     <div className="fixed inset-0 z-50 bg-black">
       {isModelLoading ? (
@@ -329,15 +411,29 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
-  // Error display
-  if (error || attendanceError) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{error || attendanceError}</AlertDescription>
-      </Alert>
-    );
-  }
+  const userShiftInfoStatus: UserShiftInfoStatus = {
+    state,
+    checkStatus,
+    currentPeriod,
+    isCheckingIn: !currentPeriod?.checkInTime,
+    isHoliday:
+      currentPeriod?.type === PeriodType.REGULAR &&
+      effectiveShift?.workDays?.includes(getCurrentTime().getDay()) === false,
+    isDayOff:
+      currentPeriod?.type === PeriodType.REGULAR &&
+      effectiveShift?.workDays?.includes(getCurrentTime().getDay()) === false,
+    isOvertime: currentPeriod?.type === 'overtime',
+    latestAttendance: {
+      regularCheckInTime: currentPeriod?.checkInTime
+        ? new Date(currentPeriod.checkInTime)
+        : undefined,
+      regularCheckOutTime: currentPeriod?.checkOutTime
+        ? new Date(currentPeriod.checkOutTime)
+        : undefined,
+      isLateCheckIn: validation?.flags.isLateCheckIn,
+      isOvertime: currentPeriod?.type === 'overtime',
+    },
+  };
 
   return (
     <div
@@ -347,14 +443,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <div className="h-full flex flex-col">
           <UserShiftInfo
             userData={userData}
-            status={{
-              state,
-              checkStatus,
-              currentPeriod,
-              isHoliday: effectiveShift?.isHoliday || false,
-              isDayOff: effectiveShift?.isDayOff || false,
-              isOvertime: currentPeriod?.type === 'overtime',
-            }}
+            status={userShiftInfoStatus}
             effectiveShift={effectiveShift}
             isLoading={isLoading}
           />
@@ -363,11 +452,18 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             <div className="px-4 py-3 pb-safe">
               <ActionButton
                 isEnabled={!!validation?.allowed}
-                isLoading={isLoading}
-                checkInOutAllowance={validation}
-                currentPeriod={currentPeriod}
-                onAction={handleAction}
-                locationReady={locationReady}
+                validationMessage={validation?.reason}
+                isCheckingIn={!currentPeriod?.checkInTime}
+                onAction={() =>
+                  handleAction(
+                    !currentPeriod?.checkInTime ? 'checkIn' : 'checkOut',
+                  )
+                }
+                className=""
+                locationState={{
+                  isReady: locationState.status === 'ready',
+                  error: locationState.error || undefined,
+                }}
               />
             </div>
           </div>
@@ -392,4 +488,4 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 };
 
-export default CheckInOutForm;
+export default React.memo(CheckInOutForm);
