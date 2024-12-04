@@ -15,6 +15,7 @@ import {
   isWithinInterval,
   isAfter,
   isValid,
+  subMinutes,
 } from 'date-fns';
 import {
   ApprovedOvertimeInfo,
@@ -27,6 +28,7 @@ import {
   AttendanceRecord,
   ShiftWindows,
   ShiftData,
+  ATTENDANCE_CONSTANTS,
 } from '../../types/attendance';
 import { AttendanceMappers } from './utils/AttendanceMappers';
 import { CacheManager } from '../CacheManager';
@@ -286,9 +288,22 @@ export class AttendanceStatusService {
     let current: { start: Date; end: Date };
 
     if (overtime) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`,
+      );
+
+      // Account for early check-in window
+      const adjustedStart = subMinutes(
+        overtimeStart,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      );
+
       current = {
-        start: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`),
-        end: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`),
+        start: adjustedStart,
+        end: overtimeEnd,
       };
     } else if (shiftWindows) {
       current = {
