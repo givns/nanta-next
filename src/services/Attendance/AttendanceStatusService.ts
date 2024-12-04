@@ -16,6 +16,8 @@ import {
   isAfter,
   isValid,
   subMinutes,
+  addDays,
+  addMinutes,
 } from 'date-fns';
 import {
   ApprovedOvertimeInfo,
@@ -300,24 +302,44 @@ export class AttendanceStatusService {
     let current: { start: Date; end: Date };
 
     if (overtime) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`,
-      );
-      const overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`,
-      );
+      const dateStr = format(now, 'yyyy-MM-dd');
+      const overtimeStart = parseISO(`${dateStr}T${overtime.startTime}`);
+      let overtimeEnd = parseISO(`${dateStr}T${overtime.endTime}`);
 
-      // Account for early check-in window
-      const adjustedStart = subMinutes(
+      // Handle overtime spanning midnight
+      if (overtimeEnd < overtimeStart) {
+        overtimeEnd = addDays(overtimeEnd, 1);
+      }
+
+      // Add early window to overtime period
+      const earlyWindow = subMinutes(
         overtimeStart,
         ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
       );
+      const lateWindow = addMinutes(
+        overtimeEnd,
+        ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
+      );
 
-      current = {
-        start: adjustedStart,
-        end: overtimeEnd,
-      };
-    } else if (shiftWindows) {
+      // If current time is within early window or overtime period
+      if (isAfter(now, earlyWindow)) {
+        current = {
+          start: earlyWindow,
+          end: lateWindow,
+        };
+
+        return {
+          type: PeriodType.OVERTIME,
+          overtimeId: overtime.id,
+          isComplete: attendance?.regularCheckOutTime != null,
+          checkInTime: attendance?.regularCheckInTime?.toISOString(),
+          checkOutTime: attendance?.regularCheckOutTime?.toISOString(),
+          current,
+        };
+      }
+    }
+
+    if (shiftWindows) {
       current = {
         start: new Date(shiftWindows.start),
         end: new Date(shiftWindows.end),
@@ -334,8 +356,7 @@ export class AttendanceStatusService {
     if (!isValid(current.end)) current.end = endOfDay(now);
 
     return {
-      type: overtime ? PeriodType.OVERTIME : PeriodType.REGULAR,
-      overtimeId: overtime?.id,
+      type: PeriodType.REGULAR,
       isComplete: attendance?.regularCheckOutTime != null,
       checkInTime: attendance?.regularCheckInTime?.toISOString(),
       checkOutTime: attendance?.regularCheckOutTime?.toISOString(),
