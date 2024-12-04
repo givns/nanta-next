@@ -768,6 +768,17 @@ export class AttendanceCheckService {
       });
     }
 
+    if (approvedOvertime && this.isAtOvertimeStart(now, approvedOvertime)) {
+      return this.handleApprovedOvertime(
+        approvedOvertime,
+        now,
+        inPremises,
+        address,
+        !latestAttendance?.regularCheckInTime,
+        latestAttendance,
+      )!;
+    }
+
     const shiftStart = this.shiftService.utils.parseShiftTime(
       effectiveShift.startTime,
       now,
@@ -1222,10 +1233,17 @@ export class AttendanceCheckService {
       `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
     );
     return isWithinInterval(now, {
-      start: subMinutes(overtimeStart, 15), // 15 minutes buffer before overtime
-      end: addMinutes(overtimeStart, 15), // 15 minutes buffer after overtime
+      start: subMinutes(
+        overtimeStart,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      ),
+      end: addMinutes(
+        overtimeStart,
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+      ),
     });
   }
+
   private getCheckoutWindow(shiftEnd: Date) {
     const earlyCheckoutStart = subMinutes(
       shiftEnd,
