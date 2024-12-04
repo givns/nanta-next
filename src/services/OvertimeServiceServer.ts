@@ -18,6 +18,9 @@ import {
   addMinutes,
   isBefore,
   isAfter,
+  isWithinInterval,
+  subDays,
+  subMinutes,
 } from 'date-fns';
 import { NotificationService } from './NotificationService';
 import { th } from 'date-fns/locale';
@@ -293,59 +296,75 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     employeeId: string,
     date: Date,
   ): Promise<ApprovedOvertimeInfo[]> {
-    if (process.env.NODE_ENV === 'test') {
-      return []; // Return empty array for testing
-    }
+    if (process.env.NODE_ENV === 'test') return [];
+
     const currentTime = getCurrentTime();
     console.log('Current time in overtime request fetch:', currentTime);
 
-    // Get all approved overtime requests for the day
+    // Look back one day to catch overnight overtimes
+    const searchStart = subDays(startOfDay(date), 1);
+    const searchEnd = endOfDay(date);
+
     const overtimes = await this.prisma.overtimeRequest.findMany({
       where: {
         employeeId,
         date: {
-          gte: startOfDay(date),
-          lt: endOfDay(date),
+          gte: searchStart,
+          lt: searchEnd,
         },
         status: 'approved',
         employeeResponse: 'approve',
       },
     });
 
-    if (!overtimes.length) {
-      return [];
-    }
+    if (!overtimes.length) return [];
 
-    // Adjust end times that span into the next day
+    // Adjust times and handle overnight spans
     const adjustedOvertimes = overtimes.map((overtime) => {
-      const startDateTime = parseISO(
-        `${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`,
-      );
-      let endDateTime = parseISO(
-        `${format(date, 'yyyy-MM-dd')}T${overtime.endTime}`,
-      );
+      const overtimeDate = format(overtime.date, 'yyyy-MM-dd');
+      const startDateTime = parseISO(`${overtimeDate}T${overtime.startTime}`);
+      let endDateTime = parseISO(`${overtimeDate}T${overtime.endTime}`);
 
-      // If the end time is earlier than start time, adjust it to the next day
       if (isBefore(endDateTime, startDateTime)) {
         endDateTime = addDays(endDateTime, 1);
       }
 
+      // Add early check-in window
+      const earlyWindow = subMinutes(
+        startDateTime,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      );
+      const lateWindow = addMinutes(
+        endDateTime,
+        ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
+      );
+
       return {
         ...overtime,
-        adjustedStartDateTime: startDateTime,
-        adjustedEndDateTime: endDateTime,
+        adjustedStartDateTime: earlyWindow,
+        adjustedEndDateTime: lateWindow,
       };
     });
-    console.log('Approved overtime requests:', adjustedOvertimes);
 
-    // Filter overtimes to find those that match the current time
+    console.log('Adjusted overtime requests:', adjustedOvertimes);
+
+    // Filter valid overtimes
     return adjustedOvertimes
-
       .filter((overtime) => {
-        return (
-          isBefore(currentTime, overtime.adjustedEndDateTime) &&
-          isAfter(currentTime, overtime.adjustedStartDateTime)
-        );
+        const isWithinWindow =
+          isWithinInterval(currentTime, {
+            start: overtime.adjustedStartDateTime,
+            end: overtime.adjustedEndDateTime,
+          }) ||
+          isWithinInterval(currentTime, {
+            start: subMinutes(
+              overtime.adjustedStartDateTime,
+              ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+            ),
+            end: overtime.adjustedEndDateTime,
+          });
+
+        return isWithinWindow;
       })
       .sort(
         (a, b) =>
@@ -357,7 +376,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       }));
   }
 
-  // Existing wrapper method
   async getApprovedOvertimeRequest(
     employeeId: string,
     date: Date,
