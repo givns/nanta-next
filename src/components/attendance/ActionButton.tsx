@@ -38,7 +38,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     if (!isEnabled || !locationState.isReady) {
       return 'bg-gray-400 cursor-not-allowed';
     }
-    return 'bg-primary hover:bg-primary-dark active:bg-primary-darker';
+    return 'bg-red-600 hover:bg-red-700 active:bg-red-800'; // Changed from primary colors
   }, [isEnabled, locationState.isReady]);
 
   return (

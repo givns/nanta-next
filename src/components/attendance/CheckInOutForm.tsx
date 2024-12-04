@@ -257,7 +257,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     createSickLeaveRequest,
   ]);
 
-  // Enhanced handleAction
   // Handle action button click
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
@@ -345,15 +344,26 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           <p className="mt-4 text-lg text-white">
             กำลังโหลดระบบตรวจจับใบหน้า...
           </p>
+          {/* Add back button in case of loading issues */}
+          <button
+            onClick={() => setStep('info')}
+            className="mt-6 px-4 py-2 bg-white text-black rounded hover:bg-gray-100"
+          >
+            ย้อนกลับ
+          </button>
         </div>
       ) : (
-        <CameraFrame
-          webcamRef={webcamRef}
-          faceDetected={faceDetected}
-          faceDetectionCount={faceDetectionCount}
-          message={detectionMessage}
-          captureThreshold={captureThreshold}
-        />
+        <div className="relative h-full">
+          {' '}
+          {/* Added relative positioning */}
+          <CameraFrame
+            webcamRef={webcamRef}
+            faceDetected={faceDetected}
+            faceDetectionCount={faceDetectionCount}
+            message={detectionMessage}
+            captureThreshold={captureThreshold}
+          />
+        </div>
       )}
     </div>
   );
@@ -385,19 +395,21 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   };
 
   return (
-    <div
-      className={`min-h-screen flex flex-col relative ${step === 'camera' ? 'camera-active' : ''}`}
-    >
+    <div className="min-h-screen flex flex-col bg-white">
+      {' '}
+      {/* Added bg-white */}
       {step === 'info' && (
-        <div className="h-full flex flex-col">
-          <UserShiftInfo
-            userData={userData}
-            status={userShiftInfoStatus}
-            effectiveShift={effectiveShift}
-            isLoading={isLoading}
-          />
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 overflow-y-auto">
+            <UserShiftInfo
+              userData={userData}
+              status={userShiftInfoStatus}
+              effectiveShift={effectiveShift}
+              isLoading={isLoading}
+            />
+          </div>
 
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+          <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
             <div className="px-4 py-3 pb-safe">
               <ActionButton
                 isEnabled={!!validation?.allowed}
@@ -408,7 +420,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                     !currentPeriod?.checkInTime ? 'checkIn' : 'checkOut',
                   )
                 }
-                className=""
                 locationState={{
                   isReady: locationState.status === 'ready',
                   error: locationState.error || undefined,
@@ -418,10 +429,15 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
         </div>
       )}
-
-      {step === 'camera' && renderCameraView()}
-      {step === 'processing' && renderProcessingView()}
-
+      {/* Use absolute positioning for overlay views */}
+      {step === 'camera' && (
+        <div className="absolute inset-0 z-50">{renderCameraView()}</div>
+      )}
+      {step === 'processing' && (
+        <div className="absolute inset-0 z-50 bg-white">
+          {renderProcessingView()}
+        </div>
+      )}
       <LateReasonModal
         isOpen={isLateModalOpen}
         onClose={() => setIsLateModalOpen(false)}
