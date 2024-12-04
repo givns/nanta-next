@@ -119,6 +119,13 @@ export class AttendanceStatusService {
       futureOvertimes,
     ] = await CacheManager.fetchData(employeeId);
 
+    console.log('Approved overtime:', approvedOvertime);
+    const overtimeCheck = await this.overtimeService.getApprovedOvertimeRequest(
+      employeeId,
+      now,
+    );
+    console.log('Direct overtime check:', overtimeCheck);
+
     if (!user) {
       throw new AppError({
         code: ErrorCode.USER_NOT_FOUND,
@@ -161,7 +168,12 @@ export class AttendanceStatusService {
       ),
       checkStatus: attendance?.checkStatus ?? CheckStatus.PENDING,
       overtimeState: attendance?.overtimeState,
-      isOvertime: !!approvedOvertime && periodInfo.type === PeriodType.OVERTIME,
+      isOvertime: (() => {
+        const hasOvertime = !!approvedOvertime;
+        const isPeriodOvertime = periodInfo.type === PeriodType.OVERTIME;
+        console.log('Overtime calc:', { hasOvertime, isPeriodOvertime });
+        return hasOvertime && isPeriodOvertime;
+      })(),
       isLate: attendance?.isLateCheckIn ?? false,
       shiftAdjustment: {
         date: format(new Date(), 'yyyy-MM-dd'),

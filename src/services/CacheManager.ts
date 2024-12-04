@@ -313,6 +313,8 @@ export class CacheManager {
   > {
     const today = startOfDay(getCurrentTime());
 
+    console.log('CacheManager fetching data for:', employeeId);
+
     if (process.env.NODE_ENV === 'test') {
       const [
         userResult,
