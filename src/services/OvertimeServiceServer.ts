@@ -336,9 +336,11 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         adjustedEndDateTime: endDateTime,
       };
     });
+    console.log('Approved overtime requests:', adjustedOvertimes);
 
     // Filter overtimes to find those that match the current time
     return adjustedOvertimes
+
       .filter((overtime) => {
         return (
           isBefore(currentTime, overtime.adjustedEndDateTime) &&

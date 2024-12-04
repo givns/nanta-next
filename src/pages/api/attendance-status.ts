@@ -161,25 +161,6 @@ const prepareUserData = (user: any) => {
   };
 };
 
-// Create fallback user
-const createFallbackUser = (
-  employeeId: string | string[] | undefined,
-  lineUserId: string | string[] | undefined,
-) => ({
-  employeeId: (employeeId as string) || 'unknown',
-  name: 'Unknown User',
-  lineUserId: (lineUserId as string) || null,
-  nickname: null,
-  departmentName: 'Unknown Department',
-  role: 'Employee',
-  profilePictureUrl: null,
-  shiftId: null,
-  shiftCode: null,
-  sickLeaveBalance: 0,
-  businessLeaveBalance: 0,
-  annualLeaveBalance: 0,
-});
-
 // Create fallback response
 const createFallbackResponse = (user: any): ResponseData => {
   const now = getCurrentTime();

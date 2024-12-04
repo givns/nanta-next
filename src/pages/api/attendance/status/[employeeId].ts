@@ -46,6 +46,8 @@ export default async function handler(
     confidence?: string;
   };
 
+  console.log('Request:', { employeeId, inPremises, address, confidence });
+
   if (!employeeId || typeof employeeId !== 'string') {
     return res.status(400).json({ error: 'Invalid employeeId' });
   }
