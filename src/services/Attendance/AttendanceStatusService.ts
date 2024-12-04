@@ -242,6 +242,16 @@ export class AttendanceStatusService {
     overtime: ApprovedOvertimeInfo | null,
   ): AttendanceState {
     const now = getCurrentTime();
+    console.log('DetermineState:', {
+      now: now.toISOString(),
+      hasOvertime: !!overtime,
+      overtimeTime: overtime
+        ? {
+            start: overtime.startTime,
+            end: overtime.endTime,
+          }
+        : null,
+    });
 
     // If there's active overtime, check that first
     if (overtime) {

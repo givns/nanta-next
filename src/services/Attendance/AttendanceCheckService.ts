@@ -1057,6 +1057,12 @@ export class AttendanceCheckService {
     address: string,
     latestAttendance: AttendanceRecord | null,
   ): CheckInOutAllowance {
+    console.log('HandleApprovedOvertime:', {
+      now: now.toISOString(),
+      overtimeStart: overtime.startTime,
+      overtimeEnd: overtime.endTime,
+      earlyWindow: ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+    });
     // Early checkout during overtime just records actual time
     const minutesEarly = Math.abs(differenceInMinutes(now, overtimeEnd));
     const isEarlyCheckout = now < overtimeEnd;
