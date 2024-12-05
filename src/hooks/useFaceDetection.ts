@@ -11,6 +11,9 @@ export const useFaceDetection = (
 ) => {
   // States
   const [isModelLoading, setIsModelLoading] = useState(true);
+  const [hasCameraPermission, setHasCameraPermission] = useState<
+    boolean | null
+  >(null);
   const [initializationError, setInitializationError] = useState<string | null>(
     null,
   );
@@ -27,29 +30,35 @@ export const useFaceDetection = (
   const initTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const faceDetectionService = useRef(FaceDetectionService.getInstance());
 
-  // Cleanup helper
-  const cleanup = useCallback(() => {
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
-      detectionIntervalRef.current = null;
+  // Request camera permissions
+  const requestCameraPermission = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((track) => track.stop()); // Stop stream immediately after getting permission
+      setHasCameraPermission(true);
+      return true;
+    } catch (error) {
+      console.error('Camera permission denied:', error);
+      setHasCameraPermission(false);
+      setInitializationError('กรุณาอนุญาตการใช้งานกล้อง');
+      return false;
     }
-    if (initTimeoutRef.current) {
-      clearTimeout(initTimeoutRef.current);
-      initTimeoutRef.current = null;
-    }
-    if (webcamRef.current?.stream) {
-      webcamRef.current.stream.getTracks().forEach((track) => track.stop());
-    }
-    faceDetectionService.current.cleanup();
-  }, []);
+  };
 
-  // Stop detection helper
   const stopDetection = useCallback(() => {
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
       detectionIntervalRef.current = null;
     }
   }, []);
+
+  const cleanup = useCallback(() => {
+    stopDetection();
+    if (webcamRef.current?.stream) {
+      webcamRef.current.stream.getTracks().forEach((track) => track.stop());
+    }
+    faceDetectionService.current.cleanup();
+  }, [stopDetection]);
 
   // Face detection logic
   const detectFace = useCallback(async () => {
