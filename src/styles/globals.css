@@ -11,8 +11,12 @@
     --popover-foreground: 222.2 84% 4.9%;
     --header-height: 4rem; /* Standardize to 64px */
     --footer-height: 140px;
-    --safe-bottom: env(safe-area-inset-bottom, 1rem);
+    --safe-bottom: env(safe-area-inset-bottom, 16px);
     --api-timeout: 30000ms;
+  }
+
+  .bottom-safe {
+    bottom: env(safe-area-inset-bottom, 1rem);
   }
 
   .pb-safe {
