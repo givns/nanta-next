@@ -50,6 +50,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   // Core states
   const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
   const [error, setError] = useState<string | null>(null);
+  const [cameraInitialized, setCameraInitialized] = useState(false);
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
   const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
     useState(false);
@@ -336,46 +337,66 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
-  const renderCameraView = () => (
-    <div className="fixed inset-0 z-50 bg-black">
-      {isModelLoading ? (
-        <div className="flex-grow flex flex-col items-center justify-center h-full">
-          {/* Improved spinner */}
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+  const renderCameraView = () => {
+    // Initial mounting state
+    useEffect(() => {
+      if (step === 'camera') {
+        setCameraInitialized(false);
+        // Give time for camera permissions and initial setup
+        const initTimer = setTimeout(() => {
+          setCameraInitialized(true);
+        }, 1000);
+        return () => clearTimeout(initTimer);
+      }
+    }, [step]);
 
-          {/* Larger, clearer text */}
-          <p className="mt-8 text-xl text-white font-medium">
-            กำลังโหลดระบบตรวจจับใบหน้า...
-          </p>
+    return (
+      <div className="fixed inset-0 z-50 bg-black">
+        {!cameraInitialized || isModelLoading ? (
+          <div className="flex-grow flex flex-col items-center justify-center h-full">
+            {/* Cleaner loading spinner */}
+            <div className="relative w-16 h-16">
+              <div className="absolute inset-0 rounded-full border-4 border-white opacity-20"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-white border-t-transparent animate-spin"></div>
+            </div>
 
-          {/* More prominent back button */}
-          <button
-            onClick={() => setStep('info')}
-            className="mt-8 px-6 py-3 bg-white/20 hover:bg-white/30 text-white rounded-full transition-all backdrop-blur-sm"
-          >
-            ← ย้อนกลับ
-          </button>
-        </div>
-      ) : (
-        <div className="relative h-full">
-          <CameraFrame
-            webcamRef={webcamRef}
-            faceDetected={faceDetected}
-            faceDetectionCount={faceDetectionCount}
-            message={detectionMessage}
-            captureThreshold={captureThreshold}
-          />
-          {/* Added persistent back button */}
-          <button
-            onClick={() => setStep('info')}
-            className="absolute top-6 left-6 p-3 text-white bg-black/30 hover:bg-black/40 rounded-full transition-all backdrop-blur-sm"
-          >
-            ← ย้อนกลับ
-          </button>
-        </div>
-      )}
-    </div>
-  );
+            <p className="mt-6 text-xl text-white font-medium">
+              กำลังเปิดกล้อง...
+            </p>
+
+            <button
+              onClick={() => {
+                setCameraInitialized(false);
+                setStep('info');
+              }}
+              className="mt-8 px-6 py-3 bg-white/20 text-white rounded-full hover:bg-white/30 transition-colors"
+            >
+              ย้อนกลับ
+            </button>
+          </div>
+        ) : (
+          <div className="relative h-full">
+            <CameraFrame
+              webcamRef={webcamRef}
+              faceDetected={faceDetected}
+              faceDetectionCount={faceDetectionCount}
+              message={detectionMessage}
+              captureThreshold={captureThreshold}
+            />
+            <button
+              onClick={() => {
+                setCameraInitialized(false);
+                setStep('info');
+              }}
+              className="absolute top-6 left-6 p-3 bg-black/30 text-white rounded-full hover:bg-black/40 transition-colors"
+            >
+              ย้อนกลับ
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const userShiftInfoStatus: UserShiftInfoStatus = {
     state,
