@@ -15,6 +15,9 @@ const CheckInRouter: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<
     'auth' | 'user' | 'location' | 'ready'
   >('auth');
+  const [loadingPhase, setLoadingPhase] = useState<
+    'initial' | 'transition' | 'complete'
+  >('initial');
 
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
@@ -65,8 +68,25 @@ const CheckInRouter: React.FC = () => {
 
   const isSystemReady = currentStep === 'ready' && !attendanceLoading;
 
-  if (!isSystemReady) {
-    return <LoadingBar step={currentStep} />;
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isSystemReady) {
+      setLoadingPhase('transition');
+      timer = setTimeout(() => setLoadingPhase('complete'), 500);
+    }
+    return () => clearTimeout(timer);
+  }, [isSystemReady]);
+
+  if (loadingPhase !== 'complete') {
+    return (
+      <div
+        className={`fixed inset-0 flex flex-col items-center justify-center bg-white transition-opacity duration-500 ${
+          loadingPhase === 'transition' ? 'opacity-0' : 'opacity-100'
+        }`}
+      >
+        <LoadingBar step={currentStep} />
+      </div>
+    );
   }
 
   if (error || attendanceError) {
