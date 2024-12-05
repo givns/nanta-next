@@ -16,17 +16,24 @@ export const getStatusMessage = (
     };
   }
 
-  // Holiday/Day off checks first
+  // Holiday check should be first priority
   if (attendanceStatus.isHoliday) {
+    const overtimeMsg = attendanceStatus.approvedOvertime
+      ? ' (มีการอนุมัติ OT)'
+      : '';
     return {
-      message: `วันหยุดนักขัตฤกษ์${attendanceStatus.approvedOvertime ? ' (มีการอนุมัติ OT)' : ''}`,
+      message: `วันหยุดนักขัตฤกษ์${overtimeMsg}`,
       color: 'blue',
     };
   }
 
+  // Day off check should be second priority
   if (attendanceStatus.isDayOff) {
+    const overtimeMsg = attendanceStatus.approvedOvertime
+      ? ' (มีการอนุมัติ OT)'
+      : '';
     return {
-      message: `วันหยุดประจำสัปดาห์${attendanceStatus.approvedOvertime ? ' (มีการอนุมัติ OT)' : ''}`,
+      message: `วันหยุดประจำสัปดาห์${overtimeMsg}`,
       color: 'blue',
     };
   }
