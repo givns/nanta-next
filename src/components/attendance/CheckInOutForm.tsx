@@ -3,11 +3,9 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserData } from '@/types/user';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
-import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { formatDate, getCurrentTime } from '@/utils/dateUtils';
 import { UserShiftInfo } from './UserShiftInfo';
 import { ActionButton } from './ActionButton';
-import CameraFrame from './CameraFrame';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
 import {
@@ -21,7 +19,6 @@ interface ProcessingState {
   message: string;
 }
 
-// Update UserShiftInfoStatus to match AttendanceBaseResponse
 interface UserShiftInfoStatus
   extends Omit<AttendanceBaseResponse, 'latestAttendance'> {
   currentPeriod: CurrentPeriodInfo | null;
@@ -47,10 +44,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
   onComplete = closeWindow,
 }) => {
-  // Core states
-  const [step, setStep] = useState<'info' | 'camera' | 'processing'>('info');
+  const [step, setStep] = useState<'info' | 'processing'>('info');
   const [error, setError] = useState<string | null>(null);
-  const [cameraInitialized, setCameraInitialized] = useState(false);
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
   const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
     useState(false);
@@ -59,10 +54,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     message: '',
   });
 
-  // Refs
-  const timerRef = useRef<NodeJS.Timeout>();
-
-  // Main attendance hook
   const {
     state,
     checkStatus,
@@ -78,68 +69,23 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     lineUserId: userData.lineUserId,
   });
 
-  // Face detection setup
-  const {
-    webcamRef,
-    isModelLoading,
-    faceDetected,
-    faceDetectionCount,
-    message: detectionMessage,
-    captureThreshold,
-  } = useFaceDetection(5, handlePhotoCapture);
-
   // Timer effect
   useEffect(() => {
     let timeRemaining = 55;
 
     if (step === 'info') {
-      timerRef.current = setInterval(() => {
+      const timerRef = setInterval(() => {
         timeRemaining -= 1;
         if (timeRemaining <= 0) {
           onComplete();
         }
       }, 1000);
-    }
 
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
+      return () => {
+        clearInterval(timerRef);
+      };
+    }
   }, [step, onComplete]);
-
-  // Handle photo capture
-  async function handlePhotoCapture(photo: string) {
-    if (processingState.status === 'loading') return;
-
-    try {
-      setStep('processing');
-      setProcessingState({
-        status: 'loading',
-        message: 'กำลังประมวลผลการลงเวลา...',
-      });
-
-      const isCheckingIn = !currentPeriod?.checkInTime;
-      const isLate = validation?.flags.isLateCheckIn;
-
-      // Handle late check-in
-      if (isCheckingIn && isLate && !validation?.flags.isOvertime) {
-        setIsLateModalOpen(true);
-        return;
-      }
-
-      await handleAttendanceSubmit(photo);
-    } catch (error) {
-      setProcessingState({
-        status: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'เกิดข้อผิดพลาดในการบันทึกเวลา',
-      });
-      setStep('info');
-    }
-  }
 
   // Emergency leave handling
   const createSickLeaveRequest = useCallback(
@@ -178,15 +124,13 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   // Handle attendance submission
-  const handleAttendanceSubmit = async (photo: string, lateReason?: string) => {
+  const handleAttendanceSubmit = async () => {
     const mappedConfidence: 'high' | 'medium' | 'low' =
       locationState.confidence === 'manual' ? 'low' : locationState.confidence;
 
     await checkInOut({
-      photo,
       checkTime: getCurrentTime().toISOString(),
       isCheckIn: !currentPeriod?.checkInTime,
-      reason: lateReason,
       address: locationState.address,
       isOvertime: currentPeriod?.type === 'overtime',
       earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
@@ -202,6 +146,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       },
       employeeId: '',
       lineUserId: null,
+      photo: '',
     });
 
     setProcessingState({
@@ -225,7 +170,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     if (validation?.flags.isEarlyCheckOut) {
       // Case 1: Pre-approved half-day leave
       if (validation.flags.isPlannedHalfDayLeave) {
-        setStep('camera');
+        setStep('processing');
+        await handleAttendanceSubmit();
         return;
       }
 
@@ -249,13 +195,15 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     }
 
-    setStep('camera');
+    setStep('processing');
+    await handleAttendanceSubmit();
   }, [
     effectiveShift,
     validation?.flags,
     isConfirmedEarlyCheckout,
     userData?.lineUserId,
     createSickLeaveRequest,
+    handleAttendanceSubmit,
   ]);
 
   // Handle action button click
@@ -272,7 +220,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
       try {
         if (action === 'checkIn') {
-          setStep('camera');
+          setStep('processing');
+          await handleAttendanceSubmit();
         } else {
           await handleCheckOut();
         }
@@ -288,7 +237,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setStep('info');
       }
     },
-    [validation, handleCheckOut],
+    [validation, handleCheckOut, handleAttendanceSubmit],
   );
 
   if (error || attendanceError) {
@@ -337,41 +286,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
-  const renderCameraView = () => (
-    <div className="fixed inset-0 z-50 bg-black">
-      {isModelLoading ? (
-        <div className="flex-grow flex flex-col items-center justify-center h-full">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-6 text-xl text-white">
-            กำลังโหลดระบบตรวจจับใบหน้า...
-          </p>
-          <button
-            onClick={() => setStep('info')}
-            className="mt-8 px-6 py-3 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition-all"
-          >
-            ย้อนกลับ
-          </button>
-        </div>
-      ) : (
-        <div className="relative h-full">
-          <CameraFrame
-            webcamRef={webcamRef}
-            faceDetected={faceDetected}
-            faceDetectionCount={faceDetectionCount}
-            message={detectionMessage}
-            captureThreshold={captureThreshold}
-          />
-          <button
-            onClick={() => setStep('info')}
-            className="absolute top-6 left-6 p-3 bg-black/30 text-white rounded-full hover:bg-black/40 transition-all"
-          >
-            ย้อนกลับ
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
   const userShiftInfoStatus: UserShiftInfoStatus = {
     state,
     checkStatus,
@@ -400,8 +314,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   return (
     <div className="min-h-screen flex flex-col bg-white pb-24">
-      {' '}
-      {/* Added pb-24 for button space */} {/* Added bg-white */}
       {step === 'info' && (
         <div className="flex-1 flex flex-col">
           <div className="flex-1 overflow-y-auto">
@@ -438,10 +350,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
         </div>
       )}
-      {/* Use absolute positioning for overlay views */}
-      {step === 'camera' && (
-        <div className="absolute inset-0 z-50">{renderCameraView()}</div>
-      )}
       {step === 'processing' && (
         <div className="absolute inset-0 z-50 bg-white">
           {renderProcessingView()}
@@ -452,10 +360,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         onClose={() => setIsLateModalOpen(false)}
         onSubmit={async (reason) => {
           setIsLateModalOpen(false);
-          await handleAttendanceSubmit(
-            webcamRef.current?.getScreenshot() || '',
-            reason,
-          );
+          await handleAttendanceSubmit();
         }}
       />
     </div>

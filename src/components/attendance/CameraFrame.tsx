@@ -1,3 +1,4 @@
+//cameraframe component to display the camera feed and the face detection overlay
 import React from 'react';
 import Webcam from 'react-webcam';
 
