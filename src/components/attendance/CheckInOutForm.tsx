@@ -14,9 +14,7 @@ import {
   CurrentPeriodInfo,
   PeriodType,
   AttendanceBaseResponse,
-  ATTENDANCE_CONSTANTS,
 } from '@/types/attendance';
-import { addMinutes } from 'date-fns';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -416,14 +414,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               <ActionButton
                 isEnabled={!!validation?.allowed}
                 validationMessage={validation?.reason}
-                nextWindowTime={
-                  validation?.flags.isLateCheckIn
-                    ? addMinutes(
-                        new Date(currentPeriod?.current.start || Date.now()),
-                        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
-                      )
-                    : undefined
-                }
                 isCheckingIn={!currentPeriod?.checkInTime}
                 onAction={() =>
                   handleAction(
