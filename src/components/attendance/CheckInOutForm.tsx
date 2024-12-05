@@ -338,44 +338,36 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderCameraView = () => {
-    // Initial mounting state
-    useEffect(() => {
-      if (step === 'camera') {
-        setCameraInitialized(false);
-        // Give time for camera permissions and initial setup
-        const initTimer = setTimeout(() => {
-          setCameraInitialized(true);
-        }, 1000);
-        return () => clearTimeout(initTimer);
-      }
-    }, [step]);
-
+    // Don't use useEffect inside render function
     return (
       <div className="fixed inset-0 z-50 bg-black">
-        {!cameraInitialized || isModelLoading ? (
-          <div className="flex-grow flex flex-col items-center justify-center h-full">
-            {/* Cleaner loading spinner */}
-            <div className="relative w-16 h-16">
-              <div className="absolute inset-0 rounded-full border-4 border-white opacity-20"></div>
-              <div className="absolute inset-0 rounded-full border-4 border-white border-t-transparent animate-spin"></div>
+        {isModelLoading ? (
+          // Simple, stable loading view
+          <div className="h-full flex flex-col items-center justify-center bg-black">
+            {/* Static loader */}
+            <div className="w-16 h-16 relative">
+              <div className="w-full h-full border-4 border-gray-500 rounded-full"></div>
+              <div
+                className="w-full h-full border-4 border-white rounded-full absolute top-0 left-0"
+                style={{
+                  clipPath: 'polygon(50% 0%, 50% 50%, 100% 50%, 100% 0%)',
+                  animation: 'none',
+                }}
+              ></div>
             </div>
+            <p className="mt-6 text-xl text-white">กำลังเตรียมกล้อง...</p>
 
-            <p className="mt-6 text-xl text-white font-medium">
-              กำลังเปิดกล้อง...
-            </p>
-
+            {/* Stable back button */}
             <button
-              onClick={() => {
-                setCameraInitialized(false);
-                setStep('info');
-              }}
-              className="mt-8 px-6 py-3 bg-white/20 text-white rounded-full hover:bg-white/30 transition-colors"
+              type="button"
+              onClick={() => setStep('info')}
+              className="mt-8 px-6 py-3 bg-white text-black rounded-full"
             >
               ย้อนกลับ
             </button>
           </div>
         ) : (
-          <div className="relative h-full">
+          <div className="relative h-full w-full">
             <CameraFrame
               webcamRef={webcamRef}
               faceDetected={faceDetected}
@@ -384,11 +376,9 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               captureThreshold={captureThreshold}
             />
             <button
-              onClick={() => {
-                setCameraInitialized(false);
-                setStep('info');
-              }}
-              className="absolute top-6 left-6 p-3 bg-black/30 text-white rounded-full hover:bg-black/40 transition-colors"
+              type="button"
+              onClick={() => setStep('info')}
+              className="absolute top-4 left-4 z-50 px-4 py-2 bg-black/50 text-white rounded-full"
             >
               ย้อนกลับ
             </button>
