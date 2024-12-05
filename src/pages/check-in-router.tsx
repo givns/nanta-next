@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
@@ -16,8 +16,8 @@ const CheckInRouter: React.FC = () => {
     'auth' | 'user' | 'location' | 'ready'
   >('auth');
   const [loadingPhase, setLoadingPhase] = useState<
-    'initial' | 'transition' | 'complete'
-  >('initial');
+    'loading' | 'fadeOut' | 'complete'
+  >('loading');
 
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
@@ -43,10 +43,6 @@ const CheckInRouter: React.FC = () => {
     }
   }, [lineUserId, authLoading, isInitialized]);
 
-  useEffect(() => {
-    fetchUserData();
-  }, [fetchUserData]);
-
   const {
     locationReady,
     locationState,
@@ -60,32 +56,60 @@ const CheckInRouter: React.FC = () => {
   });
 
   useEffect(() => {
+    fetchUserData();
+  }, [fetchUserData]);
+
+  useEffect(() => {
     if (authLoading) setCurrentStep('auth');
     else if (!userData) setCurrentStep('user');
-    else if (!locationReady) setCurrentStep('location');
+    else if (!locationReady || !locationState.status)
+      setCurrentStep('location');
     else setCurrentStep('ready');
-  }, [authLoading, userData, locationReady]);
+  }, [authLoading, userData, locationReady, locationState.status]);
 
-  const isSystemReady = currentStep === 'ready' && !attendanceLoading;
+  const isSystemReady = useMemo(
+    () =>
+      currentStep === 'ready' &&
+      !attendanceLoading &&
+      locationState.status === 'ready' &&
+      userData !== null,
+    [currentStep, attendanceLoading, locationState.status, userData],
+  );
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (isSystemReady) {
-      setLoadingPhase('transition');
-      timer = setTimeout(() => setLoadingPhase('complete'), 500);
+    if (isSystemReady && loadingPhase === 'loading') {
+      setLoadingPhase('fadeOut');
+      timer = setTimeout(() => {
+        setLoadingPhase('complete');
+      }, 500);
     }
     return () => clearTimeout(timer);
   }, [isSystemReady]);
 
+  const mainContent = useMemo(
+    () => (
+      <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
+        {userData && (
+          <CheckInOutForm userData={userData} onComplete={closeWindow} />
+        )}
+      </div>
+    ),
+    [userData],
+  );
+
   if (loadingPhase !== 'complete') {
     return (
-      <div
-        className={`fixed inset-0 flex flex-col items-center justify-center bg-white transition-opacity duration-500 ${
-          loadingPhase === 'transition' ? 'opacity-0' : 'opacity-100'
-        }`}
-      >
-        <LoadingBar step={currentStep} />
-      </div>
+      <>
+        <div
+          className={`fixed inset-0 z-50 bg-white transition-opacity duration-500 ${
+            loadingPhase === 'fadeOut' ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
+          <LoadingBar step={currentStep} />
+        </div>
+        <div className="opacity-0">{mainContent}</div>
+      </>
     );
   }
 
@@ -98,13 +122,7 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      {userData && (
-        <CheckInOutForm userData={userData} onComplete={closeWindow} />
-      )}
-    </div>
-  );
+  return mainContent;
 };
 
 export default React.memo(CheckInRouter);
