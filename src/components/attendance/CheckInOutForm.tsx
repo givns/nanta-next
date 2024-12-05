@@ -82,12 +82,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const {
     webcamRef,
     isModelLoading,
-    initializationError,
     faceDetected,
     faceDetectionCount,
     message: detectionMessage,
     captureThreshold,
-    cameraReady,
   } = useFaceDetection(5, handlePhotoCapture);
 
   // Timer effect
@@ -339,30 +337,23 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
-  const renderCameraView = () => {
-    return (
-      <div className="fixed inset-0 z-50 bg-black">
-        {isModelLoading || !cameraReady ? (
-          <div className="h-full flex flex-col items-center justify-center bg-black">
-            <div className="w-16 h-16 relative">
-              <div className="w-full h-full border-4 border-gray-500 rounded-full"></div>
-              <div className="w-full h-full border-4 border-white rounded-full absolute top-0 left-0 animate-spin" />
-            </div>
-            <p className="mt-6 text-xl text-white">
-              {initializationError || 'กำลังเตรียมกล้อง...'}
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                setStep('info');
-              }}
-              className="mt-8 px-6 py-3 bg-white text-black rounded-full"
-            >
-              ย้อนกลับ
-            </button>
-          </div>
-        ) : (
+  const renderCameraView = () => (
+    <div className="fixed inset-0 z-50 bg-black">
+      {isModelLoading ? (
+        <div className="flex-grow flex flex-col items-center justify-center h-full">
+          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-6 text-xl text-white">
+            กำลังโหลดระบบตรวจจับใบหน้า...
+          </p>
+          <button
+            onClick={() => setStep('info')}
+            className="mt-8 px-6 py-3 bg-white/20 backdrop-blur-sm text-white rounded-full hover:bg-white/30 transition-all"
+          >
+            ย้อนกลับ
+          </button>
+        </div>
+      ) : (
+        <div className="relative h-full">
           <CameraFrame
             webcamRef={webcamRef}
             faceDetected={faceDetected}
@@ -370,10 +361,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             message={detectionMessage}
             captureThreshold={captureThreshold}
           />
-        )}
-      </div>
-    );
-  };
+          <button
+            onClick={() => setStep('info')}
+            className="absolute top-6 left-6 p-3 bg-black/30 text-white rounded-full hover:bg-black/40 transition-all"
+          >
+            ย้อนกลับ
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   const userShiftInfoStatus: UserShiftInfoStatus = {
     state,
