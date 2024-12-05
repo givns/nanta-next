@@ -2,12 +2,12 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
-import LoadingBar from '@/components/LoadingBar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { UserData } from '@/types/user';
 import CheckInOutForm from '@/components/attendance/CheckInOutForm';
 import { closeWindow } from '@/services/liff';
+import LoadingBar from '@/components/attendance/LoadingBar';
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
