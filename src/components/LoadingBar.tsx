@@ -1,36 +1,65 @@
 // components/LoadingBar.tsx
 import React, { useState, useEffect } from 'react';
 
-const LoadingBar: React.FC = () => {
+interface LoadingBarProps {
+  step: 'auth' | 'user' | 'location' | 'ready';
+}
+
+const LoadingBar: React.FC<LoadingBarProps> = ({ step }) => {
   const [progress, setProgress] = useState(0);
+  const getProgressTarget = () => {
+    switch (step) {
+      case 'auth':
+        return 33;
+      case 'user':
+        return 66;
+      case 'location':
+        return 99;
+      case 'ready':
+        return 100;
+    }
+  };
 
   useEffect(() => {
+    const target = getProgressTarget();
     const interval = setInterval(() => {
-      setProgress((prevProgress) => {
-        if (prevProgress >= 100) {
+      setProgress((prev) => {
+        if (prev >= target) {
           clearInterval(interval);
-          return 100;
+          return target;
         }
-        return prevProgress + 1;
+        return prev + 1;
       });
-    }, 50); // Adjust this value to change the speed of the progress bar
-
+    }, 30);
     return () => clearInterval(interval);
-  }, []);
+  }, [step]);
+
+  const getMessage = () => {
+    switch (step) {
+      case 'auth':
+        return 'กำลังตรวจสอบสิทธิ์...';
+      case 'user':
+        return 'กำลังโหลดข้อมูลผู้ใช้...';
+      case 'location':
+        return 'กำลังตรวจสอบตำแหน่ง...';
+      case 'ready':
+        return 'กำลังเตรียมระบบ...';
+    }
+  };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-50">
-      <div className="w-64 text-center">
-        <div className="mb-2 text-lg font-semibold text-gray-700">
+    <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-b from-white to-gray-100 z-50">
+      <div className="w-72 text-center">
+        <div className="mb-4 text-lg font-semibold text-gray-700">
           {progress}%
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
+        <div className="w-full bg-gray-200 rounded-full h-3">
           <div
-            className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+            className="bg-blue-600 h-3 rounded-full transition-all duration-500"
             style={{ width: `${progress}%` }}
-          ></div>
+          />
         </div>
-        <div className="mt-4 text-gray-600">กรุณารอสักครู่...</div>
+        <div className="mt-6 text-gray-700 font-medium">{getMessage()}</div>
       </div>
     </div>
   );

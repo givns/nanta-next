@@ -9,76 +9,41 @@ import { UserData } from '@/types/user';
 import CheckInOutForm from '@/components/attendance/CheckInOutForm';
 import { closeWindow } from '@/services/liff';
 
-// Define a proper loading state interface
-interface LoadingState {
-  auth: boolean;
-  userData: boolean;
-  location: boolean;
-  attendance: boolean;
-}
-
 const CheckInRouter: React.FC = () => {
-  // Core states
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loadingState, setLoadingState] = useState<LoadingState>({
-    auth: true,
-    userData: true,
-    location: true,
-    attendance: true,
-  });
+  const [currentStep, setCurrentStep] = useState<
+    'auth' | 'user' | 'location' | 'ready'
+  >('auth');
 
-  // Core hooks
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
 
-  // Update loading state utility
-  const updateLoadingState = useCallback(
-    (key: keyof LoadingState, value: boolean) => {
-      setLoadingState((prev) => ({ ...prev, [key]: value }));
-    },
-    [],
-  );
+  const fetchUserData = useCallback(async () => {
+    if (!lineUserId || authLoading || !isInitialized) return;
 
-  // Fetch user data
-  useEffect(() => {
-    let mounted = true;
+    try {
+      setCurrentStep('user');
+      const response = await fetch('/api/user-data', {
+        headers: { 'x-line-userid': lineUserId },
+      });
 
-    const fetchUserData = async () => {
-      if (!lineUserId || authLoading || !isInitialized) return;
+      if (!response.ok) throw new Error('Failed to fetch user data');
+      const data = await response.json();
 
-      try {
-        updateLoadingState('userData', true);
-        const response = await fetch('/api/user-data', {
-          headers: { 'x-line-userid': lineUserId },
-        });
-
-        if (!response.ok) throw new Error('Failed to fetch user data');
-        const data = await response.json();
-
-        if (!mounted) return;
-
-        if (data?.user) {
-          console.log('User data received:', data.user);
-          setUserData(data.user);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        setError('Failed to fetch user data');
-      } finally {
-        if (mounted) {
-          updateLoadingState('userData', false);
-        }
+      if (data?.user) {
+        setUserData(data.user);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError('Failed to fetch user data');
+    }
+  }, [lineUserId, authLoading, isInitialized]);
 
+  useEffect(() => {
     fetchUserData();
-    return () => {
-      mounted = false;
-    };
-  }, [lineUserId, authLoading, isInitialized, updateLoadingState]);
+  }, [fetchUserData]);
 
-  // Initialize attendance tracking
   const {
     locationReady,
     locationState,
@@ -88,40 +53,22 @@ const CheckInRouter: React.FC = () => {
   } = useSimpleAttendance({
     employeeId: userData?.employeeId,
     lineUserId,
-    enabled: Boolean(
-      userData?.employeeId && !loadingState.userData && !authLoading,
-    ),
+    enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
-  // Update loading states based on dependencies
   useEffect(() => {
-    updateLoadingState('auth', authLoading);
-    updateLoadingState('location', !locationReady);
-    updateLoadingState('attendance', attendanceLoading);
-  }, [authLoading, locationReady, attendanceLoading, updateLoadingState]);
+    if (authLoading) setCurrentStep('auth');
+    else if (!userData) setCurrentStep('user');
+    else if (!locationReady) setCurrentStep('location');
+    else setCurrentStep('ready');
+  }, [authLoading, userData, locationReady]);
 
-  // Determine if system is ready
-  const isSystemReady = !Object.values(loadingState).some(Boolean);
+  const isSystemReady = currentStep === 'ready' && !attendanceLoading;
 
-  // Loading view
   if (!isSystemReady) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <LoadingBar />
-        <p className="mt-4 text-gray-600">
-          {loadingState.auth
-            ? 'กำลังตรวจสอบสิทธิ์...'
-            : loadingState.userData
-              ? 'กำลังโหลดข้อมูลผู้ใช้...'
-              : loadingState.location
-                ? 'กำลังตรวจสอบตำแหน่ง...'
-                : 'กำลังโหลดข้อมูล...'}
-        </p>
-      </div>
-    );
+    return <LoadingBar step={currentStep} />;
   }
 
-  // Error states
   if (error || attendanceError) {
     return (
       <Alert variant="destructive">
@@ -131,9 +78,8 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  // Main render
   return (
-    <div className="min-h-screen flex flex-col bg-gray-300">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       {userData && (
         <CheckInOutForm userData={userData} onComplete={closeWindow} />
       )}
