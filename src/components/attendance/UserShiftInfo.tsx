@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { Calendar, Clock, AlertCircle, Clock1 } from 'lucide-react';
+import { Calendar, Clock, AlertCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import Clock1 from '@/components/attendance/Clock';
 import {
   AttendanceState,
   AttendanceStatusInfo,
@@ -136,21 +137,6 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       </div>
     );
   }
-
-  const Clock1: React.FC = () => {
-    const [time, setTime] = useState(new Date());
-
-    useEffect(() => {
-      const timer = setInterval(() => setTime(new Date()), 1000);
-      return () => clearInterval(timer);
-    }, []);
-
-    return (
-      <div className="text-2xl font-bold text-gray-700">
-        {format(time, 'HH:mm:ss')}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-4">

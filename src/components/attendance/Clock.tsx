@@ -1,7 +1,8 @@
+//components/Clock.tsx
 import React, { useState, useEffect } from 'react';
-import { getBangkokTime } from '../utils/dateUtils';
+import { getBangkokTime } from '../../utils/dateUtils';
 
-const Clock: React.FC = () => {
+const Clock1: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(
     getBangkokTime().toLocaleTimeString(),
   );
@@ -21,4 +22,4 @@ const Clock: React.FC = () => {
   );
 };
 
-export default React.memo(Clock);
+export default React.memo(Clock1);
