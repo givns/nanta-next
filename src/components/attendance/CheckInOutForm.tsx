@@ -82,10 +82,12 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const {
     webcamRef,
     isModelLoading,
+    initializationError,
     faceDetected,
     faceDetectionCount,
     message: detectionMessage,
     captureThreshold,
+    cameraReady,
   } = useFaceDetection(5, handlePhotoCapture);
 
   // Timer effect
@@ -338,51 +340,36 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderCameraView = () => {
-    // Don't use useEffect inside render function
     return (
       <div className="fixed inset-0 z-50 bg-black">
-        {isModelLoading ? (
-          // Simple, stable loading view
+        {isModelLoading || !cameraReady ? (
           <div className="h-full flex flex-col items-center justify-center bg-black">
-            {/* Static loader */}
             <div className="w-16 h-16 relative">
               <div className="w-full h-full border-4 border-gray-500 rounded-full"></div>
-              <div
-                className="w-full h-full border-4 border-white rounded-full absolute top-0 left-0"
-                style={{
-                  clipPath: 'polygon(50% 0%, 50% 50%, 100% 50%, 100% 0%)',
-                  animation: 'none',
-                }}
-              ></div>
+              <div className="w-full h-full border-4 border-white rounded-full absolute top-0 left-0 animate-spin" />
             </div>
-            <p className="mt-6 text-xl text-white">กำลังเตรียมกล้อง...</p>
+            <p className="mt-6 text-xl text-white">
+              {initializationError || 'กำลังเตรียมกล้อง...'}
+            </p>
 
-            {/* Stable back button */}
             <button
               type="button"
-              onClick={() => setStep('info')}
+              onClick={() => {
+                setStep('info');
+              }}
               className="mt-8 px-6 py-3 bg-white text-black rounded-full"
             >
               ย้อนกลับ
             </button>
           </div>
         ) : (
-          <div className="relative h-full w-full">
-            <CameraFrame
-              webcamRef={webcamRef}
-              faceDetected={faceDetected}
-              faceDetectionCount={faceDetectionCount}
-              message={detectionMessage}
-              captureThreshold={captureThreshold}
-            />
-            <button
-              type="button"
-              onClick={() => setStep('info')}
-              className="absolute top-4 left-4 z-50 px-4 py-2 bg-black/50 text-white rounded-full"
-            >
-              ย้อนกลับ
-            </button>
-          </div>
+          <CameraFrame
+            webcamRef={webcamRef}
+            faceDetected={faceDetected}
+            faceDetectionCount={faceDetectionCount}
+            message={detectionMessage}
+            captureThreshold={captureThreshold}
+          />
         )}
       </div>
     );
