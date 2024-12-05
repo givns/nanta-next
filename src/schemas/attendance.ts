@@ -400,6 +400,7 @@ export const CheckInOutRequestSchema = z
     checkTime: z.string(),
     address: z.string(),
     inPremises: z.boolean(),
+    confidence: z.enum(['high', 'medium', 'low', 'manual']),
     entryType: PeriodTypeSchema, // Added as required field
 
     // Optional fields with validation
