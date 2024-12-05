@@ -73,47 +73,53 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   // Determine status message and color
   const statusDisplay = useMemo(() => {
-    const statusInfo: AttendanceStatusInfo = {
-      state: status.state,
-      checkStatus: status.checkStatus,
-      isHoliday: status.isHoliday,
-      isDayOff: status.isDayOff,
-      isOvertime: status.isOvertime,
-      approvedOvertime: null, // Add this
-      currentPeriod: {
-        type: status.currentPeriod?.type ?? PeriodType.REGULAR,
-        isComplete: status.currentPeriod?.isComplete ?? false,
-        checkInTime: status.currentPeriod?.checkInTime,
-        checkOutTime: status.currentPeriod?.checkOutTime,
-        current: status.currentPeriod?.current ?? {
-          start: new Date(),
-          end: new Date(),
-        },
+    if (!status)
+      return { message: 'ไม่พบข้อมูลการลงเวลา', color: 'red' as const };
+
+    const currentPeriod = {
+      type: status.currentPeriod?.type ?? PeriodType.REGULAR,
+      isComplete: status.currentPeriod?.isComplete ?? false,
+      checkInTime: status.currentPeriod?.checkInTime ?? null,
+      checkOutTime: status.currentPeriod?.checkOutTime ?? null,
+      current: {
+        start: new Date(status.currentPeriod?.current.start ?? new Date()),
+        end: new Date(status.currentPeriod?.current.end ?? new Date()),
       },
-      latestAttendance: status.latestAttendance
-        ? {
-            id: '', // Required by LatestAttendance type
-            employeeId: '', // Required
-            date: new Date().toISOString(),
-            regularCheckInTime:
-              status.latestAttendance.regularCheckInTime?.toISOString() ?? null,
-            regularCheckOutTime:
-              status.latestAttendance.regularCheckOutTime?.toISOString() ??
-              null,
-            state: status.state,
-            checkStatus: status.checkStatus,
-            isManualEntry: false,
-            isDayOff: status.isDayOff,
-          }
-        : null,
+      overtimeId: status.currentPeriod?.overtimeId,
+    };
+
+    const latestAttendance = status.latestAttendance
+      ? {
+          id: '',
+          employeeId: '',
+          date: new Date().toISOString(),
+          regularCheckInTime:
+            status.latestAttendance.regularCheckInTime?.toISOString() ?? null,
+          regularCheckOutTime:
+            status.latestAttendance.regularCheckOutTime?.toISOString() ?? null,
+          state: status.state,
+          checkStatus: status.checkStatus,
+          isManualEntry: false,
+          isDayOff: status.isDayOff,
+        }
+      : null;
+
+    const statusInfo: AttendanceStatusInfo = {
+      ...status,
+      currentPeriod,
+      latestAttendance,
       overtimeEntries: [],
       detailedStatus: '',
       isEarlyCheckIn: false,
       isLateCheckIn: false,
       isLateCheckOut: false,
       user: userData,
-      isCheckingIn: false,
-      dayOffType: 'holiday',
+      isCheckingIn: !status.latestAttendance?.regularCheckInTime,
+      dayOffType: status.isHoliday
+        ? 'holiday'
+        : status.isDayOff
+          ? 'weekly'
+          : 'none',
       isOutsideShift: false,
       isLate: false,
       shiftAdjustment: null,
@@ -121,10 +127,11 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       futureOvertimes: [],
       overtimeAttendances: [],
       pendingLeaveRequest: false,
+      approvedOvertime: null,
     };
 
     return getStatusMessage(statusInfo);
-  }, [status]);
+  }, [status, userData]);
 
   if (isLoading) {
     return (
