@@ -15,6 +15,7 @@ interface LoadingState {
   userData: boolean;
   location: boolean;
   attendance: boolean;
+  currentStep: 'auth' | 'user' | 'location' | 'ready';
 }
 
 const CheckInRouter: React.FC = () => {
@@ -26,6 +27,7 @@ const CheckInRouter: React.FC = () => {
     userData: true,
     location: true,
     attendance: true,
+    currentStep: 'auth',
   });
 
   // Core hooks
@@ -109,13 +111,9 @@ const CheckInRouter: React.FC = () => {
       <div className="flex flex-col items-center justify-center min-h-screen">
         <LoadingBar />
         <p className="mt-4 text-gray-600">
-          {loadingState.auth
-            ? 'กำลังตรวจสอบสิทธิ์...'
-            : loadingState.userData
-              ? 'กำลังโหลดข้อมูลผู้ใช้...'
-              : loadingState.location
-                ? 'กำลังตรวจสอบตำแหน่ง...'
-                : 'กำลังโหลดข้อมูล...'}
+          {loadingState.currentStep === 'auth' && 'กำลังตรวจสอบสิทธิ์...'}
+          {loadingState.currentStep === 'user' && 'กำลังโหลดข้อมูลผู้ใช้...'}
+          {loadingState.currentStep === 'location' && 'กำลังตรวจสอบตำแหน่ง...'}
         </p>
       </div>
     );
@@ -133,7 +131,7 @@ const CheckInRouter: React.FC = () => {
 
   // Main render
   return (
-    <div className="min-h-screen flex flex-col bg-gray-100">
+    <div className="min-h-screen flex flex-col bg-gray-300">
       {userData && (
         <CheckInOutForm userData={userData} onComplete={closeWindow} />
       )}

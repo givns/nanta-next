@@ -1,16 +1,18 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { Calendar, Clock, AlertCircle, User } from 'lucide-react';
+import { Calendar, Clock, AlertCircle, Clock1 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
-  AttendanceBaseResponse,
   AttendanceState,
+  AttendanceStatusInfo,
   CheckStatus,
   CurrentPeriodInfo,
+  PeriodType,
   ShiftData,
   UserData,
 } from '@/types/attendance';
+import { getStatusMessage } from './StatusMessage';
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -70,39 +72,57 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   // Determine status message and color
   const statusDisplay = useMemo(() => {
-    if (!status) {
-      return {
-        message: 'ไม่พบข้อมูลการลงเวลา',
-        color: 'red' as const,
-      };
-    }
+    const statusInfo: AttendanceStatusInfo = {
+      state: status.state,
+      checkStatus: status.checkStatus,
+      isHoliday: status.isHoliday,
+      isDayOff: status.isDayOff,
+      isOvertime: status.isOvertime,
+      approvedOvertime: null, // Add this
+      currentPeriod: {
+        type: status.currentPeriod?.type ?? PeriodType.REGULAR,
+        isComplete: status.currentPeriod?.isComplete ?? false,
+        checkInTime: status.currentPeriod?.checkInTime,
+        checkOutTime: status.currentPeriod?.checkOutTime,
+        current: status.currentPeriod?.current ?? {
+          start: new Date(),
+          end: new Date(),
+        },
+      },
+      latestAttendance: status.latestAttendance
+        ? {
+            id: '', // Required by LatestAttendance type
+            employeeId: '', // Required
+            date: new Date().toISOString(),
+            regularCheckInTime:
+              status.latestAttendance.regularCheckInTime?.toISOString() ?? null,
+            regularCheckOutTime:
+              status.latestAttendance.regularCheckOutTime?.toISOString() ??
+              null,
+            state: status.state,
+            checkStatus: status.checkStatus,
+            isManualEntry: false,
+            isDayOff: status.isDayOff,
+          }
+        : null,
+      overtimeEntries: [],
+      detailedStatus: '',
+      isEarlyCheckIn: false,
+      isLateCheckIn: false,
+      isLateCheckOut: false,
+      user: userData,
+      isCheckingIn: false,
+      dayOffType: 'holiday',
+      isOutsideShift: false,
+      isLate: false,
+      shiftAdjustment: null,
+      futureShifts: [],
+      futureOvertimes: [],
+      overtimeAttendances: [],
+      pendingLeaveRequest: false,
+    };
 
-    if (status.isHoliday || status.isDayOff) {
-      return {
-        message: status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุดประจำสัปดาห์',
-        color: 'blue' as const,
-      };
-    }
-
-    switch (status.state) {
-      case AttendanceState.ABSENT:
-        return {
-          message: 'รอลงเวลาเข้างาน',
-          color: 'blue' as const,
-        };
-      case AttendanceState.PRESENT:
-        return {
-          message: status.latestAttendance?.regularCheckOutTime
-            ? 'เสร็จสิ้นการทำงาน'
-            : 'กำลังปฏิบัติงาน',
-          color: 'green' as const,
-        };
-      default:
-        return {
-          message: 'ไม่สามารถระบุสถานะได้',
-          color: 'red' as const,
-        };
-    }
+    return getStatusMessage(statusInfo);
   }, [status]);
 
   if (isLoading) {
@@ -117,13 +137,28 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     );
   }
 
+  const Clock1: React.FC = () => {
+    const [time, setTime] = useState(new Date());
+
+    useEffect(() => {
+      const timer = setInterval(() => setTime(new Date()), 1000);
+      return () => clearInterval(timer);
+    }, []);
+
+    return (
+      <div className="text-2xl font-bold text-gray-700">
+        {format(time, 'HH:mm:ss')}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* User Info Card */}
       <Card>
         <CardHeader className="text-center">
           <div className="flex items-center justify-center mb-2">
-            <User className="w-12 h-12 text-gray-400" />
+            <Clock1 />
           </div>
           <CardTitle className="text-2xl">{userData.name}</CardTitle>
           <p className="text-xl text-gray-600">

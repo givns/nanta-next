@@ -1,3 +1,4 @@
+//StatusMessage.tsx
 import { AttendanceStatusInfo } from '@/types/attendance';
 
 interface StatusMessageResult {
