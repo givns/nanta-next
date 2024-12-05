@@ -113,9 +113,9 @@ export interface ProcessingViewProps {
 export interface ActionButtonProps {
   isEnabled: boolean;
   validationMessage?: string;
+  nextWindowTime?: Date; // Add this
   isCheckingIn: boolean;
   onAction: () => void;
-  className?: string;
   locationState: {
     isReady: boolean;
     error?: string;

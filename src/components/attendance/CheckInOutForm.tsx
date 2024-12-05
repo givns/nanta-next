@@ -395,9 +395,9 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-white pb-24">
       {' '}
-      {/* Added bg-white */}
+      {/* Added pb-24 for button space */} {/* Added bg-white */}
       {step === 'info' && (
         <div className="flex-1 flex flex-col">
           <div className="flex-1 overflow-y-auto">
@@ -409,11 +409,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             />
           </div>
 
-          <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
-            <div className="px-4 py-3 pb-safe">
+          <div className="fixed bottom-0 right-0 left-0 z-20">
+            <div className="container max-w-md mx-auto px-4 pb-safe">
               <ActionButton
                 isEnabled={!!validation?.allowed}
                 validationMessage={validation?.reason}
+                nextWindowTime={
+                  currentPeriod?.type === 'overtime' && !validation?.allowed
+                    ? new Date(currentPeriod.current.start)
+                    : undefined
+                }
                 isCheckingIn={!currentPeriod?.checkInTime}
                 onAction={() =>
                   handleAction(

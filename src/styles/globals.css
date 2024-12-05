@@ -11,12 +11,12 @@
     --popover-foreground: 222.2 84% 4.9%;
     --header-height: 4rem; /* Standardize to 64px */
     --footer-height: 140px;
-    --safe-bottom: env(safe-area-inset-bottom, 16px);
+    --safe-bottom: env(safe-area-inset-bottom, 1rem);
     --api-timeout: 30000ms;
   }
 
   .pb-safe {
-    padding-bottom: calc(var(--safe-bottom) + 16px);
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
   }
 
   .dark {
@@ -24,6 +24,33 @@
     --foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
+  }
+}
+
+/* Add floating button styles */
+.floating-button {
+  filter: drop-shadow(0 4px 3px rgb(0 0 0 / 0.07))
+    drop-shadow(0 2px 2px rgb(0 0 0 / 0.06));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-button:active {
+  transform: scale(0.95);
+}
+
+.floating-button-message {
+  animation: slideUp 0.3s ease-out;
+  transform-origin: bottom right;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
