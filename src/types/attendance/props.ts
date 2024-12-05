@@ -17,6 +17,7 @@ import {
   AttendanceStatusInfo,
   CheckStatus,
   CurrentPeriodInfo,
+  OvertimeState,
   PeriodType,
 } from './status';
 import { KeyedMutator } from 'swr';
@@ -80,22 +81,40 @@ export interface UseSimpleAttendanceState {
 }
 
 export interface CheckInOutData {
+  // Required fields
   employeeId: string;
   lineUserId: string | null;
-  photo: string;
   checkTime: string;
   isCheckIn: boolean;
-  reason?: string;
   address: string;
-  isOvertime?: boolean;
-  earlyCheckoutType?: 'planned' | 'emergency';
+  inPremises: boolean; // Added required field
+  confidence: 'high' | 'medium' | 'low' | 'manual'; // Added 'manual' option
   entryType: PeriodType;
-  confidence: 'high' | 'medium' | 'low';
+
+  // Optional fields
+  photo?: string;
+  reason?: string;
+  isOvertime?: boolean;
+  isManualEntry?: boolean; // Added optional field
+  overtimeRequestId?: string; // Added for overtime validation
+  earlyCheckoutType?: 'planned' | 'emergency';
   isLate?: boolean;
+  state?: AttendanceState; // Added optional field
+  checkStatus?: CheckStatus; // Added optional field
+  overtimeState?: OvertimeState; // Added optional field
+
+  // Location data
+  location?: {
+    lat: number;
+    lng: number;
+  };
+
+  // Metadata
   metadata?: {
     overtimeId?: string;
     isDayOffOvertime?: boolean;
     isInsideShiftHours?: boolean;
+    [key: string]: unknown; // Allow additional metadata
   };
 }
 

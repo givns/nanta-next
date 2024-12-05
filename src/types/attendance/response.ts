@@ -155,6 +155,8 @@ export interface ValidationResponse {
     isEmergencyLeave: boolean;
     isOvertime: boolean;
     requireConfirmation: boolean;
+    isDayOffOvertime: boolean;
+    isInsideShift: boolean;
   };
 }
 
@@ -167,22 +169,3 @@ export interface CheckInOutResponse {
   };
   error?: string;
 }
-
-// Additional validation for request
-export const CheckInOutRequestSchema = z.object({
-  employeeId: z.string(),
-  lineUserId: z.string().optional(),
-  isCheckIn: z.boolean(),
-  photo: z.string(),
-  address: z.string(),
-  confidence: z.enum(['high', 'medium', 'low', 'manual']),
-  location: z
-    .object({
-      lat: z.number(),
-      lng: z.number(),
-    })
-    .optional(),
-  timestamp: z.string().datetime(),
-});
-
-export type CheckInOutRequest = z.infer<typeof CheckInOutRequestSchema>;

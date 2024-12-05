@@ -125,36 +125,71 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   // Handle attendance submission
   const handleAttendanceSubmit = async () => {
-    const mappedConfidence: 'high' | 'medium' | 'low' =
-      locationState.confidence === 'manual' ? 'low' : locationState.confidence;
+    try {
+      setProcessingState({
+        status: 'loading',
+        message: 'กำลังบันทึกเวลา...',
+      });
 
-    await checkInOut({
-      checkTime: getCurrentTime().toISOString(),
-      isCheckIn: !currentPeriod?.checkInTime,
-      address: locationState.address,
-      isOvertime: currentPeriod?.type === 'overtime',
-      earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
-        ? 'planned'
-        : validation?.flags.isEmergencyLeave
-          ? 'emergency'
-          : undefined,
-      entryType: currentPeriod?.type || PeriodType.REGULAR,
-      confidence: mappedConfidence,
-      isLate: validation?.flags.isLateCheckIn,
-      metadata: {
-        overtimeId: currentPeriod?.overtimeId,
-      },
-      employeeId: '',
-      lineUserId: null,
-      photo: '',
-    });
+      const mappedConfidence: 'high' | 'medium' | 'low' | 'manual' =
+        locationState.confidence;
 
-    setProcessingState({
-      status: 'success',
-      message: 'บันทึกเวลาสำเร็จ',
-    });
+      const isCheckingIn = !currentPeriod?.checkInTime;
 
-    setTimeout(onComplete, 1500);
+      await checkInOut({
+        // Required fields
+        employeeId: userData.employeeId,
+        lineUserId: userData.lineUserId || null,
+        checkTime: getCurrentTime().toISOString(),
+        isCheckIn: isCheckingIn,
+        address: locationState.address,
+        inPremises: locationState.inPremises,
+        confidence: mappedConfidence,
+        entryType: currentPeriod?.type || PeriodType.REGULAR,
+
+        // Optional fields
+        photo: '',
+        reason: undefined,
+        isOvertime: currentPeriod?.type === 'overtime',
+        isManualEntry: false,
+        overtimeRequestId:
+          currentPeriod?.type === 'overtime'
+            ? currentPeriod.overtimeId
+            : undefined,
+        earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
+          ? 'planned'
+          : validation?.flags.isEmergencyLeave
+            ? 'emergency'
+            : undefined,
+        isLate: validation?.flags.isLateCheckIn,
+
+        // Location data if available
+        location: locationState.coordinates,
+
+        // Metadata
+        metadata: {
+          overtimeId: currentPeriod?.overtimeId,
+          isDayOffOvertime: validation?.flags.isDayOffOvertime,
+          isInsideShiftHours: validation?.flags.isInsideShift,
+        },
+      });
+
+      setProcessingState({
+        status: 'success',
+        message: 'บันทึกเวลาสำเร็จ',
+      });
+
+      setTimeout(onComplete, 1500);
+    } catch (error) {
+      console.error('Attendance submission error:', error);
+      setProcessingState({
+        status: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'เกิดข้อผิดพลาดในการบันทึกเวลา',
+      });
+    }
   };
 
   // Handle check out

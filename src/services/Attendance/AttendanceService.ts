@@ -140,6 +140,8 @@ export class AttendanceService {
           isEmergencyLeave: false,
           isOvertime: false,
           requireConfirmation: false,
+          isDayOffOvertime: false,
+          isInsideShift: false,
         },
       };
     }
@@ -160,17 +162,10 @@ export class AttendanceService {
         isPlannedHalfDayLeave: Boolean(allowance.flags.isPlannedHalfDayLeave),
         isEmergencyLeave: Boolean(allowance.flags.isEmergencyLeave),
         isOvertime: Boolean(allowance.flags.isOvertime),
-        requireConfirmation: false, // Default value since it's not in allowance flags
+        requireConfirmation: false,
+        isDayOffOvertime: false,
+        isInsideShift: false,
       },
-    };
-  }
-
-  private getDefaultFlags() {
-    return {
-      isLateCheckIn: false,
-      isEarlyCheckOut: false,
-      isOvertime: false,
-      requireConfirmation: false,
     };
   }
 
