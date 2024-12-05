@@ -76,6 +76,13 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
     if (!status)
       return { message: 'ไม่พบข้อมูลการลงเวลา', color: 'red' as const };
 
+    console.log('Status Info:', {
+      isHoliday: status.isHoliday,
+      isDayOff: status.isDayOff,
+      state: status.state,
+      currentPeriod: status.currentPeriod,
+    });
+
     const currentPeriod = {
       type: status.currentPeriod?.type ?? PeriodType.REGULAR,
       isComplete: status.currentPeriod?.isComplete ?? false,

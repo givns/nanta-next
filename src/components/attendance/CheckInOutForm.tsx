@@ -340,22 +340,24 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     <div className="fixed inset-0 z-50 bg-black">
       {isModelLoading ? (
         <div className="flex-grow flex flex-col items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-          <p className="mt-4 text-lg text-white">
+          {/* Improved spinner */}
+          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+
+          {/* Larger, clearer text */}
+          <p className="mt-8 text-xl text-white font-medium">
             กำลังโหลดระบบตรวจจับใบหน้า...
           </p>
-          {/* Add back button in case of loading issues */}
+
+          {/* More prominent back button */}
           <button
             onClick={() => setStep('info')}
-            className="mt-6 px-4 py-2 bg-white text-black rounded hover:bg-gray-100"
+            className="mt-8 px-6 py-3 bg-white/20 hover:bg-white/30 text-white rounded-full transition-all backdrop-blur-sm"
           >
-            ย้อนกลับ
+            ← ย้อนกลับ
           </button>
         </div>
       ) : (
         <div className="relative h-full">
-          {' '}
-          {/* Added relative positioning */}
           <CameraFrame
             webcamRef={webcamRef}
             faceDetected={faceDetected}
@@ -363,6 +365,13 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             message={detectionMessage}
             captureThreshold={captureThreshold}
           />
+          {/* Added persistent back button */}
+          <button
+            onClick={() => setStep('info')}
+            className="absolute top-6 left-6 p-3 text-white bg-black/30 hover:bg-black/40 rounded-full transition-all backdrop-blur-sm"
+          >
+            ← ย้อนกลับ
+          </button>
         </div>
       )}
     </div>

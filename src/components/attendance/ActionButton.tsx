@@ -40,12 +40,12 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   }, [isEnabled, locationState.isReady]);
 
   return (
-    <div className="fixed right-4 bottom-12 mb-safe space-y-3 flex flex-col items-end">
-      {/* Enhanced feedback message */}
+    <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
+      {/* Feedback message */}
       {(validationMessage || locationState.error || nextWindowTime) && (
-        <div className="floating-button-message bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg max-w-[280px] text-sm">
+        <div className="floating-button-message bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg max-w-[280px] text-base mb-4">
           {!isEnabled && validationMessage && (
-            <p className="text-red-600 font-medium mb-1">{validationMessage}</p>
+            <p className="text-red-600 font-semibold">{validationMessage}</p>
           )}
           {isEnabled && validationMessage && (
             <p className="text-gray-700">{validationMessage}</p>
@@ -61,15 +61,15 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         </div>
       )}
 
-      {/* Improved button with better spacing */}
+      {/* Larger centered button */}
       <button
         onClick={onAction}
         disabled={!isEnabled || !locationState.isReady}
-        className={`h-14 w-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg ${buttonStateClass}`}
+        className={`h-20 w-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg ${buttonStateClass}`}
         aria-label={`เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
       >
         <span
-          className={`text-lg font-medium ${!isEnabled ? 'text-red-500' : 'text-white'}`}
+          className={`text-2xl font-semibold ${!isEnabled ? 'text-red-500' : 'text-white'}`}
         >
           {buttonText}
         </span>
