@@ -28,6 +28,8 @@ import {
 } from '../types/attendance';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { LeaveServiceServer } from './LeaveServiceServer';
+import { th } from 'date-fns/locale';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 interface CheckInCalculationsResult {
   minutesLate: number;
@@ -43,6 +45,14 @@ interface WorkingHoursResult {
 interface OvertimeMetadataInput {
   isInsideShiftHours: boolean;
   isDayOffOvertime: boolean;
+}
+
+interface EntryMetricsResult {
+  minutesLate: number;
+  isHalfDayLate: boolean;
+  regularHours: number;
+  overtimeHours: number;
+  overtimeMetadata: any | null;
 }
 
 export class TimeEntryService {
@@ -243,16 +253,19 @@ export class TimeEntryService {
     isCheckIn: boolean,
     shiftTimes: { start: Date | null; end: Date | null },
     leaveRequests: LeaveRequest[],
-  ) {
+  ): EntryMetricsResult {
+    // Calculate late status if it's a check-in and shift start time exists
     const lateStatus =
       shiftTimes.start && isCheckIn
         ? this.calculateLateStatus(
+            attendance.employeeId,
             attendance.regularCheckInTime!,
             shiftTimes.start,
             leaveRequests,
           )
         : { minutesLate: 0, isHalfDayLate: false };
 
+    // Calculate working hours for check-out if all required times exist
     const workingHours =
       !isCheckIn && shiftTimes.start && shiftTimes.end
         ? this.calculateWorkingHours(
@@ -265,7 +278,19 @@ export class TimeEntryService {
           )
         : { regularHours: 0, overtimeHours: 0, overtimeMetadata: null };
 
-    return { ...lateStatus, ...workingHours };
+    // Log metrics calculation
+    console.log('Entry metrics calculated:', {
+      employeeId: attendance.employeeId,
+      isCheckIn,
+      lateStatus,
+      workingHours,
+      timestamp: getCurrentTime(),
+    });
+
+    return {
+      ...lateStatus,
+      ...workingHours,
+    };
   }
 
   private prepareRegularEntryData(
@@ -342,32 +367,81 @@ export class TimeEntryService {
 
   // Utility methods
   private calculateLateStatus(
+    employeeId: string,
     checkInTime: Date,
     shiftStart: Date,
     leaveRequests: LeaveRequest[],
   ): CheckInCalculationsResult {
+    // Calculate minutes late, ensuring non-negative value
     const minutesLate = Math.max(
       0,
       differenceInMinutes(checkInTime, shiftStart),
     );
+
+    // Determine if it's a half-day late scenario
     const isHalfDayLate = minutesLate >= this.HALF_DAY_THRESHOLD;
 
+    // Send notification if late and no approved leave requests
     if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
-      this.notifyLateCheckIn(checkInTime, minutesLate, isHalfDayLate);
+      // Log the late check-in calculation
+      console.log('Late check-in detected:', {
+        employeeId,
+        checkInTime: checkInTime.toISOString(),
+        shiftStart: shiftStart.toISOString(),
+        minutesLate,
+        isHalfDayLate,
+        timestamp: getCurrentTime(),
+      });
+
+      // Send notification asynchronously
+      setImmediate(() => {
+        this.notifyLateCheckIn(
+          employeeId,
+          checkInTime,
+          minutesLate,
+          isHalfDayLate,
+        ).catch((error) => {
+          console.error('Failed to send late check-in notification:', {
+            error,
+            employeeId,
+            checkInTime: checkInTime.toISOString(),
+            minutesLate,
+            timestamp: getCurrentTime(),
+          });
+        });
+      });
     }
 
     return { minutesLate, isHalfDayLate };
   }
 
   private async notifyLateCheckIn(
+    employeeId: string,
     checkInTime: Date,
     minutesLate: number,
     isHalfDayLate: boolean,
   ): Promise<void> {
     console.log('Preparing admin notification for late check-in:', {
+      employeeId,
       minutesLate,
       isHalfDayLate,
     });
+
+    // Get employee details
+    const employee = await this.prisma.user.findUnique({
+      where: { employeeId },
+      select: {
+        name: true,
+        department: {
+          select: { name: true },
+        },
+      },
+    });
+
+    if (!employee) {
+      console.error(`Employee not found for late notification: ${employeeId}`);
+      return;
+    }
 
     const admins = await this.prisma.user.findMany({
       where: {
@@ -376,14 +450,25 @@ export class TimeEntryService {
       select: { employeeId: true, lineUserId: true },
     });
 
+    const formattedDate = format(checkInTime, 'dd MMMM yyyy', { locale: th });
+    const formattedTime = format(checkInTime, 'HH:mm');
+
     for (const admin of admins) {
       if (admin.lineUserId) {
         try {
           const message = {
             type: 'text',
-            text: `แจ้งเตือน: สาย ${Math.floor(minutesLate)} นาที
-                  ${isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : ''}
-                  เวลา: ${format(checkInTime, 'HH:mm')}`,
+            text: [
+              '🔔 แจ้งเตือนการมาสาย',
+              `พนักงาน: ${employee.name}`,
+              `แผนก: ${employee.department?.name ?? 'ไม่ระบุ'}`,
+              `วันที่: ${formattedDate}`,
+              `เวลาเข้างาน: ${formattedTime} น.`,
+              `สาย: ${Math.floor(minutesLate)} นาที`,
+              isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : '',
+            ]
+              .filter(Boolean)
+              .join('\n'),
           };
 
           await this.notificationService.sendNotification(
@@ -392,10 +477,17 @@ export class TimeEntryService {
             JSON.stringify(message),
             'check-in',
           );
-          console.log(`Notification sent to admin ${admin.employeeId}`);
+          console.log(
+            `Late check-in notification sent to admin ${admin.employeeId}`,
+            {
+              employeeId,
+              adminId: admin.employeeId,
+              timestamp: getCurrentTime(),
+            },
+          );
         } catch (error) {
           console.error(
-            `Failed to send notification to admin ${admin.employeeId}:`,
+            `Failed to send late check-in notification to admin ${admin.employeeId}:`,
             error,
           );
         }

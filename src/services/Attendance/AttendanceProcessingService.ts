@@ -39,8 +39,11 @@ import { AttendanceMappers } from './utils/AttendanceMappers';
 import { AttendanceValidators } from './utils/AttendanceValidators';
 import { AttendanceResponseBuilder } from './utils/AttendanceResponseBuilder';
 import { StatusHelpers } from './utils/StatusHelper';
+import { AttendanceLoggingService } from './AttendanceLoggingService';
 
 export class AttendanceProcessingService {
+  private loggingService: AttendanceLoggingService;
+
   constructor(
     private prisma: PrismaClient,
     private shiftService: ShiftManagementService,
@@ -48,7 +51,9 @@ export class AttendanceProcessingService {
     private timeEntryService: TimeEntryService,
     private leaveService: LeaveServiceServer,
     private holidayService: HolidayService,
-  ) {}
+  ) {
+    this.loggingService = new AttendanceLoggingService(prisma);
+  }
 
   async processAttendance(
     options: ProcessingOptions,
@@ -56,7 +61,6 @@ export class AttendanceProcessingService {
     return this.prisma.$transaction(
       async (tx) => {
         try {
-          // Validation and context gathering same as before
           const validationResult =
             await AttendanceValidators.validateProcessingOptions(options);
           if (!validationResult.isValid) {
@@ -82,7 +86,7 @@ export class AttendanceProcessingService {
             options,
           );
 
-          // Process attendance change first
+          // Process attendance change
           const processedAttendance = await this.processAttendanceChange(
             tx,
             currentAttendance,
@@ -91,32 +95,6 @@ export class AttendanceProcessingService {
             periodContext,
           );
 
-          // Create log with attendance relation
-          await tx.attendanceLogs.create({
-            data: {
-              employeeId: options.employeeId,
-              previousState: statusUpdate.stateChange.state.previous,
-              currentState: statusUpdate.stateChange.state.current,
-              previousCheckStatus:
-                statusUpdate.stateChange.checkStatus.previous,
-              currentCheckStatus: statusUpdate.stateChange.checkStatus.current,
-              previousOvertimeState:
-                statusUpdate.stateChange.overtime?.previous?.state,
-              currentOvertimeState:
-                statusUpdate.stateChange.overtime?.current?.state,
-              isOvertimeTransition: !!statusUpdate.stateChange.overtime,
-              reason: statusUpdate.reason,
-              metadata: statusUpdate.metadata as Prisma.JsonValue,
-              timestamp: statusUpdate.timestamp,
-              date: startOfDay(new Date(options.checkTime)),
-              attendance: {
-                connect: {
-                  id: processedAttendance.id,
-                },
-              },
-            },
-          });
-
           // Process time entries
           const timeEntries = await this.timeEntryService.processTimeEntries(
             tx,
@@ -124,6 +102,19 @@ export class AttendanceProcessingService {
             statusUpdate,
             options,
           );
+
+          // Create log after transaction is complete
+          setImmediate(() => {
+            this.loggingService
+              .createAttendanceLog(
+                statusUpdate,
+                options,
+                processedAttendance.id,
+              )
+              .catch((error) =>
+                console.error('Failed to create attendance log:', error),
+              );
+          });
 
           const mappedTimeEntries = {
             regular: timeEntries.regular
@@ -155,7 +146,7 @@ export class AttendanceProcessingService {
         }
       },
       {
-        timeout: 5000, // Removed invalid isolationLevel option
+        timeout: 5000,
       },
     );
   }
