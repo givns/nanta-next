@@ -4,8 +4,6 @@ import { UserData } from '../user';
 import { HolidayInfo, LeaveRequest } from './leave';
 import { FutureShift, ShiftAdjustmentInfo, ShiftData } from './shift';
 import { OvertimeEntryData } from './overtime';
-import { Holiday } from '@prisma/client';
-import { AttendanceRecord } from './records';
 
 export enum AttendanceState {
   PRESENT = 'present',

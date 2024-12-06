@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { AttendanceRecord, OvertimeEntry, TimeEntry } from './records';
 import { ShiftData } from './shift';
 import {
+  ApprovedOvertimeInfo,
   AttendanceState,
   CheckStatus,
   OvertimeState,
@@ -39,6 +40,7 @@ export interface AttendanceStateResponse {
       regularCheckInTime?: string;
       regularCheckOutTime?: string;
     };
+    approvedOvertime: ApprovedOvertimeInfo | null;
   };
   window: ShiftWindowResponse;
   validation: ValidationResponse;

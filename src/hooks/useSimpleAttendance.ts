@@ -77,6 +77,7 @@ export function useSimpleAttendance({
     locationReady,
     locationState,
     checkInOut,
+    approvedOvertime: data?.base.approvedOvertime || null,
     refreshAttendanceStatus: enhancedRefreshStatus,
     getCurrentLocation,
   };

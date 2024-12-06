@@ -4,19 +4,13 @@ import {
   ShiftData,
   CurrentPeriodInfo,
   ApprovedOvertimeInfo,
+  LatestAttendance,
 } from '@/types/attendance';
 
 interface AttendanceProgressProps {
   effectiveShift: ShiftData | null;
   currentPeriod: CurrentPeriodInfo | null;
-  latestAttendance?: {
-    regularCheckInTime?: Date;
-    regularCheckOutTime?: Date;
-    overtimeCheckInTime?: Date;
-    overtimeCheckOutTime?: Date;
-    isLateCheckIn?: boolean;
-    isOvertime?: boolean;
-  } | null;
+  latestAttendance?: LatestAttendance | null;
   approvedOvertime?: ApprovedOvertimeInfo | null;
 }
 

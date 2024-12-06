@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { Calendar, Clock, AlertCircle } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import Clock1 from '@/components/attendance/Clock';
 import {
@@ -10,12 +10,14 @@ import {
   AttendanceStatusInfo,
   CheckStatus,
   CurrentPeriodInfo,
+  LatestAttendance,
   PeriodType,
   ShiftData,
   UserData,
 } from '@/types/attendance';
 import { getStatusMessage } from './StatusMessage';
 import AttendanceProgress from './AttendanceProgress';
+import OvertimeCard from './OvertimeCard';
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -26,15 +28,8 @@ interface UserShiftInfoProps {
     isHoliday: boolean;
     isDayOff: boolean;
     isOvertime: boolean;
-    approvedOvertime?: ApprovedOvertimeInfo | null; // Add this line
-    latestAttendance?: {
-      regularCheckInTime?: Date;
-      regularCheckOutTime?: Date;
-      overtimeCheckInTime?: Date;
-      overtimeCheckOutTime?: Date;
-      isLateCheckIn?: boolean;
-      isOvertime?: boolean;
-    };
+    approvedOvertime: ApprovedOvertimeInfo | null; // Changed from optional to nullable
+    latestAttendance: LatestAttendance;
   };
   effectiveShift: ShiftData | null;
   isLoading?: boolean;
@@ -66,6 +61,7 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   </div>
 );
 
+// Determine status message and color
 export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   userData,
   status,
@@ -74,17 +70,10 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 }) => {
   const today = new Date();
 
-  // Determine status message and color
+  // Fixed status construction
   const statusDisplay = useMemo(() => {
     if (!status)
       return { message: 'ไม่พบข้อมูลการลงเวลา', color: 'red' as const };
-
-    console.log('Status Info:', {
-      isHoliday: status.isHoliday,
-      isDayOff: status.isDayOff,
-      state: status.state,
-      currentPeriod: status.currentPeriod,
-    });
 
     const currentPeriod = {
       type: status.currentPeriod?.type ?? PeriodType.REGULAR,
@@ -98,26 +87,30 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       overtimeId: status.currentPeriod?.overtimeId,
     };
 
-    const latestAttendance = status.latestAttendance
-      ? {
-          id: '',
-          employeeId: '',
-          date: new Date().toISOString(),
-          regularCheckInTime:
-            status.latestAttendance.regularCheckInTime?.toISOString() ?? null,
-          regularCheckOutTime:
-            status.latestAttendance.regularCheckOutTime?.toISOString() ?? null,
-          state: status.state,
-          checkStatus: status.checkStatus,
-          isManualEntry: false,
-          isDayOff: status.isDayOff,
-        }
-      : null;
-
     const statusInfo: AttendanceStatusInfo = {
-      ...status,
+      state: status.state,
+      checkStatus: status.checkStatus,
       currentPeriod,
-      latestAttendance,
+      isHoliday: status.isHoliday,
+      isDayOff: status.isDayOff,
+      isOvertime: status.isOvertime,
+      latestAttendance: {
+        id: status.latestAttendance?.id ?? '',
+        employeeId: status.latestAttendance?.employeeId ?? '',
+        date: status.latestAttendance?.date ?? new Date().toISOString(),
+        regularCheckInTime: status.latestAttendance?.regularCheckInTime ?? null,
+        regularCheckOutTime:
+          status.latestAttendance?.regularCheckOutTime ?? null,
+        state: status.latestAttendance?.state ?? AttendanceState.ABSENT,
+        checkStatus:
+          status.latestAttendance?.checkStatus ?? CheckStatus.PENDING,
+        overtimeState: status.latestAttendance?.overtimeState,
+        isManualEntry: status.latestAttendance?.isManualEntry ?? false,
+        isDayOff: status.latestAttendance?.isDayOff ?? false,
+        shiftStartTime: status.latestAttendance?.shiftStartTime,
+        shiftEndTime: status.latestAttendance?.shiftEndTime,
+      },
+      approvedOvertime: status.approvedOvertime ?? null,
       overtimeEntries: [],
       detailedStatus: '',
       isEarlyCheckIn: false,
@@ -137,7 +130,6 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       futureOvertimes: [],
       overtimeAttendances: [],
       pendingLeaveRequest: false,
-      approvedOvertime: null,
     };
 
     return getStatusMessage(statusInfo);
@@ -157,42 +149,32 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* User Info Card */}
+      {/* Employee Info Card */}
       <Card>
-        <CardHeader className="text-center">
-          <div className="flex items-center justify-center mb-2">
-            <Clock1 />
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <CardTitle className="text-2xl font-bold">
+                {userData.name}
+              </CardTitle>
+              <p className="text-gray-600">
+                รหัสพนักงาน: {userData.employeeId}
+              </p>
+              <p className="text-gray-600">แผนก: {userData.departmentName}</p>
+            </div>
+            <div className="flex flex-col items-center">
+              <Clock1 />
+            </div>
           </div>
-          <CardTitle className="text-2xl">{userData.name}</CardTitle>
-          <p className="text-xl text-gray-600">
-            รหัสพนักงาน: {userData.employeeId}
-          </p>
-          <p className="text-gray-600">แผนก: {userData.departmentName}</p>
-          <StatusIndicator
-            message={statusDisplay.message}
-            color={statusDisplay.color}
-          />
         </CardHeader>
       </Card>
 
-      <div className="mt-4">
-        <h4 className="text-sm font-medium text-gray-700 mb-2">
-          Today's Progress
-        </h4>
-        <AttendanceProgress
-          effectiveShift={effectiveShift}
-          currentPeriod={status.currentPeriod}
-          latestAttendance={status.latestAttendance}
-          approvedOvertime={status.approvedOvertime}
-        />
-      </div>
-
-      {/* Today's Info */}
+      {/* Status and Progress Card */}
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="flex items-center">
-              <Calendar className="mr-2" /> ข้อมูลการทำงานวันนี้
+              <Calendar className="mr-2" /> สถานะการทำงาน
             </CardTitle>
             <div className="text-right">
               <p className="text-2xl font-bold text-gray-700">
@@ -206,14 +188,20 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               </p>
             </div>
           </div>
+          <StatusIndicator
+            message={statusDisplay.message}
+            color={statusDisplay.color}
+          />
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="space-y-6">
+          {/* Special Status Messages */}
           {(status.isHoliday || status.isDayOff) && (
-            <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-              <h4 className="text-md font-semibold mb-2 text-blue-700">
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <h4 className="text-md font-semibold text-blue-700">
                 {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุดประจำสัปดาห์'}
               </h4>
-              {status.isOvertime && (
+              {status.approvedOvertime && (
                 <p className="text-gray-600 mt-2">
                   *มีการอนุมัติทำงานล่วงเวลาในวันหยุด
                 </p>
@@ -221,59 +209,61 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             </div>
           )}
 
-          {!status.isHoliday && !status.isDayOff && effectiveShift && (
-            <div className="mb-4">
-              <p className="text-gray-800">
-                <span className="font-medium">{effectiveShift.name}</span>
-              </p>
-              <p className="text-gray-600 flex items-center mt-1">
-                <Clock className="mr-2" size={16} />
-                {effectiveShift.startTime} - {effectiveShift.endTime}
-              </p>
-            </div>
-          )}
+          {/* Progress Section */}
+          <div className="space-y-4">
+            {/* Show shift info for regular days or overtime */}
+            {(!status.isHoliday || status.approvedOvertime) && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">
+                  {status.approvedOvertime
+                    ? 'ช่วงเวลาทำงานล่วงเวลา'
+                    : 'เวลาทำงานปกติ'}
+                </h4>
+                <AttendanceProgress
+                  effectiveShift={effectiveShift}
+                  currentPeriod={status.currentPeriod}
+                  latestAttendance={status.latestAttendance}
+                  approvedOvertime={status.approvedOvertime}
+                />
+              </div>
+            )}
 
-          {/* Time Records */}
-          {status.latestAttendance && (
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              {status.latestAttendance.regularCheckInTime && (
-                <div>
-                  <p className="text-gray-600">เวลาเข้างาน</p>
-                  <p className="font-medium">
-                    {format(
-                      new Date(status.latestAttendance.regularCheckInTime),
-                      'HH:mm',
-                    )}
-                  </p>
-                </div>
-              )}
-              {status.latestAttendance.regularCheckOutTime && (
-                <div>
-                  <p className="text-gray-600">เวลาออกงาน</p>
-                  <p className="font-medium">
-                    {format(
-                      new Date(status.latestAttendance.regularCheckOutTime),
-                      'HH:mm',
-                    )}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+            {/* Time Records */}
+            {status.latestAttendance && (
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                {status.latestAttendance.regularCheckInTime && (
+                  <div>
+                    <p className="text-gray-600">เวลาเข้างาน</p>
+                    <p className="font-medium text-lg">
+                      {format(
+                        new Date(status.latestAttendance.regularCheckInTime),
+                        'HH:mm',
+                      )}
+                    </p>
+                  </div>
+                )}
+                {status.latestAttendance.regularCheckOutTime && (
+                  <div>
+                    <p className="text-gray-600">เวลาออกงาน</p>
+                    <p className="font-medium text-lg">
+                      {format(
+                        new Date(status.latestAttendance.regularCheckOutTime),
+                        'HH:mm',
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-          {/* Overtime Info */}
-          {status.isOvertime && (
-            <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
-              <h4 className="text-md font-semibold mb-2 flex items-center">
-                <AlertCircle className="mr-2" size={18} />
-                การทำงานล่วงเวลา
-              </h4>
-              {status.currentPeriod?.overtimeId && (
-                <p className="text-sm text-gray-600">
-                  * กำลังอยู่ในช่วงเวลาทำงานล่วงเวลา
-                </p>
-              )}
-            </div>
+          {/* Overtime Card */}
+          {status.approvedOvertime && (
+            <OvertimeCard
+              approvedOvertime={status.approvedOvertime}
+              currentPeriod={status.currentPeriod}
+              latestAttendance={status.latestAttendance}
+            />
           )}
         </CardContent>
       </Card>

@@ -11,7 +11,11 @@ import { closeWindow } from '@/services/liff';
 import {
   CurrentPeriodInfo,
   PeriodType,
-  AttendanceBaseResponse,
+  AttendanceState,
+  ApprovedOvertimeInfo,
+  CheckStatus,
+  LatestAttendance,
+  OvertimeState,
 } from '@/types/attendance';
 
 interface ProcessingState {
@@ -19,20 +23,15 @@ interface ProcessingState {
   message: string;
 }
 
-interface UserShiftInfoStatus
-  extends Omit<AttendanceBaseResponse, 'latestAttendance'> {
+interface UserShiftInfoStatus {
+  state: AttendanceState;
+  checkStatus: CheckStatus;
   currentPeriod: CurrentPeriodInfo | null;
   isHoliday: boolean;
   isDayOff: boolean;
   isOvertime: boolean;
-  latestAttendance?: {
-    regularCheckInTime?: Date;
-    regularCheckOutTime?: Date;
-    overtimeCheckInTime?: Date;
-    overtimeCheckOutTime?: Date;
-    isLateCheckIn?: boolean;
-    isOvertime?: boolean;
-  };
+  approvedOvertime: ApprovedOvertimeInfo | null;
+  latestAttendance: LatestAttendance;
 }
 
 interface CheckInOutFormProps {
@@ -64,6 +63,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     isLoading,
     error: attendanceError,
     checkInOut,
+    approvedOvertime,
   } = useSimpleAttendance({
     employeeId: userData.employeeId,
     lineUserId: userData.lineUserId,
@@ -325,25 +325,36 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     state,
     checkStatus,
     currentPeriod,
-    isCheckingIn: !currentPeriod?.checkInTime,
-    isHoliday:
-      currentPeriod?.type === PeriodType.REGULAR &&
-      effectiveShift?.workDays?.includes(getCurrentTime().getDay()) === false,
-    isDayOff:
-      currentPeriod?.type === PeriodType.REGULAR &&
-      effectiveShift?.workDays?.includes(getCurrentTime().getDay()) === false,
+    isHoliday: effectiveShift?.workDays
+      ? !effectiveShift.workDays.includes(getCurrentTime().getDay())
+      : false,
+    isDayOff: effectiveShift?.workDays
+      ? !effectiveShift.workDays.includes(getCurrentTime().getDay())
+      : false,
     isOvertime: currentPeriod?.type === 'overtime',
+    approvedOvertime: approvedOvertime || null,
     latestAttendance: {
-      regularCheckInTime: currentPeriod?.checkInTime
-        ? new Date(currentPeriod.checkInTime)
-        : undefined,
-      regularCheckOutTime: currentPeriod?.checkOutTime
-        ? new Date(currentPeriod.checkOutTime)
-        : undefined,
-      isLateCheckIn: validation?.flags?.isLateCheckIn || false,
-      isOvertime: currentPeriod?.type === 'overtime' || false,
-      overtimeCheckInTime: undefined,
-      overtimeCheckOutTime: undefined,
+      id: '',
+      employeeId: userData.employeeId,
+      date: getCurrentTime().toISOString(),
+      regularCheckInTime: currentPeriod?.checkInTime || null,
+      regularCheckOutTime: currentPeriod?.checkOutTime || null,
+      state: state,
+      checkStatus: checkStatus,
+      overtimeState:
+        currentPeriod?.type === 'overtime'
+          ? currentPeriod.checkInTime
+            ? currentPeriod.checkOutTime
+              ? OvertimeState.COMPLETED
+              : OvertimeState.IN_PROGRESS
+            : OvertimeState.NOT_STARTED
+          : undefined,
+      isManualEntry: false,
+      isDayOff: effectiveShift?.workDays
+        ? !effectiveShift.workDays.includes(getCurrentTime().getDay())
+        : false,
+      shiftStartTime: effectiveShift?.startTime,
+      shiftEndTime: effectiveShift?.endTime,
     },
   };
 

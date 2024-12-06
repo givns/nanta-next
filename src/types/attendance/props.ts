@@ -13,6 +13,7 @@ import {
 } from '../attendance';
 import { ProcessingResult } from './processing';
 import {
+  ApprovedOvertimeInfo,
   AttendanceState,
   AttendanceStatusInfo,
   CheckStatus,
@@ -164,6 +165,7 @@ export interface UseSimpleAttendanceReturn {
   effectiveShift: ShiftData | null;
   currentPeriod: CurrentPeriodInfo | null;
   validation: ValidationResponse | null;
+  approvedOvertime: ApprovedOvertimeInfo | null;
 
   // Location states
   locationReady: boolean;

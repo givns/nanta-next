@@ -59,6 +59,7 @@ export function useAttendanceData({
             isCheckingIn: responseData.base?.isCheckingIn ?? true,
             latestAttendance:
               responseData.base?.latestAttendance ?? defaultLatestAttendance,
+            approvedOvertime: responseData.base?.approvedOvertime ?? null,
           },
           window: responseData.window,
           validation: responseData.validation || null,
