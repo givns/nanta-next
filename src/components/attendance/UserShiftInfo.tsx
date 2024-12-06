@@ -5,6 +5,7 @@ import { Calendar, Clock, AlertCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import Clock1 from '@/components/attendance/Clock';
 import {
+  ApprovedOvertimeInfo,
   AttendanceState,
   AttendanceStatusInfo,
   CheckStatus,
@@ -14,6 +15,7 @@ import {
   UserData,
 } from '@/types/attendance';
 import { getStatusMessage } from './StatusMessage';
+import AttendanceProgress from './AttendanceProgress';
 
 interface UserShiftInfoProps {
   userData: UserData;
@@ -24,6 +26,7 @@ interface UserShiftInfoProps {
     isHoliday: boolean;
     isDayOff: boolean;
     isOvertime: boolean;
+    approvedOvertime?: ApprovedOvertimeInfo | null; // Add this line
     latestAttendance?: {
       regularCheckInTime?: Date;
       regularCheckOutTime?: Date;
@@ -171,6 +174,18 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
           />
         </CardHeader>
       </Card>
+
+      <div className="mt-4">
+        <h4 className="text-sm font-medium text-gray-700 mb-2">
+          Today's Progress
+        </h4>
+        <AttendanceProgress
+          effectiveShift={effectiveShift}
+          currentPeriod={status.currentPeriod}
+          latestAttendance={status.latestAttendance}
+          approvedOvertime={status.approvedOvertime}
+        />
+      </div>
 
       {/* Today's Info */}
       <Card>
