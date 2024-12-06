@@ -3,7 +3,7 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserData } from '@/types/user';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
-import { formatDate, getCurrentTime } from '@/utils/dateUtils';
+import { formatDate, formatTime, getCurrentTime } from '@/utils/dateUtils';
 import { UserShiftInfo } from './UserShiftInfo';
 import { ActionButton } from './ActionButton';
 import LateReasonModal from './LateReasonModal';
@@ -152,13 +152,13 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         locationState.confidence;
 
       const isCheckingIn = !currentPeriod?.checkInTime;
-      const now = getCurrentTime();
+      const now = new Date();
 
       await checkInOut({
         // Required fields
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId || null,
-        checkTime: new Date().toISOString(),
+        checkTime: formatTime(now),
         isCheckIn: isCheckingIn,
         address: locationState.address,
         inPremises: locationState.inPremises,

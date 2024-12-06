@@ -136,7 +136,7 @@ async function processCheckInOut(
     const [processedAttendance, updatedStatus] = await Promise.all([
       attendanceService.processAttendance({
         ...task,
-        checkTime: serverTime.toISOString(), // Use server time
+        checkTime: serverTime, // Use server time
       }),
       attendanceService.getLatestAttendanceStatus(task.employeeId!),
     ]);
