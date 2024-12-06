@@ -125,11 +125,15 @@ async function processCheckInOut(
     };
   }
 
-  const now = getCurrentTime();
+  const serverTime = getCurrentTime();
 
   try {
+    // Process attendance first
     const [processedAttendance, updatedStatus] = await Promise.all([
-      attendanceService.processAttendance(task),
+      attendanceService.processAttendance({
+        ...task,
+        checkTime: serverTime.toISOString(), // Use server time
+      }),
       attendanceService.getLatestAttendanceStatus(task.employeeId!),
     ]);
 
@@ -146,21 +150,23 @@ async function processCheckInOut(
       status: updatedStatus,
     });
 
-    // Handle notifications asynchronously
+    // Handle all notifications here, after successful processing
     let notificationSent = false;
     if (task.lineUserId) {
-      const notificationTime = task.isCheckIn
-        ? processedAttendance.data.regularCheckInTime
-        : processedAttendance.data.regularCheckOutTime;
-
-      // Fire and forget notifications
-      services.notificationService[
-        task.isCheckIn ? 'sendCheckInConfirmation' : 'sendCheckOutConfirmation'
-      ](task.employeeId, task.lineUserId, notificationTime || now)
-        .then(() => {
-          notificationSent = true;
-        })
-        .catch(console.error);
+      try {
+        await Promise.allSettled([
+          // Base check-in/out notification
+          services.notificationService[
+            task.isCheckIn
+              ? 'sendCheckInConfirmation'
+              : 'sendCheckOutConfirmation'
+          ](task.employeeId, task.lineUserId, serverTime),
+        ]);
+        notificationSent = true;
+      } catch (notificationError) {
+        console.error('Notification error:', notificationError);
+        // Don't fail the request if notifications fail
+      }
     }
 
     return {

@@ -3,7 +3,7 @@ import { StatusUpdateResult, ProcessingOptions } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 
 export class AttendanceLoggingService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(public readonly prisma: PrismaClient) {}
 
   async createAttendanceLog(
     statusUpdate: StatusUpdateResult,

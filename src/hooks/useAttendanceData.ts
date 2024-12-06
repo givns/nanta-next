@@ -15,8 +15,8 @@ import {
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 
-const REQUEST_TIMEOUT = 30000;
-const MAX_RETRIES = 2;
+const REQUEST_TIMEOUT = 40000;
+const MAX_RETRIES = 0;
 
 interface UseAttendanceDataProps {
   employeeId?: string;
@@ -128,7 +128,7 @@ export function useAttendanceData({
               address: locationState.address,
               inPremises: locationState.inPremises,
               confidence: locationState.confidence,
-              checkTime: getCurrentTime().toISOString(),
+              checkTime: new Date().toISOString(),
             },
             { timeout: REQUEST_TIMEOUT },
           );

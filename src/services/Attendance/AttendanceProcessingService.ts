@@ -58,11 +58,17 @@ export class AttendanceProcessingService {
   async processAttendance(
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
+    const serverTime = getCurrentTime();
+
     return this.prisma.$transaction(
       async (tx) => {
         try {
+          // 1. Validation
           const validationResult =
-            await AttendanceValidators.validateProcessingOptions(options);
+            await AttendanceValidators.validateProcessingOptions({
+              ...options,
+              checkTime: serverTime.toISOString(),
+            });
           if (!validationResult.isValid) {
             throw new AppError({
               code: ErrorCode.INVALID_INPUT,
@@ -70,52 +76,75 @@ export class AttendanceProcessingService {
             });
           }
 
+          // 2. Get context
           const [currentAttendance, periodContext] = await Promise.all([
             this.getLatestAttendance(options.employeeId),
-            this.getPeriodContext(
-              tx,
-              options.employeeId,
-              new Date(options.checkTime),
-            ),
+            this.getPeriodContext(tx, options.employeeId, serverTime),
           ]);
 
+          // 3. Process status
           const statusUpdate = await StatusHelpers.processStatusTransition(
             currentAttendance
               ? AttendanceMappers.toCompositeStatus(currentAttendance)
               : this.getInitialStatus(),
-            options,
+            {
+              ...options,
+              checkTime: serverTime.toISOString(),
+            },
           );
 
-          // Process attendance change
+          // 4. Process attendance
           const processedAttendance = await this.processAttendanceChange(
             tx,
             currentAttendance,
             statusUpdate,
-            options,
+            {
+              ...options,
+              checkTime: serverTime.toISOString(),
+            },
             periodContext,
           );
 
-          // Process time entries
+          // 5. Process time entries
           const timeEntries = await this.timeEntryService.processTimeEntries(
             tx,
             processedAttendance,
             statusUpdate,
-            options,
+            {
+              ...options,
+              checkTime: serverTime.toISOString(),
+            },
           );
 
-          // Create log after transaction is complete
-          setImmediate(() => {
-            this.loggingService
-              .createAttendanceLog(
-                statusUpdate,
-                options,
-                processedAttendance.id,
-              )
-              .catch((error) =>
-                console.error('Failed to create attendance log:', error),
-              );
+          // 6. Create log using attendanceLogService but with transaction
+          await this.loggingService.prisma.attendanceLogs.create({
+            data: {
+              employeeId: options.employeeId,
+              previousState: statusUpdate.stateChange.state.previous,
+              currentState: statusUpdate.stateChange.state.current,
+              previousCheckStatus:
+                statusUpdate.stateChange.checkStatus.previous,
+              currentCheckStatus: statusUpdate.stateChange.checkStatus.current,
+              previousOvertimeState:
+                statusUpdate.stateChange.overtime?.previous?.state,
+              currentOvertimeState:
+                statusUpdate.stateChange.overtime?.current?.state,
+              isOvertimeTransition: !!statusUpdate.stateChange.overtime,
+              reason: statusUpdate.reason,
+              metadata: JSON.parse(
+                JSON.stringify(statusUpdate.metadata),
+              ) as Prisma.JsonValue,
+              timestamp: serverTime,
+              date: serverTime,
+              attendance: {
+                connect: {
+                  id: processedAttendance.id,
+                },
+              },
+            },
           });
 
+          // 7. Map time entries
           const mappedTimeEntries = {
             regular: timeEntries.regular
               ? {
@@ -142,6 +171,11 @@ export class AttendanceProcessingService {
               : undefined,
           );
         } catch (error) {
+          console.error('Process attendance error:', {
+            error,
+            employeeId: options.employeeId,
+            timestamp: serverTime,
+          });
           throw this.handleProcessingError(error);
         }
       },
