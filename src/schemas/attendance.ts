@@ -10,6 +10,7 @@ import {
   PeriodType,
 } from '@/types/attendance/status';
 import { normalizeLocation } from '@/utils/locationUtils';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 // ============= Constants =============
 export const EARLY_CHECKOUT_TYPES = {
@@ -523,14 +524,33 @@ function transformZodErrors(zodErrors: z.ZodError): Record<string, unknown> {
  * Validates and transforms check-in/out request data into ProcessingOptions
  * @throws {AppError} If validation fails
  */
+/**
+ * Validates and transforms check-in/out request data into ProcessingOptions
+ * @throws {AppError} If validation fails
+ */
 export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
   try {
     // First level validation with Zod
     const validated = CheckInOutRequestSchema.parse(data);
+
     // Transform and normalize location data
     const transformedLocation = validated.location
       ? normalizeLocation(validated.location)
       : undefined;
+
+    // Handle checkTime - use current time if empty or invalid
+    let checkTime: Date;
+    if (!validated.checkTime) {
+      checkTime = getCurrentTime(); // Use server's current time if no time provided
+    } else {
+      const parsedTime = new Date(validated.checkTime);
+      if (isNaN(parsedTime.getTime())) {
+        // If parsing fails, use current time
+        checkTime = getCurrentTime();
+      } else {
+        checkTime = parsedTime;
+      }
+    }
 
     // Validate coordinates if location exists
     if (transformedLocation) {
@@ -554,7 +574,7 @@ export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
       lineUserId: validated.lineUserId,
 
       // Time information
-      checkTime: new Date(validated.checkTime),
+      checkTime, // Use our validated checkTime
 
       // Check-in/out flags
       isCheckIn: validated.isCheckIn,
@@ -566,6 +586,7 @@ export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
       checkStatus: validated.checkStatus as CheckStatus | undefined,
       overtimeState: validated.overtimeState as OvertimeState | undefined,
       entryType: validated.entryType as PeriodType,
+
       // Location data
       location: transformedLocation,
       address: validated.address,
@@ -594,7 +615,7 @@ export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
     }
 
     // Validate checkTime is not in the future
-    if (processingOptions.checkTime > new Date()) {
+    if (processingOptions.checkTime > getCurrentTime()) {
       throw new AppError({
         code: ErrorCode.INVALID_INPUT,
         message: 'Check time cannot be in the future',
