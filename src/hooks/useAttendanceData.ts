@@ -1,22 +1,30 @@
+// hooks/useAttendanceData.ts
 import { useCallback, useRef, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 import {
-  type LocationState,
-  type CheckInOutData,
-  type ProcessingResult,
-  type AttendanceStateResponse,
+  AttendanceState,
+  AttendanceStateResponse,
+  CheckStatus,
+  LocationState,
+  ProcessingResult,
+  CheckInOutData,
   AppError,
   ErrorCode,
+  OvertimeState,
 } from '@/types/attendance';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 const REQUEST_TIMEOUT = 30000;
 const MAX_RETRIES = 2;
 
-const defaultLatestAttendance = {
-  regularCheckInTime: null,
-  regularCheckOutTime: null,
-} as const;
+interface UseAttendanceDataProps {
+  employeeId?: string;
+  lineUserId?: string;
+  locationState: LocationState;
+  initialAttendanceStatus?: AttendanceStateResponse;
+  enabled?: boolean;
+}
 
 export function useAttendanceData({
   employeeId,
@@ -24,13 +32,7 @@ export function useAttendanceData({
   locationState,
   initialAttendanceStatus,
   enabled = true,
-}: {
-  employeeId?: string;
-  lineUserId?: string;
-  locationState: LocationState;
-  initialAttendanceStatus?: AttendanceStateResponse;
-  enabled?: boolean;
-}) {
+}: UseAttendanceDataProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshTimeoutRef = useRef<NodeJS.Timeout>();
   const submitTimeoutRef = useRef<NodeJS.Timeout>();
@@ -52,49 +54,61 @@ export function useAttendanceData({
         });
 
         const responseData = response.data;
+
+        // Enhanced response mapping with proper defaults
         return {
           base: {
-            state: responseData.base?.state ?? 'absent',
-            checkStatus: responseData.base?.checkStatus ?? 'pending',
+            state: responseData.base?.state ?? AttendanceState.ABSENT,
+            checkStatus: responseData.base?.checkStatus ?? CheckStatus.PENDING,
             isCheckingIn: responseData.base?.isCheckingIn ?? true,
-            latestAttendance:
-              responseData.base?.latestAttendance ?? defaultLatestAttendance,
-            approvedOvertime: responseData.base?.approvedOvertime ?? null,
+            latestAttendance: responseData.base?.latestAttendance ?? {
+              regularCheckInTime: null,
+              regularCheckOutTime: null,
+              overtimeState: undefined,
+              isManualEntry: false,
+              isDayOff: false,
+            },
           },
-          window: responseData.window,
-          validation: responseData.validation || null,
-          timestamp: responseData.timestamp || new Date().toISOString(),
-        } satisfies AttendanceStateResponse;
+          window: responseData.window && {
+            ...responseData.window,
+            overtimeInfo: responseData.window.overtimeInfo
+              ? {
+                  ...responseData.window.overtimeInfo,
+                  state: determineOvertimeState(
+                    responseData.window.overtimeInfo,
+                    responseData.base,
+                  ),
+                }
+              : null,
+            current: {
+              ...responseData.window.current,
+              start: new Date(responseData.window.current.start),
+              end: new Date(responseData.window.current.end),
+            },
+          },
+          validation: responseData.validation ?? null,
+          timestamp: responseData.timestamp ?? new Date().toISOString(),
+        };
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 503) {
           console.error('Service temporarily unavailable:', error);
         }
-        throw error;
+        throw handleAttendanceError(error);
       }
     },
     {
       revalidateOnFocus: false,
       refreshInterval: 60000,
       dedupingInterval: 5000,
-      fallbackData: initialAttendanceStatus
-        ? {
-            ...initialAttendanceStatus,
-            base: {
-              ...initialAttendanceStatus.base,
-              latestAttendance: {
-                ...initialAttendanceStatus.base?.latestAttendance,
-                regularCheckInTime:
-                  initialAttendanceStatus.base?.latestAttendance
-                    ?.regularCheckInTime ?? undefined,
-              },
-            },
-          }
-        : undefined,
+      fallbackData: initialAttendanceStatus,
+      onError: (error) => {
+        console.error('SWR Error:', error);
+      },
     },
   );
 
   const checkInOut = useCallback(
-    async (params: CheckInOutData): Promise<ProcessingResult> => {
+    async (params: CheckInOutData) => {
       let retryCount = 0;
 
       while (retryCount <= MAX_RETRIES) {
@@ -112,38 +126,28 @@ export function useAttendanceData({
               employeeId,
               lineUserId,
               address: locationState.address,
-              inPremises: locationState.inPremises, // Add required field
+              inPremises: locationState.inPremises,
               confidence: locationState.confidence,
-              // Let server handle time
-              checkTime: '',
+              checkTime: getCurrentTime().toISOString(),
             },
-            {
-              timeout: REQUEST_TIMEOUT,
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            },
+            { timeout: REQUEST_TIMEOUT },
           );
 
           if (!response.data.success) {
-            const errorMessage =
-              typeof response.data.errors === 'object' &&
-              response.data.errors !== null
-                ? response.data.errors
-                : 'Failed to process attendance';
             throw new AppError({
               code: ErrorCode.PROCESSING_ERROR,
-              message: errorMessage,
+              message:
+                typeof response.data.errors === 'string'
+                  ? response.data.errors
+                  : 'Failed to process attendance',
             });
           }
 
-          // Mutate cache after successful operation
           await mutate();
           return response.data;
         } catch (error) {
           console.error('Check-in/out error:', error);
 
-          // Handle timeout specially
           if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
             if (retryCount >= MAX_RETRIES) {
               throw new AppError({
@@ -155,11 +159,11 @@ export function useAttendanceData({
             throw error;
           }
 
-          // Retry with exponential backoff
           retryCount++;
           if (retryCount <= MAX_RETRIES) {
-            const delay = 1000 * Math.pow(2, retryCount);
-            await new Promise((resolve) => setTimeout(resolve, delay));
+            await new Promise((resolve) =>
+              setTimeout(resolve, 1000 * Math.pow(2, retryCount)),
+            );
             continue;
           }
 
@@ -206,15 +210,62 @@ export function useAttendanceData({
           ...data,
           base: {
             ...data.base,
-            latestAttendance:
-              data.base?.latestAttendance ?? defaultLatestAttendance,
+            latestAttendance: data.base?.latestAttendance ?? {
+              regularCheckInTime: null,
+              regularCheckOutTime: null,
+              overtimeState: undefined,
+              isManualEntry: false,
+              isDayOff: false,
+            },
           },
         }
       : undefined,
     error,
-    isLoading: !data,
+    isLoading: !data && !error,
+    isRefreshing,
     refreshAttendanceStatus,
     checkInOut,
     mutate,
   };
+}
+
+// Helper functions
+function determineOvertimeState(
+  overtimeInfo: any,
+  baseData: any,
+): OvertimeState {
+  if (!baseData?.latestAttendance?.regularCheckInTime) {
+    return OvertimeState.NOT_STARTED;
+  }
+  if (baseData?.latestAttendance?.regularCheckOutTime) {
+    return OvertimeState.COMPLETED;
+  }
+  return OvertimeState.IN_PROGRESS;
+}
+
+function handleAttendanceError(error: unknown): AppError {
+  if (error instanceof AppError) {
+    return error;
+  }
+
+  if (axios.isAxiosError(error)) {
+    if (error.code === 'ECONNABORTED') {
+      return new AppError({
+        code: ErrorCode.TIMEOUT,
+        message: 'Request timed out',
+        originalError: error,
+      });
+    }
+    return new AppError({
+      code: ErrorCode.NETWORK_ERROR,
+      message: error.message,
+      originalError: error,
+    });
+  }
+
+  return new AppError({
+    code: ErrorCode.UNKNOWN_ERROR,
+    message: error instanceof Error ? error.message : 'Unknown error occurred',
+    originalError: error,
+  });
 }

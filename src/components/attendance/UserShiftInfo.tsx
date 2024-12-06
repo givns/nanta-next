@@ -5,7 +5,6 @@ import { Calendar } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import Clock1 from '@/components/attendance/Clock';
 import {
-  ApprovedOvertimeInfo,
   AttendanceState,
   AttendanceStatusInfo,
   CheckStatus,
@@ -28,11 +27,21 @@ interface UserShiftInfoProps {
     isHoliday: boolean;
     isDayOff: boolean;
     isOvertime: boolean;
-    approvedOvertime: ApprovedOvertimeInfo | null; // Changed from optional to nullable
     latestAttendance: LatestAttendance;
+    approvedOvertime: OvertimeInfoUI | null; // Added this field
   };
   effectiveShift: ShiftData | null;
   isLoading?: boolean;
+}
+
+interface OvertimeInfoUI {
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  isInsideShiftHours: boolean;
+  isDayOffOvertime: boolean;
+  reason?: string;
 }
 
 interface StatusIndicatorProps {
@@ -87,30 +96,30 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       overtimeId: status.currentPeriod?.overtimeId,
     };
 
-    const statusInfo: AttendanceStatusInfo = {
+    const mapAttendanceToStatusInfo = (
+      status: UserShiftInfoProps['status'],
+      userData: UserData,
+    ): AttendanceStatusInfo => ({
       state: status.state,
       checkStatus: status.checkStatus,
       currentPeriod,
       isHoliday: status.isHoliday,
       isDayOff: status.isDayOff,
       isOvertime: status.isOvertime,
-      latestAttendance: {
-        id: status.latestAttendance?.id ?? '',
-        employeeId: status.latestAttendance?.employeeId ?? '',
-        date: status.latestAttendance?.date ?? new Date().toISOString(),
-        regularCheckInTime: status.latestAttendance?.regularCheckInTime ?? null,
-        regularCheckOutTime:
-          status.latestAttendance?.regularCheckOutTime ?? null,
-        state: status.latestAttendance?.state ?? AttendanceState.ABSENT,
-        checkStatus:
-          status.latestAttendance?.checkStatus ?? CheckStatus.PENDING,
-        overtimeState: status.latestAttendance?.overtimeState,
-        isManualEntry: status.latestAttendance?.isManualEntry ?? false,
-        isDayOff: status.latestAttendance?.isDayOff ?? false,
-        shiftStartTime: status.latestAttendance?.shiftStartTime,
-        shiftEndTime: status.latestAttendance?.shiftEndTime,
-      },
-      approvedOvertime: status.approvedOvertime ?? null,
+      approvedOvertime: status.approvedOvertime
+        ? {
+            ...status.approvedOvertime,
+            employeeId: userData.employeeId,
+            date: new Date(), // Convert the date to a Date object
+            status: 'approved',
+            employeeResponse: 'approve',
+            approverId: '',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            reason: status.approvedOvertime.reason || null, // Ensure reason is of type string | null
+          }
+        : null,
+      latestAttendance: status.latestAttendance,
       overtimeEntries: [],
       detailedStatus: '',
       isEarlyCheckIn: false,
@@ -130,9 +139,9 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
       futureOvertimes: [],
       overtimeAttendances: [],
       pendingLeaveRequest: false,
-    };
+    });
 
-    return getStatusMessage(statusInfo);
+    return getStatusMessage(mapAttendanceToStatusInfo(status, userData));
   }, [status, userData]);
 
   if (isLoading) {

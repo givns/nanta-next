@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { AttendanceRecord, OvertimeEntry, TimeEntry } from './records';
 import { ShiftData } from './shift';
 import {
-  ApprovedOvertimeInfo,
   AttendanceState,
   CheckStatus,
   OvertimeState,
@@ -21,7 +20,7 @@ export interface AttendanceResponse
     state: AttendanceState;
     checkStatus: CheckStatus;
     overtimeState?: OvertimeState;
-    validation?: ValidationResult;
+    validation: ValidationResult;
     timeEntries?: TimeEntry[];
     overtimeEntries?: OvertimeEntry[];
   }> {
@@ -40,11 +39,25 @@ export interface AttendanceStateResponse {
       regularCheckInTime?: string;
       regularCheckOutTime?: string;
     };
-    approvedOvertime: ApprovedOvertimeInfo | null;
   };
   window: ShiftWindowResponse;
   validation: ValidationResponse;
   timestamp: string;
+}
+
+export interface ValidationResponse {
+  allowed: boolean;
+  reason: string;
+  flags: {
+    isLateCheckIn: boolean;
+    isEarlyCheckOut: boolean;
+    isPlannedHalfDayLeave: boolean;
+    isEmergencyLeave: boolean;
+    isOvertime: boolean;
+    requireConfirmation: boolean;
+    isDayOffOvertime: boolean;
+    isInsideShift: boolean;
+  };
 }
 
 export interface TimeEntriesResponse {
@@ -139,27 +152,16 @@ export interface ShiftWindowResponse {
   overtimeInfo?: {
     startTime: string;
     endTime: string;
+    durationMinutes: number;
+    isInsideShiftHours: boolean;
+    isDayOffOvertime: boolean;
+    reason: string;
     id: string;
   };
   futureShifts?: Array<{
     date: string;
     shift: ShiftData;
   }>;
-}
-
-export interface ValidationResponse {
-  allowed: boolean;
-  reason: string;
-  flags: {
-    isLateCheckIn: boolean;
-    isEarlyCheckOut: boolean;
-    isPlannedHalfDayLeave: boolean;
-    isEmergencyLeave: boolean;
-    isOvertime: boolean;
-    requireConfirmation: boolean;
-    isDayOffOvertime: boolean;
-    isInsideShift: boolean;
-  };
 }
 
 export interface CheckInOutResponse {

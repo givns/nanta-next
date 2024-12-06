@@ -16,6 +16,7 @@ import {
   CheckStatus,
   LatestAttendance,
   OvertimeState,
+  ShiftData,
 } from '@/types/attendance';
 
 interface ProcessingState {
@@ -24,14 +25,29 @@ interface ProcessingState {
 }
 
 interface UserShiftInfoStatus {
-  state: AttendanceState;
-  checkStatus: CheckStatus;
-  currentPeriod: CurrentPeriodInfo | null;
-  isHoliday: boolean;
-  isDayOff: boolean;
-  isOvertime: boolean;
-  approvedOvertime: ApprovedOvertimeInfo | null;
-  latestAttendance: LatestAttendance;
+  userData: UserData;
+  status: {
+    state: AttendanceState;
+    checkStatus: CheckStatus;
+    currentPeriod: CurrentPeriodInfo | null;
+    isHoliday: boolean;
+    isDayOff: boolean;
+    isOvertime: boolean;
+    latestAttendance: LatestAttendance;
+    approvedOvertime: OvertimeInfoUI | null; // Added this field
+  };
+  effectiveShift: ShiftData | null;
+  isLoading?: boolean;
+}
+
+export interface OvertimeInfoUI {
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  isInsideShiftHours: boolean;
+  isDayOffOvertime: boolean;
+  reason?: string;
 }
 
 interface CheckInOutFormProps {
@@ -63,10 +79,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     isLoading,
     error: attendanceError,
     checkInOut,
-    approvedOvertime,
+    overtimeContext,
   } = useSimpleAttendance({
     employeeId: userData.employeeId,
-    lineUserId: userData.lineUserId,
+    lineUserId: userData.lineUserId || '',
   });
 
   // Timer effect
@@ -321,7 +337,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
-  const userShiftInfoStatus: UserShiftInfoStatus = {
+  const userShiftInfoStatus: UserShiftInfoStatus['status'] = {
     state,
     checkStatus,
     currentPeriod,
@@ -332,7 +348,17 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       ? !effectiveShift.workDays.includes(getCurrentTime().getDay())
       : false,
     isOvertime: currentPeriod?.type === 'overtime',
-    approvedOvertime: approvedOvertime || null,
+    approvedOvertime: overtimeContext
+      ? {
+          id: overtimeContext.id,
+          startTime: overtimeContext.startTime,
+          endTime: overtimeContext.endTime,
+          durationMinutes: overtimeContext.durationMinutes,
+          isInsideShiftHours: overtimeContext.isInsideShiftHours,
+          isDayOffOvertime: overtimeContext.isDayOffOvertime,
+          reason: overtimeContext.reason,
+        }
+      : null,
     latestAttendance: {
       id: '',
       employeeId: userData.employeeId,

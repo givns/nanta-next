@@ -51,7 +51,7 @@ const CheckInRouter: React.FC = () => {
     ...attendanceProps
   } = useSimpleAttendance({
     employeeId: userData?.employeeId,
-    lineUserId,
+    lineUserId: lineUserId || '',
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 

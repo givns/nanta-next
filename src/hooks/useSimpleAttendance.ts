@@ -4,13 +4,23 @@ import { useEnhancedLocation } from './useEnhancedLocation';
 import { useAttendanceData } from './useAttendanceData';
 import { KeyedMutator } from 'swr';
 import {
-  UseSimpleAttendanceProps,
-  UseSimpleAttendanceReturn,
-  AttendanceStateResponse,
   AttendanceState,
+  AttendanceStateResponse,
   CheckStatus,
   CurrentPeriodInfo,
+  LocationState,
+  UseSimpleAttendanceReturn,
+  ValidationResult,
 } from '@/types/attendance';
+import { getCurrentTime } from '@/utils/dateUtils';
+import { OvertimeContext } from '@/types/attendance/overtime';
+
+interface UseSimpleAttendanceProps {
+  employeeId?: string;
+  lineUserId?: string;
+  initialAttendanceStatus?: AttendanceStateResponse;
+  enabled?: boolean;
+}
 
 export function useSimpleAttendance({
   employeeId,
@@ -19,6 +29,9 @@ export function useSimpleAttendance({
   enabled = true,
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn {
   const [isInitializing, setIsInitializing] = useState(true);
+  const [overtimeContext, setOvertimeContext] =
+    useState<OvertimeContext | null>(null);
+
   const {
     locationState,
     locationReady,
@@ -38,10 +51,28 @@ export function useSimpleAttendance({
     employeeId,
     lineUserId: lineUserId ?? undefined,
     locationState,
-    initialAttendanceStatus: initialAttendanceStatus ?? undefined,
+    initialAttendanceStatus,
     enabled: enabled && locationReady,
   });
 
+  // Initialize overtime context when data changes
+  useEffect(() => {
+    if (data?.window?.overtimeInfo) {
+      setOvertimeContext({
+        id: data.window.overtimeInfo.id,
+        startTime: data.window.overtimeInfo.startTime,
+        endTime: data.window.overtimeInfo.endTime,
+        durationMinutes: data.window.overtimeInfo.durationMinutes,
+        isInsideShiftHours: data.window.overtimeInfo.isInsideShiftHours,
+        isDayOffOvertime: data.window.overtimeInfo.isDayOffOvertime,
+        reason: data.window.overtimeInfo.reason,
+      });
+    } else {
+      setOvertimeContext(null);
+    }
+  }, [data?.window?.overtimeInfo]);
+
+  // Clear initializing state once data is loaded
   useEffect(() => {
     if (data && isInitializing) {
       setIsInitializing(false);
@@ -54,8 +85,8 @@ export function useSimpleAttendance({
         type: data.window.type,
         current: data.window.current,
         isComplete: Boolean(data.base.latestAttendance?.regularCheckOutTime),
-        checkInTime: data.base.latestAttendance?.regularCheckInTime || null,
-        checkOutTime: data.base.latestAttendance?.regularCheckOutTime || null,
+        checkInTime: data.base.latestAttendance?.regularCheckInTime ?? null,
+        checkOutTime: data.base.latestAttendance?.regularCheckOutTime ?? null,
         overtimeId: data.window.overtimeInfo?.id,
       }
     : null;
@@ -65,19 +96,32 @@ export function useSimpleAttendance({
   });
 
   return {
+    // Basic state
     state: data?.base.state || AttendanceState.ABSENT,
     checkStatus: data?.base.checkStatus || CheckStatus.PENDING,
     isCheckingIn: data?.base.isCheckingIn ?? true,
+
+    // Period and shift info
     effectiveShift: data?.window?.shift || null,
     currentPeriod,
+
+    // Overtime context
+    overtimeContext,
+
+    // Validation and status
     validation: data?.validation || null,
+
+    // Loading and error states
     isLoading: isInitializing || locationLoading || isAttendanceLoading,
     isLocationLoading: locationLoading,
     error: attendanceError?.message || locationError,
+
+    // Location info
     locationReady,
     locationState,
+
+    // Actions
     checkInOut,
-    approvedOvertime: data?.base.approvedOvertime || null,
     refreshAttendanceStatus: enhancedRefreshStatus,
     getCurrentLocation,
   };

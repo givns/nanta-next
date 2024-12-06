@@ -3,7 +3,7 @@
 // Overtime specific types
 // ===================================
 
-import { ApprovedOvertimeInfo } from './status';
+import { ApprovedOvertimeInfo, OvertimeState } from './status';
 
 export interface OvertimeInfo {
   isDayOffOvertime: boolean;
@@ -46,15 +46,16 @@ export interface OvertimeEntryData {
 }
 
 export interface OvertimeContext {
-  currentOvertime: ApprovedOvertimeInfo | null;
-  futureOvertimes: ApprovedOvertimeInfo[];
-  overtimeWindows: {
-    earlyCheckInWindow: Date;
-    lateCheckOutWindow: Date;
-  };
-  overtimeMetadata?: {
-    isDayOffOvertime: boolean;
-    isInsideShiftHours: boolean;
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  isInsideShiftHours: boolean;
+  isDayOffOvertime: boolean;
+  reason?: string;
+  validationWindow?: {
+    earliestCheckIn: Date;
+    latestCheckOut: Date;
   };
 }
 
@@ -67,4 +68,24 @@ export interface OvertimeValidation {
     code: string;
     message: string;
   }>;
+}
+
+export class AttendanceError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public details?: unknown,
+  ) {
+    super(message);
+    this.name = 'AttendanceError';
+  }
+
+  static ValidationError = (message: string, details?: unknown) =>
+    new AttendanceError('VALIDATION_ERROR', message, details);
+
+  static SystemError = (message: string, details?: unknown) =>
+    new AttendanceError('SYSTEM_ERROR', message, details);
+
+  static NetworkError = (message: string, details?: unknown) =>
+    new AttendanceError('NETWORK_ERROR', message, details);
 }

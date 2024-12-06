@@ -46,6 +46,8 @@ import {
 } from '../../lib/serverCache';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { ShiftTimeUtils } from './utils';
+import { duration } from 'moment-timezone';
+import { over } from 'lodash';
 
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
@@ -279,6 +281,10 @@ export class ShiftManagementService {
           id: overtimeRequest.id,
           startTime: overtimeRequest.startTime,
           endTime: overtimeRequest.endTime,
+          durationMinutes: overtimeRequest.durationMinutes,
+          isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+          isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+          reason: overtimeRequest.reason ?? '', // Provide default empty string value
         };
       }
     }

@@ -44,6 +44,29 @@ export interface ValidationResult {
   };
 }
 
+export interface AttendanceValidationResult {
+  allowed: boolean;
+  reason?: string;
+  flags: {
+    isLateCheckIn: boolean;
+    isEarlyCheckOut: boolean;
+    isLateCheckOut: boolean;
+    isPlannedHalfDayLeave: boolean;
+    isEmergencyLeave: boolean;
+    isOvertime: boolean;
+    isDayOffOvertime: boolean;
+    isInsideShift: boolean;
+    requireConfirmation: boolean;
+    isOutsideAllowedWindow: boolean;
+  };
+  timing: {
+    nextWindowStart?: Date;
+    graceWindowEnd?: Date;
+    minutesLate?: number;
+    minutesEarly?: number;
+  };
+}
+
 export interface ValidationError {
   code: string;
   message: string;

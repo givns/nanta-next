@@ -10,10 +10,10 @@ import {
   ShiftData,
   UserData,
   ValidationResponse,
+  ValidationResult,
 } from '../attendance';
 import { ProcessingResult } from './processing';
 import {
-  ApprovedOvertimeInfo,
   AttendanceState,
   AttendanceStatusInfo,
   CheckStatus,
@@ -22,7 +22,8 @@ import {
   PeriodType,
 } from './status';
 import { KeyedMutator } from 'swr';
-import { Location, LocationState } from './base';
+import { LocationState } from './base';
+import { OvertimeContext } from './overtime';
 
 export interface StatusChangeParams {
   isCheckingIn: boolean;
@@ -162,19 +163,23 @@ export interface UseSimpleAttendanceReturn {
   isCheckingIn: boolean;
 
   // Shift and period info
-  effectiveShift: ShiftData | null;
   currentPeriod: CurrentPeriodInfo | null;
-  validation: ValidationResponse | null;
-  approvedOvertime: ApprovedOvertimeInfo | null;
+  effectiveShift: ShiftData | null;
 
-  // Location states
+  // Overtime context
+  overtimeContext: OvertimeContext | null;
+
+  // Validation and status
+  validation: ValidationResponse | null; // Changed from ValidationResult
+
+  // Loading and error states
+  isLoading: boolean;
+  isLocationLoading: boolean;
+  error?: string;
+
+  // Location information
   locationReady: boolean;
   locationState: LocationState;
-  isLocationLoading: boolean;
-
-  // Loading/Error states
-  isLoading: boolean;
-  error: string | null;
 
   // Actions
   checkInOut: (params: CheckInOutData) => Promise<ProcessingResult>;

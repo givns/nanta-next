@@ -9,8 +9,18 @@ import {
   OvertimeState,
 } from '@/types/attendance';
 
+interface OvertimeInfoUI {
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  isInsideShiftHours: boolean;
+  isDayOffOvertime: boolean;
+  reason?: string;
+}
+
 interface OvertimeCardProps {
-  approvedOvertime: ApprovedOvertimeInfo;
+  approvedOvertime: OvertimeInfoUI;
   currentPeriod: CurrentPeriodInfo | null;
   latestAttendance: LatestAttendance | null;
 }
