@@ -154,6 +154,9 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex-1">
+              <div className="flex flex-col items-center">
+                <Clock1 />
+              </div>
               <CardTitle className="text-2xl font-bold">
                 {userData.name}
               </CardTitle>
@@ -161,9 +164,6 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
                 รหัสพนักงาน: {userData.employeeId}
               </p>
               <p className="text-gray-600">แผนก: {userData.departmentName}</p>
-            </div>
-            <div className="flex flex-col items-center">
-              <Clock1 />
             </div>
           </div>
         </CardHeader>
