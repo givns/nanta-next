@@ -158,7 +158,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         // Required fields
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId || null,
-        checkTime: now.toISOString(),
+        checkTime: new Date().toISOString(),
         isCheckIn: isCheckingIn,
         address: locationState.address,
         inPremises: locationState.inPremises,
