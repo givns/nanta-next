@@ -113,7 +113,13 @@ async function processCheckInOut(
   task: ProcessingOptions,
 ): Promise<QueueResult> {
   const requestKey = getRequestKey(task);
-  console.log('Processing check-in/out task:', { requestKey, task });
+  const serverTime = getCurrentTime();
+
+  console.log('Processing check-in/out task:', {
+    requestKey,
+    serverTime: serverTime.toISOString(),
+    clientTime: task.checkTime,
+  });
 
   const existingResult = processedRequests.get(requestKey);
   if (existingResult) {
@@ -124,8 +130,6 @@ async function processCheckInOut(
       success: true,
     };
   }
-
-  const serverTime = getCurrentTime();
 
   try {
     // Process attendance first

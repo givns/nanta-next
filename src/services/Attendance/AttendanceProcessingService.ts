@@ -116,34 +116,6 @@ export class AttendanceProcessingService {
             },
           );
 
-          // 6. Create log using attendanceLogService but with transaction
-          await this.loggingService.prisma.attendanceLogs.create({
-            data: {
-              employeeId: options.employeeId,
-              previousState: statusUpdate.stateChange.state.previous,
-              currentState: statusUpdate.stateChange.state.current,
-              previousCheckStatus:
-                statusUpdate.stateChange.checkStatus.previous,
-              currentCheckStatus: statusUpdate.stateChange.checkStatus.current,
-              previousOvertimeState:
-                statusUpdate.stateChange.overtime?.previous?.state,
-              currentOvertimeState:
-                statusUpdate.stateChange.overtime?.current?.state,
-              isOvertimeTransition: !!statusUpdate.stateChange.overtime,
-              reason: statusUpdate.reason,
-              metadata: JSON.parse(
-                JSON.stringify(statusUpdate.metadata),
-              ) as Prisma.JsonValue,
-              timestamp: serverTime,
-              date: serverTime,
-              attendance: {
-                connect: {
-                  id: processedAttendance.id,
-                },
-              },
-            },
-          });
-
           // 7. Map time entries
           const mappedTimeEntries = {
             regular: timeEntries.regular
