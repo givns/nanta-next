@@ -1,5 +1,6 @@
 //StatusMessage.tsx
 import { AttendanceStatusInfo } from '@/types/attendance';
+import { format } from 'date-fns';
 
 interface StatusMessageResult {
   message: string;
@@ -15,6 +16,9 @@ export const getStatusMessage = (
       color: 'red',
     };
   }
+
+  const now = new Date();
+  const currentHour = format(now, 'HH:mm');
 
   // Holiday check should be first priority
   if (attendanceStatus.isHoliday) {
@@ -36,6 +40,30 @@ export const getStatusMessage = (
       message: `วันหยุดประจำสัปดาห์${overtimeMsg}`,
       color: 'blue',
     };
+  }
+
+  // Check if current time is between any overtime periods
+  if (attendanceStatus.allApprovedOvertimes?.length) {
+    const currentOvertime = attendanceStatus.allApprovedOvertimes.find((ot) => {
+      return currentHour >= ot.startTime && currentHour <= ot.endTime;
+    });
+
+    if (currentOvertime) {
+      if (!attendanceStatus.currentPeriod.checkInTime) {
+        return { message: 'รอลงเวลาเข้างาน OT', color: 'blue' };
+      }
+      if (!attendanceStatus.currentPeriod.checkOutTime) {
+        return { message: 'กำลังทำงานล่วงเวลา', color: 'green' };
+      }
+    } else {
+      // Outside overtime period - check if all overtimes are completed or upcoming
+      const isPastAllOvertimes = attendanceStatus.allApprovedOvertimes.every(
+        (ot) => currentHour > ot.endTime,
+      );
+      if (isPastAllOvertimes) {
+        return { message: 'เสร็จสิ้นการทำงานล่วงเวลา', color: 'blue' };
+      }
+    }
   }
 
   // Current period checks
