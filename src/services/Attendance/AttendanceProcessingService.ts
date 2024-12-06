@@ -53,86 +53,111 @@ export class AttendanceProcessingService {
   async processAttendance(
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
-    return this.prisma.$transaction(async (tx) => {
-      try {
-        // 1. Validate input
-        const validationResult =
-          await AttendanceValidators.validateProcessingOptions(options);
-        if (!validationResult.isValid) {
-          throw new AppError({
-            code: ErrorCode.INVALID_INPUT,
-            message: validationResult.errors[0].message,
-          });
-        }
+    return this.prisma.$transaction(
+      async (tx) => {
+        try {
+          // Validation and context gathering same as before
+          const validationResult =
+            await AttendanceValidators.validateProcessingOptions(options);
+          if (!validationResult.isValid) {
+            throw new AppError({
+              code: ErrorCode.INVALID_INPUT,
+              message: validationResult.errors[0].message,
+            });
+          }
 
-        // 2. Get current attendance and context
-        const [currentAttendance, periodContext] = await Promise.all([
-          this.getLatestAttendance(options.employeeId),
-          this.getPeriodContext(
+          const [currentAttendance, periodContext] = await Promise.all([
+            this.getLatestAttendance(options.employeeId),
+            this.getPeriodContext(
+              tx,
+              options.employeeId,
+              new Date(options.checkTime),
+            ),
+          ]);
+
+          const statusUpdate = await StatusHelpers.processStatusTransition(
+            currentAttendance
+              ? AttendanceMappers.toCompositeStatus(currentAttendance)
+              : this.getInitialStatus(),
+            options,
+          );
+
+          // Process attendance change first
+          const processedAttendance = await this.processAttendanceChange(
             tx,
-            options.employeeId,
-            new Date(options.checkTime),
-          ),
-        ]);
+            currentAttendance,
+            statusUpdate,
+            options,
+            periodContext,
+          );
 
-        // 3. Process status transition
-        const statusUpdate = await StatusHelpers.processStatusTransition(
-          currentAttendance
-            ? AttendanceMappers.toCompositeStatus(currentAttendance)
-            : this.getInitialStatus(),
-          options,
-        );
+          // Create log with attendance relation
+          await tx.attendanceLogs.create({
+            data: {
+              employeeId: options.employeeId,
+              previousState: statusUpdate.stateChange.state.previous,
+              currentState: statusUpdate.stateChange.state.current,
+              previousCheckStatus:
+                statusUpdate.stateChange.checkStatus.previous,
+              currentCheckStatus: statusUpdate.stateChange.checkStatus.current,
+              previousOvertimeState:
+                statusUpdate.stateChange.overtime?.previous?.state,
+              currentOvertimeState:
+                statusUpdate.stateChange.overtime?.current?.state,
+              isOvertimeTransition: !!statusUpdate.stateChange.overtime,
+              reason: statusUpdate.reason,
+              metadata: statusUpdate.metadata as Prisma.JsonValue,
+              timestamp: statusUpdate.timestamp,
+              date: startOfDay(new Date(options.checkTime)),
+              attendance: {
+                connect: {
+                  id: processedAttendance.id,
+                },
+              },
+            },
+          });
 
-        // Process attendance change
-        const processedAttendance = await this.processAttendanceChange(
-          tx,
-          currentAttendance,
-          statusUpdate,
-          options,
-          periodContext,
-        );
+          // Process time entries
+          const timeEntries = await this.timeEntryService.processTimeEntries(
+            tx,
+            processedAttendance,
+            statusUpdate,
+            options,
+          );
 
-        // Process time entries with proper type conversion
-        const timeEntries = await this.timeEntryService.processTimeEntries(
-          tx,
-          processedAttendance,
-          statusUpdate,
-          options,
-        );
+          const mappedTimeEntries = {
+            regular: timeEntries.regular
+              ? {
+                  ...timeEntries.regular,
+                  status: timeEntries.regular.status as TimeEntryStatus,
+                  entryType: PeriodType.REGULAR,
+                }
+              : undefined,
+            overtime: timeEntries.overtime?.map((entry) => ({
+              ...entry,
+              status: entry.status as TimeEntryStatus,
+              entryType: PeriodType.OVERTIME,
+            })),
+          };
 
-        // Convert entry types to proper enums
-        const mappedTimeEntries = {
-          regular: timeEntries.regular
-            ? {
-                ...timeEntries.regular,
-                status: timeEntries.regular.status as TimeEntryStatus,
-                entryType: PeriodType.REGULAR,
-              }
-            : undefined,
-          overtime: timeEntries.overtime?.map((entry) => ({
-            ...entry,
-            status: entry.status as TimeEntryStatus,
-            entryType: PeriodType.OVERTIME,
-          })),
-        };
-
-        // Log status change
-        await this.logStatusChange(tx, statusUpdate, options);
-
-        return AttendanceResponseBuilder.createProcessingResponse(
-          processedAttendance,
-          mappedTimeEntries,
-          statusUpdate.stateChange.overtime?.current
-            ? {
-                isOvertime: true,
-                metadata: statusUpdate.metadata,
-              }
-            : undefined,
-        );
-      } catch (error) {
-        throw this.handleProcessingError(error);
-      }
-    });
+          return AttendanceResponseBuilder.createProcessingResponse(
+            processedAttendance,
+            mappedTimeEntries,
+            statusUpdate.stateChange.overtime?.current
+              ? {
+                  isOvertime: true,
+                  metadata: statusUpdate.metadata,
+                }
+              : undefined,
+          );
+        } catch (error) {
+          throw this.handleProcessingError(error);
+        }
+      },
+      {
+        timeout: 5000, // Removed invalid isolationLevel option
+      },
+    );
   }
 
   public async getLatestAttendance(

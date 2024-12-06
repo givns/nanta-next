@@ -1,15 +1,13 @@
 import { useCallback, useRef, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
-import type {
-  LocationState,
-  CheckInOutData,
-  ProcessingResult,
-  AttendanceState,
-  CheckStatus,
-  ShiftWindowResponse,
-  ValidationResponse,
-  AttendanceStateResponse,
+import {
+  type LocationState,
+  type CheckInOutData,
+  type ProcessingResult,
+  type AttendanceStateResponse,
+  AppError,
+  ErrorCode,
 } from '@/types/attendance';
 
 const REQUEST_TIMEOUT = 30000;
@@ -100,6 +98,12 @@ export function useAttendanceData({
 
       while (retryCount <= MAX_RETRIES) {
         try {
+          console.log('Attempting check-in/out:', {
+            attempt: retryCount + 1,
+            isCheckIn: params.isCheckIn,
+            isOvertime: params.isOvertime,
+          });
+
           const response = await axios.post<ProcessingResult>(
             '/api/attendance/check-in-out',
             {
@@ -107,28 +111,69 @@ export function useAttendanceData({
               employeeId,
               lineUserId,
               address: locationState.address,
+              inPremises: locationState.inPremises, // Add required field
               confidence: locationState.confidence,
+              // Let server handle time
+              checkTime: '',
             },
-            { timeout: REQUEST_TIMEOUT },
+            {
+              timeout: REQUEST_TIMEOUT,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            },
           );
 
           if (!response.data.success) {
-            throw new Error(
-              response.data.errors || 'Failed to process attendance',
-            );
+            const errorMessage =
+              typeof response.data.errors === 'object' &&
+              response.data.errors !== null
+                ? response.data.errors
+                : 'Failed to process attendance';
+            throw new AppError({
+              code: ErrorCode.PROCESSING_ERROR,
+              message: errorMessage,
+            });
           }
 
+          // Mutate cache after successful operation
           await mutate();
           return response.data;
         } catch (error) {
-          if (retryCount >= MAX_RETRIES) throw error;
+          console.error('Check-in/out error:', error);
+
+          // Handle timeout specially
+          if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
+            if (retryCount >= MAX_RETRIES) {
+              throw new AppError({
+                code: ErrorCode.TIMEOUT,
+                message: 'Operation timed out after retries',
+              });
+            }
+          } else if (error instanceof AppError) {
+            throw error;
+          }
+
+          // Retry with exponential backoff
           retryCount++;
-          await new Promise((resolve) =>
-            setTimeout(resolve, 1000 * Math.pow(2, retryCount)),
-          );
+          if (retryCount <= MAX_RETRIES) {
+            const delay = 1000 * Math.pow(2, retryCount);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+
+          throw new AppError({
+            code: ErrorCode.PROCESSING_ERROR,
+            message: error instanceof Error ? error.message : 'Unknown error',
+            originalError: error,
+          });
         }
       }
-      throw new Error('Max retries exceeded');
+
+      throw new AppError({
+        code: ErrorCode.PROCESSING_ERROR,
+        message: 'Max retries exceeded',
+      });
     },
     [employeeId, lineUserId, locationState, mutate],
   );
