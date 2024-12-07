@@ -77,10 +77,12 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               <CardTitle className="text-2xl text-center font-bold">
                 {userData.name}
               </CardTitle>
-              <p className="text-gray-600">
+              <p className="text-gray-600 text-center">
                 รหัสพนักงาน: {userData.employeeId}
               </p>
-              <p className="text-gray-600">แผนก: {userData.departmentName}</p>
+              <p className="text-gray-600 text-center">
+                แผนก: {userData.departmentName}
+              </p>
             </div>
           </div>
         </CardHeader>

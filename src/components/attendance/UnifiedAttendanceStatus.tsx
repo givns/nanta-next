@@ -111,68 +111,35 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
     )}`;
   };
 
-  const getProgressBarColor = (): string => {
-    if (isHoliday || isDayOff) {
-      return 'bg-blue-500';
-    }
-
-    if (!currentPeriod || !currentPeriod.checkInTime) {
-      return 'bg-red-500';
-    }
-
-    if (!currentPeriod.checkOutTime) {
-      return 'bg-green-500';
-    }
-
-    return 'bg-gray-500';
-  };
-
-  const getProgressWidth = (): string => {
-    if (!effectiveShift) return '0%';
-
-    const shiftStart = new Date(
-      `${format(currentTime, 'yyyy-MM-dd')}T${effectiveShift.startTime}`,
-    );
-    const shiftEnd = new Date(
-      `${format(currentTime, 'yyyy-MM-dd')}T${effectiveShift.endTime}`,
-    );
-    const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
-
-    if (!latestAttendance?.regularCheckInTime) {
-      return '0%';
-    }
-
-    if (latestAttendance?.regularCheckOutTime) {
-      return '100%';
-    }
-
-    const elapsed = differenceInMinutes(currentTime, shiftStart);
-    return `${Math.min(100, (elapsed / totalShiftMinutes) * 100)}%`;
-  };
-
   return (
     <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div className={`text-4xl font-bold ${getAttendanceStatusColor()}`}>
+        <div className={`text-5xl font-bold ${getAttendanceStatusColor()}`}>
           {getAttendanceStatus()}
         </div>
         {latestAttendance?.regularCheckInTime && (
-          <div className="text-sm text-gray-500">{getAttendanceTime()}</div>
+          <div className="text-lg text-gray-500">{getAttendanceTime()}</div>
         )}
       </div>
 
       {effectiveShift && (
-        <div>
-          <div className="flex justify-between text-sm text-gray-500 mb-2">
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm text-gray-500">
             <span>{effectiveShift.startTime}</span>
             <span>{effectiveShift.endTime}</span>
           </div>
-          <div className="relative h-6 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className={`absolute h-full transition-all duration-300 ${getProgressBarColor()}`}
-              style={{ width: getProgressWidth() }}
-            />
-          </div>
+          {latestAttendance?.regularCheckInTime && (
+            <div className="flex items-center gap-2 text-sm">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  latestAttendance.regularCheckOutTime
+                    ? 'bg-green-600'
+                    : 'bg-yellow-500'
+                }`}
+              />
+              <span>{getAttendanceTime()}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
