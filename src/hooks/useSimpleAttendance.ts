@@ -79,6 +79,16 @@ export function useSimpleAttendance({
     }
   }, [data, isInitializing]);
 
+  useEffect(() => {
+    if (data) {
+      console.log('Attendance Data from API:', {
+        base: data.base,
+        window: data.window,
+        validation: data.validation,
+      });
+    }
+  }, [data]);
+
   // Create current period info from window data
   const currentPeriod: CurrentPeriodInfo | null = data?.window
     ? {
@@ -90,6 +100,15 @@ export function useSimpleAttendance({
         overtimeId: data.window.overtimeInfo?.id,
       }
     : null;
+
+  console.log('Current Period:', {
+    currentPeriod,
+    checkInTime: currentPeriod?.checkInTime,
+    checkOutTime: currentPeriod?.checkOutTime,
+    isCheckingIn: !currentPeriod?.checkInTime,
+    latestAttendance: data?.base?.latestAttendance,
+    baseIsCheckingIn: data?.base?.isCheckingIn,
+  });
 
   // In useSimpleAttendance.ts
   const enhancedRefreshStatus = useMemo(() => {
