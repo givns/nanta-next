@@ -72,124 +72,96 @@ const AttendanceProgress: React.FC<AttendanceProgressProps> = ({
   };
 
   const getProgressColor = () => {
-    if (!checkInTime) return 'bg-red-200';
+    if (!checkInTime) return 'bg-red-300';
     if (checkOutTime) return 'bg-green-500';
     return 'bg-blue-500';
   };
 
   return (
-    <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
-      <div
-        className={`absolute h-full transition-all duration-300 ${getProgressColor()}`}
-        style={{ width: getProgressWidth() }}
-      />
-      <div className="w-full space-y-2">
-        <div className="flex justify-between text-xs text-gray-500">
-          <span>{format(shiftStart, 'HH:mm')}</span>
-          <span>{format(shiftEnd, 'HH:mm')}</span>
+    <div className="w-full bg-white p-4 rounded-lg shadow-md">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold">Attendance Progress</h3>
+        <div className="flex items-center space-x-2 text-sm text-gray-500">
+          <div className="w-2 h-2 rounded-full bg-green-500"></div>
+          <span>Checked in</span>
+          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+          <span>In progress</span>
+          <div className="w-2 h-2 rounded-full bg-red-300"></div>
+          <span>Not checked in</span>
         </div>
+      </div>
 
-        <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
+      <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className={`absolute h-full transition-all duration-300 ${getProgressColor()}`}
+          style={{ width: getProgressWidth() }}
+        />
+      </div>
+
+      <div className="flex justify-between text-xs text-gray-500 mt-2">
+        <span>{format(shiftStart, 'HH:mm')}</span>
+        <span>{format(shiftEnd, 'HH:mm')}</span>
+      </div>
+
+      {checkInTime && (
+        <div className="flex items-center space-x-2 text-sm mt-2">
+          <div className="w-2 h-2 rounded-full bg-green-500"></div>
+          <span>Checked in: {format(new Date(checkInTime), 'HH:mm')}</span>
+        </div>
+      )}
+
+      {checkOutTime && (
+        <div className="flex items-center space-x-2 text-sm mt-2">
           <div
-            className={`absolute h-full transition-all duration-300 ${
-              checkOutTime
-                ? isWithinInterval(new Date(checkOutTime), {
-                    start: shiftStart,
-                    end: shiftEnd,
-                  })
-                  ? 'bg-green-500'
-                  : 'bg-red-200'
-                : 'bg-blue-500'
+            className={`w-2 h-2 rounded-full ${
+              isWithinInterval(new Date(checkOutTime), {
+                start: shiftStart,
+                end: shiftEnd,
+              })
+                ? 'bg-green-500'
+                : 'bg-red-500'
             }`}
-            style={{ width: getProgressWidth() }}
           />
-
-          {checkInTime && (
-            <div
-              className="absolute w-2 h-full bg-green-600"
-              style={{
-                left: `${(differenceInMinutes(new Date(checkInTime), shiftStart) / totalShiftMinutes) * 100}%`,
-              }}
-            />
-          )}
-
-          {checkOutTime && (
-            <div
-              className={`absolute w-2 h-full ${
-                isWithinInterval(new Date(checkOutTime), {
-                  start: shiftStart,
-                  end: shiftEnd,
-                })
-                  ? 'bg-green-600'
-                  : 'bg-red-600'
-              }`}
-              style={{
-                left: `${(differenceInMinutes(new Date(checkOutTime), shiftStart) / totalShiftMinutes) * 100}%`,
-              }}
-            />
-          )}
+          <span>Checked out: {format(new Date(checkOutTime), 'HH:mm')}</span>
         </div>
+      )}
 
-        {approvedOvertime && (
-          <>
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>{approvedOvertime.startTime}</span>
-              <span>{approvedOvertime.endTime}</span>
-            </div>
-            <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="absolute h-full bg-yellow-500 transition-all duration-300"
-                style={{
-                  width:
-                    currentPeriod?.type === 'overtime'
-                      ? `${
-                          (differenceInMinutes(
-                            currentTime,
+      {approvedOvertime && (
+        <div className="mt-4">
+          <h4 className="text-gray-500 font-medium">Approved Overtime</h4>
+          <div className="flex justify-between text-xs text-gray-500 mt-2">
+            <span>{approvedOvertime.startTime}</span>
+            <span>{approvedOvertime.endTime}</span>
+          </div>
+          <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="absolute h-full bg-yellow-500 transition-all duration-300"
+              style={{
+                width:
+                  currentPeriod?.type === 'overtime'
+                    ? `${
+                        (differenceInMinutes(
+                          currentTime,
+                          new Date(
+                            `${format(currentTime, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+                          ),
+                        ) /
+                          differenceInMinutes(
+                            new Date(
+                              `${format(currentTime, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+                            ),
                             new Date(
                               `${format(currentTime, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
                             ),
-                          ) /
-                            differenceInMinutes(
-                              new Date(
-                                `${format(currentTime, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-                              ),
-                              new Date(
-                                `${format(currentTime, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
-                              ),
-                            )) *
-                          100
-                        }%`
-                      : '0%',
-                }}
-              />
-            </div>
-          </>
-        )}
-
-        <div className="flex gap-4 text-sm mt-2">
-          {checkInTime && (
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-green-600" />
-              <span>Check-in: {format(new Date(checkInTime), 'HH:mm')}</span>
-            </div>
-          )}
-          {checkOutTime && (
-            <div className="flex items-center gap-1">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  isWithinInterval(new Date(checkOutTime), {
-                    start: shiftStart,
-                    end: shiftEnd,
-                  })
-                    ? 'bg-green-600'
-                    : 'bg-red-600'
-                }`}
-              />
-              <span>Check-out: {format(new Date(checkOutTime), 'HH:mm')}</span>
-            </div>
-          )}
+                          )) *
+                        100
+                      }%`
+                    : '0%',
+              }}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
