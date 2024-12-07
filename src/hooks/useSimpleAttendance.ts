@@ -1,5 +1,5 @@
 // hooks/useSimpleAttendance.ts
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEnhancedLocation } from './useEnhancedLocation';
 import { useAttendanceData } from './useAttendanceData';
 import { KeyedMutator } from 'swr';
@@ -91,9 +91,27 @@ export function useSimpleAttendance({
       }
     : null;
 
-  const enhancedRefreshStatus = Object.assign(refreshAttendanceStatus, {
-    mutate: mutate as KeyedMutator<AttendanceStateResponse>,
-  });
+  // In useSimpleAttendance.ts
+  const enhancedRefreshStatus = useMemo(() => {
+    const refresh = async (options?: {
+      forceRefresh?: boolean;
+      throwOnError?: boolean;
+    }) => {
+      try {
+        await refreshAttendanceStatus(options);
+        // Force a re-fetch of the latest data
+        await mutate(undefined, { revalidate: true });
+      } catch (error) {
+        console.error('Error refreshing status:', error);
+        throw error;
+      }
+    };
+
+    // Attach mutate property to maintain type compatibility
+    return Object.assign(refresh, {
+      mutate: mutate as KeyedMutator<AttendanceStateResponse>,
+    });
+  }, [refreshAttendanceStatus, mutate]);
 
   return {
     // Basic state

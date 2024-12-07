@@ -143,7 +143,7 @@ export function useAttendanceData({
             });
           }
 
-          await mutate();
+          await mutate(undefined, { revalidate: true });
           return response.data;
         } catch (error) {
           console.error('Check-in/out error:', error);

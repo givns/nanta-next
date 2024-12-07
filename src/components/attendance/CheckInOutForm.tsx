@@ -81,6 +81,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     error: attendanceError,
     checkInOut,
     overtimeContext,
+    refreshAttendanceStatus, // Add this
   } = useSimpleAttendance({
     employeeId: userData.employeeId,
     lineUserId: userData.lineUserId || '',
@@ -191,12 +192,18 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         },
       });
 
+      // Add explicit refresh
+      await refreshAttendanceStatus();
+
+      // Wait a moment for state to update
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       setProcessingState({
         status: 'success',
         message: 'บันทึกเวลาสำเร็จ',
       });
 
-      setTimeout(onComplete, 1500);
+      setTimeout(onComplete, 2000);
     } catch (error) {
       console.error('Attendance submission error:', error);
       setProcessingState({
