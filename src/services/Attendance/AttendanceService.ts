@@ -100,6 +100,17 @@ export class AttendanceService {
       orderBy: { createdAt: 'desc' },
     });
 
+    console.log('Raw attendance from DB:', {
+      query: {
+        employeeId,
+        dateRange: {
+          start: startOfDay(now),
+          end: endOfDay(now),
+        },
+      },
+      result: attendance,
+    });
+
     // Get the latest overtime entry if exists
     const latestOvertimeEntry = attendance?.overtimeEntries?.[0];
 

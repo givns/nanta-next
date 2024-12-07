@@ -132,6 +132,17 @@ export class ShiftManagementService {
 
   calculateShiftWindows(shift: ShiftData, date: Date): ShiftWindows {
     const now = getCurrentTime();
+    console.log('Shift window calculation:', {
+      input: {
+        shift,
+        date,
+        now,
+      },
+      parseResults: {
+        startTime: this.utils.parseShiftTime(shift.startTime, date),
+        endTime: this.utils.parseShiftTime(shift.endTime, date),
+      },
+    });
 
     // First convert to minutes for easier comparison
     const startMinutes = this.getMinutesSinceMidnight(shift.startTime);
