@@ -52,11 +52,11 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
 
   const getAttendanceStatus = (): string => {
     if (isHoliday) {
-      return 'วันหยุดนักขัตฤกษ์';
+      return 'วันหยุด';
     }
 
     if (isDayOff) {
-      return 'วันหยุดประจำสัปดาห์';
+      return 'วันหยุด';
     }
 
     if (!currentPeriod) {
