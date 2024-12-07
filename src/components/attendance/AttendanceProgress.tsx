@@ -12,7 +12,6 @@ interface AttendanceProgressProps {
   latestAttendance?: LatestAttendance | null;
   approvedOvertime?: OvertimeInfoUI | null;
 }
-
 interface OvertimeInfoUI {
   id: string;
   startTime: string;
@@ -78,23 +77,20 @@ const AttendanceProgress: React.FC<AttendanceProgressProps> = ({
 
   return (
     <div className="w-full bg-white p-4 rounded-lg shadow-md">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold">Attendance Progress</h3>
-        <div className="flex items-center space-x-2 text-sm text-gray-500">
-          <div className="w-2 h-2 rounded-full bg-green-500"></div>
-          <span>Checked in</span>
-          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-          <span>In progress</span>
-          <div className="w-2 h-2 rounded-full bg-red-300"></div>
-          <span>Not checked in</span>
-        </div>
-      </div>
-
       <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
         <div
           className={`absolute h-full transition-all duration-300 ${getProgressColor()}`}
           style={{ width: getProgressWidth() }}
-        />
+        >
+          {checkInTime && (
+            <div
+              className="absolute w-2 h-full bg-green-600"
+              style={{
+                left: `${(differenceInMinutes(new Date(checkInTime), shiftStart) / totalShiftMinutes) * 100}%`,
+              }}
+            />
+          )}
+        </div>
       </div>
 
       <div className="flex justify-between text-xs text-gray-500 mt-2">
