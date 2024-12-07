@@ -20,6 +20,7 @@ export enum ErrorCode {
   UNAUTHORIZED = 'UNAUTHORIZED',
   ATTENDANCE_ERROR = 'ATTENDANCE_ERROR',
   LOCATION_ERROR = 'LOCATION_ERROR',
+  SHIFT_DATA_ERROR = 'SHIFT_DATA_ERROR',
 }
 
 export interface AppErrorParams {
