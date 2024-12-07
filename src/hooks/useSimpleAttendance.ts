@@ -28,6 +28,15 @@ export function useSimpleAttendance({
   initialAttendanceStatus,
   enabled = true,
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn {
+  useEffect(() => {
+    console.log('useSimpleAttendance initialized with:', {
+      employeeId,
+      lineUserId,
+      hasInitialStatus: !!initialAttendanceStatus,
+      enabled,
+    });
+  }, [employeeId, lineUserId, initialAttendanceStatus, enabled]);
+
   const [isInitializing, setIsInitializing] = useState(true);
   const [overtimeContext, setOvertimeContext] =
     useState<OvertimeContext | null>(null);
@@ -54,6 +63,32 @@ export function useSimpleAttendance({
     initialAttendanceStatus,
     enabled: enabled && locationReady,
   });
+
+  useEffect(() => {
+    if (data) {
+      console.log('useAttendanceData raw response:', {
+        base: {
+          state: data.base.state,
+          checkStatus: data.base.checkStatus,
+          isCheckingIn: data.base.isCheckingIn,
+          latestAttendance: data.base.latestAttendance,
+        },
+        window: {
+          type: data.window.type,
+          current: data.window.current,
+          shift: data.window.shift,
+        },
+        validation: data.validation,
+      });
+    }
+  }, [data]);
+
+  useEffect(() => {
+    console.log('Overtime context update:', {
+      hasOvertimeInfo: !!data?.window?.overtimeInfo,
+      overtimeContext,
+    });
+  }, [data?.window?.overtimeInfo, overtimeContext]);
 
   // Initialize overtime context when data changes
   useEffect(() => {
@@ -101,14 +136,25 @@ export function useSimpleAttendance({
       }
     : null;
 
-  console.log('Current Period:', {
-    currentPeriod,
-    checkInTime: currentPeriod?.checkInTime,
-    checkOutTime: currentPeriod?.checkOutTime,
-    isCheckingIn: !currentPeriod?.checkInTime,
-    latestAttendance: data?.base?.latestAttendance,
-    baseIsCheckingIn: data?.base?.isCheckingIn,
-  });
+  useEffect(() => {
+    if (data) {
+      console.log('Current period calculation:', {
+        input: {
+          windowType: data.window.type,
+          windowCurrent: data.window.current,
+          latestAttendance: data.base.latestAttendance,
+          overtimeInfo: data.window.overtimeInfo,
+        },
+        output: currentPeriod,
+        derivedValues: {
+          isComplete: Boolean(data.base.latestAttendance?.regularCheckOutTime),
+          isCheckingIn: !data.base.latestAttendance?.regularCheckInTime,
+          checkInTime: data.base.latestAttendance?.regularCheckInTime,
+          checkOutTime: data.base.latestAttendance?.regularCheckOutTime,
+        },
+      });
+    }
+  }, [data, currentPeriod]);
 
   // In useSimpleAttendance.ts
   const enhancedRefreshStatus = useMemo(() => {
@@ -132,32 +178,28 @@ export function useSimpleAttendance({
     });
   }, [refreshAttendanceStatus, mutate]);
 
-  return {
-    // Basic state
+  // Log final return values
+  const returnValues = {
     state: data?.base.state || AttendanceState.ABSENT,
     checkStatus: data?.base.checkStatus || CheckStatus.PENDING,
     isCheckingIn: data?.base.isCheckingIn ?? true,
-
-    // Period and shift info
     effectiveShift: data?.window?.shift || null,
     currentPeriod,
-
-    // Overtime context
-    overtimeContext,
-
-    // Validation and status
     validation: data?.validation || null,
-
-    // Loading and error states
     isLoading: isInitializing || locationLoading || isAttendanceLoading,
-    isLocationLoading: locationLoading,
-    error: attendanceError?.message || locationError,
+  };
 
-    // Location info
+  useEffect(() => {
+    console.log('useSimpleAttendance return values:', returnValues);
+  }, [returnValues]);
+
+  return {
+    ...returnValues,
+    overtimeContext,
     locationReady,
     locationState,
-
-    // Actions
+    error: attendanceError?.message || locationError,
+    isLocationLoading: locationLoading,
     checkInOut,
     refreshAttendanceStatus: enhancedRefreshStatus,
     getCurrentLocation,
