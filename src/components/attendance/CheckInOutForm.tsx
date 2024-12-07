@@ -152,13 +152,12 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         locationState.confidence;
 
       const isCheckingIn = !currentPeriod?.checkInTime;
-      const now = new Date();
 
       await checkInOut({
         // Required fields
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId || null,
-        checkTime: formatTime(now),
+        checkTime: '',
         isCheckIn: isCheckingIn,
         address: locationState.address,
         inPremises: locationState.inPremises,
