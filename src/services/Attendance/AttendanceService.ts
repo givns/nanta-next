@@ -13,6 +13,7 @@ import {
   CheckStatus,
   ValidationResponse,
   AttendanceState,
+  OvertimeState,
 } from '../../types/attendance';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
@@ -23,6 +24,7 @@ import { TimeEntryService } from '../TimeEntryService';
 import { getCacheData, setCacheData } from '@/lib/serverCache';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { startOfDay, endOfDay } from 'date-fns';
+import { now } from 'lodash';
 
 export class AttendanceService {
   private readonly checkService: AttendanceCheckService;
@@ -83,36 +85,40 @@ export class AttendanceService {
     const cached = await getCacheData(cacheKey);
     if (cached) return JSON.parse(cached);
 
+    const now = getCurrentTime();
     const attendance = await this.prisma.attendance.findFirst({
       where: {
         employeeId,
         date: {
-          gte: startOfDay(new Date()),
-          lt: endOfDay(new Date()),
+          gte: startOfDay(now),
+          lt: endOfDay(now),
         },
       },
-      select: {
-        regularCheckInTime: true,
-        regularCheckOutTime: true,
-        isLateCheckIn: true,
-        isOvertime: true,
-        state: true,
-        checkStatus: true,
+      include: {
+        overtimeEntries: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
+    // Get the latest overtime entry if exists
+    const latestOvertimeEntry = attendance?.overtimeEntries?.[0];
+
     const result: AttendanceBaseResponse = {
-      state: this.determineAttendanceState(attendance),
+      state: (attendance?.state as AttendanceState) || AttendanceState.ABSENT,
       checkStatus:
         (attendance?.checkStatus as CheckStatus) || CheckStatus.PENDING,
       isCheckingIn: !attendance?.regularCheckInTime,
       latestAttendance: attendance
         ? {
-            regularCheckInTime: attendance.regularCheckInTime || undefined,
-            regularCheckOutTime: attendance.regularCheckOutTime || undefined,
-            isLateCheckIn: attendance.isLateCheckIn || false,
-            isOvertime: attendance.isOvertime || false,
+            regularCheckInTime: attendance.regularCheckInTime ?? undefined,
+            regularCheckOutTime: attendance.regularCheckOutTime ?? undefined,
+            overtimeCheckInTime:
+              latestOvertimeEntry?.actualStartTime ?? undefined,
+            // Convert null to undefined for overtimeCheckOutTime
+            overtimeCheckOutTime:
+              latestOvertimeEntry?.actualEndTime ?? undefined,
+            isLateCheckIn: attendance.isLateCheckIn ?? false,
+            isOvertime: attendance.isOvertime ?? false,
           }
         : undefined,
     };

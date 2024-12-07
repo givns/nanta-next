@@ -132,12 +132,17 @@ export class ShiftManagementService {
 
   calculateShiftWindows(shift: ShiftData, date: Date): ShiftWindows {
     const now = getCurrentTime();
+
+    // First convert to minutes for easier comparison
+    const startMinutes = this.getMinutesSinceMidnight(shift.startTime);
+    const endMinutes = this.getMinutesSinceMidnight(shift.endTime);
+
     let shiftStart = this.utils.parseShiftTime(shift.startTime, date);
     let shiftEnd = this.utils.parseShiftTime(shift.endTime, date);
 
-    // Handle overnight shifts
-    if (shiftEnd < shiftStart) {
-      if (now < shiftEnd) {
+    // Only handle overnight if end time is actually less than start time in minutes
+    if (endMinutes < startMinutes) {
+      if (now.getHours() < endMinutes / 60) {
         shiftStart = subDays(shiftStart, 1);
       } else {
         shiftEnd = addDays(shiftEnd, 1);
@@ -161,6 +166,12 @@ export class ShiftManagementService {
       ),
     };
   }
+
+  private getMinutesSinceMidnight(timeString: string): number {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
   async calculateShiftStatus(
     shift: ShiftData,
     windows: ShiftWindows,
