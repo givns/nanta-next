@@ -122,8 +122,8 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
           {/* Special Status Messages */}
           {(status.isHoliday || status.isDayOff) && (
-            <div className="p-4 bg-orange-400 rounded-lg border border-orange-500">
-              <h4 className="text-md font-semibold text-white">
+            <div className="p-4">
+              <h4 className="text-md font-semibold text-blue-700">
                 {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุดประจำสัปดาห์'}
               </h4>
               {status.approvedOvertime && (
