@@ -20,17 +20,6 @@ export const getStatusMessage = (
   const now = new Date();
   const currentHour = format(now, 'HH:mm');
 
-  // Holiday check should be first priority
-  if (attendanceStatus.isHoliday) {
-    const overtimeMsg = attendanceStatus.approvedOvertime
-      ? ' (มีการอนุมัติ OT)'
-      : '';
-    return {
-      message: `วันหยุดนักขัตฤกษ์${overtimeMsg}`,
-      color: 'blue',
-    };
-  }
-
   // Day off check should be second priority
   if (attendanceStatus.isDayOff) {
     const overtimeMsg = attendanceStatus.approvedOvertime
@@ -38,6 +27,17 @@ export const getStatusMessage = (
       : '';
     return {
       message: `วันหยุดประจำสัปดาห์${overtimeMsg}`,
+      color: 'blue',
+    };
+  }
+
+  // Holiday check should be first priority
+  if (attendanceStatus.isHoliday) {
+    const overtimeMsg = attendanceStatus.approvedOvertime
+      ? ' (มีการอนุมัติ OT)'
+      : '';
+    return {
+      message: `วันหยุดนักขัตฤกษ์${overtimeMsg}`,
       color: 'blue',
     };
   }

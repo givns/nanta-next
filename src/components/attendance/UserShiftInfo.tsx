@@ -50,6 +50,8 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 }) => {
   const today = new Date();
 
+  console.log(status);
+
   if (isLoading) {
     return (
       <div className="p-4 bg-white rounded-lg shadow animate-pulse space-y-4">
@@ -120,8 +122,8 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
 
           {/* Special Status Messages */}
           {(status.isHoliday || status.isDayOff) && (
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-              <h4 className="text-md font-semibold text-blue-700">
+            <div className="p-4 bg-orange-400 rounded-lg border border-orange-500">
+              <h4 className="text-md font-semibold text-white">
                 {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุดประจำสัปดาห์'}
               </h4>
               {status.approvedOvertime && (

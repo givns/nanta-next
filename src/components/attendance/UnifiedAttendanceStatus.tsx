@@ -175,7 +175,7 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="relative h-8 bg-gray-100 rounded-full overflow-hidden">
+      <div className="relative h-12 bg-gray-100 rounded-full overflow-hidden">
         {!latestAttendance?.regularCheckInTime && (
           <div className="absolute h-full w-full bg-red-500 opacity-50" />
         )}
@@ -183,7 +183,7 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
           className={`absolute h-full transition-all duration-300 bg-${getStatusColor()}-500`}
           style={{ width: getProgressWidth() }}
         >
-          <div className="absolute inset-0 flex items-center justify-center text-white font-medium">
+          <div className="absolute inset-0 flex items-center justify-center text-white font-medium truncate px-2">
             {getStatusMessage()}
           </div>
         </div>
