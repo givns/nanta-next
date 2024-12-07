@@ -81,6 +81,10 @@ export class AttendanceService {
   }
 
   async getBaseStatus(employeeId: string): Promise<AttendanceBaseResponse> {
+    const cacheKey = `attendance:status:${employeeId}`;
+    const cached = await getCacheData(cacheKey);
+    if (cached) return JSON.parse(cached);
+
     const now = getCurrentTime();
     const attendance = await this.prisma.attendance.findFirst({
       where: {
@@ -119,6 +123,7 @@ export class AttendanceService {
         : undefined,
     };
 
+    await setCacheData(cacheKey, JSON.stringify(result), 300);
     return result;
   }
 
