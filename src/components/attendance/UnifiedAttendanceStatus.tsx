@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, formatDuration, differenceInMinutes } from 'date-fns';
+import { format, differenceInMinutes } from 'date-fns';
 import {
   ShiftData,
   CurrentPeriodInfo,
@@ -7,6 +7,7 @@ import {
   AttendanceState,
   CheckStatus,
 } from '@/types/attendance';
+import { CheckCircleIcon, ClockIcon, XCircleIcon } from 'lucide-react';
 
 interface OvertimeInfoUI {
   id: string;
@@ -52,11 +53,11 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
 
   const getAttendanceStatus = (): string => {
     if (isHoliday) {
-      return 'วันหยุด';
+      return 'วันหยุดนักขัตฤกษ์';
     }
 
     if (isDayOff) {
-      return 'วันหยุด';
+      return 'วันหยุดประจำสัปดาห์';
     }
 
     if (!currentPeriod) {
@@ -84,20 +85,22 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
     return 'เสร็จสิ้นการทำงาน';
   };
 
-  const getAttendanceStatusColor = (): string => {
-    if (isHoliday || isDayOff) {
-      return 'text-blue-500';
+  const getAttendanceStatusIcon = (): React.ReactNode => {
+    const status = getAttendanceStatus();
+
+    if (status === 'วันหยุดนักขัตฤกษ์' || status === 'วันหยุดประจำสัปดาห์') {
+      return <CheckCircleIcon className="w-8 h-8 text-blue-500" />;
     }
 
-    if (!currentPeriod || !currentPeriod.checkInTime) {
-      return 'text-red-500';
+    if (status === 'ไม่มาลงเวลาเข้างาน' || status === 'รอลงเวลาเข้างาน OT') {
+      return <XCircleIcon className="w-8 h-8 text-red-500" />;
     }
 
-    if (!currentPeriod.checkOutTime) {
-      return 'text-green-500';
+    if (status === 'กำลังปฏิบัติงาน' || status === 'กำลังทำงานล่วงเวลา') {
+      return <ClockIcon className="w-8 h-8 text-green-500" />;
     }
 
-    return 'text-gray-700';
+    return <CheckCircleIcon className="w-8 h-8 text-gray-500" />;
   };
 
   const getAttendanceTime = (): string => {
@@ -111,11 +114,38 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
     )}`;
   };
 
+  const getShiftStatus = (): string => {
+    if (!latestAttendance?.regularCheckInTime) {
+      return 'ไม่มาลงเวลาเข้างาน';
+    }
+
+    if (!latestAttendance?.regularCheckOutTime) {
+      return 'กำลังปฏิบัติงาน';
+    }
+
+    return 'เสร็จสิ้นการทำงาน';
+  };
+
+  const getShiftStatusColor = (): string => {
+    const status = getShiftStatus();
+
+    if (status === 'ไม่มาลงเวลาเข้างาน') {
+      return 'text-red-500';
+    }
+
+    if (status === 'กำลังปฏิบัติงาน') {
+      return 'text-green-500';
+    }
+
+    return 'text-gray-500';
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div className={`text-5xl font-bold ${getAttendanceStatusColor()}`}>
-          {getAttendanceStatus()}
+        <div className="flex items-center space-x-4">
+          {getAttendanceStatusIcon()}
+          <div className="text-3xl font-bold">{getAttendanceStatus()}</div>
         </div>
         {latestAttendance?.regularCheckInTime && (
           <div className="text-lg text-gray-500">{getAttendanceTime()}</div>
@@ -128,18 +158,9 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
             <span>{effectiveShift.startTime}</span>
             <span>{effectiveShift.endTime}</span>
           </div>
-          {latestAttendance?.regularCheckInTime && (
-            <div className="flex items-center gap-2 text-sm">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  latestAttendance.regularCheckOutTime
-                    ? 'bg-green-600'
-                    : 'bg-yellow-500'
-                }`}
-              />
-              <span>{getAttendanceTime()}</span>
-            </div>
-          )}
+          <div className={`text-sm ${getShiftStatusColor()}`}>
+            {getShiftStatus()}
+          </div>
         </div>
       )}
     </div>
