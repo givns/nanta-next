@@ -75,6 +75,7 @@ export class TimeEntryService {
     private shiftService: ShiftManagementService,
   ) {}
 
+  // Main entry point for time entry processing
   async processTimeEntries(
     tx: Prisma.TransactionClient,
     attendance: AttendanceRecord,
@@ -84,12 +85,29 @@ export class TimeEntryService {
     regular?: TimeEntry;
     overtime?: TimeEntry[];
   }> {
-    // Test environment handling
     if (process.env.NODE_ENV === 'test') {
       return this.getTestTimeEntry(attendance);
     }
 
-    // Get context data
+    // Core processing within transaction
+    const result = await this.processEntryCore(tx, attendance, options);
+
+    // Handle notifications and side effects after transaction
+    setImmediate(() => {
+      this.handlePostProcessing(attendance, options, result).catch((error) =>
+        console.error('Post-processing error:', error),
+      );
+    });
+
+    return result;
+  }
+
+  // Core processing (within transaction)
+  private async processEntryCore(
+    tx: Prisma.TransactionClient,
+    attendance: AttendanceRecord,
+    options: ProcessingOptions,
+  ) {
     const [overtimeRequest, leaveRequests] = await Promise.all([
       this.overtimeService.getApprovedOvertimeRequest(
         options.employeeId,
@@ -99,7 +117,6 @@ export class TimeEntryService {
     ]);
 
     try {
-      // Handle overtime entry
       if (options.isOvertime && overtimeRequest) {
         const overtimeEntry = await this.handleOvertimeEntry(
           tx,
@@ -110,7 +127,6 @@ export class TimeEntryService {
         return { overtime: [overtimeEntry] };
       }
 
-      // Handle regular entry
       const regularEntry = await this.handleRegularEntry(
         tx,
         attendance,
@@ -121,6 +137,53 @@ export class TimeEntryService {
     } catch (error) {
       console.error('Error processing time entries:', error);
       throw error;
+    }
+  }
+
+  // Post-processing (outside transaction)
+  private async handlePostProcessing(
+    attendance: AttendanceRecord,
+    options: ProcessingOptions,
+    result: { regular?: TimeEntry; overtime?: TimeEntry[] },
+  ) {
+    try {
+      // Only check late status for regular check-ins
+      if (options.isCheckIn && !options.isOvertime && result.regular) {
+        const shift = await this.shiftService.getEffectiveShiftAndStatus(
+          attendance.employeeId,
+          attendance.date,
+        );
+
+        if (shift?.effectiveShift) {
+          const shiftStart = this.parseShiftTime(
+            shift.effectiveShift.startTime,
+            attendance.date,
+          );
+          const leaveRequests = await this.leaveService.getLeaveRequests(
+            options.employeeId,
+          );
+
+          const { minutesLate, isHalfDayLate } = this.calculateLateStatus(
+            attendance.regularCheckInTime!,
+            shiftStart,
+          );
+
+          if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
+            await this.notifyLateCheckIn(
+              attendance.employeeId,
+              attendance.regularCheckInTime!,
+              minutesLate,
+              isHalfDayLate,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Post-processing error:', {
+        error,
+        employeeId: attendance.employeeId,
+        timestamp: getCurrentTime(),
+      });
     }
   }
 
@@ -258,10 +321,8 @@ export class TimeEntryService {
     const lateStatus =
       shiftTimes.start && isCheckIn
         ? this.calculateLateStatus(
-            attendance.employeeId,
             attendance.regularCheckInTime!,
             shiftTimes.start,
-            leaveRequests,
           )
         : { minutesLate: 0, isHalfDayLate: false };
 
@@ -366,52 +427,16 @@ export class TimeEntryService {
   }
 
   // Utility methods
+  // Simplified late status calculation (no notifications)
   private calculateLateStatus(
-    employeeId: string,
     checkInTime: Date,
     shiftStart: Date,
-    leaveRequests: LeaveRequest[],
   ): CheckInCalculationsResult {
-    // Calculate minutes late, ensuring non-negative value
     const minutesLate = Math.max(
       0,
       differenceInMinutes(checkInTime, shiftStart),
     );
-
-    // Determine if it's a half-day late scenario
     const isHalfDayLate = minutesLate >= this.HALF_DAY_THRESHOLD;
-
-    // Send notification if late and no approved leave requests
-    if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
-      // Log the late check-in calculation
-      console.log('Late check-in detected:', {
-        employeeId,
-        checkInTime: checkInTime.toISOString(),
-        shiftStart: shiftStart.toISOString(),
-        minutesLate,
-        isHalfDayLate,
-        timestamp: getCurrentTime(),
-      });
-
-      // Send notification asynchronously
-      setImmediate(() => {
-        this.notifyLateCheckIn(
-          employeeId,
-          checkInTime,
-          minutesLate,
-          isHalfDayLate,
-        ).catch((error) => {
-          console.error('Failed to send late check-in notification:', {
-            error,
-            employeeId,
-            checkInTime: checkInTime.toISOString(),
-            minutesLate,
-            timestamp: getCurrentTime(),
-          });
-        });
-      });
-    }
-
     return { minutesLate, isHalfDayLate };
   }
 
