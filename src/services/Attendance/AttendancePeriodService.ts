@@ -24,7 +24,10 @@ export class AttendancePeriodService {
       now,
     );
     const overtimeRequest =
-      await this.overtimeService.getApprovedOvertimeRequest(employeeId, now);
+      await this.overtimeService.getCurrentApprovedOvertimeRequest(
+        employeeId,
+        now,
+      );
 
     if (overtimeRequest) {
       return this.createOvertimePeriod(overtimeRequest, now);

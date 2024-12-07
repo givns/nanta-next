@@ -114,8 +114,6 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
             status: 'approved',
             employeeResponse: 'approve',
             approverId: '',
-            createdAt: new Date(),
-            updatedAt: new Date(),
             reason: status.approvedOvertime.reason || null, // Ensure reason is of type string | null
           }
         : null,

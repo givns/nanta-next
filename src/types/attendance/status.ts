@@ -332,10 +332,6 @@ export interface ApprovedOvertimeInfo {
   approverId: string | null;
   isDayOffOvertime: boolean;
   isInsideShiftHours: boolean;
-  actualStartTime?: Date | null;
-  actualEndTime?: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface CurrentPeriodInfo {

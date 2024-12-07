@@ -18,9 +18,8 @@ import {
   addMinutes,
   isBefore,
   isAfter,
-  isWithinInterval,
-  subDays,
   subMinutes,
+  isWithinInterval,
 } from 'date-fns';
 import { NotificationService } from './NotificationService';
 import { th } from 'date-fns/locale';
@@ -176,23 +175,12 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     return overtimeRequest;
   }
 
-  private async getWorkingOvertimeEntry(
-    requestId: string,
-  ): Promise<OvertimeEntry | null> {
-    return this.prisma.overtimeEntry.findFirst({
-      where: {
-        overtimeRequestId: requestId,
-        actualEndTime: null,
-      },
-    });
-  }
-
   async processOvertimeCheckInOut(
     attendance: AttendanceRecord,
     timestamp: Date,
     isCheckIn: boolean,
   ): Promise<void> {
-    const overtimeRequest = await this.getApprovedOvertimeRequest(
+    const overtimeRequest = await this.getCurrentApprovedOvertimeRequest(
       attendance.employeeId,
       timestamp,
     );
@@ -292,96 +280,80 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     }, 0);
   }
 
-  async getApprovedOvertimeRequests(
+  // In OvertimeServiceServer
+  async getCurrentApprovedOvertimeRequest(
     employeeId: string,
-    date: Date,
-  ): Promise<ApprovedOvertimeInfo[]> {
-    if (process.env.NODE_ENV === 'test') return [];
+    checkTime: Date,
+  ): Promise<ApprovedOvertimeInfo | null> {
+    if (process.env.NODE_ENV === 'test') return null;
 
-    const currentTime = getCurrentTime();
-    console.log('Current time in overtime request fetch:', currentTime);
-
-    // Look back one day to catch overnight overtimes
-    const searchStart = subDays(startOfDay(date), 1);
-    const searchEnd = endOfDay(date);
-
-    const overtimes = await this.prisma.overtimeRequest.findMany({
+    const currentTimeStr = format(checkTime, 'HH:mm');
+    const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
       where: {
         employeeId,
-        date: {
-          gte: searchStart,
-          lt: searchEnd,
-        },
+        date: startOfDay(checkTime),
+        startTime: { lte: currentTimeStr },
+        endTime: { gte: currentTimeStr },
         status: 'approved',
         employeeResponse: 'approve',
       },
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        isInsideShiftHours: true,
+        isDayOffOvertime: true,
+        durationMinutes: true,
+        status: true,
+        employeeResponse: true,
+      },
     });
 
-    if (!overtimes.length) return [];
+    if (!overtimeRequest) return null;
 
-    // Adjust times and handle overnight spans
-    const adjustedOvertimes = overtimes.map((overtime) => {
-      const overtimeDate = format(overtime.date, 'yyyy-MM-dd');
-      const startDateTime = parseISO(`${overtimeDate}T${overtime.startTime}`);
-      let endDateTime = parseISO(`${overtimeDate}T${overtime.endTime}`);
+    // Only do minimal time window adjustment if found
+    const overtimeDate = format(checkTime, 'yyyy-MM-dd');
+    const startDateTime = parseISO(
+      `${overtimeDate}T${overtimeRequest.startTime}`,
+    );
+    let endDateTime = parseISO(`${overtimeDate}T${overtimeRequest.endTime}`);
 
-      if (isBefore(endDateTime, startDateTime)) {
-        endDateTime = addDays(endDateTime, 1);
-      }
+    // Handle overnight case
+    if (isBefore(endDateTime, startDateTime)) {
+      endDateTime = addDays(endDateTime, 1);
+    }
 
-      // Add early check-in window
-      const earlyWindow = subMinutes(
-        startDateTime,
-        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-      );
-      const lateWindow = addMinutes(
-        endDateTime,
-        ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
-      );
-
-      return {
-        ...overtime,
-        adjustedStartDateTime: earlyWindow,
-        adjustedEndDateTime: lateWindow,
-      };
-    });
-
-    console.log('Adjusted overtime requests:', adjustedOvertimes);
-
-    // Filter valid overtimes
-    return adjustedOvertimes
-      .filter((overtime) => {
-        const isWithinWindow =
-          isWithinInterval(currentTime, {
-            start: overtime.adjustedStartDateTime,
-            end: overtime.adjustedEndDateTime,
-          }) ||
-          isWithinInterval(currentTime, {
-            start: subMinutes(
-              overtime.adjustedStartDateTime,
-              ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-            ),
-            end: overtime.adjustedEndDateTime,
-          });
-
-        return isWithinWindow;
-      })
-      .sort(
-        (a, b) =>
-          a.adjustedStartDateTime.getTime() - b.adjustedStartDateTime.getTime(),
-      )
-      .map((overtime) => ({
-        ...overtime,
-        status: 'approved' as const,
-      }));
+    return {
+      ...overtimeRequest,
+      employeeId,
+      date: checkTime,
+      status: 'approved' as const,
+      employeeResponse: 'approve' as const,
+      reason: '',
+      approverId: '',
+    };
   }
 
-  async getApprovedOvertimeRequest(
-    employeeId: string,
-    date: Date,
-  ): Promise<ApprovedOvertimeInfo | null> {
-    const overtimes = await this.getApprovedOvertimeRequests(employeeId, date);
-    return overtimes[0] || null;
+  isInOvertimeWindow(checkTime: Date, overtime: ApprovedOvertimeInfo): boolean {
+    const overtimeDate = format(checkTime, 'yyyy-MM-dd');
+    const startDateTime = subMinutes(
+      parseISO(`${overtimeDate}T${overtime.startTime}`),
+      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+    );
+    let endDateTime = addMinutes(
+      parseISO(`${overtimeDate}T${overtime.endTime}`),
+      ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
+    );
+
+    // Handle overnight case
+    if (isBefore(endDateTime, startDateTime)) {
+      endDateTime = addDays(endDateTime, 1);
+    }
+
+    return isWithinInterval(checkTime, {
+      start: startDateTime,
+      end: endDateTime,
+    });
   }
 
   async employeeRespondToOvertimeRequest(
@@ -547,8 +519,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       approverId: overtime.approverId,
       isDayOffOvertime: overtime.isDayOffOvertime,
       isInsideShiftHours: overtime.isInsideShiftHours,
-      createdAt: overtime.createdAt,
-      updatedAt: overtime.updatedAt,
     };
   }
 
@@ -669,8 +639,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         approverId: overtime.approverId,
         isDayOffOvertime: overtime.isDayOffOvertime,
         isInsideShiftHours: overtime.isInsideShiftHours,
-        createdAt: overtime.createdAt,
-        updatedAt: overtime.updatedAt,
         overtimeEntries: mapToOvertimeEntryData(overtime.overtimeEntries),
       }),
     );
@@ -824,62 +792,59 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     const roundedMinutes = Math.floor(totalMinutes / 30) * 30;
     return roundedMinutes / 60;
   }
+
   async getOvertimeAttendances(
     employeeId: string,
     date: Date,
   ): Promise<OvertimeAttendanceInfo[]> {
-    // In test environment, return empty array
-    if (process.env.NODE_ENV === 'test') {
-      return [];
-    }
-    const [overtimes, attendance] = await Promise.all([
-      this.getApprovedOvertimeRequests(employeeId, date),
-      this.prisma.attendance.findFirst({
-        where: {
-          employeeId,
-          date: {
-            gte: startOfDay(date),
-            lt: endOfDay(date),
-          },
+    if (process.env.NODE_ENV === 'test') return [];
+
+    const overtime = await this.getCurrentApprovedOvertimeRequest(
+      employeeId,
+      date,
+    );
+    if (!overtime) return [];
+
+    const attendance = await this.prisma.attendance.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(date),
+          lt: endOfDay(date),
         },
-        orderBy: { date: 'desc' },
-      }),
-    ]);
+      },
+      orderBy: { date: 'desc' },
+    });
 
     const now = getCurrentTime();
 
-    return overtimes.map((overtime) => ({
-      overtimeRequest: overtime,
-      attendanceTime: {
-        checkInTime: attendance?.regularCheckInTime
-          ? format(attendance.regularCheckInTime, 'HH:mm:ss')
-          : null,
-        checkOutTime: attendance?.regularCheckOutTime
-          ? format(attendance.regularCheckOutTime, 'HH:mm:ss')
-          : null,
-        checkStatus: CheckStatus.PENDING, // Default value
-        isOvertime: true,
-        overtimeState: OvertimeState.NOT_STARTED, // Default value
+    return [
+      {
+        overtimeRequest: overtime,
+        attendanceTime: {
+          checkInTime: attendance?.regularCheckInTime
+            ? format(attendance.regularCheckInTime, 'HH:mm:ss')
+            : null,
+          checkOutTime: attendance?.regularCheckOutTime
+            ? format(attendance.regularCheckOutTime, 'HH:mm:ss')
+            : null,
+          checkStatus: CheckStatus.PENDING,
+          isOvertime: true,
+          overtimeState: OvertimeState.NOT_STARTED,
+        },
+        periodStatus: {
+          isPending: isAfter(
+            parseISO(`${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`),
+            now,
+          ),
+          isActive: this.isInOvertimeWindow(now, overtime),
+          isNext: this.isInOvertimeWindow(
+            addMinutes(now, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD),
+            overtime,
+          ),
+          isComplete: attendance?.regularCheckOutTime != null,
+        },
       },
-      periodStatus: {
-        isPending: isAfter(parseISO(overtime.startTime), now),
-        isActive: TimeCalculationHelper.isInOvertimePeriod(now, overtime),
-        isNext: TimeCalculationHelper.isInOvertimePeriod(
-          addMinutes(now, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD),
-          overtime,
-        ),
-        isComplete: !!overtime.actualEndTime,
-      },
-    }));
-  }
-  private isTestMode(): boolean {
-    return process.env.NODE_ENV === 'test';
-  }
-
-  private handleTestMode<T>(testValue: T): T {
-    if (this.isTestMode()) {
-      return testValue;
-    }
-    throw new Error('Method not implemented in test mode');
+    ];
   }
 }

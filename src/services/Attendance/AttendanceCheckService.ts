@@ -145,7 +145,10 @@ export class AttendanceCheckService {
         this.holidayService.getHolidays(today, today),
         this.leaveService.checkUserOnLeave(employeeId, today),
         this.leaveService.hasPendingLeaveRequest(employeeId, today),
-        this.overtimeService.getApprovedOvertimeRequest(employeeId, today),
+        this.overtimeService.getCurrentApprovedOvertimeRequest(
+          employeeId,
+          today,
+        ),
         this.overtimeService.getPendingOvertimeRequests(employeeId, today),
         this.processingService.getLatestAttendance(employeeId),
       ]);

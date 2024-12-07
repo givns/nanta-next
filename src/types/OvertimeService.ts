@@ -29,7 +29,7 @@ export interface IOvertimeServiceServer extends IOvertimeServiceBase {
     approved: boolean,
   ): Promise<OvertimeRequest>;
 
-  getApprovedOvertimeRequest(
+  getCurrentApprovedOvertimeRequest(
     employeeId: string,
     date: Date,
   ): Promise<ApprovedOvertimeInfo | null>;

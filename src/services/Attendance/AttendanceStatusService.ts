@@ -122,10 +122,11 @@ export class AttendanceStatusService {
     ] = await CacheManager.fetchData(employeeId);
 
     console.log('Approved overtime:', approvedOvertime);
-    const overtimeCheck = await this.overtimeService.getApprovedOvertimeRequest(
-      employeeId,
-      now,
-    );
+    const overtimeCheck =
+      await this.overtimeService.getCurrentApprovedOvertimeRequest(
+        employeeId,
+        now,
+      );
     console.log('Direct overtime check:', overtimeCheck);
 
     if (!user) {

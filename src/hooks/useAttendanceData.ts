@@ -128,7 +128,7 @@ export function useAttendanceData({
               address: locationState.address,
               inPremises: locationState.inPremises,
               confidence: locationState.confidence,
-              checkTime: new Date().toISOString(),
+              checkTime: getCurrentTime().toISOString(),
             },
             { timeout: REQUEST_TIMEOUT },
           );

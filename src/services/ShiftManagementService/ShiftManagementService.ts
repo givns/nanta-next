@@ -189,7 +189,10 @@ export class ShiftManagementService {
     let isOvertime = false;
     if (this.overtimeService) {
       const overtimeRequest =
-        await this.overtimeService.getApprovedOvertimeRequest(shift.id, date);
+        await this.overtimeService.getCurrentApprovedOvertimeRequest(
+          shift.id,
+          date,
+        );
       if (overtimeRequest) {
         const overtimeStart = parseISO(
           `${format(date, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
@@ -275,7 +278,10 @@ export class ShiftManagementService {
     let overtimeInfo;
     if (this.overtimeService) {
       const overtimeRequest =
-        await this.overtimeService.getApprovedOvertimeRequest(employeeId, date);
+        await this.overtimeService.getCurrentApprovedOvertimeRequest(
+          employeeId,
+          date,
+        );
       if (overtimeRequest) {
         overtimeInfo = {
           id: overtimeRequest.id,

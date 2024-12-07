@@ -91,7 +91,7 @@ export class TimeEntryService {
     try {
       // Pre-fetch all necessary data
       const [overtimeRequest, leaveRequests, shift] = await Promise.all([
-        this.overtimeService.getApprovedOvertimeRequest(
+        this.overtimeService.getCurrentApprovedOvertimeRequest(
           options.employeeId,
           new Date(options.checkTime),
         ),

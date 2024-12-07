@@ -188,7 +188,10 @@ export class AttendanceProcessingService {
 
     const [shift, overtime, leave, holiday] = await Promise.all([
       this.shiftService.getEffectiveShiftAndStatus(employeeId, checkTime),
-      this.overtimeService.getApprovedOvertimeRequest(employeeId, checkTime),
+      this.overtimeService.getCurrentApprovedOvertimeRequest(
+        employeeId,
+        checkTime,
+      ),
       this.leaveService.checkUserOnLeave(employeeId, checkTime),
       this.holidayService.getHolidays(startDate, endDate),
     ]);

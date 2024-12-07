@@ -332,7 +332,10 @@ export class CacheManager {
         this.holidayService.getHolidays(today, today),
         this.leaveService.checkUserOnLeave(employeeId, today),
         this.leaveService.hasPendingLeaveRequest(employeeId, today),
-        this.overtimeService.getApprovedOvertimeRequest(employeeId, today),
+        this.overtimeService.getCurrentApprovedOvertimeRequest(
+          employeeId,
+          today,
+        ),
         this.shiftService.getFutureShifts(employeeId, today),
       ]);
 
@@ -375,7 +378,7 @@ export class CacheManager {
       this.holidayService.getHolidays(today, today),
       this.leaveService.checkUserOnLeave(employeeId, today),
       this.leaveService.hasPendingLeaveRequest(employeeId, today),
-      this.overtimeService.getApprovedOvertimeRequest(employeeId, today),
+      this.overtimeService.getCurrentApprovedOvertimeRequest(employeeId, today),
       this.shiftService.getFutureShifts(employeeId, today),
       [], // Replace getFutureApprovedOvertimes call with empty array
     ]);
