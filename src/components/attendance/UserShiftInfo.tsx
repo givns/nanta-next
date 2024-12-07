@@ -72,7 +72,7 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               <div className="flex flex-col items-center">
                 <Clock1 />
               </div>
-              <CardTitle className="text-2xl font-bold">
+              <CardTitle className="text-2xl text-center font-bold">
                 {userData.name}
               </CardTitle>
               <p className="text-gray-600">
