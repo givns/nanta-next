@@ -55,6 +55,15 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
+  console.log('Location state:', { locationReady, locationState });
+  console.log('Attendance state:', {
+    attendanceLoading,
+    attendanceError,
+    currentStep,
+    loadingPhase,
+    userData: userData?.employeeId,
+  });
+
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
