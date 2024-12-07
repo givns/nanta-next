@@ -9,12 +9,12 @@ import {
   CheckStatus,
   CurrentPeriodInfo,
   LatestAttendance,
-  PeriodType,
   ShiftData,
   UserData,
 } from '@/types/attendance';
 import UnifiedAttendanceStatus from './UnifiedAttendanceStatus';
 import OvertimeCard from './OvertimeCard';
+import { last } from 'lodash';
 
 interface OvertimeInfoUI {
   id: string;
