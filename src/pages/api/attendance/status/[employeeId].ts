@@ -55,6 +55,7 @@ export default async function handler(
 
   try {
     const now = getCurrentTime();
+    console.log('API Request for employeeId:', employeeId);
 
     // Verify user and shift existence first
     const user = await prisma.user.findUnique({
@@ -83,6 +84,11 @@ export default async function handler(
       services.shiftService.getCurrentWindow(employeeId, now),
     ]);
 
+    console.log('API Data:', {
+      rawStatus: status,
+      rawWindow: window,
+    });
+
     // Ensure status has all required fields with defaults
     const normalizedStatus: AttendanceBaseResponse = {
       state: status?.state || AttendanceState.ABSENT,
@@ -97,6 +103,8 @@ export default async function handler(
         isOvertime: false,
       },
     };
+
+    console.log('Normalized Status:', normalizedStatus);
 
     if (!window) {
       return res.status(400).json({
