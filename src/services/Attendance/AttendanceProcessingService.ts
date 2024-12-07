@@ -79,7 +79,7 @@ export class AttendanceProcessingService {
           // 2. Get context
           const [currentAttendance, periodContext] = await Promise.all([
             this.getLatestAttendance(options.employeeId),
-            this.getPeriodContext(tx, options.employeeId, serverTime),
+            this.getPeriodContext(tx, options.employeeId, serverTime, options),
           ]);
 
           // 3. Process status
@@ -182,6 +182,7 @@ export class AttendanceProcessingService {
     tx: Prisma.TransactionClient,
     employeeId: string,
     checkTime: Date,
+    options: ProcessingOptions,
   ): Promise<AttendancePeriodContext> {
     const startDate = startOfDay(checkTime);
     const endDate = endOfDay(checkTime);
@@ -268,7 +269,7 @@ export class AttendanceProcessingService {
       isDayOff: shift?.shiftstatus.isDayOff || false,
       entryType, // Added
       leaveRequest: this.mapToLeaveRequest(leave),
-      approvedOvertime: overtime,
+      approvedOvertime: null,
       effectiveShift: shift?.effectiveShift || null,
       shiftTimes,
       PeriodStatus: periodStatus, // Added
