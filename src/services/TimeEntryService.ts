@@ -75,7 +75,6 @@ export class TimeEntryService {
     private shiftService: ShiftManagementService,
   ) {}
 
-  // Main entry point for time entry processing
   async processTimeEntries(
     tx: Prisma.TransactionClient,
     attendance: AttendanceRecord,
@@ -89,78 +88,145 @@ export class TimeEntryService {
       return this.getTestTimeEntry(attendance);
     }
 
-    // Core processing within transaction
-    const result = await this.processEntryCore(tx, attendance, options);
-
-    // Handle notifications and side effects after transaction
-    setImmediate(() => {
-      this.handlePostProcessing(attendance, options, result).catch((error) =>
-        console.error('Post-processing error:', error),
-      );
-    });
-
-    return result;
-  }
-
-  // Core processing (within transaction)
-  private async processEntryCore(
-    tx: Prisma.TransactionClient,
-    attendance: AttendanceRecord,
-    options: ProcessingOptions,
-  ) {
-    const [overtimeRequest, leaveRequests] = await Promise.all([
-      this.overtimeService.getApprovedOvertimeRequest(
-        options.employeeId,
-        new Date(options.checkTime),
-      ),
-      this.leaveService.getLeaveRequests(options.employeeId),
-    ]);
-
     try {
-      if (options.isOvertime && overtimeRequest) {
-        const overtimeEntry = await this.handleOvertimeEntry(
-          tx,
-          attendance,
-          overtimeRequest,
-          options.isCheckIn,
-        );
-        return { overtime: [overtimeEntry] };
-      }
+      // Pre-fetch all necessary data
+      const [overtimeRequest, leaveRequests, shift] = await Promise.all([
+        this.overtimeService.getApprovedOvertimeRequest(
+          options.employeeId,
+          new Date(options.checkTime),
+        ),
+        this.leaveService.getLeaveRequests(options.employeeId),
+        this.shiftService.getEffectiveShiftAndStatus(
+          attendance.employeeId,
+          attendance.date,
+        ),
+      ]);
 
-      const regularEntry = await this.handleRegularEntry(
+      // Process entries within transaction
+      const result = await this.processEntriesWithContext(
         tx,
         attendance,
-        options.isCheckIn,
-        leaveRequests,
+        options,
+        {
+          overtimeRequest,
+          leaveRequests,
+          shift,
+        },
       );
-      return { regular: regularEntry };
+
+      // Handle post-processing asynchronously
+      setImmediate(() => {
+        this.handlePostProcessing(
+          attendance,
+          options,
+          result,
+          shift,
+          leaveRequests,
+        ).catch((error) =>
+          console.error('Post-processing error:', {
+            error,
+            employeeId: attendance.employeeId,
+            timestamp: getCurrentTime(),
+          }),
+        );
+      });
+
+      return result;
     } catch (error) {
       console.error('Error processing time entries:', error);
       throw error;
     }
   }
 
-  // Post-processing (outside transaction)
+  private async processEntriesWithContext(
+    tx: Prisma.TransactionClient,
+    attendance: AttendanceRecord,
+    options: ProcessingOptions,
+    context: {
+      overtimeRequest: ApprovedOvertimeInfo | null;
+      leaveRequests: LeaveRequest[];
+      shift: any;
+    },
+  ) {
+    const { overtimeRequest, leaveRequests } = context;
+
+    if (options.isOvertime && overtimeRequest) {
+      const overtimeEntry = await this.handleOvertimeEntry(
+        tx,
+        attendance,
+        overtimeRequest,
+        options.isCheckIn,
+      );
+      return { overtime: [overtimeEntry] };
+    }
+
+    const regularEntry = await this.handleRegularEntry(
+      tx,
+      attendance,
+      options.isCheckIn,
+      leaveRequests,
+      context.shift,
+    );
+    return { regular: regularEntry };
+  }
+
+  private async handleRegularEntry(
+    tx: Prisma.TransactionClient,
+    attendance: AttendanceRecord,
+    isCheckIn: boolean,
+    leaveRequests: LeaveRequest[],
+    shift: any,
+  ): Promise<TimeEntry> {
+    const shiftTimes = this.getShiftTimes(shift, attendance.date);
+    const metrics = this.calculateEntryMetrics(
+      attendance,
+      isCheckIn,
+      shiftTimes,
+      leaveRequests,
+    );
+
+    const existingEntry = await tx.timeEntry.findFirst({
+      where: {
+        attendanceId: attendance.id,
+        entryType: 'regular',
+      },
+    });
+
+    const entryData = this.prepareRegularEntryData(
+      attendance,
+      metrics,
+      isCheckIn,
+    );
+
+    if (existingEntry) {
+      return tx.timeEntry.update({
+        where: { id: existingEntry.id },
+        data: entryData,
+      });
+    }
+
+    return tx.timeEntry.create({
+      data: {
+        ...entryData,
+        user: { connect: { employeeId: attendance.employeeId } },
+        attendance: { connect: { id: attendance.id } },
+      },
+    });
+  }
+
   private async handlePostProcessing(
     attendance: AttendanceRecord,
     options: ProcessingOptions,
     result: { regular?: TimeEntry; overtime?: TimeEntry[] },
+    shift: any,
+    leaveRequests: LeaveRequest[],
   ) {
     try {
-      // Only check late status for regular check-ins
       if (options.isCheckIn && !options.isOvertime && result.regular) {
-        const shift = await this.shiftService.getEffectiveShiftAndStatus(
-          attendance.employeeId,
-          attendance.date,
-        );
-
         if (shift?.effectiveShift) {
           const shiftStart = this.parseShiftTime(
             shift.effectiveShift.startTime,
             attendance.date,
-          );
-          const leaveRequests = await this.leaveService.getLeaveRequests(
-            options.employeeId,
           );
 
           const { minutesLate, isHalfDayLate } = this.calculateLateStatus(
@@ -250,54 +316,6 @@ export class TimeEntryService {
         isInsideShiftHours: overtimeRequest.isInsideShiftHours,
       },
     };
-  }
-
-  private async handleRegularEntry(
-    tx: Prisma.TransactionClient,
-    attendance: AttendanceRecord,
-    isCheckIn: boolean,
-    leaveRequests: LeaveRequest[],
-  ): Promise<TimeEntry> {
-    const shift = await this.shiftService.getEffectiveShiftAndStatus(
-      attendance.employeeId,
-      attendance.date,
-    );
-
-    const shiftTimes = this.getShiftTimes(shift, attendance.date);
-    const calculationResults = this.calculateEntryMetrics(
-      attendance,
-      isCheckIn,
-      shiftTimes,
-      leaveRequests,
-    );
-
-    const existingEntry = await tx.timeEntry.findFirst({
-      where: {
-        attendanceId: attendance.id,
-        entryType: 'regular',
-      },
-    });
-
-    const entryData = this.prepareRegularEntryData(
-      attendance,
-      calculationResults,
-      isCheckIn,
-    );
-
-    if (existingEntry) {
-      return tx.timeEntry.update({
-        where: { id: existingEntry.id },
-        data: entryData,
-      });
-    }
-
-    return tx.timeEntry.create({
-      data: {
-        ...entryData,
-        user: { connect: { employeeId: attendance.employeeId } },
-        attendance: { connect: { id: attendance.id } },
-      },
-    });
   }
 
   private getShiftTimes(shift: any, date: Date) {
@@ -426,7 +444,6 @@ export class TimeEntryService {
     });
   }
 
-  // Utility methods
   // Simplified late status calculation (no notifications)
   private calculateLateStatus(
     checkInTime: Date,
