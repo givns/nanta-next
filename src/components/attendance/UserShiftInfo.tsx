@@ -28,7 +28,7 @@ interface UserShiftInfoProps {
     isDayOff: boolean;
     isOvertime: boolean;
     latestAttendance: LatestAttendance;
-    approvedOvertime: OvertimeInfoUI | null; // Added this field
+    approvedOvertime: OvertimeInfoUI | null;
   };
   effectiveShift: ShiftData | null;
   isLoading?: boolean;
@@ -70,7 +70,6 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   </div>
 );
 
-// Determine status message and color
 export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   userData,
   status,
@@ -80,67 +79,59 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
   const today = new Date();
 
   // Fixed status construction
-  const statusDisplay = useMemo(() => {
-    if (!status)
-      return { message: 'ไม่พบข้อมูลการลงเวลา', color: 'red' as const };
-
-    const currentPeriod = {
-      type: status.currentPeriod?.type ?? PeriodType.REGULAR,
-      isComplete: status.currentPeriod?.isComplete ?? false,
-      checkInTime: status.currentPeriod?.checkInTime ?? null,
-      checkOutTime: status.currentPeriod?.checkOutTime ?? null,
-      current: {
-        start: new Date(status.currentPeriod?.current.start ?? new Date()),
-        end: new Date(status.currentPeriod?.current.end ?? new Date()),
-      },
-      overtimeId: status.currentPeriod?.overtimeId,
-    };
-
-    const mapAttendanceToStatusInfo = (
-      status: UserShiftInfoProps['status'],
-      userData: UserData,
-    ): AttendanceStatusInfo => ({
-      state: status.state,
-      checkStatus: status.checkStatus,
-      currentPeriod,
-      isHoliday: status.isHoliday,
-      isDayOff: status.isDayOff,
-      isOvertime: status.isOvertime,
-      approvedOvertime: status.approvedOvertime
-        ? {
-            ...status.approvedOvertime,
-            employeeId: userData.employeeId,
-            date: new Date(), // Convert the date to a Date object
-            status: 'approved',
-            employeeResponse: 'approve',
-            approverId: '',
-            reason: status.approvedOvertime.reason || null, // Ensure reason is of type string | null
-          }
-        : null,
-      latestAttendance: status.latestAttendance,
-      overtimeEntries: [],
-      detailedStatus: '',
-      isEarlyCheckIn: false,
-      isLateCheckIn: false,
-      isLateCheckOut: false,
-      user: userData,
-      isCheckingIn: !status.latestAttendance?.regularCheckInTime,
-      dayOffType: status.isHoliday
-        ? 'holiday'
-        : status.isDayOff
-          ? 'weekly'
-          : 'none',
-      isOutsideShift: false,
-      isLate: false,
-      shiftAdjustment: null,
-      futureShifts: [],
-      futureOvertimes: [],
-      overtimeAttendances: [],
-      pendingLeaveRequest: false,
-    });
-
-    return getStatusMessage(mapAttendanceToStatusInfo(status, userData));
-  }, [status, userData]);
+  const statusDisplay = useMemo(
+    () =>
+      getStatusMessage({
+        state: status.state,
+        checkStatus: status.checkStatus,
+        currentPeriod: {
+          type: status.currentPeriod?.type ?? PeriodType.REGULAR,
+          isComplete: status.currentPeriod?.isComplete ?? false,
+          checkInTime: status.currentPeriod?.checkInTime ?? null,
+          checkOutTime: status.currentPeriod?.checkOutTime ?? null,
+          current: {
+            start: new Date(status.currentPeriod?.current.start ?? new Date()),
+            end: new Date(status.currentPeriod?.current.end ?? new Date()),
+          },
+          overtimeId: status.currentPeriod?.overtimeId,
+        },
+        isHoliday: status.isHoliday,
+        isDayOff: status.isDayOff,
+        isOvertime: status.isOvertime,
+        approvedOvertime: status.approvedOvertime
+          ? {
+              ...status.approvedOvertime,
+              employeeId: userData.employeeId,
+              date: new Date(), // Convert the date to a Date object
+              status: 'approved',
+              employeeResponse: 'approve',
+              approverId: '',
+              reason: status.approvedOvertime.reason || null, // Ensure reason is of type string | null
+            }
+          : null,
+        latestAttendance: status.latestAttendance,
+        overtimeEntries: [],
+        detailedStatus: '',
+        isEarlyCheckIn: false,
+        isLateCheckIn: false,
+        isLateCheckOut: false,
+        user: userData,
+        isCheckingIn: !status.latestAttendance?.regularCheckInTime,
+        dayOffType: status.isHoliday
+          ? 'holiday'
+          : status.isDayOff
+            ? 'weekly'
+            : 'none',
+        isOutsideShift: false,
+        isLate: false,
+        shiftAdjustment: null,
+        futureShifts: [],
+        futureOvertimes: [],
+        overtimeAttendances: [],
+        pendingLeaveRequest: false,
+      }),
+    [status, userData],
+  );
 
   if (isLoading) {
     return (
@@ -195,10 +186,12 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
               </p>
             </div>
           </div>
-          <StatusIndicator
-            message={statusDisplay.message}
-            color={statusDisplay.color}
-          />
+          {statusDisplay && (
+            <StatusIndicator
+              message={statusDisplay.message}
+              color={statusDisplay.color}
+            />
+          )}
         </CardHeader>
 
         <CardContent className="space-y-6">

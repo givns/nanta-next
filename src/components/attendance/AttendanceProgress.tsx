@@ -3,9 +3,15 @@ import { isWithinInterval, differenceInMinutes, format } from 'date-fns';
 import {
   ShiftData,
   CurrentPeriodInfo,
-  ApprovedOvertimeInfo,
   LatestAttendance,
 } from '@/types/attendance';
+
+interface AttendanceProgressProps {
+  effectiveShift: ShiftData | null;
+  currentPeriod: CurrentPeriodInfo | null;
+  latestAttendance?: LatestAttendance | null;
+  approvedOvertime?: OvertimeInfoUI | null;
+}
 
 interface OvertimeInfoUI {
   id: string;
@@ -15,13 +21,6 @@ interface OvertimeInfoUI {
   isInsideShiftHours: boolean;
   isDayOffOvertime: boolean;
   reason?: string;
-}
-
-interface AttendanceProgressProps {
-  effectiveShift: ShiftData | null;
-  currentPeriod: CurrentPeriodInfo | null;
-  latestAttendance?: LatestAttendance | null;
-  approvedOvertime?: OvertimeInfoUI | null;
 }
 
 const AttendanceProgress: React.FC<AttendanceProgressProps> = ({
