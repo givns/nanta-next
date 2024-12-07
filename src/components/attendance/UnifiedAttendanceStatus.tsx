@@ -18,11 +18,6 @@ interface OvertimeInfoUI {
   reason?: string;
 }
 
-interface StatusDisplay {
-  message: string;
-  color: 'red' | 'green' | 'blue' | 'yellow';
-}
-
 interface UnifiedAttendanceStatusProps {
   effectiveShift: ShiftData | null;
   currentPeriod: CurrentPeriodInfo | null;
@@ -34,87 +29,6 @@ interface UnifiedAttendanceStatusProps {
   isDayOff: boolean;
   isOvertime: boolean;
 }
-
-const useStatusDisplay = (
-  state: AttendanceState,
-  checkStatus: CheckStatus,
-  currentPeriod: CurrentPeriodInfo | null,
-  isHoliday: boolean,
-  isDayOff: boolean,
-  isOvertime: boolean,
-  approvedOvertime: OvertimeInfoUI | null,
-): StatusDisplay => {
-  return useMemo(() => {
-    if (isHoliday) {
-      const overtimeMsg = approvedOvertime ? ' (มีการอนุมัติ OT)' : '';
-      return {
-        message: `วันหยุดนักขัตฤกษ์${overtimeMsg}`,
-        color: 'blue',
-      };
-    }
-
-    if (isDayOff) {
-      const overtimeMsg = approvedOvertime ? ' (มีการอนุมัติ OT)' : '';
-      return {
-        message: `วันหยุดประจำสัปดาห์${overtimeMsg}`,
-        color: 'blue',
-      };
-    }
-
-    if (!currentPeriod) {
-      return {
-        message: 'ไม่พบข้อมูลช่วงเวลาทำงาน',
-        color: 'red',
-      };
-    }
-
-    if (currentPeriod.type === 'overtime') {
-      if (!currentPeriod.checkInTime) {
-        return {
-          message: 'รอลงเวลาเข้างาน OT',
-          color: 'yellow',
-        };
-      }
-      if (!currentPeriod.checkOutTime) {
-        return {
-          message: 'กำลังทำงานล่วงเวลา',
-          color: 'green',
-        };
-      }
-      return {
-        message: 'เสร็จสิ้นการทำงานล่วงเวลา',
-        color: 'blue',
-      };
-    }
-
-    if (!currentPeriod.checkInTime) {
-      return {
-        message: 'รอลงเวลาเข้างาน',
-        color: 'yellow',
-      };
-    }
-
-    if (!currentPeriod.checkOutTime) {
-      return {
-        message: 'กำลังปฏิบัติงาน',
-        color: 'green',
-      };
-    }
-
-    return {
-      message: 'เสร็จสิ้นการทำงาน',
-      color: 'blue',
-    };
-  }, [
-    state,
-    checkStatus,
-    currentPeriod,
-    isHoliday,
-    isDayOff,
-    isOvertime,
-    approvedOvertime,
-  ]);
-};
 
 const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
   effectiveShift,
@@ -136,16 +50,6 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const statusDisplay = useStatusDisplay(
-    state,
-    checkStatus,
-    currentPeriod,
-    isHoliday,
-    isDayOff,
-    isOvertime,
-    approvedOvertime,
-  );
-
   const getProgressWidth = (): string => {
     if (!effectiveShift) return '0%';
 
@@ -158,8 +62,7 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
     const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
 
     if (!latestAttendance?.regularCheckInTime) {
-      const elapsed = differenceInMinutes(currentTime, shiftStart);
-      return `${Math.min(100, (elapsed / totalShiftMinutes) * 100)}%`;
+      return '0%';
     }
 
     if (latestAttendance?.regularCheckOutTime) {
@@ -181,39 +84,136 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
     )}`;
   };
 
+  const getStatusColor = (): string => {
+    if (isHoliday) {
+      return 'blue';
+    }
+
+    if (isDayOff) {
+      return 'blue';
+    }
+
+    if (!currentPeriod) {
+      return 'red';
+    }
+
+    if (currentPeriod.type === 'overtime') {
+      if (!currentPeriod.checkInTime) {
+        return 'yellow';
+      }
+      if (!currentPeriod.checkOutTime) {
+        return 'green';
+      }
+      return 'blue';
+    }
+
+    if (!currentPeriod.checkInTime) {
+      return 'red';
+    }
+
+    if (!currentPeriod.checkOutTime) {
+      return 'green';
+    }
+
+    return 'blue';
+  };
+
+  const getStatusMessage = (): string => {
+    if (isHoliday) {
+      const overtimeMsg = approvedOvertime ? ' (มีการอนุมัติ OT)' : '';
+      return `วันหยุดนักขัตฤกษ์${overtimeMsg}`;
+    }
+
+    if (isDayOff) {
+      const overtimeMsg = approvedOvertime ? ' (มีการอนุมัติ OT)' : '';
+      return `วันหยุดประจำสัปดาห์${overtimeMsg}`;
+    }
+
+    if (!currentPeriod) {
+      return 'ไม่มาลงเวลาเข้างาน';
+    }
+
+    if (currentPeriod.type === 'overtime') {
+      if (!currentPeriod.checkInTime) {
+        return 'รอลงเวลาเข้างาน OT';
+      }
+      if (!currentPeriod.checkOutTime) {
+        return 'กำลังทำงานล่วงเวลา';
+      }
+      return 'เสร็จสิ้นการทำงานล่วงเวลา';
+    }
+
+    if (!currentPeriod.checkInTime) {
+      return 'ไม่มาลงเวลาเข้างาน';
+    }
+
+    if (!currentPeriod.checkOutTime) {
+      return 'กำลังปฏิบัติงาน';
+    }
+
+    return 'เสร็จสิ้นการทำงาน';
+  };
+
+  const getOvertimeProgressWidth = (): string => {
+    if (!approvedOvertime) return '0%';
+    const overtimeStart = new Date(
+      `${format(currentTime, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+    );
+    const overtimeEnd = new Date(
+      `${format(currentTime, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+    );
+    const totalOvertimeMinutes = differenceInMinutes(
+      overtimeEnd,
+      overtimeStart,
+    );
+    const elapsedOvertimeMinutes = differenceInMinutes(
+      currentTime,
+      overtimeStart,
+    );
+    return `${Math.min(100, (elapsedOvertimeMinutes / totalOvertimeMinutes) * 100)}%`;
+  };
+
   return (
     <div className="space-y-4">
-      <div
-        className={`inline-flex items-center px-3 py-1 rounded-full text-sm text-${statusDisplay.color}-700`}
-      >
+      <div className="relative h-12 bg-gray-100 rounded-full overflow-hidden">
+        {!latestAttendance?.regularCheckInTime && (
+          <div className="absolute h-full w-full bg-red-500 opacity-50" />
+        )}
         <div
-          className={`w-2 h-2 rounded-full bg-${statusDisplay.color}-500 mr-2`}
-        />
-        <span>{statusDisplay.message}</span>
+          className={`absolute h-full transition-all duration-300 bg-${getStatusColor()}-500`}
+          style={{ width: getProgressWidth() }}
+        >
+          <div className="absolute inset-0 flex items-center justify-center text-white font-medium truncate px-2">
+            {getStatusMessage()}
+          </div>
+        </div>
+
+        {approvedOvertime && (
+          <div
+            className={`absolute h-full transition-all duration-300 bg-yellow-500`}
+            style={{
+              width: getOvertimeProgressWidth(),
+              left: getProgressWidth(),
+            }}
+          >
+            <div className="absolute inset-0 flex items-center justify-center text-white font-medium">
+              OT
+            </div>
+          </div>
+        )}
       </div>
 
       {effectiveShift && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>{effectiveShift.startTime}</span>
-            <span>{effectiveShift.endTime}</span>
-          </div>
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>{effectiveShift.startTime}</span>
+          <span>{effectiveShift.endTime}</span>
+        </div>
+      )}
 
-          <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className={`absolute h-full transition-all duration-300 bg-${
-                statusDisplay.color
-              }-500`}
-              style={{ width: getProgressWidth() }}
-            />
-          </div>
-
-          {latestAttendance?.regularCheckInTime && (
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-2 h-2 rounded-full bg-green-600" />
-              <span>{getAttendanceTime()}</span>
-            </div>
-          )}
+      {latestAttendance?.regularCheckInTime && (
+        <div className="flex items-center gap-2 text-sm">
+          <div className="w-2 h-2 rounded-full bg-green-600" />
+          <span>{getAttendanceTime()}</span>
         </div>
       )}
     </div>
