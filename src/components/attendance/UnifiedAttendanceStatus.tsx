@@ -52,36 +52,36 @@ const UnifiedAttendanceStatus: React.FC<UnifiedAttendanceStatusProps> = ({
 
   const getAttendanceStatus = (): string => {
     if (isHoliday) {
-      return 'Holiday';
+      return 'วันหยุดนักขัตฤกษ์';
     }
 
     if (isDayOff) {
-      return 'Day Off';
+      return 'วันหยุดประจำสัปดาห์';
     }
 
     if (!currentPeriod) {
-      return 'Absent';
+      return 'ไม่มาลงเวลาเข้างาน';
     }
 
     if (currentPeriod.type === 'overtime') {
       if (!currentPeriod.checkInTime) {
-        return 'Waiting to Clock In for Overtime';
+        return 'รอลงเวลาเข้างาน OT';
       }
       if (!currentPeriod.checkOutTime) {
-        return 'Working Overtime';
+        return 'กำลังทำงานล่วงเวลา';
       }
-      return 'Overtime Completed';
+      return 'เสร็จสิ้นการทำงานล่วงเวลา';
     }
 
     if (!currentPeriod.checkInTime) {
-      return 'Absent';
+      return 'ไม่มาลงเวลาเข้างาน';
     }
 
     if (!currentPeriod.checkOutTime) {
-      return 'Working';
+      return 'กำลังปฏิบัติงาน';
     }
 
-    return 'Work Completed';
+    return 'เสร็จสิ้นการทำงาน';
   };
 
   const getAttendanceStatusColor = (): string => {
