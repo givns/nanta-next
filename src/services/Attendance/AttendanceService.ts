@@ -134,6 +134,8 @@ export class AttendanceService {
         : undefined,
     };
 
+    console.log('getBaseStatus result before cache:', result);
+
     await setCacheData(cacheKey, JSON.stringify(result), 300);
     return result;
   }
