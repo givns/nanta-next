@@ -7,7 +7,6 @@ import {
   CurrentPeriodInfo,
   ShiftData,
   LatestAttendance,
-  OvertimeState,
 } from '@/types/attendance';
 
 interface OvertimeInfoUI {

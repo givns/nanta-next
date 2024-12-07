@@ -72,14 +72,6 @@ export class AttendanceService {
     );
   }
 
-  private determineAttendanceState(attendance: any): AttendanceState {
-    if (!attendance?.regularCheckInTime) return AttendanceState.ABSENT;
-    if (!attendance.regularCheckOutTime) return AttendanceState.INCOMPLETE;
-    return attendance.isOvertime
-      ? AttendanceState.OVERTIME
-      : AttendanceState.PRESENT;
-  }
-
   async getBaseStatus(employeeId: string): Promise<AttendanceBaseResponse> {
     const cacheKey = `attendance:status:${employeeId}`;
     const cached = await getCacheData(cacheKey);

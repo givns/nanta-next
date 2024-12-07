@@ -82,11 +82,7 @@ export function useAttendanceData({
                   ),
                 }
               : null,
-            current: {
-              ...responseData.window.current,
-              start: new Date(responseData.window.current.start),
-              end: new Date(responseData.window.current.end),
-            },
+            current: responseData.window.current,
           },
           validation: responseData.validation ?? null,
           timestamp: responseData.timestamp ?? new Date().toISOString(),
