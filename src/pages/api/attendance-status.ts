@@ -2,7 +2,6 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AttendanceService } from '../../services/Attendance/AttendanceService';
-import { cacheService } from '../../services/CacheService';
 import { ResponseDataSchema } from '../../schemas/attendance';
 import {
   AppError,
@@ -15,11 +14,6 @@ import {
 import { initializeServices } from '../../services/ServiceInitializer';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { endOfDay, startOfDay, format } from 'date-fns';
-
-// Constants
-const LOCK_TIMEOUT = 5; // 5 seconds
-const CACHE_TTL = 300; // 5 minutes
-const REQUEST_TIMEOUT = 5000; // 5 seconds
 
 // Request validation schema
 const RequestSchema = z.object({
@@ -36,7 +30,6 @@ const RequestSchema = z.object({
     .transform((val) => val === 'true'),
 });
 
-type RequestParams = z.infer<typeof RequestSchema>;
 type ResponseData = z.infer<typeof ResponseDataSchema>;
 
 // Initialize services

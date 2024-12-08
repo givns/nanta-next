@@ -40,6 +40,7 @@ import {
 } from 'date-fns';
 import { getCurrentTime } from '../../utils/dateUtils';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
+import { is } from 'date-fns/locale';
 
 export class AttendanceCheckService {
   constructor(
@@ -565,6 +566,9 @@ export class AttendanceCheckService {
         }
       }
     }
+
+    console.log('No valid overtime found');
+    console.log(approvedOvertime, pendingOvertimeRequest);
 
     // Fallback response for any unhandled cases
     return this.createResponse(
