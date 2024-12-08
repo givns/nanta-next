@@ -1,7 +1,7 @@
 import React from 'react';
 import { format, isWithinInterval } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
+import { AlertCircle, Clock, User, Building2, Calendar } from 'lucide-react';
 import {
   ShiftData,
   CurrentPeriodInfo,
@@ -59,39 +59,54 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 }) => {
   const currentTime = new Date();
 
-  // Determine if current time is within overtime period
-  const isWithinOvertimePeriod = currentPeriod?.current
-    ? isWithinInterval(currentTime, {
-        start: new Date(currentPeriod.current.start),
-        end: new Date(currentPeriod.current.end),
-      })
-    : false;
+  const getRelevantOvertimes = () => {
+    if (!overtimeInfo) return null;
 
-  // Determine period display state
-  const getPeriodStatus = () => {
-    if (attendanceStatus.regularCheckInTime) {
-      return 'อยู่ในช่วงเวลาทำงานล่วงเวลา';
+    const currentTime = new Date();
+    const currentTimeStr = format(currentTime, 'HH:mm');
+
+    if (Array.isArray(overtimeInfo)) {
+      const sortedOvertimes = [...overtimeInfo].sort((a, b) => {
+        return a.startTime.localeCompare(b.startTime);
+      });
+
+      const relevantOts = sortedOvertimes.filter((ot) => {
+        if (ot.startTime > currentTimeStr) {
+          return true;
+        }
+        if (ot.startTime <= currentTimeStr && ot.endTime > currentTimeStr) {
+          return true;
+        }
+        return false;
+      });
+
+      return relevantOts.length > 0 ? relevantOts : null;
     }
-    if (currentPeriod?.type === 'overtime' && overtimeInfo) {
-      if (currentTime < new Date(currentPeriod.current.start)) {
-        return `เริ่มทำงานล่วงเวลาเวลา ${overtimeInfo.startTime} น.`;
-      }
-      if (validation?.reason?.includes('ย้อนหลัง')) {
-        return validation.reason;
-      }
-      return 'ระบบจะทำการลงเวลาเข้า-ออกงานล่วงเวลาย้อนหลังให้';
+
+    if (
+      overtimeInfo.startTime > currentTimeStr ||
+      (overtimeInfo.startTime <= currentTimeStr &&
+        overtimeInfo.endTime > currentTimeStr)
+    ) {
+      return overtimeInfo;
     }
+
     return null;
   };
 
-  const shouldShowProgressBar =
-    currentPeriod?.current &&
-    ((!status.isDayOff && !status.isHoliday) ||
-      (currentPeriod.type === 'overtime' && isWithinOvertimePeriod));
+  const isWithinOvertimePeriod =
+    overtimeInfo && currentPeriod?.current
+      ? isWithinInterval(currentTime, {
+          start: new Date(currentPeriod.current.start),
+          end: new Date(currentPeriod.current.end),
+        })
+      : false;
+
+  const shouldShowProgress =
+    status.isDayOff || status.isHoliday ? isWithinOvertimePeriod : true;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Fixed Header */}
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100">
         <div className="px-4 py-3">
           <div className="text-center text-4xl font-bold mb-1">
@@ -103,9 +118,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         </div>
       </header>
 
-      {/* Main Content - Scrollable */}
       <main className="flex-1 mt-20 mb-24 overflow-y-auto">
-        {/* Employee Quick Info */}
         <div className="bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <User size={20} className="text-gray-400" />
@@ -124,7 +137,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           </div>
         </div>
 
-        {/* Current Status Card */}
         <div className="m-4 bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100">
             <div className="flex justify-between items-center mb-3">
@@ -132,14 +144,22 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                 <Clock size={20} className="text-primary" />
                 <span className="font-medium">สถานะการทำงาน</span>
               </div>
-              {overtimeInfo && (
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
-                  OT
-                </span>
-              )}
+              {(() => {
+                const relevantOts = getRelevantOvertimes();
+                return relevantOts ? (
+                  <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
+                    OT
+                  </span>
+                ) : null;
+              })()}
             </div>
 
-            {/* Show regular shift time only if not in overtime */}
+            {(status.isDayOff || status.isHoliday) && (
+              <div className="text-sm text-gray-500">
+                {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}
+              </div>
+            )}
+
             {shiftData &&
               !status.isDayOff &&
               !status.isHoliday &&
@@ -149,24 +169,47 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                 </div>
               )}
 
-            {/* Show overtime info */}
-            {overtimeInfo && (
-              <div className="text-sm text-gray-500 mt-1">
-                {status.isDayOff
-                  ? 'เวลาทำงานล่วงเวลา: '
-                  : 'มีการทำงานล่วงเวลาวันนี้: '}
-                {overtimeInfo.startTime} - {overtimeInfo.endTime} น.
-                <span className="ml-2 text-xs">
-                  ({overtimeInfo.durationMinutes} นาที)
-                </span>
-              </div>
-            )}
+            {(() => {
+              const relevantOts = getRelevantOvertimes();
+              if (!relevantOts) return null;
+
+              if (Array.isArray(relevantOts)) {
+                return (
+                  <div className="mt-2 text-sm text-gray-500">
+                    <div>การทำงานล่วงเวลาที่เหลือ:</div>
+                    {relevantOts.map((ot) => (
+                      <div
+                        key={ot.id}
+                        className="ml-2 flex justify-between items-center"
+                      >
+                        <span>
+                          {ot.startTime} - {ot.endTime}
+                        </span>
+                        <span className="text-xs">
+                          ({ot.durationMinutes} นาที)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="text-sm text-gray-500 mt-1">
+                  {!attendanceStatus.regularCheckOutTime && !status.isDayOff
+                    ? 'มีการทำงานล่วงเวลาวันนี้: '
+                    : 'เวลาทำงานล่วงเวลา: '}
+                  {relevantOts.startTime} - {relevantOts.endTime} น.
+                  <span className="ml-2 text-xs">
+                    ({relevantOts.durationMinutes} นาที)
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
-          {/* Progress Section */}
           <div className="p-4 bg-gray-50">
-            {/* Progress Bar */}
-            {shouldShowProgressBar && (
+            {shouldShowProgress && currentPeriod?.current && (
               <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
                 <div
                   className={`absolute h-full transition-all duration-300 ${
@@ -192,7 +235,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               </div>
             )}
 
-            {/* Times Grid */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
@@ -226,16 +268,22 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               </div>
             </div>
 
-            {/* Period Status */}
-            {getPeriodStatus() && (
+            {currentPeriod?.type === 'overtime' && overtimeInfo && (
               <div className="mt-3 pt-3 border-t border-gray-200">
-                <div className="text-sm text-gray-700">{getPeriodStatus()}</div>
+                <div className="text-sm text-gray-700">
+                  {isWithinOvertimePeriod
+                    ? 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
+                    : currentTime < new Date(currentPeriod.current.start)
+                      ? `เริ่มทำงานล่วงเวลาเวลา ${overtimeInfo.startTime} น.`
+                      : validation?.reason?.includes('ย้อนหลัง')
+                        ? validation.reason
+                        : 'หมดเวลาทำงานล่วงเวลา'}
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* System Status */}
         {locationState.error && (
           <div className="mx-4 mb-4 p-4 bg-red-50 rounded-xl">
             <div className="flex items-center gap-2 text-red-600">
