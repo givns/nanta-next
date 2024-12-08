@@ -265,6 +265,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     handleAttendanceSubmit,
   ]);
 
+  console.log('effectiveShift:', effectiveShift);
+
   // Handle action button click
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
