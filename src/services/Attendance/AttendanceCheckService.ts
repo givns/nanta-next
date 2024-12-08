@@ -168,7 +168,10 @@ export class AttendanceCheckService {
       // 3. Basic validations
       if (isHoliday) {
         const approvedOvertime =
-          await this.overtimeService.getApprovedDayOffOvertime(employeeId, now);
+          await this.overtimeService.getCurrentApprovedOvertimeRequest(
+            employeeId,
+            now,
+          );
         return this.handleNonWorkingDayAttendance(
           'holiday',
           approvedOvertime,
@@ -210,7 +213,10 @@ export class AttendanceCheckService {
       // 4. Check for day off overtime
       if (isDayOff) {
         const approvedOvertime =
-          await this.overtimeService.getApprovedDayOffOvertime(employeeId, now);
+          await this.overtimeService.getCurrentApprovedOvertimeRequest(
+            employeeId,
+            now,
+          );
 
         return this.handleNonWorkingDayAttendance(
           'dayoff',
