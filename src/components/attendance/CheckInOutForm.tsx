@@ -81,6 +81,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     error: attendanceError,
     checkInOut,
     overtimeContext,
+    isHoliday,
+    isDayOff,
     refreshAttendanceStatus, // Add this
   } = useSimpleAttendance({
     employeeId: userData.employeeId,
@@ -265,8 +267,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     handleAttendanceSubmit,
   ]);
 
-  console.log('effectiveShift:', effectiveShift);
-
   // Handle action button click
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut') => {
@@ -351,12 +351,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     state,
     checkStatus,
     currentPeriod,
-    isHoliday: effectiveShift?.workDays
-      ? !effectiveShift.workDays.includes(getCurrentTime().getDay())
-      : false,
-    isDayOff: effectiveShift?.workDays
-      ? !effectiveShift.workDays.includes(getCurrentTime().getDay())
-      : false,
+    isHoliday, // From useSimpleAttendance
+    isDayOff,
     isOvertime: currentPeriod?.type === 'overtime',
     approvedOvertime: overtimeContext
       ? {

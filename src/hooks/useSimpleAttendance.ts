@@ -184,6 +184,8 @@ export function useSimpleAttendance({
     checkStatus: data?.base.checkStatus || CheckStatus.PENDING,
     isCheckingIn: data?.base.isCheckingIn ?? true,
     effectiveShift: data?.window?.shift || null,
+    isDayOff: data?.window?.isDayOff || false, // Add this
+    isHoliday: data?.window?.isHoliday || false,
     currentPeriod,
     validation: data?.validation || null,
     isLoading: isInitializing || locationLoading || isAttendanceLoading,

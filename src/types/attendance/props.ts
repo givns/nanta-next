@@ -165,6 +165,8 @@ export interface UseSimpleAttendanceReturn {
   // Shift and period info
   currentPeriod: CurrentPeriodInfo | null;
   effectiveShift: ShiftData | null;
+  isDayOff: boolean;
+  isHoliday: boolean;
 
   // Overtime context
   overtimeContext: OvertimeContext | null;
