@@ -59,6 +59,39 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 }) => {
   const currentTime = new Date();
 
+  const getRelevantOvertimes = () => {
+    if (!overtimeInfo) return null;
+
+    const currentTime = new Date();
+    if (Array.isArray(overtimeInfo)) {
+      // Sort overtimes by start time
+      const sortedOvertimes = [...overtimeInfo].sort((a, b) => {
+        const aTime = new Date(`1970/01/01 ${a.startTime}`);
+        const bTime = new Date(`1970/01/01 ${b.startTime}`);
+        return aTime.getTime() - bTime.getTime();
+      });
+
+      // Get current and next overtime periods
+      const relevantOts = sortedOvertimes.filter((ot) => {
+        const otStart = new Date(`1970/01/01 ${ot.startTime}`);
+        const otEnd = new Date(`1970/01/01 ${ot.endTime}`);
+        const now = new Date(`1970/01/01 ${format(currentTime, 'HH:mm')}`);
+
+        // Include if we're in this period or it's upcoming
+        return otEnd >= now;
+      });
+
+      return relevantOts.length > 0 ? relevantOts : null;
+    }
+
+    // Single overtime case
+    const otStart = new Date(`1970/01/01 ${overtimeInfo.startTime}`);
+    const otEnd = new Date(`1970/01/01 ${overtimeInfo.endTime}`);
+    const now = new Date(`1970/01/01 ${format(currentTime, 'HH:mm')}`);
+
+    return otEnd >= now ? overtimeInfo : null;
+  };
+
   // Determine if current time is within overtime period
   const isWithinOvertimePeriod =
     overtimeInfo && currentPeriod?.current
@@ -115,54 +148,69 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                 <Clock size={20} className="text-primary" />
                 <span className="font-medium">สถานะการทำงาน</span>
               </div>
-              {/* Show OT badge if overtime exists */}
-              {overtimeInfo && (
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
-                  OT
-                </span>
-              )}
+              {(() => {
+                const relevantOts = getRelevantOvertimes();
+                return relevantOts ? (
+                  <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
+                    OT
+                  </span>
+                ) : null;
+              })()}
             </div>
+
             {/* Show day off or holiday status */}
             {(status.isDayOff || status.isHoliday) && (
               <div className="text-sm text-gray-500">
                 {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}
               </div>
             )}
+
             {/* Show regular shift time if not day off/holiday */}
             {shiftData && !status.isDayOff && !status.isHoliday && (
               <div className="text-sm text-gray-500">
                 เวลางาน {shiftData.startTime} - {shiftData.endTime} น.
               </div>
             )}
-            {/* Always show overtime info if exists */}
-            {overtimeInfo && Array.isArray(overtimeInfo) ? (
-              <div className="mt-2 text-sm text-gray-500">
-                <div>การทำงานล่วงเวลาวันนี้:</div>
-                {overtimeInfo.map((ot, index) => (
-                  <div
-                    key={ot.id}
-                    className="ml-2 flex justify-between items-center"
-                  >
-                    <span>
-                      {ot.startTime} - {ot.endTime}
-                    </span>
-                    <span className="text-xs">({ot.durationMinutes} นาที)</span>
+
+            {/* Show relevant overtime info */}
+            {(() => {
+              const relevantOts = getRelevantOvertimes();
+              if (!relevantOts) return null;
+
+              if (Array.isArray(relevantOts)) {
+                return (
+                  <div className="mt-2 text-sm text-gray-500">
+                    <div>การทำงานล่วงเวลาที่เหลือ:</div>
+                    {relevantOts.map((ot) => (
+                      <div
+                        key={ot.id}
+                        className="ml-2 flex justify-between items-center"
+                      >
+                        <span>
+                          {ot.startTime} - {ot.endTime}
+                        </span>
+                        <span className="text-xs">
+                          ({ot.durationMinutes} นาที)
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              overtimeInfo && (
+                );
+              }
+
+              // Single overtime case
+              return (
                 <div className="text-sm text-gray-500 mt-1">
                   {!attendanceStatus.regularCheckOutTime && !status.isDayOff
                     ? 'มีการทำงานล่วงเวลาต่อจากเวลางานปกติ: '
                     : 'เวลาทำงานล่วงเวลา: '}
-                  {overtimeInfo.startTime} - {overtimeInfo.endTime} น.
+                  {relevantOts.startTime} - {relevantOts.endTime} น.
                   <span className="ml-2 text-xs">
-                    ({overtimeInfo.durationMinutes} นาที)
+                    ({relevantOts.durationMinutes} นาที)
                   </span>
                 </div>
-              )
-            )}
+              );
+            })()}
           </div>
 
           {/* Progress Section */}
@@ -219,6 +267,19 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Current Period Status */}
+            {currentPeriod?.type === 'overtime' && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="text-sm text-gray-700">
+                  {isWithinOvertimePeriod
+                    ? 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
+                    : currentTime < new Date(currentPeriod.current.start)
+                      ? `เริ่มทำงานล่วงเวลาเวลา ${format(new Date(currentPeriod.current.start), 'HH:mm')} น.`
+                      : 'หมดเวลาทำงานล่วงเวลา'}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
