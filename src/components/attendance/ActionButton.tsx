@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import React from 'react';
+import { AlertCircle } from 'lucide-react';
 
 interface ActionButtonProps {
   isEnabled: boolean;
@@ -28,7 +29,6 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     return isCheckingIn ? 'IN' : 'OUT';
   }, [isCheckingIn, locationState]);
 
-  // Enhanced visual feedback
   const buttonStateClass = React.useMemo(() => {
     if (!locationState.isReady) {
       return 'bg-gray-400 cursor-wait animate-pulse';
@@ -41,27 +41,26 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
 
   return (
     <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
-      {/* Feedback message */}
+      {/* Single validation message format for all cases */}
       {(validationMessage || locationState.error || nextWindowTime) && (
-        <div className="floating-button-message bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg max-w-[280px] text-base mb-4">
-          {!isEnabled && validationMessage && (
-            <p className="text-red-600 font-semibold">{validationMessage}</p>
-          )}
-          {isEnabled && validationMessage && (
-            <p className="text-gray-700">{validationMessage}</p>
-          )}
-          {locationState.error && (
-            <p className="text-yellow-600">{locationState.error}</p>
-          )}
-          {nextWindowTime && (
-            <p className="text-blue-600 mt-1 font-medium">
-              สามารถลงเวลาได้: {format(nextWindowTime, 'HH:mm', { locale: th })}
-            </p>
-          )}
+        <div className="mb-4 p-3 rounded-lg bg-yellow-50 max-w-[280px]">
+          <div className="flex gap-2">
+            <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-yellow-800">
+              {locationState.error && <p>{locationState.error}</p>}
+              {validationMessage && <p>{validationMessage}</p>}
+              {nextWindowTime && (
+                <p>
+                  สามารถลงเวลาได้:{' '}
+                  {format(nextWindowTime, 'HH:mm', { locale: th })}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Larger centered button */}
+      {/* Circle button */}
       <button
         onClick={onAction}
         disabled={!isEnabled || !locationState.isReady}
