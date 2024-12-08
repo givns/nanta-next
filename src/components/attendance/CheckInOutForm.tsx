@@ -7,8 +7,13 @@ import { formatDate, getCurrentTime } from '@/utils/dateUtils';
 import { ActionButton } from './ActionButton';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
-import { PeriodType, OvertimeState } from '@/types/attendance';
+import {
+  PeriodType,
+  OvertimeState,
+  ATTENDANCE_CONSTANTS,
+} from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
+import { format, parseISO, subMinutes } from 'date-fns';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -380,8 +385,25 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             isEnabled={!!validation?.allowed}
             validationMessage={validation?.reason}
             nextWindowTime={
-              currentPeriod?.type === 'overtime' && !validation?.allowed
-                ? new Date(currentPeriod.current.start)
+              // Show next window time when validation is not allowed
+              !validation?.allowed && currentPeriod
+                ? // For overtime
+                  currentPeriod.type === 'overtime' && overtimeContext
+                  ? subMinutes(
+                      parseISO(
+                        `${format(new Date(), 'yyyy-MM-dd')}T${overtimeContext.startTime}`,
+                      ),
+                      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+                    )
+                  : // For regular shift
+                    currentPeriod.type === 'regular' && effectiveShift
+                    ? subMinutes(
+                        parseISO(
+                          `${format(new Date(), 'yyyy-MM-dd')}T${effectiveShift.startTime}`,
+                        ),
+                        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+                      )
+                    : undefined
                 : undefined
             }
             isCheckingIn={!currentPeriod?.checkInTime}
