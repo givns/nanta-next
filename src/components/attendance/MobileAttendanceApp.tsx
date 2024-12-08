@@ -105,6 +105,11 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const shouldShowProgress =
     status.isDayOff || status.isHoliday ? isWithinOvertimePeriod : true;
 
+  const isAutoCheckIn =
+    currentPeriod?.type === 'overtime' &&
+    attendanceStatus.checkStatus === 'checked-in' &&
+    validation?.reason?.includes('ย้อนหลัง');
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100">
@@ -239,44 +244,46 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               <div>
                 <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
                 <div className="font-medium">
-                  {currentPeriod?.type === 'overtime'
-                    ? currentPeriod.checkInTime
+                  {currentPeriod?.type === 'overtime' && isAutoCheckIn
+                    ? format(new Date(currentPeriod.current.start), 'HH:mm')
+                    : currentPeriod?.checkInTime
                       ? format(new Date(currentPeriod.checkInTime), 'HH:mm')
-                      : '--:--'
-                    : attendanceStatus.regularCheckInTime
-                      ? format(
-                          new Date(attendanceStatus.regularCheckInTime),
-                          'HH:mm',
-                        )
-                      : '--:--'}
+                      : attendanceStatus.regularCheckInTime
+                        ? format(
+                            new Date(attendanceStatus.regularCheckInTime),
+                            'HH:mm',
+                          )
+                        : '--:--'}
                 </div>
               </div>
               <div>
                 <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
                 <div className="font-medium">
-                  {currentPeriod?.type === 'overtime'
-                    ? currentPeriod.checkOutTime
+                  {currentPeriod?.type === 'overtime' && isAutoCheckIn
+                    ? format(new Date(currentPeriod.current.end), 'HH:mm')
+                    : currentPeriod?.checkOutTime
                       ? format(new Date(currentPeriod.checkOutTime), 'HH:mm')
-                      : '--:--'
-                    : attendanceStatus.regularCheckOutTime
-                      ? format(
-                          new Date(attendanceStatus.regularCheckOutTime),
-                          'HH:mm',
-                        )
-                      : '--:--'}
+                      : attendanceStatus.regularCheckOutTime
+                        ? format(
+                            new Date(attendanceStatus.regularCheckOutTime),
+                            'HH:mm',
+                          )
+                        : '--:--'}
                 </div>
               </div>
             </div>
 
-            {currentPeriod?.type === 'overtime' && overtimeInfo && (
+            {(currentPeriod?.type === 'overtime' ||
+              validation?.reason?.includes('ย้อนหลัง')) && (
               <div className="mt-3 pt-3 border-t border-gray-200">
                 <div className="text-sm text-gray-700">
-                  {isWithinOvertimePeriod
-                    ? 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
-                    : currentTime < new Date(currentPeriod.current.start)
-                      ? `เริ่มทำงานล่วงเวลาเวลา ${overtimeInfo.startTime} น.`
-                      : validation?.reason?.includes('ย้อนหลัง')
-                        ? validation.reason
+                  {validation?.reason?.includes('ย้อนหลัง')
+                    ? validation.reason
+                    : isWithinOvertimePeriod
+                      ? 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
+                      : currentPeriod &&
+                          currentTime < new Date(currentPeriod.current.start)
+                        ? `เริ่มทำงานล่วงเวลาเวลา ${overtimeInfo?.startTime} น.`
                         : 'หมดเวลาทำงานล่วงเวลา'}
                 </div>
               </div>
