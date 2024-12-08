@@ -1,5 +1,5 @@
 import React from 'react';
-import { format } from 'date-fns';
+import { format, isWithinInterval } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2, Calendar } from 'lucide-react';
 import {
@@ -59,24 +59,18 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 }) => {
   const currentTime = new Date();
 
-  // Organize overtime display
-  const showNextOvertimes = () => {
-    if (!overtimeInfo || !Array.isArray(overtimeInfo)) return null;
+  // Determine if current time is within overtime period
+  const isWithinOvertimePeriod =
+    overtimeInfo && currentPeriod?.current
+      ? isWithinInterval(currentTime, {
+          start: new Date(currentPeriod.current.start),
+          end: new Date(currentPeriod.current.end),
+        })
+      : false;
 
-    return (
-      <div className="mt-2 text-sm text-gray-500">
-        <div>การทำงานล่วงเวลาวันนี้:</div>
-        {overtimeInfo.map((ot, index) => (
-          <div key={ot.id} className="ml-2 flex justify-between items-center">
-            <span>
-              {ot.startTime} - {ot.endTime}
-            </span>
-            <span className="text-xs">({ot.durationMinutes} นาที)</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
+  // Should show progress bar based on day type and period
+  const shouldShowProgress =
+    status.isDayOff || status.isHoliday ? isWithinOvertimePeriod : true;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -173,18 +167,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
           {/* Progress Section */}
           <div className="p-4 bg-gray-50">
-            {/* Progress Bar - Only show if there's a current period */}
-            {currentPeriod?.current && (
+            {/* Progress Bar - Only show when appropriate */}
+            {shouldShowProgress && currentPeriod?.current && (
               <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
                 <div
                   className={`absolute h-full transition-all duration-300 ${
-                    currentPeriod.type === 'overtime' &&
-                    (status.isDayOff || attendanceStatus.regularCheckOutTime)
+                    currentPeriod.type === 'overtime'
                       ? 'bg-yellow-500'
                       : 'bg-blue-500'
                   }`}
                   style={{
-                    width: `${
+                    width: `${Math.min(
                       (differenceInMinutes(
                         currentTime,
                         new Date(currentPeriod.current.start),
@@ -193,8 +186,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                           new Date(currentPeriod.current.end),
                           new Date(currentPeriod.current.start),
                         )) *
-                      100
-                    }%`,
+                        100,
+                      100,
+                    )}%`,
                   }}
                 />
               </div>
