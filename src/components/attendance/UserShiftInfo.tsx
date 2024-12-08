@@ -15,6 +15,7 @@ import {
 import UnifiedAttendanceStatus from './UnifiedAttendanceStatus';
 import OvertimeCard from './OvertimeCard';
 import { last } from 'lodash';
+import EnhancedAttendanceTracker from './EnhancedAttendanceTracker';
 
 interface OvertimeInfoUI {
   id: string;
@@ -110,16 +111,11 @@ export const UserShiftInfo: React.FC<UserShiftInfoProps> = ({
         </CardHeader>
 
         <CardContent className="space-y-6">
-          <UnifiedAttendanceStatus
-            effectiveShift={effectiveShift}
+          <EnhancedAttendanceTracker
+            shiftData={effectiveShift}
             currentPeriod={status.currentPeriod}
-            latestAttendance={status.latestAttendance}
-            approvedOvertime={status.approvedOvertime}
-            state={status.state}
-            checkStatus={status.checkStatus}
-            isHoliday={status.isHoliday}
-            isDayOff={status.isDayOff}
-            isOvertime={status.isOvertime}
+            attendanceStatus={status.latestAttendance}
+            overtimeInfo={status.approvedOvertime}
           />
 
           {/* Special Status Messages */}
