@@ -31,17 +31,16 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
 
   const buttonStateClass = React.useMemo(() => {
     if (!locationState.isReady) {
-      return 'bg-gray-400 cursor-wait animate-pulse';
+      return 'bg-gray-200 cursor-wait animate-pulse';
     }
     if (!isEnabled) {
-      return 'bg-gray-100 border-2 border-red-300 cursor-not-allowed';
+      return 'bg-gray-200 cursor-not-allowed';
     }
     return 'bg-red-600 hover:bg-red-700 active:bg-red-800 floating-button';
   }, [isEnabled, locationState.isReady]);
 
   return (
     <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
-      {/* Single validation message format for all cases */}
       {(validationMessage || locationState.error || nextWindowTime) && (
         <div className="mb-4 p-3 rounded-lg bg-yellow-50 max-w-[280px]">
           <div className="flex gap-2">
@@ -60,7 +59,6 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         </div>
       )}
 
-      {/* Circle button */}
       <button
         onClick={onAction}
         disabled={!isEnabled || !locationState.isReady}
@@ -68,7 +66,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         aria-label={`เปิดกล้องเพื่อ${isCheckingIn ? 'เข้างาน' : 'ออกงาน'}`}
       >
         <span
-          className={`text-2xl font-semibold ${!isEnabled ? 'text-red-500' : 'text-white'}`}
+          className={`text-2xl font-semibold ${!isEnabled || !locationState.isReady ? 'text-gray-600' : 'text-white'}`}
         >
           {buttonText}
         </span>
