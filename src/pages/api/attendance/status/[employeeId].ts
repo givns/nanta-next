@@ -57,6 +57,7 @@ export default async function handler(
 
   try {
     const now = getCurrentTime();
+    console.log(now);
     console.log('API Request for employeeId:', employeeId);
 
     // Verify user and shift existence first
