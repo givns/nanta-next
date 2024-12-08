@@ -59,6 +59,25 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 }) => {
   const currentTime = new Date();
 
+  // Organize overtime display
+  const showNextOvertimes = () => {
+    if (!overtimeInfo || !Array.isArray(overtimeInfo)) return null;
+
+    return (
+      <div className="mt-2 text-sm text-gray-500">
+        <div>การทำงานล่วงเวลาวันนี้:</div>
+        {overtimeInfo.map((ot, index) => (
+          <div key={ot.id} className="ml-2 flex justify-between items-center">
+            <span>
+              {ot.startTime} - {ot.endTime}
+            </span>
+            <span className="text-xs">({ot.durationMinutes} นาที)</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Fixed Header */}
@@ -122,16 +141,33 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               </div>
             )}
             {/* Always show overtime info if exists */}
-            {overtimeInfo && (
-              <div className="text-sm text-gray-500 mt-1">
-                {!attendanceStatus.regularCheckOutTime && !status.isDayOff
-                  ? 'มีการทำงานล่วงเวลาต่อจากเวลางานปกติ: '
-                  : 'เวลาทำงานล่วงเวลา: '}
-                {overtimeInfo.startTime} - {overtimeInfo.endTime} น.
-                <span className="ml-2 text-xs">
-                  ({overtimeInfo.durationMinutes} นาที)
-                </span>
+            {overtimeInfo && Array.isArray(overtimeInfo) ? (
+              <div className="mt-2 text-sm text-gray-500">
+                <div>การทำงานล่วงเวลาวันนี้:</div>
+                {overtimeInfo.map((ot, index) => (
+                  <div
+                    key={ot.id}
+                    className="ml-2 flex justify-between items-center"
+                  >
+                    <span>
+                      {ot.startTime} - {ot.endTime}
+                    </span>
+                    <span className="text-xs">({ot.durationMinutes} นาที)</span>
+                  </div>
+                ))}
               </div>
+            ) : (
+              overtimeInfo && (
+                <div className="text-sm text-gray-500 mt-1">
+                  {!attendanceStatus.regularCheckOutTime && !status.isDayOff
+                    ? 'มีการทำงานล่วงเวลาต่อจากเวลางานปกติ: '
+                    : 'เวลาทำงานล่วงเวลา: '}
+                  {overtimeInfo.startTime} - {overtimeInfo.endTime} น.
+                  <span className="ml-2 text-xs">
+                    ({overtimeInfo.durationMinutes} นาที)
+                  </span>
+                </div>
+              )
             )}
           </div>
 
