@@ -283,20 +283,20 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
   // In OvertimeServiceServer
   async getCurrentApprovedOvertimeRequest(
     employeeId: string,
-    checkTime: Date
+    checkTime: Date,
   ): Promise<ApprovedOvertimeInfo | null> {
     if (process.env.NODE_ENV === 'test') return null;
-  
+
     const currentTimeStr = format(checkTime, 'HH:mm');
     const overtimeDate = format(checkTime, 'yyyy-MM-dd');
-  
+
     // First get any approved overtime for the day
     const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
       where: {
         employeeId,
         date: startOfDay(checkTime),
         status: 'approved',
-        employeeResponse: 'approve'
+        employeeResponse: 'approve',
       },
       select: {
         id: true,
@@ -306,27 +306,27 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         isDayOffOvertime: true,
         durationMinutes: true,
         status: true,
-        employeeResponse: true
-      }
+        employeeResponse: true,
+      },
     });
-  
+
     if (!overtimeRequest) return null;
-  
+
     // Then check if current time is within window including early check-in
     const startDateTime = subMinutes(
       parseISO(`${overtimeDate}T${overtimeRequest.startTime}`),
-      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD
+      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
     );
     let endDateTime = addMinutes(
       parseISO(`${overtimeDate}T${overtimeRequest.endTime}`),
-      ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD
+      ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
     );
-  
+
     // Handle overnight case
     if (isBefore(endDateTime, startDateTime)) {
       endDateTime = addDays(endDateTime, 1);
     }
-  
+
     return {
       ...overtimeRequest,
       employeeId,
@@ -334,7 +334,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       status: 'approved' as const,
       employeeResponse: 'approve' as const,
       reason: '',
-      approverId: ''
+      approverId: '',
     };
   }
 
@@ -605,7 +605,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         },
         isDayOffOvertime: true,
         status: 'approved',
-        employeeResponse: 'approve'
+        employeeResponse: 'approve',
       },
       select: {
         id: true,
@@ -616,16 +616,19 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         durationMinutes: true,
         status: true,
         employeeResponse: true,
-        reason: true
+        reason: true,
       },
     });
-  
+
     if (!overtimeRequest) return null;
-  
+
     const currentTimeStr = format(date, 'HH:mm');
     // Include overtime if it's current or upcoming
-    if (overtimeRequest.startTime > currentTimeStr || 
-       (overtimeRequest.startTime <= currentTimeStr && overtimeRequest.endTime > currentTimeStr)) {
+    if (
+      overtimeRequest.startTime > currentTimeStr ||
+      (overtimeRequest.startTime <= currentTimeStr &&
+        overtimeRequest.endTime > currentTimeStr)
+    ) {
       return {
         ...overtimeRequest,
         employeeId,
@@ -635,7 +638,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         approverId: '',
       };
     }
-  
+
     return null;
   }
 
