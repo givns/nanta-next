@@ -63,33 +63,41 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     if (!overtimeInfo) return null;
 
     const currentTime = new Date();
+    const currentTimeStr = format(currentTime, 'HH:mm');
+
     if (Array.isArray(overtimeInfo)) {
       // Sort overtimes by start time
       const sortedOvertimes = [...overtimeInfo].sort((a, b) => {
-        const aTime = new Date(`1970/01/01 ${a.startTime}`);
-        const bTime = new Date(`1970/01/01 ${b.startTime}`);
-        return aTime.getTime() - bTime.getTime();
+        return a.startTime.localeCompare(b.startTime);
       });
 
-      // Get current and next overtime periods
+      // Get current and upcoming overtime periods
       const relevantOts = sortedOvertimes.filter((ot) => {
-        const otStart = new Date(`1970/01/01 ${ot.startTime}`);
-        const otEnd = new Date(`1970/01/01 ${ot.endTime}`);
-        const now = new Date(`1970/01/01 ${format(currentTime, 'HH:mm')}`);
-
-        // Include if we're in this period or it's upcoming
-        return otEnd >= now;
+        // If overtime hasn't started yet (upcoming)
+        if (ot.startTime > currentTimeStr) {
+          return true;
+        }
+        // If we're currently in this overtime period
+        if (ot.startTime <= currentTimeStr && ot.endTime > currentTimeStr) {
+          return true;
+        }
+        return false;
       });
 
       return relevantOts.length > 0 ? relevantOts : null;
     }
 
     // Single overtime case
-    const otStart = new Date(`1970/01/01 ${overtimeInfo.startTime}`);
-    const otEnd = new Date(`1970/01/01 ${overtimeInfo.endTime}`);
-    const now = new Date(`1970/01/01 ${format(currentTime, 'HH:mm')}`);
+    // Show if overtime is upcoming or we're in it
+    if (
+      overtimeInfo.startTime > currentTimeStr ||
+      (overtimeInfo.startTime <= currentTimeStr &&
+        overtimeInfo.endTime > currentTimeStr)
+    ) {
+      return overtimeInfo;
+    }
 
-    return otEnd >= now ? overtimeInfo : null;
+    return null;
   };
 
   // Determine if current time is within overtime period
