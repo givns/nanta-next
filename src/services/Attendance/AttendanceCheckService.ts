@@ -515,6 +515,9 @@ export class AttendanceCheckService {
       }
     }
 
+    console.log(approvedOvertime);
+    console.log(now);
+
     // Fallback for times outside overtime window
     return this.createResponse(
       false,
