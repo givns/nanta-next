@@ -288,12 +288,13 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     if (process.env.NODE_ENV === 'test') return null;
 
     const currentTimeStr = format(checkTime, 'HH:mm');
+    const overtimeDate = format(checkTime, 'yyyy-MM-dd');
+
+    // First get any approved overtime for the day
     const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
       where: {
         employeeId,
         date: startOfDay(checkTime),
-        startTime: { lte: currentTimeStr },
-        endTime: { gte: currentTimeStr },
         status: 'approved',
         employeeResponse: 'approve',
       },
@@ -311,27 +312,37 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
 
     if (!overtimeRequest) return null;
 
-    // Only do minimal time window adjustment if found
-    const overtimeDate = format(checkTime, 'yyyy-MM-dd');
-    const startDateTime = parseISO(
-      `${overtimeDate}T${overtimeRequest.startTime}`,
+    // Then check if current time is within window including early check-in
+    const startDateTime = subMinutes(
+      parseISO(`${overtimeDate}T${overtimeRequest.startTime}`),
+      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
     );
-    let endDateTime = parseISO(`${overtimeDate}T${overtimeRequest.endTime}`);
+    let endDateTime = addMinutes(
+      parseISO(`${overtimeDate}T${overtimeRequest.endTime}`),
+      ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
+    );
 
     // Handle overnight case
     if (isBefore(endDateTime, startDateTime)) {
       endDateTime = addDays(endDateTime, 1);
     }
 
-    return {
-      ...overtimeRequest,
-      employeeId,
-      date: checkTime,
-      status: 'approved' as const,
-      employeeResponse: 'approve' as const,
-      reason: '',
-      approverId: '',
-    };
+    // Only return if within the window
+    if (
+      isWithinInterval(checkTime, { start: startDateTime, end: endDateTime })
+    ) {
+      return {
+        ...overtimeRequest,
+        employeeId,
+        date: checkTime,
+        status: 'approved' as const,
+        employeeResponse: 'approve' as const,
+        reason: '',
+        approverId: '',
+      };
+    }
+
+    return null;
   }
 
   isInOvertimeWindow(checkTime: Date, overtime: ApprovedOvertimeInfo): boolean {
@@ -586,6 +597,46 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
         isDayOffOvertime: true,
       },
     });
+  }
+
+  async getApprovedDayOffOvertime(
+    employeeId: string,
+    date: Date,
+  ): Promise<ApprovedOvertimeInfo | null> {
+    const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(date),
+          lt: endOfDay(date),
+        },
+        isDayOffOvertime: true,
+        status: 'approved',
+        employeeResponse: 'approve',
+      },
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        isInsideShiftHours: true,
+        isDayOffOvertime: true,
+        durationMinutes: true,
+        status: true,
+        employeeResponse: true,
+      },
+    });
+
+    if (!overtimeRequest) return null;
+
+    return {
+      ...overtimeRequest,
+      employeeId,
+      date,
+      status: 'approved' as const,
+      employeeResponse: 'approve' as const,
+      reason: '',
+      approverId: '',
+    };
   }
 
   async getDetailedOvertimesInRange(
