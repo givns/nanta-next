@@ -59,11 +59,10 @@ export function useAttendanceData({
         // Fix the mapping to use status instead of base
         return {
           base: {
-            state: responseData.status?.state ?? AttendanceState.ABSENT,
-            checkStatus:
-              responseData.status?.checkStatus ?? CheckStatus.PENDING,
-            isCheckingIn: responseData.status?.isCheckingIn ?? true,
-            latestAttendance: responseData.status?.latestAttendance ?? {
+            state: responseData.base?.state ?? AttendanceState.ABSENT,
+            checkStatus: responseData.base?.checkStatus ?? CheckStatus.PENDING,
+            isCheckingIn: responseData.base?.isCheckingIn ?? true,
+            latestAttendance: responseData.base?.latestAttendance ?? {
               regularCheckInTime: null,
               regularCheckOutTime: null,
               overtimeState: undefined,
