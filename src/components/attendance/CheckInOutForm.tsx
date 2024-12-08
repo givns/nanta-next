@@ -389,13 +389,9 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             />
           </div>
 
+          {/* Only ActionButton in fixed footer */}
           <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-sm border-t border-gray-100">
             <div className="container max-w-md mx-auto px-4 pb-safe pt-4">
-              {validation?.reason && (
-                <div className="mb-4 p-3 rounded-lg bg-yellow-50 text-yellow-800">
-                  {validation.reason}
-                </div>
-              )}
               <ActionButton
                 isEnabled={!!validation?.allowed}
                 validationMessage={validation?.reason}
