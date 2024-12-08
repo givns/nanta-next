@@ -1,14 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import {
-  AlertCircle,
-  Clock,
-  User,
-  Building2,
-  Calendar,
-  ChevronRight,
-} from 'lucide-react';
+import { AlertCircle, Clock, User, Building2, Calendar } from 'lucide-react';
 import {
   ShiftData,
   CurrentPeriodInfo,
@@ -71,7 +64,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       {/* Fixed Header */}
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100">
         <div className="px-4 py-3">
-          <div className="text-center text-3xl font-bold mb-1">
+          <div className="text-center text-4xl font-bold mb-1">
             {format(currentTime, 'HH:mm')}
           </div>
           <div className="text-center text-sm text-gray-500">
@@ -106,7 +99,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           <div className="p-4 border-b border-gray-100">
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
-                <Clock size={30} className="text-primary" />
+                <Clock size={20} className="text-primary" />
                 <span className="font-medium">สถานะการทำงาน</span>
               </div>
               {currentPeriod?.type === 'overtime' && (
