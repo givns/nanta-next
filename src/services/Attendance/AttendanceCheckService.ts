@@ -400,7 +400,6 @@ export class AttendanceCheckService {
         `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
       );
 
-      // Get time windows for early check-in and late check-out
       const { earlyCheckInWindow, lateCheckOutWindow } =
         this.getOvertimeWindows(overtimeStart, overtimeEnd);
 
@@ -411,11 +410,6 @@ export class AttendanceCheckService {
       const isWithinOvertimeWindow = isWithinInterval(now, {
         start: earlyCheckInWindow,
         end: lateCheckOutWindow,
-      });
-
-      const isWithinMainPeriod = isWithinInterval(now, {
-        start: overtimeStart,
-        end: overtimeEnd,
       });
 
       // Too early for overtime
@@ -435,35 +429,16 @@ export class AttendanceCheckService {
             timing: {
               plannedStartTime: overtimeStart.toISOString(),
             },
-          },
-        );
-      }
-
-      // Too late for overtime
-      if (isAfter(now, lateCheckOutWindow)) {
-        return this.createResponse(
-          false,
-          `เลยเวลาทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}แล้ว`,
-          {
-            inPremises,
-            address,
-            periodType: PeriodType.OVERTIME,
-            flags: {
-              isOvertime: true,
-              isDayOffOvertime: true,
-              isLateCheckOut: true,
-            },
-            timing: {
-              plannedEndTime: overtimeEnd.toISOString(),
+            metadata: {
+              overtimeId: approvedOvertime.id,
             },
           },
         );
       }
 
-      // Handle Check-in
-      if (isCheckingIn) {
-        // Regular overtime check-in
-        if (isWithinOvertimeWindow) {
+      // Within overtime window
+      if (isWithinOvertimeWindow) {
+        if (isCheckingIn) {
           const isLateCheckIn = isAfter(
             now,
             addMinutes(
@@ -497,43 +472,8 @@ export class AttendanceCheckService {
               },
             },
           );
-        }
-      }
-
-      // Handle Check-out scenarios
-      else {
-        // Handle missed check-in near period end
-        const missedTime = differenceInMinutes(now, overtimeStart);
-        if (missedTime <= ATTENDANCE_CONSTANTS.AUTO_CHECKOUT_WINDOW) {
-          return this.createResponse(
-            true,
-            'ระบบจะทำการลงเวลาเข้า-ออกงานล่วงเวลาย้อนหลังให้',
-            {
-              inPremises,
-              address,
-              periodType: PeriodType.OVERTIME,
-              requireConfirmation: true,
-              flags: {
-                isOvertime: true,
-                isDayOffOvertime: true,
-                isInsideShift: approvedOvertime.isInsideShiftHours,
-                isAutoCheckIn: true,
-                isAutoCheckOut: true,
-              },
-              timing: {
-                actualStartTime: overtimeStart.toISOString(),
-                actualEndTime: min([now, overtimeEnd]).toISOString(),
-                missedCheckInTime: missedTime,
-              },
-              metadata: {
-                overtimeId: approvedOvertime.id,
-              },
-            },
-          );
-        }
-
-        // Regular overtime check-out
-        if (isWithinOvertimeWindow) {
+        } else {
+          // Handle checkout
           const isEarlyCheckOut = isBefore(now, overtimeEnd);
           const minutesEarly = isEarlyCheckOut
             ? differenceInMinutes(overtimeEnd, now)
@@ -555,7 +495,7 @@ export class AttendanceCheckService {
               timing: {
                 actualEndTime: now.toISOString(),
                 plannedEndTime: overtimeEnd.toISOString(),
-                minutesEarly: isEarlyCheckOut ? minutesEarly : 0,
+                minutesEarly,
                 checkoutStatus: this.getCheckoutStatus(now, overtimeEnd),
               },
               metadata: {
@@ -567,10 +507,7 @@ export class AttendanceCheckService {
       }
     }
 
-    console.log('No valid overtime found');
-    console.log(approvedOvertime, pendingOvertimeRequest);
-
-    // Fallback response for any unhandled cases
+    // Fallback for times outside overtime window
     return this.createResponse(
       false,
       `ไม่สามารถลงเวลาได้ใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}`,

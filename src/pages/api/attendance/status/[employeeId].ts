@@ -11,6 +11,8 @@ import {
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { NextApiRequest, NextApiResponse } from 'next';
+import { endOfDay, format, parseISO, startOfDay } from 'date-fns';
+import { raw } from '@prisma/client/runtime/library';
 
 // Initialize services
 const prisma = new PrismaClient();
@@ -78,16 +80,44 @@ export default async function handler(
     }
 
     // Get base attendance status and window in parallel
-
-    const [status, window] = await Promise.all([
+    const [status, window, validation] = await Promise.all([
       attendanceService.getBaseStatus(employeeId),
       services.shiftService.getCurrentWindow(employeeId, now),
+      inPremises
+        ? attendanceService.validateCheckInOut(
+            employeeId,
+            inPremises === 'true',
+            address || '',
+          )
+        : undefined,
     ]);
 
     console.log('API Data:', {
       rawStatus: status,
       rawWindow: window,
+      rawValidation: validation,
     });
+
+    // Special handling for day off with overtime
+    if (window?.isDayOff && window.overtimeInfo) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
+      );
+
+      window.current = {
+        start: overtimeStart,
+        end: overtimeEnd,
+      };
+    } else if (window?.isDayOff) {
+      // For day off without overtime, use full day
+      window.current = {
+        start: startOfDay(now),
+        end: endOfDay(now),
+      };
+    }
 
     // Ensure status has all required fields with defaults
     const normalizedStatus: AttendanceBaseResponse = {
@@ -112,15 +142,6 @@ export default async function handler(
           'Shift configuration error: Unable to calculate shift window. Please contact HR.',
       });
     }
-
-    // Only get validation if location is provided
-    const validation = inPremises
-      ? await attendanceService.validateCheckInOut(
-          employeeId,
-          inPremises === 'true',
-          address || '',
-        )
-      : undefined;
 
     // Cache headers for short-term caching
     res.setHeader('Cache-Control', 'private, max-age=30'); // 30 seconds
