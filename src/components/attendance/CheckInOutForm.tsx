@@ -321,9 +321,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-white pb-24">
+    <div className="min-h-screen flex flex-col bg-white">
       {step === 'info' && (
-        <div className="flex-1 flex flex-col">
+        <>
+          {/* Main content area */}
           <div className="flex-1 overflow-y-auto pb-32">
             <MobileAttendanceApp
               userData={{
@@ -354,9 +355,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                       : OvertimeState.NOT_STARTED
                     : undefined,
                 isManualEntry: false,
-                isDayOff: effectiveShift?.workDays
-                  ? !effectiveShift.workDays.includes(getCurrentTime().getDay())
-                  : false,
+                isDayOff: isDayOff,
                 shiftStartTime: effectiveShift?.startTime,
                 shiftEndTime: effectiveShift?.endTime,
               }}
@@ -373,47 +372,37 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                     }
                   : null
               }
-              validation={{
-                allowed: !!validation?.allowed,
-                reason: validation?.reason,
+              locationState={{
+                isReady: locationState.status === 'ready',
+                error: locationState.error || undefined,
               }}
               onAction={() =>
                 handleAction(
                   !currentPeriod?.checkInTime ? 'checkIn' : 'checkOut',
                 )
               }
-              locationState={{
-                isReady: locationState.status === 'ready',
-                error: locationState.error || undefined,
-              }}
             />
           </div>
 
-          {/* Only ActionButton in fixed footer */}
-          <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-sm border-t border-gray-100">
-            <div className="container max-w-md mx-auto px-4 pb-safe pt-4">
-              <ActionButton
-                isEnabled={!!validation?.allowed}
-                validationMessage={validation?.reason}
-                nextWindowTime={
-                  currentPeriod?.type === 'overtime' && !validation?.allowed
-                    ? new Date(currentPeriod.current.start)
-                    : undefined
-                }
-                isCheckingIn={!currentPeriod?.checkInTime}
-                onAction={() =>
-                  handleAction(
-                    !currentPeriod?.checkInTime ? 'checkIn' : 'checkOut',
-                  )
-                }
-                locationState={{
-                  isReady: locationState.status === 'ready',
-                  error: locationState.error || undefined,
-                }}
-              />
-            </div>
-          </div>
-        </div>
+          {/* Single ActionButton */}
+          <ActionButton
+            isEnabled={!!validation?.allowed}
+            validationMessage={validation?.reason}
+            nextWindowTime={
+              currentPeriod?.type === 'overtime' && !validation?.allowed
+                ? new Date(currentPeriod.current.start)
+                : undefined
+            }
+            isCheckingIn={!currentPeriod?.checkInTime}
+            onAction={() =>
+              handleAction(!currentPeriod?.checkInTime ? 'checkIn' : 'checkOut')
+            }
+            locationState={{
+              isReady: locationState.status === 'ready',
+              error: locationState.error || undefined,
+            }}
+          />
+        </>
       )}
 
       {step === 'processing' && (

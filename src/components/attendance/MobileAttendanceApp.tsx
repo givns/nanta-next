@@ -211,33 +211,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           </div>
         )}
       </main>
-
-      {/* Fixed Footer - Action Area */}
-      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100">
-        <div className="p-4 pb-safe">
-          {validation?.reason && (
-            <div className="mb-4 p-3 bg-yellow-50 rounded-lg">
-              <div className="flex items-center gap-2 text-yellow-800">
-                <AlertCircle size={20} />
-                <span className="text-sm">{validation.reason}</span>
-              </div>
-            </div>
-          )}
-          <button
-            onClick={onAction}
-            disabled={!validation?.allowed || !locationState.isReady}
-            className={`w-full h-14 rounded-xl flex items-center justify-center gap-2 text-lg font-medium transition-all
-              ${
-                validation?.allowed && locationState.isReady
-                  ? 'bg-primary text-white hover:bg-primary-dark'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
-          >
-            {isCheckingIn ? 'เข้างาน' : 'ออกงาน'}
-            <ChevronRight size={20} />
-          </button>
-        </div>
-      </footer>
     </div>
   );
 };
