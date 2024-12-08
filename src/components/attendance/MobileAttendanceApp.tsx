@@ -210,7 +210,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               return (
                 <div className="text-sm text-gray-500 mt-1">
                   {!attendanceStatus.regularCheckOutTime && !status.isDayOff
-                    ? 'มีการทำงานล่วงเวลาต่อจากเวลางานปกติ: '
+                    ? 'มีการทำงานล่วงเวลาวันนี้: '
                     : 'เวลาทำงานล่วงเวลา: '}
                   {relevantOts.startTime} - {relevantOts.endTime} น.
                   <span className="ml-2 text-xs">
