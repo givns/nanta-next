@@ -277,13 +277,13 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
             </div>
 
             {/* Current Period Status */}
-            {currentPeriod?.type === 'overtime' && (
+            {currentPeriod?.type === 'overtime' && overtimeInfo && (
               <div className="mt-3 pt-3 border-t border-gray-200">
                 <div className="text-sm text-gray-700">
                   {isWithinOvertimePeriod
                     ? 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
                     : currentTime < new Date(currentPeriod.current.start)
-                      ? `เริ่มทำงานล่วงเวลาเวลา ${format(new Date(currentPeriod.current.start), 'HH:mm')} น.`
+                      ? `เริ่มทำงานล่วงเวลาเวลา ${overtimeInfo.startTime} น.`
                       : 'หมดเวลาทำงานล่วงเวลา'}
                 </div>
               </div>
