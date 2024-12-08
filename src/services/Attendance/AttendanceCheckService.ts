@@ -207,9 +207,7 @@ export class AttendanceCheckService {
 
       // 4. Check for day off overtime
       if (isDayOff) {
-        const dayOffOvertimeRequest =
-          await this.overtimeService.getDayOffOvertimeRequest(employeeId, now);
-
+        // Use the already fetched approvedOvertime
         return this.handleNonWorkingDayAttendance(
           'dayoff',
           approvedOvertime,
@@ -217,7 +215,7 @@ export class AttendanceCheckService {
           address,
           now,
           latestAttendance,
-          dayOffOvertimeRequest,
+          null, // Remove the extra fetch
         );
       }
 
