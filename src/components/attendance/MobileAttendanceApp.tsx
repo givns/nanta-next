@@ -94,6 +94,40 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     return null;
   };
 
+  const getCheckInTime = () => {
+    if (attendanceStatus.regularCheckInTime) {
+      return format(new Date(attendanceStatus.regularCheckInTime), 'HH:mm');
+    }
+    if (currentPeriod?.checkInTime) {
+      return format(new Date(currentPeriod.checkInTime), 'HH:mm');
+    }
+    if (
+      currentPeriod?.type === 'overtime' &&
+      attendanceStatus.checkStatus === 'checked-in' &&
+      currentPeriod.current?.start
+    ) {
+      return format(new Date(currentPeriod.current.start), 'HH:mm');
+    }
+    return '--:--';
+  };
+
+  const getCheckOutTime = () => {
+    if (attendanceStatus.regularCheckOutTime) {
+      return format(new Date(attendanceStatus.regularCheckOutTime), 'HH:mm');
+    }
+    if (currentPeriod?.checkOutTime) {
+      return format(new Date(currentPeriod.checkOutTime), 'HH:mm');
+    }
+    if (
+      currentPeriod?.type === 'overtime' &&
+      attendanceStatus.checkStatus === 'checked-in' && // Use checkStatus instead of isCheckingIn
+      currentPeriod.current?.end
+    ) {
+      return format(new Date(currentPeriod.current.end), 'HH:mm');
+    }
+    return '--:--';
+  };
+
   const isWithinOvertimePeriod =
     overtimeInfo && currentPeriod?.current
       ? isWithinInterval(currentTime, {
@@ -104,11 +138,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
   const shouldShowProgress =
     status.isDayOff || status.isHoliday ? isWithinOvertimePeriod : true;
-
-  const isAutoCheckIn =
-    currentPeriod?.type === 'overtime' &&
-    attendanceStatus.checkStatus === 'checked-in' &&
-    validation?.reason?.includes('ย้อนหลัง');
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -243,46 +272,22 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
-                <div className="font-medium">
-                  {currentPeriod?.type === 'overtime' && isAutoCheckIn
-                    ? format(new Date(currentPeriod.current.start), 'HH:mm')
-                    : currentPeriod?.checkInTime
-                      ? format(new Date(currentPeriod.checkInTime), 'HH:mm')
-                      : attendanceStatus.regularCheckInTime
-                        ? format(
-                            new Date(attendanceStatus.regularCheckInTime),
-                            'HH:mm',
-                          )
-                        : '--:--'}
-                </div>
+                <div className="font-medium">{getCheckInTime()}</div>
               </div>
               <div>
                 <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
-                <div className="font-medium">
-                  {currentPeriod?.type === 'overtime' && isAutoCheckIn
-                    ? format(new Date(currentPeriod.current.end), 'HH:mm')
-                    : currentPeriod?.checkOutTime
-                      ? format(new Date(currentPeriod.checkOutTime), 'HH:mm')
-                      : attendanceStatus.regularCheckOutTime
-                        ? format(
-                            new Date(attendanceStatus.regularCheckOutTime),
-                            'HH:mm',
-                          )
-                        : '--:--'}
-                </div>
+                <div className="font-medium">{getCheckOutTime()}</div>
               </div>
             </div>
 
-            {(currentPeriod?.type === 'overtime' ||
-              validation?.reason?.includes('ย้อนหลัง')) && (
+            {currentPeriod?.type === 'overtime' && (
               <div className="mt-3 pt-3 border-t border-gray-200">
                 <div className="text-sm text-gray-700">
                   {validation?.reason?.includes('ย้อนหลัง')
                     ? validation.reason
                     : isWithinOvertimePeriod
                       ? 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
-                      : currentPeriod &&
-                          currentTime < new Date(currentPeriod.current.start)
+                      : currentTime < new Date(currentPeriod.current.start)
                         ? `เริ่มทำงานล่วงเวลาเวลา ${overtimeInfo?.startTime} น.`
                         : 'หมดเวลาทำงานล่วงเวลา'}
                 </div>
