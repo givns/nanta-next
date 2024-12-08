@@ -7,16 +7,7 @@ import { formatDate, getCurrentTime } from '@/utils/dateUtils';
 import { ActionButton } from './ActionButton';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
-import {
-  CurrentPeriodInfo,
-  PeriodType,
-  AttendanceState,
-  CheckStatus,
-  LatestAttendance,
-  OvertimeState,
-  ShiftData,
-  AttendanceContextData,
-} from '@/types/attendance';
+import { PeriodType, OvertimeState } from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
 
 interface ProcessingState {

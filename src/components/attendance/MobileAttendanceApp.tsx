@@ -87,7 +87,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           <div className="flex items-center gap-3 mb-2">
             <User size={20} className="text-gray-400" />
             <div>
-              <div className="font-medium">{userData.name}</div>
+              <div className="font-medium text-2xl">{userData.name}</div>
               <div className="text-sm text-gray-500">
                 รหัส: {userData.employeeId}
               </div>
@@ -106,7 +106,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           <div className="p-4 border-b border-gray-100">
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
-                <Clock size={20} className="text-primary" />
+                <Clock size={30} className="text-primary" />
                 <span className="font-medium">สถานะการทำงาน</span>
               </div>
               {currentPeriod?.type === 'overtime' && (
