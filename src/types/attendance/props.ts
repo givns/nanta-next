@@ -241,6 +241,68 @@ export interface UserShiftInfoProps {
   isLoading?: boolean;
 }
 
+// Types
+export interface AttendanceContextData {
+  // Basic Info
+  userData: {
+    name: string;
+    employeeId: string;
+    departmentName: string;
+  };
+
+  // Shift Information
+  shift: {
+    data: ShiftData | null;
+    isHoliday: boolean;
+    isDayOff: boolean;
+  };
+
+  // Current Status
+  status: {
+    state: AttendanceState;
+    checkStatus: CheckStatus;
+    isCheckingIn: boolean;
+    currentPeriod: CurrentPeriodInfo | null;
+  };
+
+  // Attendance Records
+  attendance: {
+    regularCheckIn: Date | null;
+    regularCheckOut: Date | null;
+    isLate: boolean;
+    isEarly: boolean;
+  };
+
+  // Overtime Information
+  overtime: {
+    isActive: boolean;
+    info: OvertimeInfoUI | null;
+    checkIn: Date | null;
+    checkOut: Date | null;
+  };
+
+  // System State
+  system: {
+    isLoading: boolean;
+    locationReady: boolean;
+    locationError: string | null;
+    validation: {
+      allowed: boolean;
+      reason?: string;
+    } | null;
+  };
+}
+
+export interface OvertimeInfoUI {
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  isInsideShiftHours: boolean;
+  isDayOffOvertime: boolean;
+  reason?: string;
+}
+
 export interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
   message: string;

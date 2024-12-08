@@ -3,8 +3,7 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserData } from '@/types/user';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
-import { formatDate, formatTime, getCurrentTime } from '@/utils/dateUtils';
-import { UserShiftInfo } from './UserShiftInfo';
+import { formatDate, getCurrentTime } from '@/utils/dateUtils';
 import { ActionButton } from './ActionButton';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
@@ -12,43 +11,17 @@ import {
   CurrentPeriodInfo,
   PeriodType,
   AttendanceState,
-  ApprovedOvertimeInfo,
   CheckStatus,
   LatestAttendance,
   OvertimeState,
   ShiftData,
+  AttendanceContextData,
 } from '@/types/attendance';
-import { now } from 'lodash';
+import MobileAttendanceApp from './MobileAttendanceApp';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
   message: string;
-}
-
-interface UserShiftInfoStatus {
-  userData: UserData;
-  status: {
-    state: AttendanceState;
-    checkStatus: CheckStatus;
-    currentPeriod: CurrentPeriodInfo | null;
-    isHoliday: boolean;
-    isDayOff: boolean;
-    isOvertime: boolean;
-    latestAttendance: LatestAttendance;
-    approvedOvertime: OvertimeInfoUI | null; // Added this field
-  };
-  effectiveShift: ShiftData | null;
-  isLoading?: boolean;
-}
-
-export interface OvertimeInfoUI {
-  id: string;
-  startTime: string;
-  endTime: string;
-  durationMinutes: number;
-  isInsideShiftHours: boolean;
-  isDayOffOvertime: boolean;
-  reason?: string;
 }
 
 interface CheckInOutFormProps {
@@ -347,65 +320,75 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
-  const userShiftInfoStatus: UserShiftInfoStatus['status'] = {
-    state,
-    checkStatus,
-    currentPeriod,
-    isHoliday, // From useSimpleAttendance
-    isDayOff,
-    isOvertime: currentPeriod?.type === 'overtime',
-    approvedOvertime: overtimeContext
-      ? {
-          id: overtimeContext.id,
-          startTime: overtimeContext.startTime,
-          endTime: overtimeContext.endTime,
-          durationMinutes: overtimeContext.durationMinutes,
-          isInsideShiftHours: overtimeContext.isInsideShiftHours,
-          isDayOffOvertime: overtimeContext.isDayOffOvertime,
-          reason: overtimeContext.reason,
-        }
-      : null,
-    latestAttendance: {
-      id: '',
-      employeeId: userData.employeeId,
-      date: getCurrentTime().toISOString(),
-      regularCheckInTime: currentPeriod?.checkInTime || null,
-      regularCheckOutTime: currentPeriod?.checkOutTime || null,
-      state: state,
-      checkStatus: checkStatus,
-      overtimeState:
-        currentPeriod?.type === 'overtime'
-          ? currentPeriod.checkInTime
-            ? currentPeriod.checkOutTime
-              ? OvertimeState.COMPLETED
-              : OvertimeState.IN_PROGRESS
-            : OvertimeState.NOT_STARTED
-          : undefined,
-      isManualEntry: false,
-      isDayOff: effectiveShift?.workDays
-        ? !effectiveShift.workDays.includes(getCurrentTime().getDay())
-        : false,
-      shiftStartTime: effectiveShift?.startTime,
-      shiftEndTime: effectiveShift?.endTime,
-    },
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-white pb-24">
       {step === 'info' && (
         <div className="flex-1 flex flex-col">
           <div className="flex-1 overflow-y-auto pb-32">
-            {' '}
-            {/* Added pb-32 for button space */}
-            <UserShiftInfo
-              userData={userData}
-              status={userShiftInfoStatus}
-              effectiveShift={effectiveShift}
-              isLoading={isLoading}
+            <MobileAttendanceApp
+              userData={{
+                name: userData.name,
+                employeeId: userData.employeeId,
+                departmentName: userData.departmentName || '',
+              }}
+              shiftData={effectiveShift}
+              currentPeriod={currentPeriod}
+              status={{
+                isHoliday: isHoliday,
+                isDayOff: isDayOff,
+              }}
+              attendanceStatus={{
+                id: '',
+                employeeId: userData.employeeId,
+                date: getCurrentTime().toISOString(),
+                regularCheckInTime: currentPeriod?.checkInTime || null,
+                regularCheckOutTime: currentPeriod?.checkOutTime || null,
+                state: state,
+                checkStatus: checkStatus,
+                overtimeState:
+                  currentPeriod?.type === 'overtime'
+                    ? currentPeriod.checkInTime
+                      ? currentPeriod.checkOutTime
+                        ? OvertimeState.COMPLETED
+                        : OvertimeState.IN_PROGRESS
+                      : OvertimeState.NOT_STARTED
+                    : undefined,
+                isManualEntry: false,
+                isDayOff: effectiveShift?.workDays
+                  ? !effectiveShift.workDays.includes(getCurrentTime().getDay())
+                  : false,
+                shiftStartTime: effectiveShift?.startTime,
+                shiftEndTime: effectiveShift?.endTime,
+              }}
+              overtimeInfo={
+                overtimeContext
+                  ? {
+                      id: overtimeContext.id,
+                      startTime: overtimeContext.startTime,
+                      endTime: overtimeContext.endTime,
+                      durationMinutes: overtimeContext.durationMinutes,
+                      isInsideShiftHours: overtimeContext.isInsideShiftHours,
+                      isDayOffOvertime: overtimeContext.isDayOffOvertime,
+                      reason: overtimeContext.reason,
+                    }
+                  : null
+              }
+              validation={{
+                allowed: !!validation?.allowed,
+                reason: validation?.reason,
+              }}
+              onAction={() =>
+                handleAction(
+                  !currentPeriod?.checkInTime ? 'checkIn' : 'checkOut',
+                )
+              }
+              locationState={{
+                isReady: locationState.status === 'ready',
+                error: locationState.error || undefined,
+              }}
             />
           </div>
 
-          {/* Updated ActionButton container */}
           <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-sm border-t border-gray-100">
             <div className="container max-w-md mx-auto px-4 pb-safe pt-4">
               {validation?.reason && (
@@ -436,11 +419,13 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
         </div>
       )}
+
       {step === 'processing' && (
         <div className="absolute inset-0 z-50 bg-white">
           {renderProcessingView()}
         </div>
       )}
+
       <LateReasonModal
         isOpen={isLateModalOpen}
         onClose={() => setIsLateModalOpen(false)}
@@ -452,5 +437,4 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 };
-
 export default React.memo(CheckInOutForm);
