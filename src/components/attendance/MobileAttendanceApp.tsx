@@ -10,7 +10,6 @@ import {
   AttendanceState,
 } from '@/types/attendance';
 import { differenceInMinutes } from 'date-fns';
-import { toBangkokTime } from '@/utils/dateUtils';
 
 interface ShiftStatusInfo {
   isHoliday: boolean;
@@ -65,40 +64,31 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
 
-    // Parse the ISO strings to Date objects
-    const startDate = new Date(currentPeriod.current.start);
-    const endDate = new Date(currentPeriod.current.end);
+    // Get start and end times in milliseconds
+    const startTime = new Date(currentPeriod.current.start).getTime();
+    const endTime = new Date(currentPeriod.current.end).getTime();
 
-    // Get hours and minutes from parsed dates
-    const startHours = startDate.getHours();
-    const startMinutes = startDate.getMinutes();
-    const endHours = endDate.getHours();
-    const endMinutes = endDate.getMinutes();
+    // Get current time in milliseconds
+    const currentTimeMs = currentTime.getTime();
 
-    // Convert current time to minutes since start of day
-    const currentHours = currentTime.getHours();
-    const currentMinutes = currentTime.getMinutes();
-    const currentTotalMinutes = currentHours * 60 + currentMinutes;
+    // Calculate elapsed and total duration in milliseconds
+    const elapsedDuration = currentTimeMs - startTime;
+    const totalDuration = endTime - startTime;
 
-    // Convert period times to minutes since start of day
-    const startTotalMinutes = startHours * 60 + startMinutes;
-    const endTotalMinutes = endHours * 60 + endMinutes;
-
-    // Calculate progress
-    const totalDuration = endTotalMinutes - startTotalMinutes;
-    const elapsedDuration = currentTotalMinutes - startTotalMinutes;
+    // Calculate progress percentage
+    const progressPercentage = (elapsedDuration / totalDuration) * 100;
 
     console.log('Progress calculation:', {
-      current: `${currentHours}:${currentMinutes}`,
-      start: `${startHours}:${startMinutes}`,
-      end: `${endHours}:${endMinutes}`,
-      elapsed: elapsedDuration,
-      total: totalDuration,
-      percentage: (elapsedDuration / totalDuration) * 100,
+      currentTime: currentTimeMs,
+      startTime,
+      endTime,
+      elapsedDuration,
+      totalDuration,
+      percentage: progressPercentage,
     });
 
     if (elapsedDuration >= 0) {
-      return Math.min((elapsedDuration / totalDuration) * 100, 100);
+      return Math.min(progressPercentage, 100);
     }
 
     return 0;
