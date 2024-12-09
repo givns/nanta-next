@@ -315,15 +315,12 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
 
     if (now >= regularShiftEndTime) {
-      // Next window is the start of the next regular shift
       return parseISO(
-        `${format(addDays(now, 1), 'yyyy-MM-dd')}T${effectiveShift.regular.startTime}`,
+        `${format(addDays(now, 1), 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
       );
     } else if (now < regularShiftStartTime) {
-      // Current time is before the start of the regular shift
       return regularShiftStartTime;
     } else {
-      // Next window is the end of the current regular shift
       return regularShiftEndTime;
     }
   }
