@@ -308,15 +308,15 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   function getNextWindowStartTime(effectiveShift: EffectiveShift): Date | null {
     const now = getCurrentTime();
     const regularShiftStartTime = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
+      `${format(now, 'yyyy-MM-dd')}T${effectiveShift.regular.startTime}`,
     );
     const regularShiftEndTime = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${effectiveShift.current.endTime}`,
+      `${format(now, 'yyyy-MM-dd')}T${effectiveShift.regular.endTime}`,
     );
 
     if (now >= regularShiftEndTime) {
       return parseISO(
-        `${format(addDays(now, 1), 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
+        `${format(addDays(now, 1), 'yyyy-MM-dd')}T${effectiveShift.regular.startTime}`,
       );
     } else if (now < regularShiftStartTime) {
       return regularShiftStartTime;

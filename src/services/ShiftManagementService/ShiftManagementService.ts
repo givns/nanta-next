@@ -357,10 +357,10 @@ export class ShiftManagementService {
     return {
       id: shift.id,
       name: shift.name,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      workDays: shift.workDays,
       shiftCode: shift.shiftCode,
+      startTime: `${format(parseISO(`${format(new Date(), 'yyyy-MM-dd')}T${shift.startTime}`), 'HH:mm')}`,
+      endTime: `${format(parseISO(`${format(new Date(), 'yyyy-MM-dd')}T${shift.endTime}`), 'HH:mm')}`,
+      workDays: shift.workDays,
     };
   }
 
