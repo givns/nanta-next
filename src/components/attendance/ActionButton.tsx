@@ -6,7 +6,7 @@ import { AlertCircle } from 'lucide-react';
 interface ActionButtonProps {
   isEnabled: boolean;
   validationMessage?: string;
-  nextWindowTime?: Date;
+  nextWindowTime?: Date | null;
   isCheckingIn: boolean;
   isCheckingOut: boolean;
   isStartingOvertime: boolean;
@@ -52,7 +52,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
               {validationMessage && <p>{validationMessage}</p>}
               {nextWindowTime && (
                 <p>
-                  สามารถลงเวลาได้:{' '}
+                  <span>สามารถลงเวลาได้:</span>{' '}
                   {format(nextWindowTime, 'HH:mm', { locale: th })}
                 </p>
               )}

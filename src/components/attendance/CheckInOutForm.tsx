@@ -305,25 +305,26 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   }
 
-  function getNextWindowStartTime(effectiveShift: EffectiveShift): Date {
-    const now = getCurrentTime().getTime();
+  function getNextWindowStartTime(effectiveShift: EffectiveShift): Date | null {
+    const now = getCurrentTime();
     const regularShiftStartTime = parseISO(
-      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
-    ).getTime();
+      `${format(now, 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
+    );
     const regularShiftEndTime = parseISO(
-      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${effectiveShift.current.endTime}`,
-    ).getTime();
+      `${format(now, 'yyyy-MM-dd')}T${effectiveShift.current.endTime}`,
+    );
 
     if (now >= regularShiftEndTime) {
       // Next window is the start of the next regular shift
       return parseISO(
         `${format(addDays(now, 1), 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
       );
+    } else if (now < regularShiftStartTime) {
+      // Current time is before the start of the regular shift
+      return regularShiftStartTime;
     } else {
-      // Next window is the start of the current regular shift
-      return parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
-      );
+      // Next window is the end of the current regular shift
+      return regularShiftEndTime;
     }
   }
 
@@ -454,7 +455,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                   ? new Date(overtimeContext.endTime)
                   : currentPeriod.type === 'regular' && effectiveShift
                     ? currentPeriod.isComplete
-                      ? getNextWindowStartTime({
+                      ? null // No next window time to display
+                      : getNextWindowStartTime({
                           ...effectiveShift,
                           current: {
                             id: '',
@@ -474,15 +476,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                           },
                           isAdjusted: false,
                         })
-                      : new Date(currentPeriod.current.end)
                     : undefined
                 : undefined
             }
             isCheckingIn={
-              currentPeriod?.type === 'regular' && !base.isCheckingIn
+              currentPeriod?.type === 'regular' && !currentPeriod.checkInTime
             }
             isCheckingOut={
-              currentPeriod?.type === 'regular' && base.isCheckingIn
+              currentPeriod?.type === 'regular' &&
+              !!currentPeriod.checkInTime &&
+              !currentPeriod.checkOutTime
             }
             isStartingOvertime={
               currentPeriod?.type === 'overtime' && !base.isCheckingIn
@@ -519,4 +522,5 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 };
+
 export default React.memo(CheckInOutForm);
