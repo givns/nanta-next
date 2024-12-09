@@ -72,7 +72,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const totalDuration = shiftEndTime.getTime() - shiftStartTime.getTime();
     const elapsedDuration = currentTimeMs - shiftStartTime.getTime();
 
-    if (attendanceStatus.latestAttendance?.regularCheckInTime) {
+    if (elapsedDuration >= 0) {
       return Math.min((elapsedDuration / totalDuration) * 100, 100);
     }
 
