@@ -305,27 +305,24 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   }
 
-  function getNextWindowStartTime(
-    effectiveShift: EffectiveShift,
-    currentTime: Date,
-  ): Date {
-    const now = currentTime.getTime();
+  function getNextWindowStartTime(effectiveShift: EffectiveShift): Date {
+    const now = getCurrentTime().getTime();
     const regularShiftStartTime = parseISO(
-      `${format(currentTime, 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
+      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
     ).getTime();
     const regularShiftEndTime = parseISO(
-      `${format(currentTime, 'yyyy-MM-dd')}T${effectiveShift.current.endTime}`,
+      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${effectiveShift.current.endTime}`,
     ).getTime();
 
     if (now >= regularShiftEndTime) {
       // Next window is the start of the next regular shift
       return parseISO(
-        `${format(addDays(currentTime, 1), 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
+        `${format(addDays(now, 1), 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
       );
     } else {
       // Next window is the start of the current regular shift
       return parseISO(
-        `${format(currentTime, 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
+        `${format(now, 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
       );
     }
   }
@@ -457,29 +454,26 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                   ? new Date(overtimeContext.endTime)
                   : currentPeriod.type === 'regular' && effectiveShift
                     ? currentPeriod.isComplete
-                      ? getNextWindowStartTime(
-                          {
-                            ...effectiveShift,
-                            current: {
-                              id: '',
-                              name: '',
-                              shiftCode: '',
-                              startTime: startOfDay(new Date()).toISOString(),
-                              endTime: endOfDay(new Date()).toISOString(),
-                              workDays: [],
-                            },
-                            regular: {
-                              id: '',
-                              name: '',
-                              shiftCode: '',
-                              startTime: effectiveShift.startTime,
-                              endTime: effectiveShift.endTime,
-                              workDays: [],
-                            },
-                            isAdjusted: false,
+                      ? getNextWindowStartTime({
+                          ...effectiveShift,
+                          current: {
+                            id: '',
+                            name: '',
+                            shiftCode: '',
+                            startTime: startOfDay(new Date()).toISOString(),
+                            endTime: endOfDay(new Date()).toISOString(),
+                            workDays: [],
                           },
-                          new Date(),
-                        )
+                          regular: {
+                            id: '',
+                            name: '',
+                            shiftCode: '',
+                            startTime: effectiveShift.startTime,
+                            endTime: effectiveShift.endTime,
+                            workDays: [],
+                          },
+                          isAdjusted: false,
+                        })
                       : new Date(currentPeriod.current.end)
                     : undefined
                 : undefined
