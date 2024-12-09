@@ -115,8 +115,12 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckInTime) {
-      const checkInTime = format(latestAttendance.regularCheckInTime, 'HH:mm');
-      return checkInTime;
+      const checkInTime = new Date(latestAttendance.regularCheckInTime);
+      return checkInTime.toLocaleString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     }
     if (currentPeriod?.checkInTime) {
       return new Date(currentPeriod.checkInTime).toLocaleString('en-US', {
