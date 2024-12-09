@@ -10,6 +10,7 @@ import {
   AttendanceState,
 } from '@/types/attendance';
 import { differenceInMinutes } from 'date-fns';
+import { toBangkokTime } from '@/utils/dateUtils';
 
 interface ShiftStatusInfo {
   isHoliday: boolean;
@@ -59,10 +60,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const currentTime = new Date();
   console.log('Current time:', currentTime);
   console.log('attendanceStatus:', attendanceStatus);
-
-  const formattedregularCheckInTime =
-    attendanceStatus.latestAttendance?.regularCheckInTime;
-  console.log('formattedregularCheckInTime:', formattedregularCheckInTime);
 
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
@@ -118,12 +115,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckInTime) {
-      const checkInTime = new Date(latestAttendance.regularCheckInTime);
-      return checkInTime.toLocaleString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const checkInTime = format(latestAttendance.regularCheckInTime, 'HH:mm');
+      return checkInTime;
     }
     if (currentPeriod?.checkInTime) {
       return new Date(currentPeriod.checkInTime).toLocaleString('en-US', {
