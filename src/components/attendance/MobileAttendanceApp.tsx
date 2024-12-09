@@ -65,23 +65,11 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
 
-    console.log('Current Period:', {
-      start: currentPeriod.current.start,
-      end: currentPeriod.current.end,
-      type: typeof currentPeriod.current.start,
-      // Log full object to see structure
-      full: currentPeriod.current,
-    });
-
-    // For now, let's try parsing it as ISO string
-    const startDate = new Date(currentPeriod.current.start);
-    const endDate = new Date(currentPeriod.current.end);
-
-    // Get hours and minutes from parsed Date objects
-    const startHours = startDate.getHours();
-    const startMinutes = startDate.getMinutes();
-    const endHours = endDate.getHours();
-    const endMinutes = endDate.getMinutes();
+    // Direct access to hours and minutes from Date objects
+    const startHours = currentPeriod.current.start.getHours();
+    const startMinutes = currentPeriod.current.start.getMinutes();
+    const endHours = currentPeriod.current.end.getHours();
+    const endMinutes = currentPeriod.current.end.getMinutes();
 
     // Convert current time to minutes since start of day
     const currentHours = currentTime.getHours();
