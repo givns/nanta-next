@@ -274,7 +274,7 @@ export class CacheManager {
       : CheckStatus.CHECKED_IN;
   }
 
-  private determineOvertimeState(overtimeEntry: any): OvertimeState {
+  public determineOvertimeState(overtimeEntry: any): OvertimeState {
     if (!overtimeEntry.actualStartTime) {
       return OvertimeState.NOT_STARTED;
     }
