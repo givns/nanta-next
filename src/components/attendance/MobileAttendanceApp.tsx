@@ -65,15 +65,42 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
 
-    return Math.min(
-      (differenceInMinutes(currentTime, new Date(currentPeriod.current.start)) /
-        differenceInMinutes(
-          new Date(currentPeriod.current.end),
-          new Date(currentPeriod.current.start),
-        )) *
-        100,
-      100,
-    );
+    // Convert to ISO string first to get HH:mm
+    const startTime = currentPeriod.current.start.toISOString();
+    const endTime = currentPeriod.current.end.toISOString();
+
+    // Extract hours and minutes from period times
+    const [startHours, startMinutes] = startTime.split('T')[1].split(':');
+    const [endHours, endMinutes] = endTime.split('T')[1].split(':');
+
+    // Convert current time to minutes since start of day
+    const currentHours = currentTime.getHours();
+    const currentMinutes = currentTime.getMinutes();
+    const currentTotalMinutes = currentHours * 60 + currentMinutes;
+
+    // Convert period times to minutes since start of day
+    const startTotalMinutes =
+      parseInt(startHours) * 60 + parseInt(startMinutes);
+    const endTotalMinutes = parseInt(endHours) * 60 + parseInt(endMinutes);
+
+    // Calculate progress
+    const totalDuration = endTotalMinutes - startTotalMinutes;
+    const elapsedDuration = currentTotalMinutes - startTotalMinutes;
+
+    console.log('Progress calculation:', {
+      current: `${currentHours}:${currentMinutes}`,
+      start: `${startHours}:${startMinutes}`,
+      end: `${endHours}:${endMinutes}`,
+      elapsed: elapsedDuration,
+      total: totalDuration,
+      percentage: (elapsedDuration / totalDuration) * 100,
+    });
+
+    if (elapsedDuration >= 0) {
+      return Math.min((elapsedDuration / totalDuration) * 100, 100);
+    }
+
+    return 0;
   };
 
   const getRelevantOvertimes = () => {
