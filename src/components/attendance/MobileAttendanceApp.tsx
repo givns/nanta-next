@@ -64,17 +64,18 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
 
-    const shiftStartTime = new Date(
-      attendanceStatus.latestAttendance?.regularCheckInTime ||
-        currentPeriod.current.start,
-    );
+    const shiftStartTime = new Date(currentPeriod.current.start);
     const shiftEndTime = new Date(currentPeriod.current.end);
     const currentTimeMs = currentTime.getTime();
 
     const totalDuration = shiftEndTime.getTime() - shiftStartTime.getTime();
     const elapsedDuration = currentTimeMs - shiftStartTime.getTime();
 
-    return Math.min((elapsedDuration / totalDuration) * 100, 100);
+    if (attendanceStatus.latestAttendance?.regularCheckInTime) {
+      return Math.min((elapsedDuration / totalDuration) * 100, 100);
+    }
+
+    return 0;
   };
 
   const getRelevantOvertimes = () => {
