@@ -58,6 +58,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 }) => {
   const currentTime = new Date();
   console.log('Current time:', currentTime);
+  console.log('attendanceStatus:', attendanceStatus);
 
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
