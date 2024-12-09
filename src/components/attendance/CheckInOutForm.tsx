@@ -455,7 +455,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                   ? new Date(overtimeContext.endTime)
                   : currentPeriod.type === 'regular' && effectiveShift
                     ? currentPeriod.isComplete
-                      ? null // No next window time to display
+                      ? null
                       : getNextWindowStartTime({
                           ...effectiveShift,
                           current: {
@@ -476,7 +476,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                           },
                           isAdjusted: false,
                         })
-                    : undefined
+                    : new Date(currentPeriod.current.end)
                 : undefined
             }
             isCheckingIn={
@@ -522,5 +522,4 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 };
-
 export default React.memo(CheckInOutForm);
