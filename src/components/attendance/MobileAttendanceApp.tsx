@@ -9,6 +9,7 @@ import {
   ValidationResponse,
 } from '@/types/attendance';
 import { differenceInMinutes } from 'date-fns';
+import { formatBangkokTime, toBangkokTime } from '@/utils/dateUtils';
 
 interface ShiftStatusInfo {
   isHoliday: boolean;
@@ -95,7 +96,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckInTime) {
-      return format(new Date(latestAttendance.regularCheckInTime), 'HH:mm');
+      const bangkokTime = toBangkokTime(latestAttendance.regularCheckInTime);
+      return formatBangkokTime(bangkokTime, 'HH:mm');
     }
     if (currentPeriod?.checkInTime) {
       return format(new Date(currentPeriod.checkInTime), 'HH:mm');
@@ -114,7 +116,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckOutTime) {
-      return format(new Date(latestAttendance.regularCheckOutTime), 'HH:mm');
+      const bangkokTime = toBangkokTime(latestAttendance.regularCheckOutTime);
+      return formatBangkokTime(bangkokTime, 'HH:mm');
     }
     if (currentPeriod?.checkOutTime) {
       return format(new Date(currentPeriod.checkOutTime), 'HH:mm');
@@ -139,6 +142,19 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
   const shouldShowProgress =
     status.isDayOff || status.isHoliday ? isWithinOvertimePeriod : true;
+
+  const getProgressPercentage = () => {
+    if (!currentPeriod?.current) return 0;
+
+    const startTime = new Date(currentPeriod.current.start);
+    const endTime = new Date(currentPeriod.current.end);
+    const currentTimeMs = currentTime.getTime();
+
+    const totalDuration = endTime.getTime() - startTime.getTime();
+    const elapsedDuration = currentTimeMs - startTime.getTime();
+
+    return Math.min((elapsedDuration / totalDuration) * 100, 100);
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -254,18 +270,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                       : 'bg-blue-500'
                   }`}
                   style={{
-                    width: `${Math.min(
-                      (differenceInMinutes(
-                        currentTime,
-                        new Date(currentPeriod.current.start),
-                      ) /
-                        differenceInMinutes(
-                          new Date(currentPeriod.current.end),
-                          new Date(currentPeriod.current.start),
-                        )) *
-                        100,
-                      100,
-                    )}%`,
+                    width: `${shouldShowProgress ? getProgressPercentage() : 0}%`,
                   }}
                 />
               </div>
