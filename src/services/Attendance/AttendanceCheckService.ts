@@ -721,18 +721,14 @@ export class AttendanceCheckService {
       const lateThreshold = addMinutes(shiftStart, LATE_CHECK_IN_THRESHOLD);
 
       if (now < earlyWindow) {
-        return this.createResponse(
-          false,
-          `คุณมาเร็วเกินไป กรุณารอถึงเวลาเข้างาน`,
-          {
-            inPremises,
-            address,
-            periodType: PeriodType.REGULAR,
-            timing: {
-              plannedStartTime: shiftStart.toISOString(),
-            },
+        return this.createResponse(false, `กรุณารอถึงเวลาเข้างาน`, {
+          inPremises,
+          address,
+          periodType: PeriodType.REGULAR,
+          timing: {
+            plannedStartTime: shiftStart.toISOString(),
           },
-        );
+        });
       }
 
       const isLate = now > lateThreshold;
