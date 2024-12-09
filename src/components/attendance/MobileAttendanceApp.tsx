@@ -68,8 +68,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const startTime = new Date(currentPeriod.current.start).getTime();
     const endTime = new Date(currentPeriod.current.end).getTime();
 
-    // Get current time in milliseconds
-    const currentTimeMs = currentTime.getTime();
+    // Get current time in milliseconds, adjusted for timezone offset
+    const currentTimeMs =
+      new Date().getTime() - new Date().getTimezoneOffset() * 60 * 1000;
 
     // Calculate elapsed and total duration in milliseconds
     const elapsedDuration = currentTimeMs - startTime;
@@ -87,11 +88,11 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       percentage: progressPercentage,
     });
 
-    if (elapsedDuration >= 0) {
-      return Math.min(progressPercentage, 100);
+    if (elapsedDuration >= totalDuration) {
+      return 100;
     }
 
-    return 0;
+    return Math.max(0, Math.min(progressPercentage, 100));
   };
 
   const getRelevantOvertimes = () => {
