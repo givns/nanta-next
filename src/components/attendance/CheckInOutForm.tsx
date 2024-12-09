@@ -7,13 +7,9 @@ import { formatDate, getCurrentTime } from '@/utils/dateUtils';
 import { ActionButton } from './ActionButton';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
-import {
-  PeriodType,
-  OvertimeState,
-  ATTENDANCE_CONSTANTS,
-} from '@/types/attendance';
+import { PeriodType, ATTENDANCE_CONSTANTS } from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
-import { format, parseISO, subMinutes } from 'date-fns';
+import { endOfDay, format, parseISO, startOfDay, subMinutes } from 'date-fns';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -114,7 +110,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   // Handle attendance submission
-  const handleAttendanceSubmit = async () => {
+  const handleAttendanceSubmit = async (overtimeParams?: {
+    isOvertime: boolean;
+    overtimeRequestId?: string;
+  }) => {
     try {
       setProcessingState({
         status: 'loading',
@@ -140,12 +139,14 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         // Optional fields
         photo: '',
         reason: undefined,
-        isOvertime: currentPeriod?.type === 'overtime',
+        isOvertime:
+          overtimeParams?.isOvertime || currentPeriod?.type === 'overtime',
         isManualEntry: false,
         overtimeRequestId:
-          currentPeriod?.type === 'overtime'
+          overtimeParams?.overtimeRequestId ||
+          (currentPeriod?.type === 'overtime'
             ? currentPeriod.overtimeId
-            : undefined,
+            : undefined),
         earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
           ? 'planned'
           : validation?.flags.isEmergencyLeave
@@ -239,7 +240,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   // Handle action button click
   const handleAction = useCallback(
-    async (action: 'checkIn' | 'checkOut') => {
+    async (action: 'checkIn' | 'checkOut' | 'startOvertime') => {
       setError(null);
 
       if (!validation?.allowed) {
@@ -253,8 +254,20 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         if (action === 'checkIn') {
           setStep('processing');
           await handleAttendanceSubmit();
-        } else {
+        } else if (action === 'checkOut') {
           await handleCheckOut();
+        } else if (action === 'startOvertime') {
+          // Handle starting overtime
+          if (!currentPeriod || currentPeriod.type !== 'overtime') {
+            setError('Cannot start overtime at this time.');
+            return;
+          }
+
+          setStep('processing');
+          await handleAttendanceSubmit({
+            isOvertime: true,
+            overtimeRequestId: currentPeriod.overtimeId,
+          });
         }
       } catch (error: any) {
         console.error('Error in handleAction:', {
@@ -268,7 +281,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setStep('info');
       }
     },
-    [validation, handleCheckOut, handleAttendanceSubmit],
+    [validation, handleCheckOut, handleAttendanceSubmit, currentPeriod],
   );
 
   if (error || attendanceError) {
@@ -317,6 +330,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
+  const now = getCurrentTime();
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {step === 'info' && (
@@ -330,7 +345,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 departmentName: userData.departmentName || '',
               }}
               shiftData={effectiveShift}
-              currentPeriod={currentPeriod}
+              currentPeriod={
+                currentPeriod || {
+                  type: PeriodType.REGULAR,
+                  isComplete: false,
+                  current: {
+                    start: startOfDay(now).toISOString(),
+                    end: endOfDay(now).toISOString(),
+                  },
+                }
+              }
               status={{
                 isHoliday: isHoliday,
                 isDayOff: isDayOff,
@@ -387,6 +411,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
 
           {/* Single ActionButton */}
+          {/* Single ActionButton */}
           <ActionButton
             isEnabled={!!validation?.allowed}
             validationMessage={validation?.reason}
@@ -409,10 +434,22 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                     : undefined
                 : undefined
             }
-            isCheckingIn={base.isCheckingIn} // Use base.isCheckingIn
-            onAction={() =>
-              handleAction(base.isCheckingIn ? 'checkIn' : 'checkOut')
+            isCheckingIn={
+              currentPeriod?.type === 'regular' && !base.isCheckingIn
             }
+            isCheckingOut={
+              currentPeriod?.type === 'regular' && base.isCheckingIn
+            }
+            isStartingOvertime={
+              currentPeriod?.type === 'overtime' && !base.isCheckingIn
+            }
+            onAction={() => {
+              if (currentPeriod?.type === 'regular') {
+                handleAction(base.isCheckingIn ? 'checkOut' : 'checkIn');
+              } else if (currentPeriod?.type === 'overtime') {
+                handleAction('startOvertime');
+              }
+            }}
             locationState={{
               isReady: locationState.status === 'ready',
               error: locationState.error || undefined,

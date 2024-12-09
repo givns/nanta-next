@@ -8,6 +8,8 @@ interface ActionButtonProps {
   validationMessage?: string;
   nextWindowTime?: Date;
   isCheckingIn: boolean;
+  isCheckingOut: boolean;
+  isStartingOvertime: boolean;
   onAction: () => void;
   locationState: {
     isReady: boolean;
