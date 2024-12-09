@@ -1,15 +1,27 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { UserData } from '@/types/user';
+import { Shift, UserData } from '@/types/user';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
 import { formatDate, getCurrentTime } from '@/utils/dateUtils';
 import { ActionButton } from './ActionButton';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
-import { PeriodType, ATTENDANCE_CONSTANTS } from '@/types/attendance';
+import {
+  PeriodType,
+  ATTENDANCE_CONSTANTS,
+  EffectiveShift,
+  ShiftData,
+} from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
-import { endOfDay, format, parseISO, startOfDay, subMinutes } from 'date-fns';
+import {
+  addDays,
+  endOfDay,
+  format,
+  parseISO,
+  startOfDay,
+  subMinutes,
+} from 'date-fns';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -293,6 +305,31 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   }
 
+  function getNextWindowStartTime(
+    effectiveShift: EffectiveShift,
+    currentTime: Date,
+  ): Date {
+    const now = currentTime.getTime();
+    const regularShiftStartTime = parseISO(
+      `${format(currentTime, 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
+    ).getTime();
+    const regularShiftEndTime = parseISO(
+      `${format(currentTime, 'yyyy-MM-dd')}T${effectiveShift.current.endTime}`,
+    ).getTime();
+
+    if (now >= regularShiftEndTime) {
+      // Next window is the start of the next regular shift
+      return parseISO(
+        `${format(addDays(currentTime, 1), 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
+      );
+    } else {
+      // Next window is the start of the current regular shift
+      return parseISO(
+        `${format(currentTime, 'yyyy-MM-dd')}T${effectiveShift.current.startTime}`,
+      );
+    }
+  }
+
   const renderProcessingView = () => (
     <div className="flex flex-col items-center justify-center p-4">
       {processingState.status === 'loading' && (
@@ -411,26 +448,39 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
 
           {/* Single ActionButton */}
-          {/* Single ActionButton */}
           <ActionButton
             isEnabled={!!validation?.allowed}
             validationMessage={validation?.reason}
             nextWindowTime={
               !validation?.allowed && currentPeriod
                 ? currentPeriod.type === 'overtime' && overtimeContext
-                  ? subMinutes(
-                      parseISO(
-                        `${format(new Date(), 'yyyy-MM-dd')}T${overtimeContext.startTime}`,
-                      ),
-                      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-                    )
+                  ? new Date(overtimeContext.endTime)
                   : currentPeriod.type === 'regular' && effectiveShift
-                    ? subMinutes(
-                        parseISO(
-                          `${format(new Date(), 'yyyy-MM-dd')}T${effectiveShift.startTime}`,
-                        ),
-                        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-                      )
+                    ? currentPeriod.isComplete
+                      ? getNextWindowStartTime(
+                          {
+                            ...effectiveShift,
+                            current: {
+                              id: '',
+                              name: '',
+                              shiftCode: '',
+                              startTime: startOfDay(new Date()).toISOString(),
+                              endTime: endOfDay(new Date()).toISOString(),
+                              workDays: [],
+                            },
+                            regular: {
+                              id: '',
+                              name: '',
+                              shiftCode: '',
+                              startTime: effectiveShift.startTime,
+                              endTime: effectiveShift.endTime,
+                              workDays: [],
+                            },
+                            isAdjusted: false,
+                          },
+                          new Date(),
+                        )
+                      : new Date(currentPeriod.current.end)
                     : undefined
                 : undefined
             }
