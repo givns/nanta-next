@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, isWithinInterval } from 'date-fns';
+import { format, isWithinInterval, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import {
@@ -60,6 +60,10 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   console.log('Current time:', currentTime);
   console.log('attendanceStatus:', attendanceStatus);
 
+  const formattedregularCheckInTime =
+    attendanceStatus.latestAttendance?.regularCheckInTime;
+  console.log('formattedregularCheckInTime:', formattedregularCheckInTime);
+
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
 
@@ -114,7 +118,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckInTime) {
-      return format(new Date(latestAttendance.regularCheckInTime), 'HH:mm');
+      const checkInTime = parseISO(latestAttendance.regularCheckInTime);
+      return format(checkInTime, 'HH:mm');
     }
     if (currentPeriod?.checkInTime) {
       return format(new Date(currentPeriod.checkInTime), 'HH:mm');
@@ -133,7 +138,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckOutTime) {
-      return format(new Date(latestAttendance.regularCheckOutTime), 'HH:mm');
+      const checkInTime = parseISO(latestAttendance.regularCheckOutTime);
+      return format(checkInTime, 'HH:mm');
     }
     if (currentPeriod?.checkOutTime) {
       return format(new Date(currentPeriod.checkOutTime), 'HH:mm');
