@@ -183,8 +183,14 @@ export function useSimpleAttendance({
     state: data?.base.state || AttendanceState.ABSENT,
     checkStatus: data?.base.checkStatus || CheckStatus.PENDING,
     isCheckingIn: data?.base.isCheckingIn ?? true,
+    base: data?.base ?? {
+      state: AttendanceState.ABSENT,
+      checkStatus: CheckStatus.PENDING,
+      isCheckingIn: true,
+      latestAttendance: null, // Change to null instead of partial object
+    },
     effectiveShift: data?.window?.shift || null,
-    isDayOff: data?.window?.isDayOff || false, // Add this
+    isDayOff: data?.window?.isDayOff || false,
     isHoliday: data?.window?.isHoliday || false,
     currentPeriod,
     validation: data?.validation || null,
@@ -205,5 +211,5 @@ export function useSimpleAttendance({
     checkInOut,
     refreshAttendanceStatus: enhancedRefreshStatus,
     getCurrentLocation,
-  };
+  } as UseSimpleAttendanceReturn;
 }

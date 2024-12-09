@@ -52,7 +52,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     overtimeContext,
     isHoliday,
     isDayOff,
-    refreshAttendanceStatus, // Add this
+    refreshAttendanceStatus,
+    base,
   } = useSimpleAttendance({
     employeeId: userData.employeeId,
     lineUserId: userData.lineUserId || '',
@@ -334,27 +335,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 isHoliday: isHoliday,
                 isDayOff: isDayOff,
               }}
-              attendanceStatus={{
-                id: '',
-                employeeId: userData.employeeId,
-                date: getCurrentTime().toISOString(),
-                regularCheckInTime: currentPeriod?.checkInTime || null,
-                regularCheckOutTime: currentPeriod?.checkOutTime || null,
-                state: state,
-                checkStatus: checkStatus,
-                overtimeState:
-                  currentPeriod?.type === 'overtime'
-                    ? currentPeriod.checkInTime
-                      ? currentPeriod.checkOutTime
-                        ? OvertimeState.COMPLETED
-                        : OvertimeState.IN_PROGRESS
-                      : OvertimeState.NOT_STARTED
-                    : undefined,
-                isManualEntry: false,
-                isDayOff: isDayOff,
-                shiftStartTime: effectiveShift?.startTime,
-                shiftEndTime: effectiveShift?.endTime,
-              }}
+              attendanceStatus={base} // Pass base directly
               overtimeInfo={
                 overtimeContext
                   ? {
@@ -385,18 +366,15 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             isEnabled={!!validation?.allowed}
             validationMessage={validation?.reason}
             nextWindowTime={
-              // Show next window time when validation is not allowed
               !validation?.allowed && currentPeriod
-                ? // For overtime
-                  currentPeriod.type === 'overtime' && overtimeContext
+                ? currentPeriod.type === 'overtime' && overtimeContext
                   ? subMinutes(
                       parseISO(
                         `${format(new Date(), 'yyyy-MM-dd')}T${overtimeContext.startTime}`,
                       ),
                       ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
                     )
-                  : // For regular shift
-                    currentPeriod.type === 'regular' && effectiveShift
+                  : currentPeriod.type === 'regular' && effectiveShift
                     ? subMinutes(
                         parseISO(
                           `${format(new Date(), 'yyyy-MM-dd')}T${effectiveShift.startTime}`,
@@ -406,9 +384,9 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                     : undefined
                 : undefined
             }
-            isCheckingIn={!currentPeriod?.checkInTime}
+            isCheckingIn={base.isCheckingIn} // Use base.isCheckingIn
             onAction={() =>
-              handleAction(!currentPeriod?.checkInTime ? 'checkIn' : 'checkOut')
+              handleAction(base.isCheckingIn ? 'checkIn' : 'checkOut')
             }
             locationState={{
               isReady: locationState.status === 'ready',

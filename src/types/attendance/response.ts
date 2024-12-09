@@ -9,6 +9,7 @@ import { ShiftData } from './shift';
 import {
   AttendanceState,
   CheckStatus,
+  LatestAttendance,
   OvertimeState,
   PeriodType,
 } from './status';
@@ -35,10 +36,7 @@ export interface AttendanceStateResponse {
     state: AttendanceState;
     checkStatus: CheckStatus;
     isCheckingIn: boolean;
-    latestAttendance?: {
-      regularCheckInTime?: string;
-      regularCheckOutTime?: string;
-    };
+    latestAttendance: LatestAttendance | null; // Use full interface, can be null
   };
   window: ShiftWindowResponse;
   validation: ValidationResponse;

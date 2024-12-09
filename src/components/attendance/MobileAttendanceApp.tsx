@@ -1,11 +1,12 @@
 import React from 'react';
 import { format, isWithinInterval } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { AlertCircle, Clock, User, Building2, Calendar } from 'lucide-react';
+import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import {
   ShiftData,
   CurrentPeriodInfo,
-  LatestAttendance,
+  AttendanceStateResponse,
+  ValidationResponse,
 } from '@/types/attendance';
 import { differenceInMinutes } from 'date-fns';
 
@@ -23,12 +24,9 @@ interface MobileAttendanceAppProps {
   shiftData: ShiftData | null;
   currentPeriod: CurrentPeriodInfo | null;
   status: ShiftStatusInfo;
-  attendanceStatus: LatestAttendance;
+  attendanceStatus: AttendanceStateResponse['base'];
   overtimeInfo?: OvertimeInfoUI | null;
-  validation?: {
-    allowed: boolean;
-    reason?: string;
-  };
+  validation?: ValidationResponse;
   onAction: () => void;
   locationState: {
     isReady: boolean;
@@ -62,7 +60,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getRelevantOvertimes = () => {
     if (!overtimeInfo) return null;
 
-    const currentTime = new Date();
     const currentTimeStr = format(currentTime, 'HH:mm');
 
     if (Array.isArray(overtimeInfo)) {
@@ -95,15 +92,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   };
 
   const getCheckInTime = () => {
-    if (attendanceStatus.regularCheckInTime) {
-      return format(new Date(attendanceStatus.regularCheckInTime), 'HH:mm');
+    const latestAttendance = attendanceStatus.latestAttendance;
+
+    if (latestAttendance?.regularCheckInTime) {
+      return format(new Date(latestAttendance.regularCheckInTime), 'HH:mm');
     }
     if (currentPeriod?.checkInTime) {
       return format(new Date(currentPeriod.checkInTime), 'HH:mm');
     }
     if (
       currentPeriod?.type === 'overtime' &&
-      attendanceStatus.checkStatus === 'checked-in' &&
+      !attendanceStatus.isCheckingIn &&
       currentPeriod.current?.start
     ) {
       return format(new Date(currentPeriod.current.start), 'HH:mm');
@@ -112,15 +111,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   };
 
   const getCheckOutTime = () => {
-    if (attendanceStatus.regularCheckOutTime) {
-      return format(new Date(attendanceStatus.regularCheckOutTime), 'HH:mm');
+    const latestAttendance = attendanceStatus.latestAttendance;
+
+    if (latestAttendance?.regularCheckOutTime) {
+      return format(new Date(latestAttendance.regularCheckOutTime), 'HH:mm');
     }
     if (currentPeriod?.checkOutTime) {
       return format(new Date(currentPeriod.checkOutTime), 'HH:mm');
     }
     if (
       currentPeriod?.type === 'overtime' &&
-      attendanceStatus.checkStatus === 'checked-in' && // Use checkStatus instead of isCheckingIn
+      !attendanceStatus.isCheckingIn &&
       currentPeriod.current?.end
     ) {
       return format(new Date(currentPeriod.current.end), 'HH:mm');
@@ -230,7 +231,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
               return (
                 <div className="text-sm text-gray-500 mt-1">
-                  {!attendanceStatus.regularCheckOutTime && !status.isDayOff
+                  {!attendanceStatus.latestAttendance?.regularCheckOutTime &&
+                  !status.isDayOff
                     ? 'มีการทำงานล่วงเวลาวันนี้: '
                     : 'เวลาทำงานล่วงเวลา: '}
                   {relevantOts.startTime} - {relevantOts.endTime} น.
@@ -286,7 +288,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                   {validation?.reason?.includes('ย้อนหลัง')
                     ? validation.reason
                     : isWithinOvertimePeriod
-                      ? 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
+                      ? attendanceStatus.isCheckingIn
+                        ? 'กำลังจะลงเวลาเข้างานล่วงเวลา'
+                        : 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
                       : currentTime < new Date(currentPeriod.current.start)
                         ? `เริ่มทำงานล่วงเวลาเวลา ${overtimeInfo?.startTime} น.`
                         : 'หมดเวลาทำงานล่วงเวลา'}

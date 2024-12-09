@@ -161,6 +161,7 @@ export interface UseSimpleAttendanceReturn {
   state: AttendanceState;
   checkStatus: CheckStatus;
   isCheckingIn: boolean;
+  base: AttendanceStateResponse['base']; // Add this to expose base
 
   // Shift and period info
   currentPeriod: CurrentPeriodInfo | null;
