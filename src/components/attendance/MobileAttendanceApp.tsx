@@ -65,13 +65,11 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
 
-    // Convert to ISO string first to get HH:mm
-    const startTime = currentPeriod.current.start.toISOString();
-    const endTime = currentPeriod.current.end.toISOString();
-
-    // Extract hours and minutes from period times
-    const [startHours, startMinutes] = startTime.split('T')[1].split(':');
-    const [endHours, endMinutes] = endTime.split('T')[1].split(':');
+    // Get hours and minutes from Date objects
+    const startHours = currentPeriod.current.start.getHours();
+    const startMinutes = currentPeriod.current.start.getMinutes();
+    const endHours = currentPeriod.current.end.getHours();
+    const endMinutes = currentPeriod.current.end.getMinutes();
 
     // Convert current time to minutes since start of day
     const currentHours = currentTime.getHours();
@@ -79,9 +77,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const currentTotalMinutes = currentHours * 60 + currentMinutes;
 
     // Convert period times to minutes since start of day
-    const startTotalMinutes =
-      parseInt(startHours) * 60 + parseInt(startMinutes);
-    const endTotalMinutes = parseInt(endHours) * 60 + parseInt(endMinutes);
+    const startTotalMinutes = startHours * 60 + startMinutes;
+    const endTotalMinutes = endHours * 60 + endMinutes;
 
     // Calculate progress
     const totalDuration = endTotalMinutes - startTotalMinutes;

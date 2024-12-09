@@ -692,43 +692,15 @@ export class AttendanceCheckService {
     address: string,
     latestAttendance: AttendanceRecord | null,
     approvedOvertime: ApprovedOvertimeInfo | null,
-    p0: {
-      id: string;
-      employeeId: string;
-      updatedAt: Date;
-      reason: string;
-      status: string;
-      createdAt: Date;
-      leaveType: string;
-      leaveFormat: string;
-      startDate: Date;
-      endDate: Date;
-      fullDayCount: number;
-      approverId: string | null;
-      denierId: string | null;
-      denialReason: string | null;
-      resubmitted: boolean;
-      originalRequestId: string | null;
-    }[],
+    leaveRequests: LeaveRequest[], // Update param name
     effectiveShift: any,
   ): CheckInOutAllowance {
     if (!shiftData?.effectiveShift) {
       return this.createResponse(false, 'ไม่พบข้อมูลกะการทำงานของคุณ', {
         inPremises,
         address,
-        periodType: PeriodType.OVERTIME,
+        periodType: PeriodType.REGULAR, // Fix periodType
       });
-    }
-
-    if (approvedOvertime && this.isAtOvertimeStart(now, approvedOvertime)) {
-      return this.handleApprovedOvertime(
-        approvedOvertime,
-        now,
-        inPremises,
-        address,
-        !latestAttendance?.regularCheckInTime,
-        latestAttendance,
-      )!;
     }
 
     const shiftStart = this.shiftService.utils.parseShiftTime(
@@ -744,24 +716,7 @@ export class AttendanceCheckService {
     const EARLY_CHECK_IN_WINDOW = 30; // minutes
     const LATE_CHECK_IN_THRESHOLD = 5; // minutes
 
-    if (isAfter(now, shiftEnd)) {
-      return this.createResponse(
-        false,
-        'ไม่สามารถลงเวลาได้เนื่องจากเลยเวลาทำงานแล้ว',
-        {
-          inPremises,
-          address,
-          periodType: PeriodType.REGULAR,
-          flags: {
-            isLateCheckOut: true,
-            isOutsideShift: true,
-          },
-        },
-      );
-    }
-
     if (isCheckingIn) {
-      // Handle check-in
       const earlyWindow = subMinutes(shiftStart, EARLY_CHECK_IN_WINDOW);
       const lateThreshold = addMinutes(shiftStart, LATE_CHECK_IN_THRESHOLD);
 
@@ -772,7 +727,10 @@ export class AttendanceCheckService {
           {
             inPremises,
             address,
-            periodType: PeriodType.OVERTIME,
+            periodType: PeriodType.REGULAR,
+            timing: {
+              plannedStartTime: shiftStart.toISOString(),
+            },
           },
         );
       }
@@ -784,7 +742,7 @@ export class AttendanceCheckService {
         {
           inPremises,
           address,
-          periodType: PeriodType.OVERTIME,
+          periodType: PeriodType.REGULAR,
           flags: {
             isLateCheckIn: isLate,
           },
@@ -793,21 +751,21 @@ export class AttendanceCheckService {
           },
         },
       );
-    } else {
-      // Redirect to handleCheckOut for consistent checkout logic
-      return this.handleCheckOut(
-        now,
-        shiftEnd,
-        shiftEnd,
-        approvedOvertime,
-        null,
-        inPremises,
-        address,
-        [],
-        effectiveShift,
-        latestAttendance,
-      );
     }
+
+    // Handle checkout
+    return this.handleCheckOut(
+      now,
+      shiftEnd,
+      shiftEnd,
+      approvedOvertime,
+      null,
+      inPremises,
+      address,
+      leaveRequests,
+      effectiveShift,
+      latestAttendance,
+    );
   }
 
   // Update handleApprovedOvertime to be more focused
@@ -954,7 +912,7 @@ export class AttendanceCheckService {
       });
     }
 
-    // 2. Check if within active overtime period
+    // 2. Check overtime transition
     if (approvedOvertime) {
       const overtimeStart = parseISO(
         `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
@@ -975,7 +933,6 @@ export class AttendanceCheckService {
         );
       }
 
-      // Handle transition to overtime if at start
       const overtimeResponse = this.handleApprovedOvertime(
         approvedOvertime,
         now,
@@ -987,15 +944,24 @@ export class AttendanceCheckService {
       if (overtimeResponse) return overtimeResponse;
     }
 
-    // 3. Regular shift checkout handling
-    return this.handleRegularShiftCheckout(
-      now,
-      shiftEnd,
-      inPremises,
-      address,
-      leaveRequests,
-      effectiveShift,
-      latestAttendance,
+    // 3. Regular checkout - Always allow if already checked in
+    const isLateCheckOut = isAfter(now, shiftEnd);
+
+    return this.createResponse(
+      true,
+      isLateCheckOut ? 'คุณกำลังลงเวลาออกงานล่าช้า' : 'คุณกำลังลงเวลาออกงาน',
+      {
+        inPremises,
+        address,
+        periodType: PeriodType.REGULAR,
+        flags: {
+          isLateCheckOut,
+          isOutsideShift: isLateCheckOut,
+        },
+        timing: {
+          plannedEndTime: shiftEnd.toISOString(),
+        },
+      },
     );
   }
 
