@@ -118,7 +118,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckInTime) {
-      const checkInTime = parseISO(latestAttendance.regularCheckInTime);
+      const checkInTime = new Date(latestAttendance.regularCheckInTime);
       return format(checkInTime, 'HH:mm');
     }
     if (currentPeriod?.checkInTime) {
@@ -138,7 +138,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckOutTime) {
-      const checkInTime = parseISO(latestAttendance.regularCheckOutTime);
+      const checkInTime = new Date(latestAttendance.regularCheckOutTime);
       return format(checkInTime, 'HH:mm');
     }
     if (currentPeriod?.checkOutTime) {
