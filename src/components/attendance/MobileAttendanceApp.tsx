@@ -115,30 +115,28 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckInTime) {
-      const checkInTime = new Date(latestAttendance.regularCheckInTime);
-      return checkInTime.toLocaleString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const [hours, minutes] = latestAttendance.regularCheckInTime
+        .split('T')[1]
+        .split(':');
+      return `${hours}:${minutes}`;
     }
     if (currentPeriod?.checkInTime) {
-      return new Date(currentPeriod.checkInTime).toLocaleString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const [hours, minutes] = new Date(currentPeriod.checkInTime)
+        .toISOString()
+        .split('T')[1]
+        .split(':');
+      return `${hours}:${minutes}`;
     }
     if (
       currentPeriod?.type === 'overtime' &&
       !attendanceStatus.isCheckingIn &&
       currentPeriod.current?.start
     ) {
-      return new Date(currentPeriod.current.start).toLocaleString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const [hours, minutes] = new Date(currentPeriod.current.start)
+        .toISOString()
+        .split('T')[1]
+        .split(':');
+      return `${hours}:${minutes}`;
     }
     return '--:--';
   };
@@ -147,30 +145,28 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckOutTime) {
-      const checkOutTime = new Date(latestAttendance.regularCheckOutTime);
-      return checkOutTime.toLocaleString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const [hours, minutes] = latestAttendance.regularCheckOutTime
+        .split('T')[1]
+        .split(':');
+      return `${hours}:${minutes}`;
     }
     if (currentPeriod?.checkOutTime) {
-      return new Date(currentPeriod.checkOutTime).toLocaleString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const [hours, minutes] = new Date(currentPeriod.checkOutTime)
+        .toISOString()
+        .split('T')[1]
+        .split(':');
+      return `${hours}:${minutes}`;
     }
     if (
       currentPeriod?.type === 'overtime' &&
       !attendanceStatus.isCheckingIn &&
       currentPeriod.current?.end
     ) {
-      return new Date(currentPeriod.current.end).toLocaleString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const [hours, minutes] = new Date(currentPeriod.current.end)
+        .toISOString()
+        .split('T')[1]
+        .split(':');
+      return `${hours}:${minutes}`;
     }
     return '--:--';
   };
