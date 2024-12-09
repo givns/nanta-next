@@ -119,17 +119,29 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     if (latestAttendance?.regularCheckInTime) {
       const checkInTime = new Date(latestAttendance.regularCheckInTime);
-      return format(checkInTime, 'HH:mm');
+      return checkInTime.toLocaleString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     }
     if (currentPeriod?.checkInTime) {
-      return format(new Date(currentPeriod.checkInTime), 'HH:mm');
+      return new Date(currentPeriod.checkInTime).toLocaleString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     }
     if (
       currentPeriod?.type === 'overtime' &&
       !attendanceStatus.isCheckingIn &&
       currentPeriod.current?.start
     ) {
-      return format(new Date(currentPeriod.current.start), 'HH:mm');
+      return new Date(currentPeriod.current.start).toLocaleString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     }
     return '--:--';
   };
@@ -138,18 +150,30 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const latestAttendance = attendanceStatus.latestAttendance;
 
     if (latestAttendance?.regularCheckOutTime) {
-      const checkInTime = new Date(latestAttendance.regularCheckOutTime);
-      return format(checkInTime, 'HH:mm');
+      const checkOutTime = new Date(latestAttendance.regularCheckOutTime);
+      return checkOutTime.toLocaleString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     }
     if (currentPeriod?.checkOutTime) {
-      return format(new Date(currentPeriod.checkOutTime), 'HH:mm');
+      return new Date(currentPeriod.checkOutTime).toLocaleString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     }
     if (
       currentPeriod?.type === 'overtime' &&
       !attendanceStatus.isCheckingIn &&
       currentPeriod.current?.end
     ) {
-      return format(new Date(currentPeriod.current.end), 'HH:mm');
+      return new Date(currentPeriod.current.end).toLocaleString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     }
     return '--:--';
   };
