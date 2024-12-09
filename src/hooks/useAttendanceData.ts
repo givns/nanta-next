@@ -56,7 +56,6 @@ export function useAttendanceData({
         const responseData = response.data;
         console.log('Raw API Response:', responseData); // Add this log
 
-        // Fix the mapping to use status instead of base
         return {
           base: {
             state: responseData.status?.state ?? AttendanceState.ABSENT,
@@ -64,10 +63,15 @@ export function useAttendanceData({
               responseData.status?.checkStatus ?? CheckStatus.PENDING,
             isCheckingIn: responseData.status?.isCheckingIn ?? true,
             latestAttendance: responseData.base?.latestAttendance ?? {
-              regularCheckInTime: null,
-              regularCheckOutTime: null,
-              overtimeState: undefined,
-              isManualEntry: false,
+              regularCheckInTime:
+                responseData.status?.latestAttendance?.regularCheckInTime ??
+                null,
+              regularCheckOutTime:
+                responseData.status?.latestAttendance?.regularCheckOutTime ??
+                null,
+              OvertimeState,
+              isManualEntry:
+                responseData.status?.latestAttendance?.isManualEntry ?? false,
               isDayOff: false,
             },
           },
