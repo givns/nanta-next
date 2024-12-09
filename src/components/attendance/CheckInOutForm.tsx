@@ -335,7 +335,34 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 isHoliday: isHoliday,
                 isDayOff: isDayOff,
               }}
-              attendanceStatus={base} // Pass base directly
+              attendanceStatus={{
+                state: base.state,
+                checkStatus: base.checkStatus,
+                isCheckingIn: base.isCheckingIn,
+                latestAttendance: base.latestAttendance
+                  ? {
+                      id: base.latestAttendance.id || '', // Provide fallback for required fields
+                      employeeId: userData.employeeId,
+                      date: getCurrentTime().toISOString(),
+                      regularCheckInTime:
+                        base.latestAttendance.regularCheckInTime,
+                      regularCheckOutTime:
+                        base.latestAttendance.regularCheckOutTime,
+                      state: base.state,
+                      checkStatus: base.checkStatus,
+                      overtimeState: base.latestAttendance.overtimeState,
+                      isManualEntry:
+                        base.latestAttendance.isManualEntry ?? false,
+                      isDayOff: base.latestAttendance.isDayOff ?? false,
+                      shiftStartTime:
+                        base.latestAttendance.shiftStartTime ??
+                        effectiveShift?.startTime,
+                      shiftEndTime:
+                        base.latestAttendance.shiftEndTime ??
+                        effectiveShift?.endTime,
+                    }
+                  : null,
+              }}
               overtimeInfo={
                 overtimeContext
                   ? {
@@ -354,9 +381,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 error: locationState.error || undefined,
               }}
               onAction={() =>
-                handleAction(
-                  !currentPeriod?.checkInTime ? 'checkIn' : 'checkOut',
-                )
+                handleAction(base.isCheckingIn ? 'checkIn' : 'checkOut')
               }
             />
           </div>
