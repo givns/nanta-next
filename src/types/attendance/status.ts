@@ -206,17 +206,7 @@ export interface AttendanceStatusInfo {
   }>;
   futureOvertimes: Array<ApprovedOvertimeInfo>;
   overtimeAttendances: OvertimeAttendanceInfo[];
-  currentPeriod: {
-    type: PeriodType;
-    overtimeId?: string;
-    isComplete: boolean;
-    checkInTime?: string | null;
-    checkOutTime?: string | null;
-    current: {
-      start: Date;
-      end: Date;
-    };
-  };
+  currentPeriod: CurrentPeriodInfo;
   nextPeriod?: {
     type: PeriodType;
     startTime: string;
@@ -341,8 +331,8 @@ export interface CurrentPeriodInfo {
   checkOutTime?: string | null;
   isComplete: boolean;
   current: {
-    start: Date;
-    end: Date;
+    start: string;
+    end: string;
   };
   next?: NextPeriod;
 }

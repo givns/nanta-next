@@ -128,7 +128,17 @@ export function useSimpleAttendance({
   const currentPeriod: CurrentPeriodInfo | null = data?.window
     ? {
         type: data.window.type,
-        current: data.window.current,
+        current: {
+          // Convert to ISO strings for consistency
+          start:
+            data.window.current.start instanceof Date
+              ? data.window.current.start.toISOString()
+              : data.window.current.start,
+          end:
+            data.window.current.end instanceof Date
+              ? data.window.current.end.toISOString()
+              : data.window.current.end,
+        },
         isComplete: Boolean(data.base.latestAttendance?.regularCheckOutTime),
         checkInTime: data.base.latestAttendance?.regularCheckInTime ?? null,
         checkOutTime: data.base.latestAttendance?.regularCheckOutTime ?? null,

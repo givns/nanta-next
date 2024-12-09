@@ -152,8 +152,8 @@ export const CurrentPeriodSchema = z.object({
   overtimeId: z.string().optional(),
   isComplete: z.boolean().default(false),
   current: z.object({
-    start: DateStringOrDate,
-    end: DateStringOrDate,
+    start: z.string(),
+    end: z.string(),
   }),
 });
 

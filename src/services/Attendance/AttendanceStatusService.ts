@@ -25,7 +25,6 @@ import {
   AttendanceStatusInfo,
   CheckStatus,
   CurrentPeriodInfo,
-  OvertimeState,
   PeriodType,
   AttendanceRecord,
   ShiftWindows,
@@ -84,8 +83,8 @@ export class AttendanceStatusService {
         type: PeriodType.REGULAR,
         isComplete: false,
         current: {
-          start: startOfDay(now),
-          end: endOfDay(now),
+          start: format(startOfDay(now), 'yyyy-MM-dd HH:mm:ss'),
+          end: format(endOfDay(now), 'yyyy-MM-dd HH:mm:ss'),
         },
       },
       pendingLeaveRequest: false,
@@ -310,7 +309,7 @@ export class AttendanceStatusService {
           end: endOfDay(now),
         };
 
-    let current: { start: Date; end: Date };
+    let current: { start: string; end: string };
 
     if (overtime) {
       const dateStr = format(now, 'yyyy-MM-dd');
@@ -335,8 +334,8 @@ export class AttendanceStatusService {
       // If current time is within early window or overtime period
       if (isAfter(now, earlyWindow)) {
         current = {
-          start: earlyWindow,
-          end: lateWindow,
+          start: earlyWindow.toISOString(),
+          end: lateWindow.toISOString(), // Convert lateWindow to string
         };
 
         return {
@@ -352,19 +351,21 @@ export class AttendanceStatusService {
 
     if (shiftWindows) {
       current = {
-        start: new Date(shiftWindows.start),
-        end: new Date(shiftWindows.end),
+        start: shiftWindows.start.toISOString(),
+        end: shiftWindows.end.toISOString(),
       };
     } else {
       current = {
-        start: startOfDay(now),
-        end: endOfDay(now),
+        start: startOfDay(now).toISOString(),
+        end: endOfDay(now).toISOString(),
       };
     }
 
     // Validate dates
-    if (!isValid(current.start)) current.start = startOfDay(now);
-    if (!isValid(current.end)) current.end = endOfDay(now);
+    if (!isValid(new Date(current.start)))
+      current.start = startOfDay(now).toISOString();
+    if (!isValid(new Date(current.end)))
+      current.end = endOfDay(now).toISOString();
 
     return {
       type: PeriodType.REGULAR,
