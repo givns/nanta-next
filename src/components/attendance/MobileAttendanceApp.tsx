@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, isWithinInterval, parseISO } from 'date-fns';
+import { format, isValid, isWithinInterval, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import {
@@ -69,23 +69,33 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
 
-    // Parse dates in local timezone to match the server's UTC dates
-    const startTime = new Date(currentPeriod.current.start);
-    const endTime = new Date(currentPeriod.current.end);
-    const now = new Date();
+    // If already checked out, return 100%
+    if (attendanceStatus?.latestAttendance?.regularCheckOutTime) {
+      return 100;
+    }
 
-    // Adjust for UTC offset
-    const tzOffset = now.getTimezoneOffset() * 60000;
-    const adjustedNow = new Date(now.getTime() - tzOffset);
-    const adjustedStart = new Date(startTime.getTime() - tzOffset);
-    const adjustedEnd = new Date(endTime.getTime() - tzOffset);
+    try {
+      // Parse all dates with date-fns
+      const periodStart = parseISO(currentPeriod.current.start);
+      const periodEnd = parseISO(currentPeriod.current.end);
+      const now = new Date();
 
-    const progress =
-      ((adjustedNow.getTime() - adjustedStart.getTime()) /
-        (adjustedEnd.getTime() - adjustedStart.getTime())) *
-      100;
+      // Validate dates before calculation
+      if (!isValid(periodStart) || !isValid(periodEnd)) {
+        console.error('Invalid period dates:', currentPeriod.current);
+        return 0;
+      }
 
-    return Math.max(0, Math.min(progress, 100));
+      const progress =
+        ((now.getTime() - periodStart.getTime()) /
+          (periodEnd.getTime() - periodStart.getTime())) *
+        100;
+
+      return Math.max(0, Math.min(progress, 100));
+    } catch (error) {
+      console.error('Progress calculation error:', error);
+      return 0;
+    }
   };
 
   const getRelevantOvertimes = () => {
