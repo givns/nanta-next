@@ -66,41 +66,25 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     type: typeof currentPeriod?.current?.start,
   });
   const getProgressPercentage = () => {
-    if (!currentPeriod?.current?.start || !currentPeriod?.current?.end)
-      return 0;
+    if (!currentPeriod?.current) return 0;
 
-    try {
-      const startTime = new Date(currentPeriod.current.start);
-      const endTime = new Date(currentPeriod.current.end);
-      const currentTimeMs = currentTime.getTime();
+    const startTime = new Date(currentPeriod.current.start);
+    const endTime = new Date(currentPeriod.current.end);
+    const now = new Date();
 
-      if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-        console.error('Invalid date values:', {
-          start: currentPeriod.current.start,
-          end: currentPeriod.current.end,
-        });
-        return 0;
-      }
+    // Calculate times in UTC milliseconds
+    const startMs = startTime.valueOf();
+    const endMs = endTime.valueOf();
+    const currentMs = now.valueOf();
 
-      const elapsedDuration = currentTimeMs - startTime.getTime();
-      const totalDuration = endTime.getTime() - startTime.getTime();
+    const elapsedDuration = currentMs - startMs;
+    const totalDuration = endMs - startMs;
 
-      if (totalDuration <= 0) {
-        console.error('Invalid duration:', totalDuration);
-        return 0;
-      }
+    if (totalDuration <= 0) return 0;
 
-      const progressPercentage = (elapsedDuration / totalDuration) * 100;
+    const progressPercentage = (elapsedDuration / totalDuration) * 100;
 
-      if (elapsedDuration >= totalDuration) {
-        return 100;
-      }
-
-      return Math.max(0, Math.min(progressPercentage, 100));
-    } catch (error) {
-      console.error('Error calculating progress:', error);
-      return 0;
-    }
+    return Math.max(0, Math.min(progressPercentage, 100));
   };
 
   const getRelevantOvertimes = () => {
