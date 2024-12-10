@@ -91,9 +91,16 @@ export class ShiftManagementService {
   ): Promise<EffectiveShift | null> {
     const cacheKey = `shift:${employeeId}:${formatDate(date)}`;
     const cached = await getCacheData(cacheKey);
-    if (cached) return JSON.parse(cached);
 
-    // Get user's default shift
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (err) {
+        console.error('Cache parse error:', err);
+      }
+    }
+
+    // Rest of the method remains same
     const user = await this.prisma.user.findUnique({
       where: { employeeId },
       select: { shiftCode: true },
@@ -104,7 +111,7 @@ export class ShiftManagementService {
     const regularShift = await this.getShiftByCode(user.shiftCode);
     if (!regularShift) return null;
 
-    // Check for adjustment
+    // Get adjustment and build result
     const adjustment = await this.prisma.shiftAdjustmentRequest.findFirst({
       where: {
         employeeId,
@@ -140,7 +147,7 @@ export class ShiftManagementService {
       adjustment,
     };
 
-    await setCacheData(cacheKey, JSON.parse(JSON.stringify(result)), 3600); // Cache for 1 hour
+    await setCacheData(cacheKey, JSON.stringify(result), 3600);
     return result;
   }
 
