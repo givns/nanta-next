@@ -66,25 +66,23 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     type: typeof currentPeriod?.current?.start,
   });
   const getProgressPercentage = () => {
-    if (!currentPeriod?.current) return 0;
+    console.log('Start of getProgressPercentage');
+    if (!currentPeriod?.current) {
+      console.log('No current period');
+      return 0;
+    }
+
+    console.log('Parsing dates:', {
+      start: currentPeriod.current.start,
+      end: currentPeriod.current.end,
+    });
 
     const startTime = new Date(currentPeriod.current.start);
+    console.log('startTime:', startTime);
     const endTime = new Date(currentPeriod.current.end);
+    console.log('endTime:', endTime);
     const now = new Date();
-
-    // Calculate times in UTC milliseconds
-    const startMs = startTime.valueOf();
-    const endMs = endTime.valueOf();
-    const currentMs = now.valueOf();
-
-    const elapsedDuration = currentMs - startMs;
-    const totalDuration = endMs - startMs;
-
-    if (totalDuration <= 0) return 0;
-
-    const progressPercentage = (elapsedDuration / totalDuration) * 100;
-
-    return Math.max(0, Math.min(progressPercentage, 100));
+    console.log('now:', now);
   };
 
   const getRelevantOvertimes = () => {
