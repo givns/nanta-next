@@ -8,6 +8,7 @@ import {
   AttendanceStateResponse,
   ValidationResponse,
   AttendanceState,
+  OvertimeState,
 } from '@/types/attendance';
 import { differenceInMinutes } from 'date-fns';
 
@@ -69,29 +70,35 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getProgressPercentage = () => {
     if (!currentPeriod?.current) return 0;
 
-    // If already checked out, return 100%
+    // Check completion based on period type
     if (attendanceStatus?.latestAttendance?.regularCheckOutTime) {
-      return 100;
+      if (
+        currentPeriod.type === 'overtime' &&
+        attendanceStatus.latestAttendance.overtimeState ===
+          OvertimeState.COMPLETED
+      ) {
+        return 100;
+      }
+      if (
+        currentPeriod.type === 'regular' &&
+        !attendanceStatus.latestAttendance.isOvertime
+      ) {
+        return 100;
+      }
     }
 
     try {
-      // Parse all dates with date-fns
-      const periodStart = parseISO(currentPeriod.current.start);
-      const periodEnd = parseISO(currentPeriod.current.end);
+      const start = new Date(currentPeriod.current.start);
+      const end = new Date(currentPeriod.current.end);
       const now = new Date();
 
-      // Validate dates before calculation
-      if (!isValid(periodStart) || !isValid(periodEnd)) {
-        console.error('Invalid period dates:', currentPeriod.current);
-        return 0;
-      }
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
 
-      const progress =
-        ((now.getTime() - periodStart.getTime()) /
-          (periodEnd.getTime() - periodStart.getTime())) *
-        100;
+      const elapsed = now.getTime() - start.getTime();
+      const total = end.getTime() - start.getTime();
 
-      return Math.max(0, Math.min(progress, 100));
+      if (total <= 0) return 0;
+      return Math.max(0, Math.min((elapsed / total) * 100, 100));
     } catch (error) {
       console.error('Progress calculation error:', error);
       return 0;

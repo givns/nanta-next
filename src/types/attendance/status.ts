@@ -239,6 +239,7 @@ export interface LatestAttendance {
   date: string;
   regularCheckInTime: string | null;
   regularCheckOutTime: string | null;
+  isOvertime?: boolean;
   state: AttendanceState;
   checkStatus: CheckStatus;
   overtimeState?: OvertimeState;
