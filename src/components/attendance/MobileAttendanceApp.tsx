@@ -65,24 +65,27 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     end: currentPeriod?.current?.end,
     type: typeof currentPeriod?.current?.start,
   });
+
   const getProgressPercentage = () => {
-    console.log('Start of getProgressPercentage');
-    if (!currentPeriod?.current) {
-      console.log('No current period');
-      return 0;
-    }
+    if (!currentPeriod?.current) return 0;
 
-    console.log('Parsing dates:', {
-      start: currentPeriod.current.start,
-      end: currentPeriod.current.end,
-    });
-
+    // Parse dates in local timezone to match the server's UTC dates
     const startTime = new Date(currentPeriod.current.start);
-    console.log('startTime:', startTime);
     const endTime = new Date(currentPeriod.current.end);
-    console.log('endTime:', endTime);
     const now = new Date();
-    console.log('now:', now);
+
+    // Adjust for UTC offset
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const adjustedNow = new Date(now.getTime() - tzOffset);
+    const adjustedStart = new Date(startTime.getTime() - tzOffset);
+    const adjustedEnd = new Date(endTime.getTime() - tzOffset);
+
+    const progress =
+      ((adjustedNow.getTime() - adjustedStart.getTime()) /
+        (adjustedEnd.getTime() - adjustedStart.getTime())) *
+      100;
+
+    return Math.max(0, Math.min(progress, 100));
   };
 
   const getRelevantOvertimes = () => {
