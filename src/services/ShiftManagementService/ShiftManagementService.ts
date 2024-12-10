@@ -10,6 +10,9 @@ import {
   ShiftAdjustment,
   ShiftStatus,
   ShiftWindowResponse,
+  ShiftData,
+  ATTENDANCE_CONSTANTS,
+  ShiftWindows,
 } from '@/types/attendance';
 import {
   PrismaClient,
@@ -18,11 +21,6 @@ import {
   Department,
   User,
 } from '@prisma/client';
-import {
-  ShiftData,
-  ATTENDANCE_CONSTANTS,
-  ShiftWindows,
-} from '../../types/attendance';
 import {
   endOfDay,
   startOfDay,
@@ -315,9 +313,6 @@ export class ShiftManagementService {
       result: attendance,
     });
 
-    // Get the latest overtime entry if exists
-    const latestOvertimeEntry = attendance?.overtimeEntries?.[0];
-
     const result: AttendanceBaseResponse = {
       state: (attendance?.state as AttendanceState) || AttendanceState.ABSENT,
       checkStatus:
@@ -437,8 +432,6 @@ export class ShiftManagementService {
       }
 
       const isWithinOt = isWithinInterval(now, { start: otStart, end: otEnd });
-      const isBeforeRegularShift = otEnd <= windows.start;
-      const isAfterRegularShift = otStart >= windows.end;
 
       // Handle different overtime scenarios
       if (isWithinOt) {
@@ -511,11 +504,19 @@ export class ShiftManagementService {
         start:
           currentPeriod.type === PeriodType.REGULAR
             ? windows.start.toISOString()
-            : currentPeriod.overtimeInfo?.startTime!,
+            : currentPeriod.overtimeInfo
+              ? parseISO(
+                  `${format(date, 'yyyy-MM-dd')}T${currentPeriod.overtimeInfo.startTime}`,
+                ).toISOString()
+              : windows.start.toISOString(),
         end:
           currentPeriod.type === PeriodType.REGULAR
             ? windows.end.toISOString()
-            : currentPeriod.overtimeInfo?.endTime!,
+            : currentPeriod.overtimeInfo
+              ? parseISO(
+                  `${format(date, 'yyyy-MM-dd')}T${currentPeriod.overtimeInfo.endTime}`,
+                ).toISOString()
+              : windows.end.toISOString(),
       },
       type: currentPeriod.type,
       shift: this.mapShiftData(effectiveShift),
