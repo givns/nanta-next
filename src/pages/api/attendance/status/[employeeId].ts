@@ -11,7 +11,7 @@ import {
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { addDays, endOfDay, format, parseISO, startOfDay } from 'date-fns';
+import { endOfDay, format, parseISO, startOfDay } from 'date-fns';
 import { raw } from '@prisma/client/runtime/library';
 
 // Initialize services
@@ -117,24 +117,6 @@ export default async function handler(
       window.current = {
         start: startOfDay(now),
         end: endOfDay(now),
-      };
-    } else if (window?.overtimeInfo) {
-      // Handle regular day overtime
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
-      );
-      let overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
-      );
-
-      // Handle overnight case
-      if (overtimeEnd < overtimeStart) {
-        overtimeEnd = addDays(overtimeEnd, 1);
-      }
-
-      window.current = {
-        start: overtimeStart,
-        end: overtimeEnd,
       };
     }
 
