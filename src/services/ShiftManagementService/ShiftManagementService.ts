@@ -354,15 +354,12 @@ export class ShiftManagementService {
 
     // Get overtime periods
     const overtimePeriods =
-      (await this.overtimeService?.getCurrentApprovedOvertimeRequest(
+      await this.overtimeService?.getCurrentApprovedOvertimeRequest(
         employeeId,
         today,
-      )) || [];
+      );
 
-    const sortedOvertimes = (overtimePeriods as ApprovedOvertimeInfo[]).sort(
-      (a, b) =>
-        parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime(),
-    );
+    const sortedOvertimes = overtimePeriods ? [overtimePeriods] : [];
 
     // Handle incomplete overtime
     const incompleteOvertime =
