@@ -3,7 +3,7 @@
 import { UserData } from '../user';
 import { HolidayInfo, LeaveRequest } from './leave';
 import { FutureShift, ShiftAdjustmentInfo, ShiftData } from './shift';
-import { OvertimeEntryData } from './overtime';
+import { OvertimeContext, OvertimeEntryData, OvertimeInfo } from './overtime';
 
 export enum AttendanceState {
   PRESENT = 'present',
@@ -223,14 +223,14 @@ export interface AttendanceStatusInfo {
 
 export interface CurrentPeriod {
   type: PeriodType;
-  overtimeId?: string;
+  overtimeInfo?: OvertimeContext;
   isComplete: boolean;
 }
 
 export interface NextPeriod {
   type: PeriodType;
   startTime: string;
-  overtimeId?: string;
+  overtimeInfo?: OvertimeContext;
 }
 
 export interface LatestAttendance {

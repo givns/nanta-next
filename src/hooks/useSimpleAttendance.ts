@@ -131,13 +131,17 @@ export function useSimpleAttendance({
         current: {
           // Convert to ISO strings for consistency
           start:
-            data.window.current.start instanceof Date
-              ? data.window.current.start.toISOString()
-              : data.window.current.start,
+            typeof data.window.current.start === 'string'
+              ? data.window.current.start
+              : (data.window.current.start as Date)
+                ? (data.window.current.start as Date).toISOString()
+                : '',
           end:
-            data.window.current.end instanceof Date
-              ? data.window.current.end.toISOString()
-              : data.window.current.end,
+            typeof data.window.current.end === 'string'
+              ? data.window.current.end
+              : (data.window.current.end as Date)
+                ? (data.window.current.end as Date).toISOString()
+                : '',
         },
         isComplete: Boolean(data.base.latestAttendance?.CheckOutTime),
         checkInTime: data.base.latestAttendance?.CheckInTime ?? null,

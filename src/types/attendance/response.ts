@@ -10,10 +10,12 @@ import {
   AttendanceState,
   CheckStatus,
   LatestAttendance,
+  NextPeriod,
   OvertimeState,
   PeriodType,
 } from './status';
 import { ValidationResult } from './validation';
+import { OvertimeContext } from './overtime';
 
 export interface AttendanceResponse
   extends SuccessResponse<{
@@ -128,8 +130,8 @@ export interface ErrorResponse extends BaseResponse {
 
 export interface ShiftWindowResponse {
   current: {
-    start: Date;
-    end: Date;
+    start: string;
+    end: string;
   };
   type: PeriodType;
   shift: {
@@ -147,19 +149,9 @@ export interface ShiftWindowResponse {
     name: string;
     date: string;
   };
-  overtimeInfo?: {
-    startTime: string;
-    endTime: string;
-    durationMinutes: number;
-    isInsideShiftHours: boolean;
-    isDayOffOvertime: boolean;
-    reason: string;
-    id: string;
-  };
-  futureShifts?: Array<{
-    date: string;
-    shift: ShiftData;
-  }>;
+  overtimeInfo?: OvertimeContext;
+
+  nextPeriod?: NextPeriod | null;
 }
 
 export interface CheckInOutResponse {

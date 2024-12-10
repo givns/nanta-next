@@ -1,5 +1,11 @@
 import {
+  ApprovedOvertimeInfo,
+  AttendanceBaseResponse,
+  AttendanceState,
+  CheckStatus,
+  CurrentPeriod,
   EffectiveShift,
+  NextPeriod,
   PeriodType,
   ShiftAdjustment,
   ShiftStatus,
@@ -12,18 +18,15 @@ import {
   Department,
   User,
 } from '@prisma/client';
-import axios from 'axios';
 import {
   ShiftData,
   ATTENDANCE_CONSTANTS,
-  EffectiveShiftResult,
   ShiftWindows,
 } from '../../types/attendance';
 import {
   endOfDay,
   startOfDay,
   addMinutes,
-  isBefore,
   isAfter,
   addDays,
   subDays,
@@ -32,22 +35,11 @@ import {
   isWithinInterval,
   subMinutes,
 } from 'date-fns';
-import {
-  formatDate,
-  formatDateTime,
-  getCurrentTime,
-  toBangkokTime,
-} from '../../utils/dateUtils';
+import { formatDate, getCurrentTime } from '../../utils/dateUtils';
 import { HolidayService } from '../HolidayService';
-import {
-  getCacheData,
-  setCacheData,
-  invalidateCachePattern,
-} from '../../lib/serverCache';
+import { getCacheData, setCacheData } from '../../lib/serverCache';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { ShiftTimeUtils } from './utils';
-import { duration } from 'moment-timezone';
-import { over } from 'lodash';
 
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
@@ -292,80 +284,261 @@ export class ShiftManagementService {
     return this.calculateShiftWindows(effectiveShift.current, date);
   }
 
+  async getBaseStatus(employeeId: string): Promise<AttendanceBaseResponse> {
+    const cacheKey = `attendance:status:${employeeId}`;
+    const cached = await getCacheData(cacheKey);
+    if (cached) return JSON.parse(cached);
+
+    const now = getCurrentTime();
+    const attendance = await this.prisma.attendance.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(now),
+          lt: endOfDay(now),
+        },
+      },
+      include: {
+        overtimeEntries: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    console.log('Raw attendance from DB:', {
+      query: {
+        employeeId,
+        dateRange: {
+          start: startOfDay(now),
+          end: endOfDay(now),
+        },
+      },
+      result: attendance,
+    });
+
+    // Get the latest overtime entry if exists
+    const latestOvertimeEntry = attendance?.overtimeEntries?.[0];
+
+    const result: AttendanceBaseResponse = {
+      state: (attendance?.state as AttendanceState) || AttendanceState.ABSENT,
+      checkStatus:
+        (attendance?.checkStatus as CheckStatus) || CheckStatus.PENDING,
+      isCheckingIn: !attendance?.CheckInTime,
+      latestAttendance: attendance
+        ? {
+            CheckInTime: attendance.CheckInTime ?? undefined,
+            CheckOutTime: attendance.CheckOutTime ?? undefined,
+            isLateCheckIn: attendance.isLateCheckIn ?? false,
+            isOvertime: attendance.isOvertime ?? false,
+          }
+        : undefined,
+    };
+
+    console.log('getBaseStatus result before cache:', result);
+
+    await setCacheData(cacheKey, JSON.stringify(result), 300);
+    return result;
+  }
+
   async getCurrentWindow(
     employeeId: string,
     date: Date,
   ): Promise<ShiftWindowResponse | null> {
-    // Get effective shift data
+    const now = getCurrentTime();
+    const today = startOfDay(now);
+
+    // Get current attendance status
+    const attendanceStatus = await this.getBaseStatus(employeeId);
+    const latestAttendance = attendanceStatus?.latestAttendance;
+
+    // Get shift data
     const shiftData = await this.getEffectiveShiftAndStatus(employeeId, date);
-    if (!shiftData) return null;
+    if (!shiftData?.effectiveShift) return null;
 
-    const { effectiveShift, shiftstatus, windows } = shiftData;
+    const { effectiveShift, shiftstatus } = shiftData;
+    const windows = this.calculateShiftWindows(effectiveShift, date);
 
-    // Get holiday info if it's a holiday
-    let holidayInfo;
-    if (shiftstatus.isHoliday) {
-      const holidays = await this.holidayService.getHolidays(
-        startOfDay(date),
-        startOfDay(date),
+    // Get overtime periods
+    const overtimePeriods =
+      (await this.overtimeService?.getCurrentApprovedOvertimeRequest(
+        employeeId,
+        today,
+      )) || [];
+
+    const sortedOvertimes = (overtimePeriods as ApprovedOvertimeInfo[]).sort(
+      (a, b) =>
+        parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime(),
+    );
+
+    // Handle incomplete overtime
+    const incompleteOvertime =
+      latestAttendance?.CheckInTime &&
+      !latestAttendance?.CheckOutTime &&
+      attendanceStatus?.state === AttendanceState.INCOMPLETE;
+
+    if (incompleteOvertime) {
+      const matchingOt = sortedOvertimes.find(
+        (ot: ApprovedOvertimeInfo) =>
+          parseISO(`${format(date, 'yyyy-MM-dd')}T${ot.startTime}`).getTime() <=
+          (latestAttendance?.CheckInTime
+            ? new Date(latestAttendance.CheckInTime).getTime()
+            : 0),
       );
-      if (holidays.length > 0) {
-        holidayInfo = {
-          name: holidays[0].name,
-          date: format(holidays[0].date, 'yyyy-MM-dd'),
+
+      if (matchingOt) {
+        const currentPeriod: CurrentPeriod = {
+          type: PeriodType.OVERTIME,
+          overtimeInfo: {
+            id: matchingOt.id,
+            startTime: matchingOt.startTime,
+            endTime: matchingOt.endTime,
+            durationMinutes: matchingOt.durationMinutes,
+            isInsideShiftHours: matchingOt.isInsideShiftHours,
+            isDayOffOvertime: matchingOt.isDayOffOvertime,
+            reason: matchingOt.reason || '',
+          },
+          isComplete: true,
+        };
+
+        return {
+          current: {
+            start: parseISO(
+              `${format(date, 'yyyy-MM-dd')}T${matchingOt.startTime}`,
+            ).toISOString(),
+            end: parseISO(
+              `${format(date, 'yyyy-MM-dd')}T${matchingOt.endTime}`,
+            ).toISOString(),
+          },
+          type: currentPeriod.type,
+          shift: this.mapShiftData(effectiveShift),
+          isHoliday: shiftstatus.isHoliday,
+          isDayOff: shiftstatus.isDayOff,
+          isAdjusted: shiftData.regularShift.id !== effectiveShift.id,
+          overtimeInfo: currentPeriod.overtimeInfo,
+          nextPeriod: null,
         };
       }
     }
 
-    // Get overtime info if exists
-    let overtimeInfo;
-    if (this.overtimeService) {
-      const overtimeRequest =
-        await this.overtimeService.getCurrentApprovedOvertimeRequest(
-          employeeId,
-          date,
+    // Determine current period based on time and attendance state
+    let currentPeriod: CurrentPeriod = {
+      type: PeriodType.REGULAR,
+      isComplete:
+        latestAttendance?.CheckOutTime !== undefined ||
+        attendanceStatus?.state !== AttendanceState.INCOMPLETE,
+    };
+
+    // Check active overtime periods
+    for (const ot of sortedOvertimes) {
+      const otStart = parseISO(`${format(date, 'yyyy-MM-dd')}T${ot.startTime}`);
+      const otEnd = parseISO(`${format(date, 'yyyy-MM-dd')}T${ot.endTime}`);
+
+      if (ot.endTime < ot.startTime) {
+        otEnd.setDate(otEnd.getDate() + 1);
+      }
+
+      const isWithinOt = isWithinInterval(now, { start: otStart, end: otEnd });
+      const isBeforeRegularShift = otEnd <= windows.start;
+      const isAfterRegularShift = otStart >= windows.end;
+
+      // Handle different overtime scenarios
+      if (isWithinOt) {
+        // Don't switch to overtime if previous period incomplete
+        if (
+          attendanceStatus?.state === AttendanceState.INCOMPLETE &&
+          !latestAttendance?.CheckOutTime
+        ) {
+          continue;
+        }
+
+        currentPeriod = {
+          type: PeriodType.OVERTIME,
+          overtimeInfo: {
+            id: ot.id,
+            startTime: ot.startTime,
+            endTime: ot.endTime,
+            durationMinutes: ot.durationMinutes,
+            isInsideShiftHours: ot.isInsideShiftHours,
+            isDayOffOvertime: ot.isDayOffOvertime,
+            reason: ot.reason || '', // Ensure 'reason' is a non-optional string
+          },
+          isComplete: true,
+        };
+        break;
+      }
+    }
+
+    // Determine next period
+    let nextPeriod: NextPeriod | null = null;
+    if (currentPeriod.isComplete) {
+      // Find next available period
+      if (currentPeriod.type === PeriodType.REGULAR) {
+        const nextOt = sortedOvertimes.find(
+          (ot) =>
+            parseISO(`${format(date, 'yyyy-MM-dd')}T${ot.startTime}`) > now,
         );
-      if (overtimeRequest) {
-        overtimeInfo = {
-          id: overtimeRequest.id,
-          startTime: overtimeRequest.startTime,
-          endTime: overtimeRequest.endTime,
-          durationMinutes: overtimeRequest.durationMinutes,
-          isInsideShiftHours: overtimeRequest.isInsideShiftHours,
-          isDayOffOvertime: overtimeRequest.isDayOffOvertime,
-          reason: overtimeRequest.reason ?? '', // Provide default empty string value
-        };
+        if (nextOt) {
+          nextPeriod = {
+            type: PeriodType.OVERTIME,
+            startTime: nextOt.startTime,
+            overtimeInfo: {
+              id: nextOt.id,
+              startTime: nextOt.startTime,
+              endTime: nextOt.endTime,
+              durationMinutes: nextOt.durationMinutes,
+              isInsideShiftHours: nextOt.isInsideShiftHours,
+              isDayOffOvertime: nextOt.isDayOffOvertime,
+              reason: nextOt.reason || '',
+            },
+          };
+        } else {
+          nextPeriod = {
+            type: PeriodType.REGULAR,
+            startTime: effectiveShift.startTime,
+          };
+        }
+      } else if (currentPeriod.type === PeriodType.OVERTIME) {
+        if (now < windows.start) {
+          nextPeriod = {
+            type: PeriodType.REGULAR,
+            startTime: effectiveShift.startTime,
+          };
+        }
       }
     }
-
-    // Get future shifts if any
-    const futureShifts = await this.getFutureShifts(employeeId, date);
 
     return {
       current: {
-        start: windows.start,
-        end: windows.end,
+        start:
+          currentPeriod.type === PeriodType.REGULAR
+            ? windows.start.toISOString()
+            : currentPeriod.overtimeInfo?.startTime!,
+        end:
+          currentPeriod.type === PeriodType.REGULAR
+            ? windows.end.toISOString()
+            : currentPeriod.overtimeInfo?.endTime!,
       },
-      type: overtimeInfo ? PeriodType.OVERTIME : PeriodType.REGULAR,
-      shift: {
-        id: effectiveShift.id,
-        shiftCode: effectiveShift.shiftCode,
-        name: effectiveShift.name,
-        startTime: effectiveShift.startTime,
-        endTime: effectiveShift.endTime,
-        workDays: effectiveShift.workDays,
-      },
+      type: currentPeriod.type,
+      shift: this.mapShiftData(effectiveShift),
       isHoliday: shiftstatus.isHoliday,
       isDayOff: shiftstatus.isDayOff,
       isAdjusted: shiftData.regularShift.id !== effectiveShift.id,
-      holidayInfo,
-      overtimeInfo,
-      futureShifts,
+      overtimeInfo:
+        currentPeriod.type === PeriodType.OVERTIME
+          ? currentPeriod.overtimeInfo
+          : undefined,
+      nextPeriod,
     };
   }
 
-  async invalidateShiftCache(employeeId: string): Promise<void> {
-    await invalidateCachePattern(`shift:${employeeId}*`);
+  private mapShiftData(shift: any) {
+    return {
+      id: shift.id,
+      shiftCode: shift.shiftCode,
+      name: shift.name,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      workDays: shift.workDays,
+    };
   }
 
   public async getShiftByCode(shiftCode: string): Promise<Shift | null> {

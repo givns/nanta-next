@@ -109,14 +109,14 @@ export default async function handler(
       );
 
       window.current = {
-        start: overtimeStart,
-        end: overtimeEnd,
+        start: overtimeStart.toISOString(),
+        end: overtimeEnd.toISOString(),
       };
     } else if (window?.isDayOff) {
       // For day off without overtime, use full day
       window.current = {
-        start: startOfDay(now),
-        end: endOfDay(now),
+        start: startOfDay(now).toISOString(),
+        end: endOfDay(now).toISOString(),
       };
     } else if (window?.overtimeInfo) {
       // Handle regular day overtime
@@ -133,8 +133,8 @@ export default async function handler(
       }
 
       window.current = {
-        start: overtimeStart,
-        end: overtimeEnd,
+        start: overtimeStart.toISOString(),
+        end: overtimeEnd.toISOString(),
       };
     }
 
