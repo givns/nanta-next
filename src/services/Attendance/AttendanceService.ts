@@ -113,13 +113,8 @@ export class AttendanceService {
       isCheckingIn: !attendance?.regularCheckInTime,
       latestAttendance: attendance
         ? {
-            regularCheckInTime: attendance.regularCheckInTime ?? undefined,
-            regularCheckOutTime: attendance.regularCheckOutTime ?? undefined,
-            overtimeCheckInTime:
-              latestOvertimeEntry?.actualStartTime ?? undefined,
-            // Convert null to undefined for overtimeCheckOutTime
-            overtimeCheckOutTime:
-              latestOvertimeEntry?.actualEndTime ?? undefined,
+            CheckInTime: attendance.regularCheckInTime ?? undefined,
+            CheckOutTime: attendance.regularCheckOutTime ?? undefined,
             isLateCheckIn: attendance.isLateCheckIn ?? false,
             isOvertime: attendance.isOvertime ?? false,
           }

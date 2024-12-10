@@ -213,8 +213,8 @@ export function useAttendanceData({
           base: {
             ...data.base,
             latestAttendance: data.base?.latestAttendance ?? {
-              regularCheckInTime: null,
-              regularCheckOutTime: null,
+              CheckInTime: null,
+              CheckOutTime: null,
               overtimeState: undefined,
               isManualEntry: false,
               isDayOff: false,

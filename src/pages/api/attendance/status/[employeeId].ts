@@ -144,10 +144,8 @@ export default async function handler(
       checkStatus: status?.checkStatus || CheckStatus.PENDING,
       isCheckingIn: status?.isCheckingIn ?? true,
       latestAttendance: status?.latestAttendance || {
-        regularCheckInTime: undefined,
-        regularCheckOutTime: undefined,
-        overtimeCheckInTime: undefined,
-        overtimeCheckOutTime: undefined,
+        CheckInTime: undefined,
+        CheckOutTime: undefined,
         isLateCheckIn: false,
         isOvertime: false,
       },

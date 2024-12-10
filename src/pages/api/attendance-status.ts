@@ -91,11 +91,9 @@ const fetchAttendanceData = async (
   }
 
   // Determine check-in status based on current period data
-  const hasCheckedIn = Boolean(
-    attendanceStatus?.latestAttendance?.regularCheckInTime,
-  );
+  const hasCheckedIn = Boolean(attendanceStatus?.latestAttendance?.CheckInTime);
   const hasCheckedOut = Boolean(
-    attendanceStatus?.latestAttendance?.regularCheckOutTime,
+    attendanceStatus?.latestAttendance?.CheckOutTime,
   );
   const isCheckingIn = !hasCheckedIn || hasCheckedOut;
 

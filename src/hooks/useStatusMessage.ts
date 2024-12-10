@@ -19,7 +19,7 @@ export function useStatusMessage(attendance?: AttendanceBaseResponse) {
         };
       case 'present':
         return {
-          message: attendance.latestAttendance?.regularCheckOutTime
+          message: attendance.latestAttendance?.CheckOutTime
             ? 'เสร็จสิ้นการทำงาน'
             : 'กำลังปฏิบัติงาน',
           color: 'green' as const,

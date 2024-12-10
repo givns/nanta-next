@@ -71,7 +71,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     if (!currentPeriod?.current) return 0;
 
     // Check completion based on period type
-    if (attendanceStatus?.latestAttendance?.regularCheckOutTime) {
+    if (attendanceStatus?.latestAttendance?.CheckOutTime) {
       if (
         currentPeriod.type === 'overtime' &&
         attendanceStatus.latestAttendance.overtimeState ===
@@ -142,10 +142,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getCheckInTime = () => {
     const latestAttendance = attendanceStatus.latestAttendance;
 
-    if (latestAttendance?.regularCheckInTime) {
-      const [hours, minutes] = latestAttendance.regularCheckInTime
-        .split('T')[1]
-        .split(':');
+    if (latestAttendance?.CheckInTime) {
+      const [hours, minutes] =
+        latestAttendance.CheckInTime.split('T')[1].split(':');
       return `${hours}:${minutes}`;
     }
     if (currentPeriod?.checkInTime) {
@@ -172,10 +171,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getCheckOutTime = () => {
     const latestAttendance = attendanceStatus.latestAttendance;
 
-    if (latestAttendance?.regularCheckOutTime) {
-      const [hours, minutes] = latestAttendance.regularCheckOutTime
-        .split('T')[1]
-        .split(':');
+    if (latestAttendance?.CheckOutTime) {
+      const [hours, minutes] =
+        latestAttendance.CheckOutTime.split('T')[1].split(':');
       return `${hours}:${minutes}`;
     }
     if (currentPeriod?.checkOutTime) {
@@ -301,7 +299,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
               return (
                 <div className="text-sm text-gray-500 mt-1">
-                  {!attendanceStatus.latestAttendance?.regularCheckOutTime &&
+                  {!attendanceStatus.latestAttendance?.CheckOutTime &&
                   !status.isDayOff
                     ? 'มีการทำงานล่วงเวลาวันนี้: '
                     : 'เวลาทำงานล่วงเวลา: '}

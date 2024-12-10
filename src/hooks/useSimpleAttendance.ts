@@ -139,9 +139,9 @@ export function useSimpleAttendance({
               ? data.window.current.end.toISOString()
               : data.window.current.end,
         },
-        isComplete: Boolean(data.base.latestAttendance?.regularCheckOutTime),
-        checkInTime: data.base.latestAttendance?.regularCheckInTime ?? null,
-        checkOutTime: data.base.latestAttendance?.regularCheckOutTime ?? null,
+        isComplete: Boolean(data.base.latestAttendance?.CheckOutTime),
+        checkInTime: data.base.latestAttendance?.CheckInTime ?? null,
+        checkOutTime: data.base.latestAttendance?.CheckOutTime ?? null,
         overtimeId: data.window.overtimeInfo?.id,
       }
     : null;
@@ -157,10 +157,10 @@ export function useSimpleAttendance({
         },
         output: currentPeriod,
         derivedValues: {
-          isComplete: Boolean(data.base.latestAttendance?.regularCheckOutTime),
-          isCheckingIn: !data.base.latestAttendance?.regularCheckInTime,
-          checkInTime: data.base.latestAttendance?.regularCheckInTime,
-          checkOutTime: data.base.latestAttendance?.regularCheckOutTime,
+          isComplete: Boolean(data.base.latestAttendance?.CheckOutTime),
+          isCheckingIn: !data.base.latestAttendance?.CheckInTime,
+          checkInTime: data.base.latestAttendance?.CheckInTime,
+          checkOutTime: data.base.latestAttendance?.CheckOutTime,
         },
       });
     }

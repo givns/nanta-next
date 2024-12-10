@@ -40,8 +40,8 @@ export interface AttendanceCore {
   checkStatus: CheckStatus;
   isCheckingIn: boolean;
   latestAttendance?: {
-    regularCheckInTime?: Date;
-    regularCheckOutTime?: Date;
+    CheckInTime?: Date;
+    CheckOutTime?: Date;
     isLateCheckIn?: boolean;
     isOvertime?: boolean;
   };
@@ -52,10 +52,8 @@ export interface AttendanceBaseResponse {
   checkStatus: CheckStatus;
   isCheckingIn: boolean;
   latestAttendance?: {
-    regularCheckInTime?: Date;
-    regularCheckOutTime?: Date;
-    overtimeCheckInTime?: Date;
-    overtimeCheckOutTime?: Date;
+    CheckInTime?: Date;
+    CheckOutTime?: Date;
     isLateCheckIn?: boolean;
     isOvertime?: boolean;
   };

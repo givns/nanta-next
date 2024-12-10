@@ -400,10 +400,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                       id: base.latestAttendance.id || '', // Provide fallback for required fields
                       employeeId: userData.employeeId,
                       date: getCurrentTime().toISOString(),
-                      regularCheckInTime:
-                        base.latestAttendance.regularCheckInTime,
-                      regularCheckOutTime:
-                        base.latestAttendance.regularCheckOutTime,
+                      CheckInTime: base.latestAttendance.CheckInTime,
+                      CheckOutTime: base.latestAttendance.CheckOutTime,
                       state: base.state,
                       checkStatus: base.checkStatus,
                       overtimeState: base.latestAttendance.overtimeState,
