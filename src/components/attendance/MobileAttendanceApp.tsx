@@ -62,37 +62,41 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   console.log('currentPeriod:', currentPeriod);
 
   const getProgressPercentage = () => {
-    if (!currentPeriod?.current) return 0;
+    if (!currentPeriod?.current?.start || !currentPeriod?.current?.end)
+      return 0;
 
-    // Get start and end times in milliseconds
-    const startTime = new Date(currentPeriod.current.start).getTime();
-    const endTime = new Date(currentPeriod.current.end).getTime();
+    try {
+      const startTime = new Date(currentPeriod.current.start);
+      const endTime = new Date(currentPeriod.current.end);
+      const currentTimeMs = currentTime.getTime();
 
-    // Get current time in milliseconds, adjusted for timezone offset
-    const currentTimeMs =
-      new Date().getTime() - new Date().getTimezoneOffset() * 60 * 1000;
+      if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+        console.error('Invalid date values:', {
+          start: currentPeriod.current.start,
+          end: currentPeriod.current.end,
+        });
+        return 0;
+      }
 
-    // Calculate elapsed and total duration in milliseconds
-    const elapsedDuration = currentTimeMs - startTime;
-    const totalDuration = endTime - startTime;
+      const elapsedDuration = currentTimeMs - startTime.getTime();
+      const totalDuration = endTime.getTime() - startTime.getTime();
 
-    // Calculate progress percentage
-    const progressPercentage = (elapsedDuration / totalDuration) * 100;
+      if (totalDuration <= 0) {
+        console.error('Invalid duration:', totalDuration);
+        return 0;
+      }
 
-    console.log('Progress calculation:', {
-      currentTime: currentTimeMs,
-      startTime,
-      endTime,
-      elapsedDuration,
-      totalDuration,
-      percentage: progressPercentage,
-    });
+      const progressPercentage = (elapsedDuration / totalDuration) * 100;
 
-    if (elapsedDuration >= totalDuration) {
-      return 100;
+      if (elapsedDuration >= totalDuration) {
+        return 100;
+      }
+
+      return Math.max(0, Math.min(progressPercentage, 100));
+    } catch (error) {
+      console.error('Error calculating progress:', error);
+      return 0;
     }
-
-    return Math.max(0, Math.min(progressPercentage, 100));
   };
 
   const getRelevantOvertimes = () => {
