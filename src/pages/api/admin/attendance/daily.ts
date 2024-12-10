@@ -106,16 +106,6 @@ async function handleGetDailyAttendance(
         name: true,
         departmentName: true,
         shiftCode: true,
-        assignedShift: {
-          select: {
-            id: true,
-            name: true,
-            startTime: true,
-            endTime: true,
-            workDays: true,
-            shiftCode: true,
-          },
-        },
         attendances: {
           where: {
             date: {
@@ -128,8 +118,8 @@ async function handleGetDailyAttendance(
             state: true,
             checkStatus: true,
             overtimeState: true,
-            regularCheckInTime: true,
-            regularCheckOutTime: true,
+            CheckInTime: true,
+            CheckOutTime: true,
             isLateCheckIn: true,
             isLateCheckOut: true,
             isEarlyCheckIn: true,
@@ -156,6 +146,7 @@ async function handleGetDailyAttendance(
     const attendanceRecords: DailyAttendanceRecord[] = await Promise.all(
       employees.map(async (employee) => {
         try {
+          const now = new Date();
           const attendance = employee.attendances[0];
           // Wrap holiday check in try-catch
           const isHoliday = await services.holidayService
@@ -166,16 +157,11 @@ async function handleGetDailyAttendance(
             (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
           );
 
-          const shift: ShiftData | null = employee.assignedShift
-            ? {
-                id: employee.assignedShift.id,
-                name: employee.assignedShift.name,
-                shiftCode: employee.shiftCode || 'DEFAULT',
-                startTime: employee.assignedShift.startTime,
-                endTime: employee.assignedShift.endTime,
-                workDays: employee.assignedShift.workDays || [1, 2, 3, 4, 5],
-              }
-            : null;
+          const effectiveShiftResult =
+            await services.shiftService.getEffectiveShiftAndStatus(
+              employee.employeeId,
+              now,
+            );
 
           const record: DailyAttendanceRecord = {
             employeeId: employee.employeeId,
@@ -193,12 +179,8 @@ async function handleGetDailyAttendance(
             ),
 
             // Time fields
-            regularCheckInTime: formatAttendanceTime(
-              attendance?.regularCheckInTime,
-            ),
-            regularCheckOutTime: formatAttendanceTime(
-              attendance?.regularCheckOutTime,
-            ),
+            CheckInTime: formatAttendanceTime(attendance?.CheckInTime),
+            CheckOutTime: formatAttendanceTime(attendance?.CheckOutTime),
 
             // Flag fields
             isLateCheckIn: attendance?.isLateCheckIn ?? false,
@@ -208,7 +190,16 @@ async function handleGetDailyAttendance(
             lateCheckOutMinutes: attendance?.lateCheckOutMinutes ?? 0,
 
             // Related data
-            shift,
+            shift: effectiveShiftResult?.effectiveShift
+              ? {
+                  id: effectiveShiftResult.effectiveShift.id,
+                  name: effectiveShiftResult.effectiveShift.name,
+                  shiftCode: effectiveShiftResult.effectiveShift.shiftCode,
+                  startTime: effectiveShiftResult.effectiveShift.startTime,
+                  endTime: effectiveShiftResult.effectiveShift.endTime,
+                  workDays: effectiveShiftResult.effectiveShift.workDays,
+                }
+              : null,
             isDayOff: isHoliday || attendance?.isDayOff || false,
             leaveInfo: leaveRequest
               ? {
@@ -235,8 +226,8 @@ async function handleGetDailyAttendance(
             checkStatus: CheckStatus.PENDING,
             overtimeState: undefined,
             // Required time fields
-            regularCheckInTime: null,
-            regularCheckOutTime: null,
+            CheckInTime: null,
+            CheckOutTime: null,
             // Required boolean flags
             isLateCheckIn: false,
             isLateCheckOut: false,

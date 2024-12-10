@@ -67,8 +67,8 @@ export interface TimeEntriesResponse {
 
 export interface DetailedTimeEntry {
   date: string;
-  regularCheckInTime: string | null;
-  regularCheckOutTime: string | null;
+  CheckInTime: string | null;
+  CheckOutTime: string | null;
 
   // Status fields
   state: AttendanceState;

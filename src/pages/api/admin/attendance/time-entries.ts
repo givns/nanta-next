@@ -131,11 +131,11 @@ export default async function handler(
 
       return {
         date: format(attendance.date, 'yyyy-MM-dd'),
-        regularCheckInTime: attendance.regularCheckInTime
-          ? format(attendance.regularCheckInTime, 'HH:mm')
+        CheckInTime: attendance.CheckInTime
+          ? format(attendance.CheckInTime, 'HH:mm')
           : null,
-        regularCheckOutTime: attendance.regularCheckOutTime
-          ? format(attendance.regularCheckOutTime, 'HH:mm')
+        CheckOutTime: attendance.CheckOutTime
+          ? format(attendance.CheckOutTime, 'HH:mm')
           : null,
 
         // Map string values to proper enums

@@ -64,10 +64,11 @@ export interface DailyRecord {
   attendance: {
     state: AttendanceState; // Changed from status
     checkStatus: CheckStatus;
-    regularCheckInTime: string | null;
-    regularCheckOutTime: string | null;
+    CheckInTime: string | null;
+    CheckOutTime: string | null;
     isLateCheckIn: boolean;
     isLateCheckOut: boolean;
+    isOvertime: boolean;
   } | null;
   leaveInfo?: {
     type: string;

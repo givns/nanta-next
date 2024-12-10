@@ -32,8 +32,8 @@ export class AttendanceResponseBuilder {
           (sum, entry) => sum + entry.overtimeHours,
           0,
         ) || 0,
-      regularCheckInTime: attendance.regularCheckInTime,
-      regularCheckOutTime: attendance.regularCheckOutTime,
+      CheckInTime: attendance.CheckInTime,
+      CheckOutTime: attendance.CheckOutTime,
       detailedStatus: this.buildDetailedStatus(attendance),
     };
 
@@ -102,11 +102,11 @@ export class AttendanceResponseBuilder {
   }
 
   private static mapStatusToType(attendance: AttendanceRecord) {
-    if (!attendance.regularCheckInTime) {
+    if (!attendance.CheckInTime) {
       return CheckStatus.PENDING;
     }
 
-    if (!attendance.regularCheckOutTime) {
+    if (!attendance.CheckOutTime) {
       return attendance.isOvertime
         ? CheckStatus.CHECKED_IN
         : CheckStatus.CHECKED_IN;

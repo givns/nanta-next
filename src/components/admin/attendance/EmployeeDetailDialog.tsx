@@ -229,10 +229,10 @@ export function EmployeeDetailDialog({
                     <div>
                       <div className="text-sm text-gray-500">Check In</div>
                       <div className="flex items-center mt-1">
-                        {entry.regularCheckInTime ? (
+                        {entry.CheckInTime ? (
                           <>
                             <Clock className="h-4 w-4 mr-2 text-gray-400" />
-                            <span>{entry.regularCheckInTime}</span>
+                            <span>{entry.CheckInTime}</span>
                             {entry.isLateCheckIn && (
                               <Badge variant="warning" className="ml-2">
                                 Late
@@ -249,10 +249,10 @@ export function EmployeeDetailDialog({
                   <div>
                     <div className="text-sm text-gray-500">Check Out</div>
                     <div className="flex items-center mt-1">
-                      {entry.regularCheckOutTime ? (
+                      {entry.CheckOutTime ? (
                         <>
                           <Clock className="h-4 w-4 mr-2 text-gray-400" />
-                          <span>{entry.regularCheckOutTime}</span>
+                          <span>{entry.CheckOutTime}</span>
                           {entry.isLateCheckOut && (
                             <Badge variant="warning" className="ml-2">
                               Late

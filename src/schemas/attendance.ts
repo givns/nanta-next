@@ -365,8 +365,8 @@ export const AttendanceResponseSchema = z.object({
       state: AttendanceStateSchema,
       checkStatus: CheckStatusSchema,
       overtimeState: OvertimeStateSchema.optional(),
-      regularCheckInTime: DateStringOrDate.nullable(),
-      regularCheckOutTime: DateStringOrDate.nullable(),
+      CheckInTime: DateStringOrDate.nullable(),
+      CheckOutTime: DateStringOrDate.nullable(),
     }),
     status: AttendanceCompositeStatusSchema,
     validation: z

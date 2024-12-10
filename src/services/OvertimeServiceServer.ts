@@ -876,11 +876,11 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       {
         overtimeRequest: overtime,
         attendanceTime: {
-          checkInTime: attendance?.regularCheckInTime
-            ? format(attendance.regularCheckInTime, 'HH:mm:ss')
+          checkInTime: attendance?.CheckInTime
+            ? format(attendance.CheckInTime, 'HH:mm:ss')
             : null,
-          checkOutTime: attendance?.regularCheckOutTime
-            ? format(attendance.regularCheckOutTime, 'HH:mm:ss')
+          checkOutTime: attendance?.CheckOutTime
+            ? format(attendance.CheckOutTime, 'HH:mm:ss')
             : null,
           checkStatus: CheckStatus.PENDING,
           isOvertime: true,
@@ -896,7 +896,7 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
             addMinutes(now, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD),
             overtime,
           ),
-          isComplete: attendance?.regularCheckOutTime != null,
+          isComplete: attendance?.CheckOutTime != null,
         },
       },
     ];

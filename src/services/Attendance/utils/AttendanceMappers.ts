@@ -62,11 +62,11 @@ export class AttendanceMappers {
         lateCheckOutMinutes: dbAttendance.lateCheckOutMinutes || 0,
         isManualEntry: dbAttendance.isManualEntry || false,
 
-        regularCheckInTime: dbAttendance.regularCheckInTime
-          ? new Date(dbAttendance.regularCheckInTime)
+        CheckInTime: dbAttendance.CheckInTime
+          ? new Date(dbAttendance.CheckInTime)
           : null,
-        regularCheckOutTime: dbAttendance.regularCheckOutTime
-          ? new Date(dbAttendance.regularCheckOutTime)
+        CheckOutTime: dbAttendance.CheckOutTime
+          ? new Date(dbAttendance.CheckOutTime)
           : null,
 
         isEarlyCheckIn: dbAttendance.isEarlyCheckIn || false,
@@ -104,11 +104,11 @@ export class AttendanceMappers {
       id: attendance.id,
       employeeId: attendance.employeeId,
       date: format(attendance.date, 'yyyy-MM-dd'),
-      regularCheckInTime: attendance.regularCheckInTime
-        ? format(attendance.regularCheckInTime, 'HH:mm:ss')
+      CheckInTime: attendance.CheckInTime
+        ? format(attendance.CheckInTime, 'HH:mm:ss')
         : null,
-      regularCheckOutTime: attendance.regularCheckOutTime
-        ? format(attendance.regularCheckOutTime, 'HH:mm:ss')
+      CheckOutTime: attendance.CheckOutTime
+        ? format(attendance.CheckOutTime, 'HH:mm:ss')
         : null,
       state: attendance.state,
       checkStatus: attendance.checkStatus,

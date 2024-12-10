@@ -198,7 +198,7 @@ export class AttendanceStatusService {
           createdAt: entry.createdAt,
           updatedAt: entry.updatedAt,
         })) ?? [],
-      isCheckingIn: !attendance?.regularCheckInTime,
+      isCheckingIn: !attendance?.CheckInTime,
       isEarlyCheckIn: attendance?.isEarlyCheckIn ?? false,
       isLateCheckIn: attendance?.isLateCheckIn ?? false,
       isLateCheckOut: attendance?.isLateCheckOut ?? false,
@@ -267,15 +267,15 @@ export class AttendanceStatusService {
         end: overtimeEnd,
       });
 
-      if (isInOvertimePeriod && attendance?.regularCheckInTime) {
+      if (isInOvertimePeriod && attendance?.CheckInTime) {
         return AttendanceState.OVERTIME;
       }
     }
 
     if (isHoliday) return AttendanceState.HOLIDAY;
     if (isDayOff && !overtime) return AttendanceState.OFF;
-    if (!attendance?.regularCheckInTime) return AttendanceState.ABSENT;
-    if (!attendance.regularCheckOutTime) return AttendanceState.INCOMPLETE;
+    if (!attendance?.CheckInTime) return AttendanceState.ABSENT;
+    if (!attendance.CheckOutTime) return AttendanceState.INCOMPLETE;
 
     return attendance.isOvertime
       ? AttendanceState.OVERTIME
@@ -341,9 +341,9 @@ export class AttendanceStatusService {
         return {
           type: PeriodType.OVERTIME,
           overtimeId: overtime.id,
-          isComplete: attendance?.regularCheckOutTime != null,
-          checkInTime: attendance?.regularCheckInTime?.toISOString(),
-          checkOutTime: attendance?.regularCheckOutTime?.toISOString(),
+          isComplete: attendance?.CheckOutTime != null,
+          checkInTime: attendance?.CheckInTime?.toISOString(),
+          checkOutTime: attendance?.CheckOutTime?.toISOString(),
           current,
         };
       }
@@ -369,9 +369,9 @@ export class AttendanceStatusService {
 
     return {
       type: PeriodType.REGULAR,
-      isComplete: attendance?.regularCheckOutTime != null,
-      checkInTime: attendance?.regularCheckInTime?.toISOString(),
-      checkOutTime: attendance?.regularCheckOutTime?.toISOString(),
+      isComplete: attendance?.CheckOutTime != null,
+      checkInTime: attendance?.CheckInTime?.toISOString(),
+      checkOutTime: attendance?.CheckOutTime?.toISOString(),
       current,
     };
   }

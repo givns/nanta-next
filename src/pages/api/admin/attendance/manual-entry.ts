@@ -159,10 +159,8 @@ export default async function handler(
                 ? CheckStatus.CHECKED_IN
                 : CheckStatus.PENDING,
           isManualEntry: true,
-          regularCheckInTime: checkInTime
-            ? parseISO(`${date}T${checkInTime}`)
-            : null,
-          regularCheckOutTime: checkOutTime
+          CheckInTime: checkInTime ? parseISO(`${date}T${checkInTime}`) : null,
+          CheckOutTime: checkOutTime
             ? parseISO(`${date}T${checkOutTime}`)
             : null,
           shiftStartTime: parseISO(
@@ -176,10 +174,10 @@ export default async function handler(
           version: 1,
         },
         update: {
-          regularCheckInTime: checkInTime
+          CheckInTime: checkInTime
             ? parseISO(`${date}T${checkInTime}`)
             : undefined,
-          regularCheckOutTime: checkOutTime
+          CheckOutTime: checkOutTime
             ? parseISO(`${date}T${checkOutTime}`)
             : undefined,
           state: AttendanceState.PRESENT,
@@ -435,11 +433,11 @@ export default async function handler(
           status: updatedStatus,
           attendance: {
             ...finalAttendance,
-            regularCheckInTime: finalAttendance?.regularCheckInTime
-              ? format(finalAttendance.regularCheckInTime, 'HH:mm')
+            regularCheckInTime: finalAttendance?.CheckInTime
+              ? format(finalAttendance.CheckInTime, 'HH:mm')
               : null,
-            regularCheckOutTime: finalAttendance?.regularCheckOutTime
-              ? format(finalAttendance.regularCheckOutTime, 'HH:mm')
+            regularCheckOutTime: finalAttendance?.CheckOutTime
+              ? format(finalAttendance.CheckOutTime, 'HH:mm')
               : null,
           },
         },

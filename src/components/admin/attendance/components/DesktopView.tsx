@@ -26,10 +26,10 @@ const getStatusBadge = (record: DailyAttendanceRecord) => {
   if (record.isDayOff) {
     return <Badge variant="outline">Day Off</Badge>;
   }
-  if (!record.regularCheckInTime) {
+  if (!record.CheckInTime) {
     return <Badge variant="destructive">Absent</Badge>;
   }
-  if (!record.regularCheckOutTime) {
+  if (!record.CheckOutTime) {
     return <Badge variant="warning">Incomplete</Badge>;
   }
   if (record.isLateCheckIn || record.isLateCheckOut) {
@@ -86,13 +86,13 @@ export function DesktopView({
                 </TableCell>
                 <TableCell>
                   <AttendanceTime
-                    time={record.regularCheckInTime}
+                    time={record.CheckInTime}
                     isLate={record.isLateCheckIn}
                   />
                 </TableCell>
                 <TableCell>
                   <AttendanceTime
-                    time={record.regularCheckOutTime}
+                    time={record.CheckOutTime}
                     isLate={record.isLateCheckOut}
                   />
                 </TableCell>

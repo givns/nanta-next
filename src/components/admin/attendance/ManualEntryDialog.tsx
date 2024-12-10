@@ -115,8 +115,8 @@ export function ManualEntryDialog({
       periodType: entry.overtimeRequest
         ? PeriodType.OVERTIME
         : PeriodType.REGULAR, // Using enum values
-      checkInTime: entry.regularCheckInTime || '',
-      checkOutTime: entry.regularCheckOutTime || '',
+      checkInTime: entry.CheckInTime || '',
+      checkOutTime: entry.CheckOutTime || '',
       reasonType: 'missing' as const,
       reason: '',
       overtimeStartTime: entry.overtimeRequest

@@ -234,8 +234,8 @@ model Attendance {
   // Time fields
   shiftStartTime       DateTime?
   shiftEndTime         DateTime?
-  regularCheckInTime   DateTime?
-  regularCheckOutTime  DateTime?
+  CheckInTime   DateTime?
+  CheckOutTime  DateTime?
   
   // Status flags
   isEarlyCheckIn       Boolean         @default(false)  // Made explicit default

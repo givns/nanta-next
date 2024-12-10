@@ -240,7 +240,7 @@ export class AttendanceCheckService {
 
         // Handle period overlap
         if (
-          latestAttendance?.regularCheckOutTime &&
+          latestAttendance?.CheckOutTime &&
           this.isAtOvertimeStart(now, approvedOvertime)
         ) {
           return this.handleApprovedOvertime(
@@ -412,7 +412,7 @@ export class AttendanceCheckService {
         this.getOvertimeWindows(overtimeStart, overtimeEnd);
 
       // Check if this is a check-in attempt
-      const isCheckingIn = !latestAttendance?.regularCheckInTime;
+      const isCheckingIn = !latestAttendance?.CheckInTime;
 
       // Time window validations
       const isWithinOvertimeWindow = isWithinInterval(now, {
@@ -544,8 +544,8 @@ export class AttendanceCheckService {
         isSameDay(new Date(leave.startDate), now),
     );
 
-    const checkInTime = latestAttendance?.regularCheckInTime
-      ? new Date(latestAttendance.regularCheckInTime)
+    const checkInTime = latestAttendance?.CheckInTime
+      ? new Date(latestAttendance.CheckInTime)
       : null;
 
     return {
@@ -590,7 +590,7 @@ export class AttendanceCheckService {
     const EARLY_WINDOW = 30; // minutes
     const LATE_WINDOW = 15; // minutes
 
-    const isCheckingIn = !latestAttendance?.regularCheckInTime;
+    const isCheckingIn = !latestAttendance?.CheckInTime;
     const earlyWindow = subMinutes(overtimeStart, EARLY_WINDOW);
     const lateWindow = addMinutes(overtimeEnd, LATE_WINDOW);
 
@@ -712,7 +712,7 @@ export class AttendanceCheckService {
       now,
     );
 
-    const isCheckingIn = !latestAttendance?.regularCheckInTime;
+    const isCheckingIn = !latestAttendance?.CheckInTime;
     const EARLY_CHECK_IN_WINDOW = 30; // minutes
     const LATE_CHECK_IN_THRESHOLD = 5; // minutes
 
@@ -791,7 +791,7 @@ export class AttendanceCheckService {
 
     // Handle late check-in with auto-complete
     if (!isCheckingIn) {
-      const missedCheckIn = !latestAttendance?.regularCheckInTime;
+      const missedCheckIn = !latestAttendance?.CheckInTime;
       const isWithinLateWindow = now <= lateCheckOutWindow;
 
       if (missedCheckIn && isWithinLateWindow) {
@@ -890,7 +890,7 @@ export class AttendanceCheckService {
     latestAttendance: AttendanceRecord | null,
   ): CheckInOutAllowance {
     // 1. First check if already checked out
-    if (latestAttendance?.regularCheckOutTime) {
+    if (latestAttendance?.CheckOutTime) {
       // Handle overtime transition case
       if (approvedOvertime && this.isAtOvertimeStart(now, approvedOvertime)) {
         return this.handleApprovedOvertime(
@@ -997,7 +997,7 @@ export class AttendanceCheckService {
           isEarlyCheckOut: isEarlyCheckout,
         },
         timing: {
-          actualStartTime: latestAttendance?.regularCheckInTime?.toISOString(),
+          actualStartTime: latestAttendance?.CheckInTime?.toISOString(),
           actualEndTime: now.toISOString(),
           plannedStartTime: overtimeStart.toISOString(),
           plannedEndTime: overtimeEnd.toISOString(),

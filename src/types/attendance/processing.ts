@@ -22,8 +22,8 @@ export interface RawAttendanceData {
   employeeId: string;
   date: Date;
   status: string;
-  regularCheckInTime: Date | null;
-  regularCheckOutTime: Date | null;
+  CheckInTime: Date | null;
+  CheckOutTime: Date | null;
   shiftStartTime: Date | null;
   shiftEndTime: Date | null;
   overtimePeriods: Prisma.JsonValue;
@@ -195,8 +195,8 @@ export interface ProcessedAttendance {
   overtimeHours: number;
 
   // Time fields
-  regularCheckInTime?: Date | null;
-  regularCheckOutTime?: Date | null;
+  CheckInTime?: Date | null;
+  CheckOutTime?: Date | null;
 
   // Overtime data
   overtime?: {

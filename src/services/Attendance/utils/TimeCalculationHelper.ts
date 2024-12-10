@@ -36,9 +36,9 @@ export class TimeCalculationHelper {
     attendance: AttendanceRecord | null,
     overtime: ApprovedOvertimeInfo | null,
   ): number {
-    if (!attendance?.regularCheckOutTime || !overtime) return 0;
+    if (!attendance?.CheckOutTime || !overtime) return 0;
 
-    const checkOut = attendance.regularCheckOutTime;
+    const checkOut = attendance.CheckOutTime;
     const overtimeStart = parseISO(
       `${format(checkOut, 'yyyy-MM-dd')}T${overtime.startTime}`,
     );

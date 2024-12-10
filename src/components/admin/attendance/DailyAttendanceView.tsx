@@ -127,7 +127,7 @@ export default function DailyAttendanceView() {
           if (!record) return -1;
           if (record.leaveInfo) return 1;
           if (record.isDayOff) return 2;
-          if (!record.regularCheckInTime) return 0;
+          if (!record.CheckInTime) return 0;
           return 3;
         };
 
@@ -156,9 +156,9 @@ export default function DailyAttendanceView() {
 
     return {
       total: filteredRecords.length,
-      present: filteredRecords.filter((r) => r?.regularCheckInTime).length,
+      present: filteredRecords.filter((r) => r?.CheckInTime).length,
       absent: filteredRecords.filter(
-        (r) => !r?.regularCheckInTime && !r?.leaveInfo && !r?.isDayOff,
+        (r) => !r?.CheckInTime && !r?.leaveInfo && !r?.isDayOff,
       ).length,
       onLeave: filteredRecords.filter((r) => r?.leaveInfo).length,
       dayOff: filteredRecords.filter((r) => r?.isDayOff).length,

@@ -110,11 +110,11 @@ export class AttendanceService {
       state: (attendance?.state as AttendanceState) || AttendanceState.ABSENT,
       checkStatus:
         (attendance?.checkStatus as CheckStatus) || CheckStatus.PENDING,
-      isCheckingIn: !attendance?.regularCheckInTime,
+      isCheckingIn: !attendance?.CheckInTime,
       latestAttendance: attendance
         ? {
-            CheckInTime: attendance.regularCheckInTime ?? undefined,
-            CheckOutTime: attendance.regularCheckOutTime ?? undefined,
+            CheckInTime: attendance.CheckInTime ?? undefined,
+            CheckOutTime: attendance.CheckOutTime ?? undefined,
             isLateCheckIn: attendance.isLateCheckIn ?? false,
             isOvertime: attendance.isOvertime ?? false,
           }

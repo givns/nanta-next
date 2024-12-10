@@ -18,8 +18,8 @@ export interface DailyAttendanceRecord {
   state: AttendanceState;
   checkStatus: CheckStatus;
   overtimeState?: OvertimeState;
-  regularCheckInTime: string | null;
-  regularCheckOutTime: string | null;
+  CheckInTime: string | null;
+  CheckOutTime: string | null;
   isLateCheckIn: boolean;
   isLateCheckOut: boolean;
   isEarlyCheckIn: boolean;
@@ -48,8 +48,8 @@ export interface AttendanceRecord {
   // Time fields
   shiftStartTime: Date | null;
   shiftEndTime: Date | null;
-  regularCheckInTime: Date | null;
-  regularCheckOutTime: Date | null;
+  CheckInTime: Date | null;
+  CheckOutTime: Date | null;
 
   // Status flags
   isEarlyCheckIn: boolean;

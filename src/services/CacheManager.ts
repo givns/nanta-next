@@ -157,11 +157,11 @@ export class CacheManager {
         overtimeEntries.length > 0
           ? this.determineOvertimeState(overtimeEntries[0])
           : undefined,
-      regularCheckInTime: prismaAttendance.regularCheckInTime
-        ? new Date(prismaAttendance.regularCheckInTime)
+      CheckInTime: prismaAttendance.CheckInTime
+        ? new Date(prismaAttendance.CheckInTime)
         : null,
-      regularCheckOutTime: prismaAttendance.regularCheckOutTime
-        ? new Date(prismaAttendance.regularCheckOutTime)
+      CheckOutTime: prismaAttendance.CheckOutTime
+        ? new Date(prismaAttendance.CheckOutTime)
         : null,
       shiftStartTime: prismaAttendance.shiftStartTime
         ? new Date(prismaAttendance.shiftStartTime)

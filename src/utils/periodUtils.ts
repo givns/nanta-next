@@ -62,5 +62,5 @@ const getOvertimePeriodStatus = (
 };
 
 const isRegularComplete = (attendanceStatus: AttendanceStatusInfo): boolean => {
-  return !!attendanceStatus.latestAttendance?.regularCheckOutTime;
+  return !!attendanceStatus.latestAttendance?.CheckOutTime;
 };

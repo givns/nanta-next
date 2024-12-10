@@ -230,14 +230,14 @@ export class TimeEntryService {
           );
 
           const { minutesLate, isHalfDayLate } = this.calculateLateStatus(
-            attendance.regularCheckInTime!,
+            attendance.CheckInTime!,
             shiftStart,
           );
 
           if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
             await this.notifyLateCheckIn(
               attendance.employeeId,
-              attendance.regularCheckInTime!,
+              attendance.CheckInTime!,
               minutesLate,
               isHalfDayLate,
             );
@@ -291,10 +291,10 @@ export class TimeEntryService {
     isCheckIn: boolean,
   ) {
     const overtimeHours =
-      !isCheckIn && attendance.regularCheckOutTime
+      !isCheckIn && attendance.CheckOutTime
         ? this.calculateOvertimeHours(
-            attendance.regularCheckInTime!,
-            attendance.regularCheckOutTime,
+            attendance.CheckInTime!,
+            attendance.CheckOutTime,
             overtimeRequest,
             null,
             null,
@@ -303,8 +303,8 @@ export class TimeEntryService {
 
     return {
       date: attendance.date,
-      startTime: attendance.regularCheckInTime || attendance.date,
-      endTime: attendance.regularCheckOutTime || null,
+      startTime: attendance.CheckInTime || attendance.date,
+      endTime: attendance.CheckOutTime || null,
       regularHours: 0,
       overtimeHours,
       status: isCheckIn
@@ -338,18 +338,15 @@ export class TimeEntryService {
     // Calculate late status if it's a check-in and shift start time exists
     const lateStatus =
       shiftTimes.start && isCheckIn
-        ? this.calculateLateStatus(
-            attendance.regularCheckInTime!,
-            shiftTimes.start,
-          )
+        ? this.calculateLateStatus(attendance.CheckInTime!, shiftTimes.start)
         : { minutesLate: 0, isHalfDayLate: false };
 
     // Calculate working hours for check-out if all required times exist
     const workingHours =
       !isCheckIn && shiftTimes.start && shiftTimes.end
         ? this.calculateWorkingHours(
-            attendance.regularCheckInTime!,
-            attendance.regularCheckOutTime,
+            attendance.CheckInTime!,
+            attendance.CheckOutTime,
             shiftTimes.start,
             shiftTimes.end,
             null,
@@ -379,8 +376,8 @@ export class TimeEntryService {
   ) {
     return {
       date: attendance.date,
-      startTime: attendance.regularCheckInTime || attendance.date,
-      endTime: attendance.regularCheckOutTime || null,
+      startTime: attendance.CheckInTime || attendance.date,
+      endTime: attendance.CheckOutTime || null,
       regularHours: metrics.regularHours,
       overtimeHours: 0,
       actualMinutesLate: metrics.minutesLate,
@@ -660,11 +657,11 @@ export class TimeEntryService {
     approvedOvertime: ApprovedOvertimeInfo,
     currentTime: Date,
   ): number {
-    if (!attendance.regularCheckInTime) return 0;
+    if (!attendance.CheckInTime) return 0;
 
     const result = this.calculateOvertimeHours(
-      attendance.regularCheckInTime,
-      attendance.regularCheckOutTime || currentTime,
+      attendance.CheckInTime,
+      attendance.CheckOutTime || currentTime,
       approvedOvertime,
       null,
       null,
@@ -692,8 +689,8 @@ export class TimeEntryService {
         id: 'test-entry',
         employeeId: attendance.employeeId,
         date: attendance.date,
-        startTime: attendance.regularCheckInTime || new Date(),
-        endTime: attendance.regularCheckOutTime,
+        startTime: attendance.CheckInTime || new Date(),
+        endTime: attendance.CheckOutTime,
         status: 'completed',
         entryType: PeriodType.REGULAR,
         regularHours: 8,

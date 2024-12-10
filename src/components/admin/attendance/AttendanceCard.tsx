@@ -39,10 +39,10 @@ export function AttendanceCard({ record, onView }: AttendanceCardProps) {
     if (record.isDayOff) {
       return <Badge variant="outline">Day Off</Badge>;
     }
-    if (!record.regularCheckInTime) {
+    if (!record.CheckInTime) {
       return <Badge variant="destructive">Absent</Badge>;
     }
-    if (!record.regularCheckOutTime) {
+    if (!record.CheckOutTime) {
       return <Badge variant="warning">Incomplete</Badge>;
     }
     if (record.isLateCheckIn || record.isLateCheckOut) {
@@ -81,7 +81,7 @@ export function AttendanceCard({ record, onView }: AttendanceCardProps) {
           <div>
             <div className="text-sm text-gray-500">Check In</div>
             <div className="flex items-center gap-2">
-              <span>{formatTime(record.regularCheckInTime)}</span>
+              <span>{formatTime(record.CheckInTime)}</span>
               {record.isLateCheckIn && (
                 <Badge variant="warning" className="h-5">
                   Late
@@ -93,7 +93,7 @@ export function AttendanceCard({ record, onView }: AttendanceCardProps) {
           <div>
             <div className="text-sm text-gray-500">Check Out</div>
             <div className="flex items-center gap-2">
-              <span>{formatTime(record.regularCheckOutTime)}</span>
+              <span>{formatTime(record.CheckOutTime)}</span>
               {record.isLateCheckOut && (
                 <Badge variant="warning" className="h-5">
                   Late
