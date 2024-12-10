@@ -58,37 +58,21 @@ export function useAttendanceData({
 
         return {
           base: {
-            state: responseData.status?.state ?? AttendanceState.ABSENT,
-            checkStatus:
-              responseData.status?.checkStatus ?? CheckStatus.PENDING,
-            isCheckingIn: responseData.status?.isCheckingIn ?? true,
-            latestAttendance: responseData.base?.latestAttendance ?? {
-              regularCheckInTime:
-                responseData.status?.latestAttendance?.regularCheckInTime ??
-                null,
-              regularCheckOutTime:
-                responseData.status?.latestAttendance?.regularCheckOutTime ??
-                null,
-              OvertimeState,
-              isManualEntry:
-                responseData.status?.latestAttendance?.isManualEntry ?? false,
-              isDayOff: false,
-            },
-          },
-          window: responseData.window && {
-            ...responseData.window,
-            overtimeInfo: responseData.window.overtimeInfo
+            state: responseData.status.state,
+            checkStatus: responseData.status.checkStatus,
+            isCheckingIn: responseData.status.isCheckingIn,
+            latestAttendance: responseData.status.latestAttendance
               ? {
-                  ...responseData.window.overtimeInfo,
-                  state: determineOvertimeState(
-                    responseData.window.overtimeInfo,
-                    responseData.status, // Fix this too
-                  ),
+                  ...responseData.status.latestAttendance,
+                  CheckInTime: responseData.status.latestAttendance.CheckInTime,
+                  CheckOutTime:
+                    responseData.status.latestAttendance.CheckOutTime,
                 }
               : null,
-            current: responseData.window.current,
           },
-          validation: responseData.validation ?? null,
+          window: responseData.window,
+          validation: responseData.validation,
+
           timestamp: responseData.timestamp ?? new Date().toISOString(),
         };
       } catch (error) {

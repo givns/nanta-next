@@ -139,16 +139,19 @@ export default async function handler(
     }
 
     // Ensure status has all required fields with defaults
+    // First fix API response
     const normalizedStatus: AttendanceBaseResponse = {
       state: status?.state || AttendanceState.ABSENT,
       checkStatus: status?.checkStatus || CheckStatus.PENDING,
       isCheckingIn: status?.isCheckingIn ?? true,
-      latestAttendance: status?.latestAttendance || {
-        CheckInTime: undefined,
-        CheckOutTime: undefined,
-        isLateCheckIn: false,
-        isOvertime: false,
-      },
+      latestAttendance: status?.latestAttendance
+        ? {
+            CheckInTime: status.latestAttendance.CheckInTime,
+            CheckOutTime: status.latestAttendance.CheckOutTime,
+            isLateCheckIn: status.latestAttendance.isLateCheckIn ?? false,
+            isOvertime: status.latestAttendance.isOvertime ?? false,
+          }
+        : {}, // Assign an empty object instead of null
     };
 
     console.log('Normalized Status:', normalizedStatus);
