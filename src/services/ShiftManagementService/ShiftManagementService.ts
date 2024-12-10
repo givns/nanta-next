@@ -118,15 +118,29 @@ export class ShiftManagementService {
     });
 
     const result: EffectiveShift = {
-      current: adjustment
-        ? this.convertToShiftData(adjustment.requestedShift)
-        : this.convertToShiftData(regularShift),
-      regular: this.convertToShiftData(regularShift),
+      current: {
+        id: adjustment?.requestedShift.id || regularShift.id,
+        name: adjustment?.requestedShift.name || regularShift.name,
+        shiftCode:
+          adjustment?.requestedShift.shiftCode || regularShift.shiftCode,
+        startTime:
+          adjustment?.requestedShift.startTime || regularShift.startTime,
+        endTime: adjustment?.requestedShift.endTime || regularShift.endTime,
+        workDays: adjustment?.requestedShift.workDays || regularShift.workDays,
+      },
+      regular: {
+        id: regularShift.id,
+        name: regularShift.name,
+        shiftCode: regularShift.shiftCode,
+        startTime: regularShift.startTime,
+        endTime: regularShift.endTime,
+        workDays: regularShift.workDays,
+      },
       isAdjusted: !!adjustment,
       adjustment,
     };
 
-    await setCacheData(cacheKey, JSON.stringify(result), 3600); // Cache for 1 hour
+    await setCacheData(cacheKey, JSON.parse(JSON.stringify(result)), 3600); // Cache for 1 hour
     return result;
   }
 
