@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserData } from '@/types/user';
@@ -65,25 +65,119 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     lineUserId: userData.lineUserId || '',
   });
 
-  // Timer effect
-  useEffect(() => {
-    let timeRemaining = 55;
+  // Memoized values
+  const isCheckingIn = !currentPeriod?.checkInTime;
+  const now = getCurrentTime();
 
-    if (step === 'info') {
-      const timerRef = setInterval(() => {
-        timeRemaining -= 1;
-        if (timeRemaining <= 0) {
-          onComplete();
-        }
-      }, 1000);
-
-      return () => {
-        clearInterval(timerRef);
-      };
+  const nextWindowTime = React.useMemo(() => {
+    if (!validation?.allowed && currentPeriod) {
+      if (currentPeriod.type === 'overtime' && overtimeContext) {
+        return new Date(overtimeContext.endTime);
+      }
+      if (currentPeriod.type === 'regular' && effectiveShift) {
+        return getNextWindowStartTime(effectiveShift);
+      }
+      return new Date(currentPeriod.current.end);
     }
-  }, [step, onComplete]);
+    return undefined;
+  }, [validation, currentPeriod, overtimeContext, effectiveShift]);
 
-  // Emergency leave handling
+  const isEarlyAction = React.useMemo(() => {
+    if (!nextWindowTime || !currentPeriod) return false;
+    return getCurrentTime() < nextWindowTime;
+  }, [nextWindowTime, currentPeriod]);
+
+  const isLateAction = React.useMemo(() => {
+    if (!currentPeriod?.checkInTime || !effectiveShift) return false;
+    const shiftStart = parseISO(
+      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${effectiveShift.startTime}`,
+    );
+    return (
+      getCurrentTime() >
+      addMinutes(shiftStart, ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD)
+    );
+  }, [currentPeriod, effectiveShift]);
+
+  const handleAttendanceSubmit = useCallback(
+    async (overtimeParams?: {
+      isOvertime: boolean;
+      overtimeRequestId?: string;
+    }) => {
+      try {
+        setProcessingState({
+          status: 'loading',
+          message: 'กำลังบันทึกเวลา...',
+        });
+
+        const mappedConfidence: 'high' | 'medium' | 'low' | 'manual' =
+          locationState.confidence;
+
+        const isCheckingIn = !currentPeriod?.checkInTime;
+
+        await checkInOut({
+          employeeId: userData.employeeId,
+          lineUserId: userData.lineUserId || null,
+          checkTime: '',
+          isCheckIn: isCheckingIn,
+          address: locationState.address,
+          inPremises: locationState.inPremises,
+          confidence: mappedConfidence,
+          entryType: currentPeriod?.type || PeriodType.REGULAR,
+          photo: '',
+          reason: undefined,
+          isOvertime:
+            overtimeParams?.isOvertime || currentPeriod?.type === 'overtime',
+          isManualEntry: false,
+          overtimeRequestId:
+            overtimeParams?.overtimeRequestId ||
+            (currentPeriod?.type === 'overtime'
+              ? currentPeriod.overtimeId
+              : undefined),
+          earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
+            ? 'planned'
+            : validation?.flags.isEmergencyLeave
+              ? 'emergency'
+              : undefined,
+          isLate: validation?.flags.isLateCheckIn,
+          location: locationState.coordinates,
+          metadata: {
+            overtimeId: currentPeriod?.overtimeId,
+            isDayOffOvertime: validation?.flags.isDayOffOvertime,
+            isInsideShiftHours: validation?.flags.isInsideShift,
+          },
+        });
+
+        await refreshAttendanceStatus();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        setProcessingState({
+          status: 'success',
+          message: 'บันทึกเวลาสำเร็จ',
+        });
+
+        setTimeout(onComplete, 2000);
+      } catch (error) {
+        console.error('Attendance submission error:', error);
+        setProcessingState({
+          status: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'เกิดข้อผิดพลาดในการบันทึกเวลา',
+        });
+      }
+    },
+    [
+      currentPeriod,
+      locationState,
+      userData,
+      validation,
+      checkInOut,
+      refreshAttendanceStatus,
+      onComplete,
+    ],
+  );
+
   const createSickLeaveRequest = useCallback(
     async (lineUserId: string, date: Date) => {
       try {
@@ -119,105 +213,19 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [],
   );
 
-  // Handle attendance submission
-  const handleAttendanceSubmit = async (overtimeParams?: {
-    isOvertime: boolean;
-    overtimeRequestId?: string;
-  }) => {
-    try {
-      setProcessingState({
-        status: 'loading',
-        message: 'กำลังบันทึกเวลา...',
-      });
-
-      const mappedConfidence: 'high' | 'medium' | 'low' | 'manual' =
-        locationState.confidence;
-
-      const isCheckingIn = !currentPeriod?.checkInTime;
-
-      await checkInOut({
-        // Required fields
-        employeeId: userData.employeeId,
-        lineUserId: userData.lineUserId || null,
-        checkTime: '',
-        isCheckIn: isCheckingIn,
-        address: locationState.address,
-        inPremises: locationState.inPremises,
-        confidence: mappedConfidence,
-        entryType: currentPeriod?.type || PeriodType.REGULAR,
-
-        // Optional fields
-        photo: '',
-        reason: undefined,
-        isOvertime:
-          overtimeParams?.isOvertime || currentPeriod?.type === 'overtime',
-        isManualEntry: false,
-        overtimeRequestId:
-          overtimeParams?.overtimeRequestId ||
-          (currentPeriod?.type === 'overtime'
-            ? currentPeriod.overtimeId
-            : undefined),
-        earlyCheckoutType: validation?.flags.isPlannedHalfDayLeave
-          ? 'planned'
-          : validation?.flags.isEmergencyLeave
-            ? 'emergency'
-            : undefined,
-        isLate: validation?.flags.isLateCheckIn,
-
-        // Location data if available
-        location: locationState.coordinates,
-
-        // Metadata
-        metadata: {
-          overtimeId: currentPeriod?.overtimeId,
-          isDayOffOvertime: validation?.flags.isDayOffOvertime,
-          isInsideShiftHours: validation?.flags.isInsideShift,
-        },
-      });
-
-      // Add explicit refresh
-      await refreshAttendanceStatus();
-
-      // Wait a moment for state to update
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      setProcessingState({
-        status: 'success',
-        message: 'บันทึกเวลาสำเร็จ',
-      });
-
-      setTimeout(onComplete, 2000);
-    } catch (error) {
-      console.error('Attendance submission error:', error);
-      setProcessingState({
-        status: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'เกิดข้อผิดพลาดในการบันทึกเวลา',
-      });
-    }
-  };
-
-  // Handle check out
   const handleCheckOut = useCallback(async () => {
     if (!effectiveShift) {
       setError('Unable to process check-out. Shift information is missing.');
       return;
     }
 
-    const now = getCurrentTime();
-
-    // Handle early checkout cases
     if (validation?.flags.isEarlyCheckOut) {
-      // Case 1: Pre-approved half-day leave
       if (validation.flags.isPlannedHalfDayLeave) {
         setStep('processing');
         await handleAttendanceSubmit();
         return;
       }
 
-      // Case 2: Emergency leave (before midshift)
       if (validation.flags.isEmergencyLeave) {
         if (!isConfirmedEarlyCheckout) {
           const confirmed = window.confirm(
@@ -244,11 +252,11 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     validation?.flags,
     isConfirmedEarlyCheckout,
     userData?.lineUserId,
+    now,
     createSickLeaveRequest,
     handleAttendanceSubmit,
   ]);
 
-  // Handle action button click
   const handleAction = useCallback(
     async (action: 'checkIn' | 'checkOut' | 'startOvertime') => {
       setError(null);
@@ -267,7 +275,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         } else if (action === 'checkOut') {
           await handleCheckOut();
         } else if (action === 'startOvertime') {
-          // Handle starting overtime
           if (!currentPeriod || currentPeriod.type !== 'overtime') {
             setError('Cannot start overtime at this time.');
             return;
@@ -280,11 +287,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           });
         }
       } catch (error: any) {
-        console.error('Error in handleAction:', {
-          error,
-          message: error.message,
-          stack: error.stack,
-        });
+        console.error('Error in handleAction:', error);
         setError(
           error.message || 'An unexpected error occurred. Please try again.',
         );
@@ -294,6 +297,50 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     [validation, handleCheckOut, handleAttendanceSubmit, currentPeriod],
   );
 
+  const getConfirmationMessage = useCallback(
+    (
+      period: CurrentPeriodInfo | null,
+      overtime: OvertimeContext | null,
+    ): string => {
+      if (!period) return 'Confirm action?';
+
+      if (period.type === 'overtime') {
+        return `Confirm ${isCheckingIn ? 'check-in to' : 'check-out from'} overtime period?`;
+      }
+
+      if (overtime && !isCheckingIn) {
+        return 'Complete regular shift and start overtime?';
+      }
+
+      return `Confirm ${isCheckingIn ? 'check-in' : 'check-out'}?`;
+    },
+    [isCheckingIn],
+  );
+
+  const handlePeriodTransition = useCallback(async () => {
+    if (currentPeriod?.type === 'regular' && overtimeContext) {
+      await handleAction('startOvertime');
+    }
+  }, [currentPeriod, overtimeContext, handleAction]);
+
+  // Timer effect
+  useEffect(() => {
+    let timeRemaining = 55;
+
+    if (step === 'info') {
+      const timerRef = setInterval(() => {
+        timeRemaining -= 1;
+        if (timeRemaining <= 0) {
+          onComplete();
+        }
+      }, 1000);
+
+      return () => {
+        clearInterval(timerRef);
+      };
+    }
+  }, [step, onComplete]);
+
   if (error || attendanceError) {
     return (
       <Alert variant="destructive">
@@ -302,88 +349,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       </Alert>
     );
   }
-
-  function getNextWindowStartTime(shiftData: ShiftData): Date | null {
-    const now = getCurrentTime();
-    const regularShiftStartTime = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`,
-    );
-    const regularShiftEndTime = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`,
-    );
-
-    if (now >= regularShiftEndTime) {
-      return parseISO(
-        `${format(addDays(now, 1), 'yyyy-MM-dd')}T${shiftData.startTime}`,
-      );
-    } else if (now < regularShiftStartTime) {
-      return regularShiftStartTime;
-    } else {
-      return regularShiftEndTime;
-    }
-  }
-
-  // Add these state/computed values and utils inside CheckInOutForm component
-  const isCheckingIn = !currentPeriod?.checkInTime;
-
-  // Time window calculations
-  const nextWindowTime = React.useMemo(() => {
-    if (!validation?.allowed && currentPeriod) {
-      if (currentPeriod.type === 'overtime' && overtimeContext) {
-        return new Date(overtimeContext.endTime);
-      }
-      // Using ShiftData instead of EffectiveShift
-      if (currentPeriod.type === 'regular' && effectiveShift) {
-        const nextWindow = getNextWindowStartTime(effectiveShift);
-        return nextWindow ? nextWindow : undefined;
-      }
-      return new Date(currentPeriod.current.end);
-    }
-    return undefined;
-  }, [validation, currentPeriod, overtimeContext, effectiveShift]);
-
-  // Early/Late action detection
-  const isEarlyAction = React.useMemo(() => {
-    if (!nextWindowTime || !currentPeriod) return false;
-    return getCurrentTime() < nextWindowTime;
-  }, [nextWindowTime, currentPeriod]);
-
-  const isLateAction = React.useMemo(() => {
-    if (!currentPeriod?.checkInTime || !effectiveShift) return false;
-    const shiftStart = parseISO(
-      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${effectiveShift.startTime}`,
-    );
-    return (
-      getCurrentTime() >
-      addMinutes(shiftStart, ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD)
-    );
-  }, [currentPeriod, effectiveShift]);
-
-  // Confirmation message generator
-  const getConfirmationMessage = (
-    period: CurrentPeriodInfo | null,
-    overtime: OvertimeContext | null,
-  ): string => {
-    if (!period) return 'Confirm action?';
-
-    if (period.type === 'overtime') {
-      return `Confirm ${isCheckingIn ? 'check-in to' : 'check-out from'} overtime period?`;
-    }
-
-    if (overtime && !isCheckingIn) {
-      return 'Complete regular shift and start overtime?';
-    }
-
-    return `Confirm ${isCheckingIn ? 'check-in' : 'check-out'}?`;
-  };
-
-  // Period transition handler
-  const handlePeriodTransition = React.useCallback(async () => {
-    // Handle period transitions, e.g., regular to overtime
-    if (currentPeriod?.type === 'regular' && overtimeContext) {
-      await handleAction('startOvertime');
-    }
-  }, [currentPeriod, overtimeContext, handleAction]);
 
   const renderProcessingView = () => (
     <div className="flex flex-col items-center justify-center p-4">
@@ -422,13 +387,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
-  const now = getCurrentTime();
-
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {step === 'info' && (
         <>
-          {/* Main content area */}
           <div className="flex-1 overflow-y-auto pb-32">
             <MobileAttendanceApp
               userData={{
@@ -448,8 +410,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 }
               }
               status={{
-                isHoliday: isHoliday,
-                isDayOff: isDayOff,
+                isHoliday,
+                isDayOff,
               }}
               attendanceStatus={{
                 state: base.state,
@@ -457,7 +419,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 isCheckingIn: base.isCheckingIn,
                 latestAttendance: base.latestAttendance
                   ? {
-                      id: base.latestAttendance.id || '', // Provide fallback for required fields
+                      id: base.latestAttendance.id || '',
                       employeeId: userData.employeeId,
                       date: getCurrentTime().toISOString(),
                       CheckInTime: base.latestAttendance.CheckInTime,
@@ -500,14 +462,11 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             />
           </div>
 
-          {/* Single ActionButton */}
           <AttendanceActionButton
             action={{
               type: isCheckingIn ? 'check-in' : 'check-out',
               period: {
-                // Add null check for currentPeriod
                 type: currentPeriod?.type || 'regular',
-                // Use overtimeContext instead of overtimeInfo
                 transition: overtimeContext
                   ? {
                       to: 'overtime',
@@ -535,13 +494,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               ),
             }}
             systemState={{
-              // Fix locationState property access
               isReady: locationState.status === 'ready',
               locationValid: locationState.status === 'ready',
-              // Convert null to undefined for error
               error: locationState.error || undefined,
             }}
-            // Fix function signature for onActionTriggered
             onActionTriggered={() => {
               if (currentPeriod?.type === 'regular') {
                 handleAction(isCheckingIn ? 'checkIn' : 'checkOut');
@@ -571,4 +527,25 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 };
+
+function getNextWindowStartTime(shiftData: ShiftData): Date | null {
+  const now = getCurrentTime();
+  const regularShiftStartTime = parseISO(
+    `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`,
+  );
+  const regularShiftEndTime = parseISO(
+    `${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`,
+  );
+
+  if (now >= regularShiftEndTime) {
+    return parseISO(
+      `${format(addDays(now, 1), 'yyyy-MM-dd')}T${shiftData.startTime}`,
+    );
+  } else if (now < regularShiftStartTime) {
+    return regularShiftStartTime;
+  } else {
+    return regularShiftEndTime;
+  }
+}
+
 export default React.memo(CheckInOutForm);
