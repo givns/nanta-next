@@ -189,11 +189,19 @@ const fetchAttendanceData = async (
 
     if (checkInOutAllowance) {
       responseData.checkInOutAllowance = {
-        ...checkInOutAllowance,
+        reason: checkInOutAllowance.reason,
+        allowed: checkInOutAllowance.allowed,
+        inPremises: checkInOutAllowance.inPremises,
+        address: checkInOutAllowance.address,
         periodType:
           responseData.attendanceStatus.attendanceStatus.currentPeriod?.type ||
           PeriodType.REGULAR,
-      } as CheckInOutAllowance;
+        isLastPeriod: checkInOutAllowance.isLastPeriod,
+        requireConfirmation: checkInOutAllowance.requireConfirmation ?? false, // Ensure non-undefined
+        flags: checkInOutAllowance.flags || {},
+        timing: checkInOutAllowance.timing || {},
+        metadata: checkInOutAllowance.metadata || {},
+      };
     }
   } catch (error) {
     console.error('Error getting check-in/out allowance:', error);
