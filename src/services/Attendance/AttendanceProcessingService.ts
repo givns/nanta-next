@@ -320,11 +320,11 @@ export class AttendanceProcessingService {
       overtimeState: statusUpdate.stateChange.overtime?.current?.state,
       ...(isCheckIn
         ? {
-            regularCheckInTime: date,
+            CheckInTime: date,
             checkInLocation: locationData,
           }
         : {
-            regularCheckOutTime: date,
+            CheckOutTime: date,
             checkOutLocation: locationData,
           }),
       shiftStartTime: context.shiftTimes.start,

@@ -433,10 +433,10 @@ export default async function handler(
           status: updatedStatus,
           attendance: {
             ...finalAttendance,
-            regularCheckInTime: finalAttendance?.CheckInTime
+            CheckInTime: finalAttendance?.CheckInTime
               ? format(finalAttendance.CheckInTime, 'HH:mm')
               : null,
-            regularCheckOutTime: finalAttendance?.CheckOutTime
+            CheckOutTime: finalAttendance?.CheckOutTime
               ? format(finalAttendance.CheckOutTime, 'HH:mm')
               : null,
           },

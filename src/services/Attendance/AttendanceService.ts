@@ -92,20 +92,6 @@ export class AttendanceService {
       orderBy: { createdAt: 'desc' },
     });
 
-    console.log('Raw attendance from DB:', {
-      query: {
-        employeeId,
-        dateRange: {
-          start: startOfDay(now),
-          end: endOfDay(now),
-        },
-      },
-      result: attendance,
-    });
-
-    // Get the latest overtime entry if exists
-    const latestOvertimeEntry = attendance?.overtimeEntries?.[0];
-
     const result: AttendanceBaseResponse = {
       state: (attendance?.state as AttendanceState) || AttendanceState.ABSENT,
       checkStatus:
@@ -113,10 +99,23 @@ export class AttendanceService {
       isCheckingIn: !attendance?.CheckInTime,
       latestAttendance: attendance
         ? {
-            CheckInTime: attendance.CheckInTime ?? undefined,
-            CheckOutTime: attendance.CheckOutTime ?? undefined,
+            date: attendance.date.toISOString(),
+            CheckInTime: attendance.CheckInTime?.toISOString() || null,
+            CheckOutTime: attendance.CheckOutTime?.toISOString() || null,
+            state:
+              (attendance.state as AttendanceState) || AttendanceState.ABSENT,
+            checkStatus:
+              (attendance.checkStatus as CheckStatus) || CheckStatus.PENDING,
+            overtimeState: attendance.overtimeState as
+              | OvertimeState
+              | undefined,
             isLateCheckIn: attendance.isLateCheckIn ?? false,
             isOvertime: attendance.isOvertime ?? false,
+            isManualEntry: attendance.isManualEntry ?? false,
+            isDayOff: attendance.isDayOff ?? false,
+            shiftStartTime:
+              attendance.shiftStartTime?.toISOString() || undefined, // Convert to string
+            shiftEndTime: attendance.shiftEndTime?.toISOString() || undefined,
           }
         : undefined,
     };

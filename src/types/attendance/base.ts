@@ -3,7 +3,7 @@
 // Core type definitions and enums
 // ===================================
 
-import { AttendanceState, CheckStatus } from './status';
+import { AttendanceState, CheckStatus, OvertimeState } from './status';
 
 // Core interfaces - Keep
 export interface BaseEntity {
@@ -52,10 +52,18 @@ export interface AttendanceBaseResponse {
   checkStatus: CheckStatus;
   isCheckingIn: boolean;
   latestAttendance?: {
-    CheckInTime?: Date;
-    CheckOutTime?: Date;
+    date: string;
+    CheckInTime: string | null;
+    CheckOutTime: string | null;
+    state: AttendanceState;
+    checkStatus: CheckStatus;
+    overtimeState?: OvertimeState;
     isLateCheckIn?: boolean;
     isOvertime?: boolean;
+    isManualEntry: boolean;
+    isDayOff: boolean;
+    shiftStartTime?: string;
+    shiftEndTime?: string;
   };
 }
 

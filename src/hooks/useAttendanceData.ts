@@ -219,10 +219,10 @@ function determineOvertimeState(
   overtimeInfo: any,
   baseData: any,
 ): OvertimeState {
-  if (!baseData?.latestAttendance?.regularCheckInTime) {
+  if (!baseData?.latestAttendance?.CheckInTime) {
     return OvertimeState.NOT_STARTED;
   }
-  if (baseData?.latestAttendance?.regularCheckOutTime) {
+  if (baseData?.latestAttendance?.CheckOutTime) {
     return OvertimeState.COMPLETED;
   }
   return OvertimeState.IN_PROGRESS;

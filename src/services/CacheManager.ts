@@ -85,8 +85,8 @@ export class CacheManager {
     checkStatus: z.nativeEnum(CheckStatus),
     isOvertime: z.boolean().optional(),
     overtimeState: z.nativeEnum(OvertimeState).optional(),
-    regularCheckInTime: z.date().nullable(),
-    regularCheckOutTime: z.date().nullable(),
+    CheckInTime: z.date().nullable(),
+    CheckOutTime: z.date().nullable(),
     shiftStartTime: z.date().nullable(),
     shiftEndTime: z.date().nullable(),
     isEarlyCheckIn: z.boolean().optional(),
@@ -254,10 +254,10 @@ export class CacheManager {
 
   // State determination methods
   private determineAttendanceState(attendance: any): AttendanceState {
-    if (!attendance.regularCheckInTime) {
+    if (!attendance.CheckInTime) {
       return AttendanceState.ABSENT;
     }
-    if (!attendance.regularCheckOutTime) {
+    if (!attendance.CheckOutTime) {
       return AttendanceState.INCOMPLETE;
     }
     return attendance.overtimeEntries?.length
@@ -266,10 +266,10 @@ export class CacheManager {
   }
 
   private determineCheckStatus(attendance: any): CheckStatus {
-    if (!attendance.regularCheckInTime) {
+    if (!attendance.CheckInTime) {
       return CheckStatus.PENDING;
     }
-    return attendance.regularCheckOutTime
+    return attendance.CheckOutTime
       ? CheckStatus.CHECKED_OUT
       : CheckStatus.CHECKED_IN;
   }

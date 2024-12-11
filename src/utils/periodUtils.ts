@@ -48,8 +48,8 @@ const isWithinOvertimePeriod = (
 };
 
 const getRegularPeriodStatus = (regularAttendance: any): PeriodStatus => {
-  if (!regularAttendance.regularCheckInTime) return PeriodStatus.PENDING;
-  if (!regularAttendance.regularCheckOutTime) return PeriodStatus.ACTIVE;
+  if (!regularAttendance.CheckInTime) return PeriodStatus.PENDING;
+  if (!regularAttendance.CheckOutTime) return PeriodStatus.ACTIVE;
   return PeriodStatus.COMPLETED;
 };
 
