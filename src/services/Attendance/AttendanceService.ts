@@ -155,6 +155,8 @@ export class AttendanceService {
           requireConfirmation: false,
           isDayOffOvertime: false,
           isInsideShift: false,
+          isAutoCheckIn: false,
+          isAutoCheckOut: false,
         },
       };
     }
@@ -178,6 +180,8 @@ export class AttendanceService {
         requireConfirmation: false,
         isDayOffOvertime: false,
         isInsideShift: false,
+        isAutoCheckIn: false,
+        isAutoCheckOut: false,
       },
     };
   }
