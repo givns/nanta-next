@@ -72,7 +72,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     console.log('Progress Calculation Start:', {
       currentPeriod,
       attendanceStatus: attendanceStatus?.latestAttendance,
-      regularShift: shiftData, // Assuming shiftData is available from props
+      regularShift: shiftData,
     });
 
     if (!currentPeriod?.current) {
@@ -81,74 +81,43 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
 
     try {
+      const now = new Date();
       const startTime = parseISO(currentPeriod.current.start);
       const endTime = parseISO(currentPeriod.current.end);
+
+      // Fix: Use the same parsing method as period times
       const regularShiftStart = shiftData
         ? parseISO(
-            `${format(currentTime, 'yyyy-MM-dd')}T${shiftData.startTime}`,
+            `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}:00.000Z`,
           )
         : null;
       const regularShiftEnd = shiftData
-        ? parseISO(`${format(currentTime, 'yyyy-MM-dd')}T${shiftData.endTime}`)
+        ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}:00.000Z`)
         : null;
 
       console.log('Time Reference Points:', {
-        now: currentTime.toISOString(),
+        now: now.toISOString(),
         periodStart: startTime.toISOString(),
         periodEnd: endTime.toISOString(),
         regularShiftStart: regularShiftStart?.toISOString(),
         regularShiftEnd: regularShiftEnd?.toISOString(),
         periodType: currentPeriod.type,
+        localTime: format(now, 'HH:mm:ss'), // Add local time for reference
       });
 
-      // Handle completed periods
-      if (attendanceStatus?.latestAttendance?.CheckOutTime) {
-        console.log('CheckOut exists:', {
-          checkOutTime: attendanceStatus.latestAttendance.CheckOutTime,
-          isOvertime: attendanceStatus.latestAttendance.isOvertime,
-          overtimeState: attendanceStatus.latestAttendance.overtimeState,
-        });
-
-        // Completed overtime period
-        if (
-          currentPeriod.type === 'overtime' &&
-          attendanceStatus.latestAttendance.overtimeState ===
-            OvertimeState.COMPLETED
-        ) {
-          console.log('Overtime completed, returning 100%');
-          return 100;
-        }
-
-        // Completed regular shift
-        if (
-          currentPeriod.type === 'regular' &&
-          !attendanceStatus.latestAttendance.isOvertime
-        ) {
-          console.log('Regular shift completed, returning 100%');
-          return 100;
-        }
-      }
-
-      // Period validation
-      if (!isValid(startTime) || !isValid(endTime)) {
-        console.log('Invalid period times');
-        return 0;
-      }
-
-      // Pre-shift overtime progress (e.g., 07:00-08:00)
-      if (
-        currentPeriod.type === 'overtime' &&
-        regularShiftStart &&
-        endTime <= regularShiftStart
-      ) {
-        console.log('Calculating pre-shift overtime progress');
+      // Regular shift progress (we're in regular period)
+      if (currentPeriod.type === 'regular') {
+        console.log('Calculating regular shift progress');
         const totalMinutes = differenceInMinutes(endTime, startTime);
-        const elapsedMinutes = differenceInMinutes(currentTime, startTime);
+        const elapsedMinutes = differenceInMinutes(now, startTime);
 
-        console.log('Pre-shift OT Calculation:', {
+        console.log('Regular Shift Calculation:', {
           totalMinutes,
           elapsedMinutes,
           rawPercentage: (elapsedMinutes / totalMinutes) * 100,
+          localNow: format(now, 'HH:mm:ss'),
+          localStart: format(startTime, 'HH:mm:ss'),
+          localEnd: format(endTime, 'HH:mm:ss'),
         });
 
         const percentage = Math.max(
