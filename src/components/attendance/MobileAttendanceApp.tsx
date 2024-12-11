@@ -11,6 +11,7 @@ import {
 } from '@/types/attendance';
 import { differenceInMinutes } from 'date-fns';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { current } from '@reduxjs/toolkit';
 
 interface ShiftStatusInfo {
   isHoliday: boolean;
@@ -80,18 +81,19 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
 
     try {
-      const now = currentTime;
       const startTime = parseISO(currentPeriod.current.start);
       const endTime = parseISO(currentPeriod.current.end);
       const regularShiftStart = shiftData
-        ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`)
+        ? parseISO(
+            `${format(currentTime, 'yyyy-MM-dd')}T${shiftData.startTime}`,
+          )
         : null;
       const regularShiftEnd = shiftData
-        ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`)
+        ? parseISO(`${format(currentTime, 'yyyy-MM-dd')}T${shiftData.endTime}`)
         : null;
 
       console.log('Time Reference Points:', {
-        now: now.toISOString(),
+        now: currentTime.toISOString(),
         periodStart: startTime.toISOString(),
         periodEnd: endTime.toISOString(),
         regularShiftStart: regularShiftStart?.toISOString(),
@@ -141,7 +143,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       ) {
         console.log('Calculating pre-shift overtime progress');
         const totalMinutes = differenceInMinutes(endTime, startTime);
-        const elapsedMinutes = differenceInMinutes(now, startTime);
+        const elapsedMinutes = differenceInMinutes(currentTime, startTime);
 
         console.log('Pre-shift OT Calculation:', {
           totalMinutes,
@@ -160,7 +162,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       if (currentPeriod.type === 'regular') {
         console.log('Calculating regular shift progress');
         const totalMinutes = differenceInMinutes(endTime, startTime);
-        const elapsedMinutes = differenceInMinutes(now, startTime);
+        const elapsedMinutes = differenceInMinutes(currentTime, startTime);
 
         console.log('Regular Shift Calculation:', {
           totalMinutes,
@@ -183,7 +185,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       ) {
         console.log('Calculating post-shift overtime progress');
         const totalMinutes = differenceInMinutes(endTime, startTime);
-        const elapsedMinutes = differenceInMinutes(now, startTime);
+        const elapsedMinutes = differenceInMinutes(currentTime, startTime);
 
         console.log('Post-shift OT Calculation:', {
           totalMinutes,
@@ -201,7 +203,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       // Fallback for any other case
       console.log('Using fallback progress calculation');
       const totalMinutes = differenceInMinutes(endTime, startTime);
-      const elapsedMinutes = differenceInMinutes(now, startTime);
+      const elapsedMinutes = differenceInMinutes(currentTime, startTime);
 
       console.log('Fallback Calculation:', {
         totalMinutes,
