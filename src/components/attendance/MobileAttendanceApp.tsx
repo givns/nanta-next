@@ -88,17 +88,23 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
 
     try {
-      const start = new Date(currentPeriod.current.start);
-      const end = new Date(currentPeriod.current.end);
+      const startTime = parseISO(currentPeriod.current.start);
+      const endTime = parseISO(currentPeriod.current.end);
       const now = new Date();
 
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+      if (!isValid(startTime) || !isValid(endTime)) return 0;
 
-      const elapsed = now.getTime() - start.getTime();
-      const total = end.getTime() - start.getTime();
+      const totalMinutes = differenceInMinutes(endTime, startTime);
+      const elapsedMinutes = differenceInMinutes(now, startTime);
 
-      if (total <= 0) return 0;
-      return Math.max(0, Math.min((elapsed / total) * 100, 100));
+      if (totalMinutes <= 0) return 0;
+
+      // Calculate percentage and round to 2 decimal places
+      const percentage = Math.max(
+        0,
+        Math.min((elapsedMinutes / totalMinutes) * 100, 100),
+      );
+      return Math.round(percentage * 100) / 100;
     } catch (error) {
       console.error('Progress calculation error:', error);
       return 0;
