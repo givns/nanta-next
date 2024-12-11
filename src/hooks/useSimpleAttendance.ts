@@ -83,7 +83,7 @@ export function useSimpleAttendance({
   useEffect(() => {
     console.log('Overtime context update:', {
       hasOvertimeInfo: !!data?.window?.overtimeInfo,
-      overtimeContext,
+      overtimeContext: data?.window?.overtimeInfo,
     });
   }, [data?.window?.overtimeInfo, overtimeContext]);
 
@@ -122,52 +122,6 @@ export function useSimpleAttendance({
     }
   }, [data]);
 
-  // Create current period info from window data
-  const currentPeriod: CurrentPeriodInfo | null = data?.window
-    ? {
-        type: data.window.type,
-        current: {
-          // Convert to ISO strings for consistency
-          start:
-            typeof data.window.current.start === 'string'
-              ? data.window.current.start
-              : (data.window.current.start as Date)
-                ? (data.window.current.start as Date).toISOString()
-                : '',
-          end:
-            typeof data.window.current.end === 'string'
-              ? data.window.current.end
-              : (data.window.current.end as Date)
-                ? (data.window.current.end as Date).toISOString()
-                : '',
-        },
-        isComplete: Boolean(data.base.latestAttendance?.CheckOutTime),
-        checkInTime: data.base.latestAttendance?.CheckInTime ?? null,
-        checkOutTime: data.base.latestAttendance?.CheckOutTime ?? null,
-        overtimeId: data.window.overtimeInfo?.id,
-      }
-    : null;
-
-  useEffect(() => {
-    if (data) {
-      console.log('Current period calculation:', {
-        input: {
-          windowType: data.window.type,
-          windowCurrent: data.window.current,
-          latestAttendance: data.base.latestAttendance,
-          overtimeInfo: data.window.overtimeInfo,
-        },
-        output: currentPeriod,
-        derivedValues: {
-          isComplete: Boolean(data.base.latestAttendance?.CheckOutTime),
-          isCheckingIn: !data.base.latestAttendance?.CheckInTime,
-          checkInTime: data.base.latestAttendance?.CheckInTime,
-          checkOutTime: data.base.latestAttendance?.CheckOutTime,
-        },
-      });
-    }
-  }, [data, currentPeriod]);
-
   // In useSimpleAttendance.ts
   const enhancedRefreshStatus = useMemo(() => {
     const refresh = async (options?: {
@@ -204,7 +158,7 @@ export function useSimpleAttendance({
     effectiveShift: data?.window?.shift || null,
     isDayOff: data?.window?.isDayOff || false,
     isHoliday: data?.window?.isHoliday || false,
-    currentPeriod,
+    currentPeriod: data?.enhanced.currentPeriod,
     validation: data?.validation || null,
     isLoading: isInitializing || locationLoading || isAttendanceLoading,
   };

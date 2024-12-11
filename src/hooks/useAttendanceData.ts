@@ -74,22 +74,6 @@ export function useAttendanceData({
             }
           : null;
 
-        // Map the window response with overtime info
-        const mappedWindow = {
-          ...responseData.window,
-          overtimeInfo: responseData.window.overtimeInfo
-            ? {
-                ...responseData.window.overtimeInfo,
-                durationMinutes:
-                  responseData.window.overtimeInfo.durationMinutes || 0,
-                isInsideShiftHours:
-                  responseData.window.overtimeInfo.isInsideShiftHours || false,
-                isDayOffOvertime:
-                  responseData.window.overtimeInfo.isDayOffOvertime || false,
-              }
-            : undefined,
-        };
-
         return {
           base: {
             state: responseData.status.state,
@@ -97,7 +81,7 @@ export function useAttendanceData({
             isCheckingIn: responseData.status.isCheckingIn,
             latestAttendance: mappedLatestAttendance,
           },
-          window: mappedWindow,
+          window: responseData.window,
           validation: responseData.validation,
           enhanced: responseData.enhanced,
           timestamp: responseData.timestamp ?? new Date().toISOString(),

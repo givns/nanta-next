@@ -9,16 +9,12 @@ import {
   ValidationResponse,
   OvertimeState,
 } from '@/types/attendance';
-import { differenceInMinutes } from 'date-fns';
 import {
   calculateTimeDifference,
   formatBangkokTime,
   formatTime,
   getCurrentTime,
-  isTimeWithinRange,
-  toBangkokTime,
 } from '@/utils/dateUtils';
-import { current } from '@reduxjs/toolkit';
 
 interface ShiftStatusInfo {
   isHoliday: boolean;

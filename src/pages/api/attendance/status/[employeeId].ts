@@ -123,6 +123,9 @@ export default async function handler(
             : window.current.end < window.current.start, // Fallback for regular shifts
         }
       : null;
+    console.log;
+    ('currentPeriod from AP');
+    currentPeriod;
 
     // Add type guard
     const isValidLatestAttendance = (
