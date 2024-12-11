@@ -16,7 +16,7 @@ import {
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { AttendanceEnhancementService } from '@/services/Attendance/utils/AttendanceEnhancementService';
+import { AttendanceEnhancementService } from '@/services/Attendance/AttendanceEnhancementService';
 // Initialize services
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
@@ -31,9 +31,7 @@ const attendanceService = new AttendanceService(
 );
 
 // Create instance of AttendanceEnhancementService
-const enhancementService = new AttendanceEnhancementService(
-  services.timeEntryService,
-);
+const enhancementService = new AttendanceEnhancementService();
 
 export interface AttendanceResponse {
   status: AttendanceBaseResponse;

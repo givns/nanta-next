@@ -60,6 +60,14 @@ export interface CheckInOutAllowance {
     plannedStartTime?: string;
     plannedEndTime?: string;
     maxCheckOutTime?: string;
+    transitionTime?: string;
+    missedEntries?: Array<{
+      // Add this property
+      type: 'check-in' | 'check-out';
+      periodType: PeriodType;
+      expectedTime: string;
+      overtimeId?: string;
+    }>;
   };
 
   // Enhanced metadata

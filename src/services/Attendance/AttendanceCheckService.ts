@@ -8,7 +8,6 @@ import { HolidayService } from '../HolidayService';
 import {
   AttendanceRecord,
   CheckInOutAllowance,
-  HalfDayLeaveContext,
   ShiftData,
   ApprovedOvertimeInfo,
   AppError,
@@ -18,6 +17,8 @@ import {
   CACHE_CONSTANTS,
   ATTENDANCE_CONSTANTS,
   Period,
+  EnhancedAttendanceStatus,
+  ShiftStatus,
 } from '../../types/attendance';
 import {
   getCacheData,
@@ -31,8 +32,6 @@ import {
   format,
   isAfter,
   isBefore,
-  isSameDay,
-  isWithinInterval,
   parseISO,
   startOfDay,
   subMinutes,
@@ -41,9 +40,27 @@ import { getCurrentTime } from '../../utils/dateUtils';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { PeriodManagementService } from './PeriodManagementService';
 import { AutoCompletionService } from './AutoCompletionService';
+import { AttendanceEnhancementService } from './AttendanceEnhancementService';
+
+interface ValidationContext {
+  now: Date;
+  inPremises: boolean;
+  address: string;
+  currentPeriod: Period;
+  latestAttendance: AttendanceRecord | null;
+  approvedOvertime: ApprovedOvertimeInfo | null;
+  enhancedStatus: EnhancedAttendanceStatus;
+  shiftData?: {
+    effectiveShift: ShiftData;
+    shiftstatus: ShiftStatus;
+  };
+  leaveRequests?: LeaveRequest[];
+}
 
 export class AttendanceCheckService {
-  private periodManager: PeriodManagementService;
+  private readonly periodManager: PeriodManagementService;
+  private readonly enhancementService: AttendanceEnhancementService;
+
   private readonly autoCompleter: AutoCompletionService;
 
   constructor(
@@ -56,6 +73,7 @@ export class AttendanceCheckService {
   ) {
     this.periodManager = new PeriodManagementService();
     this.autoCompleter = new AutoCompletionService();
+    this.enhancementService = new AttendanceEnhancementService();
   }
 
   async invalidateAttendanceCache(employeeId: string): Promise<void> {
@@ -122,23 +140,501 @@ export class AttendanceCheckService {
     return cachedUser ? JSON.parse(cachedUser) : null;
   }
 
+  private createPeriod(
+    type: PeriodType,
+    startTime: string | Date,
+    endTime: string | Date,
+    now: Date,
+    options?: {
+      isOvertime?: boolean;
+      overtimeId?: string;
+      isDayOffOvertime?: boolean;
+    },
+  ): Period {
+    const start =
+      typeof startTime === 'string'
+        ? parseISO(`${format(now, 'yyyy-MM-dd')}T${startTime}`)
+        : startTime;
+    const end =
+      typeof endTime === 'string'
+        ? parseISO(`${format(now, 'yyyy-MM-dd')}T${endTime}`)
+        : endTime;
+
+    return {
+      type,
+      startTime: start,
+      endTime: end,
+      isOvertime: options?.isOvertime ?? false,
+      overtimeId: options?.overtimeId,
+      isOvernight: format(end, 'HH:mm') < format(start, 'HH:mm'),
+      isDayOffOvertime: options?.isDayOffOvertime,
+    };
+  }
+
+  private async validateAttendanceContext(
+    context: ValidationContext,
+  ): Promise<CheckInOutAllowance | null> {
+    // 1. Check for auto-completion first
+    if (context.enhancedStatus.missingEntries.length > 0) {
+      return this.handleAutoCompletion(context);
+    }
+
+    // 2. Check for period transitions
+    if (context.enhancedStatus.pendingTransitions.length > 0) {
+      return this.handlePeriodTransition(context);
+    }
+
+    // 3. Check for non-working day conditions
+    if (
+      context.shiftData?.shiftstatus.isHoliday ||
+      context.shiftData?.shiftstatus.isDayOff
+    ) {
+      return this.handleNonWorkingDay(context);
+    }
+
+    return null;
+  }
+
+  private handleAutoCompletion(
+    context: ValidationContext,
+  ): CheckInOutAllowance {
+    const { enhancedStatus, approvedOvertime, inPremises, address } = context;
+    const hasMissedOvertime = enhancedStatus.missingEntries.some(
+      (entry) => entry.periodType === PeriodType.OVERTIME,
+    );
+
+    return this.createResponse(true, 'ระบบจะทำการลงเวลาย้อนหลังให้อัตโนมัติ', {
+      inPremises,
+      address,
+      periodType: context.currentPeriod.type,
+      requireConfirmation: true,
+      flags: {
+        isAutoCheckIn: enhancedStatus.missingEntries.some(
+          (e) => e.type === 'check-in',
+        ),
+        isAutoCheckOut: enhancedStatus.missingEntries.some(
+          (e) => e.type === 'check-out',
+        ),
+        isOvertime: hasMissedOvertime,
+        isDayOffOvertime: approvedOvertime?.isDayOffOvertime || false,
+        isInsideShift: approvedOvertime?.isInsideShiftHours || false,
+      },
+      timing: {
+        missedEntries: enhancedStatus.missingEntries.map((entry) => ({
+          type: entry.type,
+          periodType: entry.periodType,
+          expectedTime: entry.expectedTime.toISOString(),
+          overtimeId: entry.overtimeId,
+        })),
+        overtimeMissed: hasMissedOvertime, // Add this to match interface
+      },
+      metadata: {
+        overtimeId: approvedOvertime?.id,
+      },
+    });
+  }
+
+  private handlePeriodTransition(
+    context: ValidationContext,
+  ): CheckInOutAllowance {
+    const {
+      enhancedStatus,
+      approvedOvertime,
+      inPremises,
+      address,
+      currentPeriod,
+    } = context;
+
+    const transition = enhancedStatus.pendingTransitions[0];
+    const isOvertimeTransition = transition.to === PeriodType.OVERTIME;
+
+    return this.createResponse(
+      true,
+      isOvertimeTransition
+        ? 'คุณกำลังจะเริ่มทำงานล่วงเวลา กรุณายืนยันการลงเวลา'
+        : 'คุณกำลังจะเริ่มกะปกติ กรุณายืนยันการลงเวลา',
+      {
+        inPremises,
+        address,
+        periodType: currentPeriod.type,
+        requireConfirmation: true,
+        flags: {
+          isOvertime: isOvertimeTransition,
+          isDayOffOvertime: approvedOvertime?.isDayOffOvertime || false,
+          isInsideShift: approvedOvertime?.isInsideShiftHours || false,
+          isAutoCheckOut: transition.from === PeriodType.REGULAR,
+          isAutoCheckIn: true,
+        },
+        timing: {
+          transitionTime: transition.transitionTime.toISOString(),
+          plannedStartTime: transition.transitionTime.toISOString(),
+        },
+        metadata: {
+          overtimeId: approvedOvertime?.id,
+          nextPeriod: {
+            type: transition.to,
+            startTime: format(transition.transitionTime, 'HH:mm'),
+            overtimeId: approvedOvertime?.id,
+          },
+        },
+      },
+    );
+  }
+
+  private handleNonWorkingDay(context: ValidationContext): CheckInOutAllowance {
+    const {
+      approvedOvertime,
+      shiftData,
+      inPremises,
+      address,
+      latestAttendance,
+    } = context;
+
+    const type = shiftData?.shiftstatus.isHoliday ? 'holiday' : 'dayoff';
+
+    if (!approvedOvertime) {
+      return this.createResponse(
+        false,
+        `${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}: การลงเวลาจะต้องได้รับการอนุมัติ`,
+        {
+          inPremises,
+          address,
+          periodType: PeriodType.REGULAR,
+        },
+      );
+    }
+
+    const isCheckingIn = !latestAttendance?.CheckInTime;
+    const overtimePeriod = this.createPeriod(
+      PeriodType.OVERTIME,
+      approvedOvertime.startTime,
+      approvedOvertime.endTime,
+      context.now,
+      {
+        isOvertime: true,
+        overtimeId: approvedOvertime.id,
+        isDayOffOvertime: true,
+      },
+    );
+
+    return this.handleOvertimeAttendance({
+      ...context,
+      currentPeriod: overtimePeriod,
+      isCheckingIn,
+    });
+  }
+
+  private handleOvertimeAttendance(
+    context: ValidationContext & { isCheckingIn: boolean },
+  ): CheckInOutAllowance {
+    const {
+      now,
+      currentPeriod,
+      approvedOvertime,
+      inPremises,
+      address,
+      isCheckingIn,
+    } = context;
+
+    if (isCheckingIn) {
+      const isLateCheckIn =
+        now >
+        addMinutes(
+          currentPeriod.startTime,
+          ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+        );
+
+      return this.createResponse(
+        true,
+        'คุณกำลังลงเวลาทำงานล่วงเวลาที่ได้รับอนุมัติ',
+        {
+          inPremises,
+          address,
+          periodType: PeriodType.OVERTIME,
+          flags: {
+            isOvertime: true,
+            isDayOffOvertime: approvedOvertime?.isDayOffOvertime || false,
+            isInsideShift: approvedOvertime?.isInsideShiftHours || false,
+            isLateCheckIn,
+            isEarlyCheckIn: now < currentPeriod.startTime,
+          },
+          timing: {
+            actualStartTime: now.toISOString(),
+            plannedStartTime: currentPeriod.startTime.toISOString(),
+          },
+          metadata: {
+            overtimeId: currentPeriod.overtimeId,
+          },
+        },
+      );
+    }
+
+    const isEarlyCheckOut = now < currentPeriod.endTime;
+    return this.createResponse(true, 'คุณกำลังลงเวลาออกจากการทำงานล่วงเวลา', {
+      inPremises,
+      address,
+      periodType: PeriodType.OVERTIME,
+      flags: {
+        isOvertime: true,
+        isDayOffOvertime: approvedOvertime?.isDayOffOvertime || false,
+        isInsideShift: approvedOvertime?.isInsideShiftHours || false,
+        isEarlyCheckOut,
+      },
+      timing: {
+        actualEndTime: now.toISOString(),
+        plannedEndTime: currentPeriod.endTime.toISOString(),
+        checkoutStatus: this.getCheckoutStatus(now, currentPeriod.endTime),
+      },
+      metadata: {
+        overtimeId: currentPeriod.overtimeId,
+      },
+    });
+  }
+
+  private handleRegularAttendance(
+    context: ValidationContext & { isCheckingIn: boolean },
+  ): CheckInOutAllowance {
+    const {
+      now,
+      currentPeriod,
+      shiftData,
+      leaveRequests,
+      inPremises,
+      address,
+      isCheckingIn,
+    } = context;
+
+    if (isCheckingIn) {
+      return this.handleRegularCheckIn(context);
+    }
+
+    const isEarlyCheckout = this.isEarlyCheckout(now, currentPeriod.endTime);
+
+    if (isEarlyCheckout && (!leaveRequests || leaveRequests.length === 0)) {
+      return this.handleEarlyCheckout(context);
+    }
+
+    return this.handleRegularCheckout(context);
+  }
+
+  private handleRegularCheckIn(
+    context: ValidationContext & { isCheckingIn: boolean },
+  ): CheckInOutAllowance {
+    const { now, currentPeriod, inPremises, address } = context;
+
+    const isLateCheckIn =
+      now >
+      addMinutes(
+        currentPeriod.startTime,
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+      );
+    const isEarlyCheckIn =
+      now <
+      subMinutes(
+        currentPeriod.startTime,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      );
+
+    return this.createResponse(
+      true,
+      isLateCheckIn ? 'คุณกำลังลงเวลาเข้างานสาย' : 'คุณกำลังลงเวลาเข้างาน',
+      {
+        inPremises,
+        address,
+        periodType: PeriodType.REGULAR,
+        flags: {
+          isLateCheckIn,
+          isEarlyCheckIn,
+          isInsideShift: !isEarlyCheckIn,
+        },
+        timing: {
+          actualStartTime: now.toISOString(),
+          plannedStartTime: currentPeriod.startTime.toISOString(),
+        },
+      },
+    );
+  }
+
+  private handleEarlyCheckout(context: ValidationContext): CheckInOutAllowance {
+    const { now, currentPeriod, inPremises, address } = context;
+
+    const minutesEarly = differenceInMinutes(currentPeriod.endTime, now);
+    const checkoutStatus = this.getCheckoutStatus(now, currentPeriod.endTime);
+
+    if (checkoutStatus === 'very_early') {
+      return this.handleVeryEarlyCheckout(context);
+    }
+
+    return this.createResponse(false, 'ไม่สามารถลงเวลาออกก่อนเวลาที่กำหนด', {
+      inPremises,
+      address,
+      periodType: PeriodType.REGULAR,
+      flags: {
+        isEarlyCheckOut: true,
+        isOutsideShift: true,
+      },
+      timing: {
+        minutesEarly,
+        plannedEndTime: currentPeriod.endTime.toISOString(),
+        checkoutStatus: 'early',
+      },
+    });
+  }
+
+  private handleVeryEarlyCheckout(
+    context: ValidationContext,
+  ): CheckInOutAllowance {
+    const { now, currentPeriod, inPremises, address } = context;
+    const shiftMidpoint = this.calculateShiftMidpoint(currentPeriod);
+
+    if (now < shiftMidpoint) {
+      return this.createResponse(
+        true,
+        'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ',
+        {
+          inPremises,
+          address,
+          periodType: PeriodType.REGULAR,
+          requireConfirmation: true,
+          flags: {
+            isEarlyCheckOut: true,
+            isEmergencyLeave: true,
+          },
+          timing: {
+            checkoutStatus: 'very_early',
+          },
+        },
+      );
+    }
+
+    return this.createResponse(
+      false,
+      'ไม่สามารถลงเวลาออกก่อนเวลาเลิกงานได้ กรุณาติดต่อฝ่ายบุคคล',
+      {
+        inPremises,
+        address,
+        periodType: PeriodType.REGULAR,
+        flags: {
+          isEarlyCheckOut: true,
+          isAfterMidshift: true,
+        },
+        timing: {
+          checkoutStatus: 'very_early',
+        },
+      },
+    );
+  }
+
+  private handleRegularCheckout(
+    context: ValidationContext,
+  ): CheckInOutAllowance {
+    const { now, currentPeriod, inPremises, address, leaveRequests } = context;
+
+    const isLateCheckOut =
+      now >
+      addMinutes(
+        currentPeriod.endTime,
+        ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
+      );
+
+    // Handle half-day leave case
+    if (leaveRequests?.some((leave) => leave.leaveFormat === 'ลาครึ่งวัน')) {
+      return this.createResponse(
+        true,
+        'คุณกำลังลงเวลาออกงานสำหรับช่วงเช้า (ลาครึ่งวันช่วงบ่าย)',
+        {
+          inPremises,
+          address,
+          periodType: PeriodType.REGULAR,
+          flags: {
+            isPlannedHalfDayLeave: true,
+            isMorningShift: true,
+          },
+          timing: {
+            checkoutStatus: 'normal',
+          },
+        },
+      );
+    }
+
+    return this.createResponse(
+      true,
+      isLateCheckOut ? 'คุณกำลังลงเวลาออกงานล่าช้า' : 'คุณกำลังลงเวลาออกงาน',
+      {
+        inPremises,
+        address,
+        periodType: PeriodType.REGULAR,
+        flags: {
+          isLateCheckOut,
+          isOutsideShift: isLateCheckOut,
+        },
+        timing: {
+          actualEndTime: now.toISOString(),
+          plannedEndTime: currentPeriod.endTime.toISOString(),
+          checkoutStatus: isLateCheckOut ? 'late' : 'normal',
+        },
+      },
+    );
+  }
+
+  // Utility methods
+  private calculateShiftMidpoint(period: Period): Date {
+    return new Date(
+      (period.startTime.getTime() + period.endTime.getTime()) / 2,
+    );
+  }
+
+  private getCheckoutWindow(shiftEnd: Date) {
+    return {
+      earlyCheckoutStart: subMinutes(
+        shiftEnd,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
+      ),
+      regularCheckoutEnd: addMinutes(
+        shiftEnd,
+        ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
+      ),
+    };
+  }
+
+  private isEarlyCheckout(now: Date, shiftEnd: Date): boolean {
+    const { earlyCheckoutStart } = this.getCheckoutWindow(shiftEnd);
+    return isBefore(now, earlyCheckoutStart);
+  }
+
+  private getCheckoutStatus(now: Date, shiftEnd: Date): CheckoutStatusType {
+    const { earlyCheckoutStart, regularCheckoutEnd } =
+      this.getCheckoutWindow(shiftEnd);
+
+    if (isBefore(now, subMinutes(earlyCheckoutStart, 60))) {
+      return 'very_early';
+    }
+    if (isBefore(now, earlyCheckoutStart)) {
+      return 'early';
+    }
+    if (isAfter(now, regularCheckoutEnd)) {
+      return 'late';
+    }
+    return 'normal';
+  }
+
   public async isCheckInOutAllowed(
     employeeId: string,
     inPremises: boolean,
     address: string,
   ): Promise<CheckInOutAllowance> {
-    try {
-      // 1. Fetch necessary data
-      const user = await this.getCachedUserData(employeeId);
-      if (!user)
-        throw new AppError({
-          code: ErrorCode.USER_NOT_FOUND,
-          message: 'User not found',
-        });
-      const now = getCurrentTime();
-      const today = startOfDay(now);
+    const user = await this.getCachedUserData(employeeId);
+    if (!user)
+      throw new AppError({
+        code: ErrorCode.USER_NOT_FOUND,
+        message: 'User not found',
+      });
 
-      // 2. Get all required data
+    const now = getCurrentTime();
+    const today = startOfDay(now);
+
+    try {
+      // Keep your existing data fetching
       const [
         shiftData,
         holidays,
@@ -160,6 +656,7 @@ export class AttendanceCheckService {
         this.processingService.getLatestAttendance(employeeId),
       ]);
 
+      // Use your existing validation
       if (!shiftData?.effectiveShift) {
         return this.createResponse(false, 'ไม่พบข้อมูลกะการทำงานของคุณ', {
           inPremises,
@@ -168,46 +665,39 @@ export class AttendanceCheckService {
         });
       }
 
-      // Build periods array
-      const periods: Period[] = [];
-
-      periods.push({
-        type: PeriodType.REGULAR,
-        startTime: this.shiftService.utils.parseShiftTime(
-          shiftData.effectiveShift.startTime,
-          now,
-        ),
-        endTime: this.shiftService.utils.parseShiftTime(
-          shiftData.effectiveShift.endTime,
-          now,
-        ),
-        isOvertime: false,
-        isOvernight:
-          shiftData.effectiveShift.endTime < shiftData.effectiveShift.startTime,
-      });
-
-      if (approvedOvertime) {
-        periods.push({
-          type: PeriodType.OVERTIME,
-          startTime: parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
-          ),
-          endTime: parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-          ),
-          isOvertime: true,
-          overtimeId: approvedOvertime.id,
-          isOvernight: approvedOvertime.endTime < approvedOvertime.startTime,
-        });
-      }
-
-      // Determine current period
-      const currentPeriod = this.periodManager.determineCurrentPeriod(
+      // Create current period using your existing logic
+      const currentPeriod = this.createPeriod(
+        PeriodType.REGULAR,
+        shiftData.effectiveShift.startTime,
+        shiftData.effectiveShift.endTime,
         now,
-        periods,
       );
 
-      // Basic validations remain the same...
+      // Get enhanced status
+      const enhancedStatus =
+        await this.enhancementService.enhanceAttendanceStatus(
+          latestAttendance,
+          currentPeriod,
+          approvedOvertime,
+        );
+
+      // Create validation context
+      const context: ValidationContext = {
+        now,
+        inPremises,
+        address,
+        currentPeriod,
+        latestAttendance,
+        approvedOvertime,
+        enhancedStatus,
+        shiftData: {
+          effectiveShift: shiftData.effectiveShift,
+          shiftstatus: shiftData.shiftstatus,
+        },
+        leaveRequests: leaveRequest ? [leaveRequest] : [],
+      };
+
+      // Handle basic validations first
       if (pendingLeave) {
         return this.createResponse(
           false,
@@ -220,112 +710,19 @@ export class AttendanceCheckService {
         );
       }
 
-      if (
-        leaveRequest?.status === 'Approved' &&
-        leaveRequest.leaveFormat === 'ลาเต็มวัน'
-      ) {
-        return this.createResponse(
-          false,
-          `คุณไม่สามารถลงเวลาได้เนื่องจาก${leaveRequest.leaveType}`,
-          {
-            inPremises,
-            address,
-            periodType: PeriodType.REGULAR,
-          },
-        );
+      // Check for enhanced validations
+      const enhancedValidation = await this.validateAttendanceContext(context);
+      if (enhancedValidation) {
+        return enhancedValidation;
       }
 
-      // Handle different cases using current period
-      const { isHoliday, isDayOff } = shiftData.shiftstatus;
-
-      if (isHoliday || isDayOff) {
-        return this.handleNonWorkingDayAttendance(
-          isHoliday ? 'holiday' : 'dayoff',
-          approvedOvertime,
-          inPremises,
-          address,
-          now,
-          latestAttendance,
-          pendingOvertime,
-        );
-      }
-
-      // Add missed period detection
-      if (!latestAttendance?.CheckOutTime) {
-        const now = getCurrentTime();
-        const shiftEnd = parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${shiftData.effectiveShift.endTime}`,
-        );
-
-        // If we're past shift end and have approved overtime
-        if (now > shiftEnd && approvedOvertime) {
-          // Check if we're also past overtime
-          const overtimeEnd = parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-          );
-
-          if (now > overtimeEnd) {
-            // Trigger auto-completion
-            return this.createResponse(
-              true,
-              'ระบบจะทำการลงเวลาออกงานปกติและลงเวลาเข้า-ออกงานล่วงเวลาให้อัตโนมัติ',
-              {
-                inPremises,
-                address,
-                periodType: PeriodType.REGULAR,
-                requireConfirmation: true,
-                flags: {
-                  isAutoCheckIn: true,
-                  isAutoCheckOut: true,
-                  isOvertime: true,
-                },
-                timing: {
-                  missedCheckOutTime: differenceInMinutes(now, shiftEnd),
-                  plannedEndTime: shiftEnd.toISOString(),
-                  overtimeMissed: true,
-                },
-              },
-            );
-          }
-        }
-      }
-      if (currentPeriod?.type === PeriodType.OVERTIME) {
-        if (!approvedOvertime) {
-          return this.createResponse(
-            false,
-            'ไม่พบข้อมูลการทำงานล่วงเวลาที่ได้รับอนุมัติ',
-            {
-              inPremises,
-              address,
-              periodType: PeriodType.OVERTIME,
-              flags: {
-                isOvertime: true,
-              },
-            },
-          );
-        }
-
-        return this.handleApprovedOvertime(
-          approvedOvertime,
-          now,
-          inPremises,
-          address,
-          !latestAttendance?.CheckInTime,
-          latestAttendance,
-        );
-      }
-
-      return this.handleRegularShiftAttendance(
-        now,
-        shiftData,
-        inPremises,
-        address,
-        latestAttendance,
-        approvedOvertime,
-        leaveRequest ? [leaveRequest] : [],
-        shiftData.effectiveShift,
-      );
+      // Continue with normal flow
+      const isCheckingIn = !latestAttendance?.CheckInTime;
+      return isCheckingIn
+        ? this.handleRegularAttendance({ ...context, isCheckingIn: true })
+        : this.handleRegularAttendance({ ...context, isCheckingIn: false });
     } catch (error) {
+      // Your existing error handling
       console.error('Error in isCheckInOutAllowed:', error);
       return this.createResponse(
         false,
@@ -402,757 +799,5 @@ export class AttendanceCheckService {
       isLastPeriod: options.isLastPeriod ?? false,
       requireConfirmation: options.requireConfirmation ?? false,
     };
-  }
-
-  private handleNonWorkingDayAttendance(
-    type: 'holiday' | 'dayoff',
-    approvedOvertime: ApprovedOvertimeInfo | null,
-    inPremises: boolean,
-    address: string,
-    now: Date,
-    latestAttendance: AttendanceRecord | null,
-    pendingOvertimeRequest?: any,
-  ): CheckInOutAllowance {
-    if (!approvedOvertime && !pendingOvertimeRequest) {
-      return this.createResponse(
-        false,
-        `${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}: การลงเวลาจะต้องได้รับการอนุมัติ`,
-        {
-          inPremises,
-          address,
-          periodType: PeriodType.REGULAR,
-        },
-      );
-    }
-
-    if (pendingOvertimeRequest?.status === 'pending') {
-      return this.createResponse(
-        false,
-        `คุณมีคำขอทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}ที่รออนุมัติ`,
-        {
-          inPremises,
-          address,
-          periodType: PeriodType.OVERTIME,
-          flags: {
-            isOvertime: true,
-            isPendingDayOffOvertime: true,
-          },
-        },
-      );
-    }
-
-    if (approvedOvertime) {
-      const overtimePeriod: Period = {
-        type: PeriodType.OVERTIME,
-        startTime: parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
-        ),
-        endTime: parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-        ),
-        isOvertime: true,
-        overtimeId: approvedOvertime.id,
-        isOvernight: approvedOvertime.endTime < approvedOvertime.startTime,
-        isDayOffOvertime: true,
-      };
-
-      const currentPeriod = this.periodManager.determineCurrentPeriod(now, [
-        overtimePeriod,
-      ]);
-      const isCheckingIn = !latestAttendance?.CheckInTime;
-
-      if (currentPeriod) {
-        // Check for missing entries
-        const autoCompletionStrategy = this.autoCompleter.handleMissingEntries(
-          latestAttendance,
-          now,
-        );
-
-        if (autoCompletionStrategy.requiresConfirmation) {
-          return this.createResponse(true, autoCompletionStrategy.message, {
-            inPremises,
-            address,
-            periodType: PeriodType.OVERTIME,
-            requireConfirmation: true,
-            flags: {
-              isOvertime: true,
-              isDayOffOvertime: true,
-              isAutoCheckIn: !latestAttendance?.CheckInTime,
-              isAutoCheckOut: !latestAttendance?.CheckOutTime,
-            },
-            metadata: {
-              overtimeId: approvedOvertime.id,
-            },
-          });
-        }
-
-        if (isCheckingIn) {
-          const isLateCheckIn =
-            now >
-            addMinutes(
-              overtimePeriod.startTime,
-              ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
-            );
-          return this.createResponse(
-            true,
-            `คุณกำลังลงเวลาทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}ที่ได้รับอนุมัติ`,
-            {
-              inPremises,
-              address,
-              periodType: PeriodType.OVERTIME,
-              flags: {
-                isOvertime: true,
-                isDayOffOvertime: true,
-                isInsideShift: approvedOvertime.isInsideShiftHours,
-                isLateCheckIn,
-                isEarlyCheckIn: now < overtimePeriod.startTime,
-              },
-              timing: {
-                actualStartTime: now.toISOString(),
-                plannedStartTime: overtimePeriod.startTime.toISOString(),
-              },
-              metadata: {
-                overtimeId: approvedOvertime.id,
-              },
-            },
-          );
-        } else {
-          const isEarlyCheckOut = now < overtimePeriod.endTime;
-          return this.createResponse(
-            true,
-            `คุณกำลังลงเวลาออกจากการทำงานล่วงเวลาใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}`,
-            {
-              inPremises,
-              address,
-              periodType: PeriodType.OVERTIME,
-              flags: {
-                isOvertime: true,
-                isDayOffOvertime: true,
-                isInsideShift: approvedOvertime.isInsideShiftHours,
-                isEarlyCheckOut,
-              },
-              timing: {
-                actualEndTime: now.toISOString(),
-                plannedEndTime: overtimePeriod.endTime.toISOString(),
-                checkoutStatus: this.getCheckoutStatus(
-                  now,
-                  overtimePeriod.endTime,
-                ),
-              },
-              metadata: {
-                overtimeId: approvedOvertime.id,
-              },
-            },
-          );
-        }
-      }
-    }
-
-    return this.createResponse(
-      false,
-      `ไม่สามารถลงเวลาได้ใน${type === 'holiday' ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}`,
-      {
-        inPremises,
-        address,
-        periodType: PeriodType.OVERTIME,
-      },
-    );
-  }
-
-  private determineHalfDayLeaveContext(
-    leaveRequests: LeaveRequest[],
-    latestAttendance: AttendanceRecord | null,
-    now: Date,
-    shiftMidpoint: Date,
-  ): HalfDayLeaveContext {
-    const halfDayLeave = leaveRequests.find(
-      (leave) =>
-        leave.status === 'Approved' &&
-        leave.leaveFormat === 'ลาครึ่งวัน' &&
-        isSameDay(new Date(leave.startDate), now),
-    );
-
-    const checkInTime = latestAttendance?.CheckInTime
-      ? new Date(latestAttendance.CheckInTime)
-      : null;
-
-    return {
-      hasHalfDayLeave: !!halfDayLeave,
-      checkInTime,
-      // Morning leave is confirmed if they try to check in after midpoint with no previous check-in
-      isMorningLeaveConfirmed:
-        !!halfDayLeave && !checkInTime && isAfter(now, shiftMidpoint),
-      // Afternoon leave is confirmed if they checked in before midpoint and try to leave around midpoint
-      isAfternoonLeaveConfirmed:
-        !!halfDayLeave && !!checkInTime && isBefore(checkInTime, shiftMidpoint),
-    };
-  }
-
-  private handleRegularShiftAttendance(
-    now: Date,
-    shiftData: any,
-    inPremises: boolean,
-    address: string,
-    latestAttendance: AttendanceRecord | null,
-    approvedOvertime: ApprovedOvertimeInfo | null,
-    leaveRequests: LeaveRequest[],
-    effectiveShift: ShiftData,
-  ): CheckInOutAllowance {
-    if (!effectiveShift) {
-      return this.createResponse(false, 'ไม่พบข้อมูลกะการทำงานของคุณ', {
-        inPremises,
-        address,
-        periodType: PeriodType.REGULAR,
-      });
-    }
-
-    // Convert to period
-    const regularPeriod: Period = {
-      type: PeriodType.REGULAR,
-      startTime: this.shiftService.utils.parseShiftTime(
-        effectiveShift.startTime,
-        now,
-      ),
-      endTime: this.shiftService.utils.parseShiftTime(
-        effectiveShift.endTime,
-        now,
-      ),
-      isOvertime: false,
-      isOvernight: effectiveShift.endTime < effectiveShift.startTime,
-    };
-
-    const currentPeriod = this.periodManager.determineCurrentPeriod(now, [
-      regularPeriod,
-    ]);
-    const isCheckingIn = !latestAttendance?.CheckInTime;
-
-    // Check for missing entries that need auto-completion
-    const autoCompletionStrategy = this.autoCompleter.handleMissingEntries(
-      latestAttendance,
-      now,
-    );
-
-    if (autoCompletionStrategy.requiresConfirmation) {
-      return this.createResponse(true, autoCompletionStrategy.message, {
-        inPremises,
-        address,
-        periodType: PeriodType.REGULAR,
-        requireConfirmation: true,
-        flags: {
-          isAutoCheckIn: isCheckingIn,
-          isAutoCheckOut: !isCheckingIn,
-        },
-        timing: {
-          missedCheckInTime: isCheckingIn
-            ? undefined
-            : differenceInMinutes(now, regularPeriod.startTime),
-        },
-      });
-    }
-
-    // Handle check-in
-    if (isCheckingIn) {
-      // ... existing check-in logic ...
-    }
-
-    // Handle early checkout for regular shift
-    const earlyCheckoutStart = subMinutes(
-      regularPeriod.endTime,
-      ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
-    );
-    const isEarlyCheckout = now < earlyCheckoutStart;
-
-    if (isEarlyCheckout && !leaveRequests.length) {
-      // Block early checkout if no approved leave
-      return this.createResponse(false, 'ไม่สามารถลงเวลาออกก่อนเวลาที่กำหนด', {
-        inPremises,
-        address,
-        periodType: PeriodType.REGULAR,
-        flags: {
-          isEarlyCheckOut: true,
-          isOutsideShift: true,
-          isOvertime: false,
-        },
-        timing: {
-          minutesEarly: differenceInMinutes(regularPeriod.endTime, now),
-          plannedEndTime: regularPeriod.endTime.toISOString(),
-          checkoutStatus: 'early',
-        },
-      });
-    }
-
-    // Only proceed to handleCheckOut if not early checkout
-    return this.handleCheckOut(
-      now,
-      regularPeriod.endTime,
-      regularPeriod.endTime,
-      approvedOvertime,
-      null,
-      inPremises,
-      address,
-      leaveRequests,
-      effectiveShift,
-      latestAttendance,
-    );
-  }
-
-  // Update handleApprovedOvertime to be more focused
-  private handleApprovedOvertime(
-    approvedOvertime: ApprovedOvertimeInfo,
-    now: Date,
-    inPremises: boolean,
-    address: string,
-    isCheckingIn: boolean,
-    latestAttendance: AttendanceRecord | null,
-  ): CheckInOutAllowance {
-    // Create overtime period
-    const period: Period = {
-      type: PeriodType.OVERTIME,
-      startTime: parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
-      ),
-      endTime: parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-      ),
-      isOvertime: true,
-      overtimeId: approvedOvertime.id,
-      isOvernight: approvedOvertime.endTime < approvedOvertime.startTime,
-    };
-
-    const currentPeriod = this.periodManager.determineCurrentPeriod(now, [
-      period,
-    ]);
-
-    if (!currentPeriod) {
-      // Instead of returning null, return a response indicating not allowed
-      return this.createResponse(false, 'ไม่อยู่ในช่วงเวลาทำงานล่วงเวลา', {
-        inPremises,
-        address,
-        periodType: PeriodType.OVERTIME,
-        flags: {
-          isOvertime: false,
-        },
-      });
-    }
-
-    // Handle auto-completion case
-    if (!isCheckingIn && !latestAttendance?.CheckInTime) {
-      const missedTime = differenceInMinutes(now, currentPeriod.startTime);
-      if (missedTime <= 60) {
-        return this.createResponse(
-          true,
-          'ระบบจะทำการลงเวลาเข้า-ออกงานล่วงเวลาย้อนหลังให้',
-          {
-            inPremises,
-            address,
-            periodType: PeriodType.OVERTIME,
-            requireConfirmation: true,
-            flags: {
-              isOvertime: true,
-              isDayOffOvertime: approvedOvertime.isDayOffOvertime,
-              isInsideShift: approvedOvertime.isInsideShiftHours,
-              isAutoCheckIn: true,
-              isAutoCheckOut: true,
-            },
-            timing: {
-              missedCheckInTime: missedTime,
-              actualStartTime: currentPeriod.startTime.toISOString(),
-              actualEndTime: now.toISOString(),
-            },
-            metadata: {
-              overtimeId: approvedOvertime.id,
-            },
-          },
-        );
-      }
-    }
-
-    // Normal overtime flow
-    return this.createResponse(
-      true,
-      isCheckingIn
-        ? 'คุณกำลังลงเวลาทำงานล่วงเวลาที่ได้รับอนุมัติ'
-        : 'คุณกำลังลงเวลาออกจากการทำงานล่วงเวลา',
-      {
-        inPremises,
-        address,
-        periodType: PeriodType.OVERTIME,
-        flags: {
-          isOvertime: true,
-          isDayOffOvertime: approvedOvertime.isDayOffOvertime,
-          isInsideShift: approvedOvertime.isInsideShiftHours,
-          isEarlyCheckIn: isCheckingIn && now < period.startTime,
-          isLateCheckOut: !isCheckingIn && now > period.endTime,
-        },
-        timing: {
-          actualStartTime: isCheckingIn ? now.toISOString() : undefined,
-          actualEndTime: !isCheckingIn ? now.toISOString() : undefined,
-          plannedStartTime: period.startTime.toISOString(),
-          plannedEndTime: period.endTime.toISOString(),
-        },
-        metadata: {
-          overtimeId: approvedOvertime.id,
-        },
-      },
-    );
-  }
-
-  private handleCheckOut(
-    now: Date,
-    earlyCheckOutWindow: Date,
-    shiftEnd: Date,
-    approvedOvertime: ApprovedOvertimeInfo | null,
-    pendingOvertime: any,
-    inPremises: boolean,
-    address: string,
-    leaveRequests: LeaveRequest[],
-    effectiveShift: ShiftData,
-    latestAttendance: AttendanceRecord | null,
-  ): CheckInOutAllowance {
-    // 1. First check if already checked out
-    if (latestAttendance?.CheckOutTime) {
-      // Handle overtime transition case
-      if (approvedOvertime && this.isAtOvertimeStart(now, approvedOvertime)) {
-        return this.handleApprovedOvertime(
-          approvedOvertime,
-          now,
-          inPremises,
-          address,
-          true,
-          latestAttendance,
-        )!;
-      }
-      return this.createResponse(false, 'คุณได้ลงเวลาออกงานแล้ว', {
-        inPremises,
-        address,
-      });
-    }
-
-    // 2. Check overtime transition
-    if (approvedOvertime) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
-      );
-      const overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
-      );
-
-      if (isWithinInterval(now, { start: overtimeStart, end: overtimeEnd })) {
-        return this.handleOvertimeCheckout(
-          now,
-          overtimeStart,
-          overtimeEnd,
-          approvedOvertime,
-          inPremises,
-          address,
-          latestAttendance,
-        );
-      }
-
-      const overtimeResponse = this.handleApprovedOvertime(
-        approvedOvertime,
-        now,
-        inPremises,
-        address,
-        false,
-        latestAttendance,
-      );
-      if (overtimeResponse) return overtimeResponse;
-    }
-
-    // 3. Early checkout validation - Add this block
-    const earlyCheckoutStart = subMinutes(
-      shiftEnd,
-      ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
-    );
-    const isEarlyCheckout = now < earlyCheckoutStart;
-
-    if (isEarlyCheckout && !leaveRequests.length) {
-      return this.createResponse(false, 'ไม่สามารถลงเวลาออกก่อนเวลาที่กำหนด', {
-        inPremises,
-        address,
-        periodType: PeriodType.REGULAR,
-        flags: {
-          isEarlyCheckOut: true,
-          isOutsideShift: true,
-        },
-        timing: {
-          minutesEarly: differenceInMinutes(shiftEnd, now),
-          plannedEndTime: shiftEnd.toISOString(),
-          checkoutStatus: 'early',
-        },
-      });
-    }
-
-    // 4. Regular checkout - Only if not early
-    const isLateCheckOut = isAfter(now, shiftEnd);
-
-    return this.createResponse(
-      true,
-      isLateCheckOut ? 'คุณกำลังลงเวลาออกงานล่าช้า' : 'คุณกำลังลงเวลาออกงาน',
-      {
-        inPremises,
-        address,
-        periodType: PeriodType.REGULAR,
-        flags: {
-          isLateCheckOut,
-          isOutsideShift: isLateCheckOut,
-          isEarlyCheckOut: isEarlyCheckout,
-        },
-        timing: {
-          plannedEndTime: shiftEnd.toISOString(),
-          checkoutStatus: isLateCheckOut ? 'late' : 'normal',
-        },
-      },
-    );
-  }
-
-  // New method to handle overtime-specific checkout
-  private handleOvertimeCheckout(
-    now: Date,
-    overtimeStart: Date,
-    overtimeEnd: Date,
-    overtime: ApprovedOvertimeInfo,
-    inPremises: boolean,
-    address: string,
-    latestAttendance: AttendanceRecord | null,
-  ): CheckInOutAllowance {
-    console.log('HandleApprovedOvertime:', {
-      now: now.toISOString(),
-      overtimeStart: overtime.startTime,
-      overtimeEnd: overtime.endTime,
-      earlyWindow: ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-    });
-    // Early checkout during overtime just records actual time
-    const minutesEarly = Math.abs(differenceInMinutes(now, overtimeEnd));
-    const isEarlyCheckout = now < overtimeEnd;
-
-    return this.createResponse(
-      true,
-      isEarlyCheckout
-        ? 'คุณกำลังลงเวลาออกจากการทำงานล่วงเวลาก่อนเวลาที่อนุมัติ'
-        : 'คุณกำลังลงเวลาออกจากการทำงานล่วงเวลา',
-      {
-        inPremises,
-        address,
-        periodType: PeriodType.OVERTIME,
-        flags: {
-          isOvertime: true,
-          isDayOffOvertime: overtime.isDayOffOvertime,
-          isInsideShift: overtime.isInsideShiftHours,
-          isEarlyCheckOut: isEarlyCheckout,
-        },
-        timing: {
-          actualStartTime: latestAttendance?.CheckInTime?.toISOString(),
-          actualEndTime: now.toISOString(),
-          plannedStartTime: overtimeStart.toISOString(),
-          plannedEndTime: overtimeEnd.toISOString(),
-          minutesEarly: isEarlyCheckout ? minutesEarly : 0,
-          checkoutStatus: isEarlyCheckout ? 'early' : 'normal',
-        },
-        metadata: {
-          overtimeId: overtime.id,
-        },
-      },
-    );
-  }
-
-  // New method to handle regular shift checkout
-  private handleRegularShiftCheckout(
-    now: Date,
-    shiftEnd: Date,
-    inPremises: boolean,
-    address: string,
-    leaveRequests: LeaveRequest[],
-    effectiveShift: ShiftData,
-    latestAttendance: AttendanceRecord | null,
-  ): CheckInOutAllowance {
-    const shiftStart = this.shiftService.utils.parseShiftTime(
-      effectiveShift.startTime,
-      now,
-    );
-    const shiftMidpoint = new Date(
-      (shiftStart.getTime() + shiftEnd.getTime()) / 2,
-    );
-
-    const { earlyCheckoutStart, regularCheckoutEnd } =
-      this.getCheckoutWindow(shiftEnd);
-    const isEarlyCheckout = this.isEarlyCheckout(now, shiftEnd);
-    const minutesEarly = isEarlyCheckout
-      ? Math.abs(differenceInMinutes(now, shiftEnd))
-      : 0;
-    const checkoutStatus = this.getCheckoutStatus(now, shiftEnd);
-
-    // Handle very early checkout (requires leave request)
-    if (checkoutStatus === 'very_early') {
-      if (now < shiftMidpoint) {
-        return this.createResponse(
-          true,
-          'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ',
-          {
-            inPremises,
-            address,
-            periodType: PeriodType.REGULAR,
-            requireConfirmation: true,
-            flags: {
-              isEarlyCheckOut: true,
-              isEmergencyLeave: true,
-            },
-            timing: {
-              minutesEarly,
-              checkoutStatus: 'very_early',
-            },
-          },
-        );
-      } else {
-        return this.createResponse(
-          false,
-          'ไม่สามารถลงเวลาออกก่อนเวลาเลิกงานได้ กรุณาติดต่อฝ่ายบุคคล',
-          {
-            inPremises,
-            address,
-            periodType: PeriodType.REGULAR,
-            flags: {
-              isEarlyCheckOut: true,
-              isAfterMidshift: true,
-            },
-            timing: {
-              checkoutStatus: 'very_early',
-              minutesEarly,
-            },
-          },
-        );
-      }
-    }
-
-    // Handle half-day leave
-    const leaveContext = this.determineHalfDayLeaveContext(
-      leaveRequests,
-      latestAttendance,
-      now,
-      shiftMidpoint,
-    );
-
-    if (leaveContext.hasHalfDayLeave) {
-      return this.createResponse(
-        true,
-        'คุณกำลังลงเวลาออกงานสำหรับช่วงเช้า (ลาครึ่งวันช่วงบ่าย)',
-        {
-          inPremises,
-          address,
-          periodType: PeriodType.REGULAR,
-          flags: {
-            isPlannedHalfDayLeave: true,
-            isMorningShift: true,
-            isApprovedEarlyCheckout: true,
-          },
-          timing: {
-            checkoutStatus,
-          },
-        },
-      );
-    }
-
-    // Handle normal checkout windows
-    switch (checkoutStatus) {
-      case 'normal':
-        return this.createResponse(true, 'คุณกำลังลงเวลาออกงาน', {
-          inPremises,
-          address,
-          periodType: PeriodType.REGULAR,
-          timing: {
-            checkoutStatus: 'normal',
-          },
-        });
-      case 'late':
-        return this.createResponse(true, 'คุณกำลังลงเวลาออกงานช้า', {
-          inPremises,
-          address,
-          periodType: PeriodType.REGULAR,
-          flags: {
-            isLateCheckOut: true,
-          },
-          timing: {
-            checkoutStatus: 'late',
-          },
-        });
-      default:
-        return this.createResponse(true, 'คุณกำลังลงเวลาออกงาน', {
-          inPremises,
-          address,
-          periodType: PeriodType.REGULAR,
-          flags: {
-            isEarlyCheckOut: true,
-          },
-          timing: {
-            checkoutStatus: 'early',
-            minutesEarly,
-          },
-        });
-    }
-  }
-
-  private isAtOvertimeStart(
-    now: Date,
-    approvedOvertime: ApprovedOvertimeInfo,
-  ): boolean {
-    const overtimeStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
-    );
-    return isWithinInterval(now, {
-      start: subMinutes(
-        overtimeStart,
-        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-      ),
-      end: addMinutes(
-        overtimeStart,
-        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
-      ),
-    });
-  }
-
-  private getCheckoutWindow(shiftEnd: Date) {
-    const earlyCheckoutStart = subMinutes(
-      shiftEnd,
-      ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
-    );
-    const regularCheckoutEnd = addMinutes(
-      shiftEnd,
-      ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
-    );
-    return { earlyCheckoutStart, regularCheckoutEnd };
-  }
-
-  private isEarlyCheckout(now: Date, shiftEnd: Date): boolean {
-    const { earlyCheckoutStart } = this.getCheckoutWindow(shiftEnd);
-    return isBefore(now, earlyCheckoutStart);
-  }
-
-  private getCheckoutStatus(now: Date, shiftEnd: Date): CheckoutStatusType {
-    const { earlyCheckoutStart, regularCheckoutEnd } =
-      this.getCheckoutWindow(shiftEnd);
-
-    if (isBefore(now, subMinutes(earlyCheckoutStart, 60))) {
-      return 'very_early';
-    }
-    if (isBefore(now, earlyCheckoutStart)) {
-      return 'early';
-    }
-    if (isAfter(now, regularCheckoutEnd)) {
-      return 'late';
-    }
-    return 'normal';
-  }
-
-  private getOvertimeWindows(overtimeStart: Date, overtimeEnd: Date) {
-    const earlyCheckInWindow = subMinutes(
-      overtimeStart,
-      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-    );
-    const lateCheckOutWindow = addMinutes(
-      overtimeEnd,
-      ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
-    );
-    return { earlyCheckInWindow, lateCheckOutWindow };
   }
 }

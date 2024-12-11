@@ -1,5 +1,4 @@
 // services/Attendance/AttendanceEnhancementService.ts
-import { TimeEntryService } from '../../TimeEntryService';
 import {
   AttendanceRecord,
   Period,
@@ -10,8 +9,6 @@ import {
 import { addMinutes, isWithinInterval } from 'date-fns';
 
 export class AttendanceEnhancementService {
-  constructor(private timeEntryService: TimeEntryService) {}
-
   async enhanceAttendanceStatus(
     attendance: AttendanceRecord | null,
     currentPeriod: Period | null,
