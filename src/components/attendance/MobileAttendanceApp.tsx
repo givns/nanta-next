@@ -59,7 +59,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   locationState,
 }) => {
   const currentTime = getCurrentTime();
+  const now = new Date();
   console.log('Current time:', currentTime);
+  console.log('Now:', now);
   console.log('attendanceStatus:', attendanceStatus);
   console.log('Current Period Data:', {
     current: currentPeriod?.current,
@@ -81,7 +83,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
 
     try {
-      const now = new Date();
+      const now = currentTime;
       const startTime = parseISO(currentPeriod.current.start);
       const endTime = parseISO(currentPeriod.current.end);
       // Fix: Use the same parsing method as period times
