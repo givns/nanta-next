@@ -11,6 +11,7 @@ import {
   OvertimeState,
 } from '@/types/attendance';
 import { differenceInMinutes } from 'date-fns';
+import { current } from '@reduxjs/toolkit';
 
 interface ShiftStatusInfo {
   isHoliday: boolean;
@@ -71,6 +72,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     console.log('Progress Calculation Start:', {
       currentPeriod,
       attendanceStatus: attendanceStatus?.latestAttendance,
+      regularShift: shiftData, // Assuming shiftData is available from props
     });
 
     if (!currentPeriod?.current) {
@@ -78,78 +80,155 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       return 0;
     }
 
-    // Check completion based on period type
-    if (attendanceStatus?.latestAttendance?.CheckOutTime) {
-      console.log('CheckOutTime exists:', {
-        overtimeState: attendanceStatus.latestAttendance.overtimeState,
-        isOvertime: attendanceStatus.latestAttendance.isOvertime,
+    try {
+      const now = currentTime;
+      const startTime = parseISO(currentPeriod.current.start);
+      const endTime = parseISO(currentPeriod.current.end);
+      const regularShiftStart = shiftData
+        ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`)
+        : null;
+      const regularShiftEnd = shiftData
+        ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`)
+        : null;
+
+      console.log('Time Reference Points:', {
+        now: now.toISOString(),
+        periodStart: startTime.toISOString(),
+        periodEnd: endTime.toISOString(),
+        regularShiftStart: regularShiftStart?.toISOString(),
+        regularShiftEnd: regularShiftEnd?.toISOString(),
         periodType: currentPeriod.type,
       });
 
-      if (
-        currentPeriod.type === 'overtime' &&
-        attendanceStatus.latestAttendance.overtimeState ===
-          OvertimeState.COMPLETED
-      ) {
-        console.log('Overtime completed, returning 100%');
-        return 100;
+      // Handle completed periods
+      if (attendanceStatus?.latestAttendance?.CheckOutTime) {
+        console.log('CheckOut exists:', {
+          checkOutTime: attendanceStatus.latestAttendance.CheckOutTime,
+          isOvertime: attendanceStatus.latestAttendance.isOvertime,
+          overtimeState: attendanceStatus.latestAttendance.overtimeState,
+        });
+
+        // Completed overtime period
+        if (
+          currentPeriod.type === 'overtime' &&
+          attendanceStatus.latestAttendance.overtimeState ===
+            OvertimeState.COMPLETED
+        ) {
+          console.log('Overtime completed, returning 100%');
+          return 100;
+        }
+
+        // Completed regular shift
+        if (
+          currentPeriod.type === 'regular' &&
+          !attendanceStatus.latestAttendance.isOvertime
+        ) {
+          console.log('Regular shift completed, returning 100%');
+          return 100;
+        }
       }
-      if (
-        currentPeriod.type === 'regular' &&
-        !attendanceStatus.latestAttendance.isOvertime
-      ) {
-        console.log('Regular shift completed, returning 100%');
-        return 100;
-      }
-    }
 
-    try {
-      const startTime = parseISO(currentPeriod.current.start);
-      const endTime = parseISO(currentPeriod.current.end);
-      const now = new Date();
-
-      console.log('Time calculations:', {
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-        now: now.toISOString(),
-        startValid: isValid(startTime),
-        endValid: isValid(endTime),
-      });
-
+      // Period validation
       if (!isValid(startTime) || !isValid(endTime)) {
-        console.log('Invalid start or end time');
+        console.log('Invalid period times');
         return 0;
       }
 
+      // Pre-shift overtime progress (e.g., 07:00-08:00)
+      if (
+        currentPeriod.type === 'overtime' &&
+        regularShiftStart &&
+        endTime <= regularShiftStart
+      ) {
+        console.log('Calculating pre-shift overtime progress');
+        const totalMinutes = differenceInMinutes(endTime, startTime);
+        const elapsedMinutes = differenceInMinutes(now, startTime);
+
+        console.log('Pre-shift OT Calculation:', {
+          totalMinutes,
+          elapsedMinutes,
+          rawPercentage: (elapsedMinutes / totalMinutes) * 100,
+        });
+
+        const percentage = Math.max(
+          0,
+          Math.min((elapsedMinutes / totalMinutes) * 100, 100),
+        );
+        return Math.round(percentage * 100) / 100;
+      }
+
+      // Regular shift progress (08:00-17:00)
+      if (currentPeriod.type === 'regular') {
+        console.log('Calculating regular shift progress');
+        const totalMinutes = differenceInMinutes(endTime, startTime);
+        const elapsedMinutes = differenceInMinutes(now, startTime);
+
+        console.log('Regular Shift Calculation:', {
+          totalMinutes,
+          elapsedMinutes,
+          rawPercentage: (elapsedMinutes / totalMinutes) * 100,
+        });
+
+        const percentage = Math.max(
+          0,
+          Math.min((elapsedMinutes / totalMinutes) * 100, 100),
+        );
+        return Math.round(percentage * 100) / 100;
+      }
+
+      // Post-shift overtime progress (e.g., 17:00-19:00)
+      if (
+        currentPeriod.type === 'overtime' &&
+        regularShiftEnd &&
+        startTime >= regularShiftEnd
+      ) {
+        console.log('Calculating post-shift overtime progress');
+        const totalMinutes = differenceInMinutes(endTime, startTime);
+        const elapsedMinutes = differenceInMinutes(now, startTime);
+
+        console.log('Post-shift OT Calculation:', {
+          totalMinutes,
+          elapsedMinutes,
+          rawPercentage: (elapsedMinutes / totalMinutes) * 100,
+        });
+
+        const percentage = Math.max(
+          0,
+          Math.min((elapsedMinutes / totalMinutes) * 100, 100),
+        );
+        return Math.round(percentage * 100) / 100;
+      }
+
+      // Fallback for any other case
+      console.log('Using fallback progress calculation');
       const totalMinutes = differenceInMinutes(endTime, startTime);
       const elapsedMinutes = differenceInMinutes(now, startTime);
 
-      console.log('Minute calculations:', {
+      console.log('Fallback Calculation:', {
         totalMinutes,
         elapsedMinutes,
-        percentageBeforeRounding: (elapsedMinutes / totalMinutes) * 100,
+        rawPercentage: (elapsedMinutes / totalMinutes) * 100,
       });
 
       if (totalMinutes <= 0) {
-        console.log('Total minutes is zero or negative');
+        console.log('Invalid period duration');
         return 0;
       }
 
-      // Calculate percentage and round to 2 decimal places
       const percentage = Math.max(
         0,
         Math.min((elapsedMinutes / totalMinutes) * 100, 100),
       );
       const roundedPercentage = Math.round(percentage * 100) / 100;
 
-      console.log('Final calculation:', {
-        percentage,
-        roundedPercentage,
-      });
-
+      console.log('Final Progress:', roundedPercentage);
       return roundedPercentage;
     } catch (error) {
-      console.error('Progress calculation error:', error);
+      console.error('Progress calculation error:', {
+        error,
+        currentPeriod,
+        attendanceStatus,
+      });
       return 0;
     }
   };

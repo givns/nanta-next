@@ -120,11 +120,9 @@ export const AttendanceActionButton: React.FC<AttendanceActionButtonProps> = ({
               {action.timing && (
                 <div>
                   <p>
-                    Planned time:{' '}
+                    เวลาทำงาน:{' '}
                     {format(action.timing.plannedTime, 'HH:mm', { locale: th })}
                   </p>
-                  {action.timing.isEarly && <p>Early action</p>}
-                  {action.timing.isLate && <p>Late action</p>}
                 </div>
               )}
             </div>

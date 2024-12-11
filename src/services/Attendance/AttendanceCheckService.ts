@@ -1063,6 +1063,7 @@ export class AttendanceCheckService {
         });
     }
   }
+
   private isAtOvertimeStart(
     now: Date,
     approvedOvertime: ApprovedOvertimeInfo,
