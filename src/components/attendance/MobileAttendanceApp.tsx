@@ -90,9 +90,12 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
 
     try {
-      const now = getCurrentTime(); // Using utility function
-      const startTime = parseISO(currentPeriod.current.start);
-      const endTime = parseISO(currentPeriod.current.end);
+      const now = getCurrentTime(); // Current time
+      const today = format(now, 'yyyy-MM-dd'); // Get current date only
+
+      // Create proper datetime objects using shift times
+      const startTime = parseISO(`${today}T${shiftData?.startTime || '08:00'}`);
+      const endTime = parseISO(`${today}T${shiftData?.endTime || '17:00'}`);
 
       // Format times for logging using utility functions
       console.log('Time Reference Points:', {
@@ -102,8 +105,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         periodType: currentPeriod.type,
         // Local times using our formatters
         localNow: formatTime(now),
-        localStart: formatTime(toBangkokTime(startTime)),
-        localEnd: formatTime(toBangkokTime(endTime)),
+        localStart: formatTime(startTime),
+        localEnd: formatTime(endTime),
         localShiftStart: shiftData?.startTime,
         localShiftEnd: shiftData?.endTime,
       });
@@ -138,7 +141,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       // Calculate progress based on period type
       if (currentPeriod.type === 'regular') {
         console.log('Calculating regular shift progress');
-        // Using utility function for time difference
         const totalMinutes = calculateTimeDifference(startTime, endTime);
         const elapsedMinutes = calculateTimeDifference(startTime, now);
 
@@ -147,8 +149,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           elapsedMinutes,
           rawPercentage: (elapsedMinutes / totalMinutes) * 100,
           localNow: formatTime(now),
-          localStart: formatTime(toBangkokTime(startTime)),
-          localEnd: formatTime(toBangkokTime(endTime)),
+          localStart: formatTime(startTime), // This should now show correct shift start time
+          localEnd: formatTime(endTime), // This should now show correct shift end time
         });
 
         const percentage = Math.max(
@@ -159,25 +161,27 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       }
 
       if (currentPeriod.type === 'overtime') {
-        // Determine overtime type using utility function
-        const isPreShiftOT = isTimeWithinRange(
-          startTime,
-          '00:00',
-          shiftData?.startTime || '08:00',
+        // For overtime, we should also use the actual overtime start/end times
+        const overtimeStart = parseISO(
+          `${today}T${overtimeInfo?.startTime || startTime}`,
+        );
+        const overtimeEnd = parseISO(
+          `${today}T${overtimeInfo?.endTime || endTime}`,
         );
 
-        console.log('Overtime type:', { isPreShiftOT });
+        const totalMinutes = calculateTimeDifference(
+          overtimeStart,
+          overtimeEnd,
+        );
+        const elapsedMinutes = calculateTimeDifference(overtimeStart, now);
 
-        const totalMinutes = calculateTimeDifference(startTime, endTime);
-        const elapsedMinutes = calculateTimeDifference(startTime, now);
-
-        console.log(`${isPreShiftOT ? 'Pre' : 'Post'}-shift OT Calculation:`, {
+        console.log('Overtime Calculation:', {
           totalMinutes,
           elapsedMinutes,
           rawPercentage: (elapsedMinutes / totalMinutes) * 100,
           localNow: formatTime(now),
-          localStart: formatTime(toBangkokTime(startTime)),
-          localEnd: formatTime(toBangkokTime(endTime)),
+          localStart: formatTime(overtimeStart),
+          localEnd: formatTime(overtimeEnd),
         });
 
         const percentage = Math.max(
@@ -187,7 +191,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         return Math.round(percentage * 100) / 100;
       }
 
-      // Fallback calculation
+      // Fallback calculation using shift times
       const totalMinutes = calculateTimeDifference(startTime, endTime);
       const elapsedMinutes = calculateTimeDifference(startTime, now);
 
