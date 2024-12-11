@@ -68,21 +68,37 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   });
 
   const getProgressPercentage = () => {
-    if (!currentPeriod?.current) return 0;
+    console.log('Progress Calculation Start:', {
+      currentPeriod,
+      attendanceStatus: attendanceStatus?.latestAttendance,
+    });
+
+    if (!currentPeriod?.current) {
+      console.log('No current period found');
+      return 0;
+    }
 
     // Check completion based on period type
     if (attendanceStatus?.latestAttendance?.CheckOutTime) {
+      console.log('CheckOutTime exists:', {
+        overtimeState: attendanceStatus.latestAttendance.overtimeState,
+        isOvertime: attendanceStatus.latestAttendance.isOvertime,
+        periodType: currentPeriod.type,
+      });
+
       if (
         currentPeriod.type === 'overtime' &&
         attendanceStatus.latestAttendance.overtimeState ===
           OvertimeState.COMPLETED
       ) {
+        console.log('Overtime completed, returning 100%');
         return 100;
       }
       if (
         currentPeriod.type === 'regular' &&
         !attendanceStatus.latestAttendance.isOvertime
       ) {
+        console.log('Regular shift completed, returning 100%');
         return 100;
       }
     }
@@ -92,19 +108,46 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       const endTime = parseISO(currentPeriod.current.end);
       const now = new Date();
 
-      if (!isValid(startTime) || !isValid(endTime)) return 0;
+      console.log('Time calculations:', {
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        now: now.toISOString(),
+        startValid: isValid(startTime),
+        endValid: isValid(endTime),
+      });
+
+      if (!isValid(startTime) || !isValid(endTime)) {
+        console.log('Invalid start or end time');
+        return 0;
+      }
 
       const totalMinutes = differenceInMinutes(endTime, startTime);
       const elapsedMinutes = differenceInMinutes(now, startTime);
 
-      if (totalMinutes <= 0) return 0;
+      console.log('Minute calculations:', {
+        totalMinutes,
+        elapsedMinutes,
+        percentageBeforeRounding: (elapsedMinutes / totalMinutes) * 100,
+      });
+
+      if (totalMinutes <= 0) {
+        console.log('Total minutes is zero or negative');
+        return 0;
+      }
 
       // Calculate percentage and round to 2 decimal places
       const percentage = Math.max(
         0,
         Math.min((elapsedMinutes / totalMinutes) * 100, 100),
       );
-      return Math.round(percentage * 100) / 100;
+      const roundedPercentage = Math.round(percentage * 100) / 100;
+
+      console.log('Final calculation:', {
+        percentage,
+        roundedPercentage,
+      });
+
+      return roundedPercentage;
     } catch (error) {
       console.error('Progress calculation error:', error);
       return 0;
