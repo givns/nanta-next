@@ -54,8 +54,7 @@ export function useAttendanceData({
         });
 
         const responseData = response.data;
-        console.log('Raw API Response:', responseData); // Add this log
-
+        console.log('API response:', responseData);
         return {
           base: {
             state: responseData.status.state,
