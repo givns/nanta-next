@@ -130,7 +130,7 @@ const OvertimeRequestForm: React.FC<OvertimeRequestFormProps> = ({
       setMessage('คำขอทำงานล่วงเวลาถูกส่งเรียบร้อยแล้ว');
       setTimeout(() => {
         liff.closeWindow();
-      }, 3000);
+      }, 1000);
     } catch (error) {
       console.error('Error submitting overtime request:', error);
       setMessage('ไม่สามารถส่งคำขอทำงานล่วงเวลาได้');

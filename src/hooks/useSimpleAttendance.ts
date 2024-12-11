@@ -8,11 +8,8 @@ import {
   AttendanceStateResponse,
   CheckStatus,
   CurrentPeriodInfo,
-  LocationState,
   UseSimpleAttendanceReturn,
-  ValidationResult,
 } from '@/types/attendance';
-import { getCurrentTime } from '@/utils/dateUtils';
 import { OvertimeContext } from '@/types/attendance/overtime';
 
 interface UseSimpleAttendanceProps {
@@ -120,6 +117,7 @@ export function useSimpleAttendance({
         base: data.base,
         window: data.window,
         validation: data.validation,
+        enhanced: data.enhanced,
       });
     }
   }, [data]);

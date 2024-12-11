@@ -52,7 +52,7 @@ export function useAttendanceData({
         });
 
         const responseData = response.data;
-        console.log('API response:', responseData);
+        console.log('useAttendanceData API response:', responseData);
 
         // Map the latest attendance with proper handling of undefined fields
         const mappedLatestAttendance = responseData.status.latestAttendance

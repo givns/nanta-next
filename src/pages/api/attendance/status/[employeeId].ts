@@ -234,6 +234,14 @@ export default async function handler(
     // Cache headers for short-term caching
     res.setHeader('Cache-Control', 'private, max-age=30');
 
+    console.log({
+      status: normalizedStatus,
+      window: modifiedWindow,
+      validation: modifiedValidation,
+      enhanced: enhancedStatus,
+      timestamp: now.toISOString(),
+    });
+
     return res.status(200).json({
       status: normalizedStatus,
       window: modifiedWindow,
