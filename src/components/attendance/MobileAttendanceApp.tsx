@@ -7,11 +7,10 @@ import {
   CurrentPeriodInfo,
   AttendanceStateResponse,
   ValidationResponse,
-  AttendanceState,
   OvertimeState,
 } from '@/types/attendance';
 import { differenceInMinutes } from 'date-fns';
-import { current } from '@reduxjs/toolkit';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 interface ShiftStatusInfo {
   isHoliday: boolean;
@@ -58,7 +57,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   onAction,
   locationState,
 }) => {
-  const currentTime = new Date();
+  const currentTime = getCurrentTime();
   console.log('Current time:', currentTime);
   console.log('attendanceStatus:', attendanceStatus);
   console.log('Current Period Data:', {
