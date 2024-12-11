@@ -8,12 +8,13 @@ import {
   ProcessingResult,
   CheckInOutAllowance,
   AttendanceStatusInfo,
-  PeriodType,
   AttendanceBaseResponse,
   CheckStatus,
   ValidationResponse,
   AttendanceState,
   OvertimeState,
+  Period,
+  PeriodType,
 } from '../../types/attendance';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
@@ -23,8 +24,9 @@ import { NotificationService } from '../NotificationService';
 import { TimeEntryService } from '../TimeEntryService';
 import { getCacheData, setCacheData } from '@/lib/serverCache';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { startOfDay, endOfDay } from 'date-fns';
-import { now } from 'lodash';
+import { startOfDay, endOfDay, addDays, format, parseISO } from 'date-fns';
+import { PeriodManagementService } from './PeriodManagementService';
+import { AutoCompletionService } from './AutoCompletionService';
 
 export class AttendanceService {
   private readonly checkService: AttendanceCheckService;
@@ -32,6 +34,9 @@ export class AttendanceService {
   private readonly statusService: AttendanceStatusService;
   private readonly prisma: PrismaClient;
   private readonly shiftService: ShiftManagementService;
+  private readonly overTimeService: OvertimeServiceServer;
+  private readonly periodManager: PeriodManagementService;
+  private readonly autoCompleter: AutoCompletionService;
 
   constructor(
     prisma: PrismaClient,
@@ -44,6 +49,9 @@ export class AttendanceService {
   ) {
     this.prisma = prisma;
     this.shiftService = shiftService;
+    this.overTimeService = overtimeService;
+    this.periodManager = new PeriodManagementService();
+    this.autoCompleter = new AutoCompletionService();
     // Initialize specialized services
     this.processingService = new AttendanceProcessingService(
       prisma,
@@ -189,6 +197,11 @@ export class AttendanceService {
     inPremises: boolean,
     address: string,
   ): Promise<CheckInOutAllowance> {
+    const currentPeriods = await this.getCurrentPeriods(employeeId);
+    const currentPeriod = this.periodManager.determineCurrentPeriod(
+      getCurrentTime(),
+      currentPeriods,
+    );
     return this.checkService.isCheckInOutAllowed(
       employeeId,
       inPremises,
@@ -210,5 +223,56 @@ export class AttendanceService {
 
   async checkMissingAttendance(): Promise<void> {
     return this.statusService.checkMissingAttendance();
+  }
+
+  private async getCurrentPeriods(employeeId: string): Promise<Period[]> {
+    const now = getCurrentTime();
+    const periods: Period[] = [];
+
+    // Get regular shift period
+    const shift = await this.shiftService.getEffectiveShiftAndStatus(
+      employeeId,
+      now,
+    );
+    if (shift?.effectiveShift) {
+      const shiftStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.startTime}`,
+      );
+      const shiftEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.endTime}`,
+      );
+
+      periods.push({
+        type: PeriodType.REGULAR,
+        startTime: shiftStart,
+        endTime: shiftEnd,
+        isOvertime: false,
+        isOvernight: shiftEnd < shiftStart,
+      });
+    }
+
+    // Get overtime period using existing service
+    const overtimeRequest =
+      await this.overTimeService.getCurrentApprovedOvertimeRequest(
+        employeeId,
+        now,
+      );
+
+    if (overtimeRequest) {
+      periods.push({
+        type: PeriodType.OVERTIME,
+        startTime: parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
+        ),
+        endTime: parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${overtimeRequest.endTime}`,
+        ),
+        isOvertime: true,
+        overtimeId: overtimeRequest.id,
+        isOvernight: overtimeRequest.endTime < overtimeRequest.startTime,
+      });
+    }
+
+    return periods;
   }
 }

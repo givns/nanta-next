@@ -4,6 +4,7 @@ import { UserData } from '../user';
 import { HolidayInfo, LeaveRequest } from './leave';
 import { FutureShift, ShiftAdjustmentInfo, ShiftData } from './shift';
 import { OvertimeContext, OvertimeEntryData, OvertimeInfo } from './overtime';
+import { Period } from './period';
 
 export enum AttendanceState {
   PRESENT = 'present',
@@ -219,6 +220,33 @@ export interface AttendanceStatusInfo {
     startDate: string;
     endDate: string;
   }[];
+}
+
+// types/attendance/status.ts (existing file, add new interface)
+export interface EnhancedAttendanceStatus {
+  currentPeriod: Period | null;
+  lastCheckIn: {
+    time: Date;
+    periodType: PeriodType;
+    isOvertime: boolean;
+  } | null;
+  lastCheckOut: {
+    time: Date;
+    periodType: PeriodType;
+    isOvertime: boolean;
+  } | null;
+  missingEntries: Array<{
+    type: 'check-in' | 'check-out';
+    periodType: PeriodType;
+    expectedTime: Date;
+    overtimeId?: string;
+  }>;
+  pendingTransitions: Array<{
+    from: PeriodType;
+    to: PeriodType;
+    transitionTime: Date;
+    isCompleted: boolean;
+  }>;
 }
 
 export interface CurrentPeriod {

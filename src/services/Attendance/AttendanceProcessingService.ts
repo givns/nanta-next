@@ -368,39 +368,6 @@ export class AttendanceProcessingService {
     return mappedAttendance;
   }
 
-  private async logStatusChange(
-    tx: Prisma.TransactionClient,
-    statusUpdate: StatusUpdateResult,
-    options: ProcessingOptions,
-  ): Promise<void> {
-    // Instead of using attendanceStatusLog, use a regular attendance_logs table
-    await tx.attendanceLogs.create({
-      data: {
-        employeeId: options.employeeId,
-        previousState: statusUpdate.stateChange.state.previous,
-        currentState: statusUpdate.stateChange.state.current,
-        previousCheckStatus: statusUpdate.stateChange.checkStatus.previous,
-        currentCheckStatus: statusUpdate.stateChange.checkStatus.current,
-        previousOvertimeState:
-          statusUpdate.stateChange.overtime?.previous?.state,
-        currentOvertimeState: statusUpdate.stateChange.overtime?.current?.state,
-        isOvertimeTransition: !!statusUpdate.stateChange.overtime,
-        reason: statusUpdate.reason,
-        metadata: statusUpdate.metadata as Prisma.JsonValue,
-        timestamp: statusUpdate.timestamp,
-        attendance: {
-          connect: {
-            employee_date_attendance: {
-              employeeId: options.employeeId,
-              date: startOfDay(new Date(options.checkTime)),
-            },
-          },
-        },
-        date: startOfDay(new Date(options.checkTime)),
-      },
-    });
-  }
-
   private getInitialStatus(): AttendanceCompositeStatus {
     return {
       state: AttendanceState.ABSENT,

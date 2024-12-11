@@ -280,7 +280,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     }, 0);
   }
 
-  // In OvertimeServiceServer
   async getCurrentApprovedOvertimeRequest(
     employeeId: string,
     checkTime: Date,
