@@ -70,6 +70,15 @@ export class StatusHelpers {
   ): AttendanceCompositeStatus {
     const { isCheckIn, isOvertime } = options;
 
+    if (options.requireConfirmation && options.overtimeMissed) {
+      return {
+        state: AttendanceState.PRESENT,
+        checkStatus: CheckStatus.CHECKED_OUT,
+        isOvertime: true,
+        overtimeState: OvertimeState.COMPLETED,
+      };
+    }
+
     if (isCheckIn) {
       return {
         state: isOvertime

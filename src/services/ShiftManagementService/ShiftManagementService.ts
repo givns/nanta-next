@@ -498,7 +498,6 @@ export class ShiftManagementService {
         }
       }
     }
-
     return {
       current: {
         start:

@@ -250,6 +250,45 @@ export class AttendanceCheckService {
         );
       }
 
+      // Add missed period detection
+      if (!latestAttendance?.CheckOutTime) {
+        const now = getCurrentTime();
+        const shiftEnd = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${shiftData.effectiveShift.endTime}`,
+        );
+
+        // If we're past shift end and have approved overtime
+        if (now > shiftEnd && approvedOvertime) {
+          // Check if we're also past overtime
+          const overtimeEnd = parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+          );
+
+          if (now > overtimeEnd) {
+            // Trigger auto-completion
+            return this.createResponse(
+              true,
+              'ระบบจะทำการลงเวลาออกงานปกติและลงเวลาเข้า-ออกงานล่วงเวลาให้อัตโนมัติ',
+              {
+                inPremises,
+                address,
+                periodType: PeriodType.REGULAR,
+                requireConfirmation: true,
+                flags: {
+                  isAutoCheckIn: true,
+                  isAutoCheckOut: true,
+                  isOvertime: true,
+                },
+                timing: {
+                  missedCheckOutTime: differenceInMinutes(now, shiftEnd),
+                  plannedEndTime: shiftEnd.toISOString(),
+                  overtimeMissed: true,
+                },
+              },
+            );
+          }
+        }
+      }
       if (currentPeriod?.type === PeriodType.OVERTIME) {
         if (!approvedOvertime) {
           return this.createResponse(

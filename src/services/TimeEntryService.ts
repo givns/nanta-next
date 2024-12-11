@@ -150,6 +150,43 @@ export class TimeEntryService {
   ) {
     const { overtimeRequest, leaveRequests } = context;
 
+    // Handle auto-completion case
+    if (options.requireConfirmation && options.overtimeMissed) {
+      // First handle regular checkout
+      const regularEntry = await this.handleRegularEntry(
+        tx,
+        attendance,
+        false, // isCheckIn = false for checkout
+        leaveRequests,
+        context.shift,
+      );
+
+      // Then handle overtime entries if there's overtime
+      if (overtimeRequest) {
+        const overtimeCheckin = await this.handleOvertimeEntry(
+          tx,
+          attendance,
+          overtimeRequest,
+          true, // isCheckIn = true
+        );
+
+        const overtimeCheckout = await this.handleOvertimeEntry(
+          tx,
+          attendance,
+          overtimeRequest,
+          false, // isCheckIn = false
+        );
+
+        return {
+          regular: regularEntry,
+          overtime: [overtimeCheckin, overtimeCheckout],
+        };
+      }
+
+      return { regular: regularEntry };
+    }
+
+    // Existing logic for normal cases
     if (options.isOvertime && overtimeRequest) {
       const overtimeEntry = await this.handleOvertimeEntry(
         tx,

@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client';
 import { Location, TimeWindow } from './base';
 import { CacheConfig } from './cache';
 import { AttendancePeriodContext } from './common';
-import { AttendanceRecord } from './records';
+import { AttendanceRecord, TimeEntry } from './records';
 import { AttendanceTransaction } from './transaction';
 import {
   AttendanceState,
@@ -86,6 +86,8 @@ export interface ProcessingOptions {
   isCheckIn: boolean;
   isOvertime?: boolean;
   isManualEntry?: boolean;
+  requireConfirmation?: boolean;
+  overtimeMissed?: boolean;
 
   // Status information
   state?: AttendanceState; // Optional current state
@@ -152,6 +154,12 @@ export interface ProcessingResult {
     source?: 'manual' | 'system' | 'auto-checkout';
     location?: Location;
     reason?: string;
+    autoCompleted?: boolean;
+    // For auto-completion results
+    autoCompletedEntries?: {
+      regular?: TimeEntry;
+      overtime?: TimeEntry[];
+    };
     [key: string]: unknown;
   };
 }

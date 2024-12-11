@@ -10,6 +10,7 @@ import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
 import { AttendanceStatusInfo } from '@/types/attendance/status';
 import { validateCheckInOutRequest } from '@/schemas/attendance';
+import { TimeEntry } from '@/types/attendance';
 
 // Initialize main service
 const prisma = new PrismaClient();
@@ -50,7 +51,12 @@ setInterval(() => {
 interface QueueResult {
   status: AttendanceStatusInfo;
   notificationSent: boolean;
+  message?: string;
   success: boolean;
+  autoCompletedEntries?: {
+    regular?: TimeEntry;
+    overtime?: TimeEntry[];
+  };
 }
 
 // Helper Functions
@@ -215,8 +221,20 @@ export default async function handler(
       new Promise<QueueResult>((resolve, reject) => {
         checkInOutQueue.push(validatedData, (error, queueResult) => {
           if (error) reject(error);
-          else if (queueResult) resolve(queueResult);
-          else reject(new Error('No result returned from queue'));
+          else if (queueResult) {
+            if (queueResult.status?.autoCompleted) {
+              resolve({
+                ...queueResult,
+                message: 'ระบบได้ทำการลงเวลาย้อนหลังให้เรียบร้อยแล้ว',
+                autoCompletedEntries: {
+                  regular: queueResult.status.regular,
+                  overtime: queueResult.status.overtime,
+                },
+              });
+            } else {
+              resolve(queueResult);
+            }
+          } else reject(new Error('No result returned from queue'));
         });
       }),
       new Promise<QueueResult>((_, reject) =>

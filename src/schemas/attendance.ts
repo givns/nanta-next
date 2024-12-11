@@ -349,6 +349,7 @@ export const CheckInOutAllowanceSchema = z
     address: z.string(),
     periodType: z.nativeEnum(PeriodType),
     isLastPeriod: z.boolean(),
+    requireConfirmation: z.boolean(),
     flags: z.record(z.boolean()).default({}),
     timing: OvertimeTimingSchema.default({}),
     metadata: z.record(z.unknown()).default({}),

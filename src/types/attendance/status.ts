@@ -5,6 +5,7 @@ import { HolidayInfo, LeaveRequest } from './leave';
 import { FutureShift, ShiftAdjustmentInfo, ShiftData } from './shift';
 import { OvertimeContext, OvertimeEntryData, OvertimeInfo } from './overtime';
 import { Period } from './period';
+import { TimeEntry } from './records';
 
 export enum AttendanceState {
   PRESENT = 'present',
@@ -220,9 +221,11 @@ export interface AttendanceStatusInfo {
     startDate: string;
     endDate: string;
   }[];
+  autoCompleted?: boolean;
+  regular?: TimeEntry; // For auto-completion
+  overtime?: TimeEntry[]; // For auto-completion
 }
 
-// types/attendance/status.ts (existing file, add new interface)
 export interface EnhancedAttendanceStatus {
   currentPeriod: Period | null;
   lastCheckIn: {

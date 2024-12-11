@@ -51,6 +51,8 @@ export interface CheckInOutAllowance {
     lateCheckOutMinutes?: number;
     minutesEarly?: number;
     missedCheckInTime?: number;
+    missedCheckOutTime?: number;
+    overtimeMissed?: boolean;
     checkoutStatus?: CheckoutStatusType;
     earlyCheckoutType?: EarlyCheckoutType;
     actualStartTime?: string;

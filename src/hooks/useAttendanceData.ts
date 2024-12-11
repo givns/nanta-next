@@ -3,9 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 import {
-  AttendanceState,
   AttendanceStateResponse,
-  CheckStatus,
   LocationState,
   ProcessingResult,
   CheckInOutData,
@@ -126,6 +124,10 @@ export function useAttendanceData({
                   ? response.data.errors
                   : 'Failed to process attendance',
             });
+          }
+
+          if (response.data.metadata?.autoCompleted) {
+            console.log('Auto-completion successful:', response.data);
           }
 
           await mutate(undefined, { revalidate: true });
