@@ -832,7 +832,31 @@ export class AttendanceCheckService {
       if (overtimeResponse) return overtimeResponse;
     }
 
-    // 3. Regular checkout - Always allow if already checked in
+    // 3. Early checkout validation - Add this block
+    const earlyCheckoutStart = subMinutes(
+      shiftEnd,
+      ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
+    );
+    const isEarlyCheckout = now < earlyCheckoutStart;
+
+    if (isEarlyCheckout && !leaveRequests.length) {
+      return this.createResponse(false, 'ไม่สามารถลงเวลาออกก่อนเวลาที่กำหนด', {
+        inPremises,
+        address,
+        periodType: PeriodType.REGULAR,
+        flags: {
+          isEarlyCheckOut: true,
+          isOutsideShift: true,
+        },
+        timing: {
+          minutesEarly: differenceInMinutes(shiftEnd, now),
+          plannedEndTime: shiftEnd.toISOString(),
+          checkoutStatus: 'early',
+        },
+      });
+    }
+
+    // 4. Regular checkout - Only if not early
     const isLateCheckOut = isAfter(now, shiftEnd);
 
     return this.createResponse(
@@ -845,9 +869,11 @@ export class AttendanceCheckService {
         flags: {
           isLateCheckOut,
           isOutsideShift: isLateCheckOut,
+          isEarlyCheckOut: isEarlyCheckout,
         },
         timing: {
           plannedEndTime: shiftEnd.toISOString(),
+          checkoutStatus: isLateCheckOut ? 'late' : 'normal',
         },
       },
     );
