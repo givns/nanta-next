@@ -9,6 +9,7 @@ import { ShiftData } from './shift';
 import {
   AttendanceState,
   CheckStatus,
+  EnhancedAttendanceStatus,
   LatestAttendance,
   NextPeriod,
   OvertimeState,
@@ -41,8 +42,34 @@ export interface AttendanceStateResponse {
     latestAttendance: LatestAttendance | null; // Use full interface, can be null
   };
   window: ShiftWindowResponse;
-  validation: ValidationResponse;
+  validation?: ValidationResponseWithMetadata;
+  enhanced: EnhancedAttendanceStatus; // Add enhanced statu
   timestamp: string;
+}
+
+export interface ValidationResponseWithMetadata {
+  allowed: boolean;
+  reason: string;
+  flags: {
+    isLateCheckIn: boolean;
+    isEarlyCheckOut: boolean;
+    isPlannedHalfDayLeave: boolean;
+    isEmergencyLeave: boolean;
+    isOvertime: boolean;
+    requireConfirmation: boolean;
+    isDayOffOvertime: boolean;
+    isInsideShift: boolean;
+    isAutoCheckIn: boolean;
+    isAutoCheckOut: boolean;
+  };
+  metadata?: {
+    missingEntries?: Array<{
+      type: 'check-in' | 'check-out';
+      periodType: PeriodType;
+      expectedTime: Date;
+      overtimeId?: string;
+    }>;
+  };
 }
 
 export interface ValidationResponse {
@@ -57,6 +84,8 @@ export interface ValidationResponse {
     requireConfirmation: boolean;
     isDayOffOvertime: boolean;
     isInsideShift: boolean;
+    isAutoCheckIn: boolean;
+    isAutoCheckOut: boolean;
   };
 }
 
@@ -150,7 +179,6 @@ export interface ShiftWindowResponse {
     date: string;
   };
   overtimeInfo?: OvertimeContext;
-
   nextPeriod?: NextPeriod | null;
 }
 

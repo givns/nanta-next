@@ -1,4 +1,3 @@
-//api/attendance/status/[employeeId].ts
 import { PrismaClient } from '@prisma/client';
 import { AttendanceService } from '@/services/Attendance/AttendanceService';
 import { initializeServices } from '@/services/ServiceInitializer';
@@ -8,12 +7,16 @@ import {
   CheckStatus,
   ShiftWindowResponse,
   ValidationResponse,
+  EnhancedAttendanceStatus,
+  PeriodType,
+  Period,
+  AttendanceRecord,
+  ApprovedOvertimeInfo,
+  ValidationResponseWithMetadata,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { addDays, endOfDay, format, parseISO, startOfDay } from 'date-fns';
-import { raw } from '@prisma/client/runtime/library';
-
+import { AttendanceEnhancementService } from '@/services/Attendance/utils/AttendanceEnhancementService';
 // Initialize services
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
@@ -27,11 +30,26 @@ const attendanceService = new AttendanceService(
   services.timeEntryService,
 );
 
+// Create instance of AttendanceEnhancementService
+const enhancementService = new AttendanceEnhancementService(
+  services.timeEntryService,
+);
+
 export interface AttendanceResponse {
   status: AttendanceBaseResponse;
   window: ShiftWindowResponse;
-  validation?: ValidationResponse;
+  validation?: ValidationResponseWithMetadata;
+  enhanced: EnhancedAttendanceStatus;
   timestamp: string;
+}
+
+export interface ExtendedShiftWindowResponse extends ShiftWindowResponse {
+  pendingTransitions?: Array<{
+    from: PeriodType;
+    to: PeriodType;
+    transitionTime: Date;
+    isCompleted: boolean;
+  }>;
 }
 
 export default async function handler(
@@ -49,16 +67,12 @@ export default async function handler(
     confidence?: string;
   };
 
-  console.log('Request:', { employeeId, inPremises, address, confidence });
-
   if (!employeeId || typeof employeeId !== 'string') {
     return res.status(400).json({ error: 'Invalid employeeId' });
   }
 
   try {
     const now = getCurrentTime();
-    console.log(now);
-    console.log('API Request for employeeId:', employeeId);
 
     // Verify user and shift existence first
     const user = await prisma.user.findUnique({
@@ -75,8 +89,7 @@ export default async function handler(
 
     if (!user.shiftCode) {
       return res.status(400).json({
-        error:
-          'Shift configuration error: No shift code assigned to user. Please contact HR.',
+        error: 'Shift configuration error: No shift code assigned to user.',
       });
     }
 
@@ -93,50 +106,108 @@ export default async function handler(
         : undefined,
     ]);
 
-    console.log('API Data:', {
-      rawStatus: status,
-      rawWindow: window,
-      rawValidation: validation,
-    });
-
-    // Special handling for day off with overtime
-    if (window?.isDayOff && window.overtimeInfo) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
-      );
-      const overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
-      );
-
-      window.current = {
-        start: overtimeStart.toISOString(),
-        end: overtimeEnd.toISOString(),
-      };
-    } else if (window?.isDayOff) {
-      // For day off without overtime, use full day
-      window.current = {
-        start: startOfDay(now).toISOString(),
-        end: endOfDay(now).toISOString(),
-      };
-    } else if (window?.overtimeInfo) {
-      // Handle regular day overtime
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
-      );
-      let overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
-      );
-
-      // Handle overnight case
-      if (overtimeEnd < overtimeStart) {
-        overtimeEnd = addDays(overtimeEnd, 1);
-      }
-
-      window.current = {
-        start: overtimeStart.toISOString(),
-        end: overtimeEnd.toISOString(),
-      };
+    if (!window) {
+      return res.status(400).json({
+        error: 'Shift configuration error: Unable to calculate shift window.',
+      });
     }
+
+    // Create current period object with isOvernight check
+    const currentPeriod: Period | null = window.current
+      ? {
+          type: window.type as PeriodType,
+          startTime: new Date(window.current.start),
+          endTime: new Date(window.current.end),
+          isOvertime: window.type === PeriodType.OVERTIME,
+          overtimeId: window.overtimeInfo?.id,
+          isOvernight: window.overtimeInfo
+            ? window.overtimeInfo.endTime < window.overtimeInfo.startTime // Check if end is before start in time string
+            : window.current.end < window.current.start, // Fallback for regular shifts
+        }
+      : null;
+
+    // Add type guard
+    const isValidLatestAttendance = (
+      attendance: any,
+    ): attendance is AttendanceRecord => {
+      return attendance && attendance.date !== undefined;
+    };
+
+    const mappedOvertimeInfo = window?.overtimeInfo
+      ? ({
+          id: window.overtimeInfo.id,
+          employeeId: employeeId,
+          date: new Date(window.current.start),
+          startTime: window.overtimeInfo.startTime,
+          endTime: window.overtimeInfo.endTime,
+          durationMinutes: window.overtimeInfo.durationMinutes,
+          status: 'approved' as const,
+          employeeResponse: null,
+          reason: window.overtimeInfo.reason || null,
+          approverId: null,
+          isDayOffOvertime: window.overtimeInfo.isDayOffOvertime,
+          isInsideShiftHours: window.overtimeInfo.isInsideShiftHours,
+        } as ApprovedOvertimeInfo)
+      : null;
+
+    const enhancedStatus = await enhancementService.enhanceAttendanceStatus(
+      isValidLatestAttendance(status?.latestAttendance)
+        ? status.latestAttendance
+        : null,
+      currentPeriod,
+      mappedOvertimeInfo,
+    );
+
+    const defaultValidation: ValidationResponseWithMetadata = {
+      allowed: false,
+      reason: 'Default validation',
+      flags: {
+        isLateCheckIn: false,
+        isEarlyCheckOut: false,
+        isPlannedHalfDayLeave: false,
+        isEmergencyLeave: false,
+        isOvertime: false,
+        requireConfirmation: false,
+        isDayOffOvertime: false,
+        isInsideShift: false,
+        isAutoCheckIn: false,
+        isAutoCheckOut: false,
+      },
+    };
+
+    // Modify validation handling
+    const modifiedValidation: ValidationResponseWithMetadata = validation
+      ? {
+          allowed: validation.allowed,
+          reason: validation.reason,
+          flags: {
+            isLateCheckIn: validation.flags?.isLateCheckIn || false,
+            isEarlyCheckOut: validation.flags?.isEarlyCheckOut || false,
+            isPlannedHalfDayLeave:
+              validation.flags?.isPlannedHalfDayLeave || false,
+            isEmergencyLeave: validation.flags?.isEmergencyLeave || false,
+            isOvertime: validation.flags?.isOvertime || false,
+            requireConfirmation: validation.flags?.requireConfirmation || false,
+            isDayOffOvertime: validation.flags?.isDayOffOvertime || false,
+            isInsideShift: validation.flags?.isInsideShift || false,
+            isAutoCheckIn: enhancedStatus.missingEntries.some(
+              (e: { type: string }) => e.type === 'check-in',
+            ),
+            isAutoCheckOut: enhancedStatus.missingEntries.some(
+              (e: { type: string }) => e.type === 'check-out',
+            ),
+          },
+          metadata: {
+            missingEntries: enhancedStatus.missingEntries,
+          },
+        }
+      : defaultValidation;
+
+    // Create modified window with transitions
+    const modifiedWindow: ExtendedShiftWindowResponse = {
+      ...window,
+      pendingTransitions: enhancedStatus.pendingTransitions,
+    };
 
     // First fix API response
     const normalizedStatus: AttendanceBaseResponse = {
@@ -162,22 +233,14 @@ export default async function handler(
         : undefined,
     };
 
-    console.log('Normalized Status:', normalizedStatus);
-
-    if (!window) {
-      return res.status(400).json({
-        error:
-          'Shift configuration error: Unable to calculate shift window. Please contact HR.',
-      });
-    }
-
     // Cache headers for short-term caching
-    res.setHeader('Cache-Control', 'private, max-age=30'); // 30 seconds
+    res.setHeader('Cache-Control', 'private, max-age=30');
 
     return res.status(200).json({
       status: normalizedStatus,
-      window,
-      validation,
+      window: modifiedWindow,
+      validation: modifiedValidation,
+      enhanced: enhancedStatus,
       timestamp: now.toISOString(),
     });
   } catch (error) {
@@ -188,7 +251,6 @@ export default async function handler(
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    // Specific error handling
     if (error instanceof Error) {
       if (error.message.includes('not found')) {
         return res.status(404).json({ error: error.message });
@@ -209,7 +271,6 @@ export default async function handler(
       }
     }
 
-    // Generic error
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'Internal server error',
     });

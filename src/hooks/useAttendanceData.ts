@@ -53,23 +53,53 @@ export function useAttendanceData({
 
         const responseData = response.data;
         console.log('API response:', responseData);
+
+        // Map the latest attendance with proper handling of undefined fields
+        const mappedLatestAttendance = responseData.status.latestAttendance
+          ? {
+              ...responseData.status.latestAttendance,
+              CheckInTime: responseData.status.latestAttendance.CheckInTime,
+              CheckOutTime: responseData.status.latestAttendance.CheckOutTime,
+              overtimeState: responseData.status.latestAttendance.overtimeState,
+              isOvertime:
+                responseData.status.latestAttendance.isOvertime || false,
+              isManualEntry:
+                responseData.status.latestAttendance.isManualEntry || false,
+              isDayOff: responseData.status.latestAttendance.isDayOff || false,
+              shiftStartTime:
+                responseData.status.latestAttendance.shiftStartTime,
+              shiftEndTime: responseData.status.latestAttendance.shiftEndTime,
+              state: responseData.status.latestAttendance.state,
+              checkStatus: responseData.status.latestAttendance.checkStatus,
+            }
+          : null;
+
+        // Map the window response with overtime info
+        const mappedWindow = {
+          ...responseData.window,
+          overtimeInfo: responseData.window.overtimeInfo
+            ? {
+                ...responseData.window.overtimeInfo,
+                durationMinutes:
+                  responseData.window.overtimeInfo.durationMinutes || 0,
+                isInsideShiftHours:
+                  responseData.window.overtimeInfo.isInsideShiftHours || false,
+                isDayOffOvertime:
+                  responseData.window.overtimeInfo.isDayOffOvertime || false,
+              }
+            : undefined,
+        };
+
         return {
           base: {
             state: responseData.status.state,
             checkStatus: responseData.status.checkStatus,
             isCheckingIn: responseData.status.isCheckingIn,
-            latestAttendance: responseData.status.latestAttendance
-              ? {
-                  ...responseData.status.latestAttendance,
-                  CheckInTime: responseData.status.latestAttendance.CheckInTime,
-                  CheckOutTime:
-                    responseData.status.latestAttendance.CheckOutTime,
-                }
-              : null,
+            latestAttendance: mappedLatestAttendance,
           },
-          window: responseData.window,
+          window: mappedWindow,
           validation: responseData.validation,
-
+          enhanced: responseData.enhanced,
           timestamp: responseData.timestamp ?? new Date().toISOString(),
         };
       } catch (error) {
@@ -127,7 +157,11 @@ export function useAttendanceData({
           }
 
           if (response.data.metadata?.autoCompleted) {
-            console.log('Auto-completion successful:', response.data);
+            console.log('Auto-completion successful:', {
+              ...response.data,
+              autoCompletedEntries:
+                response.data.metadata?.autoCompletedEntries,
+            });
           }
 
           await mutate(undefined, { revalidate: true });
@@ -204,6 +238,7 @@ export function useAttendanceData({
               isManualEntry: false,
               isDayOff: false,
             },
+            enhanced: data.enhanced, // Include enhanced status in return
           },
         }
       : undefined,

@@ -408,7 +408,17 @@ export class ShiftManagementService {
           isHoliday: shiftstatus.isHoliday,
           isDayOff: shiftstatus.isDayOff,
           isAdjusted: shiftData.regularShift.id !== effectiveShift.id,
-          overtimeInfo: currentPeriod.overtimeInfo,
+          overtimeInfo: sortedOvertimes[0]
+            ? {
+                id: sortedOvertimes[0].id,
+                startTime: sortedOvertimes[0].startTime,
+                endTime: sortedOvertimes[0].endTime,
+                durationMinutes: sortedOvertimes[0].durationMinutes,
+                isInsideShiftHours: sortedOvertimes[0].isInsideShiftHours,
+                isDayOffOvertime: sortedOvertimes[0].isDayOffOvertime,
+                reason: sortedOvertimes[0].reason || '',
+              }
+            : undefined,
           nextPeriod: null,
         };
       }
