@@ -52,7 +52,7 @@ export function useAttendanceData({
         });
 
         const responseData = response.data;
-        console.log('useAttendanceData API response:', responseData);
+        console.log('useAttendanceDataAPI response:', responseData);
 
         // Map the latest attendance with proper handling of undefined fields
         const mappedLatestAttendance = responseData.status.latestAttendance
@@ -74,6 +74,22 @@ export function useAttendanceData({
             }
           : null;
 
+        // Map the window response with overtime info
+        const mappedWindow = {
+          ...responseData.window,
+          overtimeInfo: responseData.window.overtimeInfo
+            ? {
+                ...responseData.window.overtimeInfo,
+                durationMinutes:
+                  responseData.window.overtimeInfo.durationMinutes || 0,
+                isInsideShiftHours:
+                  responseData.window.overtimeInfo.isInsideShiftHours || false,
+                isDayOffOvertime:
+                  responseData.window.overtimeInfo.isDayOffOvertime || false,
+              }
+            : undefined,
+        };
+
         return {
           base: {
             state: responseData.status.state,
@@ -81,7 +97,7 @@ export function useAttendanceData({
             isCheckingIn: responseData.status.isCheckingIn,
             latestAttendance: mappedLatestAttendance,
           },
-          window: responseData.window,
+          window: mappedWindow,
           validation: responseData.validation,
           enhanced: responseData.enhanced,
           timestamp: responseData.timestamp ?? new Date().toISOString(),
