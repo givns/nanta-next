@@ -1,27 +1,28 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shift, UserData } from '@/types/user';
+import { UserData } from '@/types/user';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
 import { formatDate, getCurrentTime } from '@/utils/dateUtils';
-import { ActionButton } from './ActionButton';
+import { AttendanceActionButton } from './ActionButton';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
 import {
   PeriodType,
   ATTENDANCE_CONSTANTS,
-  EffectiveShift,
   ShiftData,
+  CurrentPeriodInfo,
 } from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
 import {
   addDays,
+  addMinutes,
   endOfDay,
   format,
   parseISO,
   startOfDay,
-  subMinutes,
 } from 'date-fns';
+import { OvertimeContext } from '@/types/attendance/overtime';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -48,13 +49,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   });
 
   const {
-    state,
-    checkStatus,
     currentPeriod,
     effectiveShift,
     validation,
     locationState,
-    isLoading,
     error: attendanceError,
     checkInOut,
     overtimeContext,
@@ -305,18 +303,18 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   }
 
-  function getNextWindowStartTime(effectiveShift: EffectiveShift): Date | null {
+  function getNextWindowStartTime(shiftData: ShiftData): Date | null {
     const now = getCurrentTime();
     const regularShiftStartTime = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${effectiveShift.regular.startTime}`,
+      `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`,
     );
     const regularShiftEndTime = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${effectiveShift.regular.endTime}`,
+      `${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`,
     );
 
     if (now >= regularShiftEndTime) {
       return parseISO(
-        `${format(addDays(now, 1), 'yyyy-MM-dd')}T${effectiveShift.regular.startTime}`,
+        `${format(addDays(now, 1), 'yyyy-MM-dd')}T${shiftData.startTime}`,
       );
     } else if (now < regularShiftStartTime) {
       return regularShiftStartTime;
@@ -324,6 +322,68 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       return regularShiftEndTime;
     }
   }
+
+  // Add these state/computed values and utils inside CheckInOutForm component
+  const isCheckingIn = !currentPeriod?.checkInTime;
+
+  // Time window calculations
+  const nextWindowTime = React.useMemo(() => {
+    if (!validation?.allowed && currentPeriod) {
+      if (currentPeriod.type === 'overtime' && overtimeContext) {
+        return new Date(overtimeContext.endTime);
+      }
+      // Using ShiftData instead of EffectiveShift
+      if (currentPeriod.type === 'regular' && effectiveShift) {
+        const nextWindow = getNextWindowStartTime(effectiveShift);
+        return nextWindow ? nextWindow : undefined;
+      }
+      return new Date(currentPeriod.current.end);
+    }
+    return undefined;
+  }, [validation, currentPeriod, overtimeContext, effectiveShift]);
+
+  // Early/Late action detection
+  const isEarlyAction = React.useMemo(() => {
+    if (!nextWindowTime || !currentPeriod) return false;
+    return getCurrentTime() < nextWindowTime;
+  }, [nextWindowTime, currentPeriod]);
+
+  const isLateAction = React.useMemo(() => {
+    if (!currentPeriod?.checkInTime || !effectiveShift) return false;
+    const shiftStart = parseISO(
+      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${effectiveShift.startTime}`,
+    );
+    return (
+      getCurrentTime() >
+      addMinutes(shiftStart, ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD)
+    );
+  }, [currentPeriod, effectiveShift]);
+
+  // Confirmation message generator
+  const getConfirmationMessage = (
+    period: CurrentPeriodInfo | null,
+    overtime: OvertimeContext | null,
+  ): string => {
+    if (!period) return 'Confirm action?';
+
+    if (period.type === 'overtime') {
+      return `Confirm ${isCheckingIn ? 'check-in to' : 'check-out from'} overtime period?`;
+    }
+
+    if (overtime && !isCheckingIn) {
+      return 'Complete regular shift and start overtime?';
+    }
+
+    return `Confirm ${isCheckingIn ? 'check-in' : 'check-out'}?`;
+  };
+
+  // Period transition handler
+  const handlePeriodTransition = React.useCallback(async () => {
+    // Handle period transitions, e.g., regular to overtime
+    if (currentPeriod?.type === 'regular' && overtimeContext) {
+      await handleAction('startOvertime');
+    }
+  }, [currentPeriod, overtimeContext, handleAction]);
 
   const renderProcessingView = () => (
     <div className="flex flex-col items-center justify-center p-4">
@@ -441,61 +501,55 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           </div>
 
           {/* Single ActionButton */}
-          <ActionButton
-            isEnabled={!!validation?.allowed}
-            validationMessage={validation?.reason}
-            nextWindowTime={
-              !validation?.allowed && currentPeriod
-                ? currentPeriod.type === 'overtime' && overtimeContext
-                  ? new Date(overtimeContext.endTime)
-                  : currentPeriod.type === 'regular' && effectiveShift
-                    ? currentPeriod.isComplete
-                      ? null
-                      : getNextWindowStartTime({
-                          ...effectiveShift,
-                          current: {
-                            id: '',
-                            name: '',
-                            shiftCode: '',
-                            startTime: startOfDay(new Date()).toISOString(),
-                            endTime: endOfDay(new Date()).toISOString(),
-                            workDays: [],
-                          },
-                          regular: {
-                            id: '',
-                            name: '',
-                            shiftCode: '',
-                            startTime: effectiveShift.startTime,
-                            endTime: effectiveShift.endTime,
-                            workDays: [],
-                          },
-                          isAdjusted: false,
-                        })
-                    : new Date(currentPeriod.current.end)
-                : undefined
-            }
-            isCheckingIn={
-              currentPeriod?.type === 'regular' && !currentPeriod.checkInTime
-            }
-            isCheckingOut={
-              currentPeriod?.type === 'regular' &&
-              !!currentPeriod.checkInTime &&
-              !currentPeriod.checkOutTime
-            }
-            isStartingOvertime={
-              currentPeriod?.type === 'overtime' && !base.isCheckingIn
-            }
-            onAction={() => {
+          <AttendanceActionButton
+            action={{
+              type: isCheckingIn ? 'check-in' : 'check-out',
+              period: {
+                // Add null check for currentPeriod
+                type: currentPeriod?.type || 'regular',
+                // Use overtimeContext instead of overtimeInfo
+                transition: overtimeContext
+                  ? {
+                      to: 'overtime',
+                      at: parseISO(
+                        `${format(getCurrentTime(), 'yyyy-MM-dd')}T${overtimeContext.startTime}`,
+                      ),
+                    }
+                  : undefined,
+              },
+              timing: nextWindowTime
+                ? {
+                    plannedTime: nextWindowTime,
+                    isEarly: isEarlyAction,
+                    isLate: isLateAction,
+                  }
+                : undefined,
+            }}
+            validation={{
+              canProceed: !!validation?.allowed,
+              message: validation?.reason,
+              requireConfirmation: validation?.flags?.requireConfirmation,
+              confirmationMessage: getConfirmationMessage(
+                currentPeriod,
+                overtimeContext,
+              ),
+            }}
+            systemState={{
+              // Fix locationState property access
+              isReady: locationState.status === 'ready',
+              locationValid: locationState.status === 'ready',
+              // Convert null to undefined for error
+              error: locationState.error || undefined,
+            }}
+            // Fix function signature for onActionTriggered
+            onActionTriggered={() => {
               if (currentPeriod?.type === 'regular') {
-                handleAction(base.isCheckingIn ? 'checkOut' : 'checkIn');
+                handleAction(isCheckingIn ? 'checkIn' : 'checkOut');
               } else if (currentPeriod?.type === 'overtime') {
                 handleAction('startOvertime');
               }
             }}
-            locationState={{
-              isReady: locationState.status === 'ready',
-              error: locationState.error || undefined,
-            }}
+            onTransitionInitiated={handlePeriodTransition}
           />
         </>
       )}
