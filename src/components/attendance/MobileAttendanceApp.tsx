@@ -10,7 +10,14 @@ import {
   OvertimeState,
 } from '@/types/attendance';
 import { differenceInMinutes } from 'date-fns';
-import { getCurrentTime } from '@/utils/dateUtils';
+import {
+  calculateTimeDifference,
+  formatBangkokTime,
+  formatTime,
+  getCurrentTime,
+  isTimeWithinRange,
+  toBangkokTime,
+} from '@/utils/dateUtils';
 import { current } from '@reduxjs/toolkit';
 
 interface ShiftStatusInfo {
@@ -74,7 +81,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     console.log('Progress Calculation Start:', {
       currentPeriod,
       attendanceStatus: attendanceStatus?.latestAttendance,
-      regularShift: shiftData, // Assuming shiftData is available from props
+      regularShift: shiftData,
     });
 
     if (!currentPeriod?.current) {
@@ -83,99 +90,65 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
 
     try {
-      const now = currentTime;
+      const now = getCurrentTime(); // Using utility function
       const startTime = parseISO(currentPeriod.current.start);
       const endTime = parseISO(currentPeriod.current.end);
-      // Fix: Use the same parsing method as period times
-      const regularShiftStart = shiftData
-        ? parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}:00.000Z`,
-          )
-        : null;
-      const regularShiftEnd = shiftData
-        ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}:00.000Z`)
-        : null;
 
+      // Format times for logging using utility functions
       console.log('Time Reference Points:', {
-        now: now.toISOString(),
-        periodStart: startTime.toISOString(),
-        periodEnd: endTime.toISOString(),
-        regularShiftStart: regularShiftStart?.toISOString(),
-        regularShiftEnd: regularShiftEnd?.toISOString(),
+        nowUTC: now.toISOString(),
+        startUTC: startTime.toISOString(),
+        endUTC: endTime.toISOString(),
         periodType: currentPeriod.type,
-        localTime: format(now, 'HH:mm:ss'), // Add local time for reference
+        // Local times using our formatters
+        localNow: formatTime(now),
+        localStart: formatTime(toBangkokTime(startTime)),
+        localEnd: formatTime(toBangkokTime(endTime)),
+        localShiftStart: shiftData?.startTime,
+        localShiftEnd: shiftData?.endTime,
       });
 
       // Handle completed periods
       if (attendanceStatus?.latestAttendance?.CheckOutTime) {
         console.log('CheckOut exists:', {
-          checkOutTime: attendanceStatus.latestAttendance.CheckOutTime,
+          checkOutTime: formatBangkokTime(
+            attendanceStatus.latestAttendance.CheckOutTime,
+            'HH:mm:ss',
+          ),
           isOvertime: attendanceStatus.latestAttendance.isOvertime,
           overtimeState: attendanceStatus.latestAttendance.overtimeState,
         });
 
-        // Completed overtime period
         if (
           currentPeriod.type === 'overtime' &&
           attendanceStatus.latestAttendance.overtimeState ===
             OvertimeState.COMPLETED
         ) {
-          console.log('Overtime completed, returning 100%');
           return 100;
         }
 
-        // Completed regular shift
         if (
           currentPeriod.type === 'regular' &&
           !attendanceStatus.latestAttendance.isOvertime
         ) {
-          console.log('Regular shift completed, returning 100%');
           return 100;
         }
       }
 
-      // Period validation
-      if (!isValid(startTime) || !isValid(endTime)) {
-        console.log('Invalid period times');
-        return 0;
-      }
-
-      // Pre-shift overtime progress (e.g., 07:00-08:00)
-      if (
-        currentPeriod.type === 'overtime' &&
-        regularShiftStart &&
-        endTime <= regularShiftStart
-      ) {
-        console.log('Calculating pre-shift overtime progress');
-        const totalMinutes = differenceInMinutes(endTime, startTime);
-        const elapsedMinutes = differenceInMinutes(currentTime, startTime);
-
-        console.log('Pre-shift OT Calculation:', {
-          totalMinutes,
-          elapsedMinutes,
-          rawPercentage: (elapsedMinutes / totalMinutes) * 100,
-        });
-
-        const percentage = Math.max(
-          0,
-          Math.min((elapsedMinutes / totalMinutes) * 100, 100),
-        );
-        return Math.round(percentage * 100) / 100;
-      }
-
-      // Regular shift progress (08:00-17:00)
+      // Calculate progress based on period type
       if (currentPeriod.type === 'regular') {
         console.log('Calculating regular shift progress');
-        const totalMinutes = differenceInMinutes(endTime, startTime);
-        const elapsedMinutes = differenceInMinutes(currentTime, startTime);
+        // Using utility function for time difference
+        const totalMinutes = calculateTimeDifference(startTime, endTime);
+        const elapsedMinutes = calculateTimeDifference(startTime, now);
 
         console.log('Regular Shift Calculation:', {
           totalMinutes,
           elapsedMinutes,
           rawPercentage: (elapsedMinutes / totalMinutes) * 100,
-          localNow: format(now, 'HH:mm:ss'),
-          localStart: format(startTime, 'HH:mm:ss'),
-          localEnd: format(endTime, 'HH:mm:ss'),
+          localNow: formatTime(now),
+          localStart: formatTime(toBangkokTime(startTime)),
+          localEnd: formatTime(toBangkokTime(endTime)),
         });
 
         const percentage = Math.max(
@@ -185,20 +158,26 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         return Math.round(percentage * 100) / 100;
       }
 
-      // Post-shift overtime progress (e.g., 17:00-19:00)
-      if (
-        currentPeriod.type === 'overtime' &&
-        regularShiftEnd &&
-        startTime >= regularShiftEnd
-      ) {
-        console.log('Calculating post-shift overtime progress');
-        const totalMinutes = differenceInMinutes(endTime, startTime);
-        const elapsedMinutes = differenceInMinutes(currentTime, startTime);
+      if (currentPeriod.type === 'overtime') {
+        // Determine overtime type using utility function
+        const isPreShiftOT = isTimeWithinRange(
+          startTime,
+          '00:00',
+          shiftData?.startTime || '08:00',
+        );
 
-        console.log('Post-shift OT Calculation:', {
+        console.log('Overtime type:', { isPreShiftOT });
+
+        const totalMinutes = calculateTimeDifference(startTime, endTime);
+        const elapsedMinutes = calculateTimeDifference(startTime, now);
+
+        console.log(`${isPreShiftOT ? 'Pre' : 'Post'}-shift OT Calculation:`, {
           totalMinutes,
           elapsedMinutes,
           rawPercentage: (elapsedMinutes / totalMinutes) * 100,
+          localNow: formatTime(now),
+          localStart: formatTime(toBangkokTime(startTime)),
+          localEnd: formatTime(toBangkokTime(endTime)),
         });
 
         const percentage = Math.max(
@@ -208,16 +187,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         return Math.round(percentage * 100) / 100;
       }
 
-      // Fallback for any other case
-      console.log('Using fallback progress calculation');
-      const totalMinutes = differenceInMinutes(endTime, startTime);
-      const elapsedMinutes = differenceInMinutes(currentTime, startTime);
-
-      console.log('Fallback Calculation:', {
-        totalMinutes,
-        elapsedMinutes,
-        rawPercentage: (elapsedMinutes / totalMinutes) * 100,
-      });
+      // Fallback calculation
+      const totalMinutes = calculateTimeDifference(startTime, endTime);
+      const elapsedMinutes = calculateTimeDifference(startTime, now);
 
       if (totalMinutes <= 0) {
         console.log('Invalid period duration');
@@ -230,7 +202,13 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       );
       const roundedPercentage = Math.round(percentage * 100) / 100;
 
-      console.log('Final Progress:', roundedPercentage);
+      console.log('Final Progress:', {
+        totalMinutes,
+        elapsedMinutes,
+        rawPercentage: (elapsedMinutes / totalMinutes) * 100,
+        roundedPercentage,
+      });
+
       return roundedPercentage;
     } catch (error) {
       console.error('Progress calculation error:', {
