@@ -518,7 +518,7 @@ export class ShiftManagementService {
                 ).toISOString()
               : windows.end.toISOString(),
       },
-      type: PeriodType.REGULAR, // Instead of 'regular' string
+      type: currentPeriod.type,
       shift: this.mapShiftData(effectiveShift),
       isHoliday: shiftstatus.isHoliday,
       isDayOff: shiftstatus.isDayOff,
