@@ -1,5 +1,3 @@
-// services/Attendance/utils/AttendanceResponseBuilder.ts
-
 import {
   AttendanceState,
   CheckStatus,
@@ -9,16 +7,19 @@ import {
   TimeEntry,
   ProcessedAttendance,
   ProcessingResult,
+  TimeEntryStatus,
+  PeriodType,
+  ProcessingContext,
 } from '../../../types/attendance';
 
 export class AttendanceResponseBuilder {
   static createProcessingResponse(
     attendance: AttendanceRecord,
-    timeEntries: { regular?: TimeEntry; overtime?: TimeEntry[] },
-    overtimeContext?: {
-      isOvertime: boolean;
-      metadata?: Record<string, unknown>;
+    timeEntries: {
+      regular?: TimeEntry;
+      overtime?: TimeEntry[];
     },
+    context?: ProcessingContext,
   ): ProcessingResult {
     const processedAttendance: ProcessedAttendance = {
       id: attendance.id,
@@ -37,21 +38,41 @@ export class AttendanceResponseBuilder {
       detailedStatus: this.buildDetailedStatus(attendance),
     };
 
-    if (overtimeContext?.isOvertime) {
+    // Add overtime data if present
+    if (context?.isOvertime || attendance.isOvertime) {
+      const overtimeEntry = attendance.overtimeEntries[0];
       processedAttendance.overtime = {
-        isDayOffOvertime:
-          attendance.overtimeEntries[0]?.isDayOffOvertime || false,
-        isInsideShiftHours:
-          attendance.overtimeEntries[0]?.isInsideShiftHours || false,
-        startTime:
-          attendance.overtimeEntries[0]?.actualStartTime?.toISOString() || '',
-        endTime:
-          attendance.overtimeEntries[0]?.actualEndTime?.toISOString() || '',
-        actualStartTime:
-          attendance.overtimeEntries[0]?.actualStartTime || new Date(),
-        actualEndTime:
-          attendance.overtimeEntries[0]?.actualEndTime || new Date(),
+        isDayOffOvertime: overtimeEntry?.isDayOffOvertime || false,
+        isInsideShiftHours: overtimeEntry?.isInsideShiftHours || false,
+        startTime: overtimeEntry?.actualStartTime?.toISOString() || '',
+        endTime: overtimeEntry?.actualEndTime?.toISOString() || '',
+        actualStartTime: overtimeEntry?.actualStartTime || new Date(),
+        actualEndTime: overtimeEntry?.actualEndTime || new Date(),
         state: attendance.overtimeState || OvertimeState.NOT_STARTED,
+      };
+    }
+
+    // Enhance metadata with processing information
+    const enhancedMetadata = {
+      ...(context?.metadata || {}),
+      processedAt: new Date().toISOString(),
+      isOvertime: context?.isOvertime || false,
+    };
+
+    if (context?.metadata?.autoCompleted) {
+      enhancedMetadata.autoCompletedEntries = {
+        regular: timeEntries.regular
+          ? {
+              ...timeEntries.regular,
+              status: TimeEntryStatus.COMPLETED,
+              entryType: PeriodType.REGULAR,
+            }
+          : undefined,
+        overtime: timeEntries.overtime?.map((entry) => ({
+          ...entry,
+          status: TimeEntryStatus.COMPLETED,
+          entryType: PeriodType.OVERTIME,
+        })),
       };
     }
 
@@ -59,7 +80,7 @@ export class AttendanceResponseBuilder {
       success: true,
       timestamp: new Date().toISOString(),
       data: processedAttendance,
-      metadata: overtimeContext?.metadata,
+      metadata: enhancedMetadata,
     };
   }
 

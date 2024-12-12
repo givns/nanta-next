@@ -235,22 +235,13 @@ export interface OvertimeProcessingContext {
 }
 
 export interface ProcessingContext {
-  // Core processing data
-  attendance: AttendanceRecord;
-  options: ProcessingOptions;
-
-  // Period information
-  period: AttendancePeriodContext;
-  currentPeriod: {
-    type: PeriodType;
-    window: TimeWindow;
+  isOvertime?: boolean;
+  metadata?: {
+    autoCompleted?: boolean;
+    autoCompletedEntries?: {
+      regular?: TimeEntry;
+      overtime?: TimeEntry[];
+    };
+    [key: string]: unknown;
   };
-
-  // Processing components
-  validation: ValidationContext;
-  transaction: AttendanceTransaction;
-  cache: CacheConfig;
-
-  // Additional data
-  metadata?: Record<string, unknown>;
 }

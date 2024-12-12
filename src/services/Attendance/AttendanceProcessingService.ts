@@ -16,6 +16,8 @@ import {
   ErrorCode,
   LeaveRequest,
   AttendancePeriodContext,
+  OvertimeState,
+  TimeEntry,
 } from '../../types/attendance';
 import { getCurrentTime } from '../../utils/dateUtils';
 import {
@@ -39,11 +41,8 @@ import { AttendanceMappers } from './utils/AttendanceMappers';
 import { AttendanceValidators } from './utils/AttendanceValidators';
 import { AttendanceResponseBuilder } from './utils/AttendanceResponseBuilder';
 import { StatusHelpers } from './utils/StatusHelper';
-import { AttendanceLoggingService } from './AttendanceLoggingService';
 
 export class AttendanceProcessingService {
-  private loggingService: AttendanceLoggingService;
-
   constructor(
     private prisma: PrismaClient,
     private shiftService: ShiftManagementService,
@@ -51,8 +50,27 @@ export class AttendanceProcessingService {
     private timeEntryService: TimeEntryService,
     private leaveService: LeaveServiceServer,
     private holidayService: HolidayService,
-  ) {
-    this.loggingService = new AttendanceLoggingService(prisma);
+  ) {}
+
+  private mapTimeEntry(entry: any, isOvertime: boolean = false): TimeEntry {
+    return {
+      id: entry.id,
+      employeeId: entry.employeeId,
+      date: entry.date,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      status: TimeEntryStatus.COMPLETED,
+      entryType: isOvertime ? PeriodType.OVERTIME : PeriodType.REGULAR,
+      regularHours: entry.regularHours || 0,
+      overtimeHours: entry.overtimeHours || 0,
+      attendanceId: entry.attendanceId || null,
+      overtimeRequestId: entry.overtimeRequestId || null,
+      actualMinutesLate: entry.actualMinutesLate || 0,
+      isHalfDayLate: entry.isHalfDayLate || false,
+      overtimeMetadata: entry.overtimeMetadata || null,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    };
   }
 
   async processAttendance(
@@ -82,66 +100,138 @@ export class AttendanceProcessingService {
             this.getPeriodContext(tx, options.employeeId, serverTime, options),
           ]);
 
-          // 3. Process status
-          const statusUpdate = await StatusHelpers.processStatusTransition(
-            currentAttendance
-              ? AttendanceMappers.toCompositeStatus(currentAttendance)
-              : this.getInitialStatus(),
-            {
-              ...options,
-              checkTime: serverTime.toISOString(),
-            },
-          );
+          if (options.requireConfirmation && options.overtimeMissed) {
+            const updatedAttendance = await this.handleAutoCompletionAttendance(
+              tx,
+              currentAttendance,
+              options,
+              periodContext,
+            );
 
-          // 4. Process attendance
-          const processedAttendance = await this.processAttendanceChange(
-            tx,
-            currentAttendance,
-            statusUpdate,
-            {
-              ...options,
-              checkTime: serverTime.toISOString(),
-            },
-            periodContext,
-          );
+            const mappedAttendance =
+              AttendanceMappers.toAttendanceRecord(updatedAttendance);
+            if (!mappedAttendance) {
+              throw new AppError({
+                code: ErrorCode.PROCESSING_ERROR,
+                message: 'Failed to map attendance record',
+              });
+            }
 
-          // 5. Process time entries
-          const timeEntries = await this.timeEntryService.processTimeEntries(
-            tx,
-            processedAttendance,
-            statusUpdate,
-            {
-              ...options,
-              checkTime: serverTime.toISOString(),
-            },
-          );
+            const timeEntries = await this.timeEntryService.processTimeEntries(
+              tx,
+              mappedAttendance,
+              {
+                stateChange: {
+                  state: {
+                    previous: mappedAttendance.state,
+                    current: AttendanceState.PRESENT,
+                  },
+                  checkStatus: {
+                    previous: mappedAttendance.checkStatus,
+                    current: CheckStatus.CHECKED_OUT,
+                  },
+                  overtime: periodContext.approvedOvertime
+                    ? {
+                        previous: { isOvertime: false },
+                        current: {
+                          isOvertime: true,
+                          state: OvertimeState.COMPLETED,
+                        },
+                      }
+                    : undefined,
+                },
+                timestamp: serverTime,
+                reason: 'Auto-completion of missing entries',
+              },
+              {
+                ...options,
+                checkTime: serverTime.toISOString(),
+              },
+            );
 
-          // 7. Map time entries
-          const mappedTimeEntries = {
-            regular: timeEntries.regular
-              ? {
-                  ...timeEntries.regular,
-                  status: timeEntries.regular.status as TimeEntryStatus,
-                  entryType: PeriodType.REGULAR,
-                }
-              : undefined,
-            overtime: timeEntries.overtime?.map((entry) => ({
-              ...entry,
-              status: entry.status as TimeEntryStatus,
-              entryType: PeriodType.OVERTIME,
-            })),
-          };
+            // Map time entries with proper types
+            const mappedTimeEntries = {
+              regular: timeEntries.regular
+                ? this.mapTimeEntry(timeEntries.regular, false)
+                : undefined,
+              overtime: timeEntries.overtime?.map((entry) =>
+                this.mapTimeEntry(entry, true),
+              ),
+            };
 
-          return AttendanceResponseBuilder.createProcessingResponse(
-            processedAttendance,
-            mappedTimeEntries,
-            statusUpdate.stateChange.overtime?.current
-              ? {
-                  isOvertime: true,
-                  metadata: statusUpdate.metadata,
-                }
-              : undefined,
-          );
+            return AttendanceResponseBuilder.createProcessingResponse(
+              mappedAttendance,
+              mappedTimeEntries,
+              {
+                isOvertime: Boolean(options.isOvertime),
+                metadata: {
+                  autoCompleted: true,
+                  autoCompletedEntries: {
+                    regular: timeEntries.regular
+                      ? this.mapTimeEntry(timeEntries.regular, false)
+                      : undefined,
+                    overtime: timeEntries.overtime?.map((entry) =>
+                      this.mapTimeEntry(entry, true),
+                    ),
+                  },
+                },
+              },
+            );
+          } else {
+            // Normal processing flow
+            const statusUpdate = await StatusHelpers.processStatusTransition(
+              currentAttendance
+                ? AttendanceMappers.toCompositeStatus(currentAttendance)
+                : this.getInitialStatus(),
+              {
+                ...options,
+                checkTime: serverTime.toISOString(),
+              },
+            );
+
+            const processedAttendance = await this.processAttendanceChange(
+              tx,
+              currentAttendance,
+              statusUpdate,
+              {
+                ...options,
+                checkTime: serverTime.toISOString(),
+              },
+              periodContext,
+            );
+
+            // 5. Process time entries
+            const timeEntries = await this.timeEntryService.processTimeEntries(
+              tx,
+              processedAttendance,
+              statusUpdate,
+              {
+                ...options,
+                checkTime: serverTime.toISOString(),
+              },
+            );
+
+            // Map time entries with proper types
+            const mappedTimeEntries = {
+              regular: timeEntries.regular
+                ? this.mapTimeEntry(timeEntries.regular, false)
+                : undefined,
+              overtime: timeEntries.overtime?.map((entry) =>
+                this.mapTimeEntry(entry, true),
+              ),
+            };
+
+            return AttendanceResponseBuilder.createProcessingResponse(
+              processedAttendance,
+              mappedTimeEntries,
+              statusUpdate.stateChange.overtime?.current
+                ? {
+                    isOvertime: true,
+                    metadata: statusUpdate.metadata,
+                  }
+                : undefined,
+            );
+          }
         } catch (error) {
           console.error('Process attendance error:', {
             error,
@@ -155,6 +245,65 @@ export class AttendanceProcessingService {
         timeout: 8000,
       },
     );
+  }
+
+  private async handleAutoCompletionAttendance(
+    tx: Prisma.TransactionClient,
+    attendance: AttendanceRecord | null,
+    options: ProcessingOptions,
+    context: AttendancePeriodContext,
+  ): Promise<
+    Prisma.AttendanceGetPayload<{
+      include: { timeEntries: true; overtimeEntries: true };
+    }>
+  > {
+    const now = getCurrentTime();
+
+    const baseData = {
+      CheckInTime: context.shiftTimes.start,
+      CheckOutTime: context.approvedOvertime
+        ? parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${context.approvedOvertime.startTime}`,
+          )
+        : context.shiftTimes.end,
+      state: AttendanceState.PRESENT,
+      checkStatus: CheckStatus.CHECKED_OUT,
+      isOvertime: false,
+      shiftStartTime: context.shiftTimes.start,
+      shiftEndTime: context.shiftTimes.end,
+    };
+
+    if (!attendance) {
+      // Create new attendance record
+      return tx.attendance.create({
+        data: {
+          ...baseData,
+          employeeId: options.employeeId!,
+          date: startOfDay(now),
+          version: 1,
+        },
+        include: {
+          timeEntries: true,
+          overtimeEntries: true,
+        },
+      });
+    }
+
+    // Update existing record
+    return tx.attendance.update({
+      where: { id: attendance.id },
+      data: {
+        ...baseData,
+        isOvertime: !!context.approvedOvertime,
+        overtimeState: context.approvedOvertime
+          ? OvertimeState.COMPLETED
+          : undefined,
+      },
+      include: {
+        timeEntries: true,
+        overtimeEntries: true,
+      },
+    });
   }
 
   public async getLatestAttendance(
