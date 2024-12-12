@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 
 interface SliderUnlockProps {
@@ -21,56 +21,98 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
-  const startXRef = useRef(0);
+  const dragStartXRef = useRef(0);
+  const initialSliderLeftRef = useRef(0);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (!isEnabled || !validation?.canProceed) return;
+  // Reset progress when not dragging
+  useEffect(() => {
+    if (!isDragging && progress < 90) {
+      const timer = setTimeout(() => setProgress(0), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isDragging, progress]);
 
-    const container = containerRef.current;
-    const slider = sliderRef.current;
-    if (!container || !slider) return;
+  const updateProgress = (clientX: number) => {
+    if (!containerRef.current || !sliderRef.current) return;
 
-    setIsDragging(true);
-    startXRef.current = e.clientX - slider.getBoundingClientRect().left;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const sliderWidth = sliderRef.current.offsetWidth;
+    const maxTravel = containerRect.width - sliderWidth;
 
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      if (!container || !slider) return;
+    const currentPosition =
+      clientX - containerRect.left - dragStartXRef.current;
+    const rawProgress = (currentPosition / maxTravel) * 100;
+    const newProgress = Math.max(0, Math.min(rawProgress, 100));
 
-      const maxTravel = container.clientWidth - slider.clientWidth;
-      const currentX =
-        moveEvent.clientX -
-        container.getBoundingClientRect().left -
-        startXRef.current;
-      const newProgress = Math.max(
-        0,
-        Math.min((currentX / maxTravel) * 100, 100),
-      );
+    setProgress(newProgress);
 
-      setProgress(newProgress);
-
-      // Prevent scrolling while dragging
-      moveEvent.preventDefault();
-    };
-
-    const handlePointerUp = () => {
+    if (newProgress >= 90) {
       setIsDragging(false);
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUp);
+      setProgress(100);
+      onUnlock();
+    }
+  };
 
-      if (progress >= 90) {
-        setProgress(100);
-        onUnlock();
-      } else {
-        setProgress(0);
+  const handleStart = (clientX: number) => {
+    if (!isEnabled || !validation?.canProceed || !sliderRef.current) return;
+
+    const sliderRect = sliderRef.current.getBoundingClientRect();
+    dragStartXRef.current = clientX - sliderRect.left;
+    initialSliderLeftRef.current = sliderRect.left;
+    setIsDragging(true);
+  };
+
+  const handleEnd = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      if (progress < 90) {
         onCancel?.();
       }
-    };
-
-    document.addEventListener('pointermove', handlePointerMove, {
-      passive: false,
-    });
-    document.addEventListener('pointerup', handlePointerUp);
+    }
   };
+
+  // Touch event handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    handleStart(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    updateProgress(e.touches[0].clientX);
+  };
+
+  // Mouse event handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    handleStart(e.clientX);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    updateProgress(e.clientX);
+  };
+
+  useEffect(() => {
+    const handleMouseUp = () => handleEnd();
+    const handleTouchEnd = () => handleEnd();
+
+    if (isDragging) {
+      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('touchend', handleTouchEnd);
+      window.addEventListener('mousemove', handleMouseMove as any);
+      window.addEventListener('touchmove', handleTouchMove as any, {
+        passive: false,
+      });
+    }
+
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('mousemove', handleMouseMove as any);
+      window.removeEventListener('touchmove', handleTouchMove as any);
+    };
+  }, [isDragging]);
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -84,35 +126,38 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
       )}
 
       <div className="relative w-72 h-14">
+        {/* Track */}
         <div
           ref={containerRef}
-          className="absolute inset-0 bg-gray-100 rounded-full overflow-hidden shadow-inner"
-          style={{ touchAction: 'none' }}
+          className="absolute inset-0 bg-gray-100 rounded-full overflow-hidden"
         >
-          {/* Progress Bar Background */}
+          {/* Progress Bar */}
           <div
-            className="absolute inset-y-0 left-0 bg-red-100 transition-all duration-75"
+            className={`absolute inset-y-0 left-0 bg-red-100 transition-all duration-75 ease-out`}
             style={{ width: `${progress}%` }}
           />
 
           {/* Call to Action Text */}
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 pointer-events-none select-none">
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 select-none">
             {progress >= 90 ? 'ปล่อยเพื่อยืนยัน' : 'เลื่อนเพื่อยืนยันการออกงาน'}
           </div>
 
-          {/* Slider Button */}
+          {/* Slider Thumb */}
           <div
             ref={sliderRef}
-            className={`absolute left-0 top-1 bottom-1 w-12 flex items-center justify-center 
-              ${isEnabled ? 'bg-red-600 cursor-grab active:cursor-grabbing' : 'bg-gray-300'} 
-              rounded-full shadow-md transition-colors duration-200`}
+            className={`absolute top-1 bottom-1 left-1 w-12
+              ${isEnabled ? 'bg-red-600' : 'bg-gray-300'}
+              rounded-full shadow-lg flex items-center justify-center
+              ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}
+              touch-none select-none`}
             style={{
-              transform: `translateX(${progress}%)`,
+              transform: `translateX(${progress * 2.48}px)`, // Adjusted for better tracking
               transition: isDragging ? 'none' : 'all 0.2s ease-out',
             }}
-            onPointerDown={handlePointerDown}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
           >
-            <div className="w-0.5 h-6 bg-white rounded-full opacity-75" />
+            <div className="w-0.5 h-6 bg-white/75 rounded-full" />
           </div>
         </div>
       </div>
