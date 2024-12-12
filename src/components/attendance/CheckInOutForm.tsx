@@ -392,30 +392,41 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderActionComponent = () => {
-    // Check for early checkout with emergency leave conditions
-    // In renderActionComponent of CheckInOutForm
     if (!isCheckingIn) {
       // When checking out
-      return (
-        <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
-          <SliderUnlock
-            onUnlock={async () => {
-              try {
-                setStep('processing');
-                await handleAttendanceSubmit();
-              } catch (error) {
-                console.error('Checkout error:', error);
-                setStep('info');
-              }
-            }}
-            validation={{
-              canProceed: true,
-              message: validation?.reason,
-            }}
-            isEnabled={true}
-          />
-        </div>
-      );
+      const shouldShowSlider = true; // For testing. In production this would be: validation?.flags?.isEmergencyLeave
+      const canProceed = validation?.allowed ?? true; // For testing. In production remove ?? true
+
+      if (shouldShowSlider) {
+        return (
+          <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
+            <SliderUnlock
+              onUnlock={async () => {
+                try {
+                  setStep('processing');
+                  if (userData?.lineUserId) {
+                    const leaveCreated = await createSickLeaveRequest(
+                      userData.lineUserId,
+                      now,
+                    );
+                    if (!leaveCreated) return;
+                  }
+                  await handleAttendanceSubmit();
+                } catch (error) {
+                  console.error('Checkout error:', error);
+                  setStep('info');
+                }
+              }}
+              validation={{
+                canProceed: canProceed,
+                message:
+                  'ท่านกำลังจะลงเวลาออกก่อนเวลา ระบบจะยื่นใบลาป่วยให้อัตโนมัติ', // Example validation message
+              }}
+              isEnabled={locationState.status === 'ready'}
+            />
+          </div>
+        );
+      }
     }
 
     // Regular action button for other scenarios
