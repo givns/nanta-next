@@ -392,22 +392,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderSliderUnlock = () => {
-    console.log('Full Validation Object:', validation);
-
-    // Explicitly check for check-out state and valid flags
     const shouldShowSlider =
-      !isCheckingIn && // Ensure we're in check-out state
+      !isCheckingIn && // Ensure we're checking out
       validation?.flags?.isEarlyCheckOut === true &&
-      validation?.flags?.isEmergencyLeave === true &&
-      earlyCheckoutSliderActive;
+      validation?.flags?.isEmergencyLeave === true;
 
-    console.log('Slider Unlock Conditions:', {
-      shouldShowSlider,
+    console.log('Slider Unlock Debug:', {
       isCheckingIn,
       isEarlyCheckOut: validation?.flags?.isEarlyCheckOut,
       isEmergencyLeave: validation?.flags?.isEmergencyLeave,
-      earlyCheckoutSliderActive,
-      validationReason: validation?.reason,
+      shouldShowSlider,
     });
 
     if (shouldShowSlider) {
@@ -415,8 +409,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
           <SliderUnlock
             onUnlock={async () => {
-              console.log('Slider Unlocked');
-
               try {
                 setStep('processing');
 
@@ -425,18 +417,13 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                     userData.lineUserId,
                     now,
                   );
-                  if (!leaveCreated) {
-                    setEarlyCheckoutSliderActive(false);
-                    return;
-                  }
+                  if (!leaveCreated) return;
                 }
 
                 await handleAttendanceSubmit();
-                setEarlyCheckoutSliderActive(false);
               } catch (error) {
                 console.error('Early checkout error:', error);
                 setStep('info');
-                setEarlyCheckoutSliderActive(false);
               }
             }}
             onCancel={() => {
@@ -565,25 +552,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               error: locationState.error || undefined,
             }}
             onActionTriggered={() => {
-              console.log('Full Validation for Action:', {
-                validation,
-                isCheckingIn,
-                currentPeriodType: currentPeriod?.type,
-              });
-
-              if (
-                !isCheckingIn && // Ensure we're in check-out state
-                validation?.flags?.isEarlyCheckOut === true &&
-                validation?.flags?.isEmergencyLeave === true
-              ) {
-                console.log('Setting earlyCheckoutSliderActive to true');
-                setEarlyCheckoutSliderActive(true);
-              } else {
-                if (currentPeriod?.type === 'regular') {
-                  handleAction(isCheckingIn ? 'checkIn' : 'checkOut');
-                } else if (currentPeriod?.type === 'overtime') {
-                  handleAction('startOvertime');
-                }
+              if (currentPeriod?.type === 'regular') {
+                handleAction(isCheckingIn ? 'checkIn' : 'checkOut');
+              } else if (currentPeriod?.type === 'overtime') {
+                handleAction('startOvertime');
               }
             }}
             onTransitionInitiated={handlePeriodTransition}
