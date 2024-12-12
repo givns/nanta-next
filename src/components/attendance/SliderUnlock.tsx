@@ -21,33 +21,42 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const startXRef = useRef(0);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (!isEnabled) return;
+    if (!isEnabled || !validation?.canProceed) return;
 
+    const container = containerRef.current;
     const slider = sliderRef.current;
-    if (!slider) return;
+    if (!container || !slider) return;
 
     setIsDragging(true);
-    const startX = e.clientX;
-    const sliderRect = slider.getBoundingClientRect();
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    if (!containerRect) return;
-
-    const maxTravel = containerRect.width - sliderRect.width;
+    startXRef.current = e.clientX - slider.getBoundingClientRect().left;
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      moveEvent.preventDefault();
-      const deltaX = moveEvent.clientX - startX;
+      if (!container || !slider) return;
+
+      const maxTravel = container.clientWidth - slider.clientWidth;
+      const currentX =
+        moveEvent.clientX -
+        container.getBoundingClientRect().left -
+        startXRef.current;
       const newProgress = Math.max(
         0,
-        Math.min((deltaX / maxTravel) * 100, 100),
+        Math.min((currentX / maxTravel) * 100, 100),
       );
+
       setProgress(newProgress);
+
+      // Prevent scrolling while dragging
+      moveEvent.preventDefault();
     };
 
     const handlePointerUp = () => {
       setIsDragging(false);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+
       if (progress >= 90) {
         setProgress(100);
         onUnlock();
@@ -55,17 +64,16 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
         setProgress(0);
         onCancel?.();
       }
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUp);
     };
 
-    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointermove', handlePointerMove, {
+      passive: false,
+    });
     document.addEventListener('pointerup', handlePointerUp);
   };
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Validation Message - Separated from button */}
       {validation?.message && (
         <div className="mb-4 p-3 rounded-lg bg-yellow-50 max-w-[280px]">
           <div className="flex gap-2">
@@ -75,13 +83,18 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
         </div>
       )}
 
-      {/* Slider Container */}
       <div className="relative w-72 h-14">
         <div
           ref={containerRef}
           className="absolute inset-0 bg-gray-100 rounded-full overflow-hidden shadow-inner"
           style={{ touchAction: 'none' }}
         >
+          {/* Progress Bar Background */}
+          <div
+            className="absolute inset-y-0 left-0 bg-red-100 transition-all duration-75"
+            style={{ width: `${progress}%` }}
+          />
+
           {/* Call to Action Text */}
           <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 pointer-events-none select-none">
             {progress >= 90 ? 'ปล่อยเพื่อยืนยัน' : 'เลื่อนเพื่อยืนยันการออกงาน'}
@@ -90,16 +103,16 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
           {/* Slider Button */}
           <div
             ref={sliderRef}
-            className={`absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center 
+            className={`absolute left-0 top-1 bottom-1 w-12 flex items-center justify-center 
               ${isEnabled ? 'bg-red-600 cursor-grab active:cursor-grabbing' : 'bg-gray-300'} 
               rounded-full shadow-md transition-colors duration-200`}
             style={{
               transform: `translateX(${progress}%)`,
-              transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+              transition: isDragging ? 'none' : 'all 0.2s ease-out',
             }}
             onPointerDown={handlePointerDown}
           >
-            <div className="w-1 h-6 bg-white rounded-full opacity-75" />
+            <div className="w-0.5 h-6 bg-white rounded-full opacity-75" />
           </div>
         </div>
       </div>
