@@ -392,19 +392,25 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderSliderUnlock = () => {
+    console.log('Full Validation Object:', validation);
+
+    // Explicitly check for check-out state and valid flags
+    const shouldShowSlider =
+      !isCheckingIn && // Ensure we're in check-out state
+      validation?.flags?.isEarlyCheckOut === true &&
+      validation?.flags?.isEmergencyLeave === true &&
+      earlyCheckoutSliderActive;
+
     console.log('Slider Unlock Conditions:', {
+      shouldShowSlider,
       isCheckingIn,
-      isEarlyCheckOut: validation?.flags.isEarlyCheckOut,
-      isEmergencyLeave: validation?.flags.isEmergencyLeave,
+      isEarlyCheckOut: validation?.flags?.isEarlyCheckOut,
+      isEmergencyLeave: validation?.flags?.isEmergencyLeave,
       earlyCheckoutSliderActive,
       validationReason: validation?.reason,
     });
-    if (
-      !isCheckingIn &&
-      validation?.flags.isEarlyCheckOut &&
-      validation.flags.isEmergencyLeave &&
-      earlyCheckoutSliderActive
-    ) {
+
+    if (shouldShowSlider) {
       return (
         <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
           <SliderUnlock
@@ -559,14 +565,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               error: locationState.error || undefined,
             }}
             onActionTriggered={() => {
-              console.log('Action Triggered Conditions:', {
-                isEarlyCheckOut: validation?.flags.isEarlyCheckOut,
-                isEmergencyLeave: validation?.flags.isEmergencyLeave,
+              console.log('Full Validation for Action:', {
+                validation,
+                isCheckingIn,
+                currentPeriodType: currentPeriod?.type,
               });
 
               if (
-                validation?.flags.isEarlyCheckOut &&
-                validation?.flags.isEmergencyLeave
+                !isCheckingIn && // Ensure we're in check-out state
+                validation?.flags?.isEarlyCheckOut === true &&
+                validation?.flags?.isEmergencyLeave === true
               ) {
                 console.log('Setting earlyCheckoutSliderActive to true');
                 setEarlyCheckoutSliderActive(true);
