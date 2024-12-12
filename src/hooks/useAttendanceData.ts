@@ -43,11 +43,11 @@ export function useAttendanceData({
 
   const { data, error, mutate } = useSWR<AttendanceStateResponse>(
     enabled && employeeId && locationState.status === 'ready'
-      ? ['/api/attendance/[employeeId]', employeeId, locationState]
+      ? ['/api/attendance/status/[employeeId]', employeeId, locationState]
       : null,
     async ([_, id]): Promise<AttendanceStateResponse> => {
       try {
-        const response = await axios.get(`/api/attendance/${id}`, {
+        const response = await axios.get(`/api/attendance/status/${id}`, {
           params: {
             inPremises: locationState.inPremises,
             address: locationState.address,
