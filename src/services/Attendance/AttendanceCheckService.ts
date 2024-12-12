@@ -35,6 +35,7 @@ import {
   isWithinInterval,
   parseISO,
   startOfDay,
+  subHours,
   subMinutes,
 } from 'date-fns';
 import { getCurrentTime } from '../../utils/dateUtils';
@@ -531,8 +532,15 @@ export class AttendanceCheckService {
   ): CheckInOutAllowance {
     const { now, currentPeriod, inPremises, address } = context;
     const shiftMidpoint = this.calculateShiftMidpoint(currentPeriod);
+    const shiftEnd = currentPeriod.endTime;
 
-    if (now < shiftMidpoint) {
+    // Extend the testing window to 1 hour before shift end (or midpoint, whichever comes first)
+    const testingEndTime = isBefore(subHours(shiftEnd, 1), shiftMidpoint)
+      ? shiftMidpoint
+      : subHours(shiftEnd, 1);
+
+    // Check if current time is before the testing end time
+    if (now < testingEndTime) {
       return this.createResponse(
         true,
         'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ',
@@ -565,6 +573,7 @@ export class AttendanceCheckService {
         },
         timing: {
           checkoutStatus: 'very_early',
+          // Add debug information
         },
       },
     );
