@@ -32,6 +32,7 @@ import {
   format,
   isAfter,
   isBefore,
+  isWithinInterval,
   parseISO,
   startOfDay,
   subMinutes,
@@ -181,7 +182,14 @@ export class AttendanceCheckService {
 
     // 2. Check for period transitions
     if (context.enhancedStatus.pendingTransitions.length > 0) {
-      return this.handlePeriodTransition(context);
+      const isEligibleForTransition = this.isEligibleForTransition(
+        context,
+        context.enhancedStatus.pendingTransitions[0],
+      );
+
+      if (isEligibleForTransition) {
+        return this.handlePeriodTransition(context);
+      }
     }
 
     // 3. Check for non-working day conditions
@@ -195,13 +203,57 @@ export class AttendanceCheckService {
     return null;
   }
 
-  private handleAutoCompletion(
+  private isEligibleForTransition(
     context: ValidationContext,
-  ): CheckInOutAllowance {
+    transition: {
+      from: PeriodType;
+      to: PeriodType;
+      transitionTime: Date;
+      isCompleted: boolean;
+    },
+  ): boolean {
+    // Must have completed the current period before transitioning
+    if (
+      transition.from === PeriodType.REGULAR &&
+      !context.latestAttendance?.CheckOutTime
+    ) {
+      return false;
+    }
+
+    // For overtime transitions, verify overtime approval exists
+    if (transition.to === PeriodType.OVERTIME && !context.approvedOvertime) {
+      return false;
+    }
+
+    // Check if within transition window
+    return isWithinInterval(context.now, {
+      start: addMinutes(transition.transitionTime, -30),
+      end: addMinutes(transition.transitionTime, 30),
+    });
+  }
+
+  private async handleAutoCompletion(
+    context: ValidationContext,
+  ): Promise<CheckInOutAllowance> {
     const { enhancedStatus, approvedOvertime, inPremises, address } = context;
-    const hasMissedOvertime = enhancedStatus.missingEntries.some(
+
+    // Sort missing entries chronologically
+    const sortedMissingEntries = [...enhancedStatus.missingEntries].sort(
+      (a, b) => a.expectedTime.getTime() - b.expectedTime.getTime(),
+    );
+
+    // Get overtime context if relevant
+    const hasMissedOvertime = sortedMissingEntries.some(
       (entry) => entry.periodType === PeriodType.OVERTIME,
     );
+
+    // Prepare metadata about missing entries
+    const missedEntries = sortedMissingEntries.map((entry) => ({
+      type: entry.type,
+      periodType: entry.periodType,
+      expectedTime: entry.expectedTime.toISOString(),
+      overtimeId: entry.overtimeId,
+    }));
 
     return this.createResponse(true, 'ระบบจะทำการลงเวลาย้อนหลังให้อัตโนมัติ', {
       inPremises,
@@ -209,10 +261,8 @@ export class AttendanceCheckService {
       periodType: context.currentPeriod.type,
       requireConfirmation: true,
       flags: {
-        isAutoCheckIn: enhancedStatus.missingEntries.some(
-          (e) => e.type === 'check-in',
-        ),
-        isAutoCheckOut: enhancedStatus.missingEntries.some(
+        isAutoCheckIn: sortedMissingEntries.some((e) => e.type === 'check-in'),
+        isAutoCheckOut: sortedMissingEntries.some(
           (e) => e.type === 'check-out',
         ),
         isOvertime: hasMissedOvertime,
@@ -220,13 +270,8 @@ export class AttendanceCheckService {
         isInsideShift: approvedOvertime?.isInsideShiftHours || false,
       },
       timing: {
-        missedEntries: enhancedStatus.missingEntries.map((entry) => ({
-          type: entry.type,
-          periodType: entry.periodType,
-          expectedTime: entry.expectedTime.toISOString(),
-          overtimeId: entry.overtimeId,
-        })),
-        overtimeMissed: hasMissedOvertime, // Add this to match interface
+        missedEntries,
+        overtimeMissed: hasMissedOvertime,
       },
       metadata: {
         overtimeId: approvedOvertime?.id,
