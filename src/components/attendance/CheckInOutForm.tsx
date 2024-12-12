@@ -393,36 +393,26 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const renderActionComponent = () => {
     // Check for early checkout with emergency leave conditions
+    // In renderActionComponent of CheckInOutForm
     if (!isCheckingIn) {
       // When checking out
-
       return (
         <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
           <SliderUnlock
             onUnlock={async () => {
               try {
                 setStep('processing');
-
-                if (userData?.lineUserId) {
-                  const leaveCreated = await createSickLeaveRequest(
-                    userData.lineUserId,
-                    now,
-                  );
-                  if (!leaveCreated) return;
-                }
-
                 await handleAttendanceSubmit();
               } catch (error) {
-                console.error('Early checkout error:', error);
+                console.error('Checkout error:', error);
                 setStep('info');
               }
             }}
-            onCancel={() => {}} // Optional: Add cancel logic if needed
-            lockedMessage={
-              validation?.reason || 'Slide to confirm early checkout'
-            }
-            unlockedMessage="Release to create sick leave"
-            isEnabled={validation?.allowed}
+            validation={{
+              canProceed: true,
+              message: validation?.reason,
+            }}
+            isEnabled={true}
           />
         </div>
       );

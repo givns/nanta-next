@@ -4,22 +4,18 @@ import { AlertCircle } from 'lucide-react';
 interface SliderUnlockProps {
   onUnlock: () => void;
   onCancel?: () => void;
-  isEnabled?: boolean;
-  lockedMessage?: string;
-  unlockedMessage?: string;
   validation?: {
     message?: string;
     canProceed: boolean;
   };
+  isEnabled?: boolean;
 }
 
 const SliderUnlock: React.FC<SliderUnlockProps> = ({
   onUnlock,
   onCancel,
-  isEnabled = true,
-  lockedMessage = 'เลื่อนเพื่อยืนยันการลา',
-  unlockedMessage = 'ปล่อยเพื่อยืนยัน',
   validation,
+  isEnabled = true,
 }) => {
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -27,7 +23,7 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (!isEnabled || !validation?.canProceed) return;
+    if (!isEnabled) return;
 
     const slider = sliderRef.current;
     if (!slider) return;
@@ -41,6 +37,7 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
     const maxTravel = containerRect.width - sliderRect.width;
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
       const deltaX = moveEvent.clientX - startX;
       const newProgress = Math.max(
         0,
@@ -67,8 +64,8 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
   };
 
   return (
-    <>
-      {/* Validation Message */}
+    <div className="flex flex-col items-center gap-4">
+      {/* Validation Message - Separated from button */}
       {validation?.message && (
         <div className="mb-4 p-3 rounded-lg bg-yellow-50 max-w-[280px]">
           <div className="flex gap-2">
@@ -79,33 +76,34 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
       )}
 
       {/* Slider Container */}
-      <div
-        ref={containerRef}
-        className="relative w-72 h-14 bg-gray-100 rounded-full overflow-hidden shadow-inner"
-        style={{ touchAction: 'none' }}
-      >
-        {/* Background Text */}
-        <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 pointer-events-none">
-          {progress >= 90 ? unlockedMessage : lockedMessage}
-        </div>
-
-        {/* Slider Button */}
+      <div className="relative w-72 h-14">
         <div
-          ref={sliderRef}
-          className={`absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center 
-            ${validation?.canProceed ? 'bg-red-600' : 'bg-gray-300'} 
-            rounded-full cursor-grab transition-colors duration-200
-            ${isDragging ? 'cursor-grabbing shadow-lg' : 'shadow-md'}`}
-          style={{
-            transform: `translateX(${progress}%)`,
-            transition: isDragging ? 'none' : 'transform 0.2s ease-out',
-          }}
-          onPointerDown={handlePointerDown}
+          ref={containerRef}
+          className="absolute inset-0 bg-gray-100 rounded-full overflow-hidden shadow-inner"
+          style={{ touchAction: 'none' }}
         >
-          <div className="w-1 h-6 bg-white rounded-full opacity-75" />
+          {/* Call to Action Text */}
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 pointer-events-none select-none">
+            {progress >= 90 ? 'ปล่อยเพื่อยืนยัน' : 'เลื่อนเพื่อยืนยันการออกงาน'}
+          </div>
+
+          {/* Slider Button */}
+          <div
+            ref={sliderRef}
+            className={`absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center 
+              ${isEnabled ? 'bg-red-600 cursor-grab active:cursor-grabbing' : 'bg-gray-300'} 
+              rounded-full shadow-md transition-colors duration-200`}
+            style={{
+              transform: `translateX(${progress}%)`,
+              transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+            }}
+            onPointerDown={handlePointerDown}
+          >
+            <div className="w-1 h-6 bg-white rounded-full opacity-75" />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
