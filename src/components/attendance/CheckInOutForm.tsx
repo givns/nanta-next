@@ -392,6 +392,13 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderSliderUnlock = () => {
+    console.log('Slider Unlock Conditions:', {
+      isCheckingIn,
+      isEarlyCheckOut: validation?.flags.isEarlyCheckOut,
+      isEmergencyLeave: validation?.flags.isEmergencyLeave,
+      earlyCheckoutSliderActive,
+      validationReason: validation?.reason,
+    });
     if (
       !isCheckingIn &&
       validation?.flags.isEarlyCheckOut &&
@@ -402,6 +409,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
           <SliderUnlock
             onUnlock={async () => {
+              console.log('Slider Unlocked');
+
               try {
                 setStep('processing');
 
@@ -424,7 +433,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 setEarlyCheckoutSliderActive(false);
               }
             }}
-            onCancel={() => setEarlyCheckoutSliderActive(false)}
+            onCancel={() => {
+              console.log('Slider Cancelled');
+              setEarlyCheckoutSliderActive(false);
+            }}
             lockedMessage="Slide to confirm early checkout"
             unlockedMessage="Release to create sick leave"
             isEnabled={validation?.allowed}
@@ -547,10 +559,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               error: locationState.error || undefined,
             }}
             onActionTriggered={() => {
+              console.log('Action Triggered Conditions:', {
+                isEarlyCheckOut: validation?.flags.isEarlyCheckOut,
+                isEmergencyLeave: validation?.flags.isEmergencyLeave,
+              });
+
               if (
                 validation?.flags.isEarlyCheckOut &&
                 validation?.flags.isEmergencyLeave
               ) {
+                console.log('Setting earlyCheckoutSliderActive to true');
                 setEarlyCheckoutSliderActive(true);
               } else {
                 if (currentPeriod?.type === 'regular') {

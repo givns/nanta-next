@@ -535,9 +535,9 @@ export class AttendanceCheckService {
     const shiftEnd = currentPeriod.endTime;
 
     // Extend the testing window to 1 hour before shift end (or midpoint, whichever comes first)
-    const testingEndTime = isBefore(subHours(shiftEnd, 1), shiftMidpoint)
+    const testingEndTime = isBefore(subHours(shiftEnd, 2), shiftMidpoint)
       ? shiftMidpoint
-      : subHours(shiftEnd, 1);
+      : subHours(shiftEnd, 2);
 
     // Check if current time is before the testing end time
     if (now < testingEndTime) {
@@ -573,7 +573,6 @@ export class AttendanceCheckService {
         },
         timing: {
           checkoutStatus: 'very_early',
-          // Add debug information
         },
       },
     );
