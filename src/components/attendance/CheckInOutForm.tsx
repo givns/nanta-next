@@ -23,6 +23,7 @@ import {
   startOfDay,
 } from 'date-fns';
 import { OvertimeContext } from '@/types/attendance/overtime';
+import SliderUnlock from './SliderUnlock';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -41,6 +42,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const [step, setStep] = useState<'info' | 'processing'>('info');
   const [error, setError] = useState<string | null>(null);
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
+  const [earlyCheckoutSliderActive, setEarlyCheckoutSliderActive] =
+    useState(false);
   const [isConfirmedEarlyCheckout, setIsConfirmedEarlyCheckout] =
     useState(false);
   const [processingState, setProcessingState] = useState<ProcessingState>({
@@ -102,6 +105,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     async (overtimeParams?: {
       isOvertime: boolean;
       overtimeRequestId?: string;
+      reason?: string;
     }) => {
       try {
         setProcessingState({
@@ -124,7 +128,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           confidence: mappedConfidence,
           entryType: currentPeriod?.type || PeriodType.REGULAR,
           photo: '',
-          reason: undefined,
+          reason: overtimeParams?.reason,
           isOvertime:
             overtimeParams?.isOvertime || currentPeriod?.type === 'overtime',
           isManualEntry: false,
@@ -387,6 +391,50 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
+  const renderSliderUnlock = () => {
+    if (
+      !isCheckingIn &&
+      validation?.flags.isEarlyCheckOut &&
+      validation.flags.isEmergencyLeave &&
+      earlyCheckoutSliderActive
+    ) {
+      return (
+        <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
+          <SliderUnlock
+            onUnlock={async () => {
+              try {
+                setStep('processing');
+
+                if (userData?.lineUserId) {
+                  const leaveCreated = await createSickLeaveRequest(
+                    userData.lineUserId,
+                    now,
+                  );
+                  if (!leaveCreated) {
+                    setEarlyCheckoutSliderActive(false);
+                    return;
+                  }
+                }
+
+                await handleAttendanceSubmit();
+                setEarlyCheckoutSliderActive(false);
+              } catch (error) {
+                console.error('Early checkout error:', error);
+                setStep('info');
+                setEarlyCheckoutSliderActive(false);
+              }
+            }}
+            onCancel={() => setEarlyCheckoutSliderActive(false)}
+            lockedMessage="Slide to confirm early checkout"
+            unlockedMessage="Release to create sick leave"
+            isEnabled={validation?.allowed}
+          />
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {step === 'info' && (
@@ -499,14 +547,23 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               error: locationState.error || undefined,
             }}
             onActionTriggered={() => {
-              if (currentPeriod?.type === 'regular') {
-                handleAction(isCheckingIn ? 'checkIn' : 'checkOut');
-              } else if (currentPeriod?.type === 'overtime') {
-                handleAction('startOvertime');
+              if (
+                validation?.flags.isEarlyCheckOut &&
+                validation?.flags.isEmergencyLeave
+              ) {
+                setEarlyCheckoutSliderActive(true);
+              } else {
+                if (currentPeriod?.type === 'regular') {
+                  handleAction(isCheckingIn ? 'checkIn' : 'checkOut');
+                } else if (currentPeriod?.type === 'overtime') {
+                  handleAction('startOvertime');
+                }
               }
             }}
             onTransitionInitiated={handlePeriodTransition}
           />
+
+          {renderSliderUnlock()}
         </>
       )}
 
