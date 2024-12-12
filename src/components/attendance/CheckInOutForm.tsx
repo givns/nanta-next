@@ -391,20 +391,13 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     </div>
   );
 
-  const renderSliderUnlock = () => {
-    const shouldShowSlider =
-      !isCheckingIn && // Ensure we're checking out
+  const renderActionComponent = () => {
+    // Check for early checkout with emergency leave conditions
+    if (
+      !isCheckingIn &&
       validation?.flags?.isEarlyCheckOut === true &&
-      validation?.flags?.isEmergencyLeave === true;
-
-    console.log('Slider Unlock Debug:', {
-      isCheckingIn,
-      isEarlyCheckOut: validation?.flags?.isEarlyCheckOut,
-      isEmergencyLeave: validation?.flags?.isEmergencyLeave,
-      shouldShowSlider,
-    });
-
-    if (shouldShowSlider) {
+      validation?.flags?.isEmergencyLeave === true
+    ) {
       return (
         <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
           <SliderUnlock
@@ -426,18 +419,65 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 setStep('info');
               }
             }}
-            onCancel={() => {
-              console.log('Slider Cancelled');
-              setEarlyCheckoutSliderActive(false);
-            }}
-            lockedMessage="Slide to confirm early checkout"
+            onCancel={() => {}} // Optional: Add cancel logic if needed
+            lockedMessage={
+              validation?.reason || 'Slide to confirm early checkout'
+            }
             unlockedMessage="Release to create sick leave"
             isEnabled={validation?.allowed}
           />
         </div>
       );
     }
-    return null;
+
+    // Regular action button for other scenarios
+    return (
+      <AttendanceActionButton
+        action={{
+          type: isCheckingIn ? 'check-in' : 'check-out',
+          period: {
+            type: currentPeriod?.type || 'regular',
+            transition: overtimeContext
+              ? {
+                  to: 'overtime',
+                  at: parseISO(
+                    `${format(getCurrentTime(), 'yyyy-MM-dd')}T${overtimeContext.startTime}`,
+                  ),
+                }
+              : undefined,
+          },
+          timing: nextWindowTime
+            ? {
+                plannedTime: nextWindowTime,
+                isEarly: isEarlyAction,
+                isLate: isLateAction,
+              }
+            : undefined,
+        }}
+        validation={{
+          canProceed: !!validation?.allowed,
+          message: validation?.reason,
+          requireConfirmation: validation?.flags?.requireConfirmation,
+          confirmationMessage: getConfirmationMessage(
+            currentPeriod,
+            overtimeContext,
+          ),
+        }}
+        systemState={{
+          isReady: locationState.status === 'ready',
+          locationValid: locationState.status === 'ready',
+          error: locationState.error || undefined,
+        }}
+        onActionTriggered={() => {
+          if (currentPeriod?.type === 'regular') {
+            handleAction(isCheckingIn ? 'checkIn' : 'checkOut');
+          } else if (currentPeriod?.type === 'overtime') {
+            handleAction('startOvertime');
+          }
+        }}
+        onTransitionInitiated={handlePeriodTransition}
+      />
+    );
   };
 
   return (
@@ -515,53 +555,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             />
           </div>
 
-          <AttendanceActionButton
-            action={{
-              type: isCheckingIn ? 'check-in' : 'check-out',
-              period: {
-                type: currentPeriod?.type || 'regular',
-                transition: overtimeContext
-                  ? {
-                      to: 'overtime',
-                      at: parseISO(
-                        `${format(getCurrentTime(), 'yyyy-MM-dd')}T${overtimeContext.startTime}`,
-                      ),
-                    }
-                  : undefined,
-              },
-              timing: nextWindowTime
-                ? {
-                    plannedTime: nextWindowTime,
-                    isEarly: isEarlyAction,
-                    isLate: isLateAction,
-                  }
-                : undefined,
-            }}
-            validation={{
-              canProceed: !!validation?.allowed,
-              message: validation?.reason,
-              requireConfirmation: validation?.flags?.requireConfirmation,
-              confirmationMessage: getConfirmationMessage(
-                currentPeriod,
-                overtimeContext,
-              ),
-            }}
-            systemState={{
-              isReady: locationState.status === 'ready',
-              locationValid: locationState.status === 'ready',
-              error: locationState.error || undefined,
-            }}
-            onActionTriggered={() => {
-              if (currentPeriod?.type === 'regular') {
-                handleAction(isCheckingIn ? 'checkIn' : 'checkOut');
-              } else if (currentPeriod?.type === 'overtime') {
-                handleAction('startOvertime');
-              }
-            }}
-            onTransitionInitiated={handlePeriodTransition}
-          />
-
-          {renderSliderUnlock()}
+          {renderActionComponent()}
         </>
       )}
 

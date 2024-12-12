@@ -9,144 +9,78 @@ interface SliderUnlockProps {
   onCancel?: () => void;
 }
 
-export const SliderUnlock: React.FC<SliderUnlockProps> = ({
+export // In SliderUnlock.tsx
+const SliderUnlock: React.FC<SliderUnlockProps> = ({
   onUnlock,
-  isEnabled = true,
-  lockedMessage = 'Slide to confirm early checkout',
-  unlockedMessage = 'Release to confirm sick leave request',
   onCancel,
+  lockedMessage = 'Slide to confirm',
+  unlockedMessage = 'Release to confirm',
+  isEnabled = true,
 }) => {
-  const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState(0);
-  const sliderRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
-  const resetSlider = useCallback(() => {
-    setProgress(0);
-    setIsDragging(false);
-  }, []);
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!isEnabled) return;
 
-  const handleUnlock = useCallback(() => {
-    if (progress >= 100) {
-      onUnlock();
-      resetSlider();
-    }
-  }, [progress, onUnlock, resetSlider]);
+    const container = containerRef.current;
+    const slider = sliderRef.current;
+    if (!container || !slider) return;
 
-  const handlePointerMove = useCallback(
-    (e: PointerEvent) => {
-      if (!sliderRef.current || !containerRef.current || !isDragging) return;
+    const startX = e.clientX - container.getBoundingClientRect().left;
+    const containerWidth = container.offsetWidth - slider.offsetWidth;
 
-      const container = containerRef.current;
-      const slider = sliderRef.current;
-      const containerWidth = container.clientWidth - slider.clientWidth;
-
-      // Calculate new position
-      const newPosition = Math.max(
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const currentX =
+        moveEvent.clientX - container.getBoundingClientRect().left;
+      const newProgress = Math.max(
         0,
-        Math.min(
-          e.clientX -
-            container.getBoundingClientRect().left -
-            slider.clientWidth / 2,
-          containerWidth,
-        ),
+        Math.min((currentX / containerWidth) * 100, 100),
       );
+      setProgress(newProgress);
 
-      // Calculate progress percentage
-      const progressPercentage = (newPosition / containerWidth) * 100;
-
-      // Use animation frame for smoother updates
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+      if (newProgress >= 100) {
+        onUnlock();
+        document.removeEventListener('pointermove', handlePointerMove);
+        document.removeEventListener('pointerup', handlePointerUp);
       }
+    };
 
-      animationFrameRef.current = requestAnimationFrame(() => {
-        setProgress(progressPercentage);
-      });
-    },
-    [isDragging],
-  );
-
-  const handlePointerUp = useCallback(
-    (e: PointerEvent) => {
-      if (!isDragging) return;
-
-      // Check if fully unlocked
-      handleUnlock();
-
-      // If not fully unlocked, allow cancellation
-      if (progress < 100 && onCancel) {
-        onCancel();
-      }
-
-      // Existing reset logic
-      handleUnlock();
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUp);
-      resetSlider();
-    },
-    [
-      isDragging,
-      handlePointerMove,
-      handleUnlock,
-      resetSlider,
-      onCancel,
-      progress,
-    ],
-  );
-
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!isEnabled) return;
-
-      setIsDragging(true);
-
-      // Add event listeners to document to handle drag outside the component
-      document.addEventListener('pointermove', handlePointerMove);
-      document.addEventListener('pointerup', handlePointerUp);
-    },
-    [isEnabled, handlePointerMove, handlePointerUp],
-  );
-
-  // Cleanup event listeners
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+    const handlePointerUp = () => {
+      if (progress < 100) {
+        setProgress(0);
+        onCancel?.();
       }
       document.removeEventListener('pointermove', handlePointerMove);
       document.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [handlePointerMove, handlePointerUp]);
+
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+  };
 
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-16 bg-gray-200 rounded-full overflow-hidden ${
-        !isEnabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-      }`}
+      className="w-full px-4"
       onPointerDown={handlePointerDown}
     >
-      {/* Background Message */}
-      <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 pointer-events-none">
-        {progress < 100 ? lockedMessage : unlockedMessage}
-      </div>
-
-      {/* Slider */}
-      <div
-        ref={sliderRef}
-        className={`absolute left-0 top-0 bottom-0 w-16 bg-primary rounded-full transition-all duration-100 ${
-          isDragging ? 'shadow-lg' : 'shadow-md'
-        }`}
-        style={{
-          transform: `translateX(${progress}%)`,
-          opacity: isEnabled ? 1 : 0.5,
-        }}
-      >
-        <div className="w-full h-full flex items-center justify-center">
-          <Minus className="text-white" />
+      <div className="relative h-16 bg-gray-200 rounded-full overflow-hidden">
+        {/* Background Message */}
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 pointer-events-none">
+          {progress < 100 ? lockedMessage : unlockedMessage}
         </div>
+
+        {/* Slider */}
+        <div
+          ref={sliderRef}
+          className="absolute left-0 top-0 bottom-0 w-16 bg-primary rounded-full"
+          style={{
+            transform: `translateX(${progress}%)`,
+            transition: 'transform 0.1s ease-out',
+          }}
+        />
       </div>
     </div>
   );
