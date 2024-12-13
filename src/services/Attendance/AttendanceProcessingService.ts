@@ -460,6 +460,22 @@ export class AttendanceProcessingService {
         } as Prisma.JsonObject)
       : null;
 
+    // Handle period transition
+    if (options.entryType === PeriodType.OVERTIME && !isCheckIn) {
+      // Complete regular period first if needed
+      if (currentAttendance && !currentAttendance.CheckOutTime) {
+        await tx.attendance.update({
+          where: { id: currentAttendance.id },
+          data: {
+            CheckOutTime: date,
+            state: AttendanceState.PRESENT,
+            checkStatus: CheckStatus.CHECKED_OUT,
+            checkOutLocation: location ? (location as any) : null,
+          },
+        });
+      }
+    }
+
     // Create raw data without Prisma field operations
     const rawUpdateData = {
       state: statusUpdate.stateChange.state.current,

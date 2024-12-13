@@ -58,12 +58,12 @@ export const AttendanceActionButton: React.FC<AttendanceActionButtonProps> = ({
 
     switch (action.type) {
       case 'check-in':
-        return action.period.type === 'overtime' ? 'OT IN' : 'IN';
+        return action.period.type === 'overtime' ? 'IN' : 'IN';
       case 'check-out':
         if (action.period.transition) {
-          return action.period.type === 'regular' ? 'OUT/OT' : 'OUT/REG';
+          return action.period.type === 'regular' ? 'OUT' : 'OUT';
         }
-        return action.period.type === 'overtime' ? 'OT OUT' : 'OUT';
+        return action.period.type === 'overtime' ? 'OUT' : 'OUT';
     }
   }, [action, systemState]);
 

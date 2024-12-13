@@ -59,6 +59,17 @@ interface ValidationContext {
   leaveRequests?: LeaveRequest[];
 }
 
+interface OvertimeWindow {
+  preShift?: {
+    start: Date;
+    end: Date;
+  };
+  postShift?: {
+    start: Date;
+    end: Date;
+  };
+}
+
 export class AttendanceCheckService {
   private readonly periodManager: PeriodManagementService;
   private readonly enhancementService: AttendanceEnhancementService;
@@ -176,24 +187,41 @@ export class AttendanceCheckService {
   private async validateAttendanceContext(
     context: ValidationContext,
   ): Promise<CheckInOutAllowance | null> {
-    // 1. Check for auto-completion first
+    // 1. Handle missing entries
     if (context.enhancedStatus.missingEntries.length > 0) {
       return this.handleAutoCompletion(context);
     }
 
-    // 2. Check for period transitions
-    if (context.enhancedStatus.pendingTransitions.length > 0) {
-      const isEligibleForTransition = this.isEligibleForTransition(
-        context,
-        context.enhancedStatus.pendingTransitions[0],
-      );
+    const { latestAttendance, currentPeriod, approvedOvertime } = context;
 
-      if (isEligibleForTransition) {
+    // 2. Check for immediate overtime after regular check-out
+    if (
+      currentPeriod.type === PeriodType.REGULAR &&
+      latestAttendance?.CheckOutTime &&
+      approvedOvertime
+    ) {
+      const periodAvailability =
+        await this.determinePeriodAvailability(context);
+      if (periodAvailability.canTransitionToOvertime) {
+        if (periodAvailability.transitionType === 'immediate') {
+          return this.handleImmediateOvertimeTransition(
+            context,
+            periodAvailability.overtimeWindow!,
+          );
+        }
+        return this.handleOvertimeTransition(context);
+      }
+    }
+
+    // 3. Handle other transitions
+    if (context.enhancedStatus.pendingTransitions.length > 0) {
+      const transition = context.enhancedStatus.pendingTransitions[0];
+      if (await this.isEligibleForTransition(context, transition)) {
         return this.handlePeriodTransition(context);
       }
     }
 
-    // 3. Check for non-working day conditions
+    // 4. Handle non-working days
     if (
       context.shiftData?.shiftstatus.isHoliday ||
       context.shiftData?.shiftstatus.isDayOff
@@ -201,10 +229,11 @@ export class AttendanceCheckService {
       return this.handleNonWorkingDay(context);
     }
 
-    return null;
+    // 5. Regular period handling
+    return this.validateRegularPeriod(context);
   }
 
-  private isEligibleForTransition(
+  private async isEligibleForTransition(
     context: ValidationContext,
     transition: {
       from: PeriodType;
@@ -212,24 +241,166 @@ export class AttendanceCheckService {
       transitionTime: Date;
       isCompleted: boolean;
     },
-  ): boolean {
-    // Must have completed the current period before transitioning
+  ): Promise<boolean> {
+    // Add Promise<boolean> here
+    const { latestAttendance, approvedOvertime, now } = context;
+
+    // Don't process if immediate overtime is possible
+    const periodAvailability = await this.determinePeriodAvailability(context);
+    if (periodAvailability.transitionType === 'immediate') {
+      return false;
+    }
+
+    // Regular transition checks
     if (
       transition.from === PeriodType.REGULAR &&
-      !context.latestAttendance?.CheckOutTime
+      !latestAttendance?.CheckOutTime
     ) {
       return false;
     }
 
-    // For overtime transitions, verify overtime approval exists
-    if (transition.to === PeriodType.OVERTIME && !context.approvedOvertime) {
+    if (transition.to === PeriodType.OVERTIME && !approvedOvertime) {
       return false;
     }
 
-    // Check if within transition window
-    return isWithinInterval(context.now, {
-      start: addMinutes(transition.transitionTime, -30),
+    return isWithinInterval(now, {
+      start: subMinutes(transition.transitionTime, 30),
       end: addMinutes(transition.transitionTime, 30),
+    });
+  }
+
+  private async determinePeriodAvailability(
+    context: ValidationContext,
+  ): Promise<{
+    canTransitionToOvertime: boolean;
+    overtimeWindow?: { start: Date; end: Date };
+    currentPeriodType: PeriodType;
+    transitionType?: 'immediate' | 'regular' | null;
+  }> {
+    const { now, latestAttendance, approvedOvertime, shiftData } = context;
+
+    if (!approvedOvertime || !latestAttendance) {
+      return {
+        canTransitionToOvertime: false,
+        currentPeriodType: PeriodType.REGULAR,
+      };
+    }
+
+    const overtimeStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+    );
+    const overtimeEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+    );
+
+    // Check for immediate transition after checkout
+    if (latestAttendance.CheckOutTime) {
+      const checkOutTime = new Date(latestAttendance.CheckOutTime);
+      const timeSinceCheckout = differenceInMinutes(now, checkOutTime);
+
+      // If checked out within last 5 minutes and near overtime start
+      if (
+        timeSinceCheckout <= 5 &&
+        isWithinInterval(now, {
+          start: subMinutes(overtimeStart, 15), // Reduced window for immediate transition
+          end: addMinutes(overtimeStart, 30),
+        })
+      ) {
+        return {
+          canTransitionToOvertime: true,
+          overtimeWindow: { start: overtimeStart, end: overtimeEnd },
+          currentPeriodType: PeriodType.OVERTIME,
+          transitionType: 'immediate',
+        };
+      }
+    }
+
+    // Regular overtime window check
+    if (
+      isWithinInterval(now, {
+        start: subMinutes(overtimeStart, 30),
+        end: addMinutes(overtimeEnd, 30),
+      })
+    ) {
+      return {
+        canTransitionToOvertime: true,
+        overtimeWindow: { start: overtimeStart, end: overtimeEnd },
+        currentPeriodType: PeriodType.OVERTIME,
+        transitionType: 'regular',
+      };
+    }
+
+    return {
+      canTransitionToOvertime: false,
+      currentPeriodType: PeriodType.REGULAR,
+      transitionType: null,
+    };
+  }
+
+  private validateRegularPeriod(
+    context: ValidationContext,
+  ): CheckInOutAllowance {
+    const { now, latestAttendance, inPremises, address, shiftData } = context;
+    const isCheckingIn = !latestAttendance?.CheckInTime;
+
+    if (isCheckingIn) {
+      return this.handleRegularCheckIn({ ...context, isCheckingIn: true });
+    }
+
+    const isEarlyCheckout = this.isEarlyCheckout(
+      now,
+      context.currentPeriod.endTime,
+    );
+
+    if (
+      isEarlyCheckout &&
+      (!context.leaveRequests || context.leaveRequests.length === 0)
+    ) {
+      return this.handleEarlyCheckout(context);
+    }
+
+    return this.handleRegularCheckout(context);
+  }
+
+  private handleOvertimeTransition(
+    context: ValidationContext,
+  ): CheckInOutAllowance {
+    const { inPremises, address, approvedOvertime } = context;
+
+    return this.createResponse(true, 'กรุณายืนยันการเริ่มทำงานล่วงเวลา', {
+      inPremises,
+      address,
+      periodType: PeriodType.OVERTIME,
+      requireConfirmation: true,
+      flags: {
+        isOvertime: true,
+        isDayOffOvertime: approvedOvertime?.isDayOffOvertime || false,
+        isInsideShift: approvedOvertime?.isInsideShiftHours || false,
+        isAutoCheckOut: false,
+        isAutoCheckIn: true,
+      },
+      timing: {
+        plannedStartTime: format(
+          parseISO(
+            `${format(context.now, 'yyyy-MM-dd')}T${approvedOvertime?.startTime}`,
+          ),
+          'HH:mm',
+        ),
+        plannedEndTime: format(
+          parseISO(
+            `${format(context.now, 'yyyy-MM-dd')}T${approvedOvertime?.endTime}`,
+          ),
+          'HH:mm',
+        ),
+      },
+      metadata: {
+        overtimeId: approvedOvertime?.id,
+        nextPeriod: {
+          type: PeriodType.OVERTIME,
+          startTime: approvedOvertime?.startTime || '',
+          overtimeId: approvedOvertime?.id,
+        },
+      },
     });
   }
 
@@ -276,6 +447,39 @@ export class AttendanceCheckService {
       },
       metadata: {
         overtimeId: approvedOvertime?.id,
+      },
+    });
+  }
+
+  private handleImmediateOvertimeTransition(
+    context: ValidationContext,
+    overtimeWindow: { start: Date; end: Date },
+  ): CheckInOutAllowance {
+    const { inPremises, address, approvedOvertime } = context;
+
+    return this.createResponse(true, 'กรุณายืนยันการเข้าทำงานล่วงเวลาทันที', {
+      inPremises,
+      address,
+      periodType: PeriodType.OVERTIME,
+      requireConfirmation: true,
+      flags: {
+        isOvertime: true,
+        isDayOffOvertime: approvedOvertime?.isDayOffOvertime || false,
+        isInsideShift: approvedOvertime?.isInsideShiftHours || false,
+        isAutoCheckIn: true,
+      },
+      timing: {
+        plannedStartTime: format(overtimeWindow.start, 'HH:mm'),
+        plannedEndTime: format(overtimeWindow.end, 'HH:mm'),
+        transitionTime: new Date().toISOString(),
+      },
+      metadata: {
+        overtimeId: approvedOvertime?.id,
+        nextPeriod: {
+          type: PeriodType.OVERTIME,
+          startTime: format(overtimeWindow.start, 'HH:mm'),
+          overtimeId: approvedOvertime?.id,
+        },
       },
     });
   }

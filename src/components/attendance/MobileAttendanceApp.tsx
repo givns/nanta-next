@@ -1,5 +1,11 @@
 import React from 'react';
-import { format, isValid, isWithinInterval, parseISO } from 'date-fns';
+import {
+  differenceInMinutes,
+  format,
+  isValid,
+  isWithinInterval,
+  parseISO,
+} from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import {
@@ -107,30 +113,35 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         localShiftEnd: shiftData?.endTime,
       });
 
-      // Handle completed periods
+      // Handle period transitions
       if (attendanceStatus?.latestAttendance?.CheckOutTime) {
-        console.log('CheckOut exists:', {
-          checkOutTime: formatBangkokTime(
-            attendanceStatus.latestAttendance.CheckOutTime,
-            'HH:mm:ss',
-          ),
-          isOvertime: attendanceStatus.latestAttendance.isOvertime,
-          overtimeState: attendanceStatus.latestAttendance.overtimeState,
-        });
-
-        if (
-          currentPeriod.type === 'overtime' &&
-          attendanceStatus.latestAttendance.overtimeState ===
-            OvertimeState.COMPLETED
-        ) {
-          return 100;
-        }
-
+        // If regular period completed and overtime available
         if (
           currentPeriod.type === 'regular' &&
-          !attendanceStatus.latestAttendance.isOvertime
+          overtimeInfo &&
+          isWithinInterval(now, {
+            start: parseISO(
+              `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+            ),
+            end: parseISO(
+              `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
+            ),
+          })
         ) {
-          return 100;
+          // Show overtime progress instead
+          const overtimeStart = parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+          );
+          const overtimeEnd = parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
+          );
+          const elapsedMinutes = differenceInMinutes(now, overtimeStart);
+          const totalMinutes = differenceInMinutes(overtimeEnd, overtimeStart);
+
+          return Math.max(
+            0,
+            Math.min((elapsedMinutes / totalMinutes) * 100, 100),
+          );
         }
       }
 

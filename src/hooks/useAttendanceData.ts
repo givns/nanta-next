@@ -57,6 +57,14 @@ export function useAttendanceData({
           timeout: REQUEST_TIMEOUT,
         });
 
+        // Force immediate refresh if transition detected
+        if (
+          response.data?.window?.type === 'overtime' &&
+          response.data?.base?.latestAttendance?.CheckOutTime
+        ) {
+          await mutate(response.data, false); // Skip revalidation
+        }
+
         const responseData = response.data;
         console.log('useAttendanceData API response:', responseData);
 
