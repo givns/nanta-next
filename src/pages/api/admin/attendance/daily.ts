@@ -8,6 +8,8 @@ import {
   OvertimeState,
   ShiftData,
   DateRange,
+  DepartmentInfo,
+  AttendanceFilters,
 } from '@/types/attendance';
 
 const prisma = new PrismaClient();
@@ -159,32 +161,26 @@ async function handleGetDailyAttendance(
     });
 
     // Get unique departments for filters
-    const departments = [...new Set(users.map((e) => e.departmentName))]
+    const departments: DepartmentInfo[] = [
+      ...new Set(users.map((e) => e.departmentName)),
+    ]
       .filter(Boolean)
       .map((name) => ({
         id: name,
         name: name,
       }));
 
-    // Calculate summary
-    const summary: AttendanceSummary = {
-      total: attendanceRecords.length,
-      present: attendanceRecords.filter(
-        (r) => r.state === AttendanceState.PRESENT,
-      ).length,
-      absent: attendanceRecords.filter(
-        (r) => r.state === AttendanceState.ABSENT,
-      ).length,
-      onLeave: attendanceRecords.filter((r) => r.leaveInfo).length,
-      dayOff: attendanceRecords.filter((r) => r.isDayOff).length,
-    };
-
-    // Create date range for filters
-    const dateRange: DateRange = {
-      start: dateStart,
-      end: dateEnd,
-      isValid: true,
-      duration: 1,
+    // Prepare filters matching AttendanceFilters interface
+    const filters: AttendanceFilters = {
+      dateRange: {
+        start: dateStart,
+        end: dateEnd,
+        isValid: true,
+        duration: 1,
+      },
+      departments: department !== 'all' ? [department as string] : [],
+      currentState: AttendanceState.PRESENT,
+      searchTerm: (searchTerm as string) || '',
     };
 
     // Prepare response data
@@ -194,15 +190,8 @@ async function handleGetDailyAttendance(
       // Initially same as records, frontend will handle filtering
       filteredRecords: attendanceRecords,
       // Simple department array as expected by SearchFilters
-      departments: departments.map((dept) => ({
-        id: dept.name,
-        name: dept.name,
-      })),
-      // Simple filters matching SearchFilters props
-      filters: {
-        searchTerm: (searchTerm as string) || '',
-        department: (department as string) || 'all',
-      },
+      departments,
+      filters,
     };
 
     // Add cache headers
