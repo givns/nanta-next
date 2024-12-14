@@ -189,15 +189,19 @@ async function handleGetDailyAttendance(
 
     // Prepare response data
     const responseData = {
+      // Full unfiltered records
       records: attendanceRecords,
+      // Initially same as records, frontend will handle filtering
       filteredRecords: attendanceRecords,
-      departments,
-      summary,
+      // Simple department array as expected by SearchFilters
+      departments: departments.map((dept) => ({
+        id: dept.name,
+        name: dept.name,
+      })),
+      // Simple filters matching SearchFilters props
       filters: {
-        dateRange,
-        departments: department !== 'all' ? [department as string] : [],
         searchTerm: (searchTerm as string) || '',
-        currentState: AttendanceState.PRESENT,
+        department: (department as string) || 'all',
       },
     };
 
