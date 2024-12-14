@@ -7,11 +7,18 @@ import {
   DailyAttendanceRecord,
   OvertimeState,
   ShiftData,
-  TimeEntry,
-  PeriodType,
+  DateRange,
 } from '@/types/attendance';
 
 const prisma = new PrismaClient();
+
+interface AttendanceSummary {
+  total: number;
+  present: number;
+  absent: number;
+  onLeave: number;
+  dayOff: number;
+}
 
 async function handleGetDailyAttendance(
   req: NextApiRequest,
@@ -47,7 +54,7 @@ async function handleGetDailyAttendance(
         }
       : {};
 
-    // Get all users with their attendance records
+    // Get all users with their assigned shifts
     const users = await prisma.user.findMany({
       where: {
         AND: [departmentFilter, searchFilter].filter(
@@ -62,7 +69,7 @@ async function handleGetDailyAttendance(
       },
     });
 
-    // Get attendance records with their related data
+    // Get attendance records
     const attendances = await prisma.attendance.findMany({
       where: {
         employeeId: { in: users.map((u) => u.employeeId) },
@@ -72,11 +79,6 @@ async function handleGetDailyAttendance(
         },
       },
       include: {
-        timeEntries: {
-          include: {
-            overtimeMetadata: true,
-          },
-        },
         overtimeEntries: {
           include: {
             overtimeRequest: true,
@@ -103,6 +105,7 @@ async function handleGetDailyAttendance(
         (lr) => lr.employeeId === user.employeeId,
       );
 
+      // Map shift data from user's assigned shift
       const shiftData: ShiftData | null = user.assignedShift
         ? {
             id: user.assignedShift.id,
@@ -114,7 +117,7 @@ async function handleGetDailyAttendance(
           }
         : null;
 
-      return {
+      const record: DailyAttendanceRecord = {
         employeeId: user.employeeId,
         employeeName: user.name,
         departmentName: user.departmentName,
@@ -151,6 +154,8 @@ async function handleGetDailyAttendance(
             }
           : null,
       };
+
+      return record;
     });
 
     // Get unique departments for filters
@@ -162,7 +167,7 @@ async function handleGetDailyAttendance(
       }));
 
     // Calculate summary
-    const summary = {
+    const summary: AttendanceSummary = {
       total: attendanceRecords.length,
       present: attendanceRecords.filter(
         (r) => r.state === AttendanceState.PRESENT,
@@ -174,11 +179,32 @@ async function handleGetDailyAttendance(
       dayOff: attendanceRecords.filter((r) => r.isDayOff).length,
     };
 
-    return res.status(200).json({
+    // Create date range for filters
+    const dateRange: DateRange = {
+      start: dateStart,
+      end: dateEnd,
+      isValid: true,
+      duration: 1,
+    };
+
+    // Prepare response data
+    const responseData = {
       records: attendanceRecords,
+      filteredRecords: attendanceRecords,
       departments,
       summary,
-    });
+      filters: {
+        dateRange,
+        departments: department !== 'all' ? [department as string] : [],
+        searchTerm: (searchTerm as string) || '',
+        currentState: AttendanceState.PRESENT,
+      },
+    };
+
+    // Add cache headers
+    res.setHeader('Cache-Control', 'private, max-age=30');
+
+    return res.status(200).json(responseData);
   } catch (error) {
     console.error('Error fetching daily attendance:', error);
     return res.status(500).json({
