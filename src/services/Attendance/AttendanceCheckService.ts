@@ -962,6 +962,19 @@ export class AttendanceCheckService {
         );
       }
 
+      // Handle basic validations first
+      if (leaveRequest) {
+        return this.createResponse(
+          false,
+          'คุณได้รับอนุมัติให้ลางานสำหรับวันนี้',
+          {
+            inPremises,
+            address,
+            periodType: PeriodType.REGULAR,
+          },
+        );
+      }
+
       // Check for enhanced validations
       const enhancedValidation = await this.validateAttendanceContext(context);
       if (enhancedValidation) {
