@@ -1,48 +1,17 @@
-// pages/api/admin/attendance/daily.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient, Prisma, LeaveRequest } from '@prisma/client';
-import { startOfDay, endOfDay, parseISO, format, isValid } from 'date-fns';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
 import {
   AttendanceState,
   CheckStatus,
   DailyAttendanceRecord,
   OvertimeState,
   ShiftData,
+  TimeEntry,
+  PeriodType,
 } from '@/types/attendance';
-import { getCacheData, setCacheData } from '@/lib/serverCache';
-import { ShiftManagementService } from '@/services/ShiftManagementService/ShiftManagementService';
-import { HolidayService } from '@/services/HolidayService';
-import { LeaveServiceServer } from '@/services/LeaveServiceServer';
-import { NotificationService } from '@/services/NotificationService';
-import { initializeServices } from '@/services/ServiceInitializer';
-import { AttendanceService } from '@/services/Attendance/AttendanceService';
-import { AttendanceMappers } from '@/services/Attendance/utils/AttendanceMappers';
 
-const CACHE_TTL = 5 * 60; // 5 minutes cache
 const prisma = new PrismaClient();
-const services = initializeServices(prisma);
-const attendanceService = new AttendanceService(
-  prisma,
-  services.shiftService,
-  services.holidayService,
-  services.leaveService,
-  services.overtimeService,
-  services.notificationService,
-  services.timeEntryService,
-);
-
-const parseDateSafely = (dateString: string | undefined): Date => {
-  if (!dateString) return new Date();
-
-  try {
-    const parsed = parseISO(dateString);
-    return isValid(parsed) ? parsed : new Date();
-  } catch (error) {
-    console.error('Error parsing date:', error);
-    return new Date();
-  }
-};
 
 async function handleGetDailyAttendance(
   req: NextApiRequest,
@@ -51,18 +20,9 @@ async function handleGetDailyAttendance(
 ) {
   try {
     const { date: dateQuery, department, searchTerm } = req.query;
-    const targetDate = parseDateSafely(dateQuery as string);
+    const targetDate = dateQuery ? parseISO(dateQuery as string) : new Date();
     const dateStart = startOfDay(targetDate);
     const dateEnd = endOfDay(targetDate);
-
-    // Create cache key
-    const cacheKey = `daily-attendance:${format(targetDate, 'yyyy-MM-dd')}:${department || 'all'}:${searchTerm || ''}`;
-
-    // Try cached data
-    const cachedData = await getCacheData(cacheKey);
-    if (cachedData) {
-      return res.status(200).json(JSON.parse(cachedData));
-    }
 
     // Build base query for department access
     const departmentFilter: Prisma.UserWhereInput =
@@ -76,12 +36,7 @@ async function handleGetDailyAttendance(
     const searchFilter: Prisma.UserWhereInput = searchTerm
       ? {
           OR: [
-            {
-              name: {
-                contains: searchTerm as string,
-                mode: 'insensitive',
-              },
-            },
+            { name: { contains: searchTerm as string, mode: 'insensitive' } },
             {
               employeeId: {
                 contains: searchTerm as string,
@@ -92,162 +47,138 @@ async function handleGetDailyAttendance(
         }
       : {};
 
-    // Combine filters
-    const whereCondition: Prisma.UserWhereInput = {
-      AND: [departmentFilter, searchFilter].filter(
-        (filter) => Object.keys(filter).length > 0,
-      ),
-    };
-
-    const employees = await prisma.user.findMany({
-      where: whereCondition,
+    // Get all users with their attendance records
+    const users = await prisma.user.findMany({
+      where: {
+        AND: [departmentFilter, searchFilter].filter(
+          (filter) => Object.keys(filter).length > 0,
+        ),
+      },
       select: {
         employeeId: true,
         name: true,
         departmentName: true,
-        shiftCode: true,
-        attendances: {
-          where: {
-            date: {
-              gte: dateStart,
-              lt: dateEnd,
-            },
+        assignedShift: true,
+      },
+    });
+
+    // Get attendance records with their related data
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        employeeId: { in: users.map((u) => u.employeeId) },
+        date: {
+          gte: dateStart,
+          lt: dateEnd,
+        },
+      },
+      include: {
+        timeEntries: {
+          include: {
+            overtimeMetadata: true,
           },
-          select: {
-            id: true,
-            state: true,
-            checkStatus: true,
-            overtimeState: true,
-            CheckInTime: true,
-            CheckOutTime: true,
-            isLateCheckIn: true,
-            isLateCheckOut: true,
-            isEarlyCheckIn: true,
-            isVeryLateCheckOut: true,
-            lateCheckOutMinutes: true,
-            isDayOff: true,
+        },
+        overtimeEntries: {
+          include: {
+            overtimeRequest: true,
           },
         },
       },
     });
 
-    // Get all required data with proper error handling
-    const [holidays, leaveRequests] = await Promise.all([
-      services.holidayService.getHolidays(dateStart, dateEnd).catch((error) => {
-        console.error('Error fetching holidays:', error);
-        return []; // Return empty array on error instead of failing
-      }),
-      services.leaveService.getUserLeaveRequests(targetDate).catch((error) => {
-        console.error('Error fetching leave requests:', error);
-        return []; // Return empty array on error instead of failing
-      }),
-    ]);
+    // Get leave requests
+    const leaveRequests = await prisma.leaveRequest.findMany({
+      where: {
+        employeeId: { in: users.map((u) => u.employeeId) },
+        startDate: { lte: dateEnd },
+        endDate: { gte: dateStart },
+        status: 'approved',
+      },
+    });
 
-    const attendanceRecords: DailyAttendanceRecord[] = await Promise.all(
-      employees.map(async (employee) => {
-        try {
-          const now = new Date();
-          const attendance = employee.attendances[0];
-          // Wrap holiday check in try-catch
-          const isHoliday = await services.holidayService
-            .isHoliday(targetDate, holidays, employee.shiftCode === 'SHIFT104')
-            .catch(() => false); // Default to false if check fails
+    const attendanceRecords: DailyAttendanceRecord[] = users.map((user) => {
+      const attendance = attendances.find(
+        (a) => a.employeeId === user.employeeId,
+      );
+      const leaveRequest = leaveRequests.find(
+        (lr) => lr.employeeId === user.employeeId,
+      );
 
-          const leaveRequest = leaveRequests.find(
-            (lr: LeaveRequest) => lr.employeeId === employee.employeeId,
-          );
+      const shiftData: ShiftData | null = user.assignedShift
+        ? {
+            id: user.assignedShift.id,
+            name: user.assignedShift.name,
+            shiftCode: user.assignedShift.shiftCode,
+            startTime: user.assignedShift.startTime,
+            endTime: user.assignedShift.endTime,
+            workDays: user.assignedShift.workDays,
+          }
+        : null;
 
-          const effectiveShiftResult =
-            await services.shiftService.getEffectiveShiftAndStatus(
-              employee.employeeId,
-              now,
-            );
+      return {
+        employeeId: user.employeeId,
+        employeeName: user.name,
+        departmentName: user.departmentName,
+        date: format(targetDate, 'yyyy-MM-dd'),
 
-          const record: DailyAttendanceRecord = {
-            employeeId: employee.employeeId,
-            employeeName: employee.name,
-            departmentName: employee.departmentName || '',
-            date: format(targetDate, 'yyyy-MM-dd'),
+        // Status fields
+        state: (attendance?.state as AttendanceState) || AttendanceState.ABSENT,
+        checkStatus:
+          (attendance?.checkStatus as CheckStatus) || CheckStatus.PENDING,
+        overtimeState: attendance?.overtimeState as OvertimeState | undefined,
 
-            // Status fields with proper mapping
-            state: AttendanceMappers.mapToAttendanceState(attendance?.state),
-            checkStatus: AttendanceMappers.mapToCheckStatus(
-              attendance?.checkStatus,
-            ),
-            overtimeState: AttendanceMappers.mapToOvertimeState(
-              attendance?.overtimeState,
-            ),
+        // Time fields
+        CheckInTime: attendance?.CheckInTime
+          ? format(attendance.CheckInTime, 'HH:mm')
+          : null,
+        CheckOutTime: attendance?.CheckOutTime
+          ? format(attendance.CheckOutTime, 'HH:mm')
+          : null,
 
-            // Time fields
-            CheckInTime: formatAttendanceTime(attendance?.CheckInTime),
-            CheckOutTime: formatAttendanceTime(attendance?.CheckOutTime),
+        // Status flags
+        isLateCheckIn: attendance?.isLateCheckIn || false,
+        isLateCheckOut: attendance?.isLateCheckOut || false,
+        isEarlyCheckIn: attendance?.isEarlyCheckIn || false,
+        isVeryLateCheckOut: attendance?.isVeryLateCheckOut || false,
+        lateCheckOutMinutes: attendance?.lateCheckOutMinutes || 0,
 
-            // Flag fields
-            isLateCheckIn: attendance?.isLateCheckIn ?? false,
-            isLateCheckOut: attendance?.isLateCheckOut ?? false,
-            isEarlyCheckIn: attendance?.isEarlyCheckIn ?? false,
-            isVeryLateCheckOut: attendance?.isVeryLateCheckOut ?? false,
-            lateCheckOutMinutes: attendance?.lateCheckOutMinutes ?? 0,
+        // Shift and status info
+        shift: shiftData,
+        isDayOff: attendance?.isDayOff || false,
+        leaveInfo: leaveRequest
+          ? {
+              type: leaveRequest.leaveType,
+              status: leaveRequest.status,
+            }
+          : null,
+      };
+    });
 
-            // Related data
-            shift: effectiveShiftResult?.effectiveShift
-              ? {
-                  id: effectiveShiftResult.effectiveShift.id,
-                  name: effectiveShiftResult.effectiveShift.name,
-                  shiftCode: effectiveShiftResult.effectiveShift.shiftCode,
-                  startTime: effectiveShiftResult.effectiveShift.startTime,
-                  endTime: effectiveShiftResult.effectiveShift.endTime,
-                  workDays: effectiveShiftResult.effectiveShift.workDays,
-                }
-              : null,
-            isDayOff: isHoliday || attendance?.isDayOff || false,
-            leaveInfo: leaveRequest
-              ? {
-                  type: leaveRequest.leaveType,
-                  status: leaveRequest.status,
-                }
-              : null,
-          };
+    // Get unique departments for filters
+    const departments = [...new Set(users.map((e) => e.departmentName))]
+      .filter(Boolean)
+      .map((name) => ({
+        id: name,
+        name: name,
+      }));
 
-          return record;
-        } catch (error) {
-          console.error(
-            `Error processing employee ${employee.employeeId}:`,
-            error,
-          );
-          // Return a safe default record if processing fails
-          const defaultRecord: DailyAttendanceRecord = {
-            employeeId: employee.employeeId,
-            employeeName: employee.name || '',
-            departmentName: employee.departmentName || '',
-            date: format(targetDate, 'yyyy-MM-dd'),
-            // Ensure required enum values are set
-            state: AttendanceState.ABSENT,
-            checkStatus: CheckStatus.PENDING,
-            overtimeState: undefined,
-            // Required time fields
-            CheckInTime: null,
-            CheckOutTime: null,
-            // Required boolean flags
-            isLateCheckIn: false,
-            isLateCheckOut: false,
-            isEarlyCheckIn: false,
-            isVeryLateCheckOut: false,
-            lateCheckOutMinutes: 0,
-            // Other required fields
-            shift: null,
-            isDayOff: false,
-            leaveInfo: null,
-          };
-          return defaultRecord;
-        }
-      }),
-    );
+    // Calculate summary
+    const summary = {
+      total: attendanceRecords.length,
+      present: attendanceRecords.filter(
+        (r) => r.state === AttendanceState.PRESENT,
+      ).length,
+      absent: attendanceRecords.filter(
+        (r) => r.state === AttendanceState.ABSENT,
+      ).length,
+      onLeave: attendanceRecords.filter((r) => r.leaveInfo).length,
+      dayOff: attendanceRecords.filter((r) => r.isDayOff).length,
+    };
 
-    // Cache results
-    await setCacheData(cacheKey, JSON.stringify(attendanceRecords), CACHE_TTL);
-
-    return res.status(200).json(attendanceRecords);
+    return res.status(200).json({
+      records: attendanceRecords,
+      departments,
+      summary,
+    });
   } catch (error) {
     console.error('Error fetching daily attendance:', error);
     return res.status(500).json({
@@ -256,21 +187,6 @@ async function handleGetDailyAttendance(
     });
   }
 }
-
-const formatAttendanceTime = (date: Date | null): string | null => {
-  if (!date) return null;
-  try {
-    // Ensure we're working with a valid date
-    const validDate = new Date(date);
-    if (isNaN(validDate.getTime())) {
-      return null;
-    }
-    return format(validDate, 'HH:mm');
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return null;
-  }
-};
 
 export default async function handler(
   req: NextApiRequest,

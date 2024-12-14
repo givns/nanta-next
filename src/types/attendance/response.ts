@@ -5,7 +5,6 @@
 
 import { z } from 'zod';
 import { AttendanceRecord, OvertimeEntry, TimeEntry } from './records';
-import { ShiftData } from './shift';
 import {
   AttendanceState,
   CheckStatus,
