@@ -24,14 +24,6 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
   const dragStartXRef = useRef(0);
   const initialSliderLeftRef = useRef(0);
 
-  // Reset progress when not dragging
-  React.useEffect(() => {
-    if (!isDragging && progress < 90) {
-      const timer = setTimeout(() => setProgress(0), 200);
-      return () => clearTimeout(timer);
-    }
-  }, [isDragging, progress]);
-
   const updateProgress = useCallback(
     (clientX: number) => {
       if (!containerRef.current || !sliderRef.current) return;
@@ -60,6 +52,7 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
     if (isDragging) {
       setIsDragging(false);
       if (progress < 90) {
+        setProgress(0);
         onCancel?.();
       }
     }
@@ -83,34 +76,6 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
     [isDragging, updateProgress],
   );
 
-  const handleStart = useCallback(
-    (clientX: number) => {
-      if (!isEnabled || !validation?.canProceed || !sliderRef.current) return;
-
-      const sliderRect = sliderRef.current.getBoundingClientRect();
-      dragStartXRef.current = clientX - sliderRect.left;
-      initialSliderLeftRef.current = sliderRect.left;
-      setIsDragging(true);
-    },
-    [isEnabled, validation?.canProceed],
-  );
-
-  // Touch event handlers
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      handleStart(e.touches[0].clientX);
-    },
-    [handleStart],
-  );
-
-  // Mouse event handlers
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      handleStart(e.clientX);
-    },
-    [handleStart],
-  );
-
   React.useEffect(() => {
     if (isDragging) {
       window.addEventListener('mouseup', handleEnd);
@@ -127,13 +92,24 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
     }
   }, [isDragging, handleEnd, handleMouseMove, handleTouchMove]);
 
+  const handleStart = useCallback(
+    (clientX: number) => {
+      if (!isEnabled || !validation?.canProceed || !sliderRef.current) return;
+
+      const sliderRect = sliderRef.current.getBoundingClientRect();
+      dragStartXRef.current = clientX - sliderRect.left;
+      setIsDragging(true);
+    },
+    [isEnabled, validation?.canProceed],
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (!isEnabled || !validation?.canProceed) return;
+
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        if (isEnabled && validation?.canProceed) {
-          onUnlock();
-        }
+        onUnlock();
       }
     },
     [isEnabled, validation?.canProceed, onUnlock],
@@ -150,17 +126,18 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
         </div>
       )}
 
-      <div className="relative w-72 h-14">
-        {/* Track */}
+      <div
+        role="slider"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+        tabIndex={isEnabled ? 0 : -1}
+        onKeyDown={handleKeyDown}
+        className="relative w-72 h-14"
+      >
         <div
           ref={containerRef}
           className="absolute inset-0 bg-gray-100 rounded-full overflow-hidden"
-          role="slider"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={progress}
-          tabIndex={isEnabled ? 0 : -1}
-          onKeyDown={handleKeyDown}
         >
           {/* Progress Bar */}
           <div
@@ -177,6 +154,7 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
           <div
             ref={sliderRef}
             role="presentation"
+            aria-hidden="true"
             className={`absolute top-1 bottom-1 left-1 w-12
               ${isEnabled ? 'bg-red-600' : 'bg-gray-300'}
               rounded-full shadow-lg flex items-center justify-center
@@ -186,8 +164,8 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
               transform: `translateX(${progress * 2.48}px)`,
               transition: isDragging ? 'none' : 'all 0.2s ease-out',
             }}
-            onMouseDown={handleMouseDown}
-            onTouchStart={handleTouchStart}
+            onMouseDown={(e) => handleStart(e.clientX)}
+            onTouchStart={(e) => handleStart(e.touches[0].clientX)}
           >
             <div className="w-0.5 h-6 bg-white/75 rounded-full" />
           </div>
