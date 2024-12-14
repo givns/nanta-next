@@ -107,6 +107,8 @@ export class AttendanceService {
       isCheckingIn: !attendance?.CheckInTime,
       latestAttendance: attendance
         ? {
+            id: attendance.id,
+            employeeId: attendance.employeeId,
             date: attendance.date.toISOString(),
             CheckInTime: attendance.CheckInTime?.toISOString() || null,
             CheckOutTime: attendance.CheckOutTime?.toISOString() || null,
@@ -118,6 +120,8 @@ export class AttendanceService {
               | OvertimeState
               | undefined,
             isLateCheckIn: attendance.isLateCheckIn ?? false,
+            isLateCheckOut: attendance.isLateCheckOut ?? false,
+            isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
             isOvertime: attendance.isOvertime ?? false,
             isManualEntry: attendance.isManualEntry ?? false,
             isDayOff: attendance.isDayOff ?? false,

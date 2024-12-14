@@ -47,24 +47,31 @@ export interface AttendanceCore {
   };
 }
 
+export interface LatestAttendanceResponse {
+  id: string; // Add this
+  employeeId: string; // Add this
+  date: string;
+  CheckInTime: string | null;
+  CheckOutTime: string | null;
+  state: AttendanceState;
+  checkStatus: CheckStatus;
+  overtimeState?: OvertimeState;
+  isLateCheckIn?: boolean;
+  isLateCheckOut?: boolean;
+  isEarlyCheckIn?: boolean;
+  isOvertime?: boolean;
+  isManualEntry: boolean;
+  isDayOff: boolean;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
+}
+
+// Then update AttendanceBaseResponse
 export interface AttendanceBaseResponse {
   state: AttendanceState;
   checkStatus: CheckStatus;
   isCheckingIn: boolean;
-  latestAttendance?: {
-    date: string;
-    CheckInTime: string | null;
-    CheckOutTime: string | null;
-    state: AttendanceState;
-    checkStatus: CheckStatus;
-    overtimeState?: OvertimeState;
-    isLateCheckIn?: boolean;
-    isOvertime?: boolean;
-    isManualEntry: boolean;
-    isDayOff: boolean;
-    shiftStartTime?: string;
-    shiftEndTime?: string;
-  };
+  latestAttendance?: LatestAttendanceResponse;
 }
 
 export interface AddressInput {

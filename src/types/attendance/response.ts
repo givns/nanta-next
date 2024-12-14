@@ -69,6 +69,12 @@ export interface ValidationResponseWithMetadata {
       expectedTime: Date;
       overtimeId?: string;
     }>;
+    transitionWindow?: {
+      // Add this type
+      start: string;
+      end: string;
+      targetPeriod: PeriodType;
+    };
   };
 }
 

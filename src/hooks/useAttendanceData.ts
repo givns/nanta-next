@@ -75,6 +75,8 @@ export function useAttendanceData({
           isCheckingIn: responseData.status.isCheckingIn ?? true,
           latestAttendance: responseData.status.latestAttendance
             ? {
+                id: responseData.status.id,
+                employeeId: responseData.status.employeeId,
                 date: responseData.status.latestAttendance.date,
                 CheckInTime: responseData.status.latestAttendance.CheckInTime,
                 CheckOutTime: responseData.status.latestAttendance.CheckOutTime,
