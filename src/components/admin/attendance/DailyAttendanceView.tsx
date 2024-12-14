@@ -1,6 +1,10 @@
-// components/admin/attendance/DailyAttendanceView.tsx
-import React, { useState, useEffect, useMemo } from 'react';
-import { DailyAttendanceRecord, DateRange } from '@/types/attendance';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  DailyAttendanceRecord,
+  DateRange,
+  AttendanceState,
+  PeriodType,
+} from '@/types/attendance';
 import { useDailyAttendance } from '@/hooks/useDailyAttendance';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateSelector } from './components/DateSelector';
@@ -23,6 +27,15 @@ interface ErrorFallbackProps {
   resetErrorBoundary: () => void;
 }
 
+// Add summary interface
+interface AttendanceSummary {
+  total: number;
+  present: number;
+  absent: number;
+  onLeave: number;
+  dayOff: number;
+}
+
 function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
   return (
     <div className="p-4">
@@ -39,7 +52,6 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
   );
 }
 
-// Add this utility function at the top
 function ensureValidDate(date: Date | string | null | undefined): Date {
   if (!date) {
     return startOfDay(new Date());
@@ -68,22 +80,27 @@ export default function DailyAttendanceView() {
   });
   const { lineUserId } = useLiff();
 
-  // State declarations with safe initialization
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
   const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const [selectedRecord, setSelectedRecord] =
     useState<DailyAttendanceRecord | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Safe date initialization from URL or current date
+  // Add summary state
+  const [summary, setSummary] = useState<AttendanceSummary>({
+    total: 0,
+    present: 0,
+    absent: 0,
+    onLeave: 0,
+    dayOff: 0,
+  });
+
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     if (!router.isReady) return startOfDay(new Date());
-
     const { date } = router.query;
     return ensureValidDate(typeof date === 'string' ? date : null);
   });
 
-  // Initialize when router is ready
   useEffect(() => {
     if (router.isReady && !isInitialized) {
       const { date } = router.query;
@@ -92,14 +109,12 @@ export default function DailyAttendanceView() {
     }
   }, [router.isReady, isInitialized]);
 
-  // Memoized computation of whether we should fetch data
   const shouldFetchData = useMemo(() => {
     return (
       !authLoading && isInitialized && !!lineUserId && isValid(selectedDate)
     );
   }, [authLoading, isInitialized, lineUserId, selectedDate]);
 
-  // Fetch attendance data with safe date
   const {
     records,
     filteredRecords,
@@ -117,7 +132,21 @@ export default function DailyAttendanceView() {
     enabled: shouldFetchData,
   });
 
-  // Safe record processing with error handling
+  // Calculate summary when records change
+  useEffect(() => {
+    if (Array.isArray(filteredRecords)) {
+      setSummary({
+        total: filteredRecords.length,
+        present: filteredRecords.filter((r) => r?.CheckInTime).length,
+        absent: filteredRecords.filter(
+          (r) => !r?.CheckInTime && !r?.leaveInfo && !r?.isDayOff,
+        ).length,
+        onLeave: filteredRecords.filter((r) => r?.leaveInfo).length,
+        dayOff: filteredRecords.filter((r) => r?.isDayOff).length,
+      });
+    }
+  }, [filteredRecords]);
+
   const processedRecords = useMemo(() => {
     if (!Array.isArray(records)) return [];
 
@@ -143,85 +172,63 @@ export default function DailyAttendanceView() {
     }
   }, [records]);
 
-  // Safe summary calculation
-  const summary = useMemo(() => {
-    if (!Array.isArray(filteredRecords))
-      return {
-        total: 0,
-        present: 0,
-        absent: 0,
-        onLeave: 0,
-        dayOff: 0,
-      };
+  const handleDateChange = useCallback(
+    (newDate: Date | undefined) => {
+      if (!newDate || !isValid(newDate)) {
+        console.warn('Invalid date selected:', newDate);
+        return;
+      }
 
-    return {
-      total: filteredRecords.length,
-      present: filteredRecords.filter((r) => r?.CheckInTime).length,
-      absent: filteredRecords.filter(
-        (r) => !r?.CheckInTime && !r?.leaveInfo && !r?.isDayOff,
-      ).length,
-      onLeave: filteredRecords.filter((r) => r?.leaveInfo).length,
-      dayOff: filteredRecords.filter((r) => r?.isDayOff).length,
-    };
-  }, [filteredRecords]);
+      const processedDate = startOfDay(newDate);
+      const formattedDate = format(processedDate, 'yyyy-MM-dd');
 
-  // Safe date change handler
-  // Update the date change handler
-  const handleDateChange = (newDate: Date | undefined) => {
-    if (!newDate || !isValid(newDate)) {
-      console.warn('Invalid date selected:', newDate);
-      return;
-    }
+      try {
+        router.push(
+          {
+            pathname: router.pathname,
+            query: { ...router.query, date: formattedDate },
+          },
+          undefined,
+          { shallow: true },
+        );
 
-    const processedDate = startOfDay(newDate);
-    const formattedDate = format(processedDate, 'yyyy-MM-dd');
+        setSelectedDate(processedDate);
 
-    try {
-      // Update URL
-      router.push(
-        {
-          pathname: router.pathname,
-          query: { ...router.query, date: formattedDate },
-        },
-        undefined,
-        { shallow: true },
-      );
+        const dateRange: DateRange = {
+          start: processedDate,
+          end: processedDate,
+          isValid: true,
+          duration: 1,
+        };
 
-      // Update selected date state
-      setSelectedDate(processedDate);
+        setFilters({
+          dateRange,
+          currentState: AttendanceState.ABSENT,
+        });
+      } catch (error) {
+        console.error('Error updating date:', error);
+      }
+    },
+    [router, setFilters],
+  );
 
-      // Create a proper DateRange for the filter
-      const dateRange: DateRange = {
-        start: processedDate,
-        end: processedDate, // Same day for single date selection
-        isValid: true,
-        duration: 1, // One day
-      };
+  const handleRecordSelect = useCallback(
+    (record: DailyAttendanceRecord) => {
+      if (!record || !selectedDate) return;
+      setSelectedEmployee(record.employeeId);
+      setShowEmployeeDetail(true);
+    },
+    [selectedDate],
+  );
 
-      // Update filters with proper dateRange
-      setFilters({
-        dateRange,
-      });
-    } catch (error) {
-      console.error('Error updating date:', error);
-    }
-  };
-
-  // Safe record selection handlers
-  const handleRecordSelect = (record: DailyAttendanceRecord) => {
-    if (!record || !selectedDate) return;
-    setSelectedEmployee(record.employeeId);
-    setShowEmployeeDetail(true);
-  };
-
-  const handleEditRecord = (
-    e: React.MouseEvent,
-    record: DailyAttendanceRecord,
-  ) => {
-    e.stopPropagation();
-    setSelectedRecord(record);
-    setShowEmployeeDetail(true);
-  };
+  const handleEditRecord = useCallback(
+    (e: React.MouseEvent, record: DailyAttendanceRecord) => {
+      e.stopPropagation();
+      setSelectedRecord(record);
+      setShowEmployeeDetail(true);
+    },
+    [],
+  );
 
   if (authLoading || !isInitialized) {
     return <LoadingState />;
@@ -270,13 +277,19 @@ export default function DailyAttendanceView() {
           <CardContent>
             <div className="space-y-6">
               <SearchFilters
-                filters={{ ...filters, department: '', searchTerm: '' }}
+                filters={{
+                  searchTerm: filters.searchTerm || '',
+                  department: filters.departments?.[0] || 'all', // Convert first department to string
+                }}
                 departments={departments}
                 onSearchChange={(term) =>
                   setFilters({ ...filters, searchTerm: term })
                 }
                 onDepartmentChange={(dept) =>
-                  setFilters({ ...filters, departments: [dept] })
+                  setFilters({
+                    ...filters,
+                    departments: dept === 'all' ? [] : [dept],
+                  })
                 }
               />
 
