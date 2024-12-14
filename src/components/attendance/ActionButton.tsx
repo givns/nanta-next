@@ -117,14 +117,7 @@ export const AttendanceActionButton: React.FC<AttendanceActionButtonProps> = ({
             <div className="text-sm text-yellow-800">
               {systemState.error && <p>{systemState.error}</p>}
               {validation.message && <p>{validation.message}</p>}
-              {action.timing && (
-                <div>
-                  <p>
-                    เวลาทำงาน:{' '}
-                    {format(action.timing.plannedTime, 'HH:mm', { locale: th })}
-                  </p>
-                </div>
-              )}
+              {action.timing && <div></div>}
             </div>
           </div>
         </div>
