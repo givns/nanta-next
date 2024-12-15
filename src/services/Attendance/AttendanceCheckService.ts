@@ -478,31 +478,6 @@ export class AttendanceCheckService {
     };
   }
 
-  private validateRegularPeriod(
-    context: ValidationContext,
-  ): CheckInOutAllowance {
-    const { now, latestAttendance, inPremises, address, shiftData } = context;
-    const isCheckingIn = !latestAttendance?.CheckInTime;
-
-    if (isCheckingIn) {
-      return this.handleRegularCheckIn({ ...context, isCheckingIn: true });
-    }
-
-    const isEarlyCheckout = this.isEarlyCheckout(
-      now,
-      context.currentPeriod.endTime,
-    );
-
-    if (
-      isEarlyCheckout &&
-      (!context.leaveRequests || context.leaveRequests.length === 0)
-    ) {
-      return this.handleEarlyCheckout(context);
-    }
-
-    return this.handleRegularCheckout(context);
-  }
-
   private handleOvertimeTransition(
     context: ValidationContext,
   ): CheckInOutAllowance {
@@ -1150,13 +1125,64 @@ export class AttendanceCheckService {
         this.processingService.getLatestAttendance(employeeId),
       ]);
 
-      // Use your existing validation
       if (!shiftData?.effectiveShift) {
         return this.createResponse(false, 'ไม่พบข้อมูลกะการทำงานของคุณ', {
           inPremises,
           address,
           periodType: PeriodType.REGULAR,
         });
+      }
+
+      // Check for overtime period first
+      if (approvedOvertime) {
+        const overtimeStart = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+        );
+        const overtimeEnd = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+        );
+        const earlyWindow = subMinutes(
+          overtimeStart,
+          ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+        );
+
+        if (
+          isWithinInterval(now, {
+            start: earlyWindow,
+            end: overtimeEnd,
+          })
+        ) {
+          const overtimePeriod = {
+            type: PeriodType.OVERTIME,
+            startTime: overtimeStart,
+            endTime: overtimeEnd,
+            isOvertime: true,
+            overtimeId: approvedOvertime.id,
+            isOvernight: false,
+          };
+
+          const enhancedStatus =
+            await this.enhancementService.enhanceAttendanceStatus(
+              latestAttendance,
+              overtimePeriod,
+              approvedOvertime,
+            );
+
+          return this.handleOvertimeAttendance({
+            now,
+            inPremises,
+            address,
+            currentPeriod: overtimePeriod,
+            latestAttendance,
+            approvedOvertime,
+            enhancedStatus,
+            shiftData: {
+              effectiveShift: shiftData.effectiveShift,
+              shiftstatus: shiftData.shiftstatus,
+            },
+            isCheckingIn: !latestAttendance?.CheckInTime,
+          });
+        }
       }
 
       // Create current period using your existing logic
