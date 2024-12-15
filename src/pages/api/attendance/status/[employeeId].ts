@@ -318,6 +318,9 @@ export default async function handler(
             : baseValidation?.reason || 'Default validation',
       flags: {
         ...baseValidation?.flags,
+        isEarlyCheckOut: false,
+        isEmergencyLeave: false,
+        isPlannedHalfDayLeave: false,
         isOvertime: Boolean(
           effectivePeriod.type === PeriodType.OVERTIME ||
             (isNearTransition &&
