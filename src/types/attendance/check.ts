@@ -11,6 +11,13 @@ import { Location } from './base';
 export type CheckoutStatusType = 'very_early' | 'early' | 'normal' | 'late';
 export type EarlyCheckoutType = 'emergency' | 'planned';
 
+interface TransitionWindowTiming {
+  start: string;
+  end: string;
+  fromPeriod: PeriodType;
+  toPeriod: PeriodType;
+}
+
 // Enhanced check types
 export interface CheckInOutAllowance {
   allowed: boolean;
@@ -61,9 +68,9 @@ export interface CheckInOutAllowance {
     plannedStartTime?: string;
     plannedEndTime?: string;
     maxCheckOutTime?: string;
+    transitionWindow?: TransitionWindowTiming;
     transitionTime?: string;
     missedEntries?: Array<{
-      // Add this property
       type: 'check-in' | 'check-out';
       periodType: PeriodType;
       expectedTime: string;

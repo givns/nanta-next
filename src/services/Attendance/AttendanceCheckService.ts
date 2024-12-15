@@ -27,6 +27,7 @@ import {
 } from '../../lib/serverCache';
 import { cacheService } from '../CacheService';
 import {
+  addHours,
   addMinutes,
   differenceInMinutes,
   format,
@@ -68,6 +69,13 @@ interface OvertimeWindow {
     start: Date;
     end: Date;
   };
+}
+
+interface TransitionWindow {
+  start: Date;
+  end: Date;
+  fromPeriod: PeriodType;
+  toPeriod: PeriodType;
 }
 
 export class AttendanceCheckService {
@@ -187,14 +195,92 @@ export class AttendanceCheckService {
   private async validateAttendanceContext(
     context: ValidationContext,
   ): Promise<CheckInOutAllowance | null> {
-    // 1. Handle missing entries
+    // 1. Handle missing entries first
     if (context.enhancedStatus.missingEntries.length > 0) {
       return this.handleAutoCompletion(context);
     }
 
-    const { latestAttendance, currentPeriod, approvedOvertime } = context;
+    const {
+      latestAttendance,
+      currentPeriod,
+      approvedOvertime,
+      shiftData,
+      now,
+    } = context;
 
-    // 2. Check for immediate overtime after regular check-out
+    // 2. Check for period transitions
+    if (shiftData?.effectiveShift) {
+      const regularStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${shiftData.effectiveShift.startTime}`,
+      );
+      const regularEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${shiftData.effectiveShift.endTime}`,
+      );
+
+      // Function to check if times connect
+      const doPeriodsConnect = (
+        period1End: Date,
+        period2Start: Date,
+      ): boolean => {
+        return format(period1End, 'HH:mm') === format(period2Start, 'HH:mm');
+      };
+
+      // Handle overtime to regular transition
+      if (
+        currentPeriod.type === PeriodType.OVERTIME &&
+        latestAttendance?.CheckInTime &&
+        !latestAttendance.CheckOutTime &&
+        doPeriodsConnect(currentPeriod.endTime, regularStart)
+      ) {
+        return this.handlePeriodTransition(
+          context,
+          {
+            start: currentPeriod.startTime,
+            end: currentPeriod.endTime,
+            type: PeriodType.OVERTIME,
+          },
+          {
+            start: regularStart,
+            end: regularEnd,
+            type: PeriodType.REGULAR,
+          },
+        );
+      }
+
+      // Handle regular to overtime transition
+      if (
+        currentPeriod.type === PeriodType.REGULAR &&
+        latestAttendance?.CheckInTime &&
+        !latestAttendance.CheckOutTime &&
+        approvedOvertime &&
+        doPeriodsConnect(
+          regularEnd,
+          parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+          ),
+        )
+      ) {
+        return this.handlePeriodTransition(
+          context,
+          {
+            start: regularStart,
+            end: regularEnd,
+            type: PeriodType.REGULAR,
+          },
+          {
+            start: parseISO(
+              `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.startTime}`,
+            ),
+            end: parseISO(
+              `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+            ),
+            type: PeriodType.OVERTIME,
+          },
+        );
+      }
+    }
+
+    // 3. Handle immediate overtime after regular check-out
     if (
       currentPeriod.type === PeriodType.REGULAR &&
       latestAttendance?.CheckOutTime &&
@@ -213,15 +299,38 @@ export class AttendanceCheckService {
       }
     }
 
-    // 3. Handle other transitions
+    // 4. Handle other transitions from enhancedStatus
     if (context.enhancedStatus.pendingTransitions.length > 0) {
       const transition = context.enhancedStatus.pendingTransitions[0];
       if (await this.isEligibleForTransition(context, transition)) {
-        return this.handlePeriodTransition(context);
+        // Get current period info
+        const fromPeriod = {
+          start: currentPeriod.startTime,
+          end: currentPeriod.endTime,
+          type: currentPeriod.type,
+        };
+
+        // Get target period info based on transition
+        const toPeriod = {
+          start: transition.transitionTime,
+          end:
+            transition.to === PeriodType.OVERTIME && approvedOvertime
+              ? parseISO(
+                  `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
+                )
+              : shiftData?.effectiveShift
+                ? parseISO(
+                    `${format(now, 'yyyy-MM-dd')}T${shiftData.effectiveShift.endTime}`,
+                  )
+                : addHours(transition.transitionTime, 9), // fallback 9-hour shift
+          type: transition.to, // Changed from transition.type to transition.to
+        };
+
+        return this.handlePeriodTransition(context, fromPeriod, toPeriod);
       }
     }
 
-    // 4. Handle non-working days
+    // 5. Handle non-working days
     if (
       context.shiftData?.shiftstatus.isHoliday ||
       context.shiftData?.shiftstatus.isDayOff
@@ -229,8 +338,19 @@ export class AttendanceCheckService {
       return this.handleNonWorkingDay(context);
     }
 
-    // 5. Regular period handling
-    return this.validateRegularPeriod(context);
+    // 6. Regular period validation
+    const isCheckingIn = !latestAttendance?.CheckInTime;
+    if (currentPeriod.type === PeriodType.OVERTIME) {
+      return this.handleOvertimeAttendance({
+        ...context,
+        isCheckingIn,
+      });
+    }
+
+    return this.handleRegularAttendance({
+      ...context,
+      isCheckingIn,
+    });
   }
 
   private async isEligibleForTransition(
@@ -486,49 +606,95 @@ export class AttendanceCheckService {
 
   private handlePeriodTransition(
     context: ValidationContext,
+    fromPeriod: { start: Date; end: Date; type: PeriodType },
+    toPeriod: { start: Date; end: Date; type: PeriodType },
   ): CheckInOutAllowance {
-    const {
-      enhancedStatus,
-      approvedOvertime,
-      inPremises,
-      address,
-      currentPeriod,
-    } = context;
+    const { now, inPremises, address } = context;
 
-    const transition = enhancedStatus.pendingTransitions[0];
-    const isOvertimeTransition = transition.to === PeriodType.OVERTIME;
+    // Define transition window dynamically based on period end/start
+    const transitionWindow = {
+      start: subMinutes(toPeriod.start, 15),
+      end: addMinutes(toPeriod.start, 15),
+      fromPeriod: fromPeriod.type,
+      toPeriod: toPeriod.type,
+    };
 
-    return this.createResponse(
-      true,
-      isOvertimeTransition
-        ? 'คุณกำลังจะเริ่มทำงานล่วงเวลา กรุณายืนยันการลงเวลา'
-        : 'คุณกำลังจะเริ่มกะปกติ กรุณายืนยันการลงเวลา',
-      {
-        inPremises,
-        address,
-        periodType: currentPeriod.type,
-        requireConfirmation: true,
-        flags: {
-          isOvertime: isOvertimeTransition,
-          isDayOffOvertime: approvedOvertime?.isDayOffOvertime || false,
-          isInsideShift: approvedOvertime?.isInsideShiftHours || false,
-          isAutoCheckOut: transition.from === PeriodType.REGULAR,
-          isAutoCheckIn: true,
-        },
-        timing: {
-          transitionTime: transition.transitionTime.toISOString(),
-          plannedStartTime: transition.transitionTime.toISOString(),
-        },
-        metadata: {
-          overtimeId: approvedOvertime?.id,
-          nextPeriod: {
-            type: transition.to,
-            startTime: format(transition.transitionTime, 'HH:mm'),
-            overtimeId: approvedOvertime?.id,
+    const isInTransitionWindow = isWithinInterval(now, {
+      start: transitionWindow.start,
+      end: transitionWindow.end,
+    });
+
+    if (!isInTransitionWindow) {
+      const formattedStart = format(transitionWindow.start, 'HH:mm');
+      const formattedEnd = format(transitionWindow.end, 'HH:mm');
+
+      return this.createResponse(
+        false,
+        `การเปลี่ยนกะต้องทำในช่วงเวลา ${formattedStart}-${formattedEnd} น.`,
+        {
+          inPremises,
+          address,
+          periodType: fromPeriod.type,
+          requireConfirmation: true,
+          flags: {
+            isOvertime:
+              fromPeriod.type === PeriodType.OVERTIME ||
+              toPeriod.type === PeriodType.OVERTIME,
+          },
+          timing: {
+            transitionWindow: {
+              start: transitionWindow.start.toISOString(),
+              end: transitionWindow.end.toISOString(),
+              fromPeriod: fromPeriod.type,
+              toPeriod: toPeriod.type,
+            },
           },
         },
-      },
+      );
+    }
+
+    // Create appropriate message based on transition type
+    const transitionMessage = this.getTransitionMessage(
+      fromPeriod.type,
+      toPeriod.type,
     );
+
+    return this.createResponse(true, transitionMessage, {
+      inPremises,
+      address,
+      periodType: fromPeriod.type,
+      requireConfirmation: true,
+      flags: {
+        isOvertime:
+          fromPeriod.type === PeriodType.OVERTIME ||
+          toPeriod.type === PeriodType.OVERTIME,
+        isAutoCheckOut: true,
+        isAutoCheckIn: true,
+      },
+      timing: {
+        transitionWindow: {
+          start: transitionWindow.start.toISOString(),
+          end: transitionWindow.end.toISOString(),
+          fromPeriod: fromPeriod.type,
+          toPeriod: toPeriod.type,
+        },
+        plannedEndTime: fromPeriod.end.toISOString(),
+        plannedStartTime: toPeriod.start.toISOString(),
+      },
+    });
+  }
+
+  private getTransitionMessage(
+    fromType: PeriodType,
+    toType: PeriodType,
+  ): string {
+    if (fromType === PeriodType.REGULAR && toType === PeriodType.OVERTIME) {
+      return 'กรุณายืนยันการลงเวลาออกกะปกติและเข้าทำงานล่วงเวลา';
+    }
+    if (fromType === PeriodType.OVERTIME && toType === PeriodType.REGULAR) {
+      return 'กรุณายืนยันการลงเวลาออก OT และเข้ากะปกติ';
+    }
+    return 'กรุณายืนยันการเปลี่ยนกะ';
   }
 
   private handleNonWorkingDay(context: ValidationContext): CheckInOutAllowance {

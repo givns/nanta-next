@@ -4,35 +4,51 @@ import { addDays, subMinutes, isWithinInterval } from 'date-fns';
 import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
 
 export class PeriodManagementService {
-  determineCurrentPeriod(time: Date, periods: Period[]): Period | null {
-    // Sort periods by start time
+  determineCurrentPeriod(
+    time: Date,
+    periods: Period[],
+    currentDay: Date = time,
+  ): Period | null {
+    // Sort and split periods by type
     const sortedPeriods = [...periods].sort(
       (a, b) => a.startTime.getTime() - b.startTime.getTime(),
     );
 
-    // Handle overnight periods
-    const adjustedPeriods = sortedPeriods.map((period) => {
-      if (period.isOvernight && period.endTime < period.startTime) {
-        return {
-          ...period,
-          endTime: addDays(period.endTime, 1),
-        };
-      }
-      return period;
-    });
+    const overtimePeriods = sortedPeriods.filter((p) => p.isOvertime);
+    const regularPeriods = sortedPeriods.filter((p) => !p.isOvertime);
 
-    // Find current period with early window consideration
-    for (const period of adjustedPeriods) {
-      const earlyWindow = period.isOvertime
-        ? ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD
-        : ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD;
-
-      const effectiveStartTime = subMinutes(period.startTime, earlyWindow);
+    // Process overtime periods first
+    for (const period of overtimePeriods) {
+      const adjustedPeriod = this.adjustPeriodForOvernight(period, currentDay);
+      const earlyWindow = ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD;
+      const effectiveStartTime = subMinutes(
+        adjustedPeriod.startTime,
+        earlyWindow,
+      );
 
       if (
         isWithinInterval(time, {
           start: effectiveStartTime,
-          end: period.endTime,
+          end: adjustedPeriod.endTime,
+        })
+      ) {
+        return period;
+      }
+    }
+
+    // Then check regular periods
+    for (const period of regularPeriods) {
+      const adjustedPeriod = this.adjustPeriodForOvernight(period, currentDay);
+      const earlyWindow = ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD;
+      const effectiveStartTime = subMinutes(
+        adjustedPeriod.startTime,
+        earlyWindow,
+      );
+
+      if (
+        isWithinInterval(time, {
+          start: effectiveStartTime,
+          end: adjustedPeriod.endTime,
         })
       ) {
         return period;
@@ -42,11 +58,20 @@ export class PeriodManagementService {
     return null;
   }
 
+  private adjustPeriodForOvernight(period: Period, currentDay: Date): Period {
+    if (period.isOvernight && period.endTime < period.startTime) {
+      return {
+        ...period,
+        endTime: addDays(period.endTime, 1),
+      };
+    }
+    return period;
+  }
+
   getNextPeriod(time: Date, periods: Period[]): Period | null {
     const sortedPeriods = [...periods].sort(
       (a, b) => a.startTime.getTime() - b.startTime.getTime(),
     );
-
     return sortedPeriods.find((period) => period.startTime > time) || null;
   }
 }
