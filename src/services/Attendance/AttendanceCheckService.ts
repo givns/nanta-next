@@ -672,25 +672,22 @@ export class AttendanceCheckService {
   ): CheckInOutAllowance {
     const { now, currentPeriod, inPremises, address } = context;
 
-    // Calculate time differences
+    // Calculate minutes before shift start
     const minutesBeforeShift = differenceInMinutes(
       currentPeriod.startTime,
       now,
     );
 
-    // Early check-in validation
-    const isEarlyCheckIn =
-      minutesBeforeShift > ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD;
-    if (isEarlyCheckIn) {
+    // Check if attempting to check in too early
+    if (minutesBeforeShift > ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD) {
+      const earliestCheckInTime = subMinutes(
+        currentPeriod.startTime,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      );
+
       return this.createResponse(
         false,
-        `ไม่สามารถลงเวลาเข้างานได้ก่อนเวลา ${format(
-          subMinutes(
-            currentPeriod.startTime,
-            ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-          ),
-          'HH:mm',
-        )} น.`,
+        `ไม่สามารถลงเวลาเข้างานได้ก่อนเวลา ${format(earliestCheckInTime, 'HH:mm')} น.`,
         {
           inPremises,
           address,
@@ -703,18 +700,16 @@ export class AttendanceCheckService {
             actualStartTime: now.toISOString(),
             plannedStartTime: currentPeriod.startTime.toISOString(),
             minutesEarly: minutesBeforeShift,
+            earliestAllowedTime: earliestCheckInTime.toISOString(),
           },
         },
       );
     }
 
-    // Late check-in calculation
+    // Calculate if check-in is late
     const isLateCheckIn =
-      now >
-      addMinutes(
-        currentPeriod.startTime,
-        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
-      );
+      differenceInMinutes(now, currentPeriod.startTime) >
+      ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD;
 
     return this.createResponse(
       true,

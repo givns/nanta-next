@@ -50,6 +50,7 @@ export interface CheckInOutAllowance {
     countdown?: number;
     lateCheckOutMinutes?: number;
     minutesEarly?: number;
+    earliestAllowedTime?: string;
     missedCheckInTime?: number;
     missedCheckOutTime?: number;
     overtimeMissed?: boolean;
