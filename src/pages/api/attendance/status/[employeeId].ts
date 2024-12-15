@@ -116,11 +116,42 @@ export default async function handler(
       });
     }
 
-    // Check for early overtime period
+    // Check for early overtime period and post-overtime transitions
     let effectiveWindow = { ...window };
     let effectivePeriod = null;
 
+    // Handle post-overtime transition
     if (
+      baseStatus?.latestAttendance?.overtimeState === 'overtime-ended' &&
+      window.nextPeriod?.type === 'regular'
+    ) {
+      const regularStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.nextPeriod.startTime}`,
+      );
+
+      effectiveWindow = {
+        ...window,
+        type: PeriodType.REGULAR,
+        current: {
+          start: regularStart.toISOString(),
+          end: `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
+        },
+        nextPeriod: null,
+        overtimeInfo: undefined, // Change null to undefined
+      };
+
+      effectivePeriod = {
+        type: PeriodType.REGULAR,
+        startTime: regularStart,
+        endTime: parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
+        ),
+        isOvertime: false,
+        isOvernight: false,
+      };
+    }
+    // Handle early overtime
+    else if (
       window.nextPeriod?.type === 'overtime' &&
       window.nextPeriod.overtimeInfo
     ) {
@@ -160,6 +191,7 @@ export default async function handler(
       }
     }
 
+    // Default period if no transitions apply
     if (!effectivePeriod) {
       effectivePeriod = {
         type: window.type as PeriodType,
