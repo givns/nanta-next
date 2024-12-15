@@ -464,9 +464,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                   <div>
                     <div className="text-sm text-gray-500 mb-1">เข้างาน OT</div>
                     <div className="font-medium">
-                      {attendanceStatus.latestAttendance?.CheckInTime
+                      {attendanceStatus.latestAttendance.CheckInTime
                         ? format(
-                            new Date(
+                            parseISO(
                               attendanceStatus.latestAttendance.CheckInTime,
                             ),
                             'HH:mm',
@@ -477,9 +477,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                   <div>
                     <div className="text-sm text-gray-500 mb-1">ออกงาน OT</div>
                     <div className="font-medium">
-                      {attendanceStatus.latestAttendance?.CheckOutTime
+                      {attendanceStatus.latestAttendance.CheckOutTime
                         ? format(
-                            new Date(
+                            parseISO(
                               attendanceStatus.latestAttendance.CheckOutTime,
                             ),
                             'HH:mm',
