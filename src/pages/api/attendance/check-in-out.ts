@@ -154,7 +154,11 @@ async function processCheckInOut(
       });
     }
 
-    // Cache the result
+    // Clear existing cache entries for this user
+    userCache.delete(task.employeeId || task.lineUserId!);
+    processedRequests.delete(requestKey);
+
+    // Cache the new result
     processedRequests.set(requestKey, {
       timestamp: Date.now(),
       status: updatedStatus,

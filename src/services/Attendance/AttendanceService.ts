@@ -100,11 +100,33 @@ export class AttendanceService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // New state mapping logic
+    let state = AttendanceState.ABSENT;
+    if (attendance) {
+      if (attendance.CheckInTime) {
+        state = attendance.CheckOutTime
+          ? AttendanceState.PRESENT
+          : AttendanceState.PRESENT;
+      }
+      if (attendance.isOvertime) {
+        state = AttendanceState.OVERTIME;
+      }
+    }
+
+    // New check status mapping
+    let checkStatus = CheckStatus.PENDING;
+    if (attendance) {
+      if (attendance.CheckInTime && !attendance.CheckOutTime) {
+        checkStatus = CheckStatus.CHECKED_IN;
+      } else if (attendance.CheckOutTime) {
+        checkStatus = CheckStatus.CHECKED_OUT;
+      }
+    }
+
     const result: AttendanceBaseResponse = {
-      state: (attendance?.state as AttendanceState) || AttendanceState.ABSENT,
-      checkStatus:
-        (attendance?.checkStatus as CheckStatus) || CheckStatus.PENDING,
-      isCheckingIn: !attendance?.CheckInTime,
+      state,
+      checkStatus,
+      isCheckingIn: !attendance?.CheckInTime || !!attendance?.CheckOutTime,
       latestAttendance: attendance
         ? {
             id: attendance.id,
@@ -112,10 +134,8 @@ export class AttendanceService {
             date: attendance.date.toISOString(),
             CheckInTime: attendance.CheckInTime?.toISOString() || null,
             CheckOutTime: attendance.CheckOutTime?.toISOString() || null,
-            state:
-              (attendance.state as AttendanceState) || AttendanceState.ABSENT,
-            checkStatus:
-              (attendance.checkStatus as CheckStatus) || CheckStatus.PENDING,
+            state,
+            checkStatus,
             overtimeState: attendance.overtimeState as
               | OvertimeState
               | undefined,
@@ -126,7 +146,7 @@ export class AttendanceService {
             isManualEntry: attendance.isManualEntry ?? false,
             isDayOff: attendance.isDayOff ?? false,
             shiftStartTime:
-              attendance.shiftStartTime?.toISOString() || undefined, // Convert to string
+              attendance.shiftStartTime?.toISOString() || undefined,
             shiftEndTime: attendance.shiftEndTime?.toISOString() || undefined,
           }
         : undefined,
