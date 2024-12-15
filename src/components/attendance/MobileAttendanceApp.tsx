@@ -14,6 +14,7 @@ import {
   AttendanceStateResponse,
   ValidationResponse,
   OvertimeState,
+  PeriodType,
 } from '@/types/attendance';
 import {
   calculateTimeDifference,
@@ -268,58 +269,87 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const getCheckInTime = () => {
     const latestAttendance = attendanceStatus.latestAttendance;
 
+    // Return next period time if in overtime-ended state
+    if (
+      latestAttendance?.overtimeState === 'overtime-ended' &&
+      currentPeriod?.type === PeriodType.REGULAR
+    ) {
+      return '--:--'; // Reset time for new regular period
+    }
+
+    // Direct time parsing from attendance data
     if (latestAttendance?.CheckInTime) {
-      const [hours, minutes] =
-        latestAttendance.CheckInTime.split('T')[1].split(':');
+      const [hours, minutes] = format(
+        parseISO(latestAttendance.CheckInTime),
+        'HH:mm',
+      ).split(':');
       return `${hours}:${minutes}`;
     }
+
+    // Handle current period check in
     if (currentPeriod?.checkInTime) {
-      const [hours, minutes] = new Date(currentPeriod.checkInTime)
-        .toISOString()
-        .split('T')[1]
-        .split(':');
+      const [hours, minutes] = format(
+        parseISO(currentPeriod.checkInTime),
+        'HH:mm',
+      ).split(':');
       return `${hours}:${minutes}`;
     }
+
+    // For overtime periods
     if (
       currentPeriod?.type === 'overtime' &&
       !attendanceStatus.isCheckingIn &&
       currentPeriod.current?.start
     ) {
-      const [hours, minutes] = new Date(currentPeriod.current.start)
-        .toISOString()
-        .split('T')[1]
-        .split(':');
+      const [hours, minutes] = format(
+        parseISO(currentPeriod.current.start),
+        'HH:mm',
+      ).split(':');
       return `${hours}:${minutes}`;
     }
+
     return '--:--';
   };
 
   const getCheckOutTime = () => {
     const latestAttendance = attendanceStatus.latestAttendance;
 
+    // Return next period time if in overtime-ended state
+    if (
+      latestAttendance?.overtimeState === 'overtime-ended' &&
+      currentPeriod?.type === PeriodType.REGULAR
+    ) {
+      return '--:--'; // Reset time for new regular period
+    }
+
     if (latestAttendance?.CheckOutTime) {
-      const [hours, minutes] =
-        latestAttendance.CheckOutTime.split('T')[1].split(':');
+      const [hours, minutes] = format(
+        parseISO(latestAttendance.CheckOutTime),
+        'HH:mm',
+      ).split(':');
       return `${hours}:${minutes}`;
     }
+
     if (currentPeriod?.checkOutTime) {
-      const [hours, minutes] = new Date(currentPeriod.checkOutTime)
-        .toISOString()
-        .split('T')[1]
-        .split(':');
+      const [hours, minutes] = format(
+        parseISO(currentPeriod.checkOutTime),
+        'HH:mm',
+      ).split(':');
       return `${hours}:${minutes}`;
     }
+
     if (
       currentPeriod?.type === 'overtime' &&
       !attendanceStatus.isCheckingIn &&
       currentPeriod.current?.end
     ) {
-      const [hours, minutes] = new Date(currentPeriod.current.end)
-        .toISOString()
-        .split('T')[1]
-        .split(':');
+      const [hours, minutes] = format(
+        parseISO(currentPeriod.current.end),
+        'HH:mm',
+      ).split(':');
       return `${hours}:${minutes}`;
     }
+
     return '--:--';
   };
 
@@ -496,11 +526,11 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
-                  <div className="font-medium">--:--</div>
+                  <div className="font-medium">{getCheckInTime()}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
-                  <div className="font-medium">--:--</div>
+                  <div className="font-medium">{getCheckOutTime()}</div>
                 </div>
               </div>
             </div>
