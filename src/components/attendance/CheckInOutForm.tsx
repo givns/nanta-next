@@ -395,6 +395,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     // Check for early checkout with emergency leave condition
     if (
       !isCheckingIn &&
+      currentPeriod?.type !== 'regular' &&
       validation?.flags?.isEarlyCheckOut &&
       validation?.flags?.isEmergencyLeave
     ) {
