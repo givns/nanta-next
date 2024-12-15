@@ -19,12 +19,16 @@ type AttendanceAction = {
   };
 };
 
-type ValidationState = {
+interface ValidationState {
   canProceed: boolean;
   message?: string;
   requireConfirmation?: boolean;
   confirmationMessage?: string;
-};
+  flags?: {
+    isAutoCheckIn?: boolean;
+    isCheckingIn?: boolean;
+  };
+}
 
 interface AttendanceActionButtonProps {
   // Core attendance action context
@@ -60,12 +64,15 @@ export const AttendanceActionButton: React.FC<AttendanceActionButtonProps> = ({
       case 'check-in':
         return action.period.type === 'overtime' ? 'IN' : 'IN';
       case 'check-out':
-        if (action.period.transition) {
-          return action.period.type === 'regular' ? 'OUT' : 'OUT';
+        if (
+          action.period.transition?.to === 'regular' &&
+          validation.canProceed
+        ) {
+          return 'IN';
         }
         return action.period.type === 'overtime' ? 'OUT' : 'OUT';
     }
-  }, [action, systemState]);
+  }, [action, systemState, validation]);
 
   const buttonStyle = React.useMemo(() => {
     const baseStyle =

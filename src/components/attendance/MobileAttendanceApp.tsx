@@ -454,14 +454,54 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
-                <div className="font-medium">{getCheckInTime()}</div>
+            {attendanceStatus.latestAttendance?.overtimeState ===
+              'overtime-ended' && (
+              <div className="mb-4 pb-4 border-b border-gray-200">
+                <div className="text-sm font-medium text-yellow-600 mb-2">
+                  ช่วงเวลาทำงานล่วงเวลา
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">เข้างาน OT</div>
+                    <div className="font-medium">
+                      {attendanceStatus.latestAttendance?.CheckInTime
+                        ? format(
+                            new Date(
+                              attendanceStatus.latestAttendance.CheckInTime,
+                            ),
+                            'HH:mm',
+                          )
+                        : '--:--'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">ออกงาน OT</div>
+                    <div className="font-medium">
+                      {attendanceStatus.latestAttendance?.CheckOutTime
+                        ? format(
+                            new Date(
+                              attendanceStatus.latestAttendance.CheckOutTime,
+                            ),
+                            'HH:mm',
+                          )
+                        : '--:--'}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
-                <div className="font-medium">{getCheckOutTime()}</div>
+            )}
+
+            <div>
+              <div className="text-sm font-medium mb-2">กะปกติ</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
+                  <div className="font-medium">--:--</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
+                  <div className="font-medium">--:--</div>
+                </div>
               </div>
             </div>
 
