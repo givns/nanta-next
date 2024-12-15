@@ -174,8 +174,10 @@ export default async function handler(
     }
 
     // 2. Better period handling with transition awareness
-    const nextPeriodStart = window.nextPeriod
-      ? parseISO(`${format(now, 'yyyy-MM-dd')}T${window.nextPeriod.startTime}`)
+    const nextPeriodStart = effectiveWindow.nextPeriod
+      ? parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${effectiveWindow.nextPeriod.startTime}`,
+        )
       : null;
 
     const isNearTransition =
@@ -270,9 +272,11 @@ export default async function handler(
       reason: baseValidation?.reason || 'Default validation',
       flags: {
         ...baseValidation?.flags,
-        isOvertime: isNearTransition
-          ? window.nextPeriod?.type === PeriodType.OVERTIME
-          : baseValidation?.flags?.isOvertime || false,
+        isOvertime: Boolean(
+          effectivePeriod.type === PeriodType.OVERTIME ||
+            (isNearTransition &&
+              effectiveWindow.nextPeriod?.type === 'overtime'),
+        ),
         isAutoCheckIn: enhancedStatus.missingEntries.some(
           (e) => e.type === 'check-in',
         ),
@@ -291,7 +295,7 @@ export default async function handler(
               transitionWindow: {
                 start: subMinutes(nextPeriodStart, 15).toISOString(),
                 end: addMinutes(nextPeriodStart, 30).toISOString(),
-                targetPeriod: window.nextPeriod?.type as PeriodType,
+                targetPeriod: effectiveWindow.nextPeriod?.type as PeriodType,
               },
             }
           : {}),
