@@ -105,6 +105,16 @@ export class AttendanceService {
     let isCheckingIn = true;
 
     if (attendance) {
+      if (
+        attendance.CheckOutTime &&
+        attendance.overtimeState === 'overtime-ended' &&
+        attendance.shiftStartTime // Regular shift start exists
+      ) {
+        isCheckingIn = true; // Force check-in for next shift
+      } else if (attendance.CheckInTime && attendance.CheckOutTime) {
+        isCheckingIn = false;
+      }
+
       if (attendance.CheckInTime) {
         state = attendance.CheckOutTime
           ? AttendanceState.PRESENT

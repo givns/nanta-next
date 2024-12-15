@@ -303,11 +303,52 @@ export class ShiftManagementService {
       orderBy: { createdAt: 'desc' },
     });
 
+    let state = AttendanceState.ABSENT;
+    let checkStatus = CheckStatus.PENDING;
+    let isCheckingIn = true;
+
+    if (attendance) {
+      if (
+        attendance.CheckOutTime &&
+        attendance.overtimeState === 'overtime-ended' &&
+        attendance.shiftStartTime // Regular shift start exists
+      ) {
+        isCheckingIn = true; // Force check-in for next shift
+      } else if (attendance.CheckInTime && attendance.CheckOutTime) {
+        isCheckingIn = false;
+      }
+
+      if (attendance.CheckInTime) {
+        state = attendance.CheckOutTime
+          ? AttendanceState.PRESENT
+          : AttendanceState.PRESENT;
+
+        // Determine checking in state based on last check-out
+        isCheckingIn =
+          !attendance.CheckOutTime ||
+          (attendance.CheckOutTime && attendance.isOvertime);
+      }
+
+      if (attendance.CheckInTime && !attendance.CheckOutTime) {
+        checkStatus = CheckStatus.CHECKED_IN;
+      } else if (attendance.CheckOutTime) {
+        checkStatus = CheckStatus.CHECKED_OUT;
+
+        // If last check-out was from overtime, prepare for regular shift check-in
+        if (attendance.isOvertime) {
+          isCheckingIn = true;
+        }
+      }
+
+      if (attendance.isOvertime) {
+        state = AttendanceState.OVERTIME;
+      }
+    }
+
     const result: AttendanceBaseResponse = {
-      state: (attendance?.state as AttendanceState) || AttendanceState.ABSENT,
-      checkStatus:
-        (attendance?.checkStatus as CheckStatus) || CheckStatus.PENDING,
-      isCheckingIn: !attendance?.CheckInTime,
+      state,
+      checkStatus,
+      isCheckingIn: !attendance?.CheckInTime || !!attendance?.CheckOutTime,
       latestAttendance: attendance
         ? {
             id: attendance.id,
@@ -315,10 +356,8 @@ export class ShiftManagementService {
             date: attendance.date.toISOString(),
             CheckInTime: attendance.CheckInTime?.toISOString() || null,
             CheckOutTime: attendance.CheckOutTime?.toISOString() || null,
-            state:
-              (attendance.state as AttendanceState) || AttendanceState.ABSENT,
-            checkStatus:
-              (attendance.checkStatus as CheckStatus) || CheckStatus.PENDING,
+            state,
+            checkStatus,
             overtimeState: attendance.overtimeState as
               | OvertimeState
               | undefined,
@@ -329,7 +368,7 @@ export class ShiftManagementService {
             isManualEntry: attendance.isManualEntry ?? false,
             isDayOff: attendance.isDayOff ?? false,
             shiftStartTime:
-              attendance.shiftStartTime?.toISOString() || undefined, // Convert to string
+              attendance.shiftStartTime?.toISOString() || undefined,
             shiftEndTime: attendance.shiftEndTime?.toISOString() || undefined,
           }
         : undefined,
