@@ -266,10 +266,21 @@ export default async function handler(
       mappedOvertimeInfo,
     );
 
-    // 6. Improved validation handling
     const modifiedValidation: ValidationResponseWithMetadata = {
       allowed: baseValidation?.allowed ?? false,
-      reason: baseValidation?.reason || 'Default validation',
+      reason:
+        effectiveWindow.nextPeriod?.type === 'overtime' &&
+        effectiveWindow.nextPeriod.overtimeInfo
+          ? `ไม่สามารถลงเวลาเข้างานล่วงเวลาได้ก่อนเวลา ${format(
+              subMinutes(
+                parseISO(
+                  `${format(now, 'yyyy-MM-dd')}T${effectiveWindow.nextPeriod.overtimeInfo.startTime}`,
+                ),
+                ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+              ),
+              'HH:mm',
+            )} น.`
+          : baseValidation?.reason || 'Default validation',
       flags: {
         ...baseValidation?.flags,
         isOvertime: Boolean(
