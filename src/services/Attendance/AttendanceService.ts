@@ -100,26 +100,35 @@ export class AttendanceService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // New state mapping logic
     let state = AttendanceState.ABSENT;
+    let checkStatus = CheckStatus.PENDING;
+    let isCheckingIn = true;
+
     if (attendance) {
       if (attendance.CheckInTime) {
         state = attendance.CheckOutTime
           ? AttendanceState.PRESENT
           : AttendanceState.PRESENT;
-      }
-      if (attendance.isOvertime) {
-        state = AttendanceState.OVERTIME;
-      }
-    }
 
-    // New check status mapping
-    let checkStatus = CheckStatus.PENDING;
-    if (attendance) {
+        // Determine checking in state based on last check-out
+        isCheckingIn =
+          !attendance.CheckOutTime ||
+          (attendance.CheckOutTime && attendance.isOvertime);
+      }
+
       if (attendance.CheckInTime && !attendance.CheckOutTime) {
         checkStatus = CheckStatus.CHECKED_IN;
       } else if (attendance.CheckOutTime) {
         checkStatus = CheckStatus.CHECKED_OUT;
+
+        // If last check-out was from overtime, prepare for regular shift check-in
+        if (attendance.isOvertime) {
+          isCheckingIn = true;
+        }
+      }
+
+      if (attendance.isOvertime) {
+        state = AttendanceState.OVERTIME;
       }
     }
 
