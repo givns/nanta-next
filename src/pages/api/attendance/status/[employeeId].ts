@@ -301,18 +301,21 @@ export default async function handler(
     const modifiedValidation: ValidationResponseWithMetadata = {
       allowed: baseValidation?.allowed ?? false,
       reason:
-        effectiveWindow.nextPeriod?.type === 'overtime' &&
-        effectiveWindow.nextPeriod.overtimeInfo
-          ? `ไม่สามารถลงเวลาเข้างานล่วงเวลาได้ก่อนเวลา ${format(
-              subMinutes(
-                parseISO(
-                  `${format(now, 'yyyy-MM-dd')}T${effectiveWindow.nextPeriod.overtimeInfo.startTime}`,
+        baseStatus?.latestAttendance?.overtimeState === 'overtime-ended' &&
+        effectivePeriod.type === PeriodType.REGULAR
+          ? 'กรุณายืนยันการเริ่มงานกะปกติ'
+          : effectiveWindow.nextPeriod?.type === 'overtime' &&
+              effectiveWindow.nextPeriod.overtimeInfo
+            ? `ไม่สามารถลงเวลาเข้างานล่วงเวลาได้ก่อนเวลา ${format(
+                subMinutes(
+                  parseISO(
+                    `${format(now, 'yyyy-MM-dd')}T${effectiveWindow.nextPeriod.overtimeInfo.startTime}`,
+                  ),
+                  ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
                 ),
-                ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-              ),
-              'HH:mm',
-            )} น.`
-          : baseValidation?.reason || 'Default validation',
+                'HH:mm',
+              )} น.`
+            : baseValidation?.reason || 'Default validation',
       flags: {
         ...baseValidation?.flags,
         isOvertime: Boolean(
