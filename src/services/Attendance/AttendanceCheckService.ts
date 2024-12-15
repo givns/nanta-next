@@ -399,7 +399,7 @@ export class AttendanceCheckService {
   }> {
     const { now, latestAttendance, approvedOvertime, shiftData } = context;
 
-    if (!approvedOvertime || !latestAttendance) {
+    if (!approvedOvertime) {
       return {
         canTransitionToOvertime: false,
         currentPeriodType: PeriodType.REGULAR,
@@ -413,16 +413,37 @@ export class AttendanceCheckService {
       `${format(now, 'yyyy-MM-dd')}T${approvedOvertime.endTime}`,
     );
 
-    // Check for immediate transition after checkout
-    if (latestAttendance.CheckOutTime) {
+    // Check if within early overtime window
+    const earlyOvertimeWindow = subMinutes(
+      overtimeStart,
+      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+    );
+
+    if (!latestAttendance || !latestAttendance.CheckInTime) {
+      if (
+        isWithinInterval(now, {
+          start: earlyOvertimeWindow,
+          end: overtimeEnd,
+        })
+      ) {
+        return {
+          canTransitionToOvertime: true,
+          overtimeWindow: { start: overtimeStart, end: overtimeEnd },
+          currentPeriodType: PeriodType.OVERTIME,
+          transitionType: 'immediate',
+        };
+      }
+    }
+
+    // Rest of existing immediate transition logic
+    if (latestAttendance?.CheckOutTime) {
       const checkOutTime = new Date(latestAttendance.CheckOutTime);
       const timeSinceCheckout = differenceInMinutes(now, checkOutTime);
 
-      // If checked out within last 5 minutes and near overtime start
       if (
         timeSinceCheckout <= 5 &&
         isWithinInterval(now, {
-          start: subMinutes(overtimeStart, 15), // Reduced window for immediate transition
+          start: subMinutes(overtimeStart, 15),
           end: addMinutes(overtimeStart, 30),
         })
       ) {
@@ -435,7 +456,7 @@ export class AttendanceCheckService {
       }
     }
 
-    // Regular overtime window check
+    // Regular overtime window check remains unchanged
     if (
       isWithinInterval(now, {
         start: subMinutes(overtimeStart, 30),
