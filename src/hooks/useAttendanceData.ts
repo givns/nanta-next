@@ -105,6 +105,8 @@ export function useAttendanceData({
                 allowed: responseData.validation.allowed,
                 reason: responseData.validation.reason,
                 flags: {
+                  isCheckingIn:
+                    responseData.validation.flags?.isCheckingIn || false,
                   isLateCheckIn:
                     responseData.validation.flags?.isLateCheckIn || false,
                   isEarlyCheckOut:

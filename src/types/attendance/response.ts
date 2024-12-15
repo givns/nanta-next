@@ -50,6 +50,7 @@ export interface ValidationResponseWithMetadata {
   allowed: boolean;
   reason: string;
   flags: {
+    isCheckingIn: boolean;
     isLateCheckIn: boolean;
     isEarlyCheckOut: boolean;
     isPlannedHalfDayLeave: boolean;

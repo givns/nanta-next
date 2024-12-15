@@ -321,6 +321,7 @@ export default async function handler(
         isEarlyCheckOut: false,
         isEmergencyLeave: false,
         isPlannedHalfDayLeave: false,
+        isCheckingIn: baseStatus?.isCheckingIn ?? true, // Add this line
         isOvertime: Boolean(
           effectivePeriod.type === PeriodType.OVERTIME ||
             (isNearTransition &&
