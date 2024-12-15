@@ -13,6 +13,7 @@ import {
   AttendanceRecord,
   ApprovedOvertimeInfo,
   ValidationResponseWithMetadata,
+  ATTENDANCE_CONSTANTS,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { NextApiRequest, NextApiResponse } from 'next';
@@ -115,6 +116,63 @@ export default async function handler(
       });
     }
 
+    // Check for early overtime period
+    let effectiveWindow = { ...window };
+    let effectivePeriod = null;
+
+    if (
+      window.nextPeriod?.type === 'overtime' &&
+      window.nextPeriod.overtimeInfo
+    ) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.nextPeriod.overtimeInfo.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.nextPeriod.overtimeInfo.endTime}`,
+      );
+      const earlyWindow = subMinutes(
+        overtimeStart,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      );
+
+      if (isWithinInterval(now, { start: earlyWindow, end: overtimeEnd })) {
+        effectiveWindow = {
+          ...window,
+          type: PeriodType.OVERTIME,
+          current: {
+            start: overtimeStart.toISOString(),
+            end: overtimeEnd.toISOString(),
+          },
+          overtimeInfo: window.nextPeriod.overtimeInfo,
+          nextPeriod: null,
+        };
+
+        effectivePeriod = {
+          type: PeriodType.OVERTIME,
+          startTime: overtimeStart,
+          endTime: overtimeEnd,
+          isOvertime: true,
+          overtimeId: window.nextPeriod.overtimeInfo.id,
+          isOvernight:
+            window.nextPeriod.overtimeInfo.endTime <
+            window.nextPeriod.overtimeInfo.startTime,
+        };
+      }
+    }
+
+    if (!effectivePeriod) {
+      effectivePeriod = {
+        type: window.type as PeriodType,
+        startTime: new Date(window.current.start),
+        endTime: new Date(window.current.end),
+        isOvertime: window.type === PeriodType.OVERTIME,
+        overtimeId: window.overtimeInfo?.id,
+        isOvernight: window.overtimeInfo
+          ? window.overtimeInfo.endTime < window.overtimeInfo.startTime
+          : window.current.end < window.current.start,
+      };
+    }
+
     // 2. Better period handling with transition awareness
     const nextPeriodStart = window.nextPeriod
       ? parseISO(`${format(now, 'yyyy-MM-dd')}T${window.nextPeriod.startTime}`)
@@ -143,20 +201,20 @@ export default async function handler(
     currentPeriod;
 
     // 4. Map overtime info with proper handling
-    const mappedOvertimeInfo = window?.overtimeInfo
+    const mappedOvertimeInfo = effectiveWindow.overtimeInfo
       ? ({
-          id: window.overtimeInfo.id,
+          id: effectiveWindow.overtimeInfo.id,
           employeeId: employeeId,
-          date: new Date(window.current.start),
-          startTime: window.overtimeInfo.startTime,
-          endTime: window.overtimeInfo.endTime,
-          durationMinutes: window.overtimeInfo.durationMinutes,
+          date: new Date(effectiveWindow.current.start),
+          startTime: effectiveWindow.overtimeInfo.startTime,
+          endTime: effectiveWindow.overtimeInfo.endTime,
+          durationMinutes: effectiveWindow.overtimeInfo.durationMinutes,
           status: 'approved' as const,
           employeeResponse: null,
-          reason: window.overtimeInfo.reason || null,
+          reason: effectiveWindow.overtimeInfo.reason || null,
           approverId: null,
-          isDayOffOvertime: window.overtimeInfo.isDayOffOvertime,
-          isInsideShiftHours: window.overtimeInfo.isInsideShiftHours,
+          isDayOffOvertime: effectiveWindow.overtimeInfo.isDayOffOvertime,
+          isInsideShiftHours: effectiveWindow.overtimeInfo.isInsideShiftHours,
         } as ApprovedOvertimeInfo)
       : null;
 
@@ -202,7 +260,7 @@ export default async function handler(
 
     const enhancedStatus = await enhancementService.enhanceAttendanceStatus(
       mappedLatestAttendance,
-      currentPeriod,
+      effectivePeriod,
       mappedOvertimeInfo,
     );
 
@@ -242,26 +300,14 @@ export default async function handler(
 
     // 7. Modified window response
     const modifiedWindow: ExtendedShiftWindowResponse = {
-      ...window,
-      pendingTransitions: [
-        ...enhancedStatus.pendingTransitions,
-        ...(isNearTransition && window.nextPeriod
-          ? [
-              {
-                from: currentPeriod.type,
-                to: window.nextPeriod.type as PeriodType,
-                transitionTime: nextPeriodStart!,
-                isCompleted: false,
-              },
-            ]
-          : []),
-      ],
+      ...effectiveWindow,
+      pendingTransitions: [...enhancedStatus.pendingTransitions],
     };
 
     // 8. Normalized status with better transition handling
     const normalizedStatus: AttendanceBaseResponse = {
       state:
-        isNearTransition && window.nextPeriod?.type === PeriodType.OVERTIME
+        effectivePeriod.type === PeriodType.OVERTIME
           ? AttendanceState.OVERTIME
           : baseStatus?.state || AttendanceState.ABSENT,
       checkStatus: baseStatus?.checkStatus || CheckStatus.PENDING,
@@ -274,19 +320,14 @@ export default async function handler(
             CheckInTime: baseStatus.latestAttendance.CheckInTime,
             CheckOutTime: baseStatus.latestAttendance.CheckOutTime,
             state:
-              isNearTransition &&
-              window.nextPeriod?.type === PeriodType.OVERTIME
+              effectivePeriod.type === PeriodType.OVERTIME
                 ? AttendanceState.OVERTIME
                 : baseStatus.latestAttendance.state || AttendanceState.ABSENT,
             checkStatus:
               baseStatus.latestAttendance.checkStatus || CheckStatus.PENDING,
             overtimeState: baseStatus.latestAttendance.overtimeState,
             isLateCheckIn: baseStatus.latestAttendance.isLateCheckIn || false,
-            isOvertime:
-              isNearTransition &&
-              window.nextPeriod?.type === PeriodType.OVERTIME
-                ? true
-                : baseStatus.latestAttendance.isOvertime || false,
+            isOvertime: effectivePeriod.type === PeriodType.OVERTIME,
             isManualEntry: baseStatus.latestAttendance.isManualEntry || false,
             isDayOff: baseStatus.latestAttendance.isDayOff || false,
             shiftStartTime: baseStatus.latestAttendance.shiftStartTime,
