@@ -60,14 +60,16 @@ export const AttendanceActionButton: React.FC<AttendanceActionButtonProps> = ({
     if (!systemState.isReady) return '...';
     if (!systemState.locationValid) return '!';
 
+    // Add check for post-overtime regular check-in
+    if (validation.flags?.isCheckingIn && action.period.type === 'regular') {
+      return 'IN';
+    }
+
     switch (action.type) {
       case 'check-in':
         return action.period.type === 'overtime' ? 'IN' : 'IN';
       case 'check-out':
-        if (
-          action.period.transition?.to === 'regular' &&
-          validation.canProceed
-        ) {
+        if (action.period.transition?.to === 'regular') {
           return 'IN';
         }
         return action.period.type === 'overtime' ? 'OUT' : 'OUT';
