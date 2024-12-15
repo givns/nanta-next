@@ -753,12 +753,40 @@ export class AttendanceCheckService {
     } = context;
 
     if (isCheckingIn) {
-      const isLateCheckIn =
-        now >
-        addMinutes(
-          currentPeriod.startTime,
-          ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+      const overtimeStart = currentPeriod.startTime;
+      const earlyCheckInWindow = subMinutes(
+        overtimeStart,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      );
+
+      // Check if attempting to check in too early
+      if (isBefore(now, earlyCheckInWindow)) {
+        return this.createResponse(
+          false,
+          `ไม่สามารถลงเวลาเข้างานได้ก่อนเวลา ${format(earlyCheckInWindow, 'HH:mm')} น.`,
+          {
+            inPremises,
+            address,
+            periodType: PeriodType.OVERTIME,
+            flags: {
+              isOvertime: true,
+              isDayOffOvertime: approvedOvertime?.isDayOffOvertime || false,
+              isInsideShift: approvedOvertime?.isInsideShiftHours || false,
+              isEarlyCheckIn: true,
+            },
+            timing: {
+              actualStartTime: now.toISOString(),
+              plannedStartTime: overtimeStart.toISOString(),
+              earliestAllowedTime: earlyCheckInWindow.toISOString(),
+            },
+          },
         );
+      }
+
+      const isLateCheckIn = isAfter(
+        now,
+        addMinutes(overtimeStart, ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD),
+      );
 
       return this.createResponse(
         true,
@@ -772,11 +800,11 @@ export class AttendanceCheckService {
             isDayOffOvertime: approvedOvertime?.isDayOffOvertime || false,
             isInsideShift: approvedOvertime?.isInsideShiftHours || false,
             isLateCheckIn,
-            isEarlyCheckIn: now < currentPeriod.startTime,
+            isEarlyCheckIn: isBefore(now, overtimeStart),
           },
           timing: {
             actualStartTime: now.toISOString(),
-            plannedStartTime: currentPeriod.startTime.toISOString(),
+            plannedStartTime: overtimeStart.toISOString(),
           },
           metadata: {
             overtimeId: currentPeriod.overtimeId,
@@ -785,7 +813,8 @@ export class AttendanceCheckService {
       );
     }
 
-    const isEarlyCheckOut = now < currentPeriod.endTime;
+    // Rest of the existing check-out logic remains the same
+    const isEarlyCheckOut = isBefore(now, currentPeriod.endTime);
     return this.createResponse(true, 'คุณกำลังลงเวลาออกจากการทำงานล่วงเวลา', {
       inPremises,
       address,
