@@ -257,29 +257,7 @@ export class AttendanceService {
     const now = getCurrentTime();
     const periods: Period[] = [];
 
-    // Get regular shift period
-    const shift = await this.shiftService.getEffectiveShiftAndStatus(
-      employeeId,
-      now,
-    );
-    if (shift?.effectiveShift) {
-      const shiftStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.startTime}`,
-      );
-      const shiftEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.endTime}`,
-      );
-
-      periods.push({
-        type: PeriodType.REGULAR,
-        startTime: shiftStart,
-        endTime: shiftEnd,
-        isOvertime: false,
-        isOvernight: shiftEnd < shiftStart,
-      });
-    }
-
-    // Get overtime period using existing service
+    // Get overtime period first
     const overtimeRequest =
       await this.overTimeService.getCurrentApprovedOvertimeRequest(
         employeeId,
@@ -298,6 +276,26 @@ export class AttendanceService {
         isOvertime: true,
         overtimeId: overtimeRequest.id,
         isOvernight: overtimeRequest.endTime < overtimeRequest.startTime,
+      });
+    }
+
+    // Add regular shift period
+    const shift = await this.shiftService.getEffectiveShiftAndStatus(
+      employeeId,
+      now,
+    );
+    if (shift?.effectiveShift) {
+      periods.push({
+        type: PeriodType.REGULAR,
+        startTime: parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.startTime}`,
+        ),
+        endTime: parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.endTime}`,
+        ),
+        isOvertime: false,
+        isOvernight:
+          shift.effectiveShift.endTime < shift.effectiveShift.startTime,
       });
     }
 
