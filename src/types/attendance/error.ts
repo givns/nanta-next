@@ -21,6 +21,7 @@ export enum ErrorCode {
   ATTENDANCE_ERROR = 'ATTENDANCE_ERROR',
   LOCATION_ERROR = 'LOCATION_ERROR',
   SHIFT_DATA_ERROR = 'SHIFT_DATA_ERROR',
+  DATA_FETCH_ERROR = 'DATA_FETCH_ERROR',
 }
 
 export interface AppErrorParams {

@@ -35,6 +35,7 @@ import {
   subMinutes,
 } from 'date-fns';
 import { NextApiRequest, NextApiResponse } from 'next';
+import { z } from 'zod';
 // Initialize services
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
@@ -47,6 +48,22 @@ const attendanceService = new AttendanceService(
   services.notificationService,
   services.timeEntryService,
 );
+
+const RequestSchema = z.object({
+  employeeId: z.string(),
+  inPremises: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
+  address: z.string().optional(),
+  coordinates: z
+    .object({
+      lat: z.number(),
+      lng: z.number(),
+    })
+    .optional(),
+  confidence: z.string().optional(),
+});
 
 function mapEnhancedResponse(
   baseStatus: AttendanceBaseResponse,
@@ -249,137 +266,190 @@ function mapEnhancedResponse(
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<AttendanceStatusResponse | { error: string }>,
+  res: NextApiResponse<
+    AttendanceStatusResponse | { error: string; message?: string }
+  >,
 ) {
+  console.log('Attendance status request:', {
+    method: req.method,
+    query: req.query,
+    timestamp: getCurrentTime().toISOString(),
+  });
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { employeeId } = req.query;
-  const { inPremises, address } = req.query as {
-    inPremises?: string;
-    address?: string;
-  };
-
-  if (!employeeId || typeof employeeId !== 'string') {
-    return res.status(400).json({ error: 'Invalid employeeId' });
-  }
-
   try {
+    // Validate request parameters
+    const validatedParams = RequestSchema.safeParse(req.query);
+    if (!validatedParams.success) {
+      return res.status(400).json({
+        error: ErrorCode.INVALID_INPUT,
+        message: 'Invalid request parameters',
+      });
+    }
+
+    const { employeeId, inPremises, address } = validatedParams.data;
+
     const now = getCurrentTime();
     const periodManager = new PeriodManagementService();
     const enhancementService = new AttendanceEnhancementService();
 
-    // 1. Fetch base data
-    const [baseStatus, window, baseValidation] = await Promise.all([
-      attendanceService.getBaseStatus(employeeId),
-      services.shiftService.getCurrentWindow(employeeId, now),
-      attendanceService.validateCheckInOut(
-        employeeId,
-        inPremises === 'true',
-        address || '',
-      ),
-    ]);
+    try {
+      // 1. Fetch base data with error handling
+      const [baseStatus, window, baseValidation] = await Promise.all([
+        attendanceService.getBaseStatus(employeeId).catch((error) => {
+          console.error('Error fetching base status:', error);
+          throw new AppError({
+            code: ErrorCode.DATA_FETCH_ERROR,
+            message: 'Failed to fetch attendance status',
+          });
+        }),
+        services.shiftService
+          .getCurrentWindow(employeeId, now)
+          .catch((error) => {
+            console.error('Error fetching window:', error);
+            throw new AppError({
+              code: ErrorCode.SHIFT_DATA_ERROR,
+              message: 'Failed to fetch shift data',
+            });
+          }),
+        attendanceService.validateCheckInOut(
+          employeeId,
+          inPremises,
+          address || '',
+        ),
+      ]);
 
-    if (!window) {
-      throw new AppError({
-        code: ErrorCode.SHIFT_DATA_ERROR,
-        message: 'Shift configuration error',
+      if (!window) {
+        throw new AppError({
+          code: ErrorCode.SHIFT_DATA_ERROR,
+          message: 'Shift configuration not found',
+        });
+      }
+
+      // Rest of your existing logic stays the same
+      const { effectiveWindow, effectivePeriod } =
+        periodManager.determineEffectiveWindow(
+          window,
+          baseStatus,
+          now,
+          window.overtimeInfo,
+        );
+
+      const regularPeriod =
+        effectivePeriod ||
+        periodManager.createPeriodFromWindow(effectiveWindow);
+      const overtimePeriod = effectiveWindow.overtimeInfo
+        ? periodManager.createOvertimePeriod(effectiveWindow.overtimeInfo, now)
+        : null;
+
+      const validPeriods = [regularPeriod, overtimePeriod].filter(
+        (p) => p !== null,
+      );
+      const allPeriods = periodManager.sortAndValidatePeriods(validPeriods);
+
+      // 4. Get attendance records with error handling
+      const records = await Promise.all(
+        allPeriods.map((period) =>
+          attendanceService
+            .getAttendanceForPeriod(employeeId, period)
+            .catch((error) => {
+              console.error('Error fetching attendance record:', error);
+              return null;
+            }),
+        ),
+      );
+
+      // Your existing mapping and enhancement logic...
+      const mappedOvertimeInfo = effectiveWindow.overtimeInfo
+        ? ({
+            id: effectiveWindow.overtimeInfo.id,
+            employeeId,
+            date: now,
+            startTime: effectiveWindow.overtimeInfo.startTime,
+            endTime: effectiveWindow.overtimeInfo.endTime,
+            status: 'approved' as const,
+            employeeResponse: null,
+            approverId: null,
+            durationMinutes: effectiveWindow.overtimeInfo.durationMinutes,
+            isDayOffOvertime: effectiveWindow.overtimeInfo.isDayOffOvertime,
+            isInsideShiftHours: effectiveWindow.overtimeInfo.isInsideShiftHours,
+            // Convert undefined to null for the reason field
+            reason: effectiveWindow.overtimeInfo.reason || null,
+          } as ApprovedOvertimeInfo)
+        : null;
+
+      const enhancedStatus = await enhancementService.enhanceAttendanceStatus(
+        baseStatus?.latestAttendance
+          ? AttendanceMappers.toAttendanceRecord(baseStatus.latestAttendance)
+          : null,
+        allPeriods[0],
+        mappedOvertimeInfo,
+      );
+
+      const timeline = createTimelineEnhancement(
+        allPeriods,
+        records.filter((r): r is AttendanceRecord => r !== null),
+        now,
+      );
+
+      const enhancedValidation = createEnhancedValidation(
+        enhancedStatus,
+        allPeriods,
+        records.filter((r): r is AttendanceRecord => r !== null),
+        now,
+      );
+
+      const response = mapEnhancedResponse(
+        baseStatus,
+        enhancedStatus,
+        allPeriods,
+        timeline,
+        enhancedValidation,
+        {
+          records: records.filter((r): r is AttendanceRecord => r !== null),
+          window: effectiveWindow,
+          baseValidation,
+          now,
+        },
+      );
+
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof AppError) {
+        return res.status(400).json({
+          error: error.code,
+          message: error.message,
+        });
+      }
+      throw error; // Re-throw unexpected errors
+    }
+  } catch (error) {
+    console.error('Attendance status error:', {
+      error,
+      query: req.query,
+      timestamp: getCurrentTime().toISOString(),
+    });
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: ErrorCode.INVALID_INPUT,
+        message: 'Invalid request parameters',
       });
     }
 
-    // 2. Get effective periods
-    const { effectiveWindow, effectivePeriod } =
-      periodManager.determineEffectiveWindow(
-        window,
-        baseStatus,
-        now,
-        window.overtimeInfo,
-      );
-
-    // 3. Create and validate periods
-    const regularPeriod =
-      effectivePeriod || periodManager.createPeriodFromWindow(effectiveWindow);
-
-    const overtimePeriod = effectiveWindow.overtimeInfo
-      ? periodManager.createOvertimePeriod(effectiveWindow.overtimeInfo, now)
-      : null;
-
-    // When filtering periods
-    const validPeriods = [regularPeriod, overtimePeriod].filter(
-      (p): p is Period => p !== null,
-    );
-    const allPeriods = periodManager.sortAndValidatePeriods(validPeriods);
-
-    // 4. Get attendance records for each period
-    const records = await Promise.all(
-      allPeriods.map((period) =>
-        attendanceService.getAttendanceForPeriod(employeeId, period),
-      ),
-    );
-
-    // 5. Get enhanced status
-    const mappedOvertimeInfo = effectiveWindow.overtimeInfo
-      ? ({
-          id: effectiveWindow.overtimeInfo.id,
-          employeeId,
-          date: now,
-          startTime: effectiveWindow.overtimeInfo.startTime,
-          endTime: effectiveWindow.overtimeInfo.endTime,
-          status: 'approved' as const,
-          employeeResponse: null,
-          approverId: null,
-          durationMinutes: effectiveWindow.overtimeInfo.durationMinutes,
-          isDayOffOvertime: effectiveWindow.overtimeInfo.isDayOffOvertime,
-          isInsideShiftHours: effectiveWindow.overtimeInfo.isInsideShiftHours,
-          reason: effectiveWindow.overtimeInfo.reason,
-        } as ApprovedOvertimeInfo)
-      : null;
-
-    const enhancedStatus = await enhancementService.enhanceAttendanceStatus(
-      baseStatus?.latestAttendance
-        ? AttendanceMappers.toAttendanceRecord(baseStatus.latestAttendance)
-        : null,
-      allPeriods[0],
-      mappedOvertimeInfo, // Use mapped version
-    );
-
-    // 6. Create timeline enhancement
-    const timeline = createTimelineEnhancement(
-      allPeriods,
-      records.filter((record) => record !== null) as AttendanceRecord[],
-      now,
-    );
-
-    // 7. Build enhanced validation
-    const enhancedValidation = createEnhancedValidation(
-      enhancedStatus,
-      allPeriods,
-      records.filter((record) => record !== null) as AttendanceRecord[],
-      now,
-    );
-
-    // 8. Map to response format
-    const response = mapEnhancedResponse(
-      baseStatus,
-      enhancedStatus,
-      allPeriods,
-      timeline,
-      enhancedValidation,
-      {
-        records: records.filter((r): r is AttendanceRecord => r !== null),
-        window: effectiveWindow,
-        baseValidation,
-        now,
-      },
-    );
-
-    return res.status(200).json(response);
-  } catch (error) {
-    console.error('Attendance status error:', error);
     return res.status(500).json({
-      error: error instanceof Error ? error.message : 'Internal server error',
+      error: ErrorCode.INTERNAL_ERROR,
+      message: error instanceof Error ? error.message : 'Internal server error',
     });
+  } finally {
+    try {
+      await prisma.$disconnect();
+    } catch (err) {
+      console.error('Error disconnecting from database:', err);
+    }
   }
 }
 
