@@ -87,7 +87,7 @@ export class UserService {
     lineUserId: string,
   ): Promise<AttendanceStatusInfo> {
     try {
-      const response = await axios.get('/api/attendance-status', {
+      const response = await axios.get('/api/attendance/attendance-status', {
         headers: {
           'x-line-userid': lineUserId,
         },

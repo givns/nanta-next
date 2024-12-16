@@ -60,10 +60,27 @@ export class CacheService {
         connectTimeout: 10000,
         enableReadyCheck: true,
         enableOfflineQueue: true,
+        lazyConnect: true, // Add this to prevent immediate connection
         reconnectOnError: (err) => {
           console.error('Redis reconnect error:', err.message);
           return true;
         },
+      });
+
+      // Wait for connection before proceeding
+      await new Promise<void>((resolve, reject) => {
+        this.client!.once('ready', () => {
+          console.info('Redis: Connection established and ready');
+          resolve();
+        });
+
+        this.client!.once('error', (err) => {
+          console.error('Redis initial connection error:', err);
+          reject(err);
+        });
+
+        // Add connection timeout
+        setTimeout(() => reject(new Error('Redis connection timeout')), 10000);
       });
 
       this.setupRedisEventListeners();
@@ -88,18 +105,6 @@ export class CacheService {
         console.info(`Redis: Reconnecting in ${ms}ms`),
       )
       .on('end', () => console.warn('Redis: Connection ended'));
-  }
-
-  private async checkRedisHealth(): Promise<boolean> {
-    if (!this.client) return false;
-
-    try {
-      const pong = await this.client.ping();
-      return pong === 'PONG';
-    } catch (error) {
-      console.error('Redis health check failed:', error);
-      return false;
-    }
   }
 
   private recordError(type: string) {
